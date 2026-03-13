@@ -1,0 +1,24 @@
+{
+  "seed": 1772875172,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-81.82\" as left operand of \"&\"\n    invoked from within\n\"expr {round((($j ? 72 : 3) ^ (-81.82 & 71)))}\"\n    (\"default\" arm line 37)\n    invoked from within\n\"switch -- -15 {\n    11.57 {\n        switch -- xut {\n            kgbvuacn {\n                if {(!double(-28.64))} {\n                    append count 5...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_di894et.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-81.82\" as left operand of \"&\"\n    invoked from within\n\"expr {round((($j ? 72 : 3) ^ (-81.82 & 71)))}\"\n    (\"default\" arm line 37)\n    invoked from within\n\"switch -- -15 {\n    11.57 {\n        switch -- xut {\n            kgbvuacn {\n                if {(!double(-28.64))} {\n                    append count 5...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_di894et.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

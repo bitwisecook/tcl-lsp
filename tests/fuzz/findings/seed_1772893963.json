@@ -1,0 +1,23 @@
+{
+  "seed": 1772893963,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"42.6\" as left operand of \"&\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"42.60\" as left operand of \"&\"\n    invoked from within\n\"expr {(-((42.60 & -7) < ($item ? $item : 63)))}\"\n    (\"foreach\" body line 8)\n    invoked from within\n\"foreach z {pp 625 sfsyfp false -611 903} {\n    set item 0\n    while {$item < 4} {\n        set z 21\n        incr z 6\n        for {set result 0} {$resul...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpvjdzjmy8.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

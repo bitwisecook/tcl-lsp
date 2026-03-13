@@ -1,0 +1,32 @@
+{
+  "seed": 1772828712,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"idx\": no such variable\n    while executing\n\"expr {((-($idx && -16)) & (~wide(-21)))}\"\n    (\"foreach\" body line 22)\n    invoked from within\n\"foreach result {-43.35} {\n        for {set key 0} {$key < 5} {incr key} {\n            expr {(24.32 ? ((29.42 / max(1, abs(97))) ? (~-60) : $y) : min((...\"\n    (in namespace eval \"::baz\" script line 3)\n    invoked from within\n\"namespace eval baz {\n    append j \"vud#haf-801\"\n    foreach result {-43.35} {\n        for {set key 0} {$key < 5} {incr key"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"idx\": no such variable\n    while executing\n\"expr {((-($idx && -16)) & (~wide(-21)))}\"\n    (\"foreach\" body line 22)\n    invoked from within\n\"foreach result {-43.35} {\n        for {set key 0} {$key < 5} {incr key} {\n            expr {(24.32 ? ((29.42 / max(1, abs(97))) ? (~-60) : $y) : min((...\"\n    (in namespace eval \"::baz\" script line 3)\n    invoked from within\n\"namespace eval baz {\n    append j \"vud#haf-801\"\n    foreach result {-43.35} {\n        for {set key 0} {$key < 5} {incr key"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now errors on missing variable \u2014 was timing out before",
+  "category": "vm-timeout-resolved"
+}

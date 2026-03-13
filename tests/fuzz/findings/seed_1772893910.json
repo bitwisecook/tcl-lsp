@@ -1,0 +1,23 @@
+{
+  "seed": 1772893910,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {(-91.34 > (-68 << (-61 ? -56 : -42)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach j {kpufyhu -53.31 0 684 16.14 -693} {\n    set j [expr {(-91.34 > (-68 << (-61 ? -56 : -42)))}]\n    string repeat \"#-sz\" 2\n    string map {a b ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpwo6nndz_.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {(-91.34 > (-68 << (-61 ? -56 : -42)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach j {kpufyhu -53.31 0 684 16.14 -693} {\n    set j [expr {(-91.34 > (-68 << (-61 ? -56 : -42)))}]\n    string repeat \"#-sz\" 2\n    string map {a b ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpwo6nndz_.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-negative-shift",
+  "triage": "VM loops; core negative-shift bug is FIXED; script wraps in retry loop"
+}

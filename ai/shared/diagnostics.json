@@ -1,0 +1,85 @@
+{
+  "categories": [
+    {
+      "key": "error",
+      "label": "Errors",
+      "codes": ["E001", "E002", "E003"]
+    },
+    {
+      "key": "security",
+      "label": "Security",
+      "codes": [
+        "W100", "W101", "W102", "W103",
+        "W300", "W301", "W303",
+        "IRULE3001", "IRULE3002", "IRULE3003",
+        "IRULE3101", "IRULE3102"
+      ]
+    },
+    {
+      "key": "taint",
+      "label": "Taint Analysis",
+      "codes": ["T100", "T101", "T102", "T200"]
+    },
+    {
+      "key": "thread_safety",
+      "label": "Thread Safety",
+      "codes": ["IRULE4001", "IRULE4002"]
+    },
+    {
+      "key": "control_flow",
+      "label": "Control Flow",
+      "codes": ["IRULE1201", "IRULE1202"]
+    },
+    {
+      "key": "performance",
+      "label": "Performance",
+      "codes": ["IRULE2101", "IRULE5001"]
+    },
+    {
+      "key": "style",
+      "label": "Style & Best Practice",
+      "codes": [
+        "W001", "W104", "W110", "W120", "W121", "W122", "W201",
+        "W210", "W211", "W214", "W302", "W304",
+        "IRULE2001"
+      ]
+    },
+    {
+      "key": "optimiser",
+      "label": "Optimiser",
+      "codes": []
+    },
+    {
+      "key": "irules",
+      "label": "iRules",
+      "codes": ["IRULE1001"]
+    },
+    {
+      "key": "tk",
+      "label": "Tk GUI",
+      "codes": ["TK1001", "TK1002", "TK1003"]
+    }
+  ],
+  "prefix_rules": [
+    {"prefix": "E", "category": "error"},
+    {"prefix": "O", "category": "optimiser"},
+    {"prefix": "S", "category": "performance"},
+    {"prefix": "IRULE", "category": "irules"},
+    {"prefix": "TK", "category": "tk"}
+  ],
+  "default_category": "style",
+  "convertible_codes": [
+    "W100", "W104", "W110", "W304",
+    "IRULE2001", "IRULE5001"
+  ],
+  "review_categories": ["security", "taint", "thread_safety"],
+  "conversion_map": {
+    "W100": "Unbraced expr -> braced expr",
+    "W104": "String concat for lists -> lappend",
+    "W110": "== / != for strings -> eq / ne",
+    "W304": "Missing -- option terminator -> add --",
+    "IRULE2001": "Deprecated matchclass -> class match",
+    "IRULE5001": "Ungated log in hot event -> add debug gating"
+  },
+  "irules_event_pattern": "^\\s*when\\s+([A-Z][A-Z0-9_]{2,})\\b"
+}

@@ -1,0 +1,26 @@
+ByteCode 0x0x746cfa410, refCt 1, epoch 3, interp 0x0x746c20010 (epoch 3)
+  Source "foreach array(index) [list 1 2 3] break\nforeach ::foo {"
+  Cmds 3, src 65, inst 30, litObjs 10, aux 0, stkDepth 6, code/src 0.00
+  Commands 3:
+      1: pc 0-18, src 0-38   	   2: pc 4-13, src 22-31
+      3: pc 19-28, src 40-63
+  Command 1: "foreach array(index) [list 1 2 3] break"
+    (0) push1 0 	# "foreach"
+    (2) push1 1 	# "array(index)"
+  Command 2: "list 1 2 3"
+    (4) push1 2 	# "list"
+    (6) push1 3 	# "1"
+    (8) push1 4 	# "2"
+    (10) push1 5 	# "3"
+    (12) invokeStk1 4 
+    (14) push1 6 	# "break"
+    (16) invokeStk1 4 
+    (18) pop 
+  Command 3: "foreach ::foo {1 2 3} {}"
+    (19) push1 0 	# "foreach"
+    (21) push1 7 	# "::foo"
+    (23) push1 8 	# "1 2 3"
+    (25) push1 9 	# ""
+    (27) invokeStk1 4 
+    (29) done 
+

@@ -1,0 +1,41 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x950e4500, refCt 1, epoch 0, interp 0x511ee10 (epoch 0)
+  Source "set a 10\nset b 20\nexpr {$a == $b}\nexpr {$a != $b}\nexpr "
+  Cmds 6, src 81, inst 34, litObjs 2, aux 0, stkDepth 2, code/src 2.96
+  Code 240 = header 160+inst 34+litObj 16+exc 0+aux 0+cmdMap 24
+  Proc 0x950e1c80, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "a"
+      slot 1, scalar, "b"
+  Commands 6:
+      1: pc 0-4, src 0-7   	   2: pc 5-9, src 9-16
+      3: pc 10-15, src 18-32   	   4: pc 16-21, src 34-48
+      5: pc 22-27, src 50-63   	   6: pc 28-32, src 65-79
+  Command 1: "set a 10"
+    (0) push1 0  	# "10"
+    (2) storeScalar1 0	# var "a"
+    (4) pop 
+  Command 2: "set b 20"
+    (5) push1 1  	# "20"
+    (7) storeScalar1 1	# var "b"
+    (9) pop 
+  Command 3: "expr {$a == $b}"
+    (10) loadScalar1 0	# var "a"
+    (12) loadScalar1 1	# var "b"
+    (14) eq 
+    (15) pop 
+  Command 4: "expr {$a != $b}"
+    (16) loadScalar1 0	# var "a"
+    (18) loadScalar1 1	# var "b"
+    (20) neq 
+    (21) pop 
+  Command 5: "expr {$a < $b}"
+    (22) loadScalar1 0	# var "a"
+    (24) loadScalar1 1	# var "b"
+    (26) lt 
+    (27) pop 
+  Command 6: "expr {$a >= $b}"
+    (28) loadScalar1 0	# var "a"
+    (30) loadScalar1 1	# var "b"
+    (32) ge 
+    (33) done 

@@ -1,0 +1,18 @@
+ByteCode 0x0x702d0cd10, refCt 1, epoch 17, interp 0x0x702c28010 (epoch 17)
+  Source "expr {1 && 0}\nexpr {1 || 0}\nexpr {!1..."
+  Cmds 3, src 38, inst 9, litObjs 2, aux 0, stkDepth 1, code/src 0.00
+  Commands 3:
+      1: pc 0-2, src 0-12        2: pc 3-5, src 14-26
+      3: pc 6-7, src 28-36
+  Command 1: "expr {1 && 0}..."
+    (0) nop 
+    (1) nop 
+    (2) nop 
+  Command 2: "expr {1 || 0}..."
+    (3) nop 
+    (4) nop 
+    (5) nop 
+  Command 3: "expr {!1}..."
+    (6) push1 0 	# "0"
+    (8) done 
+

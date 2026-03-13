@@ -1,0 +1,23 @@
+{
+  "seed": 1772893980,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable\n    while executing\n\"if {$y == 19} {\n    set a -62.81\n    foreach x {yes -681} {\n        set item 61\n        incr item 7\n    }\n    set i 0\n    while {$i < 4} {\n        for...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjq2auo_4.tcl\" line 134)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable\n    while executing\n\"if {$y == 19} {\n    set a -62.81\n    foreach x {yes -681} {\n        set item 61\n        incr item 7\n    }\n    set i 0\n    while {$i < 4} {\n        for...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjq2auo_4.tcl\" line 134)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

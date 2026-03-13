@@ -1,0 +1,18 @@
+ByteCode 0x90b144a10, refCt 1, epoch 21, interp 0x90b01c010 (epoch 21)
+  Source "{*}list\n{*}list {*}{x y z}\n{*}list x y ..."
+  Cmds 3, src 41, inst 9, litObjs 3, aux 0, stkDepth 1, code/src 0.00
+  Commands 3:
+      1: pc 0-2, src 0-6        2: pc 3-5, src 8-25
+      3: pc 6-7, src 27-39
+  Command 1: "{*}list..."
+    (0) nop 
+    (1) nop 
+    (2) nop 
+  Command 2: "{*}list {*}{x y z}..."
+    (3) nop 
+    (4) nop 
+    (5) nop 
+  Command 3: "{*}list x y z..."
+    (6) push1 2 	# "x y z"
+    (8) done 
+

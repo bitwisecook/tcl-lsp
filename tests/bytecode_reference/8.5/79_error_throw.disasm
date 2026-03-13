@@ -1,0 +1,46 @@
+ByteCode 0x0xaeac32f10, refCt 1, epoch 3, interp 0x0xaeac20010 (epoch 3)
+  Source "proc safe_divide {a b} {\n    if {$b == 0} {\n        err"
+  Cmds 1, src 132, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-130
+  Command 1: "proc safe_divide {a b} {\n    if {$b == 0} {\n        err"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "safe_divide"
+    (4) push1 2 	# "a b"
+    (6) push1 3 	# "\n    if {$b == 0} {\n        error \"divis"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xaeacf6810, refCt 1, epoch 3, interp 0x0xaead46810 (epoch 3)
+  Source "\n    if {$b == 0} {\n        error \"division by zero\" \"\""
+  Cmds 4, src 106, inst 38, litObjs 5, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x0xaead0dc10, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "a"
+      slot 1, scalar, arg, "b"
+  Commands 4:
+      1: pc 0-21, src 5-76   	   2: pc 7-16, src 28-70
+      3: pc 22-36, src 82-104   	   4: pc 31-35, src 90-103
+  Command 1: "if {$b == 0} {\n        error \"division by zero\" \"\" {ARI"
+    (0) loadScalar1 %v1 	# var "b"
+    (2) push1 0 	# "0"
+    (4) eq 
+    (5) jumpFalse1 +14 	# pc 19
+  Command 2: "error \"division by zero\" \"\" {ARITH DIVZERO}"
+    (7) push1 1 	# "error"
+    (9) push1 2 	# "division by zero"
+    (11) push1 3 	# ""
+    (13) push1 4 	# "ARITH DIVZERO"
+    (15) invokeStk1 4 
+    (17) jump1 +4 	# pc 21
+    (19) push1 3 	# ""
+    (21) pop 
+  Command 3: "return [expr {$a / $b}]"
+    (22) startCommand +15 2 	# next cmd at pc 37, 2 cmds start here
+  Command 4: "expr {$a / $b}"
+    (31) loadScalar1 %v0 	# var "a"
+    (33) loadScalar1 %v1 	# var "b"
+    (35) div 
+    (36) done 
+    (37) done 
+

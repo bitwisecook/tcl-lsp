@@ -1,0 +1,6 @@
+if {[catch {
+    # risky call
+} result opts]} {
+    return -code error -options $opts $result
+}
+#    ^--- cursor

@@ -1,0 +1,101 @@
+ByteCode ::top, 18 instructions, 33 bytes, 8 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "foo"
+    2: ""
+    3: "\n    catch {return 1}\n"
+    4: "bar"
+    5: "\n    catch {error \"fail\"}\n"
+    6: "baz"
+    7: "\n    catch {break}\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "foo"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    catch {return 1}\n"
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) push1 0	# "proc"
+    (13) push1 4	# "bar"
+    (15) push1 2	# ""
+    (17) push1 5	# "\n    catch {error \"fail\"}\n"
+    (19) invokeStk1 4	# proc
+  # cmd_end_1:
+    (21) pop
+    (22) push1 0	# "proc"
+    (24) push1 6	# "baz"
+    (26) push1 2	# ""
+    (28) push1 7	# "\n    catch {break}\n"
+    (30) invokeStk1 4	# proc
+  # cmd_end_2:
+  # exit_2:
+    (32) done
+
+ByteCode ::bar, 13 instructions, 41 bytes, 3 literals, 0 variables
+  Literals:
+    0: "fail"
+    1: ""
+    2: "0"
+  Instructions:
+  # entry_1:
+    (0) beginCatch4 0
+    (5) startCommand +22 1	# next cmd at pc 27, 1 cmds start here
+    (14) push1 0	# "fail"
+    (16) push1 1	# ""
+    (18) returnImm +1 0
+  # catch_body_end_1:
+    (27) push1 2	# "0"
+    (29) jump1 +4	# pc 33
+    (31) pushResult
+    (32) pushReturnCode
+  # catch_end_2:
+    (33) endCatch
+    (34) reverse 2
+    (39) pop
+  # exit_2:
+    (40) done
+
+ByteCode ::baz, 11 instructions, 29 bytes, 1 literals, 0 variables
+  Literals:
+    0: "0"
+  Instructions:
+  # entry_1:
+    (0) beginCatch4 0
+    (5) startCommand +10 1	# next cmd at pc 15, 1 cmds start here
+    (14) break
+  # catch_body_end_1:
+    (15) push1 0	# "0"
+    (17) jump1 +4	# pc 21
+    (19) pushResult
+    (20) pushReturnCode
+  # catch_end_2:
+    (21) endCatch
+    (22) reverse 2
+    (27) pop
+  # exit_2:
+    (28) done
+
+ByteCode ::foo, 13 instructions, 41 bytes, 3 literals, 0 variables
+  Literals:
+    0: "1"
+    1: ""
+    2: "0"
+  Instructions:
+  # entry_1:
+    (0) beginCatch4 0
+    (5) startCommand +22 1	# next cmd at pc 27, 1 cmds start here
+    (14) push1 0	# "1"
+    (16) push1 1	# ""
+    (18) returnImm +0 1
+  # catch_body_end_1:
+    (27) push1 2	# "0"
+    (29) jump1 +4	# pc 33
+    (31) pushResult
+    (32) pushReturnCode
+  # catch_end_2:
+    (33) endCatch
+    (34) reverse 2
+    (39) pop
+  # exit_2:
+    (40) done

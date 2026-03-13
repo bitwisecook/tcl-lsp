@@ -1,0 +1,22 @@
+ByteCode ::top, 11 instructions, 18 bytes, 5 literals, 0 variables
+  Literals:
+    0: "x"
+    1: "hello"
+    2: "switch"
+    3: "-glob"
+    4: "\n    h* {set y 1}\n    *lo {set y 2}..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "x"
+    (2) push1 1	# "hello"
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "switch"
+    (8) push1 3	# "-glob"
+    (10) push1 0	# "x"
+    (12) loadStk
+    (13) push1 4	# "\n    h* {set y 1}\n    *lo {set y 2}..."
+    (15) invokeStk1 4	# switch
+  # cmd_end_1:
+  # exit_2:
+    (17) done

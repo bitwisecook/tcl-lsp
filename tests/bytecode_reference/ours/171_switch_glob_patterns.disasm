@@ -1,0 +1,32 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "classify"
+    2: "name"
+    3: "\n    switch -glob $name {\n        *..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "classify"
+    (4) push1 2	# "name"
+    (6) push1 3	# "\n    switch -glob $name {\n        *..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::classify, 6 instructions, 11 bytes, 3 literals, 1 variables
+  Literals:
+    0: "switch"
+    1: "-glob"
+    2: "\n        *.tcl { return \"tcl\" }\n ..."
+  Local variables:
+    %v0: "name"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "switch"
+    (2) push1 1	# "-glob"
+    (4) loadScalar1 %v0	# var "name"
+    (6) push1 2	# "\n        *.tcl { return \"tcl\" }\n ..."
+    (8) invokeStk1 4	# switch
+  # exit_2:
+    (10) done

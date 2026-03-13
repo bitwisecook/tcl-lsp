@@ -1,0 +1,49 @@
+ByteCode 0x0xc188c6410, refCt 1, epoch 3, interp 0x0xc18c20010 (epoch 3)
+  Source "set s \"Hello World\"\nstring length $s\nstring index $s 0\n"
+  Cmds 6, src 111, inst 70, litObjs 8, aux 0, stkDepth 5, code/src 0.00
+  Commands 6:
+      1: pc 0-5, src 0-18   	   2: pc 6-19, src 20-35
+      3: pc 20-35, src 37-53   	   4: pc 36-49, src 55-73
+      5: pc 50-59, src 75-91   	   6: pc 60-68, src 93-109
+  Command 1: "set s \"Hello World\""
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "Hello World"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "string length $s"
+    (6) startCommand +13 1 	# next cmd at pc 19
+    (15) push1 0 	# "s"
+    (17) loadScalarStk 
+    (18) strlen 
+    (19) pop 
+  Command 3: "string index $s 0"
+    (20) startCommand +15 1 	# next cmd at pc 35
+    (29) push1 0 	# "s"
+    (31) loadScalarStk 
+    (32) push1 2 	# "0"
+    (34) strindex 
+    (35) pop 
+  Command 4: "string range $s 0 4"
+    (36) push1 3 	# "string"
+    (38) push1 4 	# "range"
+    (40) push1 0 	# "s"
+    (42) loadScalarStk 
+    (43) push1 2 	# "0"
+    (45) push1 5 	# "4"
+    (47) invokeStk1 5 
+    (49) pop 
+  Command 5: "string toupper $s"
+    (50) push1 3 	# "string"
+    (52) push1 6 	# "toupper"
+    (54) push1 0 	# "s"
+    (56) loadScalarStk 
+    (57) invokeStk1 3 
+    (59) pop 
+  Command 6: "string tolower $s"
+    (60) push1 3 	# "string"
+    (62) push1 7 	# "tolower"
+    (64) push1 0 	# "s"
+    (66) loadScalarStk 
+    (67) invokeStk1 3 
+    (69) done 
+

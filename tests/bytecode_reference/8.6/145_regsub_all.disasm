@@ -1,0 +1,32 @@
+ByteCode 0x0x893117010, refCt 1, epoch 17, interp 0x0x89301c010 (epoch 17)
+  Source "set s \"abc123def456\"\nregsub -all {\d+} $s {NUM} resu..."
+  Cmds 3, src 111, inst 39, litObjs 12, aux 0, stkDepth 7, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-19        2: pc 6-21, src 21-53
+      3: pc 22-37, src 55-109
+  Command 1: "set s \"abc123def456..."
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "abc123def456"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "regsub -all {\d+} $s {NUM} result..."
+    (6) push1 2 	# "regsub"
+    (8) push1 3 	# "-all"
+    (10) push1 4 	# "\d+"
+    (12) push1 0 	# "s"
+    (14) loadStk 
+    (15) push1 5 	# "NUM"
+    (17) push1 6 	# "result"
+    (19) invokeStk1 6 
+    (21) pop 
+  Command 3: "regsub -all -nocase {[aeiou]} \"Hello World\" {*} resul..."
+    (22) push1 2 	# "regsub"
+    (24) push1 3 	# "-all"
+    (26) push1 7 	# "-nocase"
+    (28) push1 8 	# "[aeiou]"
+    (30) push1 9 	# "Hello World"
+    (32) push1 10 	# "*"
+    (34) push1 11 	# "result2"
+    (36) invokeStk1 7 
+    (38) done 
+

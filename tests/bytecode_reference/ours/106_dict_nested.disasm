@@ -1,0 +1,65 @@
+ByteCode ::top, 40 instructions, 119 bytes, 14 literals, 0 variables
+  Literals:
+    0: "d"
+    1: "::tcl::dict::create"
+    2: "a"
+    3: "x 1 y 2"
+    4: "b"
+    5: "x 3 y 4"
+    6: "x"
+    7: "dict"
+    8: "set"
+    9: "z"
+    10: "5"
+    11: "::tcl::dict::set"
+    12: "::tcl::dict::unset"
+    13: "y"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "d"
+    (2) startCommand +43 1	# next cmd at pc 45, 1 cmds start here
+    (11) push1 1	# "::tcl::dict::create"
+    (13) push1 2	# "a"
+    (15) startCommand +13 1	# next cmd at pc 28, 1 cmds start here
+    (24) push1 3	# "x 1 y 2"
+    (26) dup
+    (27) verifyDict
+  # cmd_end_2:
+    (28) push1 4	# "b"
+    (30) startCommand +13 1	# next cmd at pc 43, 1 cmds start here
+    (39) push1 5	# "x 3 y 4"
+    (41) dup
+    (42) verifyDict
+  # cmd_end_3:
+    (43) invokeStk1 5
+  # cmd_end_1:
+    (45) storeStk
+    (46) pop
+    (47) startCommand +21 1	# next cmd at pc 68, 1 cmds start here
+    (56) push1 0	# "d"
+    (58) loadStk
+    (59) push1 2	# "a"
+    (61) push1 6	# "x"
+    (63) dictGet 2
+  # cmd_end_4:
+    (68) pop
+    (69) startCommand +29 1	# next cmd at pc 98, 1 cmds start here
+    (78) push1 7	# "dict"
+    (80) push1 8	# "set"
+    (82) push1 0	# "d"
+    (84) push1 2	# "a"
+    (86) push1 9	# "z"
+    (88) push1 10	# "5"
+    (90) push1 11	# "::tcl::dict::set"
+    (92) invokeReplace 6 2
+  # cmd_end_5:
+    (98) pop
+    (99) startCommand +19 1	# next cmd at pc 118, 1 cmds start here
+    (108) push1 12	# "::tcl::dict::unset"
+    (110) push1 0	# "d"
+    (112) push1 4	# "b"
+    (114) push1 13	# "y"
+    (116) invokeStk1 4
+  # cmd_end_6:
+  # exit_2:
+    (118) done

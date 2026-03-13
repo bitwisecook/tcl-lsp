@@ -1,0 +1,32 @@
+{
+  "seed": 1772845953,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"i\": no such variable\n    while executing\n\"if {((!$i) > (-$y))} {\n                        set i [expr {-53}]\n                    } else {\n                        regexp \".\" \"2e;t:+vv\"\n         ...\"\n    (\"default\" arm line 33)\n    invoked from within\n\"switch -- true {\n    -76 {\n        if {$result < 10} {\n            set result [expr {abs((-11))}]\n        } else {\n            if {abs(78)} {\n        ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp4ckm9rnt.tcl\" line 9"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"i\": no such variable\n    while executing\n\"if {((!$i) > (-$y))} {\n                        set i [expr {-53}]\n                    } else {\n                        regexp \".\" \"2e;t:+vv\"\n         ...\"\n    (\"default\" arm line 33)\n    invoked from within\n\"switch -- true {\n    -76 {\n        if {$result < 10} {\n            set result [expr {abs((-11))}]\n        } else {\n            if {abs(78)} {\n        ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp4ckm9rnt.tcl\" line 9"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

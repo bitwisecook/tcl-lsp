@@ -1,0 +1,32 @@
+{
+  "seed": 1772845800,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable\n    while executing\n\"if {$buf == 18} {\n        if {$y > -8} {\n            string toupper \"@dg@tud!!a_\"\n            switch -- pnhyr {\n                \"7srp@61+zi==-;0asu\" {...\"\n    invoked from within\n\"if {50.11} {\n    if {$buf == 18} {\n        if {$y > -8} {\n            string toupper \"@dg@tud!!a_\"\n            switch -- pnhyr {\n                \"7srp...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpor6nni0o.tcl\" line 60)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable\n    while executing\n\"if {$buf == 18} {\n        if {$y > -8} {\n            string toupper \"@dg@tud!!a_\"\n            switch -- pnhyr {\n                \"7srp@61+zi==-;0asu\" {...\"\n    invoked from within\n\"if {50.11} {\n    if {$buf == 18} {\n        if {$y > -8} {\n            string toupper \"@dg@tud!!a_\"\n            switch -- pnhyr {\n                \"7srp...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpor6nni0o.tcl\" line 60)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

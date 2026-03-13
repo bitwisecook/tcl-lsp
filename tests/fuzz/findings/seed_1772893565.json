@@ -1,0 +1,23 @@
+{
+  "seed": 1772893565,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-621 nwuzr -45.83 -231 941 ypoib\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr count\"\n    (\"while\" body line 113)\n    invoked from within\n\"while {$count < 2} {\n    expr {(~$count)}\n    if {$count > -10} {\n        set count 91\n        incr count 3\n        if {$count > 6} {\n            set ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgxhky7fk.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

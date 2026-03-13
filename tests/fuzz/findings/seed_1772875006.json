@@ -1,0 +1,24 @@
+{
+  "seed": 1772875006,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "cannot use floating-point value \"92.35\" as right operand of \"%\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"92.35\" as right operand of \"%\"\n    while executing\n\"expr {((-51 != 38) % max(1, abs(-92.35)))}\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$acc < 3} {\n    expr {((-51 != 38) % max(1, abs(-92.35)))}\n    string tolower \"69?s_6uy83;1: q\"\n    incr acc\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp4sdymnjy.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

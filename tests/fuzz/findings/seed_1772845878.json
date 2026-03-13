@@ -1,0 +1,32 @@
+{
+  "seed": 1772845878,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"true\" as operand of \"-\"\n    while executing\n\"expr {((-$n) >= -88.09)}\"\n    (\"for\" body line 37)\n    invoked from within\n\"for {set data 0} {$data < 1} {incr data} {\n    lrange {-806 -358 82.46 -61.32} 0 3\n    if {$x >= 17} {\n        set j 83\n        incr j 4\n        set x...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpxj_w5jfa.tcl\" line 4)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"true\" as operand of \"-\"\n    while executing\n\"expr {((-$n) >= -88.09)}\"\n    (\"for\" body line 37)\n    invoked from within\n\"for {set data 0} {$data < 1} {incr data} {\n    lrange {-806 -358 82.46 -61.32} 0 3\n    if {$x >= 17} {\n        set j 83\n        incr j 4\n        set x...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpxj_w5jfa.tcl\" line 4)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

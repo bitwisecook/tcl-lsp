@@ -1,0 +1,23 @@
+{
+  "seed": 1772893478,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"flag\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"expr {(-(-(-44 | $flag)))}\"\n    invoked from within\n\"set flag [expr {(-(-(-44 | $flag)))}]\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp87tr71vt.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

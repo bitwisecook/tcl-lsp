@@ -1,0 +1,48 @@
+ByteCode ::top, 12 instructions, 22 bytes, 6 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "myerror"
+    2: ""
+    3: "\n    return -code error \"something ..."
+    4: "myreturn"
+    5: "\n    return -code return \"early exi..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "myerror"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    return -code error \"something ..."
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) push1 0	# "proc"
+    (13) push1 4	# "myreturn"
+    (15) push1 2	# ""
+    (17) push1 5	# "\n    return -code return \"early exi..."
+    (19) invokeStk1 4	# proc
+  # cmd_end_1:
+  # exit_2:
+    (21) done
+
+ByteCode ::myerror, 4 instructions, 14 bytes, 2 literals, 0 variables
+  Literals:
+    0: "something went wrong"
+    1: ""
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "something went wrong"
+    (2) push1 1	# ""
+    (4) returnImm +1 1
+  # exit_2:
+    (13) done
+
+ByteCode ::myreturn, 4 instructions, 14 bytes, 2 literals, 0 variables
+  Literals:
+    0: "early exit"
+    1: ""
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "early exit"
+    (2) push1 1	# ""
+    (4) returnImm +0 2
+  # exit_2:
+    (13) done

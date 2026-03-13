@@ -1,0 +1,58 @@
+ByteCode 0x0x85ad17c10, refCt 1, epoch 3, interp 0x0x85ac20010 (epoch 3)
+  Source "proc mysum {args} {\n    set total 0\n    foreach n $args"
+  Cmds 1, src 106, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-104
+  Command 1: "proc mysum {args} {\n    set total 0\n    foreach n $args"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "mysum"
+    (4) push1 2 	# "args"
+    (6) push1 3 	# "\n    set total 0\n    foreach n $args {\n "
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x85ad0e610, refCt 1, epoch 3, interp 0x0x85ad04010 (epoch 3)
+  Source "\n    set total 0\n    foreach n $args {\n        incr tot"
+  Cmds 4, src 85, inst 63, litObjs 2, aux 1, stkDepth 1, code/src 0.00
+  Proc 0x0x85ad52590, refCt 1, args 1, compiled locals 5
+      slot 0, scalar, arg, "args"
+      slot 1, scalar, "total"
+      slot 2, scalar, temp
+      slot 3, scalar, temp
+      slot 4, scalar, "n"
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 31-43, continue 24, break 47
+  Commands 4:
+      1: pc 0-4, src 5-15   	   2: pc 5-49, src 21-65
+      3: pc 31-43, src 47-59   	   4: pc 50-61, src 71-83
+  Command 1: "set total 0"
+    (0) push1 0 	# "0"
+    (2) storeScalar1 %v1 	# var "total"
+    (4) pop 
+  Command 2: "foreach n $args {\n        incr total $n\n    }"
+    (5) startCommand +44 1 	# next cmd at pc 49
+    (14) loadScalar1 %v0 	# var "args"
+    (16) storeScalar1 %v2 	# temp var 2
+    (18) pop 
+    (19) foreach_start4 0 
+		[data=[%v2], loop=%v3
+		 it%v2	[%v4]]
+    (24) foreach_step4 0 
+		[data=[%v2], loop=%v3
+		 it%v2	[%v4]]
+    (29) jumpFalse1 +18 	# pc 47
+  Command 3: "incr total $n"
+    (31) startCommand +13 1 	# next cmd at pc 44
+    (40) loadScalar1 %v4 	# var "n"
+    (42) incrScalar1 %v1 	# var "total"
+    (44) pop 
+    (45) jump1 -21 	# pc 24
+    (47) push1 1 	# ""
+    (49) pop 
+  Command 4: "return $total"
+    (50) startCommand +12 1 	# next cmd at pc 62
+    (59) loadScalar1 %v1 	# var "total"
+    (61) done 
+    (62) done 
+

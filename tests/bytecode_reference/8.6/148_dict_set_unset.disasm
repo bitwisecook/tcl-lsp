@@ -1,0 +1,54 @@
+ByteCode 0x0xb0ad0c010, refCt 1, epoch 17, interp 0x0xb0ac28010 (epoch 17)
+  Source "proc test {} {\n    set d [dict create a 1 b 2]\n    di..."
+  Cmds 1, src 121, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-119
+  Command 1: "proc test {} {\n    set d [dict create a 1 b 2]\n    di..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set d [dict create a 1 b 2]\n    d..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xb0ad01a10, refCt 1, epoch 72, interp 0x0xb0acd6010 (epoch 72)
+  Source "\n    set d [dict create a 1 b 2]\n    dict set d c 3\n..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 6, src 105, inst 87, litObjs 6, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0xb0acd0c10, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "d"
+  Commands 6:
+      1: pc 0-6, src 5-31        2: pc 0-3, src 12-30
+      3: pc 7-29, src 37-50        4: pc 30-52, src 56-70
+      5: pc 53-73, src 76-89        6: pc 74-85, src 95-103
+  Command 1: "set d [dict create a 1 b 2]..."
+  Command 2: "dict create a 1 b 2..."
+    (0) push1 0 	# "a 1 b 2"
+    (2) dup 
+    (3) verifyDict 
+    (4) storeScalar1 %v0 	# var "d"
+    (6) pop 
+  Command 3: "dict set d c 3..."
+    (7) startCommand +22 1 	# next cmd at pc 29, 1 cmds start here
+    (16) push1 1 	# "c"
+    (18) push1 2 	# "3"
+    (20) dictSet 1 %v0 	# var "d"
+    (29) pop 
+  Command 4: "dict set d a 10..."
+    (30) startCommand +22 1 	# next cmd at pc 52, 1 cmds start here
+    (39) push1 3 	# "a"
+    (41) push1 4 	# "10"
+    (43) dictSet 1 %v0 	# var "d"
+    (52) pop 
+  Command 5: "dict unset d b..."
+    (53) startCommand +20 1 	# next cmd at pc 73, 1 cmds start here
+    (62) push1 5 	# "b"
+    (64) dictUnset 1 %v0 	# var "d"
+    (73) pop 
+  Command 6: "return $d..."
+    (74) startCommand +12 1 	# next cmd at pc 86, 1 cmds start here
+    (83) loadScalar1 %v0 	# var "d"
+    (85) done 
+    (86) done 
+

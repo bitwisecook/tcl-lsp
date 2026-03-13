@@ -1,0 +1,60 @@
+ByteCode 0x0xa7ccf6210, refCt 1, epoch 3, interp 0x0xa7cc20010 (epoch 3)
+  Source "set d [dict create a [dict create x 1 y 2] b [dict crea"
+  Cmds 7, src 118, inst 92, litObjs 15, aux 0, stkDepth 12, code/src 0.00
+  Commands 7:
+      1: pc 0-41, src 0-66   	   2: pc 2-39, src 7-65
+      3: pc 8-21, src 22-40   	   4: pc 24-37, src 46-64
+      5: pc 42-63, src 68-82   	   6: pc 64-78, src 84-99
+      7: pc 79-90, src 101-116
+  Command 1: "set d [dict create a [dict create x 1 y 2] b [dict crea"
+    (0) push1 0 	# "d"
+  Command 2: "dict create a [dict create x 1 y 2] b [dict create x 3 "
+    (2) push1 1 	# "dict"
+    (4) push1 2 	# "create"
+    (6) push1 3 	# "a"
+  Command 3: "dict create x 1 y 2"
+    (8) push1 1 	# "dict"
+    (10) push1 2 	# "create"
+    (12) push1 4 	# "x"
+    (14) push1 5 	# "1"
+    (16) push1 6 	# "y"
+    (18) push1 7 	# "2"
+    (20) invokeStk1 6 
+    (22) push1 8 	# "b"
+  Command 4: "dict create x 3 y 4"
+    (24) push1 1 	# "dict"
+    (26) push1 2 	# "create"
+    (28) push1 4 	# "x"
+    (30) push1 9 	# "3"
+    (32) push1 6 	# "y"
+    (34) push1 10 	# "4"
+    (36) invokeStk1 6 
+    (38) invokeStk1 6 
+    (40) storeScalarStk 
+    (41) pop 
+  Command 5: "dict get $d a x"
+    (42) startCommand +21 1 	# next cmd at pc 63
+    (51) push1 0 	# "d"
+    (53) loadScalarStk 
+    (54) push1 3 	# "a"
+    (56) push1 4 	# "x"
+    (58) dictGet 2 
+    (63) pop 
+  Command 6: "dict set d a z 5"
+    (64) push1 1 	# "dict"
+    (66) push1 11 	# "set"
+    (68) push1 0 	# "d"
+    (70) push1 3 	# "a"
+    (72) push1 12 	# "z"
+    (74) push1 13 	# "5"
+    (76) invokeStk1 6 
+    (78) pop 
+  Command 7: "dict unset d b y"
+    (79) push1 1 	# "dict"
+    (81) push1 14 	# "unset"
+    (83) push1 0 	# "d"
+    (85) push1 8 	# "b"
+    (87) push1 6 	# "y"
+    (89) invokeStk1 5 
+    (91) done 
+

@@ -1,0 +1,47 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xcacb8600, refCt 1, epoch 0, interp 0x339ae10 (epoch 0)
+  Source "set lst {a b c d e f}\nset a [lrange $lst 1 3]\nset b [lr"
+  Cmds 7, src 104, inst 44, litObjs 8, aux 0, stkDepth 4, code/src 2.88
+  Code 300 = header 160+inst 44+litObj 64+exc 0+aux 0+cmdMap 28
+  Proc 0xcb0e1c80, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, "lst"
+      slot 1, scalar, "a"
+      slot 2, scalar, "b"
+      slot 3, scalar, "c"
+  Commands 7:
+      1: pc 0-4, src 0-20   	   2: pc 5-17, src 22-44
+      3: pc 5-14, src 29-43   	   4: pc 18-30, src 46-72
+      5: pc 18-27, src 53-71   	   6: pc 31-42, src 74-102
+      7: pc 31-40, src 81-101
+  Command 1: "set lst {a b c d e f}"
+    (0) push1 0  	# "a b c d e f"
+    (2) storeScalar1 0	# var "lst"
+    (4) pop 
+  Command 2: "set a [lrange $lst 1 3]"
+  Command 3: "lrange $lst 1 3"
+    (5) push1 1  	# "lrange"
+    (7) loadScalar1 0	# var "lst"
+    (9) push1 2  	# "1"
+    (11) push1 3  	# "3"
+    (13) invokeStk1 4 
+    (15) storeScalar1 1	# var "a"
+    (17) pop 
+  Command 4: "set b [lrange $lst 0 end-1]"
+  Command 5: "lrange $lst 0 end-1"
+    (18) push1 1  	# "lrange"
+    (20) loadScalar1 0	# var "lst"
+    (22) push1 4  	# "0"
+    (24) push1 5  	# "end-1"
+    (26) invokeStk1 4 
+    (28) storeScalar1 2	# var "b"
+    (30) pop 
+  Command 6: "set c [lrange $lst end-2 end]"
+  Command 7: "lrange $lst end-2 end"
+    (31) push1 1  	# "lrange"
+    (33) loadScalar1 0	# var "lst"
+    (35) push1 6  	# "end-2"
+    (37) push1 7  	# "end"
+    (39) invokeStk1 4 
+    (41) storeScalar1 3	# var "c"
+    (43) done 

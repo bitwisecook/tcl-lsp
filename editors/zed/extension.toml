@@ -1,0 +1,34 @@
+[extension]
+id = "tcl-lsp"
+name = "Tcl"
+version = "0.2.0"
+schema_version = 1
+authors = ["tcl-lsp contributors"]
+description = "Tcl, iRules, and iApps language support via tcl-lsp"
+repository = "https://github.com/bitwisecook/tcl-lsp"
+
+[grammars.tcl]
+repository = "https://github.com/tree-sitter-grammars/tree-sitter-tcl"
+rev = "e02f614ba64a0e81a0fae666b7d66cf7e9c0ed6e"
+
+[language_servers.tcl-lsp]
+name = "tcl-lsp"
+languages = ["Tcl", "iRules", "iApps"]
+
+[context_servers.tcl-lsp-mcp]
+
+[slash_commands.tcl-doc]
+description = "Look up Tcl/iRules command documentation"
+requires_argument = true
+
+[slash_commands.irule-event]
+description = "Get iRules event reference and valid commands"
+requires_argument = true
+
+[slash_commands.tcl-validate]
+description = "Validate Tcl/iRules code and show categorised diagnostics"
+requires_argument = false
+
+[slash_commands.irule-test]
+description = "Generate an iRule test script using the Event Orchestrator framework"
+requires_argument = false

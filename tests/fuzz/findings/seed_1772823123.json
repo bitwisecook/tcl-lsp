@@ -1,0 +1,32 @@
+{
+  "seed": 1772823123,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: OverflowError: (34, 'Result too large')",
+      "detail_b": "CRASH: OverflowError: (34, 'Result too large')"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: OverflowError: (34, 'Result too large')",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {(-78.11 ** (25 ** 21))} {\n    catch {\n        set tmp 10\n        incr tmp 5\n        set x \"xjheqfl,=o9,:52ybzh\"\n        set key -406\n    } flag\n} ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpqk706y6x.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: OverflowError: (34, 'Result too large')",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {(-78.11 ** (25 ** 21))} {\n    catch {\n        set tmp 10\n        incr tmp 5\n        set x \"xjheqfl,=o9,:52ybzh\"\n        set key -406\n    } flag\n} ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpqk706y6x.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "OverflowError caught in _arith_binary expon, returns Inf; script errors on if-else-elseif",
+  "category": "overflow-exponentiation"
+}

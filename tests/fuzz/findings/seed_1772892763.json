@@ -1,0 +1,15 @@
+{
+  "seed": 1772892763,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm ok vs vm_opt error",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "(ok)",
+      "detail_b": "missing \""
+    }
+  ],
+  "category": "parse-divergence",
+  "triage": "Interpreter and compiler parse script differently"
+}

@@ -1,0 +1,26 @@
+ByteCode ::top, 12 instructions, 23 bytes, 9 literals, 0 variables
+  Literals:
+    0: "try"
+    1: "\n    set x 42\n"
+    2: "on"
+    3: "ok"
+    4: "result"
+    5: "\n    set y $result\n"
+    6: "error"
+    7: "msg opts"
+    8: "\n    set y \"error: $msg\"\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "try"
+    (2) push1 1	# "\n    set x 42\n"
+    (4) push1 2	# "on"
+    (6) push1 3	# "ok"
+    (8) push1 4	# "result"
+    (10) push1 5	# "\n    set y $result\n"
+    (12) push1 2	# "on"
+    (14) push1 6	# "error"
+    (16) push1 7	# "msg opts"
+    (18) push1 8	# "\n    set y \"error: $msg\"\n"
+    (20) invokeStk1 10	# try
+  # exit_2:
+    (22) done

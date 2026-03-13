@@ -1,0 +1,60 @@
+ByteCode 0x8a7473410, refCt 1, epoch 21, interp 0x8a701c010 (epoch 21)
+  Source "set sum 0\nfor {set i 0} {$i < 3} {incr i} {\n    for {..."
+  Cmds 8, src 107, inst 59, litObjs 6, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 4, depth 2:
+      0: level 0, loop, pc 14-41, continue 43, break 56
+      1: level 1, loop, pc 22-25, continue 27, break 40
+      2: level 1, loop, pc 27-30, continue -1, break 40
+      3: level 0, loop, pc 43-46, continue -1, break 56
+  Commands 8:
+      1: pc 0-5, src 0-8        2: pc 6-57, src 10-105
+      3: pc 6-10, src 15-21        4: pc 14-41, src 48-103
+      5: pc 14-18, src 53-59        6: pc 22-25, src 90-97
+      7: pc 27-30, src 72-77        8: pc 43-46, src 34-39
+  Command 1: "set sum 0..."
+    (0) push1 0 	# "sum"
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "for {set i 0} {$i < 3} {incr i} {\n    for {set j 0} {$..."
+  Command 3: "set i 0..."
+    (6) push1 2 	# "i"
+    (8) push1 1 	# "0"
+    (10) storeStk 
+    (11) pop 
+    (12) jump1 +36 	# pc 48
+  Command 4: "for {set j 0} {$j < 3} {incr j} {\n        incr sum\n  ..."
+  Command 5: "set j 0..."
+    (14) push1 3 	# "j"
+    (16) push1 1 	# "0"
+    (18) storeStk 
+    (19) pop 
+    (20) jump1 +12 	# pc 32
+  Command 6: "incr sum..."
+    (22) push1 0 	# "sum"
+    (24) incrStkImm +1 
+    (26) pop 
+  Command 7: "incr j..."
+    (27) push1 3 	# "j"
+    (29) incrStkImm +1 
+    (31) pop 
+    (32) push1 3 	# "j"
+    (34) loadStk 
+    (35) push1 4 	# "3"
+    (37) lt 
+    (38) jumpTrue1 -16 	# pc 22
+    (40) nop 
+    (41) nop 
+    (42) nop 
+  Command 8: "incr i..."
+    (43) push1 2 	# "i"
+    (45) incrStkImm +1 
+    (47) pop 
+    (48) push1 2 	# "i"
+    (50) loadStk 
+    (51) push1 4 	# "3"
+    (53) lt 
+    (54) jumpTrue1 -40 	# pc 14
+    (56) push1 5 	# ""
+    (58) done 
+

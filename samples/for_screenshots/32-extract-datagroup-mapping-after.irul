@@ -1,0 +1,25 @@
+## After: iRule uses class lookup for value mapping
+when HTTP_REQUEST {
+    set uri [HTTP::uri]
+    set target [class lookup $uri uri_pool_map]
+    pool $target
+}
+
+## tmsh data-group definition:
+# ltm data-group internal uri_pool_map {
+#     type string
+#     records {
+#         "/api" {
+#             data "api_pool"
+#         }
+#         "/web" {
+#             data "web_pool"
+#         }
+#         "/static" {
+#             data "cdn_pool"
+#         }
+#         "/admin" {
+#             data "mgmt_pool"
+#         }
+#     }
+# }

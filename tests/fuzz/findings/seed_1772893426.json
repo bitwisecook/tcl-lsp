@@ -1,0 +1,23 @@
+{
+  "seed": 1772893426,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-39.8\" as right operand of \"&\"\n    invoked from within\n\"expr {(min((-90 ^ 45), (41 & -39.80)) - (34 - max(-72, -45)))}\"\n    (\"for\" body line 7)\n    invoked from within\n\"for {set a 0} {$a < 5} {incr a} {\n    for {set item 0} {$item < 3} {incr item} {\n        append idx kgwfgblv\n        if {-45} {\n            string rev...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpl1kp4_m8.tcl\" line 11)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-39.8\" as right operand of \"&\"\n    invoked from within\n\"expr {(min((-90 ^ 45), (41 & -39.80)) - (34 - max(-72, -45)))}\"\n    (\"for\" body line 7)\n    invoked from within\n\"for {set a 0} {$a < 5} {incr a} {\n    for {set item 0} {$item < 3} {incr item} {\n        append idx kgwfgblv\n        if {-45} {\n            string rev...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpl1kp4_m8.tcl\" line 11)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

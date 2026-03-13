@@ -1,0 +1,55 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test"
+    2: ""
+    3: "\n    set d [dict create items {}]\n ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set d [dict create items {}]\n ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test, 24 instructions, 77 bytes, 5 literals, 1 variables
+  Literals:
+    0: "items {}"
+    1: "items"
+    2: "one"
+    3: "two"
+    4: "three"
+  Local variables:
+    %v0: "d"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "items {}"
+    (2) dup
+    (3) verifyDict
+    (4) storeScalar1 %v0	# var "d"
+    (6) pop
+    (7) startCommand +18 1	# next cmd at pc 25, 1 cmds start here
+    (16) push1 1	# "items"
+    (18) push1 2	# "one"
+    (20) dictLappend %v0	# var "d"
+  # cmd_end_1:
+    (25) pop
+    (26) startCommand +18 1	# next cmd at pc 44, 1 cmds start here
+    (35) push1 1	# "items"
+    (37) push1 3	# "two"
+    (39) dictLappend %v0	# var "d"
+  # cmd_end_2:
+    (44) pop
+    (45) startCommand +18 1	# next cmd at pc 63, 1 cmds start here
+    (54) push1 1	# "items"
+    (56) push1 4	# "three"
+    (58) dictLappend %v0	# var "d"
+  # cmd_end_3:
+    (63) pop
+    (64) startCommand +12 1	# next cmd at pc 76, 1 cmds start here
+    (73) loadScalar1 %v0	# var "d"
+    (75) done
+  # ret_end_4:
+    (76) done

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893484,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"if {$a <= -3} {\n            expr {((~(68 != -14)) | (abs($n) % max(1, abs((-95 ? 65 : 69)))))}\n        }\"\n    (\"default\" arm line 7)\n    invoked from within\n\"switch -- ny {\n    il {\n        append count \"i,p2m7@sn\"\n        if {((-52 >> -15) == (44 <= -43.88))} {\n            if {-52} {\n                set a ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpy4mew8wt.tcl\" line 90)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"if {$a <= -3} {\n            expr {((~(68 != -14)) | (abs($n) % max(1, abs((-95 ? 65 : 69)))))}\n        }\"\n    (\"default\" arm line 7)\n    invoked from within\n\"switch -- ny {\n    il {\n        append count \"i,p2m7@sn\"\n        if {((-52 >> -15) == (44 <= -43.88))} {\n            if {-52} {\n                set a ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpy4mew8wt.tcl\" line 90)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

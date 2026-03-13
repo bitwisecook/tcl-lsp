@@ -1,0 +1,26 @@
+ByteCode 0x0x838cfa410, refCt 1, epoch 3, interp 0x0x838c20010 (epoch 3)
+  Source "set {odd name} 42\nset x ${odd name}\nset arr(a\ b) 99\n"
+  Cmds 3, src 53, inst 39, litObjs 6, aux 0, stkDepth 3, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-16   	   2: pc 6-21, src 18-34
+      3: pc 22-37, src 36-51
+  Command 1: "set {odd name} 42"
+    (0) push1 0 	# "odd name"
+    (2) push1 1 	# "42"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set x ${odd name}"
+    (6) startCommand +15 1 	# next cmd at pc 21
+    (15) push1 2 	# "x"
+    (17) push1 0 	# "odd name"
+    (19) loadScalarStk 
+    (20) storeScalarStk 
+    (21) pop 
+  Command 3: "set arr(a\ b) 99"
+    (22) startCommand +16 1 	# next cmd at pc 38
+    (31) push1 3 	# "arr"
+    (33) push1 4 	# "a b"
+    (35) push1 5 	# "99"
+    (37) storeArrayStk 
+    (38) done 
+

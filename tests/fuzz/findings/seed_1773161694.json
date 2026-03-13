@@ -1,0 +1,13 @@
+{
+  "seed": 1773161694,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: MemoryError: ",
+      "detail_b": "CRASH: MemoryError: "
+    }
+  ]
+}

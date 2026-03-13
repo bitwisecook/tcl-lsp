@@ -1,0 +1,15 @@
+{# Single test case block.
+   Variables:
+     test_id  — e.g. "myirule-1.0"
+     desc     — human-readable description
+     body     — list[str] of body lines
+#}
+::orch::test "{{ test_id }}" "{{ desc }}" -body {
+{% for line in body %}
+{% if line %}
+    {{ line }}
+{% else %}
+
+{% endif %}
+{% endfor %}
+}

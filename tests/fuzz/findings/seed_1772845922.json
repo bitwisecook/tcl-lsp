@@ -1,0 +1,32 @@
+{
+  "seed": 1772845922,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "domain error: argument not in valid range\n    invoked from within\n\"expr {(((-27 ** -22.48) | (~$data)) <= (-(69 | 23.63)))}\"\n    invoked from within\n\"if {$data != 13} {\n    append j 39\n    string trimright \"j5sbm_;\"\n    switch -- 0 {\n        658 {\n            string toupper \"jst:8\"\n            expr ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmppot3deb7.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "domain error: argument not in valid range\n    invoked from within\n\"expr {(((-27 ** -22.48) | (~$data)) <= (-(69 | 23.63)))}\"\n    invoked from within\n\"if {$data != 13} {\n    append j 39\n    string trimright \"j5sbm_;\"\n    switch -- 0 {\n        658 {\n            string toupper \"jst:8\"\n            expr ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmppot3deb7.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

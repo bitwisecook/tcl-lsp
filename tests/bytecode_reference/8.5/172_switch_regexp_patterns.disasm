@@ -1,0 +1,29 @@
+ByteCode 0x0xc1ecded10, refCt 1, epoch 3, interp 0x0xc1e814010 (epoch 3)
+  Source "proc classify {s} {\n    switch -regexp $s {\n        {^\"
+  Cmds 1, src 205, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-203
+  Command 1: "proc classify {s} {\n    switch -regexp $s {\n        {^\"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "classify"
+    (4) push1 2 	# "s"
+    (6) push1 3 	# "\n    switch -regexp $s {\n        {^\d+$}"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xc1ecdec10, refCt 1, epoch 3, interp 0x0xc1eccc010 (epoch 3)
+  Source "\n    switch -regexp $s {\n        {^\d+$}    { return \"n"
+  Cmds 1, src 184, inst 11, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x0xc1ecbd490, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "s"
+  Commands 1:
+      1: pc 0-9, src 5-182
+  Command 1: "switch -regexp $s {\n        {^\d+$}    { return \"number"
+    (0) push1 0 	# "switch"
+    (2) push1 1 	# "-regexp"
+    (4) loadScalar1 %v0 	# var "s"
+    (6) push1 2 	# "\n        {^\d+$}    { return \"number\" }\n"
+    (8) invokeStk1 4 
+    (10) done 
+

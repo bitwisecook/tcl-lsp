@@ -1,0 +1,32 @@
+{
+  "seed": 1772845838,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got \"s74\"\n    while executing\n\"expr {(($idx ? (-74 ? 25.88 : 38) : (-96 - 83)) < -28)}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach idx {s} {\n        append idx 74\n        expr {(($idx ? (-74 ? 25.88 : 38) : (-96 - 83)) < -28)}\n        switch -- \"3xoeo0kn2?9#h+ \" {\n        ...\"\n    invoked from within\n\"if {$idx > 16} {\n    foreach idx {s} {\n        append idx 74\n        expr {(($idx ? (-74 ? 25.88 : 38) : (-96 - 83)) < -28)}\n        switch -- \"3xoeo0.."
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got \"s74\"\n    while executing\n\"expr {(($idx ? (-74 ? 25.88 : 38) : (-96 - 83)) < -28)}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach idx {s} {\n        append idx 74\n        expr {(($idx ? (-74 ? 25.88 : 38) : (-96 - 83)) < -28)}\n        switch -- \"3xoeo0kn2?9#h+ \" {\n        ...\"\n    invoked from within\n\"if {$idx > 16} {\n    foreach idx {s} {\n        append idx 74\n        expr {(($idx ? (-74 ? 25.88 : 38) : (-96 - 83)) < -28)}\n        switch -- \"3xoeo0.."
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors: expected boolean value but got \"s74\"",
+  "category": "vm-timeout-resolved"
+}

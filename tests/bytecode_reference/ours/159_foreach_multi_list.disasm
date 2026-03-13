@@ -1,0 +1,26 @@
+ByteCode ::top, 12 instructions, 21 bytes, 8 literals, 0 variables
+  Literals:
+    0: "result"
+    1: ""
+    2: "foreach"
+    3: "a b"
+    4: "1 2 3 4"
+    5: "c"
+    6: "x y z"
+    7: "\n    lappend result \"$a$b$c\"\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "result"
+    (2) push1 1	# ""
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "foreach"
+    (8) push1 3	# "a b"
+    (10) push1 4	# "1 2 3 4"
+    (12) push1 5	# "c"
+    (14) push1 6	# "x y z"
+    (16) push1 7	# "\n    lappend result \"$a$b$c\"\n"
+    (18) invokeStk1 6	# foreach
+  # cmd_end_1:
+  # exit_2:
+    (20) done

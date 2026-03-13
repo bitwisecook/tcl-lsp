@@ -1,0 +1,52 @@
+# Source / dev files — not needed at runtime
+.vscode/**
+src/**
+tsconfig.json
+**/*.ts
+**/*.map
+.vscode-test/**
+.venv/**
+.pytest_cache/**
+.ruff_cache/**
+.mypy_cache/**
+.coverage
+.coverage.*
+**/.DS_Store
+
+# Dev tooling config
+.prettierignore
+eslint.config.cjs
+
+# Test artifacts
+out/test/**
+testFixture/**
+
+# Screenshot demo (dev only — dead-code-eliminated in normal builds)
+out/screenshotDemo.js
+
+# Individual tsc output — only the esbuild bundle (out/extension.js) is used
+out/chat/**
+out/compilerExplorer.js
+out/compilerExplorerHtml.js
+out/iruleSkeleton.js
+out/runtimeValidation.js
+out/scaffold.js
+out/templateSnippets.js
+
+# node_modules not needed — esbuild bundles everything
+node_modules/**
+
+# Python build artifacts
+**/__pycache__/**
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Raw Python source excluded (server is bundled as .pyz)
+server/**
+explorer/**
+pyproject.toml
+uv.lock
+
+# Misc
+**/.gitignore

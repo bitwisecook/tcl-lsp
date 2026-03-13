@@ -1,0 +1,24 @@
+{
+  "seed": 1772845951,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "invalid command name \"a-z\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 12)\n    invoked from within\n\"foreach result {-375 351 -567 -794} {\n        string toupper \"_y@tj2bkkg28l \"\n        set idx -574\n        set buf -60\n        set buf {-176 95.40 38 ...\"\n    (\"foreach\" body line 5)\n    invoked from within\n\"foreach buf {1 -21.07 gvues} {\n    expr {-53.79}\n    expr {$buf}\n    llength {}\n    foreach result {-375 351 -567 -794} {\n        string toupper \"_y@t...\"\n    (file \"/var/folders/2s/cly"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on invalid command",
+  "category": "vm-timeout-resolved"
+}

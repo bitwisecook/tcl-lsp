@@ -1,0 +1,27 @@
+ByteCode 0x97f484010, refCt 1, epoch 21, interp 0x97f01c010 (epoch 21)
+  Source "set d [dict create name Alice age 30]\ndict update d na..."
+  Cmds 3, src 96, inst 43, litObjs 8, aux 0, stkDepth 7, code/src 0.00
+  Commands 3:
+      1: pc 0-16, src 0-36        2: pc 2-14, src 7-35
+      3: pc 17-41, src 38-94
+  Command 1: "set d [dict create name Alice age 30]..."
+    (0) push1 0 	# "d"
+  Command 2: "dict create name Alice age 30..."
+    (2) startCommand +13 1 	# next cmd at pc 15, 1 cmds start here
+    (11) push1 1 	# "name Alice age 30"
+    (13) dup 
+    (14) verifyDict 
+    (15) storeStk 
+    (16) pop 
+  Command 3: "dict update d name n age a {\n    set n \"Bob\"\n    in..."
+    (17) startCommand +25 1 	# next cmd at pc 42, 1 cmds start here
+    (26) push1 2 	# "::tcl::dict::update"
+    (28) push1 0 	# "d"
+    (30) push1 3 	# "name"
+    (32) push1 4 	# "n"
+    (34) push1 5 	# "age"
+    (36) push1 6 	# "a"
+    (38) push1 7 	# "\n    set n \"Bob\"\n    inc..."
+    (40) invokeStk1 7 
+    (42) done 
+

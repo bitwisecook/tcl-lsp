@@ -1,0 +1,23 @@
+{
+  "seed": 1772893574,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0-30\"\n    while executing\n\"incr msg\"\n    (\"while\" body line 12)\n    invoked from within\n\"while {$acc < 2} {\n    expr {(((8 * 47) <= (--73.71)) << 55)}\n    lassign {298 -103 nngfvio -11.83} acc acc msg\n    set msg 15\n    incr msg 8\n    set ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmplzfx9qwt.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0-30\"\n    while executing\n\"incr msg\"\n    (\"while\" body line 12)\n    invoked from within\n\"while {$acc < 2} {\n    expr {(((8 * 47) <= (--73.71)) << 55)}\n    lassign {298 -103 nngfvio -11.83} acc acc msg\n    set msg 15\n    incr msg 8\n    set ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmplzfx9qwt.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

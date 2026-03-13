@@ -1,0 +1,24 @@
+{
+  "seed": 1772875234,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"while\" body line 68)\n    invoked from within\n\"while {$buf < 2} {\n    set y {false 950}\n    switch -- \"\" {\n        -534 {\n            string last \"a\" \"qt6 !\"\n            catch {\n                lis...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpsfzgjn24.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"while\" body line 68)\n    invoked from within\n\"while {$buf < 2} {\n    set y {false 950}\n    switch -- \"\" {\n        -534 {\n            string last \"a\" \"qt6 !\"\n            catch {\n                lis...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpsfzgjn24.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "command resolution errors now propagate correctly",
+  "category": "invalid-command"
+}

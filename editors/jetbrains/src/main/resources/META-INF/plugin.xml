@@ -1,0 +1,70 @@
+<idea-plugin>
+    <id>com.tcllsp.jetbrains</id>
+    <name>Tcl Language Support</name>
+    <vendor url="https://github.com/bitwisecook/tcl-lsp">tcl-lsp</vendor>
+    <description><![CDATA[
+        <p>Tcl language support powered by the tcl-lsp language server.</p>
+        <ul>
+            <li>Semantic highlighting, diagnostics, and code actions</li>
+            <li>Auto-completion for commands, subcommands, variables, and switches</li>
+            <li>Hover information with command help and proc signatures</li>
+            <li>Go-to-definition, find references, and rename symbol</li>
+            <li>Document formatting with configurable style</li>
+            <li>Document symbols, workspace symbols, and call hierarchy</li>
+            <li>Code folding, inlay hints, and signature help</li>
+            <li>Compiler Explorer tool window (IR, CFG, SSA, optimiser, shimmer analysis)</li>
+            <li>Supports Tcl 8.4–9.0, F5 BIG-IP iRules, F5 iApps, and EDA tooling dialects</li>
+        </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.ultimate</depends>
+    <depends>org.jetbrains.plugins.textmate</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- LSP server support -->
+        <platform.lsp.serverSupportProvider
+            implementation="com.tcllsp.jetbrains.TclLspServerSupportProvider"/>
+
+        <!-- File types -->
+        <fileType name="Tcl" language="Tcl"
+            implementationClass="com.tcllsp.jetbrains.TclFileType"
+            fieldName="INSTANCE"
+            extensions="tcl;tk;itcl;tm;iapp;iappimpl;impl"/>
+        <fileType name="iRule" language="Tcl"
+            implementationClass="com.tcllsp.jetbrains.TclIruleFileType"
+            fieldName="INSTANCE"
+            extensions="irul;irule"/>
+
+        <!-- TextMate grammar for syntax highlighting -->
+        <editorHighlighterProvider filetype="Tcl"
+            implementationClass="org.jetbrains.plugins.textmate.language.syntax.highlighting.TextMateEditorHighlighterProvider"/>
+        <editorHighlighterProvider filetype="iRule"
+            implementationClass="org.jetbrains.plugins.textmate.language.syntax.highlighting.TextMateEditorHighlighterProvider"/>
+
+        <!-- Settings -->
+        <applicationConfigurable
+            parentId="tools"
+            instance="com.tcllsp.jetbrains.settings.TclLspSettingsConfigurable"
+            id="com.tcllsp.jetbrains.settings"
+            displayName="Tcl Language Server"/>
+        <applicationService
+            serviceImplementation="com.tcllsp.jetbrains.settings.TclLspSettings"/>
+
+        <!-- Status bar widget -->
+        <statusBarWidgetFactory
+            id="TclLspStatusBar"
+            implementation="com.tcllsp.jetbrains.TclLspStatusBarWidgetFactory"
+            order="after encodingWidget"/>
+
+        <!-- Compiler Explorer tool window -->
+        <toolWindow id="Tcl Compiler Explorer"
+            anchor="right"
+            factoryClass="com.tcllsp.jetbrains.CompilerExplorerToolWindowFactory"
+            icon="/icons/tcl.svg"
+            secondary="true"/>
+
+        <!-- Notification group for error messages -->
+        <notificationGroup id="Tcl LSP" displayType="BALLOON"/>
+    </extensions>
+</idea-plugin>

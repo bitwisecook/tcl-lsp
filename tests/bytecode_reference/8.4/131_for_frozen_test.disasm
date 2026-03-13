@@ -1,0 +1,68 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x17878640, refCt 1, epoch 0, interp 0xffee20 (epoch 0)
+  Source "set i 0\nset j 0\nfor {} [expr {$i < 3}] {} {\n    set j ["
+  Cmds 4, src 87, inst 26, litObjs 5, aux 0, stkDepth 5, code/src 2.85
+  Code 248 = header 160+inst 26+litObj 40+exc 0+aux 0+cmdMap 16
+  Proc 0x178710c0, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "i"
+      slot 1, scalar, "j"
+  Commands 4:
+      1: pc 0-4, src 0-6   	   2: pc 5-9, src 8-14
+      3: pc 10-24, src 16-85   	   4: pc 14-18, src 24-36
+  Command 1: "set i 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "i"
+    (4) pop 
+  Command 2: "set j 0"
+    (5) push1 0  	# "0"
+    (7) storeScalar1 1	# var "j"
+    (9) pop 
+  Command 3: "for {} [expr {$i < 3}] {} {\n    set j [incr i]\n    if {"
+    (10) push1 1  	# "for"
+    (12) push1 2  	# ""
+  Command 4: "expr {$i < 3}"
+    (14) loadScalar1 0	# var "i"
+    (16) push1 3  	# "3"
+    (18) lt 
+    (19) push1 2  	# ""
+    (21) push1 4  	# "\n    set j [incr i]\n    if {$j > 3} brea"
+    (23) invokeStk1 5 
+    (25) done 
+
+ByteCode 0x178741c0, refCt 1, epoch 0, interp 0xffee20 (epoch 0)
+  Source ""
+  Cmds 0, src 0, inst 3, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Code 176 = header 160+inst 3+litObj 8+exc 0+aux 0+cmdMap 0
+    (0) push1 0  	# ""
+    (2) done 
+  Compiling: "set j [incr i]"
+  Compiling: "incr i"
+  Compiling: "if {$j > 3} break"
+  Compiling: "break"
+
+ByteCode 0x16880600, refCt 1, epoch 0, interp 0xffee20 (epoch 0)
+  Source "\n    set j [incr i]\n    if {$j > 3} break\n"
+  Cmds 4, src 42, inst 22, litObjs 4, aux 0, stkDepth 2, code/src 5.52
+  Code 232 = header 160+inst 22+litObj 32+exc 0+aux 0+cmdMap 16
+  Commands 4:
+      1: pc 0-7, src 5-18   	   2: pc 2-5, src 12-17
+      3: pc 8-20, src 24-40   	   4: pc 16-16, src 36-40
+  Command 1: "set j [incr i]"
+    (0) push1 0  	# "j"
+  Command 2: "incr i"
+    (2) push1 1  	# "i"
+    (4) incrScalarStkImm 1
+    (6) storeScalarStk 
+    (7) pop 
+  Command 3: "if {$j > 3} break"
+    (8) push1 0  	# "j"
+    (10) loadScalarStk 
+    (11) push1 2  	# "3"
+    (13) gt 
+    (14) jumpFalse1 5  	# pc 19
+  Command 4: "break"
+    (16) break 
+    (17) jump1 4  	# pc 21
+    (19) push1 3  	# ""
+    (21) done 

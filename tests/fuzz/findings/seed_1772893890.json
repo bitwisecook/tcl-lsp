@@ -1,0 +1,23 @@
+{
+  "seed": 1772893890,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"result\": no such variable\n    while executing\n\"if {$result < 13} {\n            set b [expr {(((31 && 29) ^ ($b & 23)) != -90)}]\n            for {set count 0} {$count < 6} {incr count} {\n           ...\"\n    (\"for\" body line 66)\n    invoked from within\n\"for {set z 0} {$z < 3} {incr z} {\n    for {set data 0} {$data < 6} {incr data} {\n        for {set z 0} {$z < 6} {incr z} {\n            set buf {true -...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp7ktxu_rr.tcl\" line"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"result\": no such variable\n    while executing\n\"if {$result < 13} {\n            set b [expr {(((31 && 29) ^ ($b & 23)) != -90)}]\n            for {set count 0} {$count < 6} {incr count} {\n           ...\"\n    (\"for\" body line 66)\n    invoked from within\n\"for {set z 0} {$z < 3} {incr z} {\n    for {set data 0} {$data < 6} {incr data} {\n        for {set z 0} {$z < 6} {incr z} {\n            set buf {true -...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp7ktxu_rr.tcl\" line"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

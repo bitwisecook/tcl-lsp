@@ -1,0 +1,23 @@
+{
+  "seed": 1772893307,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {-23} {\n        set val -137\n        set count -740\n        expr {(10 ? ($acc | 85) : -61)}\n        if {((-90.31 && -78) - (27 ? -80.74 : 90))} {\n ...\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set count 0} {$count < 4} {incr count} {\n    if {-23} {\n        set val -137\n        set count -740\n        expr {(10 ? ($acc | 85) : -61)}\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {-23} {\n        set val -137\n        set count -740\n        expr {(10 ? ($acc | 85) : -61)}\n        if {((-90.31 && -78) - (27 ? -80.74 : 90))} {\n ...\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set count 0} {$count < 4} {incr count} {\n    if {-23} {\n        set val -137\n        set count -740\n        expr {(10 ? ($acc | 85) : -61)}\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/"
+    }
+  ],
+  "category": "vm-timeout-if-else",
+  "triage": "VM loops; core if-else-elseif bug is FIXED; script wraps in retry loop"
+}

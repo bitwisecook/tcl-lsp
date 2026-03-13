@@ -1,0 +1,23 @@
+{
+  "seed": 1772893846,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach n {-363 302 jz} {\n        append n 439\n        set n -137\n        regexp \"^[a-z]\" \"#l8-h7+-!.,rd=1d\"\n        lassign {} n\n        append n 57\n...\"\n    invoked from within\n\"if {-59} {\n    foreach n {-363 302 jz} {\n        append n 439\n        set n -137\n        regexp \"^[a-z]\" \"#l8-h7+-!.,rd=1d\"\n        lassign {} n\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach n {-363 302 jz} {\n        append n 439\n        set n -137\n        regexp \"^[a-z]\" \"#l8-h7+-!.,rd=1d\"\n        lassign {} n\n        append n 57\n...\"\n    invoked from within\n\"if {-59} {\n    foreach n {-363 302 jz} {\n        append n 439\n        set n -137\n        regexp \"^[a-z]\" \"#l8-h7+-!.,rd=1d\"\n        lassign {} n\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

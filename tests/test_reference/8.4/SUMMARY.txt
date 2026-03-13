@@ -1,0 +1,55 @@
+# Reference test results for Tcl 8.4.20
+# tclsh: /usr/local/bin/tclsh8.4
+# tests: (local Tcl source tree)
+# Generated: 2026-03-03T12:54:53Z
+#
+# File                             Total  Passed Skipped  Failed
+# ----                             -----  ------ -------  ------
+  append.test                         42      40       0       2
+  cmdAH.test                         123      84      19      20
+  cmdIL.test                          82      72       2       8
+  compExpr-old.test                  196     167       3      26
+  compExpr.test                       77      77       0       0
+  concat.test                          9       9       0       0
+  error.test                          43      16       1      26
+  eval.test                            9       7       0       2
+  expr-old.test                      423     397       6      20
+  expr.test                          283     230      25      28
+  for-old.test                         9       9       0       0
+  for.test                            56      40       0      16
+  foreach.test                        39      39       0       0
+  format.test                        248     235      13       0
+  if-old.test                         34      32       0       2
+  if.test                             84      62       0      22
+  incr-old.test                       18      10       0       8
+  incr.test                           72      52       0      20
+  info.test                           72      54       0      18
+  join.test                           12       6       0       6
+  lindex.test                         77      77       0       0
+  linsert.test                        26      26       0       0
+  list.test                           67      67       0       0
+  llength.test                         6       6       0       0
+  lrange.test                         22      22       0       0
+  lreplace.test                       34      34       0       0
+  lsearch.test                        70      70       0       0
+  lset.test                           75      75       0       0
+  namespace-old.test                 133     121       0      12
+  namespace.test                     196     179       3      14
+  parse.test                           0       0       0       0
+  parseOld.test                      182     155      21       6
+  proc-old.test                       95      55       0      40
+  proc.test                           19      19       0       0
+  rename.test                         13       9       0       4
+  result.test                         21       1      20       0
+  scan.test                          166     165       1       0
+  set-old.test                       152     146       0       6
+  split.test                          18      14       0       4
+  string.test                        408     406       2       0
+  subst.test                          59      59       0       0
+  switch.test                         39      35       0       4
+  unknown.test                        13       1       0      12
+  uplevel.test                         2       2       0       0
+  upvar.test                          52      24       0      28
+  var.test                            76      52       0      24
+  while-old.test                      17      13       0       4
+  while.test                          52      40       0      12

@@ -1,0 +1,52 @@
+ByteCode 0x0x86ecfa210, refCt 1, epoch 3, interp 0x0x86ec20010 (epoch 3)
+  Source "expr {sin(2.0)}\nexpr {cos(0.0)}\nexpr {sqrt(4.0)}\nexpr {"
+  Cmds 6, src 115, inst 99, litObjs 12, aux 0, stkDepth 3, code/src 0.00
+  Commands 6:
+      1: pc 0-7, src 0-14   	   2: pc 8-24, src 16-30
+      3: pc 25-41, src 32-47   	   4: pc 42-60, src 49-70
+      5: pc 61-79, src 72-91   	   6: pc 80-97, src 93-113
+  Command 1: "expr {sin(2.0)}"
+    (0) push1 0 	# "tcl::mathfunc::sin"
+    (2) push1 1 	# "2.0"
+    (4) invokeStk1 2 
+    (6) tryCvtToNumeric 
+    (7) pop 
+  Command 2: "expr {cos(0.0)}"
+    (8) startCommand +16 1 	# next cmd at pc 24
+    (17) push1 2 	# "tcl::mathfunc::cos"
+    (19) push1 3 	# "0.0"
+    (21) invokeStk1 2 
+    (23) tryCvtToNumeric 
+    (24) pop 
+  Command 3: "expr {sqrt(4.0)}"
+    (25) startCommand +16 1 	# next cmd at pc 41
+    (34) push1 4 	# "tcl::mathfunc::sqrt"
+    (36) push1 5 	# "4.0"
+    (38) invokeStk1 2 
+    (40) tryCvtToNumeric 
+    (41) pop 
+  Command 4: "expr {atan2(1.0, 2.0)}"
+    (42) startCommand +18 1 	# next cmd at pc 60
+    (51) push1 6 	# "tcl::mathfunc::atan2"
+    (53) push1 7 	# "1.0"
+    (55) push1 1 	# "2.0"
+    (57) invokeStk1 3 
+    (59) tryCvtToNumeric 
+    (60) pop 
+  Command 5: "expr {pow(2.0, 3.0)}"
+    (61) startCommand +18 1 	# next cmd at pc 79
+    (70) push1 8 	# "tcl::mathfunc::pow"
+    (72) push1 1 	# "2.0"
+    (74) push1 9 	# "3.0"
+    (76) invokeStk1 3 
+    (78) tryCvtToNumeric 
+    (79) pop 
+  Command 6: "expr {fmod(7.0, 3.0)}"
+    (80) startCommand +18 1 	# next cmd at pc 98
+    (89) push1 10 	# "tcl::mathfunc::fmod"
+    (91) push1 11 	# "7.0"
+    (93) push1 9 	# "3.0"
+    (95) invokeStk1 3 
+    (97) tryCvtToNumeric 
+    (98) done 
+

@@ -1,0 +1,32 @@
+{
+  "seed": 1772823160,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "CRASH: ValueError: negative shift count"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    while executing\n\"if {((~27) % max(1, abs((45 << -61))))} {\n    expr {7}\n} else {\n    if {(17 ** (--27))} {\n        regexp \"[a-z]+\" \"zl0\"\n        regexp \"[0-9]\" \"mi@;90...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgpido52n.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    while executing\n\"if {((~27) % max(1, abs((45 << -61))))} {\n    expr {7}\n} else {\n    if {(17 ** (--27))} {\n        regexp \"[a-z]+\" \"zl0\"\n        regexp \"[0-9]\" \"mi@;90...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgpido52n.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

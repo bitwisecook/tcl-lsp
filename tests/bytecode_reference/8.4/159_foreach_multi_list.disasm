@@ -1,0 +1,43 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xf289c500, refCt 1, epoch 0, interp 0x16b2c60 (epoch 0)
+  Source "set result {}\nforeach {a b} {1 2 3 4} c {x y z} {\n    l"
+  Cmds 3, src 80, inst 43, litObjs 3, aux 1, stkDepth 3, code/src 3.65
+  Code 292 = header 160+inst 43+litObj 24+exc 28+aux 16+cmdMap 12
+  Proc 0xf386cc00, refCt 1, args 0, compiled locals 7
+      slot 0, scalar, "result"
+      slot 1, scalar, temp
+      slot 2, scalar, temp
+      slot 3, scalar, temp
+      slot 4, scalar, "a"
+      slot 5, scalar, "b"
+      slot 6, scalar, "c"
+  Exception ranges 1, depth 1:
+      0: level 1, loop, pc 27-36, continue 20, break 40
+  Commands 3:
+      1: pc 0-4, src 0-12   	   2: pc 5-41, src 14-78
+      3: pc 27-36, src 54-76
+  Command 1: "set result {}"
+    (0) push1 0  	# ""
+    (2) storeScalar1 0	# var "result"
+    (4) pop 
+  Command 2: "foreach {a b} {1 2 3 4} c {x y z} {\n    lappend result "
+    (5) push1 1  	# "1 2 3 4"
+    (7) storeScalar1 1	# temp var 1
+    (9) pop 
+    (10) push1 2  	# "x y z"
+    (12) storeScalar1 2	# temp var 2
+    (14) pop 
+    (15) foreach_start4 0 
+    (20) foreach_step4 0 
+    (25) jumpFalse1 15  	# pc 40
+  Command 3: "lappend result \"$a$b$c\""
+    (27) loadScalar1 4	# var "a"
+    (29) loadScalar1 5	# var "b"
+    (31) loadScalar1 6	# var "c"
+    (33) concat1 3 
+    (35) lappendScalar1 0 
+    (37) pop 
+    (38) jump1 -18  	# pc 20
+    (40) push1 0  	# ""
+    (42) done 

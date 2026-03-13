@@ -1,0 +1,13 @@
+ByteCode 0x0xc26d14b10, refCt 1, epoch 3, interp 0x0xc26c20010 (epoch 3)
+  Source "expr {2 ** 10}\nexpr {3 ** 3}\n"
+  Cmds 2, src 29, inst 15, litObjs 2, aux 0, stkDepth 1, code/src 0.00
+  Commands 2:
+      1: pc 0-2, src 0-13   	   2: pc 3-13, src 15-27
+  Command 1: "expr {2 ** 10}"
+    (0) push1 0 	# "1024"
+    (2) pop 
+  Command 2: "expr {3 ** 3}"
+    (3) startCommand +11 1 	# next cmd at pc 14
+    (12) push1 1 	# "27"
+    (14) done 
+

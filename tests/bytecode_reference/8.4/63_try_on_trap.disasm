@@ -1,0 +1,22 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x950e4500, refCt 1, epoch 0, interp 0x48e2e10 (epoch 0)
+  Source "try {\n    error \"test error\"\n} on error {msg opts} {\n  "
+  Cmds 1, src 112, inst 23, litObjs 9, aux 0, stkDepth 10, code/src 2.32
+  Code 260 = header 160+inst 23+litObj 72+exc 0+aux 0+cmdMap 4
+  Proc 0x950e1c80, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-21, src 0-110
+  Command 1: "try {\n    error \"test error\"\n} on error {msg opts} {\n  "
+    (0) push1 0  	# "try"
+    (2) push1 1  	# "\n    error \"test error\"\n"
+    (4) push1 2  	# "on"
+    (6) push1 3  	# "error"
+    (8) push1 4  	# "msg opts"
+    (10) push1 5  	# "\n    set caught $msg\n"
+    (12) push1 2  	# "on"
+    (14) push1 6  	# "ok"
+    (16) push1 7  	# "result"
+    (18) push1 8  	# "\n    set caught \"\"\n"
+    (20) invokeStk1 10 
+    (22) done 

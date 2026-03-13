@@ -1,0 +1,16 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xee820600, refCt 1, epoch 0, interp 0x1232e20 (epoch 0)
+  Source "proc test {} {\n    set a(1) one\n    set a(2) two\n    li"
+  Cmds 1, src 108, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 1.96
+  Code 212 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 4
+  Proc 0xef82d0c0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-106
+  Command 1: "proc test {} {\n    set a(1) one\n    set a(2) two\n    li"
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "test"
+    (4) push1 2  	# ""
+    (6) push1 3  	# "\n    set a(1) one\n    set a(2) two\n    l"
+    (8) invokeStk1 4 
+    (10) done 

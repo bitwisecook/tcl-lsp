@@ -1,0 +1,24 @@
+{
+  "seed": 1772875225,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"32.74\"\n    while executing\n\"incr x\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set x 0} {$x < 3} {incr x} {\n    set x 32.74\n    set z 675\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpruv0bb1o.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"32.74\"\n    while executing\n\"incr x\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set x 0} {$x < 3} {incr x} {\n    set x 32.74\n    set z 675\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpruv0bb1o.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "strict integer parsing rejects boolean literals",
+  "category": "expected-integer"
+}

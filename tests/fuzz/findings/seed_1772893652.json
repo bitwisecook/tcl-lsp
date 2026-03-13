@@ -1,0 +1,23 @@
+{
+  "seed": 1772893652,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {((!(-10 >> -88)) / max(1, abs(((-87 % max(1, abs(10))) ** int(-91)))))}\"\n    (\"default\" arm line 28)\n    invoked from within\n\"switch -- yes {\n    482 {\n        switch -- -33 {\n            -47 {\n                for {set x 0} {$x < 6} {incr x} {\n                    expr {(wide(...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpes0677s1.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {((!(-10 >> -88)) / max(1, abs(((-87 % max(1, abs(10))) ** int(-91)))))}\"\n    (\"default\" arm line 28)\n    invoked from within\n\"switch -- yes {\n    482 {\n        switch -- -33 {\n            -47 {\n                for {set x 0} {$x < 6} {incr x} {\n                    expr {(wide(...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpes0677s1.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-negative-shift",
+  "triage": "VM loops; core negative-shift bug is FIXED; script wraps in retry loop"
+}

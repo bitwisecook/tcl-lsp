@@ -1,0 +1,24 @@
+{
+  "seed": 1772874707,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"32.20\" as right operand of \"%\"\n    while executing\n\"if {(-(2 % max(1, abs(32.20))))} {\n            catch {\n                string length \"7=sefw74j_+_.\"\n                set y {}\n                expr {mi...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- p {\n    -28 {\n        for {set buf 0} {$buf < 6} {incr buf} {\n            set tmp 82\n            incr tmp -1\n        }\n        set val [expr...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj000"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"32.20\" as right operand of \"%\"\n    while executing\n\"if {(-(2 % max(1, abs(32.20))))} {\n            catch {\n                string length \"7=sefw74j_+_.\"\n                set y {}\n                expr {mi...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- p {\n    -28 {\n        for {set buf 0} {$buf < 6} {incr buf} {\n            set tmp 82\n            incr tmp -1\n        }\n        set val [expr...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj000"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

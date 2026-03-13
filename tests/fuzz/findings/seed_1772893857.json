@@ -1,0 +1,23 @@
+{
+  "seed": 1772893857,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"82.23\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"82.23\"\n    while executing\n\"incr x\"\n    (in namespace eval \"::foo\" script line 4)\n    invoked from within\n\"namespace eval foo {\n    set x \"=x.gjhrzmm!3ki:\"\n    if {-13} {\n        for {set x 0} {$x < 2} {incr x} {\n            append x 15\n            set x 82...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpsng60s2x.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

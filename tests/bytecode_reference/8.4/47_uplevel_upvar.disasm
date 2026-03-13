@@ -1,0 +1,23 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xc106c500, refCt 1, epoch 0, interp 0x507ae10 (epoch 0)
+  Source "proc setvar {name value} {\n    upvar 1 $name var\n    se"
+  Cmds 2, src 131, inst 22, litObjs 7, aux 0, stkDepth 4, code/src 1.89
+  Code 248 = header 160+inst 22+litObj 56+exc 0+aux 0+cmdMap 8
+  Proc 0xc100af00, refCt 1, args 0, compiled locals 0
+  Commands 2:
+      1: pc 0-10, src 0-68   	   2: pc 11-20, src 70-129
+  Command 1: "proc setvar {name value} {\n    upvar 1 $name var\n    se"
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "setvar"
+    (4) push1 2  	# "name value"
+    (6) push1 3  	# "\n    upvar 1 $name var\n    set var $valu"
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc getvar {name} {\n    upvar 1 $name var\n    return $"
+    (11) push1 0  	# "proc"
+    (13) push1 4  	# "getvar"
+    (15) push1 5  	# "name"
+    (17) push1 6  	# "\n    upvar 1 $name var\n    return $var\n"
+    (19) invokeStk1 4 
+    (21) done 

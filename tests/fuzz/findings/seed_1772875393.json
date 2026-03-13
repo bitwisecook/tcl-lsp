@@ -1,0 +1,24 @@
+{
+  "seed": 1772875393,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected number but got a list\n    while executing\n\"if {(wide($val) * ($item >> -97))} {\n        foreach y {-823 -0.56 2.21 true 40 450} {\n            expr {19}\n            switch -- \"gx8,rdth16=\" {\n   ...\"\n    (\"for\" body line 3)\n    invoked from within\n\"for {set item 0} {$item < 4} {incr item} {\n    expr {((99 - (!43.73)) < (59 ? 44 : (-3 * $b)))}\n    if {(wide($val) * ($item >> -97))} {\n        forea...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmps7pvvcnt.tcl\" line 6)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected number but got a list\n    while executing\n\"if {(wide($val) * ($item >> -97))} {\n        foreach y {-823 -0.56 2.21 true 40 450} {\n            expr {19}\n            switch -- \"gx8,rdth16=\" {\n   ...\"\n    (\"for\" body line 3)\n    invoked from within\n\"for {set item 0} {$item < 4} {incr item} {\n    expr {((99 - (!43.73)) < (59 ? 44 : (-3 * $b)))}\n    if {(wide($val) * ($item >> -97))} {\n        forea...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmps7pvvcnt.tcl\" line 6)"
+    }
+  ],
+  "fixed": true,
+  "fix": "number parsing errors propagate correctly",
+  "category": "expected-number"
+}

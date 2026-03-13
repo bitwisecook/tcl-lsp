@@ -1,0 +1,44 @@
+ByteCode 0x0xa36d16310, refCt 1, epoch 3, interp 0x0xa36c20010 (epoch 3)
+  Source "proc test {} {\n    global a\n    set a(1) 42\n    list ${"
+  Cmds 1, src 69, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-67
+  Command 1: "proc test {} {\n    global a\n    set a(1) 42\n    list ${"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    global a\n    set a(1) 42\n    list $"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xa36d1a210, refCt 1, epoch 3, interp 0x0xa36d04010 (epoch 3)
+  Source "\n    global a\n    set a(1) 42\n    list ${a(1)} $a(1)\n"
+  Cmds 3, src 53, inst 51, litObjs 6, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0xa36d08c10, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "a"
+  Commands 3:
+      1: pc 0-12, src 5-12   	   2: pc 13-28, src 18-28
+      3: pc 29-49, src 34-51
+  Command 1: "global a"
+    (0) push1 0 	# "::"
+    (2) push1 1 	# "a"
+    (4) nsupvar %v0 	# var "a"
+    (9) pop 
+    (10) push1 2 	# ""
+    (12) pop 
+  Command 2: "set a(1) 42"
+    (13) startCommand +15 1 	# next cmd at pc 28
+    (22) push1 3 	# "1"
+    (24) push1 4 	# "42"
+    (26) storeArray1 %v0 	# var "a"
+    (28) pop 
+  Command 3: "list ${a(1)} $a(1)"
+    (29) startCommand +21 1 	# next cmd at pc 50
+    (38) push1 5 	# "a(1)"
+    (40) loadScalarStk 
+    (41) push1 3 	# "1"
+    (43) loadArray1 %v0 	# var "a"
+    (45) list 2 
+    (50) done 
+

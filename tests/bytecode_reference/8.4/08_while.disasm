@@ -1,0 +1,28 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x5ec9c280, refCt 1, epoch 0, interp 0x2fcec60 (epoch 0)
+  Source "set i 0\nwhile {$i < 5} {\n    incr i\n}\n"
+  Cmds 3, src 38, inst 21, litObjs 3, aux 0, stkDepth 2, code/src 6.63
+  Code 252 = header 160+inst 21+litObj 24+exc 28+aux 0+cmdMap 12
+  Proc 0x5f1109c0, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "i"
+  Exception ranges 1, depth 1:
+      0: level 1, loop, pc 7-9, continue 11, break 18
+  Commands 3:
+      1: pc 0-4, src 0-6   	   2: pc 5-19, src 8-36
+      3: pc 7-9, src 29-34
+  Command 1: "set i 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "i"
+    (4) pop 
+  Command 2: "while {$i < 5} {\n    incr i\n}"
+    (5) jump1 6  	# pc 11
+  Command 3: "incr i"
+    (7) incrScalar1Imm 0 1
+    (10) pop 
+    (11) loadScalar1 0	# var "i"
+    (13) push1 1  	# "5"
+    (15) lt 
+    (16) jumpTrue1 -9  	# pc 7
+    (18) push1 2  	# ""
+    (20) done 

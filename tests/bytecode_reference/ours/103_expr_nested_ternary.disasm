@@ -1,0 +1,34 @@
+ByteCode ::top, 18 instructions, 25 bytes, 6 literals, 0 variables
+  Literals:
+    0: "3"
+    1: "99"
+    2: "a"
+    3: "no"
+    4: "1"
+    5: "-54"
+  Instructions:
+  # entry_1:
+    (0) nop
+    (1) nop
+    (2) nop
+    (3) nop
+  # cmd_end_1:
+    (4) nop
+    (5) nop
+    (6) push1 2	# "a"
+    (8) push1 3	# "no"
+    (10) storeStk
+  # cmd_end_2:
+    (11) pop
+    (12) push1 4	# "1"
+    (14) jumpFalse1 +7	# pc 21
+    (16) push1 2	# "a"
+    (18) loadStk
+    (19) jump1 +4	# pc 23
+  # tern_f_4:
+    (21) push1 5	# "-54"
+  # tern_end_5:
+    (23) tryCvtToNumeric
+  # cmd_end_3:
+  # exit_2:
+    (24) done

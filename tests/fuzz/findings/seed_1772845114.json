@@ -1,0 +1,32 @@
+{
+  "seed": 1772845114,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "missing \""
+    },
+    {
+      "kind": "crash",
+      "description": "both vm and tclsh(tclsh9.0) crashed",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "tclsh(tclsh9.0) crashed but vm_opt did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "missing \"",
+      "detail_b": "TIMEOUT"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM timeout \u2014 performance difference, not a functional bug",
+  "category": "timeout-all"
+}

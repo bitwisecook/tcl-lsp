@@ -1,0 +1,23 @@
+{
+  "seed": 1772893898,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"if {$b != -10} {\n        set z fxwgus\n        append y \"-z#t8\"\n        set acc {}\n        string map {a b c d} \"et\"\n        string repeat \"cyc.\" 2\n   ...\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$msg < 4} {\n    expr {90}\n    if {$b != -10} {\n        set z fxwgus\n        append y \"-z#t8\"\n        set acc {}\n        string map {a b c d} \"e...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpr_h9mbb6.tcl\" line 130"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"if {$b != -10} {\n        set z fxwgus\n        append y \"-z#t8\"\n        set acc {}\n        string map {a b c d} \"et\"\n        string repeat \"cyc.\" 2\n   ...\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$msg < 4} {\n    expr {90}\n    if {$b != -10} {\n        set z fxwgus\n        append y \"-z#t8\"\n        set acc {}\n        string map {a b c d} \"e...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpr_h9mbb6.tcl\" line 130"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

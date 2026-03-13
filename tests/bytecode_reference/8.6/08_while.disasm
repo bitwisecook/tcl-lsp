@@ -1,0 +1,27 @@
+ByteCode 0x0xb67401410, refCt 1, epoch 17, interp 0x0xb6701c010 (epoch 17)
+  Source "set i 0\nwhile {$i < 5} {\n    incr i\n..."
+  Cmds 3, src 38, inst 24, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 8-11, continue 13, break 21
+  Commands 3:
+      1: pc 0-5, src 0-6        2: pc 6-22, src 8-36
+      3: pc 8-11, src 29-34
+  Command 1: "set i 0..."
+    (0) push1 0 	# "i"
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "while {$i < 5} {\n    incr i\n..."
+    (6) jump1 +7 	# pc 13
+  Command 3: "incr i..."
+    (8) push1 0 	# "i"
+    (10) incrStkImm +1 
+    (12) pop 
+    (13) push1 0 	# "i"
+    (15) loadStk 
+    (16) push1 2 	# "5"
+    (18) lt 
+    (19) jumpTrue1 -11 	# pc 8
+    (21) push1 3 	# ""
+    (23) done 
+

@@ -1,0 +1,11 @@
+[package]
+name = "tcl-lsp-zed"
+version = "0.2.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zed_extension_api = "0.7"
+serde_json = "1"

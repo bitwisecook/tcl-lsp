@@ -1,0 +1,19 @@
+<snippet>
+	<content><![CDATA[when HTTP_REQUEST {
+    if {[HTTP::method] eq "POST"} {
+        HTTP::collect ${1:1024}
+        return
+    }
+
+    ${2:# non-body handling}
+}
+
+when HTTP_REQUEST_DATA {
+    set payload [HTTP::payload]
+    HTTP::release
+    ${0:# payload handling}
+}]]></content>
+	<tabTrigger>irule-collect-release</tabTrigger>
+	<scope>source.irule</scope>
+	<description>Collect payload and release in HTTP_REQUEST_DATA</description>
+</snippet>

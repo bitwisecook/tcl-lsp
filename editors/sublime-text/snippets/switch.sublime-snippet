@@ -1,0 +1,13 @@
+<snippet>
+	<content><![CDATA[switch -- ${1:value} {
+    ${2:pattern} {
+        ${3:# body}
+    }
+    default {
+        ${0:# default}
+    }
+}]]></content>
+	<tabTrigger>tcl-switch</tabTrigger>
+	<scope>source.tcl, source.irule</scope>
+	<description>Create a switch block with -- option terminator</description>
+</snippet>

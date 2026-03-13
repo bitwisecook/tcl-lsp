@@ -1,0 +1,25 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xd8cd8500, refCt 1, epoch 0, interp 0x3636c60 (epoch 0)
+  Source "set f [list {x y} {expr {$x + $y}}]\napply $f 3 4\n"
+  Cmds 3, src 49, inst 23, litObjs 5, aux 0, stkDepth 4, code/src 4.82
+  Code 236 = header 160+inst 23+litObj 40+exc 0+aux 0+cmdMap 12
+  Proc 0xd90d4cc0, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "f"
+  Commands 3:
+      1: pc 0-11, src 0-34   	   2: pc 0-8, src 7-33
+      3: pc 12-21, src 36-47
+  Command 1: "set f [list {x y} {expr {$x + $y}}]"
+  Command 2: "list {x y} {expr {$x + $y}}"
+    (0) push1 0  	# "x y"
+    (2) push1 1  	# "expr {$x + $y}"
+    (4) list 2 
+    (9) storeScalar1 0	# var "f"
+    (11) pop 
+  Command 3: "apply $f 3 4"
+    (12) push1 2  	# "apply"
+    (14) loadScalar1 0	# var "f"
+    (16) push1 3  	# "3"
+    (18) push1 4  	# "4"
+    (20) invokeStk1 4 
+    (22) done 

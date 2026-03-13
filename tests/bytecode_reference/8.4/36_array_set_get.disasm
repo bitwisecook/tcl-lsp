@@ -1,0 +1,27 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x4cb8600, refCt 1, epoch 0, interp 0x364ae20 (epoch 0)
+  Source "set arr(key) hello\nset arr(idx) world\nset x $arr(key)\n"
+  Cmds 3, src 54, inst 21, litObjs 4, aux 0, stkDepth 2, code/src 4.22
+  Code 228 = header 160+inst 21+litObj 32+exc 0+aux 0+cmdMap 12
+  Proc 0x50bd180, refCt 1, args 0, compiled locals 2
+      slot 0, array, "arr"
+      slot 1, scalar, "x"
+  Commands 3:
+      1: pc 0-6, src 0-17   	   2: pc 7-13, src 19-36
+      3: pc 14-19, src 38-52
+  Command 1: "set arr(key) hello"
+    (0) push1 0  	# "key"
+    (2) push1 1  	# "hello"
+    (4) storeArray1 0	# var "arr"
+    (6) pop 
+  Command 2: "set arr(idx) world"
+    (7) push1 2  	# "idx"
+    (9) push1 3  	# "world"
+    (11) storeArray1 0	# var "arr"
+    (13) pop 
+  Command 3: "set x $arr(key)"
+    (14) push1 0  	# "key"
+    (16) loadArray1 0	# var "arr"
+    (18) storeScalar1 1	# var "x"
+    (20) done 

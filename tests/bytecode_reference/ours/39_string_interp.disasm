@@ -1,0 +1,33 @@
+ByteCode ::top, 18 instructions, 29 bytes, 8 literals, 0 variables
+  Literals:
+    0: "name"
+    1: "Alice"
+    2: "greeting"
+    3: "\u0000Hello, "
+    4: "\u0000!"
+    5: "msg"
+    6: "\u0000Result: "
+    7: "3"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "name"
+    (2) push1 1	# "Alice"
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "greeting"
+    (8) push1 3	# "Hello, "
+    (10) push1 0	# "name"
+    (12) loadStk
+    (13) push1 4	# "!"
+    (15) strcat 3
+    (17) storeStk
+  # cmd_end_1:
+    (18) pop
+    (19) push1 5	# "msg"
+    (21) push1 6	# "Result: "
+    (23) push1 7	# "3"
+    (25) strcat 2
+    (27) storeStk
+  # cmd_end_2:
+  # exit_2:
+    (28) done

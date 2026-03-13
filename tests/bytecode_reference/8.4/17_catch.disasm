@@ -1,0 +1,28 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xc30c4640, refCt 1, epoch 0, interp 0xc12e20 (epoch 0)
+  Source "catch {expr {1/0}} result\n"
+  Cmds 2, src 26, inst 24, litObjs 2, aux 0, stkDepth 2, code/src 9.23
+  Code 240 = header 160+inst 24+litObj 16+exc 28+aux 0+cmdMap 8
+  Proc 0xc30bd100, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "result"
+  Exception ranges 1, depth 1:
+      0: level 1, catch, pc 5-9, catch 17
+  Commands 2:
+      1: pc 0-22, src 0-24   	   2: pc 5-9, src 7-16
+  Command 1: "catch {expr {1/0}} result"
+    (0) beginCatch4 0 
+  Command 2: "expr {1/0}"
+    (5) push1 0  	# "1"
+    (7) push1 1  	# "0"
+    (9) div 
+    (10) storeScalar1 0	# var "result"
+    (12) pop 
+    (13) push1 1  	# "0"
+    (15) jump1 7  	# pc 22
+    (17) pushResult 
+    (18) storeScalar1 0	# var "result"
+    (20) pop 
+    (21) pushReturnCode 
+    (22) endCatch 
+    (23) done 

@@ -1,0 +1,32 @@
+{
+  "seed": 1772823085,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "CRASH: ValueError: negative shift count"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {((-21) ** ((-52 << -79) ? (87.52 >= -45) : -91.16))}\"\n    (\"while\" body line 10)\n    invoked from within\n\"while {$z < 2} {\n    for {set z 0} {$z < 6} {incr z} {\n        for {set i 0} {$i < 1} {incr i} {\n            append n 0\n        }\n        for {set n 0...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkmtb4qkn.tcl\" line 9)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {((-21) ** ((-52 << -79) ? (87.52 >= -45) : -91.16))}\"\n    (\"while\" body line 10)\n    invoked from within\n\"while {$z < 2} {\n    for {set z 0} {$z < 6} {incr z} {\n        for {set i 0} {$i < 1} {incr i} {\n            append n 0\n        }\n        for {set n 0...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkmtb4qkn.tcl\" line 9)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

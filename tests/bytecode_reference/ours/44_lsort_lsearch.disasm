@@ -1,0 +1,29 @@
+ByteCode ::top, 16 instructions, 33 bytes, 5 literals, 0 variables
+  Literals:
+    0: "lst"
+    1: "d b a c"
+    2: "lsort"
+    3: "lsearch"
+    4: "b"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "lst"
+    (2) startCommand +11 1	# next cmd at pc 13, 1 cmds start here
+    (11) push1 1	# "d b a c"
+  # cmd_end_1:
+    (13) storeStk
+    (14) pop
+    (15) push1 2	# "lsort"
+    (17) push1 0	# "lst"
+    (19) loadStk
+    (20) invokeStk1 2	# lsort
+  # cmd_end_2:
+    (22) pop
+    (23) push1 3	# "lsearch"
+    (25) push1 0	# "lst"
+    (27) loadStk
+    (28) push1 4	# "b"
+    (30) invokeStk1 3	# lsearch
+  # cmd_end_3:
+  # exit_2:
+    (32) done

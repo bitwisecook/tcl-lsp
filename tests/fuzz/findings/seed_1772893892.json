@@ -1,0 +1,23 @@
+{
+  "seed": 1772893892,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"idx\": no such variable\n    while executing\n\"if {wide((33 ? $idx : -60.75))} {\n            string first \"a\" \"v5?gdsf;c4_1=q_sd\"\n            set result 23\n            incr result -5\n        }\"\n    (\"default\" arm line 4)\n    invoked from within\n\"switch -- -21 {\n    \"t7#pyqv92r3g47c\" {\n        set x [expr {74}]\n        if {$x != 3} {\n            set x 904\n            if {75} {\n                e...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpu2qfc307.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"idx\": no such variable\n    while executing\n\"if {wide((33 ? $idx : -60.75))} {\n            string first \"a\" \"v5?gdsf;c4_1=q_sd\"\n            set result 23\n            incr result -5\n        }\"\n    (\"default\" arm line 4)\n    invoked from within\n\"switch -- -21 {\n    \"t7#pyqv92r3g47c\" {\n        set x [expr {74}]\n        if {$x != 3} {\n            set x 904\n            if {75} {\n                e...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpu2qfc307.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

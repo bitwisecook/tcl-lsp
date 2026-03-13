@@ -1,0 +1,55 @@
+ByteCode 0x0xa40ce3010, refCt 1, epoch 17, interp 0x0xa40c28010 (epoch 17)
+  Source "set lst {a b c d e}\nset a [lreplace $lst 1 2 X Y Z]\ns..."
+  Cmds 7, src 110, inst 115, litObjs 9, aux 0, stkDepth 5, code/src 0.00
+  Commands 7:
+      1: pc 0-5, src 0-18        2: pc 6-58, src 20-50
+      3: pc 8-56, src 27-49        4: pc 59-74, src 52-76
+      5: pc 61-72, src 59-75        6: pc 75-113, src 78-108
+      7: pc 77-112, src 85-107
+  Command 1: "set lst {a b c d e}..."
+    (0) push1 0 	# "lst"
+    (2) push1 1 	# "a b c d e"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set a [lreplace $lst 1 2 X Y Z]..."
+    (6) push1 2 	# "a"
+  Command 3: "lreplace $lst 1 2 X Y Z..."
+    (8) push1 0 	# "lst"
+    (10) loadStk 
+    (11) push1 3 	# "X"
+    (13) push1 4 	# "Y"
+    (15) push1 5 	# "Z"
+    (17) list 3 
+    (22) over 1 
+    (27) listRangeImm 0 0 
+    (36) reverse 2 
+    (41) listConcat 
+    (42) reverse 2 
+    (47) listRangeImm 3 end 
+    (56) listConcat 
+    (57) storeStk 
+    (58) pop 
+  Command 4: "set b [lreplace $lst 0 0]..."
+    (59) push1 6 	# "b"
+  Command 5: "lreplace $lst 0 0..."
+    (61) push1 0 	# "lst"
+    (63) loadStk 
+    (64) listRangeImm 1 end 
+    (73) storeStk 
+    (74) pop 
+  Command 6: "set c [lreplace $lst end end W]..."
+    (75) push1 7 	# "c"
+  Command 7: "lreplace $lst end end W..."
+    (77) push1 0 	# "lst"
+    (79) loadStk 
+    (80) push1 8 	# "W"
+    (82) list 1 
+    (87) over 1 
+    (92) listRangeImm 0 end-1 
+    (101) reverse 2 
+    (106) listConcat 
+    (107) reverse 2 
+    (112) pop 
+    (113) storeStk 
+    (114) done 
+

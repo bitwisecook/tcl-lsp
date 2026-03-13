@@ -1,0 +1,23 @@
+{
+  "seed": 1772893990,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"-59-35\" as right operand of \"-\"\n    while executing\n\"expr {(((53 ? 86.54 : 19) - $b) ? ($b ** $data) : ((66 < 88) * (25 != 22)))}\"\n    (\"while\" body line 10)\n    invoked from within\n\"while {$data < 2} {\n    append data \";t67:?k73;j1-1+6b\"\n    if {(($data < $data) ? (-42 << 59) : 12)} {\n        expr {60}\n        foreach a {true -6.0...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkifr0mgu.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"-59-35\" as right operand of \"-\"\n    while executing\n\"expr {(((53 ? 86.54 : 19) - $b) ? ($b ** $data) : ((66 < 88) * (25 != 22)))}\"\n    (\"while\" body line 10)\n    invoked from within\n\"while {$data < 2} {\n    append data \";t67:?k73;j1-1+6b\"\n    if {(($data < $data) ? (-42 << 59) : 12)} {\n        expr {60}\n        foreach a {true -6.0...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkifr0mgu.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"-59-35\" as right operand of \""
+}

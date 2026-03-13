@@ -1,0 +1,23 @@
+{
+  "seed": 1772893731,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"55.47\" as operand of \"~\"\n    invoked from within\n\"if {(~55.47)} {\n        append result 582\n        expr {((($result ^ 16) | (-36.19 % max(1, abs(-76)))) - 80)}\n        switch -- 44 {\n            \"!? ...\"\n    (\"while\" body line 4)\n    invoked from within\n\"while {$buf < 3} {\n    append buf -41.67\n    set buf \"k9=.1_55sqe+1g#p-5g\"\n    if {(~55.47)} {\n        append result 582\n        expr {((($result ^ 16...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000g"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"55.47\" as operand of \"~\"\n    invoked from within\n\"if {(~55.47)} {\n        append result 582\n        expr {((($result ^ 16) | (-36.19 % max(1, abs(-76)))) - 80)}\n        switch -- 44 {\n            \"!? ...\"\n    (\"while\" body line 4)\n    invoked from within\n\"while {$buf < 3} {\n    append buf -41.67\n    set buf \"k9=.1_55sqe+1g#p-5g\"\n    if {(~55.47)} {\n        append result 582\n        expr {((($result ^ 16...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000g"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

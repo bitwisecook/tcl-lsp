@@ -1,0 +1,25 @@
+ByteCode 0x0xb1487a210, refCt 1, epoch 3, interp 0x0xb14c20010 (epoch 3)
+  Source "set s [format \"%s is %d years old\" Alice 30]\nscan \"42 h"
+  Cmds 3, src 78, inst 27, litObjs 10, aux 0, stkDepth 5, code/src 0.00
+  Commands 3:
+      1: pc 0-13, src 0-43   	   2: pc 2-11, src 7-42
+      3: pc 14-25, src 45-76
+  Command 1: "set s [format \"%s is %d years old\" Alice 30]"
+    (0) push1 0 	# "s"
+  Command 2: "format \"%s is %d years old\" Alice 30"
+    (2) push1 1 	# "format"
+    (4) push1 2 	# "%s is %d years old"
+    (6) push1 3 	# "Alice"
+    (8) push1 4 	# "30"
+    (10) invokeStk1 4 
+    (12) storeScalarStk 
+    (13) pop 
+  Command 3: "scan \"42 hello\" \"%d %s\" num word"
+    (14) push1 5 	# "scan"
+    (16) push1 6 	# "42 hello"
+    (18) push1 7 	# "%d %s"
+    (20) push1 8 	# "num"
+    (22) push1 9 	# "word"
+    (24) invokeStk1 5 
+    (26) done 
+

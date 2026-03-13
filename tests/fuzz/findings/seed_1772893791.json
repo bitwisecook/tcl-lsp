@@ -1,0 +1,23 @@
+{
+  "seed": 1772893791,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    while executing\n\"if {((-22) | (29 >> -98))} {\n    for {set item 0} {$item < 2} {incr item} {\n        append y \"@is;u!#3m91?7,p4+ux\"\n        set y 79\n        incr y 10\n...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpweliuv8p.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-negative-shift",
+  "triage": "VM loops; core negative-shift bug is FIXED; script wraps in retry loop"
+}

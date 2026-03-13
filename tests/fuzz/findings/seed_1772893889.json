@@ -1,0 +1,23 @@
+{
+  "seed": 1772893889,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {-89} {\n    foreach count {} {\n        append item 12\n        append acc 630\n        set data -52.53\n        lassign {} a tmp\n    }\n    append z \"+...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpqt5_ch82.tcl\" line 178)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {-89} {\n    foreach count {} {\n        append item 12\n        append acc 630\n        set data -52.53\n        lassign {} a tmp\n    }\n    append z \"+...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpqt5_ch82.tcl\" line 178)"
+    }
+  ],
+  "category": "vm-timeout-if-else",
+  "triage": "VM loops; core if-else-elseif bug is FIXED; script wraps in retry loop"
+}

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893831,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"50.58\" as left operand of \">>\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"50.58\" as left operand of \">>\"\n    invoked from within\n\"expr {(~round((50.58 >> 22)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach val {719 -11 -900 -831 883} {\n        expr {(~round((50.58 >> 22)))}\n        expr {(max((12 << -82), max(38.24, $idx)) ? -82.01 : (-double(-98...\"\n    (\"for\" body line 39)\n    invoked from within\n\"for {set acc 0} {$acc < 2} {incr acc} {\n    if {(-5 <= min(87, 30))} {\n        foreach acc {1} {\n            append b 1\n "
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

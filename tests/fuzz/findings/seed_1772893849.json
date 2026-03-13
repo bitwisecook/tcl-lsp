@@ -1,0 +1,23 @@
+{
+  "seed": 1772893849,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    invoked from within\n\"if {(~(55 < -96.95))} {\n    regexp \"^[a-z]\" \"db5h#z0 e91e1\"\n    string trimleft \"2 fo7a\"\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjxsv68tf.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    invoked from within\n\"if {(~(55 < -96.95))} {\n    regexp \"^[a-z]\" \"db5h#z0 e91e1\"\n    string trimleft \"2 fo7a\"\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjxsv68tf.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

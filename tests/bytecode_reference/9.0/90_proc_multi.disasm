@@ -1,0 +1,76 @@
+ByteCode 0x8bb165e10, refCt 1, epoch 21, interp 0x8bb01c010 (epoch 21)
+  Source "proc add {a b} { expr {$a + $b} }\nproc mul {a b} { exp..."
+  Cmds 3, src 98, inst 33, litObjs 9, aux 0, stkDepth 4, code/src 0.00
+  Commands 3:
+      1: pc 0-10, src 0-32        2: pc 11-21, src 34-66
+      3: pc 22-31, src 68-96
+  Command 1: "proc add {a b} { expr {$a + $b} }..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "add"
+    (4) push1 2 	# "a b"
+    (6) push1 3 	# " expr {$a + $b} "
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc mul {a b} { expr {$a * $b} }..."
+    (11) push1 0 	# "proc"
+    (13) push1 4 	# "mul"
+    (15) push1 2 	# "a b"
+    (17) push1 5 	# " expr {$a * $b} "
+    (19) invokeStk1 4 
+    (21) pop 
+  Command 3: "proc square {x} { mul $x $x }..."
+    (22) push1 0 	# "proc"
+    (24) push1 6 	# "square"
+    (26) push1 7 	# "x"
+    (28) push1 8 	# " mul $x $x "
+    (30) invokeStk1 4 
+    (32) done 
+
+
+ByteCode 0x8bb165e10, refCt 1, epoch 95, interp 0x8bb1b0810 (epoch 95)
+  Source " mul $x $x "
+  File "scripts/reference_disasm.tcl" Line 32
+  Cmds 1, src 11, inst 9, litObjs 1, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x8bb1b2b10, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "x"
+  Commands 1:
+      1: pc 0-7, src 1-10
+  Command 1: "mul $x $x "
+    (0) push1 0 	# "mul"
+    (2) loadScalar1 %v0 	# var "x"
+    (4) loadScalar1 %v0 	# var "x"
+    (6) invokeStk1 3 
+    (8) done 
+
+
+ByteCode 0x8bb159510, refCt 1, epoch 95, interp 0x8bb1b0810 (epoch 95)
+  Source " expr {$a * $b} "
+  File "scripts/reference_disasm.tcl" Line 31
+  Cmds 1, src 16, inst 6, litObjs 0, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x8bb40a190, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "a"
+      slot 1, scalar, arg, "b"
+  Commands 1:
+      1: pc 0-4, src 1-15
+  Command 1: "expr {$a * $b} "
+    (0) loadScalar1 %v0 	# var "a"
+    (2) loadScalar1 %v1 	# var "b"
+    (4) mult 
+    (5) done 
+
+
+ByteCode 0x8bb1a1410, refCt 1, epoch 95, interp 0x8bb1b0810 (epoch 95)
+  Source " expr {$a + $b} "
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 1, src 16, inst 6, litObjs 0, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x8bb1b3090, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "a"
+      slot 1, scalar, arg, "b"
+  Commands 1:
+      1: pc 0-4, src 1-15
+  Command 1: "expr {$a + $b} "
+    (0) loadScalar1 %v0 	# var "a"
+    (2) loadScalar1 %v1 	# var "b"
+    (4) add 
+    (5) done 
+

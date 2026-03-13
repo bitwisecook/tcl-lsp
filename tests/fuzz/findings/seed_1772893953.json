@@ -1,0 +1,23 @@
+{
+  "seed": 1772893953,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"no\"\n    while executing\n\"incr item\"\n    (\"foreach\" body line 26)\n    invoked from within\n\"foreach data {nyyqfwp} {\n    catch {\n        set flag {qgcabp 37.17}\n        lappend flag \":s_y4jk3bb4gnneu72\"\n    } data\n    if {$data != -10} {\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpumlmnilc.tcl\" line 3)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"no\"\n    while executing\n\"incr item\"\n    (\"foreach\" body line 26)\n    invoked from within\n\"foreach data {nyyqfwp} {\n    catch {\n        set flag {qgcabp 37.17}\n        lappend flag \":s_y4jk3bb4gnneu72\"\n    } data\n    if {$data != -10} {\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpumlmnilc.tcl\" line 3)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

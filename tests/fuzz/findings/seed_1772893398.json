@@ -1,0 +1,23 @@
+{
+  "seed": 1772893398,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"foreach\" body line 12)\n    invoked from within\n\"foreach key {yes true -419 -172 -65.32} {\n            foreach b {1} {\n                set z 36\n                incr z -2\n                llength {401}...\"\n    (\"default\" arm line 191)\n    invoked from within\n\"switch -- -67.59 {\n    \"?t?\" {\n        append count -82\n    }\n    default {\n        for {set msg 0} {$msg < 4} {incr msg} {\n            lassign {22.54...\"\n    (file \"/var/folders/2s/cl"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"foreach\" body line 12)\n    invoked from within\n\"foreach key {yes true -419 -172 -65.32} {\n            foreach b {1} {\n                set z 36\n                incr z -2\n                llength {401}...\"\n    (\"default\" arm line 191)\n    invoked from within\n\"switch -- -67.59 {\n    \"?t?\" {\n        append count -82\n    }\n    default {\n        for {set msg 0} {$msg < 4} {incr msg} {\n            lassign {22.54...\"\n    (file \"/var/folders/2s/cl"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

@@ -1,0 +1,24 @@
+{
+  "seed": 1772875079,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"expr {((-(-85.75 + -5.85)) ? (min(-23, $val) - (68 ? 38 : -64)) : ((~-95) | (59.52 ? 81.72 : -61)))}\"\n    (in namespace eval \"::baz\" script line 62)\n    invoked from within\n\"namespace eval baz {\n    if {98} {\n        set i 39\n        incr i -1\n        expr {-26.65}\n        set i -589\n        set i true\n    }\n    append i -...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp0bo9rwcp.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"expr {((-(-85.75 + -5.85)) ? (min(-23, $val) - (68 ? 38 : -64)) : ((~-95) | (59.52 ? 81.72 : -61)))}\"\n    (in namespace eval \"::baz\" script line 62)\n    invoked from within\n\"namespace eval baz {\n    if {98} {\n        set i 39\n        incr i -1\n        expr {-26.65}\n        set i -589\n        set i true\n    }\n    append i -...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp0bo9rwcp.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

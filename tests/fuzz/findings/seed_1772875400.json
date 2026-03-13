@@ -1,0 +1,24 @@
+{
+  "seed": 1772875400,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach data {-229 rshac mpa 462 no} {\n                regexp \"[a-z]+\" \"-=eypwvo#zy5\"\n                expr {-7}\n                string reverse \"#ooc9q...\"\n    (\"for\" body line 5)\n    invoked from within\n\"for {set z 0} {$z < 4} {incr z} {\n    if {$z != -6} {\n        lsearch {xetsl yes false 75.23 -254} 60\n        if {wide(73)} {\n            foreach data...\"\n    (file \"/var/folders/2s/clyp06qs"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach data {-229 rshac mpa 462 no} {\n                regexp \"[a-z]+\" \"-=eypwvo#zy5\"\n                expr {-7}\n                string reverse \"#ooc9q...\"\n    (\"for\" body line 5)\n    invoked from within\n\"for {set z 0} {$z < 4} {incr z} {\n    if {$z != -6} {\n        lsearch {xetsl yes false 75.23 -254} 60\n        if {wide(73)} {\n            foreach data...\"\n    (file \"/var/folders/2s/clyp06qs"
+    }
+  ],
+  "fixed": true,
+  "fix": "command resolution errors now propagate correctly",
+  "category": "invalid-command"
+}

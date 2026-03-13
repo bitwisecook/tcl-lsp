@@ -1,0 +1,23 @@
+{
+  "seed": 1772893438,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach result {-524 -935} {\n    regexp \"^[a-z]\" \"qi7.qqx=n.\"\n    if {wide((-$idx))} {\n        set x [expr {((max(12, -56) >= $flag) << -96.75)}]\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpx3dtpi7x.tcl\" line 125)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach result {-524 -935} {\n    regexp \"^[a-z]\" \"qi7.qqx=n.\"\n    if {wide((-$idx))} {\n        set x [expr {((max(12, -56) >= $flag) << -96.75)}]\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpx3dtpi7x.tcl\" line 125)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

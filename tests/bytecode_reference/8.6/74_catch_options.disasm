@@ -1,0 +1,19 @@
+ByteCode 0x0xa7046c810, refCt 1, epoch 17, interp 0x0xa70c28010 (epoch 17)
+  Source "catch {expr {1/0}} result opts\ncatch {set x 42} result..."
+  Cmds 2, src 55, inst 20, litObjs 5, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-10, src 0-29        2: pc 11-18, src 31-53
+  Command 1: "catch {expr {1/0}} result opts..."
+    (0) push1 0 	# "catch"
+    (2) push1 1 	# "expr {1/0}"
+    (4) push1 2 	# "result"
+    (6) push1 3 	# "opts"
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "catch {set x 42} result..."
+    (11) push1 0 	# "catch"
+    (13) push1 4 	# "set x 42"
+    (15) push1 2 	# "result"
+    (17) invokeStk1 3 
+    (19) done 
+

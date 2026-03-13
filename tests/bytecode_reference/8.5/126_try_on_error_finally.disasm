@@ -1,0 +1,22 @@
+ByteCode 0x0xbf48c6210, refCt 1, epoch 3, interp 0x0xbf4c20010 (epoch 3)
+  Source "set cleanup 0\ntry {\n    expr {1/0}\n} on error {msg} {\n "
+  Cmds 2, src 103, inst 25, litObjs 10, aux 0, stkDepth 8, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-12   	   2: pc 6-23, src 14-101
+  Command 1: "set cleanup 0"
+    (0) push1 0 	# "cleanup"
+    (2) push1 1 	# "0"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "try {\n    expr {1/0}\n} on error {msg} {\n    set err $ms"
+    (6) push1 2 	# "try"
+    (8) push1 3 	# "\n    expr {1/0}\n"
+    (10) push1 4 	# "on"
+    (12) push1 5 	# "error"
+    (14) push1 6 	# "msg"
+    (16) push1 7 	# "\n    set err $msg\n"
+    (18) push1 8 	# "finally"
+    (20) push1 9 	# "\n    set cleanup 1\n"
+    (22) invokeStk1 8 
+    (24) done 
+

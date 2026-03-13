@@ -1,0 +1,23 @@
+{
+  "seed": 1772893829,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"if {$b} {\n            append tmp 403\n            set acc gst\n            set tmp \"+k;e\"\n            expr {$tmp}\n            lassign {-442} j\n        }...\"\n    (\"foreach\" body line 18)\n    invoked from within\n\"foreach tmp {-36 wmtpnvx} {\n        foreach tmp {-52.66 epcyjccz tjdzd ilmxzbhr pc z} {\n            lassign {698 bs} tmp tmp\n            set tmp [expr...\"\n    invoked from within\n\"if {(min(-20, -17) ** (11 < 80))} {\n    foreach tmp {-36 "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"if {$b} {\n            append tmp 403\n            set acc gst\n            set tmp \"+k;e\"\n            expr {$tmp}\n            lassign {-442} j\n        }...\"\n    (\"foreach\" body line 18)\n    invoked from within\n\"foreach tmp {-36 wmtpnvx} {\n        foreach tmp {-52.66 epcyjccz tjdzd ilmxzbhr pc z} {\n            lassign {698 bs} tmp tmp\n            set tmp [expr...\"\n    invoked from within\n\"if {(min(-20, -17) ** (11 < 80))} {\n    foreach tmp {-36 "
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

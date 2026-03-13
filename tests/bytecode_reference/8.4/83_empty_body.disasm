@@ -1,0 +1,36 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xc8cd8500, refCt 1, epoch 0, interp 0xb82c60 (epoch 0)
+  Source "proc noop {} {}\nif {1} {} else {}\ncatch {} result\n"
+  Cmds 3, src 50, inst 35, litObjs 4, aux 0, stkDepth 4, code/src 5.52
+  Code 276 = header 160+inst 35+litObj 32+exc 28+aux 0+cmdMap 12
+  Proc 0xc90d4cc0, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "result"
+  Exception ranges 1, depth 1:
+      0: level 1, catch, pc 19-20, catch 28
+  Commands 3:
+      1: pc 0-10, src 0-14   	   2: pc 11-13, src 16-32
+      3: pc 14-33, src 34-48
+  Command 1: "proc noop {} {}"
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "noop"
+    (4) push1 2  	# ""
+    (6) push1 2  	# ""
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "if {1} {} else {}"
+    (11) push1 2  	# ""
+    (13) pop 
+  Command 3: "catch {} result"
+    (14) beginCatch4 0 
+    (19) push1 2  	# ""
+    (21) storeScalar1 0	# var "result"
+    (23) pop 
+    (24) push1 3  	# "0"
+    (26) jump1 7  	# pc 33
+    (28) pushResult 
+    (29) storeScalar1 0	# var "result"
+    (31) pop 
+    (32) pushReturnCode 
+    (33) endCatch 
+    (34) done 

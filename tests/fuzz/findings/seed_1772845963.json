@@ -1,0 +1,32 @@
+{
+  "seed": 1772845963,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach msg {-473 yes 975 -74.29} {\n        regexp \"^[a-z]\" \"\"\n        for {set val 0} {$val < 4} {incr val} {\n            lassign {} y\n            ap...\"\n    (\"foreach\" body line 8)\n    invoked from within\n\"foreach data {-618 -86.39 -855} {\n    for {set msg 0} {$msg < 4} {incr msg} {\n        set data 17\n        incr data 10\n        catch {process \"540:?,u...\"\n    (file \"/var/folders/2s/clyp"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach msg {-473 yes 975 -74.29} {\n        regexp \"^[a-z]\" \"\"\n        for {set val 0} {$val < 4} {incr val} {\n            lassign {} y\n            ap...\"\n    (\"foreach\" body line 8)\n    invoked from within\n\"foreach data {-618 -86.39 -855} {\n    for {set msg 0} {$msg < 4} {incr msg} {\n        set data 17\n        incr data 10\n        catch {process \"540:?,u...\"\n    (file \"/var/folders/2s/clyp"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on invalid command",
+  "category": "vm-timeout-resolved"
+}

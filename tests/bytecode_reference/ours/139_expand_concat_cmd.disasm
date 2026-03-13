@@ -1,0 +1,19 @@
+ByteCode ::top, 7 instructions, 18 bytes, 3 literals, 0 variables
+  Literals:
+    0: "x y z"
+    1: "a b"
+    2: "c d"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "x y z"
+  # cmd_end_1:
+    (2) listRangeImm 0 end
+    (11) pop
+    (12) push1 1	# "a b"
+  # cmd_end_3:
+    (14) push1 2	# "c d"
+  # cmd_end_4:
+    (16) listConcat
+  # cmd_end_2:
+  # exit_2:
+    (17) done

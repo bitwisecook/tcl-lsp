@@ -1,0 +1,23 @@
+[
+    { "caption": "-", "id": "tcl-separator" },
+    {
+        "caption": "Tcl: Format Document",
+        "command": "lsp_format_document",
+        "id": "tcl-format"
+    },
+    {
+        "caption": "Tcl: Minify Document",
+        "command": "tcl_minify_document",
+        "id": "tcl-minify"
+    },
+    {
+        "caption": "Tcl: Unminify Error",
+        "command": "tcl_unminify_error",
+        "id": "tcl-unminify-error"
+    },
+    {
+        "caption": "Tcl: Apply Safe Quick Fixes",
+        "command": "tcl_fix_all_safe_issues",
+        "id": "tcl-fix-all"
+    }
+]

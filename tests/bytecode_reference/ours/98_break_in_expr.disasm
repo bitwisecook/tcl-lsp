@@ -1,0 +1,62 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test_break"
+    2: ""
+    3: "\n    set result {}\n    while 1 {\n ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test_break"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set result {}\n    while 1 {\n ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test_break, 27 instructions, 94 bytes, 4 literals, 1 variables
+  Literals:
+    0: ""
+    1: "a"
+    2: "b"
+    3: "c"
+  Local variables:
+    %v0: "result"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# ""
+    (2) storeScalar1 %v0	# var "result"
+    (4) pop
+    (5) startCommand +75 1	# next cmd at pc 80, 1 cmds start here
+  # while_body_3:
+    (14) startCommand +13 1	# next cmd at pc 27, 1 cmds start here
+    (23) push1 1	# "a"
+    (25) lappendScalar1 %v0	# var "result"
+  # cmd_end_2:
+    (27) pop
+    (28) startCommand +33 2	# next cmd at pc 61, 2 cmds start here
+    (37) push1 2	# "b"
+    (39) startCommand +15 1	# next cmd at pc 54, 1 cmds start here
+    (48) pop
+    (49) jump4 +29	# pc 78
+  # cmd_end_4:
+    (54) list 2
+    (59) lappendScalar1 %v0	# var "result"
+  # cmd_end_3:
+    (61) pop
+    (62) startCommand +13 1	# next cmd at pc 75, 1 cmds start here
+    (71) push1 3	# "c"
+    (73) lappendScalar1 %v0	# var "result"
+  # cmd_end_5:
+    (75) pop
+  # while_header_2:
+    (76) jump1 -62	# pc 14
+  # while_end_4:
+    (78) push1 0	# ""
+  # while_cmd_end_1:
+    (80) pop
+    (81) startCommand +12 1	# next cmd at pc 93, 1 cmds start here
+    (90) loadScalar1 %v0	# var "result"
+    (92) done
+  # ret_end_6:
+    (93) done

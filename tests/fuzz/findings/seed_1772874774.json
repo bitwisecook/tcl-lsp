@@ -1,0 +1,24 @@
+{
+  "seed": 1772874774,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"n\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"if {$n == 3} {\n        set n 0\n        while {$n < 1} {\n            expr {46}\n            append n \"!9pcci4h2umx3t\"\n            set key 374\n          ...\"\n    invoked from within\n\"if {-46} {\n    if {$n == 3} {\n        set n 0\n        while {$n < 1} {\n            expr {46}\n            append n \"!9pcci4h2umx3t\"\n            set key...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmplhavlpyh.tcl\" line 114)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

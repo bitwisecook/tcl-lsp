@@ -1,0 +1,24 @@
+{
+  "seed": 1772874955,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "cannot use non-numeric string \"false\" as left operand of \"+\"\n    while executing\n\"expr {round((max(16, 29.54) + ($val + $n)))}\"\n    (\"for\" body line 21)\n    invoked from within\n\"for {set j 0} {$j < 4} {incr j} {\n    append msg \" !;0=ozs+9z;h_5@\"\n    for {set idx 0} {$idx < 1} {incr idx} {\n        expr {$msg}\n        string ran...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpm17uqvh4.tcl\" line 40)"
+    },
+    {
+      "kind": "error_status",
+      "description": "vm_opt ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "cannot use non-numeric string \"false\" as left operand of \"+\"\n    while executing\n\"expr {round((max(16, 29.54) + ($val + $n)))}\"\n    (\"for\" body line 21)\n    invoked from within\n\"for {set j 0} {$j < 4} {incr j} {\n    append msg \" !;0=ozs+9z;h_5@\"\n    for {set idx 0} {$idx < 1} {incr idx} {\n        expr {$msg}\n        string ran...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpm17uqvh4.tcl\" line 40)"
+    }
+  ],
+  "fixed": true,
+  "fix": "boolean coercion rejection in arithmetic operators",
+  "category": "boolean-coercion"
+}

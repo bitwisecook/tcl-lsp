@@ -1,0 +1,8 @@
+<snippet>
+	<content><![CDATA[for {set ${1:i} 0} {\$${1:i} < ${2:10}} {incr ${1:i}} {
+    ${0:# body}
+}]]></content>
+	<tabTrigger>tcl-for</tabTrigger>
+	<scope>source.tcl, source.irule</scope>
+	<description>Create a for loop with braced expressions</description>
+</snippet>

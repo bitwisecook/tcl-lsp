@@ -1,0 +1,28 @@
+ByteCode ::top, 16 instructions, 30 bytes, 4 literals, 0 variables
+  Literals:
+    0: "d"
+    1: "name Alice age 30 city London"
+    2: "name"
+    3: "city"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "d"
+    (2) push1 1	# "name Alice age 30 city London"
+    (4) dup
+    (5) verifyDict
+  # cmd_end_1:
+    (6) storeStk
+    (7) pop
+    (8) push1 0	# "d"
+    (10) loadStk
+    (11) push1 2	# "name"
+    (13) dictGet 1
+  # cmd_end_2:
+    (18) pop
+    (19) push1 0	# "d"
+    (21) loadStk
+    (22) push1 3	# "city"
+    (24) dictExists 1
+  # cmd_end_3:
+  # exit_2:
+    (29) done

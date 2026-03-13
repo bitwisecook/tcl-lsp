@@ -1,0 +1,32 @@
+{
+  "seed": 1772823184,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"item\": no such variable\n    while executing\n\"expr {(((~$item) && $j) ? ((16 ? 41 : 73.78) & (-91 ^ 99)) : $tmp)}\"\n    (\"foreach\" body line 33)\n    invoked from within\n\"foreach j {false 4.52 843 605 839} {\n            append acc -673\n            switch -- 87 {\n                yes {\n                    expr {(((42 >= 5...\"\n    (\"while\" body line 101)\n    invoked from within\n\"while {$flag < 3} {\n    set acc {ondvuf 1 0 -84.76 1 id}\n    lappend acc -339\n    foreach flag {64.26 -714 -618}"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"item\": no such variable\n    while executing\n\"expr {(((~$item) && $j) ? ((16 ? 41 : 73.78) & (-91 ^ 99)) : $tmp)}\"\n    (\"foreach\" body line 33)\n    invoked from within\n\"foreach j {false 4.52 843 605 839} {\n            append acc -673\n            switch -- 87 {\n                yes {\n                    expr {(((42 >= 5...\"\n    (\"while\" body line 101)\n    invoked from within\n\"while {$flag < 3} {\n    set acc {ondvuf 1 0 -84.76 1 id}\n    lappend acc -339\n    foreach flag {64.26 -714 -618}"
+    }
+  ],
+  "fixed": true,
+  "fix": "foreach/while return value fix prevents infinite loop, errors on missing var like tclsh",
+  "category": "loop-return-value"
+}

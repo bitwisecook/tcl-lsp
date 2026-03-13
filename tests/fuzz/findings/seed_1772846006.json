@@ -1,0 +1,32 @@
+{
+  "seed": 1772846006,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"\"\n    while executing\n\"incr data\"\n    (\"foreach\" body line 11)\n    invoked from within\n\"foreach idx {33.20} {\n    set idx {28.69 -123 -694 moov no}\n    set data 0\n    while {$data < 1} {\n        lassign {-210} acc idx\n        foreach resu...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp3l9ah0w_.tcl\" line 11)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"\"\n    while executing\n\"incr data\"\n    (\"foreach\" body line 11)\n    invoked from within\n\"foreach idx {33.20} {\n    set idx {28.69 -123 -694 moov no}\n    set data 0\n    while {$data < 1} {\n        lassign {-210} acc idx\n        foreach resu...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp3l9ah0w_.tcl\" line 11)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

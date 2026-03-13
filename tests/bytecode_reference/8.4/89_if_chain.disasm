@@ -1,0 +1,63 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xc2cdc1c0, refCt 1, epoch 0, interp 0x4906e10 (epoch 0)
+  Source "set x 5\nif {$x == 1} {\n    set r \"one\"\n} elseif {$x == "
+  Cmds 8, src 220, inst 75, litObjs 11, aux 0, stkDepth 2, code/src 1.65
+  Code 364 = header 160+inst 75+litObj 88+exc 0+aux 0+cmdMap 36
+  Proc 0xc30e1cc0, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "x"
+      slot 1, scalar, "r"
+  Commands 8:
+      1: pc 0-4, src 0-6   	   2: pc 5-73, src 8-218
+      3: pc 12-15, src 27-37   	   4: pc 25-28, src 64-74
+      5: pc 38-41, src 101-113   	   6: pc 51-54, src 140-151
+      7: pc 64-67, src 178-189   	   8: pc 70-73, src 204-216
+  Command 1: "set x 5"
+    (0) push1 0  	# "5"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "if {$x == 1} {\n    set r \"one\"\n} elseif {$x == 2} {\n   "
+    (5) loadScalar1 0	# var "x"
+    (7) push1 1  	# "1"
+    (9) eq 
+    (10) jumpFalse1 8  	# pc 18
+  Command 3: "set r \"one\""
+    (12) push1 2  	# "one"
+    (14) storeScalar1 1	# var "r"
+    (16) jump1 58  	# pc 74
+    (18) loadScalar1 0	# var "x"
+    (20) push1 3  	# "2"
+    (22) eq 
+    (23) jumpFalse1 8  	# pc 31
+  Command 4: "set r \"two\""
+    (25) push1 4  	# "two"
+    (27) storeScalar1 1	# var "r"
+    (29) jump1 45  	# pc 74
+    (31) loadScalar1 0	# var "x"
+    (33) push1 5  	# "3"
+    (35) eq 
+    (36) jumpFalse1 8  	# pc 44
+  Command 5: "set r \"three\""
+    (38) push1 6  	# "three"
+    (40) storeScalar1 1	# var "r"
+    (42) jump1 32  	# pc 74
+    (44) loadScalar1 0	# var "x"
+    (46) push1 7  	# "4"
+    (48) eq 
+    (49) jumpFalse1 8  	# pc 57
+  Command 6: "set r \"four\""
+    (51) push1 8  	# "four"
+    (53) storeScalar1 1	# var "r"
+    (55) jump1 19  	# pc 74
+    (57) loadScalar1 0	# var "x"
+    (59) push1 0  	# "5"
+    (61) eq 
+    (62) jumpFalse1 8  	# pc 70
+  Command 7: "set r \"five\""
+    (64) push1 9  	# "five"
+    (66) storeScalar1 1	# var "r"
+    (68) jump1 6  	# pc 74
+  Command 8: "set r \"other\""
+    (70) push1 10  	# "other"
+    (72) storeScalar1 1	# var "r"
+    (74) done 

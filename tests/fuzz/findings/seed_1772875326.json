@@ -1,0 +1,24 @@
+{
+  "seed": 1772875326,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"if {(!(46 * $val))} {\n                    expr {-78}\n                    expr {(28 ** ((-22) && -25.32))}\n                    append data im\n         ...\"\n    (\"default\" arm line 10)\n    invoked from within\n\"switch -- \"\" {\n    651 {\n        catch {combine \"09=7;vz@m.+e.i3.\"}\n        set y 788\n        for {set y 0} {$y < 2} {incr y} {\n            expr {$res...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpnz8otzoc.tcl\" line"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"if {(!(46 * $val))} {\n                    expr {-78}\n                    expr {(28 ** ((-22) && -25.32))}\n                    append data im\n         ...\"\n    (\"default\" arm line 10)\n    invoked from within\n\"switch -- \"\" {\n    651 {\n        catch {combine \"09=7;vz@m.+e.i3.\"}\n        set y 788\n        for {set y 0} {$y < 2} {incr y} {\n            expr {$res...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpnz8otzoc.tcl\" line"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

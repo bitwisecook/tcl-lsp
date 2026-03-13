@@ -1,0 +1,36 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "check"
+    2: "val"
+    3: "\n    string is boolean $val\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "check"
+    (4) push1 2	# "val"
+    (6) push1 3	# "\n    string is boolean $val\n"
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::check, 9 instructions, 14 bytes, 2 literals, 1 variables
+  Literals:
+    0: ""
+    1: "1"
+  Local variables:
+    %v0: "val"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "val"
+    (2) tryCvtToBoolean
+    (3) jumpTrue1 +7	# pc 10
+    (5) push1 0	# ""
+    (7) streq
+    (8) jump1 +5	# pc 13
+  # si_true_1:
+    (10) pop
+    (11) push1 1	# "1"
+  # si_end_2:
+  # exit_2:
+    (13) done

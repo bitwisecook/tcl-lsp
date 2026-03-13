@@ -1,0 +1,16 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x92874600, refCt 1, epoch 0, interp 0x383ae20 (epoch 0)
+  Source "proc test_types {s} {\n    set a [string is alpha $s]\n  "
+  Cmds 1, src 135, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 1.60
+  Code 216 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 8
+  Proc 0x9386d0c0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-133
+  Command 1: "proc test_types {s} {\n    set a [string is alpha $s]\n  "
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "test_types"
+    (4) push1 2  	# "s"
+    (6) push1 3  	# "\n    set a [string is alpha $s]\n    set "
+    (8) invokeStk1 4 
+    (10) done 

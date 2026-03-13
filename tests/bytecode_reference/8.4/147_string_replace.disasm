@@ -1,0 +1,40 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xd744c500, refCt 1, epoch 0, interp 0x5152e10 (epoch 0)
+  Source "set s \"hello world\"\nset a [string replace $s 5 5 \"-\"]\ns"
+  Cmds 5, src 94, inst 39, litObjs 8, aux 0, stkDepth 6, code/src 3.02
+  Code 284 = header 160+inst 39+litObj 64+exc 0+aux 0+cmdMap 20
+  Proc 0xd7449c80, refCt 1, args 0, compiled locals 3
+      slot 0, scalar, "s"
+      slot 1, scalar, "a"
+      slot 2, scalar, "b"
+  Commands 5:
+      1: pc 0-4, src 0-18   	   2: pc 5-21, src 20-52
+      3: pc 5-18, src 27-51   	   4: pc 22-37, src 54-92
+      5: pc 22-35, src 61-91
+  Command 1: "set s \"hello world\""
+    (0) push1 0  	# "hello world"
+    (2) storeScalar1 0	# var "s"
+    (4) pop 
+  Command 2: "set a [string replace $s 5 5 \"-\"]"
+  Command 3: "string replace $s 5 5 \"-\""
+    (5) push1 1  	# "string"
+    (7) push1 2  	# "replace"
+    (9) loadScalar1 0	# var "s"
+    (11) push1 3  	# "5"
+    (13) push1 3  	# "5"
+    (15) push1 4  	# "-"
+    (17) invokeStk1 6 
+    (19) storeScalar1 1	# var "a"
+    (21) pop 
+  Command 4: "set b [string replace $s 0 4 \"goodbye\"]"
+  Command 5: "string replace $s 0 4 \"goodbye\""
+    (22) push1 1  	# "string"
+    (24) push1 2  	# "replace"
+    (26) loadScalar1 0	# var "s"
+    (28) push1 5  	# "0"
+    (30) push1 6  	# "4"
+    (32) push1 7  	# "goodbye"
+    (34) invokeStk1 6 
+    (36) storeScalar1 2	# var "b"
+    (38) done 

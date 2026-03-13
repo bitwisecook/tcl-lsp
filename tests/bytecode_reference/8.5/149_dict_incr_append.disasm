@@ -1,0 +1,63 @@
+ByteCode 0x0xb54c32810, refCt 1, epoch 3, interp 0x0xb54c20010 (epoch 3)
+  Source "proc test {} {\n    set d [dict create count 0 log \"\"]\n "
+  Cmds 1, src 179, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-177
+  Command 1: "proc test {} {\n    set d [dict create count 0 log \"\"]\n "
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set d [dict create count 0 log \"\"]\n"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xb54d1ae10, refCt 1, epoch 3, interp 0x0xb54d4a010 (epoch 3)
+  Source "\n    set d [dict create count 0 log \"\"]\n    dict incr d"
+  Cmds 7, src 163, inst 110, litObjs 8, aux 0, stkDepth 6, code/src 0.00
+  Proc 0x0xb54d3a910, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "d"
+  Commands 7:
+      1: pc 0-16, src 5-38   	   2: pc 0-13, src 12-37
+      3: pc 17-37, src 44-60   	   4: pc 38-58, src 66-84
+      5: pc 59-77, src 90-116   	   6: pc 78-96, src 122-147
+      7: pc 97-108, src 153-161
+  Command 1: "set d [dict create count 0 log \"\"]"
+  Command 2: "dict create count 0 log \"\""
+    (0) push1 0 	# "dict"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "count"
+    (6) push1 3 	# "0"
+    (8) push1 4 	# "log"
+    (10) push1 5 	# ""
+    (12) invokeStk1 6 
+    (14) storeScalar1 %v0 	# var "d"
+    (16) pop 
+  Command 3: "dict incr d count"
+    (17) startCommand +20 1 	# next cmd at pc 37
+    (26) push1 2 	# "count"
+    (28) dictIncrImm +1 %v0 	# var "d"
+    (37) pop 
+  Command 4: "dict incr d count 5"
+    (38) startCommand +20 1 	# next cmd at pc 58
+    (47) push1 2 	# "count"
+    (49) dictIncrImm +5 %v0 	# var "d"
+    (58) pop 
+  Command 5: "dict append d log \"entry1 \""
+    (59) startCommand +18 1 	# next cmd at pc 77
+    (68) push1 4 	# "log"
+    (70) push1 6 	# "entry1 "
+    (72) dictAppend %v0 	# var "d"
+    (77) pop 
+  Command 6: "dict append d log \"entry2\""
+    (78) startCommand +18 1 	# next cmd at pc 96
+    (87) push1 4 	# "log"
+    (89) push1 7 	# "entry2"
+    (91) dictAppend %v0 	# var "d"
+    (96) pop 
+  Command 7: "return $d"
+    (97) startCommand +12 1 	# next cmd at pc 109
+    (106) loadScalar1 %v0 	# var "d"
+    (108) done 
+    (109) done 
+

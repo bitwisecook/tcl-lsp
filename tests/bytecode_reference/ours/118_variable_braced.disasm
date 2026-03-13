@@ -1,0 +1,27 @@
+ByteCode ::top, 14 instructions, 21 bytes, 6 literals, 0 variables
+  Literals:
+    0: "odd name"
+    1: "42"
+    2: "x"
+    3: "arr"
+    4: "a b"
+    5: "99"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "odd name"
+    (2) push1 1	# "42"
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "x"
+    (8) push1 0	# "odd name"
+    (10) loadStk
+    (11) storeStk
+  # cmd_end_1:
+    (12) pop
+    (13) push1 3	# "arr"
+    (15) push1 4	# "a b"
+    (17) push1 5	# "99"
+    (19) storeArrayStk
+  # cmd_end_2:
+  # exit_2:
+    (20) done

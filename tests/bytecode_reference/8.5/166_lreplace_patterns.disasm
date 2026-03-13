@@ -1,0 +1,54 @@
+ByteCode 0x0xca2cfa210, refCt 1, epoch 3, interp 0x0xca2c20010 (epoch 3)
+  Source "set lst {a b c d e}\nset a [lreplace $lst 1 2 X Y Z]\nset"
+  Cmds 7, src 110, inst 86, litObjs 14, aux 0, stkDepth 8, code/src 0.00
+  Commands 7:
+      1: pc 0-5, src 0-18   	   2: pc 6-35, src 20-50
+      3: pc 17-33, src 27-49   	   4: pc 36-59, src 52-76
+      5: pc 47-57, src 59-75   	   6: pc 60-84, src 78-108
+      7: pc 71-83, src 85-107
+  Command 1: "set lst {a b c d e}"
+    (0) push1 0 	# "lst"
+    (2) push1 1 	# "a b c d e"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set a [lreplace $lst 1 2 X Y Z]"
+    (6) startCommand +29 1 	# next cmd at pc 35
+    (15) push1 2 	# "a"
+  Command 3: "lreplace $lst 1 2 X Y Z"
+    (17) push1 3 	# "lreplace"
+    (19) push1 0 	# "lst"
+    (21) loadScalarStk 
+    (22) push1 4 	# "1"
+    (24) push1 5 	# "2"
+    (26) push1 6 	# "X"
+    (28) push1 7 	# "Y"
+    (30) push1 8 	# "Z"
+    (32) invokeStk1 7 
+    (34) storeScalarStk 
+    (35) pop 
+  Command 4: "set b [lreplace $lst 0 0]"
+    (36) startCommand +23 1 	# next cmd at pc 59
+    (45) push1 9 	# "b"
+  Command 5: "lreplace $lst 0 0"
+    (47) push1 3 	# "lreplace"
+    (49) push1 0 	# "lst"
+    (51) loadScalarStk 
+    (52) push1 10 	# "0"
+    (54) push1 10 	# "0"
+    (56) invokeStk1 4 
+    (58) storeScalarStk 
+    (59) pop 
+  Command 6: "set c [lreplace $lst end end W]"
+    (60) startCommand +25 1 	# next cmd at pc 85
+    (69) push1 11 	# "c"
+  Command 7: "lreplace $lst end end W"
+    (71) push1 3 	# "lreplace"
+    (73) push1 0 	# "lst"
+    (75) loadScalarStk 
+    (76) push1 12 	# "end"
+    (78) push1 12 	# "end"
+    (80) push1 13 	# "W"
+    (82) invokeStk1 5 
+    (84) storeScalarStk 
+    (85) done 
+

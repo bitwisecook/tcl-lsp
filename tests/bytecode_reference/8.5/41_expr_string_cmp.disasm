@@ -1,0 +1,34 @@
+ByteCode 0x0xbf8c48a10, refCt 1, epoch 3, interp 0x0xbf8c20010 (epoch 3)
+  Source "set a \"hello\"\nset b \"world\"\nexpr {$a eq $b}\nexpr {$a ne"
+  Cmds 4, src 60, inst 55, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-12   	   2: pc 6-20, src 14-26
+      3: pc 21-37, src 28-42   	   4: pc 38-53, src 44-58
+  Command 1: "set a \"hello\""
+    (0) push1 0 	# "a"
+    (2) push1 1 	# "hello"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set b \"world\""
+    (6) startCommand +14 1 	# next cmd at pc 20
+    (15) push1 2 	# "b"
+    (17) push1 3 	# "world"
+    (19) storeScalarStk 
+    (20) pop 
+  Command 3: "expr {$a eq $b}"
+    (21) startCommand +16 1 	# next cmd at pc 37
+    (30) push1 0 	# "a"
+    (32) loadScalarStk 
+    (33) push1 2 	# "b"
+    (35) loadScalarStk 
+    (36) streq 
+    (37) pop 
+  Command 4: "expr {$a ne $b}"
+    (38) startCommand +16 1 	# next cmd at pc 54
+    (47) push1 0 	# "a"
+    (49) loadScalarStk 
+    (50) push1 2 	# "b"
+    (52) loadScalarStk 
+    (53) strneq 
+    (54) done 
+

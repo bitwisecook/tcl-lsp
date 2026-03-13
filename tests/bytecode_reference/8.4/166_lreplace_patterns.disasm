@@ -1,0 +1,51 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x23810000, refCt 1, epoch 0, interp 0x120ac60 (epoch 0)
+  Source "set lst {a b c d e}\nset a [lreplace $lst 1 2 X Y Z]\nset"
+  Cmds 7, src 110, inst 52, litObjs 10, aux 0, stkDepth 7, code/src 2.95
+  Code 324 = header 160+inst 52+litObj 80+exc 0+aux 0+cmdMap 28
+  Proc 0x23055f00, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, "lst"
+      slot 1, scalar, "a"
+      slot 2, scalar, "b"
+      slot 3, scalar, "c"
+  Commands 7:
+      1: pc 0-4, src 0-18   	   2: pc 5-23, src 20-50
+      3: pc 5-20, src 27-49   	   4: pc 24-36, src 52-76
+      5: pc 24-33, src 59-75   	   6: pc 37-50, src 78-108
+      7: pc 37-48, src 85-107
+  Command 1: "set lst {a b c d e}"
+    (0) push1 0  	# "a b c d e"
+    (2) storeScalar1 0	# var "lst"
+    (4) pop 
+  Command 2: "set a [lreplace $lst 1 2 X Y Z]"
+  Command 3: "lreplace $lst 1 2 X Y Z"
+    (5) push1 1  	# "lreplace"
+    (7) loadScalar1 0	# var "lst"
+    (9) push1 2  	# "1"
+    (11) push1 3  	# "2"
+    (13) push1 4  	# "X"
+    (15) push1 5  	# "Y"
+    (17) push1 6  	# "Z"
+    (19) invokeStk1 7 
+    (21) storeScalar1 1	# var "a"
+    (23) pop 
+  Command 4: "set b [lreplace $lst 0 0]"
+  Command 5: "lreplace $lst 0 0"
+    (24) push1 1  	# "lreplace"
+    (26) loadScalar1 0	# var "lst"
+    (28) push1 7  	# "0"
+    (30) push1 7  	# "0"
+    (32) invokeStk1 4 
+    (34) storeScalar1 2	# var "b"
+    (36) pop 
+  Command 6: "set c [lreplace $lst end end W]"
+  Command 7: "lreplace $lst end end W"
+    (37) push1 1  	# "lreplace"
+    (39) loadScalar1 0	# var "lst"
+    (41) push1 8  	# "end"
+    (43) push1 8  	# "end"
+    (45) push1 9  	# "W"
+    (47) invokeStk1 5 
+    (49) storeScalar1 3	# var "c"
+    (51) done 

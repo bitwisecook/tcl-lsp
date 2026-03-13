@@ -1,0 +1,50 @@
+ByteCode 0x7490be810, refCt 1, epoch 21, interp 0x74901c010 (epoch 21)
+  Source "proc p {} {\n    set ::y 789\n    return $::y\n}\nset :..."
+  Cmds 3, src 78, inst 48, litObjs 8, aux 0, stkDepth 4, code/src 0.00
+  Commands 3:
+      1: pc 0-10, src 0-44        2: pc 11-27, src 46-57
+      3: pc 28-46, src 59-76
+  Command 1: "proc p {} {\n    set ::y 789\n    return $::y..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "p"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set ::y 789\n    return $::..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "set ::a(1) 2..."
+    (11) startCommand +16 1 	# next cmd at pc 27, 1 cmds start here
+    (20) push1 4 	# "::a"
+    (22) push1 5 	# "1"
+    (24) push1 6 	# "2"
+    (26) storeArrayStk 
+    (27) pop 
+  Command 3: "set ::a($::a(1)) 3..."
+    (28) startCommand +19 1 	# next cmd at pc 47, 1 cmds start here
+    (37) push1 4 	# "::a"
+    (39) push1 4 	# "::a"
+    (41) push1 5 	# "1"
+    (43) loadArrayStk 
+    (44) push1 7 	# "3"
+    (46) storeArrayStk 
+    (47) done 
+
+
+ByteCode 0x7490be810, refCt 1, epoch 95, interp 0x7490d4010 (epoch 95)
+  Source "\n    set ::y 789\n    return $::..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 2, src 33, inst 20, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x74912e010, refCt 1, args 0, compiled locals 0
+  Commands 2:
+      1: pc 0-5, src 5-15        2: pc 6-18, src 21-31
+  Command 1: "set ::y 789..."
+    (0) push1 0 	# "::y"
+    (2) push1 1 	# "789"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "return $::y..."
+    (6) startCommand +13 1 	# next cmd at pc 19, 1 cmds start here
+    (15) push1 0 	# "::y"
+    (17) loadStk 
+    (18) done 
+    (19) done 
+

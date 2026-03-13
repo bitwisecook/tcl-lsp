@@ -1,0 +1,23 @@
+{
+  "seed": 1772893573,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"030.97\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"030.97\"\n    while executing\n\"incr n\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$b < 5} {\n    set b 0\n    for {set n 0} {$n < 3} {incr n} {\n        set flag [expr {(-42 ? -84 : -26.33)}]\n        foreach b {-10.21} {\n       ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmprj5jzy7j.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

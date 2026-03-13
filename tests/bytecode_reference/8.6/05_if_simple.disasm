@@ -1,0 +1,24 @@
+ByteCode 0x0xa790fc010, refCt 1, epoch 17, interp 0x0xa7901c010 (epoch 17)
+  Source "set x 1\nif {$x} {\n    set y 10\n..."
+  Cmds 3, src 33, inst 22, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-6        2: pc 6-20, src 8-31
+      3: pc 12-16, src 22-29
+  Command 1: "set x 1..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "1"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "if {$x} {\n    set y 10\n..."
+    (6) push1 0 	# "x"
+    (8) loadStk 
+    (9) nop 
+    (10) jumpFalse1 +9 	# pc 19
+  Command 3: "set y 10..."
+    (12) push1 2 	# "y"
+    (14) push1 3 	# "10"
+    (16) storeStk 
+    (17) jump1 +4 	# pc 21
+    (19) push1 4 	# ""
+    (21) done 
+

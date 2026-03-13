@@ -1,0 +1,32 @@
+{
+  "seed": 1772823130,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ZeroDivisionError: 0.0 cannot be raised to a negative power",
+      "detail_b": "CRASH: ZeroDivisionError: 0.0 cannot be raised to a negative power"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ZeroDivisionError: 0.0 cannot be raised to a negative power",
+      "detail_b": "can't read \"data\": no such variable\n    while executing\n\"expr {$data}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp9n3ivwsv.tcl\" line 184)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ZeroDivisionError: 0.0 cannot be raised to a negative power",
+      "detail_b": "can't read \"data\": no such variable\n    while executing\n\"expr {$data}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp9n3ivwsv.tcl\" line 184)"
+    }
+  ],
+  "fixed": true,
+  "fix": "exponentiation of zero by negative power check in _arith_binary",
+  "category": "zero-negative-power"
+}

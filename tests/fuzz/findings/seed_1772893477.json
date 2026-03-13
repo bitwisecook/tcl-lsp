@@ -1,0 +1,23 @@
+{
+  "seed": 1772893477,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {$msg >= 3} {\n        set msg 25\n        incr msg 1\n        append idx \",o?w1y\"\n        string first \"a\" \"9\"\n        foreach b {-18.49} {\n         ...\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach msg {-74.05 915 97.21 687 877 false} {\n    append idx \"!_g16za@9\"\n    if {$msg >= 3} {\n        set msg 25\n        incr msg 1\n        append id...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj0000"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {$msg >= 3} {\n        set msg 25\n        incr msg 1\n        append idx \",o?w1y\"\n        string first \"a\" \"9\"\n        foreach b {-18.49} {\n         ...\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach msg {-74.05 915 97.21 687 877 false} {\n    append idx \"!_g16za@9\"\n    if {$msg >= 3} {\n        set msg 25\n        incr msg 1\n        append id...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj0000"
+    }
+  ],
+  "category": "vm-timeout-if-else",
+  "triage": "VM loops; core if-else-elseif bug is FIXED; script wraps in retry loop"
+}

@@ -1,0 +1,16 @@
+{
+  "prompts": [
+    {
+      "file": "irules_system.md",
+      "dialects": ["f5-irules", "f5-iapps", "f5-bigip"]
+    },
+    {
+      "file": "tcl_system.md",
+      "dialects": ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "eda-tools"]
+    },
+    {
+      "file": "tk_system.md",
+      "dialects": ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"]
+    }
+  ]
+}

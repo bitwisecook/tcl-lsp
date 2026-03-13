@@ -1,0 +1,56 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x3ccdc1c0, refCt 1, epoch 0, interp 0x52a6e10 (epoch 0)
+  Source "set d [dict create name Alice age 30 city London]\ndict "
+  Cmds 7, src 133, inst 67, litObjs 14, aux 0, stkDepth 8, code/src 2.80
+  Code 372 = header 160+inst 67+litObj 112+exc 0+aux 0+cmdMap 28
+  Proc 0x3d0e1c80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "d"
+  Commands 7:
+      1: pc 0-20, src 0-48   	   2: pc 0-17, src 7-47
+      3: pc 21-29, src 50-61   	   4: pc 30-38, src 63-76
+      5: pc 39-47, src 78-89   	   6: pc 48-65, src 91-131
+      7: pc 54-63, src 106-130
+  Command 1: "set d [dict create name Alice age 30 city London]"
+  Command 2: "dict create name Alice age 30 city London"
+    (0) push1 0  	# "dict"
+    (2) push1 1  	# "create"
+    (4) push1 2  	# "name"
+    (6) push1 3  	# "Alice"
+    (8) push1 4  	# "age"
+    (10) push1 5  	# "30"
+    (12) push1 6  	# "city"
+    (14) push1 7  	# "London"
+    (16) invokeStk1 8 
+    (18) storeScalar1 0	# var "d"
+    (20) pop 
+  Command 3: "dict keys $d"
+    (21) push1 0  	# "dict"
+    (23) push1 8  	# "keys"
+    (25) loadScalar1 0	# var "d"
+    (27) invokeStk1 3 
+    (29) pop 
+  Command 4: "dict values $d"
+    (30) push1 0  	# "dict"
+    (32) push1 9  	# "values"
+    (34) loadScalar1 0	# var "d"
+    (36) invokeStk1 3 
+    (38) pop 
+  Command 5: "dict size $d"
+    (39) push1 0  	# "dict"
+    (41) push1 10  	# "size"
+    (43) loadScalar1 0	# var "d"
+    (45) invokeStk1 3 
+    (47) pop 
+  Command 6: "dict merge $d [dict create hobby reading]"
+    (48) push1 0  	# "dict"
+    (50) push1 11  	# "merge"
+    (52) loadScalar1 0	# var "d"
+  Command 7: "dict create hobby reading"
+    (54) push1 0  	# "dict"
+    (56) push1 1  	# "create"
+    (58) push1 12  	# "hobby"
+    (60) push1 13  	# "reading"
+    (62) invokeStk1 4 
+    (64) invokeStk1 4 
+    (66) done 

@@ -1,0 +1,33 @@
+ByteCode 0x828cf8410, refCt 1, epoch 21, interp 0x828c28010 (epoch 21)
+  Source "set x 5\nexpr {-$x}\nexpr {+$x}\nexpr {!$x}\nexpr {~..."
+  Cmds 5, src 52, inst 26, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-6        2: pc 6-10, src 8-17
+      3: pc 11-15, src 19-28        4: pc 16-20, src 30-39
+      5: pc 21-24, src 41-50
+  Command 1: "set x 5..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "5"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "expr {-$x}..."
+    (6) push1 0 	# "x"
+    (8) loadStk 
+    (9) uminus 
+    (10) pop 
+  Command 3: "expr {+$x}..."
+    (11) push1 0 	# "x"
+    (13) loadStk 
+    (14) uplus 
+    (15) pop 
+  Command 4: "expr {!$x}..."
+    (16) push1 0 	# "x"
+    (18) loadStk 
+    (19) not 
+    (20) pop 
+  Command 5: "expr {~$x}..."
+    (21) push1 0 	# "x"
+    (23) loadStk 
+    (24) bitnot 
+    (25) done 
+

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893798,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"y\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable\n    while executing\n\"expr {(!(28 >= (79.77 | $y)))}\"\n    invoked from within\n\"if {83.43} {\n    set acc 52\n    incr acc -5\n    set y [expr {(!(28 >= (79.77 | $y)))}]\n    if {$y <= 9} {\n        expr {(-4.50)}\n        set y 0\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpnvrfj0vl.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

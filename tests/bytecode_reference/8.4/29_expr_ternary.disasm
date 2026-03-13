@@ -1,0 +1,25 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xd0880600, refCt 1, epoch 0, interp 0x10fee20 (epoch 0)
+  Source "set x 5\nexpr {$x > 0 ? \"positive\" : \"non-positive\"}\n"
+  Cmds 2, src 52, inst 21, litObjs 4, aux 0, stkDepth 2, code/src 4.31
+  Code 224 = header 160+inst 21+litObj 32+exc 0+aux 0+cmdMap 8
+  Proc 0xd101a380, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 2:
+      1: pc 0-4, src 0-6   	   2: pc 5-19, src 8-50
+  Command 1: "set x 5"
+    (0) push1 0  	# "5"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "expr {$x > 0 ? \"positive\" : \"non-positive\"}"
+    (5) loadScalar1 0	# var "x"
+    (7) push1 1  	# "0"
+    (9) gt 
+    (10) jumpFalse1 7  	# pc 17
+    (12) push1 2  	# "positive"
+    (14) tryCvtToNumeric 
+    (15) jump1 5  	# pc 20
+    (17) push1 3  	# "non-positive"
+    (19) tryCvtToNumeric 
+    (20) done 

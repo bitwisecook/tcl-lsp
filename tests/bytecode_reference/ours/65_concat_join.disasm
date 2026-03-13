@@ -1,0 +1,40 @@
+ByteCode ::top, 24 instructions, 70 bytes, 6 literals, 0 variables
+  Literals:
+    0: "a"
+    1: "x y"
+    2: "b"
+    3: "z w"
+    4: "join"
+    5: ","
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "a"
+    (2) startCommand +11 1	# next cmd at pc 13, 1 cmds start here
+    (11) push1 1	# "x y"
+  # cmd_end_1:
+    (13) storeStk
+    (14) pop
+    (15) startCommand +23 1	# next cmd at pc 38, 1 cmds start here
+    (24) push1 2	# "b"
+    (26) startCommand +11 1	# next cmd at pc 37, 1 cmds start here
+    (35) push1 3	# "z w"
+  # cmd_end_3:
+    (37) storeStk
+  # cmd_end_2:
+    (38) pop
+    (39) startCommand +20 1	# next cmd at pc 59, 1 cmds start here
+    (48) push1 0	# "a"
+    (50) loadStk
+    (51) push1 2	# "b"
+    (53) loadStk
+    (54) concatStk 2
+  # cmd_end_4:
+    (59) pop
+    (60) push1 4	# "join"
+    (62) push1 0	# "a"
+    (64) loadStk
+    (65) push1 5	# ","
+    (67) invokeStk1 3	# join
+  # cmd_end_5:
+  # exit_2:
+    (69) done

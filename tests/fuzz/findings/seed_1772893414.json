@@ -1,0 +1,23 @@
+{
+  "seed": 1772893414,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (in namespace eval \"::baz\" script line 36)\n    invoked from within\n\"namespace eval baz {\n    expr {abs(21.73)}\n    catch {\n        foreach acc {919 true ssvgpzpm yes -456} {\n            expr {int(-41)}\n            expr...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpstylpdv8.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (in namespace eval \"::baz\" script line 36)\n    invoked from within\n\"namespace eval baz {\n    expr {abs(21.73)}\n    catch {\n        foreach acc {919 true ssvgpzpm yes -456} {\n            expr {int(-41)}\n            expr...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpstylpdv8.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

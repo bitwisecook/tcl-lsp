@@ -1,0 +1,24 @@
+{
+  "seed": 1772875216,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "domain error: argument not in valid range\n    while executing\n\"if {((-93.36 ** -67.33) || (82 / max(1, abs(18))))} {\n    for {set idx 0} {$idx < 6} {incr idx} {\n        catch {\n            expr {((!(-19.92 / max(1...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpbu2tx9fo.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "domain error: argument not in valid range\n    while executing\n\"if {((-93.36 ** -67.33) || (82 / max(1, abs(18))))} {\n    for {set idx 0} {$idx < 6} {incr idx} {\n        catch {\n            expr {((!(-19.92 / max(1...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpbu2tx9fo.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "domain error check for negative base ** non-integer exponent",
+  "category": "domain-error"
+}

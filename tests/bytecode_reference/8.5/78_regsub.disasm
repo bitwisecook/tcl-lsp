@@ -1,0 +1,31 @@
+ByteCode 0x0x9cccd2610, refCt 1, epoch 3, interp 0x0x9cc80c010 (epoch 3)
+  Source "set s \"Hello World\"\nregsub {World} $s {Tcl} result\nregs"
+  Cmds 3, src 87, inst 36, litObjs 9, aux 0, stkDepth 6, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-18   	   2: pc 6-19, src 20-49
+      3: pc 20-34, src 51-85
+  Command 1: "set s \"Hello World\""
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "Hello World"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "regsub {World} $s {Tcl} result"
+    (6) push1 2 	# "regsub"
+    (8) push1 3 	# "World"
+    (10) push1 0 	# "s"
+    (12) loadScalarStk 
+    (13) push1 4 	# "Tcl"
+    (15) push1 5 	# "result"
+    (17) invokeStk1 5 
+    (19) pop 
+  Command 3: "regsub -all {[aeiou]} $s {*} result"
+    (20) push1 2 	# "regsub"
+    (22) push1 6 	# "-all"
+    (24) push1 7 	# "[aeiou]"
+    (26) push1 0 	# "s"
+    (28) loadScalarStk 
+    (29) push1 8 	# "*"
+    (31) push1 5 	# "result"
+    (33) invokeStk1 6 
+    (35) done 
+

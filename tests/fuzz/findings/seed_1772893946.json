@@ -1,0 +1,23 @@
+{
+  "seed": 1772893946,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"data\": no such variable\n    while executing\n\"if {$data > 4} {\n        expr {65}\n        string toupper \"+\"\n        expr {$msg}\n        set msg -907\n        expr {(46 ? int(-47.65) : (($x & 35) + ...\"\n    invoked from within\n\"if {((-58 + -74) > 79)} {\n    for {set i 0} {$i < 4} {incr i} {\n        set msg 78\n        incr msg 0\n        regexp \"[a-z]+\" \"?vsq2;;!iz2p3?h\"\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpzc8c50cg.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"data\": no such variable\n    while executing\n\"if {$data > 4} {\n        expr {65}\n        string toupper \"+\"\n        expr {$msg}\n        set msg -907\n        expr {(46 ? int(-47.65) : (($x & 35) + ...\"\n    invoked from within\n\"if {((-58 + -74) > 79)} {\n    for {set i 0} {$i < 4} {incr i} {\n        set msg 78\n        incr msg 0\n        regexp \"[a-z]+\" \"?vsq2;;!iz2p3?h\"\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpzc8c50cg.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

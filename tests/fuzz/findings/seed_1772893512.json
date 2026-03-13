@@ -1,0 +1,23 @@
+{
+  "seed": 1772893512,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"if {((!-10) == (-45 > -77.23))} {\n    set a 22\n    incr a 8\n} elseif {(($a | $a) << (26 ? 29 : $a))} {\n    set a 479\n    if {(($a ? 71.58 : 86) || (-8...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmph3g8bld_.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"if {((!-10) == (-45 > -77.23))} {\n    set a 22\n    incr a 8\n} elseif {(($a | $a) << (26 ? 29 : $a))} {\n    set a 479\n    if {(($a ? 71.58 : 86) || (-8...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmph3g8bld_.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

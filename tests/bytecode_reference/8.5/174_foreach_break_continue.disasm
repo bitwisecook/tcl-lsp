@@ -1,0 +1,83 @@
+ByteCode 0x0x9788c3010, refCt 1, epoch 3, interp 0x0x978c20010 (epoch 3)
+  Source "proc test {} {\n    set result {}\n    foreach x {1 2 3 4"
+  Cmds 1, src 182, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-180
+  Command 1: "proc test {} {\n    set result {}\n    foreach x {1 2 3 4"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set result {}\n    foreach x {1 2 3 "
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x9788bb010, refCt 1, epoch 3, interp 0x0x978c4c010 (epoch 3)
+  Source "\n    set result {}\n    foreach x {1 2 3 4 5 6 7 8 9 10}"
+  Cmds 8, src 166, inst 125, litObjs 4, aux 1, stkDepth 2, code/src 0.00
+  Proc 0x0x978c3eb10, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, "result"
+      slot 1, scalar, temp
+      slot 2, scalar, temp
+      slot 3, scalar, "x"
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 31-105, continue 24, break 109
+  Commands 8:
+      1: pc 0-4, src 5-17   	   2: pc 5-111, src 23-145
+      3: pc 31-61, src 66-86   	   4: pc 47-56, src 79-86
+      5: pc 62-92, src 96-113   	   6: pc 78-87, src 109-113
+      7: pc 93-105, src 123-139   	   8: pc 112-123, src 151-164
+  Command 1: "set result {}"
+    (0) push1 0 	# ""
+    (2) storeScalar1 %v0 	# var "result"
+    (4) pop 
+  Command 2: "foreach x {1 2 3 4 5 6 7 8 9 10} {\n        if {$x == 3}"
+    (5) startCommand +106 1 	# next cmd at pc 111
+    (14) push1 1 	# "1 2 3 4 5 6 7 8 9 10"
+    (16) storeScalar1 %v1 	# temp var 1
+    (18) pop 
+    (19) foreach_start4 0 
+		[data=[%v1], loop=%v2
+		 it%v1	[%v3]]
+    (24) foreach_step4 0 
+		[data=[%v1], loop=%v2
+		 it%v1	[%v3]]
+    (29) jumpFalse1 +80 	# pc 109
+  Command 3: "if {$x == 3} continue"
+    (31) startCommand +30 1 	# next cmd at pc 61
+    (40) loadScalar1 %v3 	# var "x"
+    (42) push1 2 	# "3"
+    (44) eq 
+    (45) jumpFalse1 +14 	# pc 59
+  Command 4: "continue"
+    (47) startCommand +10 1 	# next cmd at pc 57
+    (56) continue 
+    (57) jump1 +4 	# pc 61
+    (59) push1 0 	# ""
+    (61) pop 
+  Command 5: "if {$x == 7} break"
+    (62) startCommand +30 1 	# next cmd at pc 92
+    (71) loadScalar1 %v3 	# var "x"
+    (73) push1 3 	# "7"
+    (75) eq 
+    (76) jumpFalse1 +14 	# pc 90
+  Command 6: "break"
+    (78) startCommand +10 1 	# next cmd at pc 88
+    (87) break 
+    (88) jump1 +4 	# pc 92
+    (90) push1 0 	# ""
+    (92) pop 
+  Command 7: "lappend result $x"
+    (93) startCommand +13 1 	# next cmd at pc 106
+    (102) loadScalar1 %v3 	# var "x"
+    (104) lappendScalar1 %v0 	# var "result"
+    (106) pop 
+    (107) jump1 -83 	# pc 24
+    (109) push1 0 	# ""
+    (111) pop 
+  Command 8: "return $result"
+    (112) startCommand +12 1 	# next cmd at pc 124
+    (121) loadScalar1 %v0 	# var "result"
+    (123) done 
+    (124) done 
+

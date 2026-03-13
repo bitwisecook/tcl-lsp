@@ -1,0 +1,78 @@
+ByteCode 0xb4b167810, refCt 1, epoch 21, interp 0xb4b01c010 (epoch 21)
+  Source "proc compute {n} {\n    set result 0\n    for {set i 0}..."
+  Cmds 1, src 220, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-218
+  Command 1: "proc compute {n} {\n    set result 0\n    for {set i 0}..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "compute"
+    (4) push1 2 	# "n"
+    (6) push1 3 	# "\n    set result 0\n    for {set i 0} {$..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0xb4b18d410, refCt 1, epoch 95, interp 0xb4b1b0010 (epoch 95)
+  Source "\n    set result 0\n    for {set i 0} {$i < $n} {incr i..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 9, src 200, inst 106, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Proc 0xb4b408410, refCt 1, args 1, compiled locals 3
+      slot 0, scalar, arg, "n"
+      slot 1, scalar, "result"
+      slot 2, scalar, "i"
+  Exception ranges 2, depth 1:
+      0: level 0, loop, pc 21-68, continue 70, break 90
+      1: level 0, loop, pc 70-81, continue -1, break 90
+  Commands 9:
+      1: pc 0-4, src 5-16        2: pc 5-92, src 22-179
+      3: pc 14-17, src 27-33        4: pc 21-68, src 65-173
+      5: pc 40-52, src 96-109        6: pc 55-68, src 140-163
+      7: pc 64-66, src 153-162        8: pc 70-81, src 47-52
+      9: pc 93-104, src 185-198
+  Command 1: "set result 0..."
+    (0) push1 0 	# "0"
+    (2) storeScalar1 %v1 	# var "result"
+    (4) pop 
+  Command 2: "for {set i 0} {$i < $n} {incr i} {\n        if {$i % 2 ..."
+    (5) startCommand +87 2 	# next cmd at pc 92, 2 cmds start here
+  Command 3: "set i 0..."
+    (14) push1 0 	# "0"
+    (16) storeScalar1 %v2 	# var "i"
+    (18) pop 
+    (19) jump1 +64 	# pc 83
+  Command 4: "if {$i % 2 == 0} {\n            incr result $i\n       ..."
+    (21) startCommand +48 1 	# next cmd at pc 69, 1 cmds start here
+    (30) loadScalar1 %v2 	# var "i"
+    (32) push1 1 	# "2"
+    (34) mod 
+    (35) push1 0 	# "0"
+    (37) eq 
+    (38) jumpFalse1 +17 	# pc 55
+  Command 5: "incr result $i..."
+    (40) startCommand +13 1 	# next cmd at pc 53, 1 cmds start here
+    (49) loadScalar1 %v2 	# var "i"
+    (51) incrScalar1 %v1 	# var "result"
+    (53) jump1 +16 	# pc 69
+  Command 6: "incr result [expr {-$i}]..."
+    (55) startCommand +14 2 	# next cmd at pc 69, 2 cmds start here
+  Command 7: "expr {-$i}..."
+    (64) loadScalar1 %v2 	# var "i"
+    (66) uminus 
+    (67) incrScalar1 %v1 	# var "result"
+    (69) pop 
+  Command 8: "incr i..."
+    (70) startCommand +12 1 	# next cmd at pc 82, 1 cmds start here
+    (79) incrScalar1Imm %v2 +1 	# var "i"
+    (82) pop 
+    (83) loadScalar1 %v2 	# var "i"
+    (85) loadScalar1 %v0 	# var "n"
+    (87) lt 
+    (88) jumpTrue1 -67 	# pc 21
+    (90) push1 2 	# ""
+    (92) pop 
+  Command 9: "return $result..."
+    (93) startCommand +12 1 	# next cmd at pc 105, 1 cmds start here
+    (102) loadScalar1 %v1 	# var "result"
+    (104) done 
+    (105) done 
+

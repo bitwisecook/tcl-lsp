@@ -1,0 +1,24 @@
+{
+  "seed": 1772875372,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"tmp\": no such variable\n    while executing\n\"expr {((($tmp % max(1, abs(72))) ** -15.41) / max(1, abs((48.05 ? (--32) : (-87 ? -54.49 : -98)))))}\"\n    (\"default\" arm line 3)\n    invoked from within\n\"switch -- 820 {\n    hpz {\n        string map {a b c d} \"d9w5y=v:=-no9p+\"\n    }\n    26 {\n        for {set y 0} {$y < 1} {incr y} {\n            catch {b...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpg4witf44.tcl\" line 109)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"tmp\": no such variable\n    while executing\n\"expr {((($tmp % max(1, abs(72))) ** -15.41) / max(1, abs((48.05 ? (--32) : (-87 ? -54.49 : -98)))))}\"\n    (\"default\" arm line 3)\n    invoked from within\n\"switch -- 820 {\n    hpz {\n        string map {a b c d} \"d9w5y=v:=-no9p+\"\n    }\n    26 {\n        for {set y 0} {$y < 1} {incr y} {\n            catch {b...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpg4witf44.tcl\" line 109)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

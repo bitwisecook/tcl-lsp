@@ -1,0 +1,28 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x19029000, refCt 1, epoch 0, interp 0x18c0d000 (epoch 0)
+  Source "set i 0\nincr i\nincr i 5\nincr i -1\nincr i -10\n"
+  Cmds 5, src 45, inst 21, litObjs 1, aux 0, stkDepth 1, code/src 4.71
+  Code 212 = header 160+inst 21+litObj 8+exc 0+aux 0+cmdMap 20
+  Proc 0x190c9c80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "i"
+  Commands 5:
+      1: pc 0-4, src 0-6   	   2: pc 5-8, src 8-13
+      3: pc 9-12, src 15-22   	   4: pc 13-16, src 24-32
+      5: pc 17-19, src 34-43
+  Command 1: "set i 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "i"
+    (4) pop 
+  Command 2: "incr i"
+    (5) incrScalar1Imm 0 1
+    (8) pop 
+  Command 3: "incr i 5"
+    (9) incrScalar1Imm 0 5
+    (12) pop 
+  Command 4: "incr i -1"
+    (13) incrScalar1Imm 0 -1
+    (16) pop 
+  Command 5: "incr i -10"
+    (17) incrScalar1Imm 0 -10
+    (20) done 

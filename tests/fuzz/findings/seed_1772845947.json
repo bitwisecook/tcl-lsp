@@ -1,0 +1,32 @@
+{
+  "seed": 1772845947,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"true\"\n    while executing\n\"incr i\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set i 0} {$i < 4} {incr i} {\n    set i -157\n    set i {true -22.30 23.95 -14.31 -445 -455}\n    catch {\n        append i \"i9g!#@8m?d-0nxn8\"\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpeq_x7xyr.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"true\"\n    while executing\n\"incr i\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set i 0} {$i < 4} {incr i} {\n    set i -157\n    set i {true -22.30 23.95 -14.31 -445 -455}\n    catch {\n        append i \"i9g!#@8m?d-0nxn8\"\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpeq_x7xyr.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

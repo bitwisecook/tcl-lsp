@@ -1,0 +1,16 @@
+ByteCode ::top, 7 instructions, 12 bytes, 4 literals, 0 variables
+  Literals:
+    0: "status2"
+    1: "catch"
+    2: "{\n    set status1 [catch {\n        ..."
+    3: "result2"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "status2"
+    (2) push1 1	# "catch"
+    (4) push1 2	# "{\n    set status1 [catch {\n        ..."
+    (6) push1 3	# "result2"
+    (8) invokeStk1 3
+    (10) storeStk
+  # exit_2:
+    (11) done

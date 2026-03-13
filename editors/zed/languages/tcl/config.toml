@@ -1,0 +1,14 @@
+name = "Tcl"
+grammar = "tcl"
+path_suffixes = ["tcl", "tk", "itcl", "tm"]
+line_comments = ["#"]
+tab_size = 4
+hard_tabs = false
+first_line_pattern = "^#!.*(?:tclsh|wish)"
+autoclose_before = ";:.,=}])"
+brackets = [
+  { start = "{", end = "}", close = true, newline = true },
+  { start = "[", end = "]", close = true, newline = false },
+  { start = "(", end = ")", close = true, newline = false },
+  { start = "\"", end = "\"", close = true, newline = false, not_in = ["string"] },
+]

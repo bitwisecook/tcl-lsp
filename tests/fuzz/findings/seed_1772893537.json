@@ -1,0 +1,23 @@
+{
+  "seed": 1772893537,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got \"nz-\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got \"nz-\"\n    while executing\n\"if {$x} {\n            append idx admnyp\n            append key yaytecvn\n            expr {(~-52.55)}\n            lreverse {1.73 -65.39 -177 -763}\n    ...\"\n    invoked from within\n\"if {43.95} {\n    for {set data 0} {$data < 5} {incr data} {\n        if {50} {\n            set x \"nz-\"\n            set data [expr {76.61}]\n            ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpvcag7ayk.tcl\" line 3)"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: expected boolean value but got \"nz-\""
+}

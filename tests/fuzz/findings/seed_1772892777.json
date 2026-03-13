@@ -1,0 +1,15 @@
+{
+  "seed": 1772892777,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-47.18\" as left operand of \"%\""
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: "
+}

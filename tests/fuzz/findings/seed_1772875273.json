@@ -1,0 +1,24 @@
+{
+  "seed": 1772875273,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr buf\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set buf 0} {$buf < 5} {incr buf} {\n    set buf \"19c!tfu#yn e-jshb_\"\n    lassign {eotfxjf -340} x result\n    string repeat \",0?.?\" 2\n    set val t...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp9p648mv8.tcl\" line 3)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr buf\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set buf 0} {$buf < 5} {incr buf} {\n    set buf \"19c!tfu#yn e-jshb_\"\n    lassign {eotfxjf -340} x result\n    string repeat \",0?.?\" 2\n    set val t...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp9p648mv8.tcl\" line 3)"
+    }
+  ],
+  "fixed": true,
+  "fix": "list detection in integer parsing",
+  "category": "expected-integer-list"
+}

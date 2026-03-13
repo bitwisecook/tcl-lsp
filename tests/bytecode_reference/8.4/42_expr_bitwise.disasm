@@ -1,0 +1,40 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x1acd0500, refCt 1, epoch 0, interp 0x1346c60 (epoch 0)
+  Source "expr {0xFF & 0x0F}\nexpr {0x0F | 0xF0}\nexpr {0xFF ^ 0x0F"
+  Cmds 6, src 97, inst 34, litObjs 7, aux 0, stkDepth 2, code/src 2.89
+  Code 280 = header 160+inst 34+litObj 56+exc 0+aux 0+cmdMap 24
+  Proc 0x1b0acc00, refCt 1, args 0, compiled locals 0
+  Commands 6:
+      1: pc 0-5, src 0-17   	   2: pc 6-11, src 19-36
+      3: pc 12-17, src 38-55   	   4: pc 18-21, src 57-65
+      5: pc 22-27, src 67-79   	   6: pc 28-32, src 81-95
+  Command 1: "expr {0xFF & 0x0F}"
+    (0) push1 0  	# "0xFF"
+    (2) push1 1  	# "0x0F"
+    (4) bitand 
+    (5) pop 
+  Command 2: "expr {0x0F | 0xF0}"
+    (6) push1 1  	# "0x0F"
+    (8) push1 2  	# "0xF0"
+    (10) bitor 
+    (11) pop 
+  Command 3: "expr {0xFF ^ 0x0F}"
+    (12) push1 0  	# "0xFF"
+    (14) push1 1  	# "0x0F"
+    (16) bitxor 
+    (17) pop 
+  Command 4: "expr {~0}"
+    (18) push1 3  	# "0"
+    (20) bitnot 
+    (21) pop 
+  Command 5: "expr {1 << 4}"
+    (22) push1 4  	# "1"
+    (24) push1 5  	# "4"
+    (26) lshift 
+    (27) pop 
+  Command 6: "expr {256 >> 4}"
+    (28) push1 6  	# "256"
+    (30) push1 5  	# "4"
+    (32) rshift 
+    (33) done 

@@ -1,0 +1,16 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x13029000, refCt 1, epoch 0, interp 0x12c0d000 (epoch 0)
+  Source "proc compute {n} {\n    set result 0\n    for {set i 0} {"
+  Cmds 1, src 220, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.98
+  Code 216 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 8
+  Proc 0x130c9c40, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-218
+  Command 1: "proc compute {n} {\n    set result 0\n    for {set i 0} {"
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "compute"
+    (4) push1 2  	# "n"
+    (6) push1 3  	# "\n    set result 0\n    for {set i 0} {$i "
+    (8) invokeStk1 4 
+    (10) done 

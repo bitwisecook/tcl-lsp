@@ -1,0 +1,42 @@
+ByteCode 0x0x9170fce10, refCt 1, epoch 17, interp 0x0x91701c010 (epoch 17)
+  Source "set lst {{a b} {c d} {e f}}\nset a [lindex $lst 0 1]\ns..."
+  Cmds 7, src 100, inst 50, litObjs 8, aux 0, stkDepth 4, code/src 0.00
+  Commands 7:
+      1: pc 0-5, src 0-26        2: pc 6-21, src 28-50
+      3: pc 8-19, src 35-49        4: pc 22-33, src 52-72
+      5: pc 24-31, src 59-71        6: pc 34-48, src 74-98
+      7: pc 36-47, src 81-97
+  Command 1: "set lst {{a b} {c d} {e f}}..."
+    (0) push1 0 	# "lst"
+    (2) push1 1 	# "{a b} {c d} {e f}"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set a [lindex $lst 0 1]..."
+    (6) push1 2 	# "a"
+  Command 3: "lindex $lst 0 1..."
+    (8) push1 0 	# "lst"
+    (10) loadStk 
+    (11) push1 3 	# "0"
+    (13) push1 4 	# "1"
+    (15) lindexMulti 3 
+    (20) storeStk 
+    (21) pop 
+  Command 4: "set b [lindex $lst 1]..."
+    (22) push1 5 	# "b"
+  Command 5: "lindex $lst 1..."
+    (24) push1 0 	# "lst"
+    (26) loadStk 
+    (27) listIndexImm 1 
+    (32) storeStk 
+    (33) pop 
+  Command 6: "set c [lindex $lst end 0]..."
+    (34) push1 6 	# "c"
+  Command 7: "lindex $lst end 0..."
+    (36) push1 0 	# "lst"
+    (38) loadStk 
+    (39) push1 7 	# "end"
+    (41) push1 3 	# "0"
+    (43) lindexMulti 3 
+    (48) storeStk 
+    (49) done 
+

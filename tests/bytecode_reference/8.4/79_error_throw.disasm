@@ -1,0 +1,16 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x78cb8600, refCt 1, epoch 0, interp 0x5872e20 (epoch 0)
+  Source "proc safe_divide {a b} {\n    if {$b == 0} {\n        err"
+  Cmds 1, src 132, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 1.64
+  Code 216 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 8
+  Proc 0x790bd0c0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-130
+  Command 1: "proc safe_divide {a b} {\n    if {$b == 0} {\n        err"
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "safe_divide"
+    (4) push1 2  	# "a b"
+    (6) push1 3  	# "\n    if {$b == 0} {\n        error \"divis"
+    (8) invokeStk1 4 
+    (10) done 

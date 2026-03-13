@@ -1,0 +1,18 @@
+ByteCode 0x0xb98d14910, refCt 1, epoch 3, interp 0x0xb98c20010 (epoch 3)
+  Source "set x 42\nset y $x\n"
+  Cmds 2, src 18, inst 22, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-7   	   2: pc 6-20, src 9-16
+  Command 1: "set x 42"
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "42"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set y $x"
+    (6) startCommand +15 1 	# next cmd at pc 21
+    (15) push1 2 	# "y"
+    (17) push1 0 	# "x"
+    (19) loadScalarStk 
+    (20) storeScalarStk 
+    (21) done 
+

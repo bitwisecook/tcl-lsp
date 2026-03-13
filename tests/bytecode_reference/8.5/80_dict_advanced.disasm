@@ -1,0 +1,57 @@
+ByteCode 0x0x780cfa410, refCt 1, epoch 3, interp 0x0x780c20010 (epoch 3)
+  Source "set d [dict create name Alice age 30 city London]\ndict "
+  Cmds 7, src 133, inst 72, litObjs 15, aux 0, stkDepth 9, code/src 0.00
+  Commands 7:
+      1: pc 0-21, src 0-48   	   2: pc 2-19, src 7-47
+      3: pc 22-31, src 50-61   	   4: pc 32-41, src 63-76
+      5: pc 42-51, src 78-89   	   6: pc 52-70, src 91-131
+      7: pc 59-68, src 106-130
+  Command 1: "set d [dict create name Alice age 30 city London]"
+    (0) push1 0 	# "d"
+  Command 2: "dict create name Alice age 30 city London"
+    (2) push1 1 	# "dict"
+    (4) push1 2 	# "create"
+    (6) push1 3 	# "name"
+    (8) push1 4 	# "Alice"
+    (10) push1 5 	# "age"
+    (12) push1 6 	# "30"
+    (14) push1 7 	# "city"
+    (16) push1 8 	# "London"
+    (18) invokeStk1 8 
+    (20) storeScalarStk 
+    (21) pop 
+  Command 3: "dict keys $d"
+    (22) push1 1 	# "dict"
+    (24) push1 9 	# "keys"
+    (26) push1 0 	# "d"
+    (28) loadScalarStk 
+    (29) invokeStk1 3 
+    (31) pop 
+  Command 4: "dict values $d"
+    (32) push1 1 	# "dict"
+    (34) push1 10 	# "values"
+    (36) push1 0 	# "d"
+    (38) loadScalarStk 
+    (39) invokeStk1 3 
+    (41) pop 
+  Command 5: "dict size $d"
+    (42) push1 1 	# "dict"
+    (44) push1 11 	# "size"
+    (46) push1 0 	# "d"
+    (48) loadScalarStk 
+    (49) invokeStk1 3 
+    (51) pop 
+  Command 6: "dict merge $d [dict create hobby reading]"
+    (52) push1 1 	# "dict"
+    (54) push1 12 	# "merge"
+    (56) push1 0 	# "d"
+    (58) loadScalarStk 
+  Command 7: "dict create hobby reading"
+    (59) push1 1 	# "dict"
+    (61) push1 2 	# "create"
+    (63) push1 13 	# "hobby"
+    (65) push1 14 	# "reading"
+    (67) invokeStk1 4 
+    (69) invokeStk1 4 
+    (71) done 
+

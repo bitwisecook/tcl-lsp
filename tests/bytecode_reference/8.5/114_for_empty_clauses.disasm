@@ -1,0 +1,34 @@
+ByteCode 0x0x94ccf6410, refCt 1, epoch 3, interp 0x0x94cc20010 (epoch 3)
+  Source "set i 0\nfor {} {$i < 10} {} {\n    incr i\n}\n"
+  Cmds 3, src 43, inst 48, litObjs 6, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 2, depth 1:
+      0: level 0, loop, pc 20-32, continue 34, break 45
+      1: level 0, loop, pc 34-35, continue -1, break 45
+  Commands 3:
+      1: pc 0-5, src 0-6   	   2: pc 6-46, src 8-41
+      3: pc 20-32, src 34-39
+  Command 1: "set i 0"
+    (0) push1 0 	# "i"
+    (2) push1 1 	# "0"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "for {} {$i < 10} {} {\n    incr i\n}"
+    (6) startCommand +41 1 	# next cmd at pc 47
+    (15) push1 2 	# ""
+    (17) pop 
+    (18) jump1 +19 	# pc 37
+  Command 3: "incr i"
+    (20) startCommand +13 1 	# next cmd at pc 33
+    (29) push1 0 	# "i"
+    (31) incrScalarStkImm +1 
+    (33) pop 
+    (34) push1 3 	# ""
+    (36) pop 
+    (37) push1 0 	# "i"
+    (39) loadScalarStk 
+    (40) push1 4 	# "10"
+    (42) lt 
+    (43) jumpTrue1 -23 	# pc 20
+    (45) push1 5 	# ""
+    (47) done 
+

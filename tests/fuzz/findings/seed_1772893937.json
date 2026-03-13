@@ -1,0 +1,23 @@
+{
+  "seed": 1772893937,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (in namespace eval \"::util\" script line 136)\n    invoked from within\n\"namespace eval util {\n    string toupper \"te=#d!dqptkr;ah\"\n    expr {30}\n    regexp \"\\\\d+\" \"8?v-q =gxmrvj234:n-a\"\n    set y 18\n    incr y 0\n    catch ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp4rvnh74g.tcl\" line 29)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (in namespace eval \"::util\" script line 136)\n    invoked from within\n\"namespace eval util {\n    string toupper \"te=#d!dqptkr;ah\"\n    expr {30}\n    regexp \"\\\\d+\" \"8?v-q =gxmrvj234:n-a\"\n    set y 18\n    incr y 0\n    catch ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp4rvnh74g.tcl\" line 29)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

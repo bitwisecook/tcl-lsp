@@ -1,0 +1,32 @@
+{
+  "seed": 1772845861,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"42.83\" as right operand of \"&\"\n    while executing\n\"expr {((!($b != -64)) > (-87 & double(42.83)))}\"\n    (\"foreach\" body line 44)\n    invoked from within\n\"foreach j {blhwuacz yo -820 13.21} {\n        if {$b >= 9} {\n            switch -- 10 {\n                -20 {\n                    string repeat \"z!d_\" ...\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$b < 1} {\n    foreach j {blhwuacz yo -820 13.21} {\n        if {$b >= 9} {\n            switch -- 10 "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"42.83\" as right operand of \"&\"\n    while executing\n\"expr {((!($b != -64)) > (-87 & double(42.83)))}\"\n    (\"foreach\" body line 44)\n    invoked from within\n\"foreach j {blhwuacz yo -820 13.21} {\n        if {$b >= 9} {\n            switch -- 10 {\n                -20 {\n                    string repeat \"z!d_\" ...\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$b < 1} {\n    foreach j {blhwuacz yo -820 13.21} {\n        if {$b >= 9} {\n            switch -- 10 "
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

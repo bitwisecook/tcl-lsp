@@ -1,0 +1,27 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xcf800640, refCt 1, epoch 0, interp 0xcec0d000 (epoch 0)
+  Source "set x 42\ninfo exists x\ninfo exists y\n"
+  Cmds 3, src 37, inst 23, litObjs 5, aux 0, stkDepth 3, code/src 6.38
+  Code 236 = header 160+inst 23+litObj 40+exc 0+aux 0+cmdMap 12
+  Proc 0xcf01eec0, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 3:
+      1: pc 0-4, src 0-7   	   2: pc 5-13, src 9-21
+      3: pc 14-21, src 23-35
+  Command 1: "set x 42"
+    (0) push1 0  	# "42"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "info exists x"
+    (5) push1 1  	# "info"
+    (7) push1 2  	# "exists"
+    (9) push1 3  	# "x"
+    (11) invokeStk1 3 
+    (13) pop 
+  Command 3: "info exists y"
+    (14) push1 1  	# "info"
+    (16) push1 2  	# "exists"
+    (18) push1 4  	# "y"
+    (20) invokeStk1 3 
+    (22) done 

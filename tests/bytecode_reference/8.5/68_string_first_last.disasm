@@ -1,0 +1,45 @@
+ByteCode 0x0x91283e210, refCt 1, epoch 3, interp 0x0x912c20010 (epoch 3)
+  Source "set s \"hello world hello\"\nstring first \"hello\" $s\nstrin"
+  Cmds 5, src 115, inst 54, litObjs 9, aux 0, stkDepth 4, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-24   	   2: pc 6-17, src 26-48
+      3: pc 18-29, src 50-71   	   4: pc 30-41, src 73-93
+      5: pc 42-52, src 95-113
+  Command 1: "set s \"hello world hello\""
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "hello world hello"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "string first \"hello\" $s"
+    (6) push1 2 	# "string"
+    (8) push1 3 	# "first"
+    (10) push1 4 	# "hello"
+    (12) push1 0 	# "s"
+    (14) loadScalarStk 
+    (15) invokeStk1 4 
+    (17) pop 
+  Command 3: "string last \"hello\" $s"
+    (18) push1 2 	# "string"
+    (20) push1 5 	# "last"
+    (22) push1 4 	# "hello"
+    (24) push1 0 	# "s"
+    (26) loadScalarStk 
+    (27) invokeStk1 4 
+    (29) pop 
+  Command 4: "string wordstart $s 6"
+    (30) push1 2 	# "string"
+    (32) push1 6 	# "wordstart"
+    (34) push1 0 	# "s"
+    (36) loadScalarStk 
+    (37) push1 7 	# "6"
+    (39) invokeStk1 4 
+    (41) pop 
+  Command 5: "string wordend $s 6"
+    (42) push1 2 	# "string"
+    (44) push1 8 	# "wordend"
+    (46) push1 0 	# "s"
+    (48) loadScalarStk 
+    (49) push1 7 	# "6"
+    (51) invokeStk1 4 
+    (53) done 
+

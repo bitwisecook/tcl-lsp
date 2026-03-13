@@ -1,0 +1,23 @@
+{
+  "seed": 1772893692,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"\" as left operand of \"%\"\n    while executing\n\"expr {(wide((-3 ? 85.26 : $j)) - ((85 != 30) != ($j % max(1, abs(39)))))}\"\n    (\"foreach\" body line 17)\n    invoked from within\n\"foreach tmp {osvq 249 true} {\n    if {$tmp != -3} {\n        foreach tmp {-84.74 yes -444 f jild} {\n            set tmp {}\n            lrange {mb -649 ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpp653tsh_.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"\" as left operand of \"%\"\n    while executing\n\"expr {(wide((-3 ? 85.26 : $j)) - ((85 != 30) != ($j % max(1, abs(39)))))}\"\n    (\"foreach\" body line 17)\n    invoked from within\n\"foreach tmp {osvq 249 true} {\n    if {$tmp != -3} {\n        foreach tmp {-84.74 yes -444 f jild} {\n            set tmp {}\n            lrange {mb -649 ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpp653tsh_.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"\" as left operand of \"%\" cann"
+}

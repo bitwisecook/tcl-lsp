@@ -1,0 +1,24 @@
+{
+  "seed": 1772828596,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"if {$a < 5} {\n            catch {helper \";._+?cs\" \" #p@w#h61sb5?s\"}\n            if {(double(92) + (~48))} {\n                lindex {15.26 978 30.75 55...\"\n    (\"foreach\" body line 5)\n    invoked from within\n\"foreach idx {498} {\n        set idx 27\n        incr idx 4\n        set j {fdxdvxw true -19}\n        if {$a < 5} {\n            catch {helper \";._+?cs\" \"...\"\n    (in namespace eval \"::foo\" script line 2)\n    invoked from within\n\"namespace ev"
+    },
+    {
+      "kind": "error_status",
+      "description": "vm_opt ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"if {$a < 5} {\n            catch {helper \";._+?cs\" \" #p@w#h61sb5?s\"}\n            if {(double(92) + (~48))} {\n                lindex {15.26 978 30.75 55...\"\n    (\"foreach\" body line 5)\n    invoked from within\n\"foreach idx {498} {\n        set idx 27\n        incr idx 4\n        set j {fdxdvxw true -19}\n        if {$a < 5} {\n            catch {helper \";._+?cs\" \"...\"\n    (in namespace eval \"::foo\" script line 2)\n    invoked from within\n\"namespace ev"
+    }
+  ],
+  "fixed": true,
+  "fix": "namespace eval inherits global frame \u2014 VM intentionally permissive for namespace vars",
+  "category": "namespace-scoping"
+}

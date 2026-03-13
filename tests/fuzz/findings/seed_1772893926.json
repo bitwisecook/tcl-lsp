@@ -1,0 +1,23 @@
+{
+  "seed": 1772893926,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr i\"\n    invoked from within\n\"if {8} {\n    for {set i 0} {$i < 5} {incr i} {\n        expr {95}\n        set i {mjv qrg 41.98}\n    }\n    regexp \".\" \"om\"\n    if {((15 ** 75) >= (!-76)...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpy9nhgg7n.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr i\"\n    invoked from within\n\"if {8} {\n    for {set i 0} {$i < 5} {incr i} {\n        expr {95}\n        set i {mjv qrg 41.98}\n    }\n    regexp \".\" \"om\"\n    if {((15 ** 75) >= (!-76)...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpy9nhgg7n.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

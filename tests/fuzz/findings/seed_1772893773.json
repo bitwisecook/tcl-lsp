@@ -1,0 +1,23 @@
+{
+  "seed": 1772893773,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"1.80\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"1.80\"\n    while executing\n\"incr result\"\n    (\"while\" body line 28)\n    invoked from within\n\"while {$result < 2} {\n    if {((-17.77 >= 13.26) / max(1, abs((29 ^ 93))))} {\n        string range \"f41#7\" 4 6\n        for {set y 0} {$y < 4} {incr y}...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpite0kbp2.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

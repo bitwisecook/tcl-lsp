@@ -1,0 +1,1 @@
+"""Command metadata package."""

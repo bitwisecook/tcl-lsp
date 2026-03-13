@@ -1,0 +1,24 @@
+{
+  "seed": 1772875237,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"count\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"count\": no such variable\n    while executing\n\"expr {((($msg ? 3 : -5) == $count) >> (!-62.73))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach msg {0 hetkp -228} {\n        expr {((($msg ? 3 : -5) == $count) >> (!-62.73))}\n        set idx \"niuf_hi-u;xe+\"\n        set msg -948\n    }\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach msg {pqfrfyva no true yes} {\n    foreach msg {0 hetkp -228} {\n        expr {((($msg ? 3 : -5) == $count) >> (!-62.73))}\n        se"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

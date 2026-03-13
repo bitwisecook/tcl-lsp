@@ -1,0 +1,52 @@
+ByteCode 0xac94f9a10, refCt 1, epoch 21, interp 0xac901c010 (epoch 21)
+  Source "proc test {} {\n    set a(1) one\n    set a(2) two\n   ..."
+  Cmds 1, src 108, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-106
+  Command 1: "proc test {} {\n    set a(1) one\n    set a(2) two\n   ..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set a(1) one\n    set a(2) two\n  ..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0xac9516410, refCt 1, epoch 95, interp 0xac9497010 (epoch 95)
+  Source "\n    set a(1) one\n    set a(2) two\n    list [array e..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 6, src 92, inst 73, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Proc 0xac950ff10, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "a"
+  Commands 6:
+      1: pc 0-6, src 5-16        2: pc 7-22, src 22-33
+      3: pc 23-71, src 39-90        4: pc 32-36, src 45-58
+      5: pc 37-51, src 62-74        6: pc 52-66, src 78-89
+  Command 1: "set a(1) one..."
+    (0) push1 0 	# "1"
+    (2) push1 1 	# "one"
+    (4) storeArray1 %v0 	# var "a"
+    (6) pop 
+  Command 2: "set a(2) two..."
+    (7) startCommand +15 1 	# next cmd at pc 22, 1 cmds start here
+    (16) push1 2 	# "2"
+    (18) push1 3 	# "two"
+    (20) storeArray1 %v0 	# var "a"
+    (22) pop 
+  Command 3: "list [array exists a] [array names a] [array size a]..."
+    (23) startCommand +49 2 	# next cmd at pc 72, 2 cmds start here
+  Command 4: "array exists a..."
+    (32) arrayExistsImm %v0 	# var "a"
+  Command 5: "array names a..."
+    (37) startCommand +15 1 	# next cmd at pc 52, 1 cmds start here
+    (46) push1 4 	# "::tcl::array::names"
+    (48) push1 5 	# "a"
+    (50) invokeStk1 2 
+  Command 6: "array size a..."
+    (52) startCommand +15 1 	# next cmd at pc 67, 1 cmds start here
+    (61) push1 6 	# "::tcl::array::size"
+    (63) push1 5 	# "a"
+    (65) invokeStk1 2 
+    (67) list 3 
+    (72) done 
+

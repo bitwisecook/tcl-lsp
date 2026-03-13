@@ -1,0 +1,24 @@
+{
+  "seed": 1772875084,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"34.43\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"34.43\" as right operand of \">>\"\n    invoked from within\n\"if {((10 ? $count : 36) >> (-84 >> 34.43))} {\n            set b {1 415 31.92 q}\n            set result 1\n            set result {}\n            expr {3...\"\n    (\"for\" body line 7)\n    invoked from within\n\"for {set count 0} {$count < 3} {incr count} {\n    set result 47\n    incr result 1\n    set count 0\n    while {$count < 2} {\n        expr {(38 | 89)}\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj0"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

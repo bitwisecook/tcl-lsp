@@ -1,0 +1,36 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x7d0f0180, refCt 1, epoch 0, interp 0x7cc0d000 (epoch 0)
+  Source "set s \"\"\nappend s hello \" \" world\nset lst {}\nlappend ls"
+  Cmds 4, src 63, inst 36, litObjs 11, aux 0, stkDepth 5, code/src 4.83
+  Code 304 = header 160+inst 36+litObj 88+exc 0+aux 0+cmdMap 16
+  Proc 0x7d0c9cc0, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "s"
+      slot 1, scalar, "lst"
+  Commands 4:
+      1: pc 0-4, src 0-7   	   2: pc 5-17, src 9-32
+      3: pc 18-22, src 34-43   	   4: pc 23-34, src 45-61
+  Command 1: "set s \"\""
+    (0) push1 0  	# ""
+    (2) storeScalar1 0	# var "s"
+    (4) pop 
+  Command 2: "append s hello \" \" world"
+    (5) push1 1  	# "append"
+    (7) push1 2  	# "s"
+    (9) push1 3  	# "hello"
+    (11) push1 4  	# " "
+    (13) push1 5  	# "world"
+    (15) invokeStk1 5 
+    (17) pop 
+  Command 3: "set lst {}"
+    (18) push1 0  	# ""
+    (20) storeScalar1 1	# var "lst"
+    (22) pop 
+  Command 4: "lappend lst a b c"
+    (23) push1 6  	# "lappend"
+    (25) push1 7  	# "lst"
+    (27) push1 8  	# "a"
+    (29) push1 9  	# "b"
+    (31) push1 10  	# "c"
+    (33) invokeStk1 5 
+    (35) done 

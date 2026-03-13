@@ -1,0 +1,16 @@
+TCLSH    /opt/homebrew/bin/tclsh9.0
+VERSION  9.0.3
+FILE     llength.test
+DATE     2026-03-03T12:54:01Z
+---
+PASS llength-1.1
+PASS llength-1.2
+PASS llength-1.3
+PASS llength-2.1
+PASS llength-2.2
+PASS llength-2.3
+---
+TOTAL   6
+PASSED  6
+SKIPPED 0
+FAILED  0

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893950,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    invoked from within\n\"if {max(68, (68 <= -96))} {\n    expr {(-((~-25) ^ -14))}\n    catch {\n        list zsv \"umsh@b4kxi2x:-2fx\" civtgr 11\n        append x 63\n        append...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp1vu13_af.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    invoked from within\n\"if {max(68, (68 <= -96))} {\n    expr {(-((~-25) ^ -14))}\n    catch {\n        list zsv \"umsh@b4kxi2x:-2fx\" civtgr 11\n        append x 63\n        append...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp1vu13_af.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

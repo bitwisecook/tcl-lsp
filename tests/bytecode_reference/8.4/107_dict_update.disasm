@@ -1,0 +1,33 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x17840000, refCt 1, epoch 0, interp 0x327ec60 (epoch 0)
+  Source "set d [dict create name Alice age 30]\ndict update d nam"
+  Cmds 3, src 96, inst 36, litObjs 11, aux 0, stkDepth 8, code/src 3.12
+  Code 300 = header 160+inst 36+litObj 88+exc 0+aux 0+cmdMap 12
+  Proc 0x17055e80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "d"
+  Commands 3:
+      1: pc 0-16, src 0-36   	   2: pc 0-13, src 7-35
+      3: pc 17-34, src 38-94
+  Command 1: "set d [dict create name Alice age 30]"
+  Command 2: "dict create name Alice age 30"
+    (0) push1 0  	# "dict"
+    (2) push1 1  	# "create"
+    (4) push1 2  	# "name"
+    (6) push1 3  	# "Alice"
+    (8) push1 4  	# "age"
+    (10) push1 5  	# "30"
+    (12) invokeStk1 6 
+    (14) storeScalar1 0	# var "d"
+    (16) pop 
+  Command 3: "dict update d name n age a {\n    set n \"Bob\"\n    incr a"
+    (17) push1 0  	# "dict"
+    (19) push1 6  	# "update"
+    (21) push1 7  	# "d"
+    (23) push1 2  	# "name"
+    (25) push1 8  	# "n"
+    (27) push1 4  	# "age"
+    (29) push1 9  	# "a"
+    (31) push1 10  	# "\n    set n \"Bob\"\n    incr a\n"
+    (33) invokeStk1 8 
+    (35) done 

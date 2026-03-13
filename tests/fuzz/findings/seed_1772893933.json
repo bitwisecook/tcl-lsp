@@ -1,0 +1,23 @@
+{
+  "seed": 1772893933,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"foreach\" body line 9)\n    invoked from within\n\"foreach j {true false} {\n                set item nbon\n                for {set buf 0} {$buf < 1} {incr buf} {\n                    expr {((-19 >= wide...\"\n    (in namespace eval \"::bar\" script line 39)\n    invoked from within\n\"namespace eval bar {\n    set z \"2xk9\"\n    switch -- \"#-2\" {\n        \"7\" {\n            foreach buf {-462 25 715} {\n                lsearch {852 0 true ...\"\n    (file \"/"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"foreach\" body line 9)\n    invoked from within\n\"foreach j {true false} {\n                set item nbon\n                for {set buf 0} {$buf < 1} {incr buf} {\n                    expr {((-19 >= wide...\"\n    (in namespace eval \"::bar\" script line 39)\n    invoked from within\n\"namespace eval bar {\n    set z \"2xk9\"\n    switch -- \"#-2\" {\n        \"7\" {\n            foreach buf {-462 25 715} {\n                lsearch {852 0 true ...\"\n    (file \"/"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

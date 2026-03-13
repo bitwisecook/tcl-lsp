@@ -1,0 +1,40 @@
+ByteCode 0x0xb72ceca10, refCt 1, epoch 17, interp 0x0xb72c28010 (epoch 17)
+  Source "set arr(one) 1\nset arr(two) 2\nset arr(three) 3\narray..."
+  Cmds 5, src 78, inst 74, litObjs 9, aux 0, stkDepth 3, code/src 0.00
+  Commands 5:
+      1: pc 0-7, src 0-13        2: pc 8-24, src 15-28
+      3: pc 25-41, src 30-45        4: pc 42-57, src 47-61
+      5: pc 58-72, src 63-76
+  Command 1: "set arr(one) 1..."
+    (0) push1 0 	# "arr"
+    (2) push1 1 	# "one"
+    (4) push1 2 	# "1"
+    (6) storeArrayStk 
+    (7) pop 
+  Command 2: "set arr(two) 2..."
+    (8) startCommand +16 1 	# next cmd at pc 24, 1 cmds start here
+    (17) push1 0 	# "arr"
+    (19) push1 3 	# "two"
+    (21) push1 4 	# "2"
+    (23) storeArrayStk 
+    (24) pop 
+  Command 3: "set arr(three) 3..."
+    (25) startCommand +16 1 	# next cmd at pc 41, 1 cmds start here
+    (34) push1 0 	# "arr"
+    (36) push1 5 	# "three"
+    (38) push1 6 	# "3"
+    (40) storeArrayStk 
+    (41) pop 
+  Command 4: "array names arr..."
+    (42) startCommand +15 1 	# next cmd at pc 57, 1 cmds start here
+    (51) push1 7 	# "::tcl::array::names"
+    (53) push1 0 	# "arr"
+    (55) invokeStk1 2 
+    (57) pop 
+  Command 5: "array size arr..."
+    (58) startCommand +15 1 	# next cmd at pc 73, 1 cmds start here
+    (67) push1 8 	# "::tcl::array::size"
+    (69) push1 0 	# "arr"
+    (71) invokeStk1 2 
+    (73) done 
+

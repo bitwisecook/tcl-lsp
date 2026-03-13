@@ -1,0 +1,42 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x30c0640, refCt 1, epoch 0, interp 0x2c0d000 (epoch 0)
+  Source "set a [expr {-1}]\nset b [expr {--1}]\nset c [expr {~0}]\n"
+  Cmds 8, src 74, inst 26, litObjs 2, aux 0, stkDepth 1, code/src 3.24
+  Code 240 = header 160+inst 26+litObj 16+exc 0+aux 0+cmdMap 32
+  Proc 0x30c9c40, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, "a"
+      slot 1, scalar, "b"
+      slot 2, scalar, "c"
+      slot 3, scalar, "d"
+  Commands 8:
+      1: pc 0-5, src 0-16   	   2: pc 0-2, src 7-15
+      3: pc 6-12, src 18-35   	   4: pc 6-9, src 25-34
+      5: pc 13-18, src 37-53   	   6: pc 13-15, src 44-52
+      7: pc 19-24, src 55-72   	   8: pc 19-22, src 62-71
+  Command 1: "set a [expr {-1}]"
+  Command 2: "expr {-1}"
+    (0) push1 0  	# "1"
+    (2) uminus 
+    (3) storeScalar1 0	# var "a"
+    (5) pop 
+  Command 3: "set b [expr {--1}]"
+  Command 4: "expr {--1}"
+    (6) push1 0  	# "1"
+    (8) uminus 
+    (9) uminus 
+    (10) storeScalar1 1	# var "b"
+    (12) pop 
+  Command 5: "set c [expr {~0}]"
+  Command 6: "expr {~0}"
+    (13) push1 1  	# "0"
+    (15) bitnot 
+    (16) storeScalar1 2	# var "c"
+    (18) pop 
+  Command 7: "set d [expr {~-1}]"
+  Command 8: "expr {~-1}"
+    (19) push1 0  	# "1"
+    (21) uminus 
+    (22) bitnot 
+    (23) storeScalar1 3	# var "d"
+    (25) done 

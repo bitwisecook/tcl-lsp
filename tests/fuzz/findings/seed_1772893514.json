@@ -1,0 +1,23 @@
+{
+  "seed": 1772893514,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"default\" arm line 5)\n    invoked from within\n\"switch -- bbvfy {\n    -320 {\n        lassign {-38.45 -50 arbcdlu hiuvvcnv yes 0} b\n        append b 86\n        foreach b {-761 wnhuw nkp fcw} {\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp94v1mfkz.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"default\" arm line 5)\n    invoked from within\n\"switch -- bbvfy {\n    -320 {\n        lassign {-38.45 -50 arbcdlu hiuvvcnv yes 0} b\n        append b 86\n        foreach b {-761 wnhuw nkp fcw} {\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp94v1mfkz.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

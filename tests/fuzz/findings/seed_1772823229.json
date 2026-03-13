@@ -1,0 +1,32 @@
+{
+  "seed": 1772823229,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "CRASH: ValueError: negative shift count"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    while executing\n\"expr {(!(100 | ($flag >> $flag)))}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach flag {-692} {\n    for {set i 0} {$i < 6} {incr i} {\n        set flag [expr {(!(100 | ($flag >> $flag)))}]\n        set z n\n    }\n    set count ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp6v2qrsb7.tcl\" line 6)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    while executing\n\"expr {(!(100 | ($flag >> $flag)))}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach flag {-692} {\n    for {set i 0} {$i < 6} {incr i} {\n        set flag [expr {(!(100 | ($flag >> $flag)))}]\n        set z n\n    }\n    set count ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp6v2qrsb7.tcl\" line 6)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

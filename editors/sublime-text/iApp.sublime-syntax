@@ -1,0 +1,13 @@
+%YAML 1.2
+---
+# F5 iApps dialect — selects f5-iapps for LSP analysis
+name: iApp
+scope: source.tcl
+version: 2
+
+extends: Tcl.sublime-syntax
+
+file_extensions:
+  - iapp
+  - iappimpl
+  - impl

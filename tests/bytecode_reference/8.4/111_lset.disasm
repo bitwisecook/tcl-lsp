@@ -1,0 +1,35 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x3786c640, refCt 1, epoch 0, interp 0x36c0d000 (epoch 0)
+  Source "set lst [list a b c d e]\nlset lst 2 X\nlset lst end Y\n"
+  Cmds 4, src 53, inst 38, litObjs 9, aux 0, stkDepth 5, code/src 5.43
+  Code 288 = header 160+inst 38+litObj 72+exc 0+aux 0+cmdMap 16
+  Proc 0x37875c00, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "lst"
+  Commands 4:
+      1: pc 0-17, src 0-23   	   2: pc 0-14, src 9-22
+      3: pc 18-27, src 25-36   	   4: pc 28-36, src 38-51
+  Command 1: "set lst [list a b c d e]"
+  Command 2: "list a b c d e"
+    (0) push1 0  	# "a"
+    (2) push1 1  	# "b"
+    (4) push1 2  	# "c"
+    (6) push1 3  	# "d"
+    (8) push1 4  	# "e"
+    (10) list 5 
+    (15) storeScalar1 0	# var "lst"
+    (17) pop 
+  Command 3: "lset lst 2 X"
+    (18) push1 5  	# "2"
+    (20) push1 6  	# "X"
+    (22) loadScalar1 0	# var "lst"
+    (24) lsetList 
+    (25) storeScalar1 0	# var "lst"
+    (27) pop 
+  Command 4: "lset lst end Y"
+    (28) push1 7  	# "end"
+    (30) push1 8  	# "Y"
+    (32) loadScalar1 0	# var "lst"
+    (34) lsetList 
+    (35) storeScalar1 0	# var "lst"
+    (37) done 

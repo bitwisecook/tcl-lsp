@@ -1,0 +1,22 @@
+ByteCode 0x0x80a830a10, refCt 1, epoch 3, interp 0x0x80a80c010 (epoch 3)
+  Source "set x 42\ninfo exists x\ninfo exists y\n"
+  Cmds 3, src 37, inst 32, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-7   	   2: pc 6-18, src 9-21
+      3: pc 19-30, src 23-35
+  Command 1: "set x 42"
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "42"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "info exists x"
+    (6) startCommand +12 1 	# next cmd at pc 18
+    (15) push1 0 	# "x"
+    (17) existStk 
+    (18) pop 
+  Command 3: "info exists y"
+    (19) startCommand +12 1 	# next cmd at pc 31
+    (28) push1 2 	# "y"
+    (30) existStk 
+    (31) done 
+

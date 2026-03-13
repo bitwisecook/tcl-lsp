@@ -1,0 +1,20 @@
+ByteCode 0x0xbc7418c10, refCt 1, epoch 17, interp 0x0xbc701c010 (epoch 17)
+  Source "set result {}\nforeach {a b} {1 2 3 4} c {x y z} {\n   ..."
+  Cmds 2, src 80, inst 21, litObjs 8, aux 0, stkDepth 6, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-12        2: pc 6-19, src 14-78
+  Command 1: "set result {}..."
+    (0) push1 0 	# "result"
+    (2) push1 1 	# ""
+    (4) storeStk 
+    (5) pop 
+  Command 2: "foreach {a b} {1 2 3 4} c {x y z} {\n    lappend result..."
+    (6) push1 2 	# "foreach"
+    (8) push1 3 	# "a b"
+    (10) push1 4 	# "1 2 3 4"
+    (12) push1 5 	# "c"
+    (14) push1 6 	# "x y z"
+    (16) push1 7 	# "\n    lappend result \"$a$b$c..."
+    (18) invokeStk1 6 
+    (20) done 
+

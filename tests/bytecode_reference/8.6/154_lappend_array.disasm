@@ -1,0 +1,50 @@
+ByteCode 0x0x970d0cf10, refCt 1, epoch 17, interp 0x0x970c28010 (epoch 17)
+  Source "proc test {} {\n    lappend x(0) a b c\n    lappend x(1..."
+  Cmds 1, src 91, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-89
+  Command 1: "proc test {} {\n    lappend x(0) a b c\n    lappend x(1..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    lappend x(0) a b c\n    lappend x(..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x970cf3e10, refCt 1, epoch 72, interp 0x0x970cd6010 (epoch 72)
+  Source "\n    lappend x(0) a b c\n    lappend x(1) d e\n    ret..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 4, src 75, inst 69, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x0x970d06910, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 4:
+      1: pc 0-18, src 5-22        2: pc 19-44, src 28-43
+      3: pc 45-67, src 49-73        4: pc 54-66, src 57-72
+  Command 1: "lappend x(0) a b c..."
+    (0) push1 0 	# "0"
+    (2) push1 1 	# "a"
+    (4) push1 2 	# "b"
+    (6) push1 3 	# "c"
+    (8) list 3 
+    (13) lappendListArray %v0 	# var "x"
+    (18) pop 
+  Command 2: "lappend x(1) d e..."
+    (19) startCommand +25 1 	# next cmd at pc 44, 1 cmds start here
+    (28) push1 4 	# "1"
+    (30) push1 5 	# "d"
+    (32) push1 6 	# "e"
+    (34) list 2 
+    (39) lappendListArray %v0 	# var "x"
+    (44) pop 
+  Command 3: "return [list $x(0) $x(1)]..."
+    (45) startCommand +23 2 	# next cmd at pc 68, 2 cmds start here
+  Command 4: "list $x(0) $x(1)..."
+    (54) push1 0 	# "0"
+    (56) loadArray1 %v0 	# var "x"
+    (58) push1 4 	# "1"
+    (60) loadArray1 %v0 	# var "x"
+    (62) list 2 
+    (67) done 
+    (68) done 
+

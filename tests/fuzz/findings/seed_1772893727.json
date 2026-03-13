@@ -1,0 +1,23 @@
+{
+  "seed": 1772893727,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"30.75\" as operand of \"~\"\n    while executing\n\"if {((50 ? 62.85 : -61) / max(1, abs((~$b))))} {\n        set b 69\n        incr b 8\n        set b mcgv\n        regexp \".\" \"a0ah-==frgz5,\"\n        switc...\"\n    invoked from within\n\"if {$acc < 10} {\n    set b 30.75\n    if {((50 ? 62.85 : -61) / max(1, abs((~$b))))} {\n        set b 69\n        incr b 8\n        set b mcgv\n        reg...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmppczwdzft.tcl\" line 5)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"30.75\" as operand of \"~\"\n    while executing\n\"if {((50 ? 62.85 : -61) / max(1, abs((~$b))))} {\n        set b 69\n        incr b 8\n        set b mcgv\n        regexp \".\" \"a0ah-==frgz5,\"\n        switc...\"\n    invoked from within\n\"if {$acc < 10} {\n    set b 30.75\n    if {((50 ? 62.85 : -61) / max(1, abs((~$b))))} {\n        set b 69\n        incr b 8\n        set b mcgv\n        reg...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmppczwdzft.tcl\" line 5)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

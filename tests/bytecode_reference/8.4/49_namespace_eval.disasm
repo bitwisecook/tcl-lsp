@@ -1,0 +1,38 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x3d029000, refCt 1, epoch 0, interp 0x3cc0d000 (epoch 0)
+  Source "namespace eval foo {\n    variable x 42\n    proc bar {} "
+  Cmds 1, src 102, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 2.08
+  Code 212 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 4
+  Proc 0x3d0c9c40, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-100
+  Command 1: "namespace eval foo {\n    variable x 42\n    proc bar {} "
+    (0) push1 0  	# "namespace"
+    (2) push1 1  	# "eval"
+    (4) push1 2  	# "foo"
+    (6) push1 3  	# "\n    variable x 42\n    proc bar {} {\n   "
+    (8) invokeStk1 4 
+    (10) done 
+  Compiling: "variable x 42"
+  Compiling: "proc bar {} {\n        variable x\n        return $x\n    "
+
+ByteCode 0x3d0c0640, refCt 1, epoch 0, interp 0x3cc0d000 (epoch 0)
+  Source "\n    variable x 42\n    proc bar {} {\n        variable x"
+  Cmds 2, src 80, inst 20, litObjs 7, aux 0, stkDepth 4, code/src 3.10
+  Code 248 = header 160+inst 20+litObj 56+exc 0+aux 0+cmdMap 8
+  Commands 2:
+      1: pc 0-8, src 5-17   	   2: pc 9-18, src 23-78
+  Command 1: "variable x 42"
+    (0) push1 0  	# "variable"
+    (2) push1 1  	# "x"
+    (4) push1 2  	# "42"
+    (6) invokeStk1 3 
+    (8) pop 
+  Command 2: "proc bar {} {\n        variable x\n        return $x\n    "
+    (9) push1 3  	# "proc"
+    (11) push1 4  	# "bar"
+    (13) push1 5  	# ""
+    (15) push1 6  	# "\n        variable x\n        return $x\n  "
+    (17) invokeStk1 4 
+    (19) done 

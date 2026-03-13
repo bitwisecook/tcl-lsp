@@ -1,0 +1,72 @@
+ByteCode ::top, 18 instructions, 33 bytes, 9 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "add"
+    2: "a b"
+    3: " expr {$a + $b} "
+    4: "mul"
+    5: " expr {$a * $b} "
+    6: "square"
+    7: "x"
+    8: " mul $x $x "
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "add"
+    (4) push1 2	# "a b"
+    (6) push1 3	# " expr {$a + $b} "
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) push1 0	# "proc"
+    (13) push1 4	# "mul"
+    (15) push1 2	# "a b"
+    (17) push1 5	# " expr {$a * $b} "
+    (19) invokeStk1 4	# proc
+  # cmd_end_1:
+    (21) pop
+    (22) push1 0	# "proc"
+    (24) push1 6	# "square"
+    (26) push1 7	# "x"
+    (28) push1 8	# " mul $x $x "
+    (30) invokeStk1 4	# proc
+  # cmd_end_2:
+  # exit_2:
+    (32) done
+
+ByteCode ::add, 4 instructions, 6 bytes, 0 literals, 2 variables
+  Local variables:
+    %v0: "a"
+    %v1: "b"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "a"
+    (2) loadScalar1 %v1	# var "b"
+    (4) add
+  # exit_2:
+    (5) done
+
+ByteCode ::mul, 4 instructions, 6 bytes, 0 literals, 2 variables
+  Local variables:
+    %v0: "a"
+    %v1: "b"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "a"
+    (2) loadScalar1 %v1	# var "b"
+    (4) mult
+  # exit_2:
+    (5) done
+
+ByteCode ::square, 5 instructions, 9 bytes, 1 literals, 1 variables
+  Literals:
+    0: "mul"
+  Local variables:
+    %v0: "x"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "mul"
+    (2) loadScalar1 %v0	# var "x"
+    (4) loadScalar1 %v0	# var "x"
+    (6) invokeStk1 3	# mul
+  # exit_2:
+    (8) done

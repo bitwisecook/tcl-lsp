@@ -1,0 +1,13 @@
+ByteCode 0x0xb50445110, refCt 1, epoch 17, interp 0x0xb50c28010 (epoch 17)
+  Source "foreach item {a b c} {\n    set x $item\n..."
+  Cmds 1, src 41, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-39
+  Command 1: "foreach item {a b c} {\n    set x $item\n..."
+    (0) push1 0 	# "foreach"
+    (2) push1 1 	# "item"
+    (4) push1 2 	# "a b c"
+    (6) push1 3 	# "\n    set x $item..."
+    (8) invokeStk1 4 
+    (10) done 
+

@@ -1,0 +1,14 @@
+ByteCode 0x0xa09117a10, refCt 1, epoch 17, interp 0x0xa0901c010 (epoch 17)
+  Source "namespace eval foo {\n    variable x 42\n    proc bar {..."
+  Cmds 1, src 102, inst 17, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-15, src 0-100
+  Command 1: "namespace eval foo {\n    variable x 42\n    proc bar {..."
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "eval"
+    (4) push1 2 	# "foo"
+    (6) push1 3 	# "\n    variable x 42\n    proc bar {} {\n..."
+    (8) push1 4 	# "::tcl::namespace::eval"
+    (10) invokeReplace 4 2 
+    (16) done 
+

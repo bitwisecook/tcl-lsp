@@ -1,0 +1,23 @@
+{
+  "seed": 1772893582,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable\n    while executing\n\"expr {$y}\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach n {-885 vqwfukw 866 no -80.17 bif} {\n                expr {(99 ? -22 : ((-$n) * 36))}\n                lrepeat 1 \"\"\n                expr {$y}\n ...\"\n    (\"foreach\" body line 59)\n    invoked from within\n\"foreach i {false no -36 -168} {\n    switch -- \"q:@?=h;ob5d4cklt3\" {\n        \"hf-:m9#5ziw7\" {\n            join {324} \",\"\n            set i \"8@#co\"\n    ...\"\n    (file \"/var/fo"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable\n    while executing\n\"expr {$y}\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach n {-885 vqwfukw 866 no -80.17 bif} {\n                expr {(99 ? -22 : ((-$n) * 36))}\n                lrepeat 1 \"\"\n                expr {$y}\n ...\"\n    (\"foreach\" body line 59)\n    invoked from within\n\"foreach i {false no -36 -168} {\n    switch -- \"q:@?=h;ob5d4cklt3\" {\n        \"hf-:m9#5ziw7\" {\n            join {324} \",\"\n            set i \"8@#co\"\n    ...\"\n    (file \"/var/fo"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

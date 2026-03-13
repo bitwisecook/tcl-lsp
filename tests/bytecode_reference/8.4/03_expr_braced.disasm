@@ -1,0 +1,14 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x690d81c0, refCt 1, epoch 0, interp 0xe12c60 (epoch 0)
+  Source "expr {2 + 3}\n"
+  Cmds 1, src 13, inst 6, litObjs 2, aux 0, stkDepth 2, code/src 14.46
+  Code 188 = header 160+inst 6+litObj 16+exc 0+aux 0+cmdMap 4
+  Proc 0x690d4c00, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-4, src 0-11
+  Command 1: "expr {2 + 3}"
+    (0) push1 0  	# "2"
+    (2) push1 1  	# "3"
+    (4) add 
+    (5) done 

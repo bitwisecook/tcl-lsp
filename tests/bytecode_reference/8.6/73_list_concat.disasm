@@ -1,0 +1,36 @@
+ByteCode 0x0x822cb9a10, refCt 1, epoch 17, interp 0x0x822c28010 (epoch 17)
+  Source "set a [list 1 2 3]\nset b [list 4 5 6]\nset c [list {*}..."
+  Cmds 7, src 74, inst 28, litObjs 5, aux 0, stkDepth 3, code/src 0.00
+  Commands 7:
+      1: pc 0-5, src 0-17        2: pc 2-3, src 7-16
+      3: pc 6-11, src 19-36        4: pc 8-9, src 26-35
+      5: pc 12-22, src 38-61        6: pc 14-20, src 45-60
+      7: pc 23-26, src 63-72
+  Command 1: "set a [list 1 2 3]..."
+    (0) push1 0 	# "a"
+  Command 2: "list 1 2 3..."
+    (2) push1 1 	# "1 2 3"
+    (4) storeStk 
+    (5) pop 
+  Command 3: "set b [list 4 5 6]..."
+    (6) push1 2 	# "b"
+  Command 4: "list 4 5 6..."
+    (8) push1 3 	# "4 5 6"
+    (10) storeStk 
+    (11) pop 
+  Command 5: "set c [list {*}$a {*}$b]..."
+    (12) push1 4 	# "c"
+  Command 6: "list {*}$a {*}$b..."
+    (14) push1 0 	# "a"
+    (16) loadStk 
+    (17) push1 2 	# "b"
+    (19) loadStk 
+    (20) listConcat 
+    (21) storeStk 
+    (22) pop 
+  Command 7: "llength $c..."
+    (23) push1 4 	# "c"
+    (25) loadStk 
+    (26) listLength 
+    (27) done 
+

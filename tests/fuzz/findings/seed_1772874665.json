@@ -1,0 +1,24 @@
+{
+  "seed": 1772874665,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected number but got \"yes 248\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use a list as left operand of \"-\"\n    while executing\n\"expr {($msg - $key)}\"\n    (\"foreach\" body line 17)\n    invoked from within\n\"foreach msg {-440 85.98} {\n    append msg \"\"\n    for {set msg 0} {$msg < 1} {incr msg} {\n        regexp \"\\\\d+\" \".b;z=l6u!#f222bm?e\"\n        catch {\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpstrcrxdp.tcl\" line 3)"
+    }
+  ],
+  "fixed": true,
+  "fix": "list-as-operand errors now propagate correctly",
+  "category": "list-as-operand"
+}

@@ -1,0 +1,5 @@
+set a [expr {sin(0.5)}]
+set b [expr {cos(0.0)}]
+set c [expr {sqrt(2.0)}]
+set d [expr {atan2(1.0, 1.0)}]
+set e [expr {double(42)}]

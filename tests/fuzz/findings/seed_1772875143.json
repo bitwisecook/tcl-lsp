@@ -1,0 +1,24 @@
+{
+  "seed": 1772875143,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"expr {double(((28.67 < 83) >= (-22 ** $flag)))}\"\n    (\"default\" arm line 8)\n    invoked from within\n\"switch -- iickwu {\n    -165 {\n        expr {(-1)}\n        for {set key 0} {$key < 4} {incr key} {\n            regexp \"\\\\d+\" \"#\"\n            switch -- ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp1isfnnlp.tcl\" line 26)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"expr {double(((28.67 < 83) >= (-22 ** $flag)))}\"\n    (\"default\" arm line 8)\n    invoked from within\n\"switch -- iickwu {\n    -165 {\n        expr {(-1)}\n        for {set key 0} {$key < 4} {incr key} {\n            regexp \"\\\\d+\" \"#\"\n            switch -- ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp1isfnnlp.tcl\" line 26)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

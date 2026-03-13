@@ -1,0 +1,23 @@
+{
+  "seed": 1772893964,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (in namespace eval \"::util\" script line 3)\n    invoked from within\n\"namespace eval util {\n    string repeat \" z9d94zx,@9o\" 2\n    regexp \"[a-z]+\" \"1\"\n    string reverse \"angu6mpt6are7y;m2b+o\"\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp3xs4d91o.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

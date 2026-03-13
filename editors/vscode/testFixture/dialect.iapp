@@ -1,0 +1,2 @@
+# iApp dialect fixture
+puts [format "iApp Name is: %s" $tmsh::app_name]

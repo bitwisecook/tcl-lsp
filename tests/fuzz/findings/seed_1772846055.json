@@ -1,0 +1,32 @@
+{
+  "seed": 1772846055,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected number but got \"42.9676.72\"\n    while executing\n\"expr {(92 << (max(26, 52.76) / max(1, abs($key))))}\"\n    invoked from within\n\"if {40} {\n    regexp \".\" \"_57e\"\n    set key 42.96\n    append key 76.72\n    expr {(92 << (max(26, 52.76) / max(1, abs($key))))}\n    for {set key 0} {$k...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkqcflrij.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected number but got \"42.9676.72\"\n    while executing\n\"expr {(92 << (max(26, 52.76) / max(1, abs($key))))}\"\n    invoked from within\n\"if {40} {\n    regexp \".\" \"_57e\"\n    set key 42.96\n    append key 76.72\n    expr {(92 << (max(26, 52.76) / max(1, abs($key))))}\n    for {set key 0} {$k...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkqcflrij.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors: expected number but got \"42.9676.72\"",
+  "category": "vm-timeout-resolved"
+}

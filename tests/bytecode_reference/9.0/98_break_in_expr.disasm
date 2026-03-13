@@ -1,0 +1,63 @@
+ByteCode 0x77ad40210, refCt 1, epoch 21, interp 0x77ac28010 (epoch 21)
+  Source "proc test_break {} {\n    set result {}\n    while 1 {\n..."
+  Cmds 1, src 170, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-168
+  Command 1: "proc test_break {} {\n    set result {}\n    while 1 {\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test_break"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set result {}\n    while 1 {\n    ..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x77ad25810, refCt 1, epoch 95, interp 0x77ad70810 (epoch 95)
+  Source "\n    set result {}\n    while 1 {\n        lappend res..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 8, src 148, inst 94, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x77aced790, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "result"
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 14-74, continue 14, break 78
+  Commands 8:
+      1: pc 0-4, src 5-17        2: pc 5-80, src 23-127
+      3: pc 14-27, src 41-56        4: pc 28-61, src 66-96
+      5: pc 37-58, src 82-95        6: pc 39-53, src 90-94
+      7: pc 62-74, src 106-121        8: pc 81-92, src 133-146
+  Command 1: "set result {}..."
+    (0) push1 0 	# ""
+    (2) storeScalar1 %v0 	# var "result"
+    (4) pop 
+  Command 2: "while 1 {\n        lappend result a\n        lappend re..."
+    (5) startCommand +75 1 	# next cmd at pc 80, 1 cmds start here
+  Command 3: "lappend result a..."
+    (14) startCommand +13 1 	# next cmd at pc 27, 1 cmds start here
+    (23) push1 1 	# "a"
+    (25) lappendScalar1 %v0 	# var "result"
+    (27) pop 
+  Command 4: "lappend result [list b [break]]..."
+    (28) startCommand +33 2 	# next cmd at pc 61, 2 cmds start here
+  Command 5: "list b [break]..."
+    (37) push1 2 	# "b"
+  Command 6: "break..."
+    (39) startCommand +15 1 	# next cmd at pc 54, 1 cmds start here
+    (48) pop 
+    (49) jump4 +29 	# pc 78
+    (54) list 2 
+    (59) lappendScalar1 %v0 	# var "result"
+    (61) pop 
+  Command 7: "lappend result c..."
+    (62) startCommand +13 1 	# next cmd at pc 75, 1 cmds start here
+    (71) push1 3 	# "c"
+    (73) lappendScalar1 %v0 	# var "result"
+    (75) pop 
+    (76) jump1 -62 	# pc 14
+    (78) push1 0 	# ""
+    (80) pop 
+  Command 8: "return $result..."
+    (81) startCommand +12 1 	# next cmd at pc 93, 1 cmds start here
+    (90) loadScalar1 %v0 	# var "result"
+    (92) done 
+    (93) done 
+

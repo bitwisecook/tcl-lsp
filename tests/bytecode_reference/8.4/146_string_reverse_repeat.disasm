@@ -1,0 +1,45 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x390f0180, refCt 1, epoch 0, interp 0x38c0d000 (epoch 0)
+  Source "set a [string reverse \"hello\"]\nset b [string repeat \"ab"
+  Cmds 7, src 107, inst 43, litObjs 8, aux 0, stkDepth 6, code/src 2.80
+  Code 300 = header 160+inst 43+litObj 64+exc 0+aux 0+cmdMap 28
+  Proc 0x390c9c40, refCt 1, args 0, compiled locals 3
+      slot 0, scalar, "a"
+      slot 1, scalar, "b"
+      slot 2, scalar, "c"
+  Commands 7:
+      1: pc 0-10, src 0-29   	   2: pc 0-7, src 7-28
+      3: pc 11-23, src 31-58   	   4: pc 11-20, src 38-57
+      5: pc 24-41, src 60-105   	   6: pc 24-39, src 67-104
+      7: pc 28-37, src 83-103
+  Command 1: "set a [string reverse \"hello\"]"
+  Command 2: "string reverse \"hello\""
+    (0) push1 0  	# "string"
+    (2) push1 1  	# "reverse"
+    (4) push1 2  	# "hello"
+    (6) invokeStk1 3 
+    (8) storeScalar1 0	# var "a"
+    (10) pop 
+  Command 3: "set b [string repeat \"ab\" 3]"
+  Command 4: "string repeat \"ab\" 3"
+    (11) push1 0  	# "string"
+    (13) push1 3  	# "repeat"
+    (15) push1 4  	# "ab"
+    (17) push1 5  	# "3"
+    (19) invokeStk1 4 
+    (21) storeScalar1 1	# var "b"
+    (23) pop 
+  Command 5: "set c [string reverse [string repeat \"xyz\" 2]]"
+  Command 6: "string reverse [string repeat \"xyz\" 2]"
+    (24) push1 0  	# "string"
+    (26) push1 1  	# "reverse"
+  Command 7: "string repeat \"xyz\" 2"
+    (28) push1 0  	# "string"
+    (30) push1 3  	# "repeat"
+    (32) push1 6  	# "xyz"
+    (34) push1 7  	# "2"
+    (36) invokeStk1 4 
+    (38) invokeStk1 3 
+    (40) storeScalar1 2	# var "c"
+    (42) done 

@@ -1,0 +1,57 @@
+%YAML 1.2
+---
+# iRules syntax highlighting for Sublime Text
+# Extends Tcl syntax with F5 iRules-specific features
+name: iRule
+scope: source.irule
+version: 2
+
+extends: Tcl.sublime-syntax
+
+file_extensions:
+  - irul
+  - irule
+
+contexts:
+  main:
+    - include: irule-when-block
+    - include: irule-commands
+    - include: irule-variables
+    # Fall through to Tcl rules
+    - include: comment
+    - include: regexp-command
+    - include: proc-definition
+    - include: command-substitution
+    - include: variable
+    - include: string-quoted
+    - include: string-braced
+    - include: keyword
+    - include: operator
+    - include: number
+    - include: escape
+
+  # when EVENT priority N { ... }
+  irule-when-block:
+    - match: '(?<=^|\s)(when)\s+([A-Z][A-Z0-9_]+)(?:\s+(priority)\s+(\d+))?'
+      captures:
+        1: keyword.control.irule
+        2: entity.name.tag.event.irule
+        3: keyword.other.irule
+        4: constant.numeric.tcl
+
+  # iRules-specific commands
+  irule-commands:
+    # Namespace-qualified iRules commands (HTTP::uri, IP::addr, SSL::cert, etc.)
+    - match: '(?<=^|\s|;|\[)(?:HTTP|IP|SSL|TCP|UDP|LB|STATS|STREAM|DNS|CACHE|ASM|ACCESS|AES|AUTH|AVR|b64|CATEGORY|CLASS|CLASSIFICATION|CLIENT_DATA|CLOCK|COMPRESS|CRYPTO|DIAMETER|DOSL7|FIX|FLOW|GTP|HSL|ICAP|ISTATS|LB|LINK|log|MR|NAT|PERSIST|PCP|POLICY|QOE|RADIUS|REWRITE|RTSP|SIP|SOCKS|table|WEBSSO|X509|XML)(?=::)'
+      scope: support.class.irule
+    # Pool/routing commands
+    - match: '(?<=^|\s|;|\[)(?:pool|virtual|node|snat|snatpool|persist|log|class|table|members|active_members)(?=\s|$|;)'
+      scope: support.function.irule
+    # iRules flow-control
+    - match: '(?<=^|\s|;|\[)(?:discard|drop|reject|event|call|HTTP::respond|HTTP::redirect|HTTP::retry|HTTP::collect|HTTP::release|HTTP::close)(?=\s|$|;)'
+      scope: keyword.control.irule
+
+  # iRules scoped variables: static::var, session::var
+  irule-variables:
+    - match: '\$(?:static|session)::[a-zA-Z_][a-zA-Z0-9_]*'
+      scope: variable.other.irule

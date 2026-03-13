@@ -1,0 +1,46 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x6ecb8600, refCt 1, epoch 0, interp 0x116ae20 (epoch 0)
+  Source "namespace eval myns {\n    variable count 0\n    variable"
+  Cmds 1, src 136, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 1.59
+  Code 216 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 8
+  Proc 0x6f0bd0c0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-134
+  Command 1: "namespace eval myns {\n    variable count 0\n    variable"
+    (0) push1 0  	# "namespace"
+    (2) push1 1  	# "eval"
+    (4) push1 2  	# "myns"
+    (6) push1 3  	# "\n    variable count 0\n    variable name "
+    (8) invokeStk1 4 
+    (10) done 
+  Compiling: "variable count 0"
+  Compiling: "variable name \"test\""
+  Compiling: "proc inc {} {\n        variable count\n        incr count"
+
+ByteCode 0x6f0c4640, refCt 1, epoch 0, interp 0x116ae20 (epoch 0)
+  Source "\n    variable count 0\n    variable name \"test\"\n    proc"
+  Cmds 3, src 113, inst 29, litObjs 9, aux 0, stkDepth 4, code/src 2.44
+  Code 276 = header 160+inst 29+litObj 72+exc 0+aux 0+cmdMap 12
+  Commands 3:
+      1: pc 0-8, src 5-20   	   2: pc 9-17, src 26-45
+      3: pc 18-27, src 51-111
+  Command 1: "variable count 0"
+    (0) push1 0  	# "variable"
+    (2) push1 1  	# "count"
+    (4) push1 2  	# "0"
+    (6) invokeStk1 3 
+    (8) pop 
+  Command 2: "variable name \"test\""
+    (9) push1 0  	# "variable"
+    (11) push1 3  	# "name"
+    (13) push1 4  	# "test"
+    (15) invokeStk1 3 
+    (17) pop 
+  Command 3: "proc inc {} {\n        variable count\n        incr count"
+    (18) push1 5  	# "proc"
+    (20) push1 6  	# "inc"
+    (22) push1 7  	# ""
+    (24) push1 8  	# "\n        variable count\n        incr cou"
+    (26) invokeStk1 4 
+    (28) done 

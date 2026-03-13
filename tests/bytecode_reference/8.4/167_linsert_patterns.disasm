@@ -1,0 +1,49 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xaccfc000, refCt 1, epoch 0, interp 0x57bae20 (epoch 0)
+  Source "set lst {a b c}\nset a [linsert $lst 0 X]\nset b [linsert"
+  Cmds 7, src 97, inst 48, litObjs 10, aux 0, stkDepth 5, code/src 3.26
+  Code 316 = header 160+inst 48+litObj 80+exc 0+aux 0+cmdMap 28
+  Proc 0xad0bd0c0, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, "lst"
+      slot 1, scalar, "a"
+      slot 2, scalar, "b"
+      slot 3, scalar, "c"
+  Commands 7:
+      1: pc 0-4, src 0-14   	   2: pc 5-17, src 16-39
+      3: pc 5-14, src 23-38   	   4: pc 18-32, src 41-68
+      5: pc 18-29, src 48-67   	   6: pc 33-46, src 70-95
+      7: pc 33-44, src 77-94
+  Command 1: "set lst {a b c}"
+    (0) push1 0  	# "a b c"
+    (2) storeScalar1 0	# var "lst"
+    (4) pop 
+  Command 2: "set a [linsert $lst 0 X]"
+  Command 3: "linsert $lst 0 X"
+    (5) push1 1  	# "linsert"
+    (7) loadScalar1 0	# var "lst"
+    (9) push1 2  	# "0"
+    (11) push1 3  	# "X"
+    (13) invokeStk1 4 
+    (15) storeScalar1 1	# var "a"
+    (17) pop 
+  Command 4: "set b [linsert $lst end Y Z]"
+  Command 5: "linsert $lst end Y Z"
+    (18) push1 1  	# "linsert"
+    (20) loadScalar1 0	# var "lst"
+    (22) push1 4  	# "end"
+    (24) push1 5  	# "Y"
+    (26) push1 6  	# "Z"
+    (28) invokeStk1 5 
+    (30) storeScalar1 2	# var "b"
+    (32) pop 
+  Command 6: "set c [linsert $lst 1 M N]"
+  Command 7: "linsert $lst 1 M N"
+    (33) push1 1  	# "linsert"
+    (35) loadScalar1 0	# var "lst"
+    (37) push1 7  	# "1"
+    (39) push1 8  	# "M"
+    (41) push1 9  	# "N"
+    (43) invokeStk1 5 
+    (45) storeScalar1 3	# var "c"
+    (47) done 

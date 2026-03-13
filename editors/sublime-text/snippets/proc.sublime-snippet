@@ -1,0 +1,8 @@
+<snippet>
+	<content><![CDATA[proc ${1:name} {${2:args}} {
+    ${0:# body}
+}]]></content>
+	<tabTrigger>tcl-proc</tabTrigger>
+	<scope>source.tcl, source.irule</scope>
+	<description>Create a Tcl procedure</description>
+</snippet>

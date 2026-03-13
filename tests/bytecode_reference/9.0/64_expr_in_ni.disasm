@@ -1,0 +1,24 @@
+ByteCode 0xb23161010, refCt 1, epoch 21, interp 0xb2301c010 (epoch 21)
+  Source "set lst {a b c d}\nexpr {\"b\" in $lst}\nexpr {\"x\" ni..."
+  Cmds 3, src 56, inst 20, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-16        2: pc 6-12, src 18-35
+      3: pc 13-18, src 37-54
+  Command 1: "set lst {a b c d}..."
+    (0) push1 0 	# "lst"
+    (2) push1 1 	# "a b c d"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "expr {\"b\" in $ls..."
+    (6) push1 2 	# "b"
+    (8) push1 0 	# "lst"
+    (10) loadStk 
+    (11) listIn 
+    (12) pop 
+  Command 3: "expr {\"x\" ni $ls..."
+    (13) push1 3 	# "x"
+    (15) push1 0 	# "lst"
+    (17) loadStk 
+    (18) listNotIn 
+    (19) done 
+

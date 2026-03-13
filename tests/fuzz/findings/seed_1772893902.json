@@ -1,0 +1,23 @@
+{
+  "seed": 1772893902,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"expr {(((-15 | 27) ? (-55 <= 14) : (2 | $acc)) + $b)}\"\n    (\"for\" body line 81)\n    invoked from within\n\"for {set y 0} {$y < 4} {incr y} {\n    set y 0\n    while {$y < 4} {\n        switch -- \":w\" {\n            -891 {\n                foreach y {true -422} {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmps35m76ji.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"expr {(((-15 | 27) ? (-55 <= 14) : (2 | $acc)) + $b)}\"\n    (\"for\" body line 81)\n    invoked from within\n\"for {set y 0} {$y < 4} {incr y} {\n    set y 0\n    while {$y < 4} {\n        switch -- \":w\" {\n            -891 {\n                foreach y {true -422} {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmps35m76ji.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893569,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"flag\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"if {$data >= 7} {\n        catch {\n            for {set idx 0} {$idx < 1} {incr idx} {\n                expr {(8 ? 8 : ((22 == 92.49) ^ 89.03))}\n       ...\"\n    (\"foreach\" body line 5)\n    invoked from within\n\"foreach data {815 -265 t 379 -108 -5.76} {\n    append data 44.54\n    set data 7\n    incr data -3\n    if {$data >= 7} {\n        catch {\n            for...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpi8xfryek.tcl\" lin"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

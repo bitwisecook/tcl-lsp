@@ -1,0 +1,746 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Lint: fast feedback on code quality
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: KCS docs checks
+        run: python scripts/check_kcs_index_links.py
+
+      - name: Ruff check
+        run: uv run --extra dev ruff check .
+
+      - name: Ruff format check
+        run: uv run --extra dev ruff format --check .
+
+      - name: Generate build info (needed by ty)
+        run: make build-info
+
+      - name: Type-check with ty
+        run: uv run --extra dev ty check --exclude 'lsp/server.py' lsp core explorer tests scripts/tcl_test_client.py
+  # Test: Python test suite
+  test-py:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: Run Python tests
+        run: >-
+          uv run --extra dev pytest tests/ -q
+          --ignore-glob='*/test_vm_*_test.py'
+          --ignore=tests/test_optimiser_coverage.py
+          --ignore=tests/test_optimiser_vm_equivalence.py
+          --ignore=tests/fuzz/
+          --ignore=tests/test_irule_test_framework.py
+          --ignore=tests/test_real_world_examples.py
+          --ignore=tests/test_bigip_parser.py
+          --ignore=tests/test_bigip_validator.py
+          -k 'not TestUnusedIruleProcs and not TestMockStubsIntegration and not test_generated_command_hover_marks_refinement_status and not test_generated_irules_hover_marks_refinement_status and not test_cookbook_tcp_collect_has_no_warnings'
+  # Test: VS Code extension
+  test-ext:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install npm dependencies
+        run: cd editors/vscode && npm install
+
+      - name: Lint TypeScript
+        run: cd editors/vscode && npm run lint
+
+      - name: Copy canonical AI data
+        run: make copy-canonical
+
+      - name: Compile TypeScript
+        run: cd editors/vscode && npx tsc -p ./
+
+      - name: Run extension tests
+        run: make test-ext
+
+  # Release: create (or verify) the GitHub Release so each build job
+  # can upload its artifact independently — no single slow or failing
+  # build blocks the others.
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, test-py]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          if ! gh release view "$tag" > /dev/null 2>&1; then
+            if [ -f RELEASE_NOTES.md ]; then
+              gh release create "$tag" \
+                --title "$tag" \
+                --notes-file RELEASE_NOTES.md
+            else
+              gh release create "$tag" \
+                --title "$tag" \
+                --generate-notes
+            fi
+          fi
+
+  # Build: VSIX package
+  build-vsix:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release, test-ext]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: Install npm dependencies
+        run: cd editors/vscode && npm install
+
+      - name: Build and verify VSIX
+        run: make package-vsix
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: "build/*.vsix"
+          retention-days: 7
+
+      - name: Upload VSIX to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/*.vsix --clobber
+
+  # Build: CLI zipapp
+  build-zipapp-cli:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build CLI zipapp
+        run: make zipapp-cli
+
+      - name: Smoke-test CLI zipapp
+        run: python3 build/tcl-lsp-explorer-cli-*.pyz --help
+
+      - name: Upload CLI zipapp
+        uses: actions/upload-artifact@v4
+        with:
+          name: zipapp-cli
+          path: "build/tcl-lsp-explorer-cli-*.pyz"
+          retention-days: 7
+
+      - name: Upload CLI zipapp to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/tcl-lsp-explorer-cli-*.pyz --clobber
+
+  # Build: unified Tcl tools zipapp
+  build-zipapp-tcl:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build unified Tcl zipapp
+        run: make zipapp-tcl
+
+      - name: Smoke-test unified Tcl zipapp
+        run: |
+          python3 build/tcl-*.pyz --help
+          python3 build/tcl-*.pyz format samples/for_screenshots/ai-scene.irul
+          python3 build/tcl-*.pyz lint --source "set x 1"
+          python3 build/tcl-*.pyz symbols samples/for_screenshots/ai-scene.irul --json
+          python3 build/tcl-*.pyz callgraph samples/for_screenshots/ai-scene.irul --json
+          python3 build/tcl-*.pyz event-info HTTP_REQUEST --json
+          python3 build/tcl-*.pyz command-info HTTP::uri --dialect f5-irules --json
+          python3 build/tcl-*.pyz convert samples/for_screenshots/ai-scene.irul --json
+          python3 build/tcl-*.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour
+          python3 build/tcl-*.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json
+          python3 build/tcl-*.pyz help taint --dialect f5-irules
+          cd build && ln -sfn tcl-*.pyz irule && cd ..
+          python3 build/irule help --help | tr '\n' ' ' | tr -s ' ' | grep -q "default: f5-irules"
+
+      - name: Upload unified Tcl zipapp
+        uses: actions/upload-artifact@v4
+        with:
+          name: zipapp-tcl
+          path: "build/tcl-*.pyz"
+          retention-days: 7
+
+      - name: Upload unified Tcl zipapp to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/tcl-*.pyz --clobber
+
+  # Build: GUI zipapp — CDN variant (tagged releases only)
+  build-zipapp-gui:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: Build CDN GUI zipapp
+        run: make zipapp-gui-cdn
+
+      - name: Smoke-test CDN GUI zipapp
+        run: |
+          python3 -c "
+          import zipfile, glob
+          path = glob.glob('build/tcl-lsp-explorer-gui-cdn-*.pyz')[0]
+          zf = zipfile.ZipFile(path)
+          names = zf.namelist()
+          assert 'static/index.html' in names, 'missing index.html'
+          assert 'static/worker.js' in names, 'missing worker.js'
+          assert not any('pyodide' in n for n in names), 'should not bundle pyodide'
+          print(f'OK: {len(names)} entries (CDN variant)')
+          "
+
+      - name: Upload CDN GUI zipapp
+        uses: actions/upload-artifact@v4
+        with:
+          name: zipapp-gui-cdn
+          path: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
+          retention-days: 7
+
+      - name: Upload CDN GUI zipapp to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/tcl-lsp-explorer-gui-cdn-*.pyz --clobber
+
+  # Build: LSP server zipapp
+  build-zipapp-lsp:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: Build LSP zipapp
+        run: make zipapp-lsp
+
+      - name: Smoke-test LSP zipapp
+        run: python3 build/tcl-lsp-server-*.pyz --help
+
+      - name: Upload LSP zipapp
+        uses: actions/upload-artifact@v4
+        with:
+          name: zipapp-lsp
+          path: "build/tcl-lsp-server-*.pyz"
+          retention-days: 7
+
+      - name: Upload LSP zipapp to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/tcl-lsp-server-*.pyz --clobber
+
+  # Build: AI analysis zipapp + Claude Code skills zip
+  build-claude-skills:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build AI zipapp
+        run: make zipapp-ai
+
+      - name: Smoke-test AI zipapp
+        run: python3 build/tcl-lsp-ai-*.pyz context samples/for_screenshots/ai-scene.irul
+
+      - name: Build Claude skills zip
+        run: make claude-skills
+
+      - name: Upload Claude skills zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-skills
+          path: "build/tcl-lsp-claude-skills-*.zip"
+          retention-days: 7
+
+      - name: Upload Claude skills zip to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/tcl-lsp-claude-skills-*.zip --clobber
+
+  # Build: MCP server zipapp
+  build-zipapp-mcp:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: Build MCP zipapp
+        run: make zipapp-mcp
+
+      - name: Smoke-test MCP zipapp
+        run: python3 build/tcl-lsp-mcp-server-*.pyz --help
+
+      - name: Upload MCP zipapp
+        uses: actions/upload-artifact@v4
+        with:
+          name: zipapp-mcp
+          path: "build/tcl-lsp-mcp-server-*.pyz"
+          retention-days: 7
+
+      - name: Upload MCP zipapp to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/tcl-lsp-mcp-server-*.pyz --clobber
+
+  # Build: WASM compiler zipapp
+  build-zipapp-wasm:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build WASM zipapp
+        run: make zipapp-wasm
+
+      - name: Smoke-test WASM zipapp
+        run: python3 build/tcl-wasm-compiler-*.pyz --help
+
+      - name: Upload WASM zipapp
+        uses: actions/upload-artifact@v4
+        with:
+          name: zipapp-wasm
+          path: "build/tcl-wasm-compiler-*.pyz"
+          retention-days: 7
+
+      - name: Upload WASM zipapp to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/tcl-wasm-compiler-*.pyz --clobber
+
+  # Build: JetBrains plugin
+  build-jetbrains:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+          cache-dependency-path: |
+            editors/jetbrains/*.gradle*
+            editors/jetbrains/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: Build JetBrains plugin
+        env:
+          GRADLE_OPTS: -Dorg.gradle.daemon=false
+        run: make jetbrains
+
+      - name: Upload JetBrains plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: jetbrains-plugin
+          path: "build/tcl-lsp-jetbrains-*.zip"
+          retention-days: 7
+
+      - name: Upload JetBrains plugin to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/tcl-lsp-jetbrains-*.zip --clobber
+
+  # Build: Sublime Text package
+  build-sublime:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: Build Sublime Text package
+        run: make sublime
+
+      - name: Smoke-test Sublime package
+        run: |
+          python3 -c "
+          import zipfile, glob
+          path = glob.glob('build/tcl-lsp-sublime-*.sublime-package')[0]
+          zf = zipfile.ZipFile(path)
+          names = zf.namelist()
+          assert any(n.startswith('server/') for n in names), 'missing server directory'
+          assert 'Tcl.sublime-syntax' in names, 'missing Tcl syntax'
+          assert 'iRule.sublime-syntax' in names, 'missing iRule syntax'
+          assert 'plugin.py' in names, 'missing plugin'
+          assert 'LSP-Tcl.sublime-settings' in names, 'missing LSP settings'
+          print(f'OK: {len(names)} entries')
+          "
+
+      - name: Upload Sublime package
+        uses: actions/upload-artifact@v4
+        with:
+          name: sublime-package
+          path: "build/tcl-lsp-sublime-*.sublime-package"
+          retention-days: 7
+
+      - name: Upload Sublime package to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/tcl-lsp-sublime-*.sublime-package --clobber
+
+  # Build: Zed extension
+  build-zed:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
+
+      - name: Build Zed extension
+        run: make zed
+
+      - name: Smoke-test Zed archive
+        run: |
+          python3 -c "
+          import tarfile, glob
+          path = glob.glob('build/tcl-lsp-zed-*.tar.gz')[0]
+          tf = tarfile.open(path)
+          names = tf.getnames()
+          assert './extension.toml' in names, 'missing extension.toml'
+          assert './extension.wasm' in names, 'missing extension.wasm'
+          assert any('languages/tcl/config.toml' in n for n in names), 'missing Tcl language config'
+          assert any('snippets/tcl.json' in n for n in names), 'missing snippets'
+          print(f'OK: {len(names)} entries')
+          "
+
+      - name: Upload Zed extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: zed-extension
+          path: "build/tcl-lsp-zed-*.tar.gz"
+          retention-days: 7
+
+      - name: Upload Zed extension to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/tcl-lsp-zed-*.tar.gz --clobber
+
+  # Cleanup: delete workflow artifacts for all releases except the 3 most recent
+  cleanup-old-artifacts:
+    if: always() && startsWith(github.ref, 'refs/tags/v')
+    needs: [build-vsix, build-zipapp-cli, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete artifacts outside the 3 most recent releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Get the 3 most recent non-draft release tags
+          mapfile -t keep_tags < <(
+            gh release list --repo "$REPO" --json tagName,isDraft,createdAt \
+              | jq -r '[.[] | select(.isDraft==false)] | sort_by(.createdAt) | reverse | .[:3] | .[].tagName'
+          )
+          echo "Retaining artifacts for: ${keep_tags[*]}"
+
+          # Always keep the current run (it may still be in_progress in the API)
+          keep_runs=("${{ github.run_id }}")
+          echo "  keeping run ${{ github.run_id }} (current)"
+
+          # Resolve each tag to its most recent completed CI run
+          for tag in "${keep_tags[@]}"; do
+            run_id=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?event=push&branch=$tag&per_page=10" \
+              | jq -r '[.workflow_runs[] | select(.status=="completed")] | first | .id // empty')
+            if [[ -n "$run_id" && "$run_id" != "${{ github.run_id }}" ]]; then
+              keep_runs+=("$run_id")
+              echo "  keeping run $run_id for $tag"
+            fi
+          done
+
+          # Page through all artifacts; delete those not from a kept run
+          page=1
+          while :; do
+            payload=$(gh api "repos/$REPO/actions/artifacts?per_page=100&page=$page")
+            count=$(jq '.artifacts | length' <<< "$payload")
+            [[ "$count" -eq 0 ]] && break
+            while IFS=$'\t' read -r art_id run_id; do
+              if printf '%s\n' "${keep_runs[@]}" | grep -qx "$run_id"; then
+                echo "  keeping artifact $art_id (run $run_id)"
+              else
+                echo "  deleting artifact $art_id (run $run_id)"
+                gh api --method DELETE "repos/$REPO/actions/artifacts/$art_id"
+              fi
+            done < <(jq -r '.artifacts[] | [.id | tostring, .workflow_run.id | tostring] | @tsv' <<< "$payload")
+            (( page++ ))
+          done
+
+  # Cleanup: delete all non-release artifacts (runs only during releases)
+  cleanup-untagged-artifacts:
+    if: always() && startsWith(github.ref, 'refs/tags/v')
+    needs: [build-vsix, build-zipapp-cli, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete all artifacts not from the 3 most recent releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Find the 3 most recent release run IDs to protect
+          keep_runs=()
+          while IFS= read -r tag; do
+            run_id=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?event=push&branch=$tag&per_page=5" \
+              | jq -r '[.workflow_runs[] | select(.status=="completed")] | first | .id // empty')
+            if [[ -n "$run_id" ]]; then
+              keep_runs+=("$run_id")
+              echo "  protecting release run $run_id ($tag)"
+            fi
+          done < <(
+            gh release list --repo "$REPO" --json tagName,isDraft,createdAt \
+              | jq -r '[.[] | select(.isDraft==false)] | sort_by(.createdAt) | reverse | .[:3] | .[].tagName'
+          )
+
+          # Delete everything else
+          page=1
+          while :; do
+            payload=$(gh api "repos/$REPO/actions/artifacts?per_page=100&page=$page")
+            count=$(jq '.artifacts | length' <<< "$payload")
+            [[ "$count" -eq 0 ]] && break
+            while IFS=$'\t' read -r art_id run_id; do
+              if printf '%s\n' "${keep_runs[@]}" | grep -qx "$run_id"; then
+                echo "  keeping artifact $art_id (release run $run_id)"
+              else
+                echo "  deleting artifact $art_id (run $run_id)"
+                gh api --method DELETE "repos/$REPO/actions/artifacts/$art_id"
+              fi
+            done < <(jq -r '.artifacts[] | [.id | tostring, .workflow_run.id | tostring] | @tsv' <<< "$payload")
+            (( page++ ))
+          done

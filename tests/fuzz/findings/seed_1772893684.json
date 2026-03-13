@@ -1,0 +1,23 @@
+{
+  "seed": 1772893684,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"z\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"z\": no such variable\n    while executing\n\"if {$z >= 16} {\n                set acc 99.09\n                append j \"3ye65.9bowh5v;9v\"\n                string trim \"uihs47faj@v2\"\n            } els...\"\n    (\"for\" body line 5)\n    invoked from within\n\"for {set a 0} {$a < 4} {incr a} {\n    for {set acc 0} {$acc < 6} {incr acc} {\n        set acc 0\n        for {set idx 0} {$idx < 5} {incr idx} {\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkxdoms53.tcl\" line 156)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

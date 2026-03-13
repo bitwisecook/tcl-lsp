@@ -1,0 +1,44 @@
+ByteCode 0x756d59210, refCt 1, epoch 21, interp 0x756c28010 (epoch 21)
+  Source "set a [string reverse \"hello\"]\nset b [string repeat ..."
+  Cmds 7, src 107, inst 92, litObjs 10, aux 0, stkDepth 5, code/src 0.00
+  Commands 7:
+      1: pc 0-18, src 0-29        2: pc 2-16, src 7-28
+      3: pc 19-48, src 31-58        4: pc 30-46, src 38-57
+      5: pc 49-90, src 60-105        6: pc 60-89, src 67-104
+      7: pc 71-87, src 83-103
+  Command 1: "set a [string reverse \"hello\"..."
+    (0) push1 0 	# "a"
+  Command 2: "string reverse \"hello..."
+    (2) startCommand +15 1 	# next cmd at pc 17, 1 cmds start here
+    (11) push1 1 	# "::tcl::string::reverse"
+    (13) push1 2 	# "hello"
+    (15) invokeStk1 2 
+    (17) storeStk 
+    (18) pop 
+  Command 3: "set b [string repeat \"ab\" ..."
+    (19) startCommand +29 1 	# next cmd at pc 48, 1 cmds start here
+    (28) push1 3 	# "b"
+  Command 4: "string repeat \"ab\"..."
+    (30) startCommand +17 1 	# next cmd at pc 47, 1 cmds start here
+    (39) push1 4 	# "::tcl::string::repeat"
+    (41) push1 5 	# "ab"
+    (43) push1 6 	# "3"
+    (45) invokeStk1 3 
+    (47) storeStk 
+    (48) pop 
+  Command 5: "set c [string reverse [string repeat \"xyz\" 2..."
+    (49) startCommand +42 1 	# next cmd at pc 91, 1 cmds start here
+    (58) push1 7 	# "c"
+  Command 6: "string reverse [string repeat \"xyz\" ..."
+    (60) startCommand +30 1 	# next cmd at pc 90, 1 cmds start here
+    (69) push1 1 	# "::tcl::string::reverse"
+  Command 7: "string repeat \"xyz\"..."
+    (71) startCommand +17 1 	# next cmd at pc 88, 1 cmds start here
+    (80) push1 4 	# "::tcl::string::repeat"
+    (82) push1 8 	# "xyz"
+    (84) push1 9 	# "2"
+    (86) invokeStk1 3 
+    (88) invokeStk1 2 
+    (90) storeStk 
+    (91) done 
+

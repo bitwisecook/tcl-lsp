@@ -1,0 +1,33 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xe4c84500, refCt 1, epoch 0, interp 0x5476c60 (epoch 0)
+  Source "set i 0\nfor {} {$i < 10} {} {\n    incr i\n}\n"
+  Cmds 3, src 43, inst 27, litObjs 3, aux 0, stkDepth 2, code/src 6.60
+  Code 284 = header 160+inst 27+litObj 24+exc 56+aux 0+cmdMap 12
+  Proc 0xe5055e80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "i"
+  Exception ranges 2, depth 1:
+      0: level 1, loop, pc 10-12, continue 14, break 24
+      1: level 1, loop, pc 14-15, continue -1, break 24
+  Commands 3:
+      1: pc 0-4, src 0-6   	   2: pc 5-25, src 8-41
+      3: pc 10-12, src 34-39
+  Command 1: "set i 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "i"
+    (4) pop 
+  Command 2: "for {} {$i < 10} {} {\n    incr i\n}"
+    (5) push1 1  	# ""
+    (7) pop 
+    (8) jump1 9  	# pc 17
+  Command 3: "incr i"
+    (10) incrScalar1Imm 0 1
+    (13) pop 
+    (14) push1 1  	# ""
+    (16) pop 
+    (17) loadScalar1 0	# var "i"
+    (19) push1 2  	# "10"
+    (21) lt 
+    (22) jumpTrue1 -12  	# pc 10
+    (24) push1 1  	# ""
+    (26) done 

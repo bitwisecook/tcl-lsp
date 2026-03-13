@@ -1,0 +1,31 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x85898500, refCt 1, epoch 0, interp 0x93ee10 (epoch 0)
+  Source "set lst [list d b a c]\nlsort $lst\nlsearch $lst b\n"
+  Cmds 4, src 49, inst 32, litObjs 6, aux 0, stkDepth 4, code/src 5.22
+  Code 256 = header 160+inst 32+litObj 48+exc 0+aux 0+cmdMap 16
+  Proc 0x85895d40, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "lst"
+  Commands 4:
+      1: pc 0-15, src 0-21   	   2: pc 0-12, src 9-20
+      3: pc 16-22, src 23-32   	   4: pc 23-30, src 34-47
+  Command 1: "set lst [list d b a c]"
+  Command 2: "list d b a c"
+    (0) push1 0  	# "d"
+    (2) push1 1  	# "b"
+    (4) push1 2  	# "a"
+    (6) push1 3  	# "c"
+    (8) list 4 
+    (13) storeScalar1 0	# var "lst"
+    (15) pop 
+  Command 3: "lsort $lst"
+    (16) push1 4  	# "lsort"
+    (18) loadScalar1 0	# var "lst"
+    (20) invokeStk1 2 
+    (22) pop 
+  Command 4: "lsearch $lst b"
+    (23) push1 5  	# "lsearch"
+    (25) loadScalar1 0	# var "lst"
+    (27) push1 1  	# "b"
+    (29) invokeStk1 3 
+    (31) done 

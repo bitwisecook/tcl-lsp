@@ -1,0 +1,24 @@
+{
+  "seed": 1772846025,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"count\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"count\": no such variable\n    while executing\n\"expr {(~((79.44 ? $count : 59) ? abs(47) : min(-14, 68)))}\"\n    invoked from within\n\"if {(~(21 ^ -61))} {\n    for {set idx 0} {$idx < 4} {incr idx} {\n        expr {(~((79.44 ? $count : 59) ? abs(47) : min(-14, 68)))}\n        append fla...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpdpzy4qws.tcl\" line 91)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

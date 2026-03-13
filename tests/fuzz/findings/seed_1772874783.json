@@ -1,0 +1,24 @@
+{
+  "seed": 1772874783,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"item\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"item\": no such variable\n    while executing\n\"expr {(-4.19 != (-(-14 ? $item : -95)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach y {true 1 98.01 yes -769} {\n    expr {(-4.19 != (-(-14 ? $item : -95)))}\n    append n -1\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpdnu3es_c.tcl\" line 369)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

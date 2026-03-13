@@ -1,0 +1,34 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x68cb8600, refCt 1, epoch 0, interp 0x35aee10 (epoch 0)
+  Source "set s \"abc123def456\"\nregsub -all {\d+} $s {NUM} result\n"
+  Cmds 3, src 111, inst 37, litObjs 11, aux 0, stkDepth 7, code/src 2.70
+  Code 300 = header 160+inst 37+litObj 88+exc 0+aux 0+cmdMap 12
+  Proc 0x690e1c80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "s"
+  Commands 3:
+      1: pc 0-4, src 0-19   	   2: pc 5-19, src 21-53
+      3: pc 20-35, src 55-109
+  Command 1: "set s \"abc123def456\""
+    (0) push1 0  	# "abc123def456"
+    (2) storeScalar1 0	# var "s"
+    (4) pop 
+  Command 2: "regsub -all {\d+} $s {NUM} result"
+    (5) push1 1  	# "regsub"
+    (7) push1 2  	# "-all"
+    (9) push1 3  	# "\d+"
+    (11) loadScalar1 0	# var "s"
+    (13) push1 4  	# "NUM"
+    (15) push1 5  	# "result"
+    (17) invokeStk1 6 
+    (19) pop 
+  Command 3: "regsub -all -nocase {[aeiou]} \"Hello World\" {*} result2"
+    (20) push1 1  	# "regsub"
+    (22) push1 2  	# "-all"
+    (24) push1 6  	# "-nocase"
+    (26) push1 7  	# "[aeiou]"
+    (28) push1 8  	# "Hello World"
+    (30) push1 9  	# "*"
+    (32) push1 10  	# "result2"
+    (34) invokeStk1 7 
+    (36) done 

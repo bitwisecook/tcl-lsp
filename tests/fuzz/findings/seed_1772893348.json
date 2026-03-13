@@ -1,0 +1,31 @@
+{
+  "seed": 1772893348,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"-71.77\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-71.77\" as left operand of \"<<\"\n    while executing\n\"if {((-71.77 << 61) ? -86.21 : (35 && -12.94))} {\n    foreach item {} {\n        append item 237\n    }\n    if {$item != 6} {\n        switch -- false {\n...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpj3r6ixqe.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-71.77\" as left operand of \"<<\"\n    while executing\n\"if {((-71.77 << 61) ? -86.21 : (35 && -12.94))} {\n    foreach item {} {\n        append item 237\n    }\n    if {$item != 6} {\n        switch -- false {\n...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpj3r6ixqe.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

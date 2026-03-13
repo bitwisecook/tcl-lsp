@@ -1,0 +1,47 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "catchreturn"
+    2: ""
+    3: "\n    set fail [catch {\n        retu..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "catchreturn"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set fail [catch {\n        retu..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::catchreturn, 18 instructions, 56 bytes, 4 literals, 1 variables
+  Literals:
+    0: "1"
+    1: ""
+    2: "0"
+    3: "2"
+  Local variables:
+    %v0: "fail"
+  Instructions:
+  # entry_1:
+    (0) beginCatch4 0
+    (5) startCommand +22 1	# next cmd at pc 27, 1 cmds start here
+    (14) push1 0	# "1"
+    (16) push1 1	# ""
+    (18) returnImm +0 1
+  # catch_body_end_1:
+    (27) push1 2	# "0"
+    (29) jump1 +4	# pc 33
+    (31) pushResult
+    (32) pushReturnCode
+  # catch_end_2:
+    (33) endCatch
+    (34) reverse 2
+    (39) pop
+    (40) storeScalar1 %v0	# var "fail"
+    (42) pop
+    (43) startCommand +12 1	# next cmd at pc 55, 1 cmds start here
+    (52) push1 3	# "2"
+    (54) done
+  # ret_end_3:
+    (55) done

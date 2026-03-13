@@ -1,0 +1,21 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x6acb4600, refCt 1, epoch 0, interp 0x4baac60 (epoch 0)
+  Source "set cleanup 0\ntry {\n    set x 42\n} finally {\n    set cl"
+  Cmds 2, src 65, inst 16, litObjs 5, aux 0, stkDepth 4, code/src 3.45
+  Code 224 = header 160+inst 16+litObj 40+exc 0+aux 0+cmdMap 8
+  Proc 0x6b0d4c00, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "cleanup"
+  Commands 2:
+      1: pc 0-4, src 0-12   	   2: pc 5-14, src 14-63
+  Command 1: "set cleanup 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "cleanup"
+    (4) pop 
+  Command 2: "try {\n    set x 42\n} finally {\n    set cleanup 1\n}"
+    (5) push1 1  	# "try"
+    (7) push1 2  	# "\n    set x 42\n"
+    (9) push1 3  	# "finally"
+    (11) push1 4  	# "\n    set cleanup 1\n"
+    (13) invokeStk1 4 
+    (15) done 

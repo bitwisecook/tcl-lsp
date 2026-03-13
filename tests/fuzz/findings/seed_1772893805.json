@@ -1,0 +1,23 @@
+{
+  "seed": 1772893805,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {((~(79 >> -80)) || max((57 ? 4 : -61), (86.15 != 39.30)))}\"\n    (\"foreach\" body line 14)\n    invoked from within\n\"foreach y {-822 b -89.44 pvpdo} {\n    expr {(!((24 ? 87 : 0) >= -58))}\n    for {set y 0} {$y < 5} {incr y} {\n        catch {\n            set i 83\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmperw4lxj3.tcl\" line 28)"
+    }
+  ],
+  "category": "vm-timeout-negative-shift",
+  "triage": "VM loops; core negative-shift bug is FIXED; script wraps in retry loop"
+}

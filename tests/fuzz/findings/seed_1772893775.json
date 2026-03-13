@@ -1,0 +1,23 @@
+{
+  "seed": 1772893775,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable\n    while executing\n\"if {$buf != 2} {\n                lassign {true 47 zfigf yes 384 false} msg\n            } else {\n                catch {myproc }\n                append...\"\n    (\"default\" arm line 24)\n    invoked from within\n\"switch -- \":3\" {\n    1 {\n        foreach buf {0} {\n            string trimright \"o:pzr_bj5:@ywwnv\"\n            string map {a b c d} \"#sr9qt5nxrx_-1aa6...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmphexu3cao.tcl\" line"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable\n    while executing\n\"if {$buf != 2} {\n                lassign {true 47 zfigf yes 384 false} msg\n            } else {\n                catch {myproc }\n                append...\"\n    (\"default\" arm line 24)\n    invoked from within\n\"switch -- \":3\" {\n    1 {\n        foreach buf {0} {\n            string trimright \"o:pzr_bj5:@ywwnv\"\n            string map {a b c d} \"#sr9qt5nxrx_-1aa6...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmphexu3cao.tcl\" line"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

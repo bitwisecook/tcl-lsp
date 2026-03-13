@@ -1,0 +1,23 @@
+{
+  "seed": 1772893534,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"024.9743\"\n    while executing\n\"incr msg\"\n    (\"while\" body line 94)\n    invoked from within\n\"while {$msg < 2} {\n    append msg 24.97\n    expr {(!48)}\n    append msg 43\n    switch -- \"t4q9-.x8gr.m+\" {\n        -52 {\n            foreach msg {661 ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpm8t2klca.tcl\" line 3)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"024.9743\"\n    while executing\n\"incr msg\"\n    (\"while\" body line 94)\n    invoked from within\n\"while {$msg < 2} {\n    append msg 24.97\n    expr {(!48)}\n    append msg 43\n    switch -- \"t4q9-.x8gr.m+\" {\n        -52 {\n            foreach msg {661 ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpm8t2klca.tcl\" line 3)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

@@ -1,0 +1,24 @@
+{
+  "seed": 1772875280,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"result\": no such variable\n    while executing\n\"if {$result == 11} {\n    if {(round(-97) > (-74.57 + $y))} {\n        lassign {} j\n        join {304 fg -883 431} \"\"\n        expr {40}\n        catch {c...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_qtg7wy8.tcl\" line 73)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"result\": no such variable\n    while executing\n\"if {$result == 11} {\n    if {(round(-97) > (-74.57 + $y))} {\n        lassign {} j\n        join {304 fg -883 431} \"\"\n        expr {40}\n        catch {c...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_qtg7wy8.tcl\" line 73)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

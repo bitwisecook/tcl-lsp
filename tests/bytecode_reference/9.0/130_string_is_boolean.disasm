@@ -1,0 +1,33 @@
+ByteCode 0x8c7169c10, refCt 1, epoch 21, interp 0x8c701c010 (epoch 21)
+  Source "proc check {val} {\n    string is boolean $val\n..."
+  Cmds 1, src 48, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-46
+  Command 1: "proc check {val} {\n    string is boolean $val\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "check"
+    (4) push1 2 	# "val"
+    (6) push1 3 	# "\n    string is boolean $val..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x8c7169c10, refCt 1, epoch 95, interp 0x8c7118010 (epoch 95)
+  Source "\n    string is boolean $val..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 1, src 28, inst 14, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x8c7179f90, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "val"
+  Commands 1:
+      1: pc 0-12, src 5-26
+  Command 1: "string is boolean $val..."
+    (0) loadScalar1 %v0 	# var "val"
+    (2) tryCvtToBoolean 
+    (3) jumpTrue1 +7 	# pc 10
+    (5) push1 0 	# ""
+    (7) streq 
+    (8) jump1 +5 	# pc 13
+    (10) pop 
+    (11) push1 1 	# "1"
+    (13) done 
+

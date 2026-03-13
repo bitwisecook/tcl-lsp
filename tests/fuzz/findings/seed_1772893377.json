@@ -1,0 +1,31 @@
+{
+  "seed": 1772893377,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"61.0\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"61.0\" as right operand of \"^\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"61.0\" as right operand of \"^\"\n    while executing\n\"expr {((!51) ^ ((-85 - 9) ? double(61) : 88))}\"\n    (\"default\" arm line 3)\n    invoked from within\n\"switch -- \"q99xg,x0\" {\n    69 {\n        regexp \"^[a-z]\" \"yh;8x:9p=f1_hu,\"\n    }\n    \"stetwl+\" {\n        set flag \"ttrjdssz@.=za\"\n        set item [exp...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp74oofcm7.tcl\" line 30)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

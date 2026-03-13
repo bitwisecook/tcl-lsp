@@ -1,0 +1,23 @@
+{
+  "seed": 1772893498,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"godckf\"\n    while executing\n\"incr count\"\n    (\"foreach\" body line 9)\n    invoked from within\n\"foreach data {45.44 vvhr} {\n    for {set data 0} {$data < 2} {incr data} {\n        set count 0\n        while {$count < 4} {\n            set acc yes\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp6gh0r7bx.tcl\" line 83)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"godckf\"\n    while executing\n\"incr count\"\n    (\"foreach\" body line 9)\n    invoked from within\n\"foreach data {45.44 vvhr} {\n    for {set data 0} {$data < 2} {incr data} {\n        set count 0\n        while {$count < 4} {\n            set acc yes\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp6gh0r7bx.tcl\" line 83)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

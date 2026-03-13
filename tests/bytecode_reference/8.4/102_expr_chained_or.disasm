@@ -1,0 +1,79 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x918c4180, refCt 1, epoch 0, interp 0x90c0d000 (epoch 0)
+  Source "expr {0 || 0 || 0 || 0 || 1}\nexpr {0 || 1 || 0 || 0 || "
+  Cmds 2, src 58, inst 118, litObjs 2, aux 0, stkDepth 2, code/src 5.24
+  Code 304 = header 160+inst 118+litObj 16+exc 0+aux 0+cmdMap 8
+  Proc 0x9189dd00, refCt 1, args 0, compiled locals 0
+  Commands 2:
+      1: pc 0-58, src 0-27   	   2: pc 59-116, src 29-56
+  Command 1: "expr {0 || 0 || 0 || 0 || 1}"
+    (0) push1 0  	# "0"
+    (2) jumpTrue1 6  	# pc 8
+    (4) push1 0  	# "0"
+    (6) jump1 4  	# pc 10
+    (8) push1 1  	# "1"
+    (10) dup 
+    (11) jumpTrue1 5  	# pc 16
+    (13) push1 0  	# "0"
+    (15) lor 
+    (16) jumpTrue1 6  	# pc 22
+    (18) push1 0  	# "0"
+    (20) jump1 4  	# pc 24
+    (22) push1 1  	# "1"
+    (24) dup 
+    (25) jumpTrue1 5  	# pc 30
+    (27) push1 0  	# "0"
+    (29) lor 
+    (30) jumpTrue1 6  	# pc 36
+    (32) push1 0  	# "0"
+    (34) jump1 4  	# pc 38
+    (36) push1 1  	# "1"
+    (38) dup 
+    (39) jumpTrue1 5  	# pc 44
+    (41) push1 0  	# "0"
+    (43) lor 
+    (44) jumpTrue1 6  	# pc 50
+    (46) push1 0  	# "0"
+    (48) jump1 4  	# pc 52
+    (50) push1 1  	# "1"
+    (52) dup 
+    (53) jumpTrue1 5  	# pc 58
+    (55) push1 1  	# "1"
+    (57) lor 
+    (58) pop 
+  Command 2: "expr {0 || 1 || 0 || 0 || 0}"
+    (59) push1 0  	# "0"
+    (61) jumpTrue1 6  	# pc 67
+    (63) push1 0  	# "0"
+    (65) jump1 4  	# pc 69
+    (67) push1 1  	# "1"
+    (69) dup 
+    (70) jumpTrue1 5  	# pc 75
+    (72) push1 1  	# "1"
+    (74) lor 
+    (75) jumpTrue1 6  	# pc 81
+    (77) push1 0  	# "0"
+    (79) jump1 4  	# pc 83
+    (81) push1 1  	# "1"
+    (83) dup 
+    (84) jumpTrue1 5  	# pc 89
+    (86) push1 0  	# "0"
+    (88) lor 
+    (89) jumpTrue1 6  	# pc 95
+    (91) push1 0  	# "0"
+    (93) jump1 4  	# pc 97
+    (95) push1 1  	# "1"
+    (97) dup 
+    (98) jumpTrue1 5  	# pc 103
+    (100) push1 0  	# "0"
+    (102) lor 
+    (103) jumpTrue1 6  	# pc 109
+    (105) push1 0  	# "0"
+    (107) jump1 4  	# pc 111
+    (109) push1 1  	# "1"
+    (111) dup 
+    (112) jumpTrue1 5  	# pc 117
+    (114) push1 0  	# "0"
+    (116) lor 
+    (117) done 

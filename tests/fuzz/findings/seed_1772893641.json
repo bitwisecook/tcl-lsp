@@ -1,0 +1,23 @@
+{
+  "seed": 1772893641,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"51.39\" as left operand of \"^\"\n    invoked from within\n\"expr {((50.87 <= (4 >> $idx)) | ((-16 ? 51.39 : 48) ^ (!-56)))}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach idx {1 -367 1 713 5.51 68.73} {\n                    append i \"0u6.xa!,ju3a5\"\n                    expr {((50.87 <= (4 >> $idx)) | ((-16 ? 51.39...\"\n    (\"default\" arm line 91)\n    invoked from within\n\"switch -- 84 {\n    -14 {\n        append data \"\"\n        foreach j {} {\n            str"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"51.39\" as left operand of \"^\"\n    invoked from within\n\"expr {((50.87 <= (4 >> $idx)) | ((-16 ? 51.39 : 48) ^ (!-56)))}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach idx {1 -367 1 713 5.51 68.73} {\n                    append i \"0u6.xa!,ju3a5\"\n                    expr {((50.87 <= (4 >> $idx)) | ((-16 ? 51.39...\"\n    (\"default\" arm line 91)\n    invoked from within\n\"switch -- 84 {\n    -14 {\n        append data \"\"\n        foreach j {} {\n            str"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

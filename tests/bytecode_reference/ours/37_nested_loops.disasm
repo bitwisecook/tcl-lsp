@@ -1,0 +1,62 @@
+ByteCode ::top, 38 instructions, 59 bytes, 6 literals, 0 variables
+  Literals:
+    0: "sum"
+    1: "0"
+    2: "i"
+    3: "j"
+    4: "3"
+    5: ""
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "sum"
+    (2) push1 1	# "0"
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "i"
+    (8) push1 1	# "0"
+    (10) storeStk
+  # cmd_end_1:
+    (11) pop
+    (12) jump1 +36	# pc 48
+  # for_body_3:
+    (14) push1 3	# "j"
+    (16) push1 1	# "0"
+    (18) storeStk
+  # cmd_end_2:
+    (19) pop
+    (20) jump1 +12	# pc 32
+  # for_body_7:
+    (22) push1 0	# "sum"
+    (24) incrStkImm +1
+  # cmd_end_3:
+    (26) pop
+  # for_step_8:
+    (27) push1 3	# "j"
+    (29) incrStkImm +1
+  # cmd_end_4:
+    (31) pop
+  # for_header_6:
+    (32) push1 3	# "j"
+    (34) loadStk
+    (35) push1 4	# "3"
+    (37) lt
+    (38) jumpTrue1 -16	# pc 22
+  # for_end_9:
+    (40) nop
+    (41) nop
+    (42) nop
+  # for_step_4:
+    (43) push1 2	# "i"
+    (45) incrStkImm +1
+  # cmd_end_5:
+    (47) pop
+  # for_header_2:
+    (48) push1 2	# "i"
+    (50) loadStk
+    (51) push1 4	# "3"
+    (53) lt
+    (54) jumpTrue1 -40	# pc 14
+  # for_end_5:
+    (56) push1 5	# ""
+  # exit_10:
+    (58) done

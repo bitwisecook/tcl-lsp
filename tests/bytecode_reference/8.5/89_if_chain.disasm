@@ -1,0 +1,77 @@
+ByteCode 0x0x78ccfa410, refCt 1, epoch 3, interp 0x0x78cc20010 (epoch 3)
+  Source "set x 5\nif {$x == 1} {\n    set r \"one\"\n} elseif {$x == "
+  Cmds 8, src 220, inst 150, litObjs 13, aux 0, stkDepth 2, code/src 0.00
+  Commands 8:
+      1: pc 0-5, src 0-6   	   2: pc 6-148, src 8-218
+      3: pc 23-36, src 27-37   	   4: pc 47-60, src 64-74
+      5: pc 71-84, src 101-113   	   6: pc 95-108, src 140-151
+      7: pc 119-132, src 178-189   	   8: pc 135-148, src 204-216
+  Command 1: "set x 5"
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "5"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "if {$x == 1} {\n    set r \"one\"\n} elseif {$x == 2} {\n   "
+    (6) startCommand +143 1 	# next cmd at pc 149
+    (15) push1 0 	# "x"
+    (17) loadScalarStk 
+    (18) push1 2 	# "1"
+    (20) eq 
+    (21) jumpFalse1 +18 	# pc 39
+  Command 3: "set r \"one\""
+    (23) startCommand +14 1 	# next cmd at pc 37
+    (32) push1 3 	# "r"
+    (34) push1 4 	# "one"
+    (36) storeScalarStk 
+    (37) jump1 +112 	# pc 149
+    (39) push1 0 	# "x"
+    (41) loadScalarStk 
+    (42) push1 5 	# "2"
+    (44) eq 
+    (45) jumpFalse1 +18 	# pc 63
+  Command 4: "set r \"two\""
+    (47) startCommand +14 1 	# next cmd at pc 61
+    (56) push1 3 	# "r"
+    (58) push1 6 	# "two"
+    (60) storeScalarStk 
+    (61) jump1 +88 	# pc 149
+    (63) push1 0 	# "x"
+    (65) loadScalarStk 
+    (66) push1 7 	# "3"
+    (68) eq 
+    (69) jumpFalse1 +18 	# pc 87
+  Command 5: "set r \"three\""
+    (71) startCommand +14 1 	# next cmd at pc 85
+    (80) push1 3 	# "r"
+    (82) push1 8 	# "three"
+    (84) storeScalarStk 
+    (85) jump1 +64 	# pc 149
+    (87) push1 0 	# "x"
+    (89) loadScalarStk 
+    (90) push1 9 	# "4"
+    (92) eq 
+    (93) jumpFalse1 +18 	# pc 111
+  Command 6: "set r \"four\""
+    (95) startCommand +14 1 	# next cmd at pc 109
+    (104) push1 3 	# "r"
+    (106) push1 10 	# "four"
+    (108) storeScalarStk 
+    (109) jump1 +40 	# pc 149
+    (111) push1 0 	# "x"
+    (113) loadScalarStk 
+    (114) push1 1 	# "5"
+    (116) eq 
+    (117) jumpFalse1 +18 	# pc 135
+  Command 7: "set r \"five\""
+    (119) startCommand +14 1 	# next cmd at pc 133
+    (128) push1 3 	# "r"
+    (130) push1 11 	# "five"
+    (132) storeScalarStk 
+    (133) jump1 +16 	# pc 149
+  Command 8: "set r \"other\""
+    (135) startCommand +14 1 	# next cmd at pc 149
+    (144) push1 3 	# "r"
+    (146) push1 12 	# "other"
+    (148) storeScalarStk 
+    (149) done 
+

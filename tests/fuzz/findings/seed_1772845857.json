@@ -1,0 +1,24 @@
+{
+  "seed": 1772845857,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"z\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"z\": no such variable\n    while executing\n\"expr {min(-97, ((10 / max(1, abs(10))) % max(1, abs((~$z)))))}\"\n    invoked from within\n\"if {(17 ? (-75.08) : (23 / max(1, abs(36))))} {\n    for {set n 0} {$n < 2} {incr n} {\n        llength {vm}\n        expr {(19 ? ((~$n) | (21 ^ 5)) : 97...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp5wh98xun.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

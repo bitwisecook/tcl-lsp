@@ -1,0 +1,9 @@
+{
+    // Editor defaults for Tcl and iRules files.
+    "tab_size": 4,
+    "translate_tabs_to_spaces": true,
+    "trim_trailing_white_space_on_save": "all",
+    "ensure_newline_at_eof": true,
+    "rulers": [120],
+    "word_separators": "./\\()\"'-:,.;<>~!@#%^&*|+=[]{}`~?"
+}

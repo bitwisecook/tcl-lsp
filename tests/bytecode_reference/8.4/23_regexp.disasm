@@ -1,0 +1,15 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xe0880600, refCt 1, epoch 0, interp 0x3592e20 (epoch 0)
+  Source "regexp {^[0-9]+$} \"12345\"\n"
+  Cmds 1, src 26, inst 9, litObjs 3, aux 0, stkDepth 3, code/src 7.85
+  Code 204 = header 160+inst 9+litObj 24+exc 0+aux 0+cmdMap 4
+  Proc 0xe1871100, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-7, src 0-24
+  Command 1: "regexp {^[0-9]+$} \"12345\""
+    (0) push1 0  	# "regexp"
+    (2) push1 1  	# "^[0-9]+$"
+    (4) push1 2  	# "12345"
+    (6) invokeStk1 3 
+    (8) done 

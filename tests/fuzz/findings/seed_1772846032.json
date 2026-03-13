@@ -1,0 +1,24 @@
+{
+  "seed": 1772846032,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"expr {max(((~$a) ? ($val >= $b) : (!48)), ((38.15 >> 33) & -40))}\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach i {723 -309 432 yes -28.54} {\n        for {set count 0} {$count < 2} {incr count} {\n            string first \"a\" \":v,;\"\n            set flag n...\"\n    invoked from within\n\"if {((39 >> 51) * 43)} {\n    string length \",vhtug!:j\"\n    set i 6\n    incr i 2\n    catch {\n        expr {-72.51}\n        expr {58.14}\n        app"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893508,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"count\": no such variable\n    while executing\n\"if {((!$count) ? (89 <= -3) : $key)} {\n            for {set b 0} {$b < 2} {incr b} {\n                expr {69}\n                expr {-28}\n            ...\"\n    (\"default\" arm line 14)\n    invoked from within\n\"switch -- fwfh {\n    789 {\n        if {(-72 == (-29.00 || 5))} {\n            regexp \"^[a-z]\" \"5lf-k\"\n            catch {\n                append tmp \"s...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpuudmftrc.tcl\" li"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"count\": no such variable\n    while executing\n\"if {((!$count) ? (89 <= -3) : $key)} {\n            for {set b 0} {$b < 2} {incr b} {\n                expr {69}\n                expr {-28}\n            ...\"\n    (\"default\" arm line 14)\n    invoked from within\n\"switch -- fwfh {\n    789 {\n        if {(-72 == (-29.00 || 5))} {\n            regexp \"^[a-z]\" \"5lf-k\"\n            catch {\n                append tmp \"s...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpuudmftrc.tcl\" li"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

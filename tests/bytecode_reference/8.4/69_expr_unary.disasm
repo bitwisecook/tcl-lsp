@@ -1,0 +1,32 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x40cb8600, refCt 1, epoch 0, interp 0xad6e20 (epoch 0)
+  Source "set x 5\nexpr {-$x}\nexpr {+$x}\nexpr {!$x}\nexpr {~$x}\n"
+  Cmds 5, src 52, inst 21, litObjs 1, aux 0, stkDepth 1, code/src 4.08
+  Code 212 = header 160+inst 21+litObj 8+exc 0+aux 0+cmdMap 20
+  Proc 0x410bd180, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 5:
+      1: pc 0-4, src 0-6   	   2: pc 5-8, src 8-17
+      3: pc 9-12, src 19-28   	   4: pc 13-16, src 30-39
+      5: pc 17-19, src 41-50
+  Command 1: "set x 5"
+    (0) push1 0  	# "5"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "expr {-$x}"
+    (5) loadScalar1 0	# var "x"
+    (7) uminus 
+    (8) pop 
+  Command 3: "expr {+$x}"
+    (9) loadScalar1 0	# var "x"
+    (11) uplus 
+    (12) pop 
+  Command 4: "expr {!$x}"
+    (13) loadScalar1 0	# var "x"
+    (15) not 
+    (16) pop 
+  Command 5: "expr {~$x}"
+    (17) loadScalar1 0	# var "x"
+    (19) bitnot 
+    (20) done 

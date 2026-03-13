@@ -1,0 +1,36 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x250e4500, refCt 1, epoch 0, interp 0x14b2e10 (epoch 0)
+  Source "set i 0\nset j 0\nwhile {[incr i] <= 5} {\n    incr j $i\n}"
+  Cmds 5, src 56, inst 28, litObjs 3, aux 0, stkDepth 2, code/src 4.79
+  Code 268 = header 160+inst 28+litObj 24+exc 28+aux 0+cmdMap 20
+  Proc 0x250e1d40, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "i"
+      slot 1, scalar, "j"
+  Exception ranges 1, depth 1:
+      0: level 1, loop, pc 12-15, continue 17, break 25
+  Commands 5:
+      1: pc 0-4, src 0-6   	   2: pc 5-9, src 8-14
+      3: pc 10-26, src 16-54   	   4: pc 12-15, src 44-52
+      5: pc 17-19, src 24-29
+  Command 1: "set i 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "i"
+    (4) pop 
+  Command 2: "set j 0"
+    (5) push1 0  	# "0"
+    (7) storeScalar1 1	# var "j"
+    (9) pop 
+  Command 3: "while {[incr i] <= 5} {\n    incr j $i\n}"
+    (10) jump1 7  	# pc 17
+  Command 4: "incr j $i"
+    (12) loadScalar1 0	# var "i"
+    (14) incrScalar1 1 
+    (16) pop 
+  Command 5: "incr i"
+    (17) incrScalar1Imm 0 1
+    (20) push1 1  	# "5"
+    (22) le 
+    (23) jumpTrue1 -11  	# pc 12
+    (25) push1 2  	# ""
+    (27) done 

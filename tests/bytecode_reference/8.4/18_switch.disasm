@@ -1,0 +1,33 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xe9029000, refCt 1, epoch 0, interp 0xe8c0d000 (epoch 0)
+  Source "set x abc\nswitch $x {\n    abc {set y 1}\n    def {set y "
+  Cmds 2, src 82, inst 14, litObjs 3, aux 0, stkDepth 3, code/src 2.54
+  Code 208 = header 160+inst 14+litObj 24+exc 0+aux 0+cmdMap 8
+  Proc 0xe90c9c80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 2:
+      1: pc 0-4, src 0-8   	   2: pc 5-12, src 10-80
+  Command 1: "set x abc"
+    (0) push1 0  	# "abc"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "switch $x {\n    abc {set y 1}\n    def {set y 2}\n    def"
+    (5) push1 1  	# "switch"
+    (7) loadScalar1 0	# var "x"
+    (9) push1 2  	# "\n    abc {set y 1}\n    def {set y 2}\n   "
+    (11) invokeStk1 3 
+    (13) done 
+  Compiling: "set y 1"
+
+ByteCode 0xe8cd8460, refCt 1, epoch 0, interp 0xe8c0d000 (epoch 0)
+  Source "set y 1"
+  Cmds 1, src 7, inst 6, litObjs 2, aux 0, stkDepth 2, code/src 26.86
+  Code 188 = header 160+inst 6+litObj 16+exc 0+aux 0+cmdMap 4
+  Commands 1:
+      1: pc 0-4, src 0-6
+  Command 1: "set y 1"
+    (0) push1 0  	# "y"
+    (2) push1 1  	# "1"
+    (4) storeScalarStk 
+    (5) done 

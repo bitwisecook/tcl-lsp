@@ -1,0 +1,67 @@
+ByteCode ::top, 12 instructions, 22 bytes, 6 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "inner"
+    2: ""
+    3: "\n    return -code error -level 0 \"l..."
+    4: "outer"
+    5: "\n    set code [catch {inner} msg]\n ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "inner"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    return -code error -level 0 \"l..."
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) push1 0	# "proc"
+    (13) push1 4	# "outer"
+    (15) push1 2	# ""
+    (17) push1 5	# "\n    set code [catch {inner} msg]\n ..."
+    (19) invokeStk1 4	# proc
+  # cmd_end_1:
+  # exit_2:
+    (21) done
+
+ByteCode ::inner, 4 instructions, 14 bytes, 2 literals, 0 variables
+  Literals:
+    0: "local error"
+    1: ""
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "local error"
+    (2) push1 1	# ""
+    (4) returnImm +1 0
+  # exit_2:
+    (13) done
+
+ByteCode ::outer, 18 instructions, 46 bytes, 2 literals, 2 variables
+  Literals:
+    0: "inner"
+    1: "0"
+  Local variables:
+    %v0: "code"
+    %v1: "msg"
+  Instructions:
+  # entry_1:
+    (0) beginCatch4 0
+    (5) push1 0	# "inner"
+    (7) invokeStk1 1
+    (9) push1 1	# "0"
+    (11) jump1 +4	# pc 15
+    (13) pushResult
+    (14) pushReturnCode
+  # catch_end_1:
+    (15) endCatch
+    (16) reverse 2
+    (21) storeScalar1 %v1	# var "msg"
+    (23) pop
+    (24) storeScalar1 %v0	# var "code"
+    (26) pop
+    (27) startCommand +18 1	# next cmd at pc 45, 1 cmds start here
+    (36) loadScalar1 %v0	# var "code"
+    (38) loadScalar1 %v1	# var "msg"
+    (40) list 2
+  # cmd_end_2:
+  # exit_2:
+    (45) done

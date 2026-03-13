@@ -1,0 +1,23 @@
+{
+  "seed": 1772893543,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    while executing\n\"if {(47 ^ (12 << -8))} {\n    regexp \".\" \"!_.0-gg@.8_ayn6@r\"\n} else {\n    set idx 0\n    while {$idx < 3} {\n        set idx [expr {((~round(-68)) | (!-3...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpwt8orsvl.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    while executing\n\"if {(47 ^ (12 << -8))} {\n    regexp \".\" \"!_.0-gg@.8_ayn6@r\"\n} else {\n    set idx 0\n    while {$idx < 3} {\n        set idx [expr {((~round(-68)) | (!-3...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpwt8orsvl.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-negative-shift",
+  "triage": "VM loops; core negative-shift bug is FIXED; script wraps in retry loop"
+}

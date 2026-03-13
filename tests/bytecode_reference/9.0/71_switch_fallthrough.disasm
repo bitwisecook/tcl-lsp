@@ -1,0 +1,31 @@
+ByteCode 0xc9b160a10, refCt 1, epoch 21, interp 0xc9b01c010 (epoch 21)
+  Source "set x \"b\"\nswitch $x {\n    a -\n    b -\n    c {set ..."
+  Cmds 4, src 78, inst 42, litObjs 6, aux 1, stkDepth 2, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-8        2: pc 6-40, src 10-76
+      3: pc 19-23, src 45-55        4: pc 29-33, src 65-73
+  Command 1: "set x \"b..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "b"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "switch $x {\n    a -\n    b -\n    c {set y \"abc\"}\n ..."
+    (6) push1 0 	# "x"
+    (8) loadStk 
+    (9) jumpTable 0 
+		["d"->pc 29, "a"->pc 19, "b"->pc 19, 
+		"c"->pc 19]
+    (14) jump4 +25 	# pc 39
+  Command 3: "set y \"abc..."
+    (19) push1 2 	# "y"
+    (21) push1 3 	# "abc"
+    (23) storeStk 
+    (24) jump4 +17 	# pc 41
+  Command 4: "set y \"d..."
+    (29) push1 2 	# "y"
+    (31) push1 4 	# "d"
+    (33) storeStk 
+    (34) jump4 +7 	# pc 41
+    (39) push1 5 	# ""
+    (41) done 
+

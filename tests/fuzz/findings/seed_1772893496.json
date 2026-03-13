@@ -1,0 +1,23 @@
+{
+  "seed": 1772893496,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"5.79\" as right operand of \"|\"\n    while executing\n\"expr {(-(round(97) | (--5.79)))}\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach item {-83 927 499 no llfw} {\n            append item -85.23\n            lassign {-52.47 824 yes} key data b\n            string first \"a\" \"=0z-...\"\n    (\"while\" body line 115)\n    invoked from within\n\"while {$val < 2} {\n    switch -- -864 {\n        56.35 {\n            set item 29\n            incr item 8\n        }\n       "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"5.79\" as right operand of \"|\"\n    while executing\n\"expr {(-(round(97) | (--5.79)))}\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach item {-83 927 499 no llfw} {\n            append item -85.23\n            lassign {-52.47 824 yes} key data b\n            string first \"a\" \"=0z-...\"\n    (\"while\" body line 115)\n    invoked from within\n\"while {$val < 2} {\n    switch -- -864 {\n        56.35 {\n            set item 29\n            incr item 8\n        }\n       "
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

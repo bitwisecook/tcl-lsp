@@ -1,0 +1,23 @@
+{
+  "seed": 1772893823,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"msg\": no such variable\n    while executing\n\"expr {((($msg < $msg) & (!67.88)) - (max(-91, 36.27) % max(1, abs((39 - 74.47)))))}\"\n    (\"default\" arm line 22)\n    invoked from within\n\"switch -- \";t=16=1#rsu 06d6os.b\" {\n    47 {\n        lreverse {yes -990 ntr 72.77 miycar}\n        switch -- false {\n            ozpv {\n                ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmph2x9ms98.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"msg\": no such variable\n    while executing\n\"expr {((($msg < $msg) & (!67.88)) - (max(-91, 36.27) % max(1, abs((39 - 74.47)))))}\"\n    (\"default\" arm line 22)\n    invoked from within\n\"switch -- \";t=16=1#rsu 06d6os.b\" {\n    47 {\n        lreverse {yes -990 ntr 72.77 miycar}\n        switch -- false {\n            ozpv {\n                ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmph2x9ms98.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

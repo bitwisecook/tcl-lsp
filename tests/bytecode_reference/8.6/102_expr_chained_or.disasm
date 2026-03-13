@@ -1,0 +1,13 @@
+ByteCode 0x0x9730ea010, refCt 1, epoch 17, interp 0x0x97301c010 (epoch 17)
+  Source "expr {0 || 0 || 0 || 0 || 1}\nexpr {0 || 1 || 0 || 0 ||..."
+  Cmds 2, src 58, inst 6, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Commands 2:
+      1: pc 0-2, src 0-27        2: pc 3-4, src 29-56
+  Command 1: "expr {0 || 0 || 0 || 0 || 1}..."
+    (0) nop 
+    (1) nop 
+    (2) nop 
+  Command 2: "expr {0 || 1 || 0 || 0 || 0}..."
+    (3) push1 0 	# "1"
+    (5) done 
+

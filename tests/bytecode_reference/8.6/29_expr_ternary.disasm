@@ -1,0 +1,22 @@
+ByteCode 0x0x766cfd210, refCt 1, epoch 17, interp 0x0x766c28010 (epoch 17)
+  Source "set x 5\nexpr {$x > 0 ? \"positive\" : \"non-positiv..."
+  Cmds 2, src 52, inst 22, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-6        2: pc 6-20, src 8-50
+  Command 1: "set x 5..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "5"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "expr {$x > 0 ? \"positive\" : \"non-positiv..."
+    (6) push1 0 	# "x"
+    (8) loadStk 
+    (9) push1 2 	# "0"
+    (11) gt 
+    (12) jumpFalse1 +6 	# pc 18
+    (14) push1 3 	# "positive"
+    (16) jump1 +4 	# pc 20
+    (18) push1 4 	# "non-positive"
+    (20) tryCvtToNumeric 
+    (21) done 
+

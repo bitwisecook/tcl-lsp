@@ -1,0 +1,23 @@
+{
+  "seed": 1772893624,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-82.43\" as right operand of \">>\"\n    invoked from within\n\"expr {(((-82 >> -82.43) == round(25)) | abs(-70))}\"\n    (\"for\" body line 102)\n    invoked from within\n\"for {set b 0} {$b < 6} {incr b} {\n    switch -- \"x@0\" {\n        -1 {\n            expr {-56.12}\n            expr {(-49 ^ 93)}\n            if {((-49.88 ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmps5mv8nuh.tcl\" line 14)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-82.43\" as right operand of \">>\"\n    invoked from within\n\"expr {(((-82 >> -82.43) == round(25)) | abs(-70))}\"\n    (\"for\" body line 102)\n    invoked from within\n\"for {set b 0} {$b < 6} {incr b} {\n    switch -- \"x@0\" {\n        -1 {\n            expr {-56.12}\n            expr {(-49 ^ 93)}\n            if {((-49.88 ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmps5mv8nuh.tcl\" line 14)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

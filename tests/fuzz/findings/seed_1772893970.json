@@ -1,0 +1,23 @@
+{
+  "seed": 1772893970,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"062.0962.0962.0962.09\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"062.0962.0962.0962.09\"\n    while executing\n\"incr tmp\"\n    (\"foreach\" body line 33)\n    invoked from within\n\"foreach tmp {-215 -92.06 -1000} {\n    set x \"#zou+,zqo0813,_uxyi\"\n    append tmp 836\n    append val -50\n    set a {yyidctu bjn}\n    lappend a \"edg__7s...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_tc3ox4t.tcl\" line 12)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893276,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"1.2894638145142423e-38\" as right operand of \"&\"\n    invoked from within\n\"expr {(((47 * 15) & (99.39 ** -18.97)) % max(1, abs(((-2 > -75) | (!-62)))))}\"\n    (\"foreach\" body line 10)\n    invoked from within\n\"foreach j {svclxffe 890 318 -334} {\n        set i 0\n        while {$i < 3} {\n            append data \"#+q38nq6m!_l#9\"\n            set data 40\n        ...\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$j < 1} {\n    foreach j {svclxffe 890 318 -334} "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"1.2894638145142423e-38\" as right operand of \"&\"\n    invoked from within\n\"expr {(((47 * 15) & (99.39 ** -18.97)) % max(1, abs(((-2 > -75) | (!-62)))))}\"\n    (\"foreach\" body line 10)\n    invoked from within\n\"foreach j {svclxffe 890 318 -334} {\n        set i 0\n        while {$i < 3} {\n            append data \"#+q38nq6m!_l#9\"\n            set data 40\n        ...\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$j < 1} {\n    foreach j {svclxffe 890 318 -334} "
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

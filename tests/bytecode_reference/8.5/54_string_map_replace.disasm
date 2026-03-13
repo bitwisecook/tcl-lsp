@@ -1,0 +1,34 @@
+ByteCode 0x0xae883a210, refCt 1, epoch 3, interp 0x0xae8c20010 (epoch 3)
+  Source "set s \"Hello World\"\nstring map {Hello Goodbye World Eve"
+  Cmds 4, src 104, inst 39, litObjs 9, aux 0, stkDepth 4, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-18   	   2: pc 6-17, src 20-63
+      3: pc 18-28, src 65-84   	   4: pc 29-37, src 86-102
+  Command 1: "set s \"Hello World\""
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "Hello World"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "string map {Hello Goodbye World Everyone} $s"
+    (6) push1 2 	# "string"
+    (8) push1 3 	# "map"
+    (10) push1 4 	# "Hello Goodbye World Everyone"
+    (12) push1 0 	# "s"
+    (14) loadScalarStk 
+    (15) invokeStk1 4 
+    (17) pop 
+  Command 3: "string repeat \"ab\" 3"
+    (18) push1 2 	# "string"
+    (20) push1 5 	# "repeat"
+    (22) push1 6 	# "ab"
+    (24) push1 7 	# "3"
+    (26) invokeStk1 4 
+    (28) pop 
+  Command 4: "string reverse $s"
+    (29) push1 2 	# "string"
+    (31) push1 8 	# "reverse"
+    (33) push1 0 	# "s"
+    (35) loadScalarStk 
+    (36) invokeStk1 3 
+    (38) done 
+

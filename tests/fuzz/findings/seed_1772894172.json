@@ -1,0 +1,15 @@
+{
+  "seed": 1772894172,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid literal for int() with base 10: '4.348841000796474e-15'"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: "
+}

@@ -1,0 +1,39 @@
+ByteCode 0x0x884cf3210, refCt 1, epoch 17, interp 0x0x884c28010 (epoch 17)
+  Source "set s \"Hello World\"\nstring length $s\nstring index $..."
+  Cmds 6, src 111, inst 41, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Commands 6:
+      1: pc 0-5, src 0-18        2: pc 6-10, src 20-35
+      3: pc 11-17, src 37-53        4: pc 18-30, src 55-73
+      5: pc 31-35, src 75-91        6: pc 36-39, src 93-109
+  Command 1: "set s \"Hello World..."
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "Hello World"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "string length $s..."
+    (6) push1 0 	# "s"
+    (8) loadStk 
+    (9) strlen 
+    (10) pop 
+  Command 3: "string index $s 0..."
+    (11) push1 0 	# "s"
+    (13) loadStk 
+    (14) push1 2 	# "0"
+    (16) strindex 
+    (17) pop 
+  Command 4: "string range $s 0 4..."
+    (18) push1 0 	# "s"
+    (20) loadStk 
+    (21) strrangeImm 0 4 
+    (30) pop 
+  Command 5: "string toupper $s..."
+    (31) push1 0 	# "s"
+    (33) loadStk 
+    (34) strcaseUpper 
+    (35) pop 
+  Command 6: "string tolower $s..."
+    (36) push1 0 	# "s"
+    (38) loadStk 
+    (39) strcaseLower 
+    (40) done 
+

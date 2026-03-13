@@ -1,0 +1,23 @@
+{
+  "seed": 1772893698,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"while\" body line 22)\n    invoked from within\n\"while {$x < 2} {\n    if {$x == 11} {\n        set tmp \"moy9xev#v6wd6gizmej\"\n        set i 62\n        incr i 7\n        set i 372\n        if {77} {\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgvklp9_7.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"while\" body line 22)\n    invoked from within\n\"while {$x < 2} {\n    if {$x == 11} {\n        set tmp \"moy9xev#v6wd6gizmej\"\n        set i 62\n        incr i 7\n        set i 372\n        if {77} {\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgvklp9_7.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

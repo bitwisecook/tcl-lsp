@@ -1,0 +1,38 @@
+ByteCode 0x0x85acf8c10, refCt 1, epoch 17, interp 0x0x85ac28010 (epoch 17)
+  Source "set a [list x y]\nset b [list z w]\nconcat $a $b\njoin ..."
+  Cmds 6, src 59, inst 70, litObjs 6, aux 0, stkDepth 3, code/src 0.00
+  Commands 6:
+      1: pc 0-14, src 0-15        2: pc 2-12, src 7-14
+      3: pc 15-38, src 17-32        4: pc 26-36, src 24-31
+      5: pc 39-59, src 34-45        6: pc 60-68, src 47-57
+  Command 1: "set a [list x y]..."
+    (0) push1 0 	# "a"
+  Command 2: "list x y..."
+    (2) startCommand +11 1 	# next cmd at pc 13, 1 cmds start here
+    (11) push1 1 	# "x y"
+    (13) storeStk 
+    (14) pop 
+  Command 3: "set b [list z w]..."
+    (15) startCommand +23 1 	# next cmd at pc 38, 1 cmds start here
+    (24) push1 2 	# "b"
+  Command 4: "list z w..."
+    (26) startCommand +11 1 	# next cmd at pc 37, 1 cmds start here
+    (35) push1 3 	# "z w"
+    (37) storeStk 
+    (38) pop 
+  Command 5: "concat $a $b..."
+    (39) startCommand +20 1 	# next cmd at pc 59, 1 cmds start here
+    (48) push1 0 	# "a"
+    (50) loadStk 
+    (51) push1 2 	# "b"
+    (53) loadStk 
+    (54) concatStk 2 
+    (59) pop 
+  Command 6: "join $a \",..."
+    (60) push1 4 	# "join"
+    (62) push1 0 	# "a"
+    (64) loadStk 
+    (65) push1 5 	# ","
+    (67) invokeStk1 3 
+    (69) done 
+

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893395,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"no\"\n    while executing\n\"incr a\"\n    (\"foreach\" body line 19)\n    invoked from within\n\"foreach data {366} {\n        if {$acc > 2} {\n            set acc [expr {(((39 / max(1, abs($acc))) == (87 && $acc)) / max(1, abs(round(-58.66))))}]\n  ...\"\n    (\"while\" body line 6)\n    invoked from within\n\"while {$acc < 3} {\n    for {set acc 0} {$acc < 2} {incr acc} {\n        append data 14.23\n        string range \"@upn iff=g7tql:7.n9 \" 0 4\n    }\n    for...\"\n    (file \"/var/folders/2s"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"no\"\n    while executing\n\"incr a\"\n    (\"foreach\" body line 19)\n    invoked from within\n\"foreach data {366} {\n        if {$acc > 2} {\n            set acc [expr {(((39 / max(1, abs($acc))) == (87 && $acc)) / max(1, abs(round(-58.66))))}]\n  ...\"\n    (\"while\" body line 6)\n    invoked from within\n\"while {$acc < 3} {\n    for {set acc 0} {$acc < 2} {incr acc} {\n        append data 14.23\n        string range \"@upn iff=g7tql:7.n9 \" 0 4\n    }\n    for...\"\n    (file \"/var/folders/2s"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

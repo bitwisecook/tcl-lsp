@@ -1,0 +1,24 @@
+{
+  "seed": 1772875250,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-99.88\" as right operand of \"^\"\n    while executing\n\"if {((21 ^ -99.88) && -63)} {\n            foreach acc {-731 no} {\n                string trimleft \":9suyuv9tx#:wybq;\"\n                append tmp -40\n ...\"\n    (\"while\" body line 13)\n    invoked from within\n\"while {$msg < 2} {\n    foreach idx {812 -821} {\n        expr {(60.87 ? (--7.97) : ((-9 - 3) <= -61))}\n        expr {20}\n        set msg {-90.76 532 -5...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-99.88\" as right operand of \"^\"\n    while executing\n\"if {((21 ^ -99.88) && -63)} {\n            foreach acc {-731 no} {\n                string trimleft \":9suyuv9tx#:wybq;\"\n                append tmp -40\n ...\"\n    (\"while\" body line 13)\n    invoked from within\n\"while {$msg < 2} {\n    foreach idx {812 -821} {\n        expr {(60.87 ? (--7.97) : ((-9 - 3) <= -61))}\n        expr {20}\n        set msg {-90.76 532 -5...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

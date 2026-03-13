@@ -1,0 +1,23 @@
+{
+  "seed": 1772893402,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-26.24\" as left operand of \"<<\"\n    invoked from within\n\"expr {(((-26.24 << -32) ? -31 : (33 ? $val : $count)) ** (-17.41 ? $val : (-85 > $val)))}\"\n    (\"while\" body line 74)\n    invoked from within\n\"while {$tmp < 4} {\n    set tmp 0\n    while {$tmp < 1} {\n        lreverse {}\n        switch -- 745 {\n            86.45 {\n                set tmp 10\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgacdzet5.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-26.24\" as left operand of \"<<\"\n    invoked from within\n\"expr {(((-26.24 << -32) ? -31 : (33 ? $val : $count)) ** (-17.41 ? $val : (-85 > $val)))}\"\n    (\"while\" body line 74)\n    invoked from within\n\"while {$tmp < 4} {\n    set tmp 0\n    while {$tmp < 1} {\n        lreverse {}\n        switch -- 745 {\n            86.45 {\n                set tmp 10\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgacdzet5.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

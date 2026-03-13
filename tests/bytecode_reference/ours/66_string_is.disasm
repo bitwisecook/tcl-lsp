@@ -1,0 +1,61 @@
+ByteCode ::top, 38 instructions, 61 bytes, 8 literals, 0 variables
+  Literals:
+    0: "42"
+    1: ""
+    2: "3"
+    3: "3.14"
+    4: "0"
+    5: "1"
+    6: "hello"
+    7: "true"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "42"
+    (2) dup
+    (3) numericType
+    (4) dup
+    (5) jumpTrue1 +8	# pc 13
+    (7) pop
+    (8) push1 1	# ""
+    (10) streq
+    (11) jump1 +11	# pc 22
+  # si_has_type_1:
+    (13) reverse 2
+    (18) pop
+    (19) push1 2	# "3"
+    (21) le
+  # si_end_2:
+    (22) pop
+    (23) push1 3	# "3.14"
+    (25) dup
+    (26) push1 1	# ""
+    (28) streq
+    (29) jumpTrue1 +9	# pc 38
+    (31) numericType
+    (32) jumpTrue1 +7	# pc 39
+    (34) push1 4	# "0"
+    (36) jump1 +5	# pc 41
+  # si_true_4:
+    (38) pop
+  # si_has_type_5:
+    (39) push1 5	# "1"
+  # si_end_6:
+  # cmd_end_3:
+    (41) pop
+    (42) push1 6	# "hello"
+    (44) strclass alpha
+  # cmd_end_7:
+    (46) pop
+    (47) push1 7	# "true"
+    (49) tryCvtToBoolean
+    (50) jumpTrue1 +7	# pc 57
+    (52) push1 1	# ""
+    (54) streq
+    (55) jump1 +5	# pc 60
+  # si_true_9:
+    (57) pop
+    (58) push1 5	# "1"
+  # si_end_10:
+  # cmd_end_8:
+  # exit_2:
+    (60) done

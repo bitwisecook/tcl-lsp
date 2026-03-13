@@ -1,0 +1,38 @@
+ByteCode ::top, 20 instructions, 45 bytes, 11 literals, 0 variables
+  Literals:
+    0: "arr"
+    1: "msg"
+    2: "hello"
+    3: "append"
+    4: "arr(msg)"
+    5: " "
+    6: "world"
+    7: "lst"
+    8: "a"
+    9: "b"
+    10: "c"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "arr"
+    (2) push1 1	# "msg"
+    (4) push1 2	# "hello"
+    (6) storeArrayStk
+    (7) pop
+    (8) push1 3	# "append"
+    (10) push1 4	# "arr(msg)"
+    (12) push1 5	# " "
+    (14) push1 6	# "world"
+    (16) invokeStk1 4	# append
+  # cmd_end_1:
+    (18) pop
+    (19) startCommand +25 1	# next cmd at pc 44, 1 cmds start here
+    (28) push1 0	# "arr"
+    (30) push1 7	# "lst"
+    (32) push1 8	# "a"
+    (34) push1 9	# "b"
+    (36) push1 10	# "c"
+    (38) list 3
+    (43) lappendListArrayStk
+  # cmd_end_2:
+  # exit_2:
+    (44) done

@@ -1,0 +1,52 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "fact"
+    2: "n"
+    3: "\n    if {$n <= 1} {\n        return ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "fact"
+    (4) push1 2	# "n"
+    (6) push1 3	# "\n    if {$n <= 1} {\n        return ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::fact, 21 instructions, 56 bytes, 3 literals, 1 variables
+  Literals:
+    0: "1"
+    1: ""
+    2: "fact"
+  Local variables:
+    %v0: "n"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "n"
+    (2) push1 0	# "1"
+    (4) le
+    (5) jumpFalse1 +16	# pc 21
+  # if_then_3:
+    (7) startCommand +12 1	# next cmd at pc 19, 1 cmds start here
+    (16) push1 0	# "1"
+    (18) done
+  # ret_end_1:
+    (19) jump1 +4	# pc 23
+  # if_next_4:
+    (21) push1 1	# ""
+  # if_end_2:
+    (23) pop
+    (24) startCommand +31 2	# next cmd at pc 55, 2 cmds start here
+    (33) loadScalar1 %v0	# var "n"
+    (35) push1 2	# "fact"
+    (37) startCommand +14 1	# next cmd at pc 51, 1 cmds start here
+    (46) loadScalar1 %v0	# var "n"
+    (48) push1 0	# "1"
+    (50) sub
+  # cmd_end_3:
+    (51) invokeStk1 2
+    (53) mult
+    (54) done
+  # ret_end_2:
+    (55) done

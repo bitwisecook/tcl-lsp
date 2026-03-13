@@ -1,0 +1,56 @@
+ByteCode ::top, 37 instructions, 81 bytes, 6 literals, 0 variables
+  Literals:
+    0: "done"
+    1: "0"
+    2: "fail"
+    3: ""
+    4: "1"
+    5: "-during"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "done"
+    (2) push1 1	# "0"
+    (4) storeStk
+    (5) pop
+  # try_body_2:
+    (6) beginCatch4 0
+    (11) push1 2	# "fail"
+    (13) push1 3	# ""
+    (15) returnImm +1 0
+    (24) jump1 +3	# pc 27
+    (26) pushResult
+  # try_conv_1:
+    (27) pushReturnOpts
+    (28) endCatch
+    (29) beginCatch4 1
+    (34) push1 0	# "done"
+    (36) push1 4	# "1"
+    (38) storeStk
+    (39) endCatch
+    (40) pop
+    (41) jump1 +33	# pc 74
+    (43) pushResult
+    (44) pushReturnOpts
+    (45) pushReturnCode
+    (46) endCatch
+    (47) push1 4	# "1"
+    (49) eq
+    (50) jumpFalse1 +15	# pc 65
+    (52) push1 5	# "-during"
+    (54) over 3
+    (59) list 2
+    (64) listConcat
+  # try_cleanup_3:
+    (65) reverse 4
+    (70) pop
+    (71) pop
+    (72) jump1 +7	# pc 79
+  # try_normal_2:
+    (74) reverse 2
+  # try_return_4:
+    (79) returnStk
+  # try_end_3:
+  # try_finally_4:
+  # try_after_finally_5:
+  # exit_6:
+    (80) done

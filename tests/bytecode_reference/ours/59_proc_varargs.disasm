@@ -1,0 +1,50 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "mysum"
+    2: "args"
+    3: "\n    set total 0\n    foreach n $arg..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "mysum"
+    (4) push1 2	# "args"
+    (6) push1 3	# "\n    set total 0\n    foreach n $arg..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::mysum, 18 instructions, 53 bytes, 2 literals, 3 variables
+  Literals:
+    0: "0"
+    1: ""
+  Local variables:
+    %v0: "args"
+    %v1: "total"
+    %v2: "n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "0"
+    (2) storeScalar1 %v1	# var "total"
+    (4) pop
+  # foreach_header_2:
+    (5) startCommand +34 1	# next cmd at pc 39, 1 cmds start here
+    (14) loadScalar1 %v0	# var "args"
+    (16) foreach_start 0
+  # foreach_body_3:
+    (21) startCommand +13 1	# next cmd at pc 34, 1 cmds start here
+    (30) loadScalar1 %v2	# var "n"
+    (32) incrScalar1 %v1	# var "total"
+  # cmd_end_2:
+    (34) pop
+    (35) foreach_step
+    (36) foreach_end
+  # foreach_end_4:
+    (37) push1 1	# ""
+  # cmd_end_1:
+    (39) pop
+    (40) startCommand +12 1	# next cmd at pc 52, 1 cmds start here
+    (49) loadScalar1 %v1	# var "total"
+    (51) done
+  # ret_end_3:
+    (52) done

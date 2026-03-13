@@ -1,0 +1,71 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test"
+    2: ""
+    3: "\n    if {[catch {expr {1/0}} result ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    if {[catch {expr {1/0}} result ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test, 33 instructions, 102 bytes, 6 literals, 2 variables
+  Literals:
+    0: "divide by zero"
+    1: "-code 1 -level 0 -errorcode {ARITH DI..."
+    2: "0"
+    3: "-errorcode"
+    4: ""
+    5: "ok"
+  Local variables:
+    %v0: "result"
+    %v1: "opts"
+  Instructions:
+  # entry_1:
+    (0) beginCatch4 0
+    (5) startCommand +22 1	# next cmd at pc 27, 1 cmds start here
+    (14) push1 0	# "divide by zero"
+    (16) push1 1	# "-code 1 -level 0 -errorcode {ARITH DI..."
+    (18) syntax +1 0
+  # catch_body_end_2:
+    (27) push1 2	# "0"
+    (29) jump1 +4	# pc 33
+    (31) pushResult
+    (32) pushReturnCode
+  # catch_opts_3:
+    (33) pushReturnOpts
+    (34) endCatch
+    (35) storeScalar1 %v1	# var "opts"
+    (37) pop
+    (38) reverse 2
+    (43) storeScalar1 %v0	# var "result"
+    (45) pop
+  # cmd_end_1:
+    (46) nop
+    (47) jumpFalse1 +39	# pc 86
+  # if_then_3:
+    (49) startCommand +35 2	# next cmd at pc 84, 2 cmds start here
+    (58) loadScalar1 %v0	# var "result"
+    (60) startCommand +18 1	# next cmd at pc 78, 1 cmds start here
+    (69) loadScalar1 %v1	# var "opts"
+    (71) push1 3	# "-errorcode"
+    (73) dictGet 1
+  # cmd_end_5:
+    (78) list 2
+    (83) done
+  # ret_end_4:
+    (84) jump1 +4	# pc 88
+  # if_next_4:
+    (86) push1 4	# ""
+  # if_end_2:
+    (88) pop
+    (89) startCommand +12 1	# next cmd at pc 101, 1 cmds start here
+    (98) push1 5	# "ok"
+    (100) done
+  # ret_end_6:
+    (101) done

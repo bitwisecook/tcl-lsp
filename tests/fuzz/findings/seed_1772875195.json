@@ -1,0 +1,24 @@
+{
+  "seed": 1772875195,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"count\": no such variable\n    while executing\n\"if {(-($count / max(1, abs(-55.19))))} {\n    string tolower \"0u1w4v3p2=4=z7y8,#\"\n    expr {(-(!2))}\n} else {\n    set b 260\n    append tmp -69\n    appe...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjq8z3mio.tcl\" line 61)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"count\": no such variable\n    while executing\n\"if {(-($count / max(1, abs(-55.19))))} {\n    string tolower \"0u1w4v3p2=4=z7y8,#\"\n    expr {(-(!2))}\n} else {\n    set b 260\n    append tmp -69\n    appe...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjq8z3mio.tcl\" line 61)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

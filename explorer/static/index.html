@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tcl Compiler Explorer</title>
+<style>
+:root {
+  --bg: #1e1e2e;
+  --bg-surface: #181825;
+  --bg-hover: #313244;
+  --text: #cdd6f4;
+  --text-dim: #6c7086;
+  --text-bright: #f5e0dc;
+  --accent: #89b4fa;
+  --green: #a6e3a1;
+  --yellow: #f9e2af;
+  --red: #f38ba8;
+  --magenta: #cba6f7;
+  --cyan: #94e2d5;
+  --blue: #89b4fa;
+  --orange: #fab387;
+  --border: #313244;
+  --gutter: #45475a;
+  --highlight: rgba(137, 180, 250, 0.08);
+  --highlight-strong: rgba(137, 180, 250, 0.18);
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  --font-size: 13px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+}
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+}
+.version-bar {
+  display: flex;
+  align-items: center;
+  padding: 2px 16px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11px;
+  min-height: 22px;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  min-height: 42px;
+}
+.toolbar h1 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.toolbar .stats {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: auto;
+  white-space: nowrap;
+}
+.toolbar .stats .stat-value { color: var(--text); }
+.toolbar select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+}
+.toolbar select:focus { border-color: var(--accent); }
+.toolbar .status-msg {
+  font-size: 11px;
+  color: var(--yellow);
+  white-space: nowrap;
+}
+.main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+}
+.divider {
+  width: 4px;
+  cursor: col-resize;
+  background: var(--border);
+  transition: background 0.15s;
+}
+.divider:hover { background: var(--accent); }
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+.editor-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.editor-header .label { font-weight: 600; color: var(--text); }
+.editor-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+.editor-container {
+  display: flex;
+  height: 100%;
+  overflow: auto;
+  position: relative;
+  background: var(--bg);
+}
+.line-numbers {
+  flex-shrink: 0;
+  padding: 8px 0;
+  text-align: right;
+  color: var(--gutter);
+  user-select: none;
+  font-size: var(--font-size);
+  line-height: 1.5;
+  min-width: 40px;
+  padding-right: 8px;
+  padding-left: 8px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+}
+.line-numbers .ln { display: block; height: 1.5em; }
+.line-numbers .ln.active { color: var(--text); }
+textarea#source {
+  flex: 1;
+  background: transparent;
+  color: var(--text);
+  position: relative;
+  z-index: 1;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: 1.5;
+  tab-size: 4;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+textarea#source::placeholder { color: var(--text-dim); }
+.output-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tab-bar {
+  display: flex;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+.tab {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.tab:hover { color: var(--text); background: var(--bg-hover); }
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tab .badge {
+  display: inline-block;
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.tab.active .badge { background: rgba(137, 180, 250, 0.2); color: var(--accent); }
+.output-content {
+  flex: 1;
+  overflow: auto;
+  padding: 12px 16px;
+}
+.output-content::-webkit-scrollbar { width: 8px; }
+.output-content::-webkit-scrollbar-track { background: transparent; }
+.output-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+.ir-tree { font-size: 12px; }
+.ir-node { margin-left: 16px; }
+.ir-node-header {
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.ir-node-header:hover { background: var(--highlight); }
+.ir-node-header.highlighted { background: var(--highlight-strong); }
+.ir-node-header .toggle {
+  display: inline-block;
+  width: 12px;
+  font-size: 10px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.ir-node-header .summary { flex: 1; }
+.ir-node-header .span-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.ir-node-children { margin-left: 8px; border-left: 1px solid var(--border); }
+.ir-node-children.collapsed { display: none; }
+.ir-child-label {
+  font-size: 11px;
+  color: var(--blue);
+  padding: 1px 4px;
+  margin-left: 16px;
+}
+.ir-assign { color: var(--green); }
+.ir-call { color: var(--cyan); }
+.ir-barrier { color: var(--yellow); }
+.ir-return { color: var(--magenta); }
+.ir-control { color: var(--blue); }
+.ir-other { color: var(--text-dim); }
+.section-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 12px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.section-header:first-child { margin-top: 0; }
+.cfg-function { margin-bottom: 16px; }
+.cfg-func-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cyan);
+  margin-bottom: 4px;
+}
+.cfg-block {
+  margin-left: 8px;
+  margin-bottom: 8px;
+  border-left: 2px solid var(--border);
+  padding-left: 8px;
+}
+.cfg-block.unreachable { opacity: 0.5; border-left-color: var(--red); }
+.cfg-block-header {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.cfg-block-header .tag {
+  font-weight: 400;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+.tag-entry { background: rgba(166, 227, 161, 0.15); color: var(--green); }
+.tag-unreachable { background: rgba(243, 139, 168, 0.15); color: var(--red); }
+.cfg-stmt {
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.cfg-stmt:hover { background: var(--highlight); }
+.cfg-stmt.highlighted { background: var(--highlight-strong); }
+.cfg-stmt .idx { color: var(--text-dim); min-width: 24px; display: inline-block; }
+.cfg-ssa-info {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: 28px;
+}
+.cfg-phi {
+  font-size: 11px;
+  color: var(--magenta);
+  padding: 1px 4px;
+}
+.cfg-terminator {
+  font-size: 11px;
+  color: var(--blue);
+  padding: 1px 4px;
+  margin-top: 2px;
+}
+.proc-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.proc-card .proc-name { font-weight: 600; color: var(--cyan); font-size: 13px; }
+.proc-card .proc-detail { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+.proc-card .proc-detail .val { color: var(--text); }
+.proc-card .pure-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
+.pure-yes { background: rgba(166, 227, 161, 0.15); color: var(--green); }
+.pure-no { background: rgba(249, 226, 175, 0.15); color: var(--yellow); }
+.opt-item {
+  display: flex;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  align-items: baseline;
+}
+.opt-item:hover { background: var(--highlight); }
+.opt-item.highlighted { background: var(--highlight-strong); }
+.opt-item .opt-code { font-weight: 600; color: var(--green); flex-shrink: 0; min-width: 32px; }
+.opt-item .opt-msg { color: var(--text); flex: 1; }
+.opt-item .opt-repl { color: var(--green); font-size: 11px; }
+.shimmer-item {
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.shimmer-item:hover { background: var(--highlight); }
+.shimmer-item.highlighted { background: var(--highlight-strong); }
+.shimmer-item .shimmer-code { font-weight: 600; min-width: 32px; display: inline-block; }
+.shimmer-S100 .shimmer-code, .shimmer-S101 .shimmer-code { color: var(--yellow); }
+.shimmer-S102 .shimmer-code { color: var(--red); }
+.shimmer-lines-container { position: relative; padding-left: 40px; font-size: 12px; }
+.shimmer-involved { border-left: 2px solid var(--yellow); }
+.shimmer-involved:hover { background: var(--highlight); }
+.shimmer-involved.shimmer-line-highlight { background: var(--highlight-strong); border-left-color: var(--orange); }
+.shimmer-line-badge {
+  margin-left: 8px;
+  font-size: 10px;
+  color: var(--yellow);
+  opacity: 0.7;
+}
+.gvn-item {
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.gvn-item:hover { background: var(--highlight); }
+.gvn-item.highlighted { background: var(--highlight-strong); }
+.gvn-item .gvn-code { font-weight: 600; min-width: 32px; display: inline-block; color: var(--green); }
+.gvn-item .gvn-expr { color: var(--cyan); font-size: 11px; }
+.gvn-item .gvn-first { color: var(--text-dim); font-size: 10px; }
+.taint-item {
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.taint-item:hover { background: var(--highlight); }
+.taint-item.highlighted { background: var(--highlight-strong); }
+.taint-item .taint-code { font-weight: 600; min-width: 52px; display: inline-block; }
+.taint-item.taint-danger .taint-code { color: var(--red); }
+.taint-item.taint-warn .taint-code { color: var(--yellow); }
+.taint-item.taint-info .taint-code { color: var(--blue); }
+.taint-tracking-var {
+  font-size: 11px;
+  padding: 1px 4px;
+  color: var(--text-dim);
+}
+.taint-tracking-var .taint-val { color: var(--orange); }
+.type-entry {
+  font-size: 11px;
+  padding: 1px 4px;
+  display: flex;
+  gap: 8px;
+}
+.type-entry .type-var { color: var(--text); min-width: 120px; }
+.type-entry .type-val { font-weight: 600; }
+.type-entry .type-val.type-known { color: var(--green); }
+.type-entry .type-val.type-shimmered { color: var(--yellow); }
+.type-entry .type-val.type-overdefined { color: var(--text-dim); }
+.irules-flow-item {
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.irules-flow-item:hover { background: var(--highlight); }
+.irules-flow-item.highlighted { background: var(--highlight-strong); }
+.irules-flow-item .irules-code { font-weight: 600; min-width: 72px; display: inline-block; color: var(--yellow); }
+.callout-line {
+  display: flex;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.callout-line .gutter {
+  color: var(--gutter);
+  text-align: right;
+  min-width: 32px;
+  padding-right: 8px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.callout-line .code-text {
+  white-space: pre;
+  flex: 1;
+  overflow-x: hidden;
+}
+.callout-annotation {
+  margin-left: 40px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre;
+}
+.callout-annotation.kind-barrier { color: var(--yellow); }
+.callout-annotation.kind-deadStore { color: var(--yellow); }
+.callout-annotation.kind-constantBranch { color: var(--blue); }
+.callout-annotation.kind-unreachable { color: var(--magenta); }
+.callout-annotation.kind-optimisation { color: var(--green); }
+.callout-annotation.kind-shimmer { color: var(--yellow); }
+.callout-annotation.kind-thunking { color: var(--red); }
+.callout-annotation.kind-gvn { color: var(--green); }
+.callout-annotation.kind-taint { color: var(--orange); }
+.callout-annotation.kind-irulesFlow { color: var(--yellow); }
+.source-listing { font-size: 12px; line-height: 1.5; }
+.asm-listing { font-size: 12px; line-height: 1.5; white-space: pre; overflow-x: auto; margin: 0; padding: 8px 12px; }
+.source-line { display: flex; }
+.source-line .gutter {
+  color: var(--gutter);
+  text-align: right;
+  min-width: 32px;
+  padding-right: 8px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.source-line .code-text { white-space: pre; flex: 1; }
+.opt-diff-container { position: relative; padding-left: 36px; }
+.opt-diff-svg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 36px; height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+}
+.opt-diff-line {
+  display: flex;
+  font-size: 12px;
+  line-height: 1.5;
+  position: relative;
+  z-index: 2;
+}
+.opt-diff-line .gutter {
+  color: var(--gutter);
+  text-align: right;
+  min-width: 32px;
+  padding-right: 8px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.opt-diff-line .code-text { white-space: pre; flex: 1; overflow-x: hidden; }
+.opt-diff-line.opt-original { background: rgba(243, 139, 168, 0.06); opacity: 0.45; }
+.opt-diff-line.opt-original .code-text { color: var(--text-dim); text-decoration: line-through; }
+.opt-diff-line.opt-replacement { background: rgba(166, 227, 161, 0.08); }
+.opt-diff-line.opt-replacement .code-text { color: var(--green); }
+.opt-diff-line.opt-replacement .gutter { color: var(--green); }
+.opt-diff-line.opt-input-highlight { background: rgba(137, 180, 250, 0.18) !important; opacity: 1 !important; }
+.opt-diff-line.opt-output-highlight { background: rgba(166, 227, 161, 0.18) !important; }
+.opt-bracket { fill: none; stroke: var(--text-dim); stroke-width: 1.5; opacity: 0.4; transition: opacity 0.15s, stroke 0.15s; }
+.opt-bracket.highlighted { stroke: var(--accent); opacity: 1; }
+.analysis-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.analysis-card h3 { font-size: 12px; font-weight: 600; color: var(--cyan); margin-bottom: 6px; }
+.analysis-entry { font-size: 11px; color: var(--text-dim); padding: 1px 0; }
+.analysis-entry .val { color: var(--text); }
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
+  padding: 32px;
+}
+.error-box {
+  background: rgba(243, 139, 168, 0.1);
+  border: 1px solid var(--red);
+  border-radius: 6px;
+  padding: 12px 16px;
+  color: var(--red);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.spinner {
+  display: none;
+  width: 16px; height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.status-light {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.25s, box-shadow 0.25s;
+}
+.status-light.synced     { background: var(--green);  box-shadow: 0 0 6px var(--green); }
+.status-light.compiling  { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+.status-light.dirty      { background: var(--red);    box-shadow: 0 0 6px var(--red); }
+.status-light.loading    { background: var(--text-dim); box-shadow: none; }
+textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
+#sourceHighlights {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: 1.5;
+  tab-size: 4;
+  white-space: pre;
+  overflow: hidden;
+  color: transparent;
+}
+#sourceHighlights mark {
+  background: rgba(137, 180, 250, 0.35);
+  color: transparent;
+  border-radius: 2px;
+}
+.opt-diff-sep {
+  color: var(--text-dim);
+  text-align: center;
+  font-size: 14px;
+  padding: 2px 0;
+  user-select: none;
+  opacity: 0.5;
+}
+.cfg-edges-container { position: relative; padding-left: 40px; }
+.cfg-edges-svg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+}
+.cfg-edge { fill: none; stroke-width: 1.5; opacity: 0.45; transition: opacity 0.15s, stroke-width 0.15s; }
+.cfg-edge-true { stroke: var(--green); }
+.cfg-edge-false { stroke: var(--red); }
+.cfg-edge-goto { stroke: var(--text-dim); }
+.cfg-edge.highlighted { opacity: 1; stroke-width: 2; }
+.cfg-arrowhead { opacity: 0.45; transition: opacity 0.15s; }
+.cfg-arrowhead-true { fill: var(--green); }
+.cfg-arrowhead-false { fill: var(--red); }
+.cfg-arrowhead-goto { fill: var(--text-dim); }
+.cfg-arrowhead.highlighted { opacity: 1; }
+.cfg-block[data-block] { position: relative; z-index: 2; }
+.var-tooltip {
+  position: fixed;
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text);
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  max-width: 320px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.var-tooltip .tt-name { font-weight: 600; color: var(--accent); font-size: 12px; }
+.var-tooltip .tt-row { display: flex; gap: 6px; }
+.var-tooltip .tt-label { color: var(--text-dim); min-width: 48px; }
+.var-tooltip .tt-val { color: var(--text); }
+.var-tooltip .tt-type { color: var(--green); }
+.var-tooltip .tt-lattice { color: var(--yellow); }
+.ssa-var { cursor: default; border-radius: 2px; padding: 0 2px; transition: background 0.1s; }
+.ssa-var:hover { background: var(--highlight-strong); }
+.ssa-var-def { color: var(--green); }
+.ssa-var-use { color: var(--text); }
+/* Selection for copy-to-Claude */
+[data-start].selected {
+  background: rgba(137, 180, 250, 0.12) !important;
+  border-left: 2px solid var(--accent);
+  padding-left: 6px;
+  opacity: 1 !important;
+}
+.copy-fab {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  transition: opacity 0.15s, transform 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.copy-fab:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.5); }
+.copy-fab.copied { background: var(--green); }
+.copy-fab .key-hint {
+  font-size: 10px;
+  opacity: 0.7;
+  font-weight: 400;
+}
+.event-flow-graph {
+  padding: 8px;
+  overflow: auto;
+  max-height: 50vh;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.event-flow-graph svg {
+  max-width: 100%;
+}
+.event-flow-graph .node { cursor: pointer; }
+.event-flow-section-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 8px 8px 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.tab.irules-only { display: none; }
+.tab.irules-only.irules-visible { display: flex; }
+</style>
+<script src="mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    themeVariables: {
+      darkMode: true,
+      background: '#1e1e2e',
+      primaryColor: '#313244',
+      primaryTextColor: '#cdd6f4',
+      primaryBorderColor: '#89b4fa',
+      lineColor: '#6c7086',
+      secondaryColor: '#45475a',
+      tertiaryColor: '#181825',
+      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+      fontSize: '12px',
+    },
+    flowchart: { curve: 'basis', padding: 12 },
+    securityLevel: 'loose',
+  });
+  window.__mermaid = mermaid;
+</script>
+</head>
+<body>
+<div class="app">
+  <div class="toolbar">
+    <div class="status-light loading" id="statusLight" title="Loading..."></div>
+    <h1>Tcl Compiler Explorer</h1>
+    <select id="dialect">
+      <option value="eda-tools">EDA tools</option>
+      <option value="f5-iapps">F5 iapps</option>
+      <option value="f5-irules">F5 irules</option>
+      <option value="tcl8.4">Tcl 8.4</option>
+      <option value="tcl8.5">Tcl 8.5</option>
+      <option value="tcl8.6" selected>Tcl 8.6</option>
+      <option value="tcl9.0">Tcl 9.0</option>
+    </select>
+    <div class="spinner" id="spinner"></div>
+    <span class="status-msg" id="statusMsg">Loading compiler...</span>
+    <div class="stats" id="stats"></div>
+  </div>
+  <div class="main" id="main">
+    <div class="editor-panel" id="editorPanel">
+      <div class="editor-header">
+        <span class="label">source.tcl</span>
+        <span id="shortcutHint" style="color:var(--text-dim); font-size:11px">Ctrl+Enter to compile</span>
+      </div>
+      <div class="editor-wrap">
+        <div class="editor-container" id="editorContainer">
+          <div class="line-numbers" id="lineNumbers"></div>
+          <div id="sourceHighlights"></div>
+          <textarea id="source" spellcheck="false" placeholder="# Enter Tcl code here...
+proc add {a b} {
+    set result [expr {$a + $b}]
+    return $result
+}
+set x [add 10 20]
+puts $x"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="output-panel" id="outputPanel" style="position:relative">
+      <div class="tab-bar" id="tabBar">
+        <div class="tab active" data-tab="ir">IR</div>
+        <div class="tab" data-tab="cfg-pre">CFG</div>
+        <div class="tab" data-tab="cfg-post">SSA+Analysis</div>
+        <div class="tab" data-tab="interproc">Interproc</div>
+        <div class="tab" data-tab="types">Types</div>
+        <div class="tab" data-tab="opt">Optimiser</div>
+        <div class="tab" data-tab="gvn">GVN</div>
+        <div class="tab" data-tab="shimmer">Shimmer</div>
+        <div class="tab" data-tab="taint">Taint</div>
+        <div class="tab irules-only" data-tab="irules-flow">iRules Flow</div>
+        <div class="tab" data-tab="callouts">Callouts</div>
+        <div class="tab" data-tab="asm">ASM</div>
+        <div class="tab" data-tab="wasm">WASM</div>
+        <div class="tab" data-tab="asm-opt">ASM (Opt)</div>
+        <div class="tab" data-tab="wasm-opt">WASM (Opt)</div>
+      </div>
+      <div class="output-content" id="outputContent">
+        <div class="tab-pane active" id="pane-ir">
+          <div class="empty-state" id="emptyState">Loading compiler...</div>
+        </div>
+        <div class="tab-pane" id="pane-cfg-pre"></div>
+        <div class="tab-pane" id="pane-cfg-post"></div>
+        <div class="tab-pane" id="pane-interproc"></div>
+        <div class="tab-pane" id="pane-types"></div>
+        <div class="tab-pane" id="pane-opt"></div>
+        <div class="tab-pane" id="pane-gvn"></div>
+        <div class="tab-pane" id="pane-shimmer"></div>
+        <div class="tab-pane" id="pane-taint"></div>
+        <div class="tab-pane" id="pane-irules-flow"></div>
+        <div class="tab-pane" id="pane-callouts"></div>
+        <div class="tab-pane" id="pane-asm"></div>
+        <div class="tab-pane" id="pane-wasm"></div>
+        <div class="tab-pane" id="pane-asm-opt"></div>
+        <div class="tab-pane" id="pane-wasm-opt"></div>
+      </div>
+    </div>
+  </div>
+  <div class="version-bar" id="versionBar"></div>
+</div>
+
+<script>
+// Consumer globals (required by explorer-core.js)
+var data = null;
+var compiledSource = '';
+var compiledDialect = '';
+var $ = function(s) { return document.querySelector(s); };
+var $$ = function(s) { return document.querySelectorAll(s); };
+function getSource() { return compiledSource || document.querySelector('#source').value; }
+</script>
+<script src="explorer-core.js"></script>
+<script>
+// Consumer state
+let compileTimer = null;
+let lastSource = '';
+let lastDialect = '';
+let workerReady = false;
+let pendingCompile = false;
+
+// Mac shortcut display fix
+const shortcutKey = isMac ? '\u2318' : 'Ctrl';
+$('#shortcutHint').textContent = shortcutKey + '+Enter to compile';
+
+// Web Worker
+const worker = new Worker('worker.js');
+
+worker.onmessage = function(e) {
+  const msg = e.data;
+  switch (msg.type) {
+    case 'status':
+      $('#statusMsg').textContent = msg.message;
+      break;
+    case 'ready':
+      workerReady = true;
+      $('#statusMsg').style.display = 'none';
+      $('#emptyState').textContent = 'Enter Tcl code and press ' + shortcutKey + '+Enter';
+      setStatus('synced');
+      // Auto-compile if there's content
+      if (pendingCompile || textarea.value.trim()) {
+        pendingCompile = false;
+        compile();
+      }
+      break;
+    case 'result':
+      data = msg.data;
+      compiledSource = lastSource;
+      compiledDialect = lastDialect;
+      renderAll();
+      $('#spinner').style.display = 'none';
+      updateStatusLight();
+      break;
+    case 'error':
+      showError(msg.error, msg.traceback);
+      $('#spinner').style.display = 'none';
+      setStatus('dirty');
+      break;
+  }
+};
+
+// Editor
+const textarea = $('#source');
+const lineNums = $('#lineNumbers');
+
+function updateLineNumbers() {
+  const lines = textarea.value.split('\n');
+  const cursorPos = textarea.selectionStart;
+  let activeLine = textarea.value.substring(0, cursorPos).split('\n').length;
+  lineNums.innerHTML = lines.map((_, i) =>
+    `<span class="ln${i + 1 === activeLine ? ' active' : ''}">${i + 1}</span>`
+  ).join('');
+}
+
+textarea.addEventListener('input', () => {
+  updateLineNumbers();
+  if (workerReady) updateStatusLight();
+  scheduleCompile();
+});
+textarea.addEventListener('click', updateLineNumbers);
+textarea.addEventListener('keyup', updateLineNumbers);
+const sourceHighlights = $('#sourceHighlights');
+textarea.addEventListener('scroll', () => {
+  lineNums.style.transform = `translateY(-${textarea.scrollTop}px)`;
+  sourceHighlights.style.transform = `translate(-${textarea.scrollLeft}px, -${textarea.scrollTop}px)`;
+});
+
+textarea.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    textarea.value = textarea.value.substring(0, start) + '    ' + textarea.value.substring(end);
+    textarea.selectionStart = textarea.selectionEnd = start + 4;
+    updateLineNumbers();
+    scheduleCompile();
+  }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    lastSource = '';          // force recompile even if source unchanged
+    compile();
+  }
+});
+
+// Dialect change triggers recompile
+function updateIrulesTabVisibility() {
+  const isIrules = $('#dialect').value === 'f5-irules';
+  $$('.tab.irules-only').forEach(t => {
+    t.classList.toggle('irules-visible', isIrules);
+    // If we're hiding the active tab, switch to IR
+    if (!isIrules && t.classList.contains('active')) {
+      t.classList.remove('active');
+      $(`#pane-${t.dataset.tab}`).classList.remove('active');
+      $$('.tab')[0].classList.add('active');
+      $('#pane-ir').classList.add('active');
+    }
+  });
+}
+updateIrulesTabVisibility();
+
+$('#dialect').addEventListener('change', () => {
+  updateIrulesTabVisibility();
+  lastSource = '';  // force recompile
+  compile();
+});
+
+// Tabs
+$('#tabBar').addEventListener('click', e => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  $$('.tab').forEach(t => t.classList.remove('active'));
+  $$('.tab-pane').forEach(p => p.classList.remove('active'));
+  tab.classList.add('active');
+  $(`#pane-${tab.dataset.tab}`).classList.add('active');
+  if (data && (tab.dataset.tab === 'cfg-pre' || tab.dataset.tab === 'cfg-post' || tab.dataset.tab === 'opt')) {
+    requestAnimationFrame(() => scheduleEdgeRedraw());
+  }
+});
+
+// Compile
+function scheduleCompile() {
+  clearTimeout(compileTimer);
+  compileTimer = setTimeout(compile, 600);
+}
+
+function compile() {
+  const source = textarea.value;
+  const dialect = $('#dialect').value;
+  if (!source.trim()) return;
+  if (source === lastSource && dialect === lastDialect) return;
+  lastSource = source;
+  lastDialect = dialect;
+
+  if (!workerReady) {
+    pendingCompile = true;
+    return;
+  }
+
+  $('#spinner').style.display = 'block';
+  setStatus('compiling');
+  worker.postMessage({ type: 'compile', source, dialect });
+}
+
+function updateStatusLight() {
+  const source = textarea.value;
+  const dialect = $('#dialect').value;
+  if (source === compiledSource && dialect === compiledDialect) {
+    setStatus('synced');
+  } else {
+    setStatus('dirty');
+  }
+}
+
+// Consumer hooks: renderAll / updateBadges
+function renderAll() {
+  updateIrulesTabVisibility();
+  renderStats();
+  renderIR();
+  renderCfgPre();
+  renderCfgPost();
+  renderInterproc();
+  renderTypes();
+  renderOpt();
+  renderGvn();
+  renderShimmer();
+  renderTaint();
+  renderIrulesFlow();
+  renderCallouts();
+  renderAsm();
+  renderWasm();
+  renderAsmOpt();
+  renderWasmOpt();
+  updateBadges();
+}
+
+function updateBadges() {
+  const counts = {
+    'ir': data.ir.procedures ? Object.keys(data.ir.procedures).length + 1 : 1,
+    'cfg-pre': data.cfgPreSsa.length,
+    'cfg-post': data.cfgPostSsa.length,
+    'interproc': data.interprocedural.length,
+    'types': data.types.reduce((n, f) => n + f.entries.length, 0),
+    'opt': data.optimisations.length,
+    'gvn': data.gvn.length,
+    'shimmer': data.shimmer.length,
+    'taint': data.taintWarnings.length + data.taintTracking.reduce((n, f) => n + f.entries.length, 0),
+    'irules-flow': (data.eventOrder || []).length + data.irulesFlow.length,
+    'callouts': data.annotations.length,
+    'asm': instrCount(data.asm),
+    'wasm': instrCount(data.wasm),
+    'asm-opt': instrCount(data.asmOptimised),
+    'wasm-opt': instrCount(data.wasmOptimised),
+  };
+  $$('.tab').forEach(tab => {
+    const key = tab.dataset.tab;
+    const existing = tab.querySelector('.badge');
+    if (existing) existing.remove();
+    if (counts[key]) {
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = counts[key];
+      tab.appendChild(badge);
+    }
+  });
+}
+
+// Source highlighting (standalone-only)
+function scrollSourceToCenter(start, end) {
+  textarea.focus();
+  textarea.setSelectionRange(start, end);
+  const text = textarea.value.substring(0, Math.floor((start + end) / 2));
+  const line = (text.match(/\n/g) || []).length;
+  const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 16;
+  const viewportHeight = textarea.clientHeight;
+  const targetScroll = line * lineHeight - viewportHeight / 2;
+  textarea.scrollTop = Math.max(0, targetScroll);
+}
+function scrollSourceToCenterNoSelect(start, end) {
+  const text = textarea.value.substring(0, Math.floor((start + end) / 2));
+  const line = (text.match(/\n/g) || []).length;
+  const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 16;
+  const viewportHeight = textarea.clientHeight;
+  const targetScroll = line * lineHeight - viewportHeight / 2;
+  textarea.scrollTop = Math.max(0, targetScroll);
+}
+function highlightSourceRanges(ranges) {
+  const hl = sourceHighlights;
+  if (!ranges || !ranges.length) { hl.textContent = ''; return; }
+  // Position overlay to match textarea
+  hl.style.left = textarea.offsetLeft + 'px';
+  hl.style.width = textarea.offsetWidth + 'px';
+  hl.style.height = textarea.offsetHeight + 'px';
+  hl.style.transform = `translate(-${textarea.scrollLeft}px, -${textarea.scrollTop}px)`;
+  const src = textarea.value;
+  ranges = [...ranges].sort((a, b) => a.start - b.start);
+  // Merge overlapping ranges
+  const merged = [ranges[0]];
+  for (let i = 1; i < ranges.length; i++) {
+    const last = merged[merged.length - 1];
+    if (ranges[i].start <= last.end) { last.end = Math.max(last.end, ranges[i].end); }
+    else { merged.push({...ranges[i]}); }
+  }
+  let html = '';
+  let pos = 0;
+  for (const r of merged) {
+    const s = Math.max(0, r.start);
+    const e = Math.min(src.length, r.end);
+    if (s > pos) html += esc(src.substring(pos, s));
+    html += '<mark>' + esc(src.substring(s, e)) + '</mark>';
+    pos = e;
+  }
+  if (pos < src.length) html += esc(src.substring(pos));
+  hl.innerHTML = html;
+  // Scroll to first highlight
+  scrollSourceToCenterNoSelect(merged[0].start, merged[0].end);
+}
+function clearSourceHighlights() {
+  sourceHighlights.textContent = '';
+}
+
+// Consumer hook: setupHoverHighlighting (with source highlighting)
+function setupHoverHighlighting(container) {
+  container.addEventListener('click', e => {
+    const el = e.target.closest('[data-start]');
+    if (!el) return;
+    const start = parseInt(el.dataset.start);
+    const end = parseInt(el.dataset.end);
+    highlightSourceRanges([{start, end}]);
+    // Highlight the clicked right-pane element.
+    if (currentHighlighted && currentHighlighted !== el) {
+      currentHighlighted.classList.remove('highlighted');
+    }
+    el.classList.add('highlighted');
+    currentHighlighted = el;
+  });
+}
+
+// Consumer hooks: optimiser diff
+function setupOptItemDiffScroll(pane) {
+  const container = pane.querySelector('.opt-diff-container');
+  if (!container) return;
+  pane.addEventListener('click', e => {
+    const item = e.target.closest('.opt-item');
+    if (!item) return;
+    const optStart = parseInt(item.dataset.start);
+    const optEnd = parseInt(item.dataset.end);
+    if (isNaN(optStart) || isNaN(optEnd)) return;
+    // Find the diff group whose original lines overlap with this opt-item's range.
+    clearOptHighlights(container);
+    const origEls = container.querySelectorAll('.opt-original');
+    let matchGid = null;
+    for (const el of origEls) {
+      const elStart = parseInt(el.dataset.start);
+      const elEnd = parseInt(el.dataset.end);
+      if (elStart <= optEnd && elEnd >= optStart) { matchGid = el.dataset.optGroup; break; }
+    }
+    if (matchGid === null) return;
+    container.querySelectorAll(`.opt-original[data-opt-group="${matchGid}"]`).forEach(el => el.classList.add('opt-input-highlight'));
+    container.querySelectorAll(`.opt-replacement[data-opt-group="${matchGid}"]`).forEach(el => el.classList.add('opt-output-highlight'));
+    container.querySelectorAll(`.opt-bracket[data-opt-group="${matchGid}"]`).forEach(el => el.classList.add('highlighted'));
+    const firstOrig = container.querySelector(`.opt-original[data-opt-group="${matchGid}"]`);
+    if (firstOrig) firstOrig.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+}
+
+function buildOptDiffView() {
+  const source = compiledSource || textarea.value;
+  const origLines = source.split('\n');
+  const optLines = data.optimisedSource.split('\n');
+  const lineStarts = [0];
+  for (let i = 0; i < source.length; i++) { if (source[i] === '\n') lineStarts.push(i + 1); }
+  function lineEnd(n) { return n + 1 < lineStarts.length ? lineStarts[n + 1] - 1 : source.length; }
+  const segments = computeDiffSegments(origLines, optLines);
+  let html = '<div class="opt-diff-container">';
+  let groupId = 0;
+  let prevWasChanged = false;
+  for (const seg of segments) {
+    if (seg.type === 'same') {
+      // Skip unchanged context lines; mark gap for separator.
+      if (prevWasChanged) prevWasChanged = 'gap';
+      continue;
+    }
+    if (prevWasChanged === 'gap') {
+      html += '<div class="opt-diff-sep">\u22ee</div>';
+    }
+    prevWasChanged = true;
+    const gid = groupId++;
+    const gStart = lineStarts[seg.origStart];
+    const gEnd = seg.origEnd > 0 ? lineEnd(seg.origEnd - 1) : gStart;
+    for (let i = seg.origStart; i < seg.origEnd; i++) {
+      html += `<div class="opt-diff-line opt-original" data-opt-group="${gid}" data-orig-line="${i}" data-start="${lineStarts[i]}" data-end="${lineEnd(i)}"><span class="gutter">${i + 1}</span><span class="code-text">${esc(origLines[i])}</span></div>`;
+    }
+    for (let i = seg.optStart; i < seg.optEnd; i++) {
+      html += `<div class="opt-diff-line opt-replacement" data-opt-group="${gid}" data-start="${gStart}" data-end="${gEnd}"><span class="gutter">\u2192</span><span class="code-text">${esc(optLines[i])}</span></div>`;
+    }
+  }
+  html += '</div>';
+  return html;
+}
+
+function setupOptDiffHover(pane) {
+  const container=pane.querySelector('.opt-diff-container');
+  if(!container)return;
+  container.addEventListener('click',e=>{
+    e.stopPropagation();
+    const line=e.target.closest('.opt-diff-line[data-opt-group]');
+    clearOptHighlights(container);
+    if(!line){clearSourceHighlights();return;}
+    const gid=line.dataset.optGroup;
+    container.querySelectorAll(`.opt-original[data-opt-group="${gid}"]`).forEach(el=>el.classList.add('opt-input-highlight'));
+    container.querySelectorAll(`.opt-replacement[data-opt-group="${gid}"]`).forEach(el=>el.classList.add('opt-output-highlight'));
+    container.querySelectorAll(`.opt-bracket[data-opt-group="${gid}"]`).forEach(el=>el.classList.add('highlighted'));
+    // Collect individual opt ranges that overlap this diff group's original lines.
+    const origEls=container.querySelectorAll(`.opt-original[data-opt-group="${gid}"]`);
+    if(!origEls.length)return;
+    const groupStart=parseInt(origEls[0].dataset.start);
+    const groupEnd=parseInt(origEls[origEls.length-1].dataset.end);
+    const optRanges=[];
+    for(const o of data.optimisations){
+      const os=o.range.startOffset,oe=o.range.endOffset;
+      if(os<groupEnd&&oe>groupStart)optRanges.push({start:os,end:oe});
+    }
+    if(optRanges.length)highlightSourceRanges(optRanges);
+    else highlightSourceRanges([{start:groupStart,end:groupEnd}]);
+    // Highlight the clicked element in the right pane.
+    if(currentHighlighted)currentHighlighted.classList.remove('highlighted');
+    line.classList.add('highlighted');currentHighlighted=line;
+  });
+}
+
+// Consumer hook: renderShimmer
+function renderShimmer() {
+  const pane=$('#pane-shimmer');
+  if(!data.shimmer.length){pane.innerHTML='<div class="empty-state">No shimmer warnings</div>';return;}
+  let html='<div class="section-header">Warnings</div>';
+  for(const w of data.shimmer){
+    html+=`<div class="shimmer-item shimmer-${w.code}"${sourceRangeAttrs(w.range)}><span class="shimmer-code">${esc(w.code)}</span> ${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[${spanLabel(w.range)}]</span></div>`;
+  }
+  html+='<div class="section-header">Involved Lines</div>'+buildShimmerLinesView();
+  pane.innerHTML=html;
+  setupHoverHighlighting(pane);
+  setupShimmerItemLineScroll(pane);
+}
+
+function buildShimmerLinesView() {
+  const source=compiledSource||textarea.value;
+  const lines=source.split('\n');
+  const lineStarts=[0];
+  for(let i=0;i<source.length;i++){if(source[i]==='\n')lineStarts.push(i+1);}
+  function lineEnd(n){return n+1<lineStarts.length?lineStarts[n+1]-1:source.length;}
+  function offsetToLine(offset){let lo=0,hi=lineStarts.length-1;while(lo<hi){const mid=(lo+hi+1)>>1;if(lineStarts[mid]<=offset)lo=mid;else hi=mid-1;}return lo;}
+  // Collect involved lines with their shimmer codes.
+  const lineInfos=new Map();
+  for(const w of data.shimmer){
+    const lineNo=offsetToLine(w.range.startOffset);
+    if(!lineInfos.has(lineNo))lineInfos.set(lineNo,{codes:new Set(),start:lineStarts[lineNo],end:lineEnd(lineNo)});
+    lineInfos.get(lineNo).codes.add(w.code);
+  }
+  const sortedLines=[...lineInfos.keys()].sort((a,b)=>a-b);
+  if(!sortedLines.length)return'';
+  let html='<div class="shimmer-lines-container">';
+  let prevLine=-2;
+  for(const lineNo of sortedLines){
+    if(prevLine>=0&&lineNo>prevLine+1)html+='<div class="opt-diff-sep">\u22ee</div>';
+    const info=lineInfos.get(lineNo);
+    const codesStr=[...info.codes].join(', ');
+    html+=`<div class="opt-diff-line shimmer-involved" data-start="${info.start}" data-end="${info.end}"><span class="gutter">${lineNo+1}</span><span class="code-text">${esc(lines[lineNo])}</span><span class="shimmer-line-badge">${esc(codesStr)}</span></div>`;
+    prevLine=lineNo;
+  }
+  html+='</div>';
+  return html;
+}
+
+function setupShimmerItemLineScroll(pane) {
+  const container=pane.querySelector('.shimmer-lines-container');
+  if(!container)return;
+  pane.addEventListener('click',e=>{
+    const item=e.target.closest('.shimmer-item');
+    if(!item)return;
+    const itemStart=parseInt(item.dataset.start);
+    const itemEnd=parseInt(item.dataset.end);
+    if(isNaN(itemStart)||isNaN(itemEnd))return;
+    // Find and highlight the matching involved line.
+    container.querySelectorAll('.shimmer-line-highlight').forEach(el=>el.classList.remove('shimmer-line-highlight'));
+    const involvedEls=container.querySelectorAll('.shimmer-involved');
+    for(const el of involvedEls){
+      const elStart=parseInt(el.dataset.start);
+      const elEnd=parseInt(el.dataset.end);
+      if(elStart<=itemEnd&&elEnd>=itemStart){el.classList.add('shimmer-line-highlight');el.scrollIntoView({block:'nearest',behavior:'smooth'});break;}
+    }
+  });
+}
+
+// Consumer hook: renderIrulesFlow
+let eventRangeMap = {};
+
+function buildMermaidDef(events) {
+  // Build a top-down flowchart
+  let lines = ['graph TD'];
+  const multStyle = { init: 'fill:#313244,stroke:#f9e2af,color:#f9e2af', once_per_connection: 'fill:#313244,stroke:#89b4fa,color:#cdd6f4', per_request: 'fill:#313244,stroke:#a6e3a1,color:#a6e3a1' };
+  const multLabel = { init: 'init', once_per_connection: 'once/conn', per_request: 'per-request' };
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    const id = 'evt' + i;
+    const priLabel = e.priority !== 500 ? ' p' + e.priority : '';
+    const mLabel = multLabel[e.multiplicity] || '';
+    lines.push(`  ${id}["${e.event}${priLabel}<br/><small>${mLabel}</small>"]`);
+    if (i > 0) lines.push(`  evt${i-1} --> ${id}`);
+  }
+  // Apply styles
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    const s = multStyle[e.multiplicity] || multStyle.once_per_connection;
+    lines.push(`  style evt${i} ${s}`);
+  }
+  return lines.join('\n');
+}
+
+async function renderEventFlowGraph(container, events) {
+  if (!window.__mermaid || !events.length) return;
+  const def = buildMermaidDef(events);
+  try {
+    const { svg } = await window.__mermaid.render('eventFlowChart', def);
+    container.innerHTML = svg;
+    // Attach click handlers to nodes (mermaid IDs: flowchart-evt0-N)
+    const nodeEls = container.querySelectorAll('.node');
+    for (let i = 0; i < Math.min(events.length, nodeEls.length); i++) {
+      const g = nodeEls[i];
+      g.style.cursor = 'pointer';
+      g.addEventListener('click', () => {
+        const e = events[i];
+        if (e.range) scrollSourceToCenter(e.range.startOffset, e.range.endOffset);
+      });
+    }
+  } catch (err) {
+    container.innerHTML = `<div class="empty-state">Graph render error: ${esc(String(err))}</div>`;
+  }
+}
+
+function renderIrulesFlow() {
+  const pane=$('#pane-irules-flow');
+  const events = data.eventOrder || [];
+  const warnings = data.irulesFlow || [];
+
+  if (!events.length && !warnings.length) {
+    pane.innerHTML = '<div class="empty-state">No events detected</div>';
+    return;
+  }
+
+  let html = '';
+
+  // Event flow graph section
+  if (events.length) {
+    html += '<div class="event-flow-section-label">Event Flow</div>';
+    html += '<div class="event-flow-graph" id="eventFlowGraphContainer"></div>';
+    // Store ranges for click navigation
+    eventRangeMap = {};
+    for (const e of events) {
+      eventRangeMap[e.event] = e.range;
+    }
+  }
+
+  // Warnings section
+  if (warnings.length) {
+    html += '<div class="event-flow-section-label">Warnings</div>';
+    for (const w of warnings) {
+      html += `<div class="irules-flow-item"${sourceRangeAttrs(w.range)}><span class="irules-code">${esc(w.code)}</span> ${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[${spanLabel(w.range)}]</span></div>`;
+    }
+  }
+
+  pane.innerHTML = html;
+  setupHoverHighlighting(pane);
+
+  // Render mermaid graph asynchronously
+  if (events.length) {
+    const graphContainer = $('#eventFlowGraphContainer');
+    renderEventFlowGraph(graphContainer, events);
+  }
+}
+
+// Resizable panels
+(function(){
+  const main=$('#main');const editorPanel=$('#editorPanel');let dragging=false;
+  main.addEventListener('mousedown',e=>{const rect=editorPanel.getBoundingClientRect();if(Math.abs(e.clientX-rect.right)<6){dragging=true;document.body.style.cursor='col-resize';document.body.style.userSelect='none';e.preventDefault();}});
+  document.addEventListener('mousemove',e=>{if(!dragging)return;const mainRect=main.getBoundingClientRect();const fraction=(e.clientX-mainRect.left)/mainRect.width;const clamped=Math.max(0.2,Math.min(0.8,fraction));main.style.gridTemplateColumns=`${clamped}fr ${1-clamped}fr`;});
+  document.addEventListener('mouseup',()=>{if(dragging){dragging=false;document.body.style.cursor='';document.body.style.userSelect='';}});
+})();
+
+// Redraw edges on resize
+const outputContent=$('#outputContent');
+outputContent.addEventListener('scroll',scheduleEdgeRedraw);
+window.addEventListener('resize',scheduleEdgeRedraw);
+
+// Selection event handlers
+$('#outputContent').addEventListener('click', e => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const el = e.target.closest('[data-start]');
+  if (!el) return;
+  e.preventDefault();
+  e.stopPropagation();
+  toggleSelection(el);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  // Escape: clear selection
+  if (e.key === 'Escape' && selectedItems.size > 0) {
+    clearSelection();
+    e.preventDefault();
+    return;
+  }
+  // Ctrl/Cmd+C: copy selection (only when items selected and not in textarea)
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedItems.size > 0 && document.activeElement !== textarea) {
+    e.preventDefault();
+    copySelectionToClipboard();
+    return;
+  }
+  // Ctrl/Cmd+Shift+A: select all in active tab
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
+    e.preventDefault();
+    selectAllInActiveTab();
+    return;
+  }
+});
+
+// Clear selection when source changes (items become stale)
+textarea.addEventListener('input', () => { if (selectedItems.size > 0) clearSelection(); });
+
+// Version bar
+fetch('build_info.json').then(r => r.ok ? r.json() : null).then(info => {
+  if (!info) return;
+  const bar = document.getElementById('versionBar');
+  bar.textContent = `${info.full_version} (${info.build_timestamp})`;
+}).catch(() => {});
+
+// Init
+updateLineNumbers();
+
+// Auto-compile after 1000ms if user hasn't compiled yet (waits for worker ready)
+setTimeout(() => { if (!data && textarea.value.trim()) compile(); }, 1000);
+</script>
+</body>
+</html>

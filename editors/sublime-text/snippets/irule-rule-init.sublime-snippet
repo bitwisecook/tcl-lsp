@@ -1,0 +1,8 @@
+<snippet>
+	<content><![CDATA[when RULE_INIT {
+    ${0:# one-time initialisation}
+}]]></content>
+	<tabTrigger>irule-rule-init</tabTrigger>
+	<scope>source.irule</scope>
+	<description>Initialise iRule static state</description>
+</snippet>

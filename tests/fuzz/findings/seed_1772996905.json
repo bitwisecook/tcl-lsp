@@ -1,0 +1,13 @@
+{
+  "seed": 1772996905,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm error vs vm_opt ok",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "missing \"",
+      "detail_b": "(ok)"
+    }
+  ]
+}

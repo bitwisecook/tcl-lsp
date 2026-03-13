@@ -1,0 +1,31 @@
+ByteCode 0x0xa20c48a10, refCt 1, epoch 3, interp 0x0xa20c20010 (epoch 3)
+  Source "set lst [list d b a c]\nlsort $lst\nlsearch $lst b\n"
+  Cmds 4, src 49, inst 34, litObjs 8, aux 0, stkDepth 6, code/src 0.00
+  Commands 4:
+      1: pc 0-15, src 0-21   	   2: pc 2-13, src 9-20
+      3: pc 16-23, src 23-32   	   4: pc 24-32, src 34-47
+  Command 1: "set lst [list d b a c]"
+    (0) push1 0 	# "lst"
+  Command 2: "list d b a c"
+    (2) push1 1 	# "list"
+    (4) push1 2 	# "d"
+    (6) push1 3 	# "b"
+    (8) push1 4 	# "a"
+    (10) push1 5 	# "c"
+    (12) invokeStk1 5 
+    (14) storeScalarStk 
+    (15) pop 
+  Command 3: "lsort $lst"
+    (16) push1 6 	# "lsort"
+    (18) push1 0 	# "lst"
+    (20) loadScalarStk 
+    (21) invokeStk1 2 
+    (23) pop 
+  Command 4: "lsearch $lst b"
+    (24) push1 7 	# "lsearch"
+    (26) push1 0 	# "lst"
+    (28) loadScalarStk 
+    (29) push1 3 	# "b"
+    (31) invokeStk1 3 
+    (33) done 
+

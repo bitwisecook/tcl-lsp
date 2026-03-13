@@ -1,0 +1,41 @@
+ByteCode 0x0x7964b4010, refCt 1, epoch 17, interp 0x0x796c28010 (epoch 17)
+  Source "proc test {args} {\n    if {[info exists args]} {\n    ..."
+  Cmds 1, src 94, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-92
+  Command 1: "proc test {args} {\n    if {[info exists args]} {\n    ..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# "args"
+    (6) push1 3 	# "\n    if {[info exists args]} {\n       ..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x79649ac10, refCt 1, epoch 72, interp 0x0x79647e010 (epoch 72)
+  Source "\n    if {[info exists args]} {\n        return \"yes\"..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 4, src 74, inst 38, litObjs 3, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x0x796489910, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "args"
+  Commands 4:
+      1: pc 0-24, src 5-56        2: pc 0-4, src 10-25
+      3: pc 8-19, src 39-50        4: pc 25-36, src 62-72
+  Command 1: "if {[info exists args]} {\n        return \"yes\"\n ..."
+  Command 2: "info exists args..."
+    (0) existScalar %v0 	# var "args"
+    (5) nop 
+    (6) jumpFalse1 +16 	# pc 22
+  Command 3: "return \"yes..."
+    (8) startCommand +12 1 	# next cmd at pc 20, 1 cmds start here
+    (17) push1 0 	# "yes"
+    (19) done 
+    (20) jump1 +4 	# pc 24
+    (22) push1 1 	# ""
+    (24) pop 
+  Command 4: "return \"no..."
+    (25) startCommand +12 1 	# next cmd at pc 37, 1 cmds start here
+    (34) push1 2 	# "no"
+    (36) done 
+    (37) done 
+

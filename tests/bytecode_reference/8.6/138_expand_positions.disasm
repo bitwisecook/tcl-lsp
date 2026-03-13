@@ -1,0 +1,36 @@
+ByteCode 0x0xab4ce8010, refCt 1, epoch 17, interp 0x0xab4c28010 (epoch 17)
+  Source "set args {a b c}\nlist {*}$args d\nlist d {*}$args\nlis..."
+  Cmds 4, src 67, inst 50, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-15        2: pc 6-17, src 17-31
+      3: pc 18-29, src 33-47        4: pc 30-48, src 49-65
+  Command 1: "set args {a b c}..."
+    (0) push1 0 	# "args"
+    (2) push1 1 	# "a b c"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "list {*}$args d..."
+    (6) push1 0 	# "args"
+    (8) loadStk 
+    (9) push1 2 	# "d"
+    (11) list 1 
+    (16) listConcat 
+    (17) pop 
+  Command 3: "list d {*}$args..."
+    (18) push1 2 	# "d"
+    (20) list 1 
+    (25) push1 0 	# "args"
+    (27) loadStk 
+    (28) listConcat 
+    (29) pop 
+  Command 4: "list d {*}$args e..."
+    (30) push1 2 	# "d"
+    (32) list 1 
+    (37) push1 0 	# "args"
+    (39) loadStk 
+    (40) listConcat 
+    (41) push1 3 	# "e"
+    (43) list 1 
+    (48) listConcat 
+    (49) done 
+

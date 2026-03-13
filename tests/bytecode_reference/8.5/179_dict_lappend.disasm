@@ -1,0 +1,56 @@
+ByteCode 0x0x760d16e10, refCt 1, epoch 3, interp 0x0x760c20010 (epoch 3)
+  Source "proc test {} {\n    set d [dict create items {}]\n    dic"
+  Cmds 1, src 159, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-157
+  Command 1: "proc test {} {\n    set d [dict create items {}]\n    dic"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set d [dict create items {}]\n    di"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x760d18210, refCt 1, epoch 3, interp 0x0x760cf4810 (epoch 3)
+  Source "\n    set d [dict create items {}]\n    dict lappend d it"
+  Cmds 6, src 143, inst 83, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x0x760d13e90, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "d"
+  Commands 6:
+      1: pc 0-12, src 5-32   	   2: pc 0-9, src 12-31
+      3: pc 13-31, src 38-63   	   4: pc 32-50, src 69-94
+      5: pc 51-69, src 100-127   	   6: pc 70-81, src 133-141
+  Command 1: "set d [dict create items {}]"
+  Command 2: "dict create items {}"
+    (0) push1 0 	# "dict"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "items"
+    (6) push1 3 	# ""
+    (8) invokeStk1 4 
+    (10) storeScalar1 %v0 	# var "d"
+    (12) pop 
+  Command 3: "dict lappend d items \"one\""
+    (13) startCommand +18 1 	# next cmd at pc 31
+    (22) push1 2 	# "items"
+    (24) push1 4 	# "one"
+    (26) dictLappend %v0 	# var "d"
+    (31) pop 
+  Command 4: "dict lappend d items \"two\""
+    (32) startCommand +18 1 	# next cmd at pc 50
+    (41) push1 2 	# "items"
+    (43) push1 5 	# "two"
+    (45) dictLappend %v0 	# var "d"
+    (50) pop 
+  Command 5: "dict lappend d items \"three\""
+    (51) startCommand +18 1 	# next cmd at pc 69
+    (60) push1 2 	# "items"
+    (62) push1 6 	# "three"
+    (64) dictLappend %v0 	# var "d"
+    (69) pop 
+  Command 6: "return $d"
+    (70) startCommand +12 1 	# next cmd at pc 82
+    (79) loadScalar1 %v0 	# var "d"
+    (81) done 
+    (82) done 
+

@@ -1,0 +1,31 @@
+ByteCode 0x87d162610, refCt 1, epoch 21, interp 0x87d01c010 (epoch 21)
+  Source "expr {0xFF & 0x0F}\nexpr {0x0F | 0xF0}\nexpr {0xFF ^ 0x..."
+  Cmds 6, src 97, inst 18, litObjs 6, aux 0, stkDepth 1, code/src 0.00
+  Commands 6:
+      1: pc 0-2, src 0-17        2: pc 3-5, src 19-36
+      3: pc 6-8, src 38-55        4: pc 9-11, src 57-65
+      5: pc 12-14, src 67-79        6: pc 15-16, src 81-95
+  Command 1: "expr {0xFF & 0x0F}..."
+    (0) nop 
+    (1) nop 
+    (2) nop 
+  Command 2: "expr {0x0F | 0xF0}..."
+    (3) nop 
+    (4) nop 
+    (5) nop 
+  Command 3: "expr {0xFF ^ 0x0F}..."
+    (6) nop 
+    (7) nop 
+    (8) nop 
+  Command 4: "expr {~0}..."
+    (9) nop 
+    (10) nop 
+    (11) nop 
+  Command 5: "expr {1 << 4}..."
+    (12) nop 
+    (13) nop 
+    (14) nop 
+  Command 6: "expr {256 >> 4}..."
+    (15) push1 5 	# "16"
+    (17) done 
+

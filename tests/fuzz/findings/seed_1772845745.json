@@ -1,0 +1,24 @@
+{
+  "seed": 1772845745,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "wrong # args: extra words after \"else\" clause in \"if\" command",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {-44} {\n        expr {27}\n        catch {\n            set msg {uiucbw}\n            string trimright \"jztb2;mo6z72v:@j#i\"\n        } idx\n        lass...\"\n    invoked from within\n\"if {$idx <= 11} {\n    switch -- -865 {\n        \"a?9p#us.@\" {\n            lreverse {no 17.06 yqgqnpl}\n            append x 173\n            expr {(doubl...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpw3uc2581.tcl\" line "
+    }
+  ],
+  "fixed": true,
+  "fix": "if-else-elseif pre-validation in _cmd_if",
+  "category": "if-else-elseif"
+}

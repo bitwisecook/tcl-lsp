@@ -1,0 +1,33 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x9b0c0500, refCt 1, epoch 0, interp 0x1706e10 (epoch 0)
+  Source "set s \"  hello world  \"\nstring trim $s\nstring trimleft "
+  Cmds 4, src 78, inst 32, litObjs 5, aux 0, stkDepth 3, code/src 3.18
+  Code 248 = header 160+inst 32+litObj 40+exc 0+aux 0+cmdMap 16
+  Proc 0x9b0bdc80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "s"
+  Commands 4:
+      1: pc 0-4, src 0-22   	   2: pc 5-13, src 24-37
+      3: pc 14-22, src 39-56   	   4: pc 23-30, src 58-76
+  Command 1: "set s \"  hello world  \""
+    (0) push1 0  	# "  hello world  "
+    (2) storeScalar1 0	# var "s"
+    (4) pop 
+  Command 2: "string trim $s"
+    (5) push1 1  	# "string"
+    (7) push1 2  	# "trim"
+    (9) loadScalar1 0	# var "s"
+    (11) invokeStk1 3 
+    (13) pop 
+  Command 3: "string trimleft $s"
+    (14) push1 1  	# "string"
+    (16) push1 3  	# "trimleft"
+    (18) loadScalar1 0	# var "s"
+    (20) invokeStk1 3 
+    (22) pop 
+  Command 4: "string trimright $s"
+    (23) push1 1  	# "string"
+    (25) push1 4  	# "trimright"
+    (27) loadScalar1 0	# var "s"
+    (29) invokeStk1 3 
+    (31) done 

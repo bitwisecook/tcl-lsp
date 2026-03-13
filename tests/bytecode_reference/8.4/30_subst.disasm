@@ -1,0 +1,19 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xdecb4600, refCt 1, epoch 0, interp 0x3162c60 (epoch 0)
+  Source "set name \"World\"\nsubst {Hello, $name!}\n"
+  Cmds 2, src 39, inst 12, litObjs 3, aux 0, stkDepth 2, code/src 5.33
+  Code 208 = header 160+inst 12+litObj 24+exc 0+aux 0+cmdMap 8
+  Proc 0xdf0d4c40, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "name"
+  Commands 2:
+      1: pc 0-4, src 0-15   	   2: pc 5-10, src 17-37
+  Command 1: "set name \"World\""
+    (0) push1 0  	# "World"
+    (2) storeScalar1 0	# var "name"
+    (4) pop 
+  Command 2: "subst {Hello, $name!}"
+    (5) push1 1  	# "subst"
+    (7) push1 2  	# "Hello, $name!"
+    (9) invokeStk1 2 
+    (11) done 

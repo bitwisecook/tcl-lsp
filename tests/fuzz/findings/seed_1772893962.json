@@ -1,0 +1,23 @@
+{
+  "seed": 1772893962,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"26.69\" as operand of \"~\"\n    invoked from within\n\"expr {(-48 ? (~(-28 ? 26.69 : 8)) : -41.38)}\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$idx < 2} {\n    set idx [expr {(-48 ? (~(-28 ? 26.69 : 8)) : -41.38)}]\n    lassign {false 69.41 95} idx\n    foreach idx {716 rzzkzoj false} {\n ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpa13pn9bn.tcl\" line 4)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"26.69\" as operand of \"~\"\n    invoked from within\n\"expr {(-48 ? (~(-28 ? 26.69 : 8)) : -41.38)}\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$idx < 2} {\n    set idx [expr {(-48 ? (~(-28 ? 26.69 : 8)) : -41.38)}]\n    lassign {false 69.41 95} idx\n    foreach idx {716 rzzkzoj false} {\n ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpa13pn9bn.tcl\" line 4)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

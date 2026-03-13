@@ -1,0 +1,98 @@
+TCLSH    /opt/homebrew/bin/tclsh8.6
+VERSION  8.6.17
+FILE     for.test
+DATE     2026-03-03T12:53:47Z
+---
+PASS for-1.1
+PASS for-1.10
+PASS for-1.11
+PASS for-1.12
+PASS for-1.13
+PASS for-1.14
+PASS for-1.15
+PASS for-1.2
+PASS for-1.3
+PASS for-1.4
+PASS for-1.5
+PASS for-1.6
+PASS for-1.7
+PASS for-1.8
+PASS for-1.9
+PASS for-2.1
+PASS for-2.2
+PASS for-2.3
+PASS for-2.4
+PASS for-2.5
+PASS for-2.6
+PASS for-2.7
+PASS for-3.1
+PASS for-3.2
+PASS for-3.3
+PASS for-3.4
+PASS for-3.5
+PASS for-3.6
+PASS for-4.1
+PASS for-5.1
+PASS for-5.2
+PASS for-5.3
+PASS for-5.4
+PASS for-6.1
+PASS for-6.10
+PASS for-6.11
+PASS for-6.12
+PASS for-6.13
+PASS for-6.14
+PASS for-6.15
+PASS for-6.16
+PASS for-6.17
+PASS for-6.18
+PASS for-6.2
+PASS for-6.3
+PASS for-6.4
+PASS for-6.5
+PASS for-6.6
+PASS for-6.7
+PASS for-6.8
+PASS for-6.9
+PASS for-8.0
+PASS for-8.1
+PASS for-8.10
+PASS for-8.11
+PASS for-8.12
+PASS for-8.2
+PASS for-8.3
+PASS for-8.4
+PASS for-8.5
+PASS for-8.6
+PASS for-8.7
+PASS for-8.8
+PASS for-8.9
+SKIP for-7.1 memory
+SKIP for-7.10 memory
+SKIP for-7.11 memory
+SKIP for-7.12 memory
+SKIP for-7.13 memory
+SKIP for-7.14 memory
+SKIP for-7.15 memory
+SKIP for-7.16 memory
+SKIP for-7.17 memory
+SKIP for-7.18 memory
+SKIP for-7.19 memory
+SKIP for-7.2 memory
+SKIP for-7.20 memory
+SKIP for-7.21 memory
+SKIP for-7.22 memory
+SKIP for-7.23 memory
+SKIP for-7.24 memory
+SKIP for-7.3 memory
+SKIP for-7.4 memory
+SKIP for-7.5 memory
+SKIP for-7.6 memory
+SKIP for-7.7 memory
+SKIP for-7.8 memory
+SKIP for-7.9 memory
+---
+TOTAL   88
+PASSED  64
+SKIPPED 24
+FAILED  0

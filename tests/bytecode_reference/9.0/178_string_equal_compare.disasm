@@ -1,0 +1,57 @@
+ByteCode 0xc29170010, refCt 1, epoch 21, interp 0xc2901c010 (epoch 21)
+  Source "set a [string equal \"hello\" \"hello\"]\nset b [string..."
+  Cmds 8, src 164, inst 127, litObjs 18, aux 0, stkDepth 8, code/src 0.00
+  Commands 8:
+      1: pc 0-17, src 0-35        2: pc 2-15, src 7-34
+      3: pc 18-57, src 37-80        4: pc 29-55, src 44-79
+      5: pc 58-84, src 82-115        6: pc 69-82, src 89-114
+      7: pc 85-125, src 117-162        8: pc 96-124, src 124-161
+  Command 1: "set a [string equal \"hello\" \"hell..."
+    (0) push1 0 	# "a"
+  Command 2: "string equal \"hello\" \"hel..."
+    (2) startCommand +14 1 	# next cmd at pc 16, 1 cmds start here
+    (11) push1 1 	# "hello"
+    (13) push1 1 	# "hello"
+    (15) streq 
+    (16) storeStk 
+    (17) pop 
+  Command 3: "set b [string equal -nocase \"Hello\" \"hell..."
+    (18) startCommand +39 1 	# next cmd at pc 57, 1 cmds start here
+    (27) push1 2 	# "b"
+  Command 4: "string equal -nocase \"Hello\" \"hel..."
+    (29) startCommand +27 1 	# next cmd at pc 56, 1 cmds start here
+    (38) push1 3 	# "string"
+    (40) push1 4 	# "equal"
+    (42) push1 5 	# "-nocase"
+    (44) push1 6 	# "Hello"
+    (46) push1 1 	# "hello"
+    (48) push1 7 	# "::tcl::string::equal"
+    (50) invokeReplace 5 2 
+    (56) storeStk 
+    (57) pop 
+  Command 5: "set c [string compare \"abc\" \"ab..."
+    (58) startCommand +26 1 	# next cmd at pc 84, 1 cmds start here
+    (67) push1 8 	# "c"
+  Command 6: "string compare \"abc\" \"a..."
+    (69) startCommand +14 1 	# next cmd at pc 83, 1 cmds start here
+    (78) push1 9 	# "abc"
+    (80) push1 10 	# "abd"
+    (82) strcmp 
+    (83) storeStk 
+    (84) pop 
+  Command 7: "set d [string compare -length 3 \"abcX\" \"abc..."
+    (85) startCommand +41 1 	# next cmd at pc 126, 1 cmds start here
+    (94) push1 11 	# "d"
+  Command 8: "string compare -length 3 \"abcX\" \"ab..."
+    (96) startCommand +29 1 	# next cmd at pc 125, 1 cmds start here
+    (105) push1 3 	# "string"
+    (107) push1 12 	# "compare"
+    (109) push1 13 	# "-length"
+    (111) push1 14 	# "3"
+    (113) push1 15 	# "abcX"
+    (115) push1 16 	# "abcY"
+    (117) push1 17 	# "::tcl::string::compare"
+    (119) invokeReplace 6 2 
+    (125) storeStk 
+    (126) done 
+

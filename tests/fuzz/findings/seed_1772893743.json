@@ -1,0 +1,23 @@
+{
+  "seed": 1772893743,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-18.65\"\n    while executing\n\"incr data\"\n    (\"foreach\" body line 7)\n    invoked from within\n\"foreach y {-543 false true 64.88 934} {\n    set y [expr {wide(-79)}]\n    expr {10}\n    append data \"yr,z9dt\"\n    set y 0\n    while {$y < 1} {\n        ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp05rk6v99.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-18.65\"\n    while executing\n\"incr data\"\n    (\"foreach\" body line 7)\n    invoked from within\n\"foreach y {-543 false true 64.88 934} {\n    set y [expr {wide(-79)}]\n    expr {10}\n    append data \"yr,z9dt\"\n    set y 0\n    while {$y < 1} {\n        ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp05rk6v99.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

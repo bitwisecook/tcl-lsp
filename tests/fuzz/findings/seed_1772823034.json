@@ -1,0 +1,32 @@
+{
+  "seed": 1772823034,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "CRASH: ValueError: negative shift count"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {(int(-5) / max(1, abs(((12 >> -100) != round(40.03)))))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach i {-161 no} {\n            expr {(int(-5) / max(1, abs(((12 >> -100) != round(40.03)))))}\n            if {$i >= 15} {\n                string ma...\"\n    invoked from within\n\"if {49} {\n    regexp \"\\\\d+\" \"@i0:fjsgfv-\"\n    if {17} {\n        foreach i {-161 no} {\n            expr {(int(-5) / max(1, abs(((12 >> -100) != round(4...\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {(int(-5) / max(1, abs(((12 >> -100) != round(40.03)))))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach i {-161 no} {\n            expr {(int(-5) / max(1, abs(((12 >> -100) != round(40.03)))))}\n            if {$i >= 15} {\n                string ma...\"\n    invoked from within\n\"if {49} {\n    regexp \"\\\\d+\" \"@i0:fjsgfv-\"\n    if {17} {\n        foreach i {-161 no} {\n            expr {(int(-5) / max(1, abs(((12 >> -100) != round(4...\""
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

@@ -1,0 +1,32 @@
+{
+  "seed": 1772846056,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"i\": no such variable\n    while executing\n\"if {(round(-6) ? (-32 ^ $i) : 87)} {\n            set x {111 -364 colvw 447 -170}\n        }\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- zjlsas {\n    \"v.@pwwur0wrl;tmm\" {\n        switch -- 41 {\n            yes {\n                lreverse {lxsitd}\n                set buf 0\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjzr863b6.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"i\": no such variable\n    while executing\n\"if {(round(-6) ? (-32 ^ $i) : 87)} {\n            set x {111 -364 colvw 447 -170}\n        }\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- zjlsas {\n    \"v.@pwwur0wrl;tmm\" {\n        switch -- 41 {\n            yes {\n                lreverse {lxsitd}\n                set buf 0\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjzr863b6.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

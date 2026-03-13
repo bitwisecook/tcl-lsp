@@ -1,0 +1,13 @@
+ByteCode 0xa3f162c10, refCt 1, epoch 21, interp 0xa3f01c010 (epoch 21)
+  Source "expr {1 && 1 && 1 && 1 && 1}\nexpr {1 && 1 && 0 && 1 &&..."
+  Cmds 2, src 58, inst 6, litObjs 2, aux 0, stkDepth 1, code/src 0.00
+  Commands 2:
+      1: pc 0-2, src 0-27        2: pc 3-4, src 29-56
+  Command 1: "expr {1 && 1 && 1 && 1 && 1}..."
+    (0) nop 
+    (1) nop 
+    (2) nop 
+  Command 2: "expr {1 && 1 && 0 && 1 && 1}..."
+    (3) push1 1 	# "0"
+    (5) done 
+

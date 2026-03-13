@@ -1,0 +1,23 @@
+{
+  "seed": 1772893883,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"374 31.27 1 -535 i 540\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr data\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach tmp {1} {\n    regexp \"\\\\d+\" \"uda9\"\n    for {set data 0} {$data < 5} {incr data} {\n        set data no\n        foreach data {56 yes aq kbcnjro ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmphwy8eje0.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893834,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"988 -139\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr b\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach b {yes} {\n        for {set b 0} {$b < 2} {incr b} {\n            set b {r 438}\n            lappend b \"3,cd_3@!p\"\n            set b {988}\n      ...\"\n    (\"for\" body line 11)\n    invoked from within\n\"for {set b 0} {$b < 6} {incr b} {\n    if {(!(!$b))} {\n        for {set b 0} {$b < 6} {incr b} {\n            set b {-5.41 yes 206 -88.90 359 awsc}\n    ...\"\n    (file \"/var/folders/2s"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

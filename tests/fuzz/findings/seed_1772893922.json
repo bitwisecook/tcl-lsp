@@ -1,0 +1,23 @@
+{
+  "seed": 1772893922,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"if {$n != -5} {\n        set count false\n    } else {\n        set a {rurynlc true 0 -19 -35.82 no}\n        if {$item} {\n            set idx tc\n        ...\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$tmp < 5} {\n    if {$n != -5} {\n        set count false\n    } else {\n        set a {rurynlc true 0 -19 -35.82 no}\n        if {$item} {\n        ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_pe2wda4.tcl\" line 239"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"if {$n != -5} {\n        set count false\n    } else {\n        set a {rurynlc true 0 -19 -35.82 no}\n        if {$item} {\n            set idx tc\n        ...\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$tmp < 5} {\n    if {$n != -5} {\n        set count false\n    } else {\n        set a {rurynlc true 0 -19 -35.82 no}\n        if {$item} {\n        ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_pe2wda4.tcl\" line 239"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

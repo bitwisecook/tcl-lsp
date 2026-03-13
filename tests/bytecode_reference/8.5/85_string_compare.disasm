@@ -1,0 +1,45 @@
+ByteCode 0x0x874cfa410, refCt 1, epoch 3, interp 0x0x874c20010 (epoch 3)
+  Source "set a \"hello\"\nset b \"world\"\nstring compare $a $b\nstring"
+  Cmds 5, src 97, inst 70, litObjs 7, aux 0, stkDepth 5, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-12   	   2: pc 6-20, src 14-26
+      3: pc 21-37, src 28-47   	   4: pc 38-54, src 49-66
+      5: pc 55-68, src 68-95
+  Command 1: "set a \"hello\""
+    (0) push1 0 	# "a"
+    (2) push1 1 	# "hello"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set b \"world\""
+    (6) startCommand +14 1 	# next cmd at pc 20
+    (15) push1 2 	# "b"
+    (17) push1 3 	# "world"
+    (19) storeScalarStk 
+    (20) pop 
+  Command 3: "string compare $a $b"
+    (21) startCommand +16 1 	# next cmd at pc 37
+    (30) push1 0 	# "a"
+    (32) loadScalarStk 
+    (33) push1 2 	# "b"
+    (35) loadScalarStk 
+    (36) strcmp 
+    (37) pop 
+  Command 4: "string equal $a $b"
+    (38) startCommand +16 1 	# next cmd at pc 54
+    (47) push1 0 	# "a"
+    (49) loadScalarStk 
+    (50) push1 2 	# "b"
+    (52) loadScalarStk 
+    (53) streq 
+    (54) pop 
+  Command 5: "string compare -nocase $a $b"
+    (55) push1 4 	# "string"
+    (57) push1 5 	# "compare"
+    (59) push1 6 	# "-nocase"
+    (61) push1 0 	# "a"
+    (63) loadScalarStk 
+    (64) push1 2 	# "b"
+    (66) loadScalarStk 
+    (67) invokeStk1 5 
+    (69) done 
+

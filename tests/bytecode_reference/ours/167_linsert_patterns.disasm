@@ -1,0 +1,51 @@
+ByteCode ::top, 30 instructions, 61 bytes, 13 literals, 0 variables
+  Literals:
+    0: "lst"
+    1: "a b c"
+    2: "a"
+    3: "0"
+    4: "X"
+    5: "b"
+    6: "end"
+    7: "Y"
+    8: "Z"
+    9: "c"
+    10: "1"
+    11: "M"
+    12: "N"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "lst"
+    (2) push1 1	# "a b c"
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "a"
+    (8) push1 0	# "lst"
+    (10) loadStk
+    (11) push1 3	# "0"
+    (13) push1 4	# "X"
+    (15) lreplace4 3 2
+    (21) storeStk
+  # cmd_end_1:
+    (22) pop
+    (23) push1 5	# "b"
+    (25) push1 0	# "lst"
+    (27) loadStk
+    (28) push1 6	# "end"
+    (30) push1 7	# "Y"
+    (32) push1 8	# "Z"
+    (34) lreplace4 4 2
+    (40) storeStk
+  # cmd_end_2:
+    (41) pop
+    (42) push1 9	# "c"
+    (44) push1 0	# "lst"
+    (46) loadStk
+    (47) push1 10	# "1"
+    (49) push1 11	# "M"
+    (51) push1 12	# "N"
+    (53) lreplace4 4 2
+    (59) storeStk
+  # cmd_end_3:
+  # exit_2:
+    (60) done

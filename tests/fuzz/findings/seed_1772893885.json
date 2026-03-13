@@ -1,0 +1,23 @@
+{
+  "seed": 1772893885,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "cannot use floating-point value \"-92.0\" as right operand of \"|\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-92.0\" as right operand of \"|\"\n    while executing\n\"expr {(((~40) | double(-92)) - 2)}\"\n    (\"foreach\" body line 25)\n    invoked from within\n\"foreach msg {xoocfkh} {\n    catch {\n        for {set data 0} {$data < 6} {incr data} {\n            set msg 12\n            incr msg 3\n            set m...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpce8dzan6.tcl\" line 65)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

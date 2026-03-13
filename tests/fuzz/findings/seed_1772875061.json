@@ -1,0 +1,24 @@
+{
+  "seed": 1772875061,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-29.36\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-29.36\" as left operand of \"&\"\n    invoked from within\n\"expr {(((-2 < -84) | (-29.36 & 95)) ? ($count == (-76 << 34)) : ((!$idx) ? (-15 ? $flag : -1) : wide(-30)))}\"\n    (in namespace eval \"::baz\" script line 2)\n    invoked from within\n\"namespace eval baz {\n    set result [expr {(((-2 < -84) | (-29.36 & 95)) ? ($count == (-76 << 34)) : ((!$idx) ? (-15 ? $flag : -1) : wide(-30)))}]\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpmz6ghbp7.tcl\" lin"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

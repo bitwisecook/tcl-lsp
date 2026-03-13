@@ -1,0 +1,31 @@
+{
+  "seed": 1772893353,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"-76.46\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "cannot use floating-point value \"-76.46\" as right operand of \">>\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-76.46\" as right operand of \">>\"\n    while executing\n\"expr {max(55, (int(94.07) >> -76.46))}\"\n    (\"default\" arm line 3)\n    invoked from within\n\"switch -- \"!jx1j2!jb3\" {\n    38 {\n        string reverse \"p\"\n        switch -- -95.07 {\n            43.52 {\n                expr {61}\n                ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpky7f7i03.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

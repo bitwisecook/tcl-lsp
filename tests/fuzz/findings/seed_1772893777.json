@@ -1,0 +1,23 @@
+{
+  "seed": 1772893777,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"52.32\" as left operand of \"&\"\n    invoked from within\n\"expr {((52.32 & 71) ** -75)}\"\n    (\"foreach\" body line 5)\n    invoked from within\n\"foreach key {-72 -901 -348} {\n            for {set item 0} {$item < 4} {incr item} {\n                regexp \"\\\\d+\" \"p;t.qn:db-af.\"\n                str...\"\n    (\"default\" arm line 3)\n    invoked from within\n\"switch -- 53 {\n    -89 {\n        set b -634\n        concat {53 yes e true} {yes}\n        set key {187 418 -22.52}\n        "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"52.32\" as left operand of \"&\"\n    invoked from within\n\"expr {((52.32 & 71) ** -75)}\"\n    (\"foreach\" body line 5)\n    invoked from within\n\"foreach key {-72 -901 -348} {\n            for {set item 0} {$item < 4} {incr item} {\n                regexp \"\\\\d+\" \"p;t.qn:db-af.\"\n                str...\"\n    (\"default\" arm line 3)\n    invoked from within\n\"switch -- 53 {\n    -89 {\n        set b -634\n        concat {53 yes e true} {yes}\n        set key {187 418 -22.52}\n        "
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

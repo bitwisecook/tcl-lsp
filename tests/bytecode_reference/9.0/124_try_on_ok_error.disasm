@@ -1,0 +1,19 @@
+ByteCode 0x782da6610, refCt 1, epoch 21, interp 0x782c28010 (epoch 21)
+  Source "try {\n    set x 42\n} on ok {result} {\n    set y $res..."
+  Cmds 1, src 106, inst 23, litObjs 9, aux 0, stkDepth 10, code/src 0.00
+  Commands 1:
+      1: pc 0-21, src 0-104
+  Command 1: "try {\n    set x 42\n} on ok {result} {\n    set y $res..."
+    (0) push1 0 	# "try"
+    (2) push1 1 	# "\n    set x 42..."
+    (4) push1 2 	# "on"
+    (6) push1 3 	# "ok"
+    (8) push1 4 	# "result"
+    (10) push1 5 	# "\n    set y $result..."
+    (12) push1 2 	# "on"
+    (14) push1 6 	# "error"
+    (16) push1 7 	# "msg opts"
+    (18) push1 8 	# "\n    set y \"error: $msg..."
+    (20) invokeStk1 10 
+    (22) done 
+

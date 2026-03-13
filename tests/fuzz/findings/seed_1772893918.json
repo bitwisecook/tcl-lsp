@@ -1,0 +1,23 @@
+{
+  "seed": 1772893918,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"83.28\" as operand of \"~\"\n    invoked from within\n\"expr {((41 & (~83.28)) / max(1, abs((($tmp >= 19) ? (2 < 75.62) : $tmp))))}\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$tmp < 1} {\n    expr {((41 & (~83.28)) / max(1, abs((($tmp >= 19) ? (2 < 75.62) : $tmp))))}\n    set tmp \".6sv=nko2811s8d_uc\"\n    set tmp 0\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_h8w_2tn.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"83.28\" as operand of \"~\"\n    invoked from within\n\"expr {((41 & (~83.28)) / max(1, abs((($tmp >= 19) ? (2 < 75.62) : $tmp))))}\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$tmp < 1} {\n    expr {((41 & (~83.28)) / max(1, abs((($tmp >= 19) ? (2 < 75.62) : $tmp))))}\n    set tmp \".6sv=nko2811s8d_uc\"\n    set tmp 0\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_h8w_2tn.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

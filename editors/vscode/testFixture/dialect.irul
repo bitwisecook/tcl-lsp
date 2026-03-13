@@ -1,0 +1,4 @@
+# iRule dialect fixture
+when HTTP_REQUEST {
+    HTTP::header X-Forwarded-For 127.0.0.1
+}

@@ -1,0 +1,24 @@
+ByteCode 0x0xc80cfa210, refCt 1, epoch 3, interp 0x0xc80c20010 (epoch 3)
+  Source "set f [list {x y} {expr {$x + $y}}]\napply $f 3 4\n"
+  Cmds 3, src 49, inst 24, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Commands 3:
+      1: pc 0-11, src 0-34   	   2: pc 2-9, src 7-33
+      3: pc 12-22, src 36-47
+  Command 1: "set f [list {x y} {expr {$x + $y}}]"
+    (0) push1 0 	# "f"
+  Command 2: "list {x y} {expr {$x + $y}}"
+    (2) push1 1 	# "list"
+    (4) push1 2 	# "x y"
+    (6) push1 3 	# "expr {$x + $y}"
+    (8) invokeStk1 3 
+    (10) storeScalarStk 
+    (11) pop 
+  Command 3: "apply $f 3 4"
+    (12) push1 4 	# "apply"
+    (14) push1 0 	# "f"
+    (16) loadScalarStk 
+    (17) push1 5 	# "3"
+    (19) push1 6 	# "4"
+    (21) invokeStk1 4 
+    (23) done 
+

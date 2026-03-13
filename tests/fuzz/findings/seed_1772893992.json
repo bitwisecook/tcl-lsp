@@ -1,0 +1,23 @@
+{
+  "seed": 1772893992,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"97.11\" as left operand of \">>\"\n    invoked from within\n\"if {((--97.11) >> 8)} {\n            lindex {-33 izk false lhphf} 1\n            string range \"h#u 1d?\" 3 6\n            set result \"s=jnds8v9b4\"\n       ...\"\n    (\"while\" body line 9)\n    invoked from within\n\"while {$j < 4} {\n    set i 0\n    while {$i < 4} {\n        foreach a {dtotvnc -109 32.76 -546 70} {\n            lassign {zhslcv 68.91} tmp b i\n        ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"97.11\" as left operand of \">>\"\n    invoked from within\n\"if {((--97.11) >> 8)} {\n            lindex {-33 izk false lhphf} 1\n            string range \"h#u 1d?\" 3 6\n            set result \"s=jnds8v9b4\"\n       ...\"\n    (\"while\" body line 9)\n    invoked from within\n\"while {$j < 4} {\n    set i 0\n    while {$i < 4} {\n        foreach a {dtotvnc -109 32.76 -546 70} {\n            lassign {zhslcv 68.91} tmp b i\n        ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

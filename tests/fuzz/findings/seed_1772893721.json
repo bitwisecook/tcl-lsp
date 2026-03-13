@@ -1,0 +1,23 @@
+{
+  "seed": 1772893721,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach y {pfckh 85.15 -340 73.89} {\n    set flag 10\n    incr flag 3\n    regexp \"[0-9]\" \"!hohxy\"\n    regexp \"[a-z]+\" \"._+uu:2 zpvf@==vb7j\"\n    catch {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp6q3pq3z2.tcl\" line 45)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach y {pfckh 85.15 -340 73.89} {\n    set flag 10\n    incr flag 3\n    regexp \"[0-9]\" \"!hohxy\"\n    regexp \"[a-z]+\" \"._+uu:2 zpvf@==vb7j\"\n    catch {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp6q3pq3z2.tcl\" line 45)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

@@ -1,0 +1,24 @@
+{
+  "seed": 1772845820,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-46.48\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-46.48\" as right operand of \"&\"\n    invoked from within\n\"expr {(((~24) & -46.48) < 77)}\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- 331 {\n    24 {\n        lassign {-79.26 27.10 -641 -801 hbgqplbd} result msg n\n    }\n    ygljj {\n        switch -- -56 {\n            \"n8zs+1:...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp05a1w43j.tcl\" line 57)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

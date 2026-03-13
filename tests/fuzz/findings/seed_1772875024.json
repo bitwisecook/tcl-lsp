@@ -1,0 +1,24 @@
+{
+  "seed": 1772875024,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"45.54\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"45.54\"\n    while executing\n\"incr b\"\n    (\"foreach\" body line 9)\n    invoked from within\n\"foreach z {yes qksfbipo -459} {\n    set b 0\n    while {$b < 4} {\n        set flag 26.72\n        set b [expr {45.54}]\n        set z 77\n        incr z 9...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpw1xil7op.tcl\" line 29)"
+    }
+  ],
+  "fixed": true,
+  "fix": "strict integer parsing rejects boolean literals",
+  "category": "expected-integer"
+}

@@ -1,0 +1,11 @@
+ByteCode 0x8a90fe010, refCt 1, epoch 21, interp 0x8a901c010 (epoch 21)
+  Source "set x 42\n"
+  Cmds 1, src 9, inst 6, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Commands 1:
+      1: pc 0-4, src 0-7
+  Command 1: "set x 42..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "42"
+    (4) storeStk 
+    (5) done 
+

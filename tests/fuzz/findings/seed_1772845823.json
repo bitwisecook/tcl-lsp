@@ -1,0 +1,32 @@
+{
+  "seed": 1772845823,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"1.0\" as left operand of \"%\"\n    while executing\n\"expr {(double((!$count)) % max(1, abs(wide((45 || 44)))))}\"\n    (\"foreach\" body line 44)\n    invoked from within\n\"foreach b {94.32 true} {\n    expr {-83}\n    set count [expr {max(((68.15 ? -42 : $b) || ($b ? $b : -71)), 55)}]\n    set a 62\n    incr a -2\n    for {se...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpr18mxz2e.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"1.0\" as left operand of \"%\"\n    while executing\n\"expr {(double((!$count)) % max(1, abs(wide((45 || 44)))))}\"\n    (\"foreach\" body line 44)\n    invoked from within\n\"foreach b {94.32 true} {\n    expr {-83}\n    set count [expr {max(((68.15 ? -42 : $b) || ($b ? $b : -71)), 55)}]\n    set a 62\n    incr a -2\n    for {se...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpr18mxz2e.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "modulo rejects float operands per Tcl 9.0",
+  "category": "float-modulo"
+}

@@ -1,0 +1,3207 @@
+{
+  "name": "tcl-lsp",
+  "displayName": "Tcl Language Support",
+  "description": "Tcl language support with semantic highlighting, diagnostics, completions, and more",
+  "version": "0.2.0",
+  "publisher": "tcl-lsp",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitwisecook/tcl-lsp"
+  },
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:tcl",
+    "onLanguage:tcl-irule",
+    "onLanguage:tcl-iapp",
+    "onLanguage:tcl-bigip",
+    "onLanguage:tcl8.4",
+    "onLanguage:tcl8.5",
+    "onLanguage:tcl9.0",
+    "onLanguage:tcl-eda",
+    "onChatParticipant:tcl-lsp.irule",
+    "onChatParticipant:tcl-lsp.tcl",
+    "onChatParticipant:tcl-lsp.tk"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "tcl",
+        "aliases": [
+          "Tcl",
+          "tcl"
+        ],
+        "extensions": [
+          ".tcl",
+          ".tk",
+          ".itcl",
+          ".tm"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-irule",
+        "aliases": [
+          "iRule",
+          "irule"
+        ],
+        "extensions": [
+          ".irul",
+          ".irule"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-iapp",
+        "aliases": [
+          "iApp",
+          "iapp"
+        ],
+        "extensions": [
+          ".iapp",
+          ".iappimpl",
+          ".impl"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-bigip",
+        "aliases": [
+          "BIG-IP Config",
+          "bigip"
+        ],
+        "filenames": [
+          "bigip.conf",
+          "bigip_base.conf",
+          "bigip_gtm.conf",
+          "bigip_script.conf",
+          "bigip_user.conf"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl8.4",
+        "aliases": [
+          "Tcl 8.4"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl8.5",
+        "aliases": [
+          "Tcl 8.5"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl9.0",
+        "aliases": [
+          "Tcl 9.0"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-eda",
+        "aliases": [
+          "EDA Tcl",
+          "eda"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "tcl",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-irule",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-iapp",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-bigip",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl8.4",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl8.5",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl9.0",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-eda",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "tclLsp.restartServer",
+        "title": "Restart Language Server",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.selectDialect",
+        "title": "Select Dialect",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.optimiseDocument",
+        "title": "Apply All Optimisations",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.showOptimisations",
+        "title": "Show Optimisation Suggestions",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.fixAllSafeIssues",
+        "title": "Apply Safe Quick Fixes",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.toggleDiagnostics",
+        "title": "Toggle Diagnostics",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.toggleOptimiser",
+        "title": "Toggle Optimiser Suggestions",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.formatDocument",
+        "title": "Format Document",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.minifyDocument",
+        "title": "Minify Document",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.unminifyError",
+        "title": "Unminify Error Message",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.escapeSelection",
+        "title": "Escape Selection",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.unescapeSelection",
+        "title": "Unescape Selection",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.base64EncodeSelection",
+        "title": "Base64 Encode Selection",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.base64DecodeSelection",
+        "title": "Base64 Decode Selection",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.copyFileAsBase64",
+        "title": "Copy File as Base64",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.copyFileAsGzipBase64",
+        "title": "Copy File as Gzip+Base64",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.insertPackageRequire",
+        "title": "Insert package require",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.scaffoldPackageStarter",
+        "title": "Scaffold Tcl Package Starter",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.insertIruleEventSkeleton",
+        "title": "Insert iRule Event Skeleton",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.insertTemplateSnippet",
+        "title": "Insert Tcl Template Snippet",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.runRuntimeValidation",
+        "title": "Run Runtime Validation",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.openCompilerExplorer",
+        "title": "Open Compiler Explorer",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.openTkPreview",
+        "title": "Open Tk Preview",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.insertIrule",
+        "title": "Insert iRule into New File",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.applyFix",
+        "title": "Apply iRule Fix to Document",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.translateXc",
+        "title": "Translate iRule to F5 XC",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.extractRule",
+        "title": "Open iRule in Editor",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.extractRulePick",
+        "title": "Open iRule from Config...",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.extractAllRules",
+        "title": "Extract All iRules to Files...",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.extractLinkedObjects",
+        "title": "Extract Linked BIG-IP Objects",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.toggleAi",
+        "title": "Toggle AI Features",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.renameSymbolAtPosition",
+        "title": "Rename Symbol at Position",
+        "category": "Tcl"
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "tcl-lsp.irule",
+        "fullName": "iRule Assistant",
+        "name": "irule",
+        "description": "Create, explain, fix, validate, review, convert, optimise, scaffold, test, diagram, diff, migrate, and translate F5 BIG-IP iRules to XC",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "create",
+            "description": "Create a new iRule from a description"
+          },
+          {
+            "name": "explain",
+            "description": "Explain what an iRule does"
+          },
+          {
+            "name": "fix",
+            "description": "Fix issues in an iRule using LSP diagnostics"
+          },
+          {
+            "name": "validate",
+            "description": "Run LSP diagnostics on the current iRule"
+          },
+          {
+            "name": "review",
+            "description": "Security and safety review of an iRule"
+          },
+          {
+            "name": "convert",
+            "description": "Modernise legacy iRule patterns to current best practices"
+          },
+          {
+            "name": "optimise",
+            "description": "Apply LSP optimisations with explanations"
+          },
+          {
+            "name": "optimize",
+            "description": "Apply LSP optimizations with explanations"
+          },
+          {
+            "name": "scaffold",
+            "description": "Generate an iRule skeleton from selected events"
+          },
+          {
+            "name": "datagroup",
+            "description": "Suggest data-group extraction for inline lookups"
+          },
+          {
+            "name": "diff",
+            "description": "Explain differences between two iRule versions"
+          },
+          {
+            "name": "event",
+            "description": "Show which commands are valid in a given event"
+          },
+          {
+            "name": "migrate",
+            "description": "Convert nginx/Apache/HAProxy config to an iRule"
+          },
+          {
+            "name": "diagram",
+            "description": "Generate a Mermaid flowchart of an iRule's logic flow"
+          },
+          {
+            "name": "xc",
+            "description": "Translate this iRule to F5 XC routes and service policies"
+          },
+          {
+            "name": "test",
+            "description": "Generate a test script for an iRule using the Event Orchestrator framework"
+          },
+          {
+            "name": "help",
+            "description": "Show available features and commands"
+          }
+        ]
+      },
+      {
+        "id": "tcl-lsp.tcl",
+        "fullName": "Tcl Assistant",
+        "name": "tcl",
+        "description": "Create, explain, validate, fix, and optimise general Tcl code",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "create",
+            "description": "Create Tcl code from a description"
+          },
+          {
+            "name": "explain",
+            "description": "Explain Tcl code"
+          },
+          {
+            "name": "fix",
+            "description": "Fix issues in the current Tcl file using LSP diagnostics"
+          },
+          {
+            "name": "validate",
+            "description": "Run LSP diagnostics on the current Tcl file"
+          },
+          {
+            "name": "optimise",
+            "description": "Apply Tcl optimiser suggestions"
+          },
+          {
+            "name": "optimize",
+            "description": "Apply Tcl optimizer suggestions"
+          },
+          {
+            "name": "help",
+            "description": "Show available features and commands"
+          }
+        ]
+      },
+      {
+        "id": "tcl-lsp.tk",
+        "fullName": "Tk GUI Assistant",
+        "name": "tk",
+        "description": "Create, explain, and preview Tk GUI applications",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "create",
+            "description": "Create a Tk GUI from a description"
+          },
+          {
+            "name": "explain",
+            "description": "Explain a Tk GUI's widget hierarchy and layout"
+          },
+          {
+            "name": "preview",
+            "description": "Open the Tk Preview pane for the current file"
+          },
+          {
+            "name": "help",
+            "description": "Show available features and commands"
+          }
+        ]
+      }
+    ],
+    "submenus": [
+      {
+        "id": "tclLsp.editorMenu",
+        "label": "Tcl"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "tclLsp.restartServer"
+        },
+        {
+          "command": "tclLsp.selectDialect"
+        },
+        {
+          "command": "tclLsp.optimiseDocument",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.showOptimisations",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.fixAllSafeIssues",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.toggleDiagnostics"
+        },
+        {
+          "command": "tclLsp.toggleOptimiser"
+        },
+        {
+          "command": "tclLsp.formatDocument",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.minifyDocument",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.unminifyError",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.escapeSelection",
+          "when": "editorLangId =~ /^tcl/ && editorHasSelection"
+        },
+        {
+          "command": "tclLsp.unescapeSelection",
+          "when": "editorLangId =~ /^tcl/ && editorHasSelection"
+        },
+        {
+          "command": "tclLsp.base64EncodeSelection",
+          "when": "editorLangId =~ /^tcl/ && editorHasSelection"
+        },
+        {
+          "command": "tclLsp.base64DecodeSelection",
+          "when": "editorLangId =~ /^tcl/ && editorHasSelection"
+        },
+        {
+          "command": "tclLsp.copyFileAsBase64",
+          "when": "false"
+        },
+        {
+          "command": "tclLsp.copyFileAsGzipBase64",
+          "when": "false"
+        },
+        {
+          "command": "tclLsp.insertPackageRequire",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.scaffoldPackageStarter"
+        },
+        {
+          "command": "tclLsp.insertIruleEventSkeleton",
+          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect"
+        },
+        {
+          "command": "tclLsp.insertTemplateSnippet"
+        },
+        {
+          "command": "tclLsp.runRuntimeValidation",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.openCompilerExplorer",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.openTkPreview",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.translateXc",
+          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect"
+        },
+        {
+          "command": "tclLsp.extractRule",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.extractRulePick",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.extractAllRules",
+          "when": "editorLangId =~ /^tcl/"
+        },
+        {
+          "command": "tclLsp.extractLinkedObjects",
+          "when": "editorLangId == 'tcl-bigip'"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "tclLsp.editorMenu",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "1_modification"
+        }
+      ],
+      "tclLsp.editorMenu": [
+        {
+          "command": "tclLsp.optimiseDocument",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "1_fix"
+        },
+        {
+          "command": "tclLsp.fixAllSafeIssues",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "1_fix"
+        },
+        {
+          "command": "tclLsp.minifyDocument",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "1_fix"
+        },
+        {
+          "command": "tclLsp.unminifyError",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "1_fix"
+        },
+        {
+          "command": "tclLsp.escapeSelection",
+          "when": "editorLangId =~ /^tcl/ && editorHasSelection",
+          "group": "2_encode"
+        },
+        {
+          "command": "tclLsp.unescapeSelection",
+          "when": "editorLangId =~ /^tcl/ && editorHasSelection",
+          "group": "2_encode"
+        },
+        {
+          "command": "tclLsp.base64EncodeSelection",
+          "when": "editorLangId =~ /^tcl/ && editorHasSelection",
+          "group": "2_encode"
+        },
+        {
+          "command": "tclLsp.base64DecodeSelection",
+          "when": "editorLangId =~ /^tcl/ && editorHasSelection",
+          "group": "2_encode"
+        },
+        {
+          "command": "tclLsp.insertPackageRequire",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "3_insert"
+        },
+        {
+          "command": "tclLsp.scaffoldPackageStarter",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "3_insert"
+        },
+        {
+          "command": "tclLsp.insertIruleEventSkeleton",
+          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect",
+          "group": "3_insert"
+        },
+        {
+          "command": "tclLsp.insertTemplateSnippet",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "3_insert"
+        },
+        {
+          "command": "tclLsp.runRuntimeValidation",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "4_tools"
+        },
+        {
+          "command": "tclLsp.openCompilerExplorer",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "4_tools"
+        },
+        {
+          "command": "tclLsp.openTkPreview",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "4_tools"
+        },
+        {
+          "command": "tclLsp.translateXc",
+          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect",
+          "group": "4_tools"
+        },
+        {
+          "command": "tclLsp.extractRule",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "4_tools"
+        },
+        {
+          "command": "tclLsp.extractRulePick",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "4_tools"
+        },
+        {
+          "command": "tclLsp.extractAllRules",
+          "when": "editorLangId =~ /^tcl/",
+          "group": "4_tools"
+        },
+        {
+          "command": "tclLsp.extractLinkedObjects",
+          "when": "editorLangId == 'tcl-bigip'",
+          "group": "4_tools"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "tclLsp.copyFileAsBase64",
+          "when": "!explorerResourceIsFolder",
+          "group": "6_copypath"
+        },
+        {
+          "command": "tclLsp.copyFileAsGzipBase64",
+          "when": "!explorerResourceIsFolder",
+          "group": "6_copypath"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "tclLsp.optimiseDocument",
+        "key": "ctrl+alt+o",
+        "mac": "cmd+alt+o",
+        "when": "editorLangId =~ /^tcl/"
+      },
+      {
+        "command": "tclLsp.minifyDocument",
+        "key": "ctrl+alt+m",
+        "mac": "cmd+alt+m",
+        "when": "editorLangId =~ /^tcl/"
+      },
+      {
+        "command": "tclLsp.openCompilerExplorer",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "editorLangId =~ /^tcl/"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "tcl",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl-irule",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl-iapp",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl-bigip",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "object": [
+            "entity.name.type.bigip"
+          ],
+          "fqdn": [
+            "string.unquoted.hostname.bigip"
+          ],
+          "ipAddress": [
+            "constant.numeric.ip-address.bigip"
+          ],
+          "port": [
+            "constant.numeric.port.bigip"
+          ],
+          "routeDomain": [
+            "entity.name.type.route-domain.bigip"
+          ],
+          "partition": [
+            "entity.name.namespace.partition.bigip"
+          ],
+          "username": [
+            "variable.other.username.bigip"
+          ],
+          "encrypted": [
+            "string.other.encrypted.bigip"
+          ],
+          "pool": [
+            "entity.name.type.pool.bigip"
+          ],
+          "monitor": [
+            "entity.name.type.monitor.bigip"
+          ],
+          "profile": [
+            "entity.name.type.profile.bigip"
+          ],
+          "vlan": [
+            "entity.name.type.vlan.bigip"
+          ],
+          "interface": [
+            "entity.name.type.interface.bigip"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl8.4",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl8.5",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl9.0",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl-eda",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      }
+    ],
+    "configurationDefaults": {
+      "editor.semanticTokenColorCustomizations": {
+        "rules": {
+          "regexp:tcl": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexp:tcl-irule": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl-irule": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl-irule": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl-irule": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexp:tcl-iapp": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl-iapp": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl-iapp": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl-iapp": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexp:tcl-bigip": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl-bigip": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl-bigip": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl-bigip": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "object:tcl-bigip": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "fqdn:tcl-bigip": {
+            "foreground": "#ce9178",
+            "italic": true
+          },
+          "ipAddress:tcl-bigip": {
+            "foreground": "#b5cea8",
+            "bold": true
+          },
+          "port:tcl-bigip": {
+            "foreground": "#ffd700"
+          },
+          "routeDomain:tcl-bigip": {
+            "foreground": "#e09956",
+            "bold": true
+          },
+          "partition:tcl-bigip": {
+            "foreground": "#c586c0",
+            "bold": true
+          },
+          "username:tcl-bigip": {
+            "foreground": "#67d4c8"
+          },
+          "encrypted:tcl-bigip": {
+            "foreground": "#f44747",
+            "italic": true
+          },
+          "pool:tcl-bigip": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "monitor:tcl-bigip": {
+            "foreground": "#dcdcaa"
+          },
+          "profile:tcl-bigip": {
+            "foreground": "#c3e88d",
+            "italic": true
+          },
+          "vlan:tcl-bigip": {
+            "foreground": "#82aaff"
+          },
+          "interface:tcl-bigip": {
+            "foreground": "#ff9e64",
+            "underline": true
+          },
+          "regexp:tcl8.4": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl8.4": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl8.4": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl8.4": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexp:tcl8.5": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl8.5": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl8.5": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl8.5": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexp:tcl9.0": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl9.0": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl9.0": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl9.0": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexp:tcl-eda": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl-eda": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl-eda": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl-eda": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexpGroup:tcl": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexpGroup:tcl-irule": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl-irule": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl-irule": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl-irule": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl-irule": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl-irule": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl-irule": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl-irule": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl-irule": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl-irule": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl-irule": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl-irule": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl-irule": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl-irule": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl-irule": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl-irule": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl-irule": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexpGroup:tcl-iapp": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl-iapp": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl-iapp": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl-iapp": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl-iapp": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl-iapp": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl-iapp": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl-iapp": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl-iapp": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl-iapp": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl-iapp": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl-iapp": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl-iapp": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl-iapp": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl-iapp": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl-iapp": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl-iapp": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexpGroup:tcl-bigip": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl-bigip": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl-bigip": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl-bigip": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl-bigip": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl-bigip": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl-bigip": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl-bigip": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl-bigip": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl-bigip": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl-bigip": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl-bigip": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl-bigip": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl-bigip": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl-bigip": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl-bigip": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl-bigip": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexpGroup:tcl8.4": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl8.4": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl8.4": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl8.4": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl8.4": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl8.4": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl8.4": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl8.4": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl8.4": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl8.4": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl8.4": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl8.4": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl8.4": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl8.4": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl8.4": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl8.4": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl8.4": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexpGroup:tcl8.5": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl8.5": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl8.5": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl8.5": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl8.5": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl8.5": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl8.5": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl8.5": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl8.5": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl8.5": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl8.5": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl8.5": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl8.5": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl8.5": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl8.5": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl8.5": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl8.5": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexpGroup:tcl9.0": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl9.0": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl9.0": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl9.0": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl9.0": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl9.0": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl9.0": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl9.0": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl9.0": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl9.0": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl9.0": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl9.0": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl9.0": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl9.0": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl9.0": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl9.0": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl9.0": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexpGroup:tcl-eda": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl-eda": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl-eda": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl-eda": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl-eda": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl-eda": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl-eda": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl-eda": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl-eda": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl-eda": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl-eda": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl-eda": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl-eda": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl-eda": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl-eda": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl-eda": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl-eda": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          }
+        }
+      }
+    },
+    "configuration": [
+      {
+        "title": "General",
+        "order": 0,
+        "properties": {
+          "tclLsp.pythonPath": {
+            "type": "string",
+            "default": "auto",
+            "description": "Python 3.10+ interpreter for the language server. 'auto' searches PATH and well-known locations for the highest available version.",
+            "order": 0
+          },
+          "tclLsp.serverPath": {
+            "type": "string",
+            "default": "",
+            "description": "Path to the tcl-lsp server directory. If empty, uses the bundled server.",
+            "order": 1
+          },
+          "tclLsp.dialect": {
+            "type": "string",
+            "default": "tcl8.6",
+            "enum": [
+              "tcl8.4",
+              "tcl8.5",
+              "tcl8.6",
+              "tcl9.0",
+              "f5-irules",
+              "f5-iapps",
+              "f5-bigip",
+              "eda-tools"
+            ],
+            "enumDescriptions": [
+              "Tcl 8.4 core commands",
+              "Tcl 8.5 core commands",
+              "Tcl 8.6 core commands (default)",
+              "Tcl 9.0 with OO extensions",
+              "F5 BIG-IP iRules command set",
+              "F5 iApps utility/template commands",
+              "F5 BIG-IP configuration file support",
+              "EDA/ASIC tooling commands (Synopsys, Cadence)"
+            ],
+            "description": "Command/signature profile used for diagnostics, completion, and hover.",
+            "order": 2
+          },
+          "tclLsp.extraCommands": {
+            "type": "array",
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "description": "Additional command names to treat as known commands (generic varargs signature).",
+            "order": 3
+          },
+          "tclLsp.libraryPaths": {
+            "type": "array",
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "description": "Additional directories to scan for Tcl packages and libraries. Paths may be absolute or relative to the workspace root.",
+            "order": 4
+          }
+        }
+      },
+      {
+        "title": "Features",
+        "order": 1,
+        "properties": {
+          "tclLsp.features.hover": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable hover information (command help, proc signatures, variable info).",
+            "order": 0
+          },
+          "tclLsp.features.completion": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable auto-completion for commands, subcommands, variables, and switches.",
+            "order": 1
+          },
+          "tclLsp.features.diagnostics": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable diagnostics (errors and warnings).",
+            "order": 2
+          },
+          "tclLsp.features.formatting": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable document formatting.",
+            "order": 3
+          },
+          "tclLsp.features.semanticTokens": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable semantic token highlighting.",
+            "order": 4
+          },
+          "tclLsp.features.codeActions": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable code actions (quick fixes).",
+            "order": 5
+          },
+          "tclLsp.features.definition": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable go-to-definition.",
+            "order": 6
+          },
+          "tclLsp.features.references": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable find-all-references.",
+            "order": 7
+          },
+          "tclLsp.features.documentSymbols": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable document symbols (outline view, breadcrumbs, Cmd+Shift+O).",
+            "order": 8
+          },
+          "tclLsp.features.folding": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable code folding for proc bodies, namespaces, comment blocks, and control structures.",
+            "order": 9
+          },
+          "tclLsp.features.rename": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable rename symbol (F2) for procs and variables.",
+            "order": 10
+          },
+          "tclLsp.features.signatureHelp": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable signature help (parameter hints while typing).",
+            "order": 11
+          },
+          "tclLsp.features.workspaceSymbols": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable workspace symbols (Cmd+T to search procs across all files).",
+            "order": 12
+          },
+          "tclLsp.features.inlayHints": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable inlay hints (inferred types shown inline next to variables).",
+            "order": 13
+          },
+          "tclLsp.features.callHierarchy": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable call hierarchy (incoming/outgoing calls for procs).",
+            "order": 14
+          },
+          "tclLsp.features.documentLinks": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable document links (clickable source paths and package requires).",
+            "order": 15
+          },
+          "tclLsp.features.selectionRange": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable selection range (smart expand/shrink selection with ⌥⇧→ / ⌥⇧←).",
+            "order": 16
+          }
+        }
+      },
+      {
+        "title": "Formatting — Indentation",
+        "order": 2,
+        "properties": {
+          "tclLsp.formatting.indentSize": {
+            "type": "integer",
+            "default": 4,
+            "minimum": 1,
+            "maximum": 16,
+            "description": "Number of spaces per indentation level.",
+            "order": 0
+          },
+          "tclLsp.formatting.indentStyle": {
+            "type": "string",
+            "default": "spaces",
+            "enum": [
+              "spaces",
+              "tabs"
+            ],
+            "enumDescriptions": [
+              "Use spaces for indentation",
+              "Use tabs for indentation"
+            ],
+            "description": "Character used for indentation.",
+            "order": 1
+          },
+          "tclLsp.formatting.continuationIndent": {
+            "type": "integer",
+            "default": 4,
+            "minimum": 0,
+            "maximum": 16,
+            "description": "Extra indentation for continuation lines.",
+            "order": 2
+          }
+        }
+      },
+      {
+        "title": "Formatting — Braces & Style",
+        "order": 3,
+        "properties": {
+          "tclLsp.formatting.braceStyle": {
+            "type": "string",
+            "default": "k_and_r",
+            "enum": [
+              "k_and_r"
+            ],
+            "enumDescriptions": [
+              "Opening brace at end of line — if {cond} {"
+            ],
+            "description": "Placement of opening braces.",
+            "order": 0
+          },
+          "tclLsp.formatting.spaceBetweenBraces": {
+            "type": "boolean",
+            "default": true,
+            "description": "Add a space between consecutive braces, e.g. '} {' instead of '}{'.",
+            "order": 1
+          },
+          "tclLsp.formatting.enforceBracedVariables": {
+            "type": "boolean",
+            "default": false,
+            "description": "Require variables to use ${var} syntax instead of $var.",
+            "order": 2
+          },
+          "tclLsp.formatting.enforceBracedExpr": {
+            "type": "boolean",
+            "default": false,
+            "description": "Require expressions to use braced form, e.g. expr {1+2}.",
+            "order": 3
+          }
+        }
+      },
+      {
+        "title": "Formatting — Line Length & Wrapping",
+        "order": 4,
+        "properties": {
+          "tclLsp.formatting.maxLineLength": {
+            "type": "integer",
+            "default": 120,
+            "minimum": 40,
+            "description": "Hard limit for line length.",
+            "order": 0
+          },
+          "tclLsp.formatting.goalLineLength": {
+            "type": "integer",
+            "default": 100,
+            "minimum": 40,
+            "description": "Soft target line length; used to decide when to expand inline bodies.",
+            "order": 1
+          },
+          "tclLsp.formatting.expandSingleLineBodies": {
+            "type": "boolean",
+            "default": false,
+            "description": "Expand single-line command bodies to multiple lines.",
+            "order": 2
+          },
+          "tclLsp.formatting.minBodyCommandsForExpansion": {
+            "type": "integer",
+            "default": 2,
+            "minimum": 1,
+            "description": "Minimum number of commands in a body before expansion is triggered.",
+            "order": 3
+          }
+        }
+      },
+      {
+        "title": "Formatting — Whitespace & Comments",
+        "order": 5,
+        "properties": {
+          "tclLsp.formatting.spaceAfterCommentHash": {
+            "type": "boolean",
+            "default": true,
+            "description": "Ensure a space after '#' in comments.",
+            "order": 0
+          },
+          "tclLsp.formatting.trimTrailingWhitespace": {
+            "type": "boolean",
+            "default": true,
+            "description": "Remove trailing whitespace from all lines.",
+            "order": 1
+          },
+          "tclLsp.formatting.alignCommentsToCode": {
+            "type": "boolean",
+            "default": true,
+            "description": "Align inline comments to a consistent column.",
+            "order": 2
+          },
+          "tclLsp.formatting.replaceSemicolonsWithNewlines": {
+            "type": "boolean",
+            "default": true,
+            "description": "Convert semicolons to newlines for readability.",
+            "order": 3
+          }
+        }
+      },
+      {
+        "title": "Formatting — Blank Lines & File Format",
+        "order": 6,
+        "properties": {
+          "tclLsp.formatting.blankLinesBetweenProcs": {
+            "type": "integer",
+            "default": 1,
+            "minimum": 0,
+            "maximum": 5,
+            "description": "Number of blank lines between procedure definitions.",
+            "order": 0
+          },
+          "tclLsp.formatting.blankLinesBetweenBlocks": {
+            "type": "integer",
+            "default": 1,
+            "minimum": 0,
+            "maximum": 5,
+            "description": "Number of blank lines between control flow blocks.",
+            "order": 1
+          },
+          "tclLsp.formatting.maxConsecutiveBlankLines": {
+            "type": "integer",
+            "default": 2,
+            "minimum": 1,
+            "maximum": 10,
+            "description": "Maximum consecutive blank lines allowed.",
+            "order": 2
+          },
+          "tclLsp.formatting.lineEnding": {
+            "type": "string",
+            "default": "lf",
+            "enum": [
+              "lf",
+              "crlf",
+              "cr"
+            ],
+            "enumDescriptions": [
+              "Unix-style line endings (\\n)",
+              "Windows-style line endings (\\r\\n)",
+              "Classic Mac line endings (\\r)"
+            ],
+            "description": "Line ending style for formatted output.",
+            "order": 3
+          },
+          "tclLsp.formatting.ensureFinalNewline": {
+            "type": "boolean",
+            "default": true,
+            "description": "Ensure the file ends with a newline character.",
+            "order": 4
+          }
+        }
+      },
+      {
+        "title": "Diagnostics — Errors",
+        "order": 7,
+        "properties": {
+          "tclLsp.diagnostics.E001": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**E001:** Missing subcommand — e.g. bare `string` without a subcommand.",
+            "order": 0
+          },
+          "tclLsp.diagnostics.E002": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**E002:** Too few arguments for command.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.E003": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**E003:** Too many arguments for command.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.E200": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**E200:** Shimmer parse error — internal representation cannot be determined.",
+            "order": 3
+          }
+        }
+      },
+      {
+        "title": "Diagnostics — Style & Best Practice",
+        "order": 8,
+        "properties": {
+          "tclLsp.style.lineLength": {
+            "type": "integer",
+            "default": 120,
+            "minimum": 40,
+            "markdownDescription": "Maximum line length for the **W111** diagnostic. Lines exceeding this limit are flagged.",
+            "order": -1
+          },
+          "tclLsp.diagnostics.W001": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W001:** Unknown subcommand.",
+            "order": 0
+          },
+          "tclLsp.diagnostics.W002": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W002:** Command is disabled in active dialect profile.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.W100": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W100:** Unbraced expression argument — prevents byte-compilation and risks double substitution.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.W104": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W104:** String concatenation for list building — use `lappend` instead.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.W105": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W105:** Unbraced code block or missing `variable` declaration in `namespace eval`.",
+            "order": 4
+          },
+          "tclLsp.diagnostics.W106": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W106:** Dangerous unbraced `switch` body — risks double substitution.",
+            "order": 5
+          },
+          "tclLsp.diagnostics.W108": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W108:** Non-ASCII characters in token content.",
+            "order": 6
+          },
+          "tclLsp.diagnostics.W110": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W110:** Use `eq`/`ne` instead of `==`/`!=` for string comparison.",
+            "order": 7
+          },
+          "tclLsp.diagnostics.W111": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W111:** Line exceeds maximum length (see `tclLsp.style.lineLength`).",
+            "order": 8
+          },
+          "tclLsp.diagnostics.W112": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W112:** Trailing whitespace.",
+            "order": 9
+          },
+          "tclLsp.diagnostics.W113": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W113:** Procedure shadows built-in command.",
+            "order": 10
+          },
+          "tclLsp.diagnostics.W114": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W114:** Redundant nested `[expr]` — already in expression context.",
+            "order": 11
+          },
+          "tclLsp.diagnostics.W115": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W115:** Backslash-newline in comment silently swallows the next line.",
+            "order": 12
+          },
+          "tclLsp.diagnostics.W120": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W120:** Command used without a corresponding `package require`.",
+            "order": 12
+          },
+          "tclLsp.diagnostics.W121": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W121:** Subnet mask has non-contiguous bits.",
+            "order": 12
+          },
+          "tclLsp.diagnostics.W122": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W122:** Mistyped IPv4 address (octet > 255 or leading zero).",
+            "order": 12
+          },
+          "tclLsp.diagnostics.W200": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
+            "order": 12
+          },
+          "tclLsp.diagnostics.W201": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
+            "order": 13
+          },
+          "tclLsp.diagnostics.W302": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W302:** `catch` without result variable — errors are silently swallowed.",
+            "order": 14
+          },
+          "tclLsp.diagnostics.W304": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W304:** Missing option terminator `--` on option-bearing commands.",
+            "order": 15
+          },
+          "tclLsp.diagnostics.W307": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W307:** Non-literal command name — variable or command substitution as command.",
+            "order": 16
+          },
+          "tclLsp.diagnostics.W308": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W308:** `subst` without `-nocommands` — risk of unintended command execution.",
+            "order": 17
+          },
+          "tclLsp.diagnostics.W309": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W309:** `eval`/`uplevel` with `subst` — double substitution risk.",
+            "order": 14
+          }
+        }
+      },
+      {
+        "title": "Diagnostics — Variables",
+        "order": 9,
+        "properties": {
+          "tclLsp.diagnostics.W210": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W210:** Variable read before set.",
+            "order": 0
+          },
+          "tclLsp.diagnostics.W211": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W211:** Variable set but never used.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.W212": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W212:** Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).",
+            "order": 2
+          },
+          "tclLsp.diagnostics.W213": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W213:** Variable may not exist — use `unset -nocomplain` to suppress the error.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.W214": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W214:** Unused proc parameter — argument is declared but never read in the procedure body.",
+            "order": 4
+          },
+          "tclLsp.diagnostics.W220": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W220:** Dead store — variable set but overwritten before use.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.H300": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**H300:** Possible paste error — repeated assignment to same variable with same value.",
+            "order": 3
+          }
+        }
+      },
+      {
+        "title": "Diagnostics — Security",
+        "order": 10,
+        "properties": {
+          "tclLsp.diagnostics.W101": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W101:** `eval` with string concatenation — code injection risk.",
+            "order": 0
+          },
+          "tclLsp.diagnostics.W102": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W102:** `subst` on variable input — code injection risk.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.W103": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W103:** `open` with pipeline `|` — command injection risk.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.W300": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W300:** `source` with variable argument — code execution risk.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.W301": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W301:** `uplevel` with string-built script — injection risk.",
+            "order": 4
+          },
+          "tclLsp.diagnostics.W303": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W303:** Regexp vulnerable to catastrophic backtracking (ReDoS).",
+            "order": 5
+          },
+          "tclLsp.diagnostics.W306": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W306:** Substitution in literal-expected argument position.",
+            "order": 6
+          }
+        }
+      },
+      {
+        "title": "Diagnostics — Shimmer",
+        "order": 11,
+        "properties": {
+          "tclLsp.shimmer.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "Enable shimmer detection (internal representation changes). When disabled, all S-series diagnostics are suppressed.",
+            "order": -1
+          },
+          "tclLsp.diagnostics.S100": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**S100:** Single shimmer outside a loop — object internal representation changed.",
+            "order": 0
+          },
+          "tclLsp.diagnostics.S101": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**S101:** Shimmer inside a loop body — per-iteration representation conversion cost.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.S102": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**S102:** Variable oscillates between two types across loop iterations.",
+            "order": 2
+          }
+        }
+      },
+      {
+        "title": "Diagnostics — Taint",
+        "order": 12,
+        "properties": {
+          "tclLsp.diagnostics.T100": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**T100:** Tainted data flows into a dangerous code-execution sink (`eval`, `expr`, `exec`, `uplevel`, `subst`).",
+            "order": 0
+          },
+          "tclLsp.diagnostics.T101": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**T101:** Tainted data flows into an output command (`puts`).",
+            "order": 1
+          },
+          "tclLsp.diagnostics.T102": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**T102:** Tainted data in option position without `--` terminator — option injection risk.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.T200": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**T200:** `*::collect` without a matching `*::release` in the same scope.",
+            "order": 3
+          }
+        }
+      },
+      {
+        "title": "Diagnostics — iRules",
+        "order": 13,
+        "properties": {
+          "tclLsp.diagnostics.IRULE1001": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1001:** Command invalid or ineffective in this iRules event.",
+            "order": 0
+          },
+          "tclLsp.diagnostics.IRULE1002": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1002:** Unknown iRules event name.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.IRULE1003": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1003:** Deprecated iRules event.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.IRULE1004": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1004:** `when` block missing explicit `priority`.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.IRULE1201": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1201:** HTTP command used after `HTTP::respond`/`HTTP::redirect`.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.IRULE1202": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1202:** Multiple `HTTP::respond`/`HTTP::redirect` on different branches.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.IRULE2001": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE2001:** Deprecated `matchclass` — use `class match` instead.",
+            "order": 4
+          },
+          "tclLsp.diagnostics.IRULE2002": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE2002:** Deprecated iRules command.",
+            "order": 5
+          },
+          "tclLsp.diagnostics.IRULE2003": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE2003:** Unsafe iRules command.",
+            "order": 6
+          },
+          "tclLsp.diagnostics.IRULE2101": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE2101:** Heavy `regexp` in a high-frequency event — consider `string match` or data-group.",
+            "order": 7
+          },
+          "tclLsp.diagnostics.IRULE3001": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3001:** Tainted data in HTTP response body.",
+            "order": 8
+          },
+          "tclLsp.diagnostics.IRULE3002": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3002:** Tainted data in HTTP header or cookie value.",
+            "order": 9
+          },
+          "tclLsp.diagnostics.IRULE3003": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3003:** Tainted data in `log` command — log injection risk.",
+            "order": 10
+          },
+          "tclLsp.diagnostics.IRULE3101": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
+            "order": 11
+          },
+          "tclLsp.diagnostics.IRULE3102": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
+            "order": 12
+          },
+          "tclLsp.diagnostics.IRULE4001": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
+            "order": 13
+          },
+          "tclLsp.diagnostics.IRULE4002": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
+            "order": 14
+          },
+          "tclLsp.diagnostics.IRULE4003": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE4003:** Variable scoping concern across events.",
+            "order": 15
+          },
+          "tclLsp.diagnostics.IRULE4004": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
+            "order": 16
+          },
+          "tclLsp.diagnostics.IRULE5001": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE5001:** Ungated `log` in a high-frequency event.",
+            "order": 17
+          },
+          "tclLsp.diagnostics.IRULE5002": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE5002:** `drop`/`reject`/`discard` without `event disable all` or `return`.",
+            "order": 18
+          },
+          "tclLsp.diagnostics.IRULE5004": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE5004:** `DNS::return` without `return`.",
+            "order": 19
+          },
+          "tclLsp.diagnostics.IRULE5005": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE5005:** Direct proc invocation without `call` — use `call proc_name`.",
+            "order": 20
+          }
+        }
+      },
+      {
+        "title": "Optimiser",
+        "order": 14,
+        "properties": {
+          "tclLsp.optimiser.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable optimiser suggestions as diagnostics.",
+            "order": 0
+          },
+          "tclLsp.optimiser.O100": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O100:** Propagate constant variables into expressions and command arguments.",
+            "order": 1
+          },
+          "tclLsp.optimiser.O101": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O101:** Fold constant integer expressions.",
+            "order": 2
+          },
+          "tclLsp.optimiser.O102": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O102:** Fold constant `[expr {...}]` command substitutions.",
+            "order": 3
+          },
+          "tclLsp.optimiser.O103": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O103:** Fold static procedure calls using interprocedural summaries.",
+            "order": 4
+          },
+          "tclLsp.optimiser.O104": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O104:** Fold static string build chains into a single assignment.",
+            "order": 5
+          },
+          "tclLsp.optimiser.O105": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O105:** Propagate constants into variable references and detect redundant computations (GVN/CSE).",
+            "order": 6
+          },
+          "tclLsp.optimiser.O106": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O106:** Hoist loop-invariant computations.",
+            "order": 7
+          },
+          "tclLsp.optimiser.O107": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O107:** Eliminate unreachable dead code.",
+            "order": 8
+          },
+          "tclLsp.optimiser.O108": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O108:** Eliminate transitively dead code.",
+            "order": 9
+          },
+          "tclLsp.optimiser.O109": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O109:** Eliminate dead stores.",
+            "order": 10
+          },
+          "tclLsp.optimiser.O110": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O110:** Canonicalise expressions (InstCombine).",
+            "order": 11
+          },
+          "tclLsp.optimiser.O111": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O111:** Brace expression performance hints (paired with W100).",
+            "order": 12
+          },
+          "tclLsp.optimiser.O112": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O112:** Eliminate constant-condition compound statements.",
+            "order": 13
+          },
+          "tclLsp.optimiser.O113": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O113:** Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`).",
+            "order": 14
+          },
+          "tclLsp.optimiser.O114": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O114:** Recognise `incr` idiom (`set x [expr {$x + N}]` → `incr x N`).",
+            "order": 15
+          },
+          "tclLsp.optimiser.O115": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O115:** Remove redundant nested `[expr {...}]` in expression context.",
+            "order": 16
+          },
+          "tclLsp.optimiser.O116": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O116:** Fold constant `[list a b c]` to literal value.",
+            "order": 17
+          },
+          "tclLsp.optimiser.O117": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O117:** Simplify `[string length $s] == 0` → `$s eq \"\"`.",
+            "order": 18
+          },
+          "tclLsp.optimiser.O118": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O118:** Fold constant `[lindex {a b c} 1]` to element.",
+            "order": 19
+          },
+          "tclLsp.optimiser.O119": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O119:** Pack consecutive `set` literals into `lassign`/`foreach`.",
+            "order": 20
+          },
+          "tclLsp.optimiser.O120": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O120:** Prefer `eq`/`ne` over `==`/`!=` for string comparisons.",
+            "order": 21
+          },
+          "tclLsp.optimiser.O121": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O121:** Rewrite self-recursive tail calls to `tailcall`.",
+            "order": 22
+          },
+          "tclLsp.optimiser.O122": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O122:** Convert fully tail-recursive proc to iterative `while` loop.",
+            "order": 23
+          },
+          "tclLsp.optimiser.O123": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O123:** Detect non-tail recursion eligible for accumulator introduction (hint only).",
+            "order": 24
+          },
+          "tclLsp.optimiser.O124": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O124:** Comment out unused procs in iRules (not called from any event).",
+            "order": 25
+          },
+          "tclLsp.optimiser.O125": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O125:** Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) that uses them.",
+            "order": 26
+          },
+          "tclLsp.optimiser.O126": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O126:** Remove unused variable assignments — eliminate `set` statements for variables that are never read.",
+            "order": 27
+          }
+        }
+      },
+      {
+        "title": "Runtime Validation",
+        "order": 15,
+        "properties": {
+          "tclLsp.runtimeValidation.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Run runtime validation on save using dialect-aware adapters.",
+            "order": 0
+          },
+          "tclLsp.runtimeValidation.adapter": {
+            "type": "string",
+            "default": "auto",
+            "enum": [
+              "auto",
+              "tcl-syntax",
+              "irules-stub"
+            ],
+            "enumDescriptions": [
+              "Automatically pick adapter by detected dialect (recommended).",
+              "Use Tcl syntax completeness checks only.",
+              "Use iRules-aware stubs and validate top-level when blocks."
+            ],
+            "description": "Runtime validation adapter mode.",
+            "order": 1
+          },
+          "tclLsp.runtimeValidation.tclshPath": {
+            "type": "string",
+            "default": "tclsh",
+            "description": "Path to the tclsh executable used for runtime validation.",
+            "order": 2
+          },
+          "tclLsp.runtimeValidation.timeoutMs": {
+            "type": "integer",
+            "default": 5000,
+            "minimum": 500,
+            "maximum": 120000,
+            "description": "Timeout in milliseconds for runtime validation commands.",
+            "order": 3
+          }
+        }
+      },
+      {
+        "title": "AI",
+        "order": 17,
+        "properties": {
+          "tclLsp.ai.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "Enable AI-powered chat participants (@irule and @tcl). When disabled, the chat participants will not respond to requests. Requires VS Code Copilot Chat.",
+            "order": 0
+          },
+          "tclLsp.ai.extraPrompts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "description": "Additional system prompt text to append."
+                },
+                "dialects": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "*",
+                      "tcl8.4",
+                      "tcl8.5",
+                      "tcl8.6",
+                      "tcl9.0",
+                      "f5-irules",
+                      "f5-iapps",
+                      "f5-bigip",
+                      "eda-tools"
+                    ]
+                  },
+                  "description": "Dialects this prompt applies to. Use \"*\" for all dialects."
+                }
+              },
+              "required": [
+                "text",
+                "dialects"
+              ]
+            },
+            "default": [],
+            "markdownDescription": "Extra system prompt fragments appended to the built-in prompts. Each entry is scoped to a set of dialects (use `*` for all). Example:\n```json\n[{ \"text\": \"Always suggest data-groups for allow/deny lists.\", \"dialects\": [\"f5-irules\"] }]\n```",
+            "order": 1
+          }
+        }
+      },
+      {
+        "title": "XC Migration",
+        "order": 16,
+        "properties": {
+          "tclLsp.xcDiagnostics.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Show F5 Distributed Cloud (XC) translatability diagnostics inline. Highlights which iRule constructs can be translated to XC-native routes, service policies, and header processing. Useful for migration planning.",
+            "order": 0
+          }
+        }
+      }
+    ]
+  },
+  "problemMatchers": [
+    {
+      "name": "irule-test",
+      "owner": "irule-test",
+      "fileLocation": "autoDetect",
+      "pattern": [
+        {
+          "regexp": "^FAILED:\\s+(.+)$",
+          "message": 1
+        }
+      ],
+      "severity": "error",
+      "source": "iRule Test"
+    }
+  ],
+  "taskDefinitions": [
+    {
+      "type": "irule-test",
+      "required": ["testFile"],
+      "properties": {
+        "testFile": {
+          "type": "string",
+          "description": "Path to the iRule test file"
+        }
+      }
+    }
+  ],
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./ && npm run copy-canonical && npm run copy-core-js && npm run bundle",
+    "copy-canonical": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('src','chat','canonical'),d=p.join('out','chat','canonical');if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))}\"",
+    "copy-core-js": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('..','..','explorer','static','explorer-core.js'),d=p.join('out','explorer-core.js');if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,d)}\"",
+    "bundle": "esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=false --loader:.md=text",
+    "bundle:screenshots": "esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=true --loader:.md=text",
+    "watch": "tsc -watch -p ./",
+    "lint": "npm run lint:ts && npm run format:check",
+    "lint:ts": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "test:coverage": "mkdir -p ../../tmp/coverage/.v8-coverage-vscode ../../tmp/coverage/vscode && NODE_V8_COVERAGE=../../tmp/coverage/.v8-coverage-vscode node ./out/test/runTest.js && node scripts/coverage-report.cjs"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.46.0",
+    "@typescript-eslint/parser": "^8.46.0",
+    "@types/vscode": "^1.93.0",
+    "@types/node": "^18.0.0",
+    "@types/mocha": "^10.0.0",
+    "@types/glob": "^8.0.0",
+    "@vscode/test-electron": "^2.4.0",
+    "@vscode/vsce": "^3.0.0",
+    "c8": "^9.1.0",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "esbuild": "^0.25.12",
+    "glob": "^13.0.6",
+    "mocha": "^11.7.5",
+    "prettier": "^3.6.2",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "10.0.0-next.20"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^10.2.2"
+    },
+    "mocha": {
+      "diff": "^8.0.3"
+    }
+  }
+}

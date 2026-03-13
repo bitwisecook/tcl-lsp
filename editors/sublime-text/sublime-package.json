@@ -1,0 +1,94 @@
+{
+    "contributions": {
+        "settings": [
+            {
+                "file_patterns": ["/LSP-Tcl.sublime-settings"],
+                "schema": {
+                    "properties": {
+                        "settings": {
+                            "properties": {
+                                "tclLsp": {
+                                    "type": "object",
+                                    "properties": {
+                                        "dialect": {
+                                            "type": "string",
+                                            "default": "tcl8.6",
+                                            "enum": [
+                                                "tcl8.4",
+                                                "tcl8.5",
+                                                "tcl8.6",
+                                                "tcl9.0",
+                                                "f5-irules",
+                                                "f5-iapps",
+                                                "eda-tools"
+                                            ],
+                                            "markdownDescription": "Tcl dialect for analysis and completions."
+                                        },
+                                        "extraCommands": {
+                                            "type": "array",
+                                            "items": { "type": "string" },
+                                            "markdownDescription": "Additional command names to suppress unknown-command warnings."
+                                        },
+                                        "libraryPaths": {
+                                            "type": "array",
+                                            "items": { "type": "string" },
+                                            "markdownDescription": "Directories to scan for Tcl packages and library files."
+                                        },
+                                        "formatting": {
+                                            "type": "object",
+                                            "properties": {
+                                                "indentSize": {
+                                                    "type": "integer",
+                                                    "default": 4,
+                                                    "markdownDescription": "Number of spaces per indentation level."
+                                                },
+                                                "maxLineLength": {
+                                                    "type": "integer",
+                                                    "default": 120,
+                                                    "markdownDescription": "Maximum line length for formatting."
+                                                }
+                                            }
+                                        },
+                                        "features": {
+                                            "type": "object",
+                                            "markdownDescription": "Toggle individual LSP features on or off.",
+                                            "properties": {
+                                                "hover": { "type": "boolean", "default": true },
+                                                "completion": { "type": "boolean", "default": true },
+                                                "diagnostics": { "type": "boolean", "default": true },
+                                                "formatting": { "type": "boolean", "default": true },
+                                                "semanticTokens": { "type": "boolean", "default": true },
+                                                "codeActions": { "type": "boolean", "default": true },
+                                                "definition": { "type": "boolean", "default": true },
+                                                "references": { "type": "boolean", "default": true },
+                                                "documentSymbols": { "type": "boolean", "default": true },
+                                                "folding": { "type": "boolean", "default": true },
+                                                "rename": { "type": "boolean", "default": true },
+                                                "signatureHelp": { "type": "boolean", "default": true },
+                                                "workspaceSymbols": { "type": "boolean", "default": true },
+                                                "inlayHints": { "type": "boolean", "default": true },
+                                                "callHierarchy": { "type": "boolean", "default": true },
+                                                "documentLinks": { "type": "boolean", "default": true },
+                                                "selectionRange": { "type": "boolean", "default": true }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "server_path": {
+                            "type": "string",
+                            "default": "",
+                            "markdownDescription": "Override path to the server `__main__.py` entry point.  Leave empty to use the bundled server."
+                        },
+                        "python_path": {
+                            "type": "string",
+                            "default": "",
+                            "markdownDescription": "Override path to the Python 3.10+ interpreter.  Leave empty for auto-detection."
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}

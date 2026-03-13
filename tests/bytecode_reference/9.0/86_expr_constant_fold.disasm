@@ -1,0 +1,33 @@
+ByteCode 0x92b480610, refCt 1, epoch 21, interp 0x92b01c010 (epoch 21)
+  Source "set x [expr {2 + 3}]\nset y [expr {10 * 20}]\nset z [ex..."
+  Cmds 8, src 89, inst 24, litObjs 8, aux 0, stkDepth 2, code/src 0.00
+  Commands 8:
+      1: pc 0-5, src 0-19        2: pc 2-3, src 7-18
+      3: pc 6-11, src 21-42        4: pc 8-9, src 28-41
+      5: pc 12-17, src 44-65        6: pc 14-15, src 51-64
+      7: pc 18-22, src 67-87        8: pc 20-21, src 74-86
+  Command 1: "set x [expr {2 + 3}]..."
+    (0) push1 0 	# "x"
+  Command 2: "expr {2 + 3}..."
+    (2) push1 1 	# "5"
+    (4) storeStk 
+    (5) pop 
+  Command 3: "set y [expr {10 * 20}]..."
+    (6) push1 2 	# "y"
+  Command 4: "expr {10 * 20}..."
+    (8) push1 3 	# "200"
+    (10) storeStk 
+    (11) pop 
+  Command 5: "set z [expr {100 / 4}]..."
+    (12) push1 4 	# "z"
+  Command 6: "expr {100 / 4}..."
+    (14) push1 5 	# "25"
+    (16) storeStk 
+    (17) pop 
+  Command 7: "set w [expr {2 ** 8}]..."
+    (18) push1 6 	# "w"
+  Command 8: "expr {2 ** 8}..."
+    (20) push1 7 	# "256"
+    (22) storeStk 
+    (23) done 
+

@@ -1,0 +1,37 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x50c0640, refCt 1, epoch 0, interp 0x4c0d000 (epoch 0)
+  Source "set lst [list a b c d]\nllength $lst\nlindex $lst 2\nlrang"
+  Cmds 5, src 66, inst 37, litObjs 7, aux 0, stkDepth 4, code/src 4.18
+  Code 276 = header 160+inst 37+litObj 56+exc 0+aux 0+cmdMap 20
+  Proc 0x50c9c80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "lst"
+  Commands 5:
+      1: pc 0-15, src 0-21   	   2: pc 0-12, src 9-20
+      3: pc 16-19, src 23-34   	   4: pc 20-25, src 36-48
+      5: pc 26-35, src 50-64
+  Command 1: "set lst [list a b c d]"
+  Command 2: "list a b c d"
+    (0) push1 0  	# "a"
+    (2) push1 1  	# "b"
+    (4) push1 2  	# "c"
+    (6) push1 3  	# "d"
+    (8) list 4 
+    (13) storeScalar1 0	# var "lst"
+    (15) pop 
+  Command 3: "llength $lst"
+    (16) loadScalar1 0	# var "lst"
+    (18) listlength 
+    (19) pop 
+  Command 4: "lindex $lst 2"
+    (20) loadScalar1 0	# var "lst"
+    (22) push1 4  	# "2"
+    (24) listindex 
+    (25) pop 
+  Command 5: "lrange $lst 1 2"
+    (26) push1 5  	# "lrange"
+    (28) loadScalar1 0	# var "lst"
+    (30) push1 6  	# "1"
+    (32) push1 4  	# "2"
+    (34) invokeStk1 4 
+    (36) done 

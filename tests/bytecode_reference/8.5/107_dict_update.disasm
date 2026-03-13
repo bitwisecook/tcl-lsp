@@ -1,0 +1,30 @@
+ByteCode 0x0xad0cfa210, refCt 1, epoch 3, interp 0x0xad0c20010 (epoch 3)
+  Source "set d [dict create name Alice age 30]\ndict update d nam"
+  Cmds 3, src 96, inst 37, litObjs 11, aux 0, stkDepth 8, code/src 0.00
+  Commands 3:
+      1: pc 0-17, src 0-36   	   2: pc 2-15, src 7-35
+      3: pc 18-35, src 38-94
+  Command 1: "set d [dict create name Alice age 30]"
+    (0) push1 0 	# "d"
+  Command 2: "dict create name Alice age 30"
+    (2) push1 1 	# "dict"
+    (4) push1 2 	# "create"
+    (6) push1 3 	# "name"
+    (8) push1 4 	# "Alice"
+    (10) push1 5 	# "age"
+    (12) push1 6 	# "30"
+    (14) invokeStk1 6 
+    (16) storeScalarStk 
+    (17) pop 
+  Command 3: "dict update d name n age a {\n    set n \"Bob\"\n    incr a"
+    (18) push1 1 	# "dict"
+    (20) push1 7 	# "update"
+    (22) push1 0 	# "d"
+    (24) push1 3 	# "name"
+    (26) push1 8 	# "n"
+    (28) push1 5 	# "age"
+    (30) push1 9 	# "a"
+    (32) push1 10 	# "\n    set n \"Bob\"\n    incr a\n"
+    (34) invokeStk1 8 
+    (36) done 
+

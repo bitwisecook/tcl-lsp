@@ -1,0 +1,10 @@
+when CLIENT_ACCEPTED {
+    TCP::collect
+}
+
+when CLIENT_DATA {
+    set payload [TCP::payload]
+    set payload_len [string length $payload]
+    log local0.notice "payload_len=$payload_len"
+}
+#       ^--- cursor

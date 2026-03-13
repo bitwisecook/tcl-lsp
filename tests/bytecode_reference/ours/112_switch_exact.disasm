@@ -1,0 +1,41 @@
+ByteCode ::top, 20 instructions, 45 bytes, 6 literals, 0 variables
+  Literals:
+    0: "x"
+    1: "hello"
+    2: "y"
+    3: "1"
+    4: "2"
+    5: "0"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "x"
+    (2) push1 1	# "hello"
+    (4) storeStk
+    (5) pop
+    (6) push1 0	# "x"
+    (8) loadStk
+    (9) jumpTable 0
+		["world"->pc 29, "hello"->pc 19]
+    (14) jump4 +25	# pc 39
+  # switch_arm_body_4:
+    (19) push1 2	# "y"
+    (21) push1 3	# "1"
+    (23) storeStk
+  # cmd_end_1:
+    (24) jump4 +20	# pc 44
+  # switch_next_6:
+  # switch_arm_body_5:
+    (29) push1 2	# "y"
+    (31) push1 4	# "2"
+    (33) storeStk
+  # cmd_end_2:
+    (34) jump4 +10	# pc 44
+  # switch_next_7:
+  # switch_default_3:
+    (39) push1 2	# "y"
+    (41) push1 5	# "0"
+    (43) storeStk
+  # cmd_end_3:
+  # switch_end_2:
+  # exit_8:
+    (44) done

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893903,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"13.88\" as left operand of \"<<\"\n    invoked from within\n\"expr {((44.98 <= (13.88 << 75)) >> (29.66 == ($n > -24)))}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach n {1000 faaass 97.53 37.20 312} {\n            regexp \"\\\\d+\" \"l\"\n            expr {((44.98 <= (13.88 << 75)) >> (29.66 == ($n > -24)))}\n       ...\"\n    invoked from within\n\"if {((-49) > (--87))} {\n    set n \"7#ardijfy9!uj-\"\n} else {\n    append flag \"k\"\n    string map {a b c d} \"5=xcqd0pf-y "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"13.88\" as left operand of \"<<\"\n    invoked from within\n\"expr {((44.98 <= (13.88 << 75)) >> (29.66 == ($n > -24)))}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach n {1000 faaass 97.53 37.20 312} {\n            regexp \"\\\\d+\" \"l\"\n            expr {((44.98 <= (13.88 << 75)) >> (29.66 == ($n > -24)))}\n       ...\"\n    invoked from within\n\"if {((-49) > (--87))} {\n    set n \"7#ardijfy9!uj-\"\n} else {\n    append flag \"k\"\n    string map {a b c d} \"5=xcqd0pf-y "
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

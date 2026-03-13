@@ -1,0 +1,17 @@
+TCLSH    /usr/local/bin/tclsh8.5
+VERSION  8.5.19
+FILE     unknown.test
+DATE     2026-03-03T12:53:33Z
+---
+PASS unknown-1.1
+PASS unknown-2.1
+PASS unknown-2.2
+PASS unknown-2.3
+PASS unknown-2.4
+PASS unknown-3.1
+PASS unknown-4.1
+---
+TOTAL   7
+PASSED  7
+SKIPPED 0
+FAILED  0

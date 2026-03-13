@@ -1,0 +1,23 @@
+{
+  "seed": 1772893619,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"e\" as left operand of \"+\"\n    while executing\n\"expr {(-45 < (($idx + -72.91) ? (74.01 <= -12) : (55.65 < -50.23)))}\"\n    invoked from within\n\"if {(~(59 - -42))} {\n    expr {59}\n    expr {(-45 < (($idx + -72.91) ? (74.01 <= -12) : (55.65 < -50.23)))}\n    foreach result {qwcyyz} {\n        appe...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp21c75oq6.tcl\" line 7)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"e\" as left operand of \"+\"\n    while executing\n\"expr {(-45 < (($idx + -72.91) ? (74.01 <= -12) : (55.65 < -50.23)))}\"\n    invoked from within\n\"if {(~(59 - -42))} {\n    expr {59}\n    expr {(-45 < (($idx + -72.91) ? (74.01 <= -12) : (55.65 < -50.23)))}\n    foreach result {qwcyyz} {\n        appe...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp21c75oq6.tcl\" line 7)"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"e\" as left operand of \"+\" can"
+}

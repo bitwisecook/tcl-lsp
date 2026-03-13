@@ -1,0 +1,23 @@
+{
+  "seed": 1772893949,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-56.76\"\n    while executing\n\"incr acc\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$acc < 4} {\n    set acc [expr {-56.76}]\n    incr acc\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpoocl02y3.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-56.76\"\n    while executing\n\"incr acc\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$acc < 4} {\n    set acc [expr {-56.76}]\n    incr acc\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpoocl02y3.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

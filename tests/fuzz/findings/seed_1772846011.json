@@ -1,0 +1,32 @@
+{
+  "seed": 1772846011,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"61.13\" as right operand of \"&\"\n    invoked from within\n\"expr {((-(10 & 61.13)) ? ($count << ($buf % max(1, abs(-22.46)))) : round((-4)))}\"\n    (\"foreach\" body line 36)\n    invoked from within\n\"foreach b {-882 969 -611 0} {\n    set count 81\n    incr count 10\n    switch -- 83 {\n        -94 {\n            set y [expr {(max((!-79.59), (~-37)) == ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp1hhpt3lo.tcl\" line 162)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"61.13\" as right operand of \"&\"\n    invoked from within\n\"expr {((-(10 & 61.13)) ? ($count << ($buf % max(1, abs(-22.46)))) : round((-4)))}\"\n    (\"foreach\" body line 36)\n    invoked from within\n\"foreach b {-882 969 -611 0} {\n    set count 81\n    incr count 10\n    switch -- 83 {\n        -94 {\n            set y [expr {(max((!-79.59), (~-37)) == ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp1hhpt3lo.tcl\" line 162)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

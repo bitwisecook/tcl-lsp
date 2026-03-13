@@ -1,0 +1,54 @@
+ByteCode 0x0x992ccb910, refCt 1, epoch 3, interp 0x0x992c20010 (epoch 3)
+  Source "proc test {} {\n    set a(1) one\n    set a(2) two\n    li"
+  Cmds 1, src 108, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-106
+  Command 1: "proc test {} {\n    set a(1) one\n    set a(2) two\n    li"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set a(1) one\n    set a(2) two\n    l"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x992cae810, refCt 1, epoch 3, interp 0x0x992ca8810 (epoch 3)
+  Source "\n    set a(1) one\n    set a(2) two\n    list [array exis"
+  Cmds 6, src 92, inst 62, litObjs 9, aux 0, stkDepth 5, code/src 0.00
+  Proc 0x0x992cc7790, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "a"
+  Commands 6:
+      1: pc 0-6, src 5-16   	   2: pc 7-22, src 22-33
+      3: pc 23-60, src 39-90   	   4: pc 32-39, src 45-58
+      5: pc 40-47, src 62-74   	   6: pc 48-55, src 78-89
+  Command 1: "set a(1) one"
+    (0) push1 0 	# "1"
+    (2) push1 1 	# "one"
+    (4) storeArray1 %v0 	# var "a"
+    (6) pop 
+  Command 2: "set a(2) two"
+    (7) startCommand +15 1 	# next cmd at pc 22
+    (16) push1 2 	# "2"
+    (18) push1 3 	# "two"
+    (20) storeArray1 %v0 	# var "a"
+    (22) pop 
+  Command 3: "list [array exists a] [array names a] [array size a]"
+    (23) startCommand +38 1 	# next cmd at pc 61
+  Command 4: "array exists a"
+    (32) push1 4 	# "array"
+    (34) push1 5 	# "exists"
+    (36) push1 6 	# "a"
+    (38) invokeStk1 3 
+  Command 5: "array names a"
+    (40) push1 4 	# "array"
+    (42) push1 7 	# "names"
+    (44) push1 6 	# "a"
+    (46) invokeStk1 3 
+  Command 6: "array size a"
+    (48) push1 4 	# "array"
+    (50) push1 8 	# "size"
+    (52) push1 6 	# "a"
+    (54) invokeStk1 3 
+    (56) list 3 
+    (61) done 
+

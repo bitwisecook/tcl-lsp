@@ -1,0 +1,52 @@
+ByteCode 0x0xb6cd1b810, refCt 1, epoch 17, interp 0x0xb6cc28010 (epoch 17)
+  Source "set lst {a b c}\nset a [linsert $lst 0 X]\nset b [linse..."
+  Cmds 7, src 97, inst 89, litObjs 10, aux 0, stkDepth 4, code/src 0.00
+  Commands 7:
+      1: pc 0-5, src 0-14        2: pc 6-25, src 16-39
+      3: pc 8-23, src 23-38        4: pc 26-42, src 41-68
+      5: pc 28-40, src 48-67        6: pc 43-87, src 70-95
+      7: pc 45-86, src 77-94
+  Command 1: "set lst {a b c}..."
+    (0) push1 0 	# "lst"
+    (2) push1 1 	# "a b c"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set a [linsert $lst 0 X]..."
+    (6) push1 2 	# "a"
+  Command 3: "linsert $lst 0 X..."
+    (8) push1 0 	# "lst"
+    (10) loadStk 
+    (11) push1 3 	# "X"
+    (13) list 1 
+    (18) reverse 2 
+    (23) listConcat 
+    (24) storeStk 
+    (25) pop 
+  Command 4: "set b [linsert $lst end Y Z]..."
+    (26) push1 4 	# "b"
+  Command 5: "linsert $lst end Y Z..."
+    (28) push1 0 	# "lst"
+    (30) loadStk 
+    (31) push1 5 	# "Y"
+    (33) push1 6 	# "Z"
+    (35) list 2 
+    (40) listConcat 
+    (41) storeStk 
+    (42) pop 
+  Command 6: "set c [linsert $lst 1 M N]..."
+    (43) push1 7 	# "c"
+  Command 7: "linsert $lst 1 M N..."
+    (45) push1 0 	# "lst"
+    (47) loadStk 
+    (48) push1 8 	# "M"
+    (50) push1 9 	# "N"
+    (52) list 2 
+    (57) over 1 
+    (62) listRangeImm 0 0 
+    (71) reverse 3 
+    (76) listRangeImm 1 end 
+    (85) listConcat 
+    (86) listConcat 
+    (87) storeStk 
+    (88) done 
+

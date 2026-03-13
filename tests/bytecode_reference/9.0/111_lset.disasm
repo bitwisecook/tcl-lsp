@@ -1,0 +1,31 @@
+ByteCode 0xc30d28810, refCt 1, epoch 21, interp 0xc30c28010 (epoch 21)
+  Source "set lst [list a b c d e]\nlset lst 2 X\nlset lst end ..."
+  Cmds 4, src 53, inst 36, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-23        2: pc 2-3, src 9-22
+      3: pc 6-20, src 25-36        4: pc 21-34, src 38-51
+  Command 1: "set lst [list a b c d e]..."
+    (0) push1 0 	# "lst"
+  Command 2: "list a b c d e..."
+    (2) push1 1 	# "a b c d e"
+    (4) storeStk 
+    (5) pop 
+  Command 3: "lset lst 2 X..."
+    (6) push1 0 	# "lst"
+    (8) push1 2 	# "2"
+    (10) push1 3 	# "X"
+    (12) over 2 
+    (17) loadStk 
+    (18) lsetList 
+    (19) storeStk 
+    (20) pop 
+  Command 4: "lset lst end Y..."
+    (21) push1 0 	# "lst"
+    (23) push1 4 	# "end"
+    (25) push1 5 	# "Y"
+    (27) over 2 
+    (32) loadStk 
+    (33) lsetList 
+    (34) storeStk 
+    (35) done 
+

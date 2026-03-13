@@ -1,0 +1,63 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x8cfc000, refCt 1, epoch 0, interp 0x7fac60 (epoch 0)
+  Source "set d [dict create a [dict create x 1 y 2] b [dict crea"
+  Cmds 7, src 118, inst 82, litObjs 16, aux 0, stkDepth 11, code/src 3.42
+  Code 404 = header 160+inst 82+litObj 128+exc 0+aux 0+cmdMap 28
+  Proc 0x90d4c00, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "d"
+  Commands 7:
+      1: pc 0-40, src 0-66   	   2: pc 0-37, src 7-65
+      3: pc 6-19, src 22-40   	   4: pc 22-35, src 46-64
+      5: pc 41-53, src 68-82   	   6: pc 54-68, src 84-99
+      7: pc 69-80, src 101-116
+  Command 1: "set d [dict create a [dict create x 1 y 2] b [dict crea"
+  Command 2: "dict create a [dict create x 1 y 2] b [dict create x 3 "
+    (0) push1 0  	# "dict"
+    (2) push1 1  	# "create"
+    (4) push1 2  	# "a"
+  Command 3: "dict create x 1 y 2"
+    (6) push1 0  	# "dict"
+    (8) push1 1  	# "create"
+    (10) push1 3  	# "x"
+    (12) push1 4  	# "1"
+    (14) push1 5  	# "y"
+    (16) push1 6  	# "2"
+    (18) invokeStk1 6 
+    (20) push1 7  	# "b"
+  Command 4: "dict create x 3 y 4"
+    (22) push1 0  	# "dict"
+    (24) push1 1  	# "create"
+    (26) push1 3  	# "x"
+    (28) push1 8  	# "3"
+    (30) push1 5  	# "y"
+    (32) push1 9  	# "4"
+    (34) invokeStk1 6 
+    (36) invokeStk1 6 
+    (38) storeScalar1 0	# var "d"
+    (40) pop 
+  Command 5: "dict get $d a x"
+    (41) push1 0  	# "dict"
+    (43) push1 10  	# "get"
+    (45) loadScalar1 0	# var "d"
+    (47) push1 2  	# "a"
+    (49) push1 3  	# "x"
+    (51) invokeStk1 5 
+    (53) pop 
+  Command 6: "dict set d a z 5"
+    (54) push1 0  	# "dict"
+    (56) push1 11  	# "set"
+    (58) push1 12  	# "d"
+    (60) push1 2  	# "a"
+    (62) push1 13  	# "z"
+    (64) push1 14  	# "5"
+    (66) invokeStk1 6 
+    (68) pop 
+  Command 7: "dict unset d b y"
+    (69) push1 0  	# "dict"
+    (71) push1 15  	# "unset"
+    (73) push1 12  	# "d"
+    (75) push1 7  	# "b"
+    (77) push1 5  	# "y"
+    (79) invokeStk1 5 
+    (81) done 

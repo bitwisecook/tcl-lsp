@@ -1,0 +1,16 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x94880600, refCt 1, epoch 0, interp 0x5176e20 (epoch 0)
+  Source "proc add {a b} {\n    expr {$a + $b}\n}\n"
+  Cmds 1, src 38, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 5.58
+  Code 212 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 4
+  Proc 0x9501a280, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-36
+  Command 1: "proc add {a b} {\n    expr {$a + $b}\n}"
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "add"
+    (4) push1 2  	# "a b"
+    (6) push1 3  	# "\n    expr {$a + $b}\n"
+    (8) invokeStk1 4 
+    (10) done 

@@ -1,0 +1,34 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x9b0c0640, refCt 1, epoch 0, interp 0x9ac0d000 (epoch 0)
+  Source "set x 1\nset y 2\nset z 3\nset x [set y [set z 42]]\n"
+  Cmds 6, src 49, inst 24, litObjs 4, aux 0, stkDepth 1, code/src 4.90
+  Code 240 = header 160+inst 24+litObj 32+exc 0+aux 0+cmdMap 24
+  Proc 0x9b0c9d00, refCt 1, args 0, compiled locals 3
+      slot 0, scalar, "x"
+      slot 1, scalar, "y"
+      slot 2, scalar, "z"
+  Commands 6:
+      1: pc 0-4, src 0-6   	   2: pc 5-9, src 8-14
+      3: pc 10-14, src 16-22   	   4: pc 15-22, src 24-47
+      5: pc 15-20, src 31-46   	   6: pc 15-18, src 38-45
+  Command 1: "set x 1"
+    (0) push1 0  	# "1"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "set y 2"
+    (5) push1 1  	# "2"
+    (7) storeScalar1 1	# var "y"
+    (9) pop 
+  Command 3: "set z 3"
+    (10) push1 2  	# "3"
+    (12) storeScalar1 2	# var "z"
+    (14) pop 
+  Command 4: "set x [set y [set z 42]]"
+  Command 5: "set y [set z 42]"
+  Command 6: "set z 42"
+    (15) push1 3  	# "42"
+    (17) storeScalar1 2	# var "z"
+    (19) storeScalar1 1	# var "y"
+    (21) storeScalar1 0	# var "x"
+    (23) done 

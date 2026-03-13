@@ -1,0 +1,38 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x570ac500, refCt 1, epoch 0, interp 0x4f46e10 (epoch 0)
+  Source "set x 5\nif {$x < 0} {\n    set sign -1\n} elseif {$x > 0}"
+  Cmds 5, src 99, inst 36, litObjs 4, aux 0, stkDepth 2, code/src 2.55
+  Code 252 = header 160+inst 36+litObj 32+exc 0+aux 0+cmdMap 20
+  Proc 0x570a9c80, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "x"
+      slot 1, scalar, "sign"
+  Commands 5:
+      1: pc 0-4, src 0-6   	   2: pc 5-34, src 8-97
+      3: pc 12-15, src 26-36   	   4: pc 25-28, src 62-71
+      5: pc 31-34, src 86-95
+  Command 1: "set x 5"
+    (0) push1 0  	# "5"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "if {$x < 0} {\n    set sign -1\n} elseif {$x > 0} {\n    s"
+    (5) loadScalar1 0	# var "x"
+    (7) push1 1  	# "0"
+    (9) lt 
+    (10) jumpFalse1 8  	# pc 18
+  Command 3: "set sign -1"
+    (12) push1 2  	# "-1"
+    (14) storeScalar1 1	# var "sign"
+    (16) jump1 19  	# pc 35
+    (18) loadScalar1 0	# var "x"
+    (20) push1 1  	# "0"
+    (22) gt 
+    (23) jumpFalse1 8  	# pc 31
+  Command 4: "set sign 1"
+    (25) push1 3  	# "1"
+    (27) storeScalar1 1	# var "sign"
+    (29) jump1 6  	# pc 35
+  Command 5: "set sign 0"
+    (31) push1 1  	# "0"
+    (33) storeScalar1 1	# var "sign"
+    (35) done 

@@ -1,0 +1,32 @@
+{
+  "seed": 1772846003,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"if {$flag <= -10} {\n            lindex {57.21 aftfjti yes -70.58 no 6.78} 1\n            expr {((50 % max(1, abs((-81 / max(1, abs(-63)))))) ? ((86 ? -...\"\n    (\"foreach\" body line 54)\n    invoked from within\n\"foreach key {110 449 -26.64} {\n        if {$key <= 20} {\n            expr {(-7)}\n            expr {5}\n            concat {} {-660}\n        } else {\n  ...\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach key {199 -138 17 -"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"if {$flag <= -10} {\n            lindex {57.21 aftfjti yes -70.58 no 6.78} 1\n            expr {((50 % max(1, abs((-81 / max(1, abs(-63)))))) ? ((86 ? -...\"\n    (\"foreach\" body line 54)\n    invoked from within\n\"foreach key {110 449 -26.64} {\n        if {$key <= 20} {\n            expr {(-7)}\n            expr {5}\n            concat {} {-660}\n        } else {\n  ...\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach key {199 -138 17 -"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

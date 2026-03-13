@@ -1,0 +1,23 @@
+{
+  "seed": 1772893751,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach a {yes no q true} {\n            lassign {1 -473 -454 -779} b data\n            set result 47\n            incr result 4\n            if {abs((-71...\"\n    invoked from within\n\"if {17.09} {\n    set data {73.32 -435}\n    for {set count 0} {$count < 3} {incr count} {\n        foreach a {yes no q true} {\n            lassign {1 -4...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach a {yes no q true} {\n            lassign {1 -473 -454 -779} b data\n            set result 47\n            incr result 4\n            if {abs((-71...\"\n    invoked from within\n\"if {17.09} {\n    set data {73.32 -435}\n    for {set count 0} {$count < 3} {incr count} {\n        foreach a {yes no q true} {\n            lassign {1 -4...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

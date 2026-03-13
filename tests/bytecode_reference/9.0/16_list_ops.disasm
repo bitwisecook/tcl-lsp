@@ -1,0 +1,29 @@
+ByteCode 0xaa7184410, refCt 1, epoch 21, interp 0xaa701c010 (epoch 21)
+  Source "set lst [list a b c d]\nllength $lst\nlindex $lst 2\nlr..."
+  Cmds 5, src 66, inst 33, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-21        2: pc 2-3, src 9-20
+      3: pc 6-10, src 23-34        4: pc 11-19, src 36-48
+      5: pc 20-31, src 50-64
+  Command 1: "set lst [list a b c d]..."
+    (0) push1 0 	# "lst"
+  Command 2: "list a b c d..."
+    (2) push1 1 	# "a b c d"
+    (4) storeStk 
+    (5) pop 
+  Command 3: "llength $lst..."
+    (6) push1 0 	# "lst"
+    (8) loadStk 
+    (9) listLength 
+    (10) pop 
+  Command 4: "lindex $lst 2..."
+    (11) push1 0 	# "lst"
+    (13) loadStk 
+    (14) listIndexImm 2 
+    (19) pop 
+  Command 5: "lrange $lst 1 2..."
+    (20) push1 0 	# "lst"
+    (22) loadStk 
+    (23) listRangeImm 1 2 
+    (32) done 
+

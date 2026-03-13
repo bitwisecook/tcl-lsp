@@ -1,0 +1,83 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test"
+    2: ""
+    3: "\n    set result {}\n    foreach x {1..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set result {}\n    foreach x {1..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test, 38 instructions, 123 bytes, 4 literals, 2 variables
+  Literals:
+    0: ""
+    1: "1 2 3 4 5 6 7 8 9 10"
+    2: "3"
+    3: "7"
+  Local variables:
+    %v0: "result"
+    %v1: "x"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# ""
+    (2) storeScalar1 %v0	# var "result"
+    (4) pop
+  # foreach_header_2:
+    (5) startCommand +104 1	# next cmd at pc 109, 1 cmds start here
+    (14) push1 1	# "1 2 3 4 5 6 7 8 9 10"
+    (16) foreach_start 0
+  # foreach_body_3:
+    (21) startCommand +34 1	# next cmd at pc 55, 1 cmds start here
+    (30) loadScalar1 %v1	# var "x"
+    (32) push1 2	# "3"
+    (34) eq
+    (35) jumpFalse1 +18	# pc 53
+  # if_then_6:
+    (37) startCommand +14 1	# next cmd at pc 51, 1 cmds start here
+    (46) jump4 +59	# pc 105
+  # cmd_end_5:
+    (51) jump1 +4	# pc 55
+  # if_next_7:
+    (53) push1 0	# ""
+  # if_end_5:
+  # foreach_if_end_4:
+    (55) pop
+    (56) startCommand +34 1	# next cmd at pc 90, 1 cmds start here
+    (65) loadScalar1 %v1	# var "x"
+    (67) push1 3	# "7"
+    (69) eq
+    (70) jumpFalse1 +18	# pc 88
+  # if_then_9:
+    (72) startCommand +14 1	# next cmd at pc 86, 1 cmds start here
+    (81) jump4 +25	# pc 106
+  # cmd_end_7:
+    (86) jump1 +4	# pc 90
+  # if_next_10:
+    (88) push1 0	# ""
+  # if_end_8:
+  # foreach_if_end_6:
+    (90) pop
+    (91) startCommand +13 1	# next cmd at pc 104, 1 cmds start here
+    (100) loadScalar1 %v1	# var "x"
+    (102) lappendScalar1 %v0	# var "result"
+  # cmd_end_8:
+    (104) pop
+  # foreach_end_4:
+  # foreach_continue_1:
+    (105) foreach_step
+  # foreach_break_2:
+    (106) foreach_end
+    (107) push1 0	# ""
+  # cmd_end_3:
+    (109) pop
+    (110) startCommand +12 1	# next cmd at pc 122, 1 cmds start here
+    (119) loadScalar1 %v0	# var "result"
+    (121) done
+  # ret_end_9:
+    (122) done

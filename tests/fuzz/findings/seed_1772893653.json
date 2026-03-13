@@ -1,0 +1,23 @@
+{
+  "seed": 1772893653,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable\n    while executing\n\"expr {$y}\"\n    (\"default\" arm line 18)\n    invoked from within\n\"switch -- -93 {\n    -36 {\n        set count [expr {92}]\n        lindex {ywublvmn 244} 0\n        if {-50} {\n            lrange {-61.73} 2 3\n           ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkwnp1tvo.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

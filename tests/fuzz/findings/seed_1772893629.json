@@ -1,0 +1,23 @@
+{
+  "seed": 1772893629,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"expr {double($n)}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach idx {kd tcbkzy 0} {\n                set z [expr {double($n)}]\n                append data 87\n                append item 90\n                re...\"\n    (in namespace eval \"::util\" script line 15)\n    invoked from within\n\"namespace eval util {\n    lassign {200 300 -764 -29.25 -946 flmddll} flag data val\n    switch -- \"2q51cjkg.\" {\n        fsvnszx {\n            expr "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"expr {double($n)}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach idx {kd tcbkzy 0} {\n                set z [expr {double($n)}]\n                append data 87\n                append item 90\n                re...\"\n    (in namespace eval \"::util\" script line 15)\n    invoked from within\n\"namespace eval util {\n    lassign {200 300 -764 -29.25 -946 flmddll} flag data val\n    switch -- \"2q51cjkg.\" {\n        fsvnszx {\n            expr "
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

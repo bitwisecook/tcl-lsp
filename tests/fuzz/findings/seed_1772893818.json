@@ -1,0 +1,23 @@
+{
+  "seed": 1772893818,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"true\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"true\"\n    while executing\n\"incr tmp\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach tmp {vdhuzn pgbc -429 13.96 -13} {\n        set tmp 0\n        while {$tmp < 5} {\n            set val \"6\"\n            regexp \"\\\\d+\" \"_-0 g_srf0r...\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set i 0} {$i < 2} {incr i} {\n    foreach tmp {vdhuzn pgbc -429 13.96 -13} {\n        set tmp 0\n        while {$tmp < 5} {\n            set val \"6\"\n...\"\n    (file \"/var/folders/2"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

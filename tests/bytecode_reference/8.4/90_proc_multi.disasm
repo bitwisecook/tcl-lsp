@@ -1,0 +1,31 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x6b090640, refCt 1, epoch 0, interp 0x28d2e20 (epoch 0)
+  Source "proc add {a b} { expr {$a + $b} }\nproc mul {a b} { expr"
+  Cmds 3, src 98, inst 33, litObjs 9, aux 0, stkDepth 4, code/src 2.90
+  Code 284 = header 160+inst 33+litObj 72+exc 0+aux 0+cmdMap 12
+  Proc 0x6b0890c0, refCt 1, args 0, compiled locals 0
+  Commands 3:
+      1: pc 0-10, src 0-32   	   2: pc 11-21, src 34-66
+      3: pc 22-31, src 68-96
+  Command 1: "proc add {a b} { expr {$a + $b} }"
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "add"
+    (4) push1 2  	# "a b"
+    (6) push1 3  	# " expr {$a + $b} "
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc mul {a b} { expr {$a * $b} }"
+    (11) push1 0  	# "proc"
+    (13) push1 4  	# "mul"
+    (15) push1 2  	# "a b"
+    (17) push1 5  	# " expr {$a * $b} "
+    (19) invokeStk1 4 
+    (21) pop 
+  Command 3: "proc square {x} { mul $x $x }"
+    (22) push1 0  	# "proc"
+    (24) push1 6  	# "square"
+    (26) push1 7  	# "x"
+    (28) push1 8  	# " mul $x $x "
+    (30) invokeStk1 4 
+    (32) done 

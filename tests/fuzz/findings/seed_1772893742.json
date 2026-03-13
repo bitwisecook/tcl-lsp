@@ -1,0 +1,23 @@
+{
+  "seed": 1772893742,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"a\"\n    while executing\n\"incr tmp\"\n    (in namespace eval \"::baz\" script line 2)\n    invoked from within\n\"namespace eval baz {\n    for {set tmp 0} {$tmp < 6} {incr tmp} {\n        append tmp \"eb;r0d6!\"\n        append tmp \":c k9\"\n        set tmp \"a\"\n    }\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmph_e8zy1k.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"a\"\n    while executing\n\"incr tmp\"\n    (in namespace eval \"::baz\" script line 2)\n    invoked from within\n\"namespace eval baz {\n    for {set tmp 0} {$tmp < 6} {incr tmp} {\n        append tmp \"eb;r0d6!\"\n        append tmp \":c k9\"\n        set tmp \"a\"\n    }\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmph_e8zy1k.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

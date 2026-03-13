@@ -1,0 +1,76 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test_continue"
+    2: ""
+    3: "\n    set result {}\n    set i 0\n   ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test_continue"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set result {}\n    set i 0\n   ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test_continue, 37 instructions, 127 bytes, 5 literals, 2 variables
+  Literals:
+    0: ""
+    1: "0"
+    2: "b"
+    3: "c"
+    4: "10"
+  Local variables:
+    %v0: "result"
+    %v1: "i"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# ""
+    (2) storeScalar1 %v0	# var "result"
+    (4) pop
+    (5) startCommand +13 1	# next cmd at pc 18, 1 cmds start here
+    (14) push1 1	# "0"
+    (16) storeScalar1 %v1	# var "i"
+  # cmd_end_1:
+    (18) pop
+    (19) startCommand +94 1	# next cmd at pc 113, 1 cmds start here
+    (28) jump1 +66	# pc 94
+  # while_body_3:
+    (30) startCommand +13 1	# next cmd at pc 43, 1 cmds start here
+    (39) loadScalar1 %v1	# var "i"
+    (41) lappendScalar1 %v0	# var "result"
+  # cmd_end_3:
+    (43) pop
+    (44) startCommand +35 2	# next cmd at pc 79, 2 cmds start here
+    (53) push1 2	# "b"
+    (55) startCommand +15 1	# next cmd at pc 70, 1 cmds start here
+    (64) pop
+    (65) jump4 +29	# pc 94
+  # cmd_end_5:
+    (70) push1 3	# "c"
+    (72) list 3
+    (77) lappendScalar1 %v0	# var "result"
+  # cmd_end_4:
+    (79) pop
+    (80) startCommand +13 1	# next cmd at pc 93, 1 cmds start here
+    (89) push1 3	# "c"
+    (91) lappendScalar1 %v0	# var "result"
+  # cmd_end_6:
+    (93) pop
+  # while_header_2:
+    (94) startCommand +12 1	# next cmd at pc 106, 1 cmds start here
+    (103) incrScalar1Imm %v1 +1	# var "i"
+  # cmd_end_7:
+    (106) push1 4	# "10"
+    (108) le
+    (109) jumpTrue1 -79	# pc 30
+  # while_end_4:
+    (111) push1 0	# ""
+  # while_cmd_end_2:
+    (113) pop
+    (114) startCommand +12 1	# next cmd at pc 126, 1 cmds start here
+    (123) loadScalar1 %v0	# var "result"
+    (125) done
+  # ret_end_8:
+    (126) done

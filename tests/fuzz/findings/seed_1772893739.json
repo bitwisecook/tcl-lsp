@@ -1,0 +1,23 @@
+{
+  "seed": 1772893739,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"ubmxqgje\" as right operand of \"&\"\n    while executing\n\"expr {((50 & $count) <= (($count + $count) ? min(13, 7) : ($count ? -13 : 28)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach count {ubmxqgje 134 309 false -915 tntagbcj} {\n        expr {((50 & $count) <= (($count + $count) ? min(13, 7) : ($count ? -13 : 28)))}\n    }\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set count 0} {$count < 5} {incr count} {\n    foreach count {ubmxqgje 134 3"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"ubmxqgje\" as right operand of \"&\"\n    while executing\n\"expr {((50 & $count) <= (($count + $count) ? min(13, 7) : ($count ? -13 : 28)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach count {ubmxqgje 134 309 false -915 tntagbcj} {\n        expr {((50 & $count) <= (($count + $count) ? min(13, 7) : ($count ? -13 : 28)))}\n    }\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set count 0} {$count < 5} {incr count} {\n    foreach count {ubmxqgje 134 3"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"ubmxqgje\" as right operand of"
+}

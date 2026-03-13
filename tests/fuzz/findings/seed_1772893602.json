@@ -1,0 +1,23 @@
+{
+  "seed": 1772893602,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"if {(-61.02 << (65 >> -69))} {\n        set b 487\n        lrepeat 2 \"!6=zo8lmqd-=1md ej4u\"\n        string reverse \"q36y0_#?ffww6dd__sz\"\n    }\"\n    invoked from within\n\"if {3} {\n    if {(-61.02 << (65 >> -69))} {\n        set b 487\n        lrepeat 2 \"!6=zo8lmqd-=1md ej4u\"\n        string reverse \"q36y0_#?ffww6dd__sz\"\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpw6y5exd1.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"if {(-61.02 << (65 >> -69))} {\n        set b 487\n        lrepeat 2 \"!6=zo8lmqd-=1md ej4u\"\n        string reverse \"q36y0_#?ffww6dd__sz\"\n    }\"\n    invoked from within\n\"if {3} {\n    if {(-61.02 << (65 >> -69))} {\n        set b 487\n        lrepeat 2 \"!6=zo8lmqd-=1md ej4u\"\n        string reverse \"q36y0_#?ffww6dd__sz\"\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpw6y5exd1.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-negative-shift",
+  "triage": "VM loops; core negative-shift bug is FIXED; script wraps in retry loop"
+}

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893905,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"20.88\" as right operand of \"%\"\n    while executing\n\"expr {(10 % max(1, abs(20.88)))}\"\n    (in namespace eval \"::util\" script line 7)\n    invoked from within\n\"namespace eval util {\n    for {set buf 0} {$buf < 2} {incr buf} {\n        if {(~(!$buf))} {\n            catch {\n                set result {83.63 -859...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp2drdys7r.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"20.88\" as right operand of \"%\"\n    while executing\n\"expr {(10 % max(1, abs(20.88)))}\"\n    (in namespace eval \"::util\" script line 7)\n    invoked from within\n\"namespace eval util {\n    for {set buf 0} {$buf < 2} {incr buf} {\n        if {(~(!$buf))} {\n            catch {\n                set result {83.63 -859...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp2drdys7r.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

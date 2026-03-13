@@ -1,0 +1,51 @@
+ByteCode 0x0x8b849fc10, refCt 1, epoch 17, interp 0x0x8b8c28010 (epoch 17)
+  Source "set cleanup 0\ntry {\n    set x 42\n} finally {\n    se..."
+  Cmds 4, src 65, inst 73, litObjs 6, aux 0, stkDepth 6, code/src 0.00
+  Exception ranges 2, depth 1:
+      0: level 0, catch, pc 11-15, catch 18
+      1: level 0, catch, pc 26-30, catch 35
+  Commands 4:
+      1: pc 0-5, src 0-12        2: pc 6-71, src 14-63
+      3: pc 11-15, src 24-31        4: pc 26-30, src 49-61
+  Command 1: "set cleanup 0..."
+    (0) push1 0 	# "cleanup"
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "try {\n    set x 42\n} finally {\n    set cleanup ..."
+    (6) beginCatch4 0 
+  Command 3: "set x 42..."
+    (11) push1 2 	# "x"
+    (13) push1 3 	# "42"
+    (15) storeStk 
+    (16) jump1 +3 	# pc 19
+    (18) pushResult 
+    (19) pushReturnOpts 
+    (20) endCatch 
+    (21) beginCatch4 1 
+  Command 4: "set cleanup 1..."
+    (26) push1 0 	# "cleanup"
+    (28) push1 4 	# "1"
+    (30) storeStk 
+    (31) endCatch 
+    (32) pop 
+    (33) jump1 +33 	# pc 66
+    (35) pushResult 
+    (36) pushReturnOpts 
+    (37) pushReturnCode 
+    (38) endCatch 
+    (39) push1 4 	# "1"
+    (41) eq 
+    (42) jumpFalse1 +15 	# pc 57
+    (44) push1 5 	# "-during"
+    (46) over 3 
+    (51) list 2 
+    (56) listConcat 
+    (57) reverse 4 
+    (62) pop 
+    (63) pop 
+    (64) jump1 +7 	# pc 71
+    (66) reverse 2 
+    (71) returnStk 
+    (72) done 
+

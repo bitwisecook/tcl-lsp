@@ -1,0 +1,28 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x95029000, refCt 1, epoch 0, interp 0x94c0d000 (epoch 0)
+  Source "set arr(count) 0\nincr arr(count)\nincr arr(count) 5\nincr"
+  Cmds 4, src 70, inst 25, litObjs 2, aux 0, stkDepth 2, code/src 3.20
+  Code 224 = header 160+inst 25+litObj 16+exc 0+aux 0+cmdMap 16
+  Proc 0x95895c40, refCt 1, args 0, compiled locals 1
+      slot 0, array, "arr"
+  Commands 4:
+      1: pc 0-6, src 0-15   	   2: pc 7-12, src 17-31
+      3: pc 13-18, src 33-49   	   4: pc 19-23, src 51-68
+  Command 1: "set arr(count) 0"
+    (0) push1 0  	# "count"
+    (2) push1 1  	# "0"
+    (4) storeArray1 0	# var "arr"
+    (6) pop 
+  Command 2: "incr arr(count)"
+    (7) push1 0  	# "count"
+    (9) incrArray1Imm 0 1
+    (12) pop 
+  Command 3: "incr arr(count) 5"
+    (13) push1 0  	# "count"
+    (15) incrArray1Imm 0 5
+    (18) pop 
+  Command 4: "incr arr(count) -1"
+    (19) push1 0  	# "count"
+    (21) incrArray1Imm 0 -1
+    (24) done 

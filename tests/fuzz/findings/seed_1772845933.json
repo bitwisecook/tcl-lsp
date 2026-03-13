@@ -1,0 +1,32 @@
+{
+  "seed": 1772845933,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"0.5655707873347081\" as operand of \"~\"\n    while executing\n\"expr {(~(46.62 / max(1, abs(82.43))))}\"\n    (\"foreach\" body line 70)\n    invoked from within\n\"foreach idx {0 true rdaxiux} {\n    if {22} {\n        lassign {412 no -628} data a\n        set buf 3.62\n        expr {-74}\n        switch -- fmvfja {\n ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp3gw6zd0t.tcl\" line 47)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"0.5655707873347081\" as operand of \"~\"\n    while executing\n\"expr {(~(46.62 / max(1, abs(82.43))))}\"\n    (\"foreach\" body line 70)\n    invoked from within\n\"foreach idx {0 true rdaxiux} {\n    if {22} {\n        lassign {412 no -628} data a\n        set buf 3.62\n        expr {-74}\n        switch -- fmvfja {\n ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp3gw6zd0t.tcl\" line 47)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

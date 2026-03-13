@@ -1,0 +1,24 @@
+{
+  "seed": 1772874828,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable\n    while executing\n\"expr {((10 == (89 ** $buf)) % max(1, abs(((1 && -51) / max(1, abs((-58 ** 94.20)))))))}\"\n    (\"default\" arm line 77)\n    invoked from within\n\"switch -- \"qd:06:3y4vevtyp:o3\" {\n    false {\n        set item {pldtyl yes 911 65.37}\n        lrepeat 2 422\n        catch {\n            expr {double((~...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp4n095jk4.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

@@ -1,0 +1,333 @@
+TCLSH    /opt/homebrew/bin/tclsh8.6
+VERSION  8.6.17
+FILE     cmdAH.test
+DATE     2026-03-03T12:53:49Z
+---
+PASS cmdAH-0.1
+PASS cmdAH-0.2
+PASS cmdAH-1.1
+PASS cmdAH-1.2
+PASS cmdAH-1.3
+PASS cmdAH-1.4
+PASS cmdAH-1.5
+PASS cmdAH-10.1
+PASS cmdAH-11.1
+PASS cmdAH-12.1
+PASS cmdAH-13.1
+PASS cmdAH-16.1
+PASS cmdAH-17.1
+PASS cmdAH-18.1
+PASS cmdAH-18.2
+PASS cmdAH-18.6
+PASS cmdAH-19.1
+PASS cmdAH-19.10
+PASS cmdAH-19.11
+PASS cmdAH-19.12
+PASS cmdAH-19.2
+PASS cmdAH-19.3
+PASS cmdAH-19.4
+PASS cmdAH-19.5
+PASS cmdAH-19.9
+PASS cmdAH-2.1
+PASS cmdAH-2.2
+PASS cmdAH-2.3
+PASS cmdAH-2.4
+PASS cmdAH-2.5
+PASS cmdAH-2.6
+PASS cmdAH-2.6.1
+PASS cmdAH-2.6.3
+PASS cmdAH-2.7
+PASS cmdAH-2.8
+PASS cmdAH-2.9
+PASS cmdAH-20.1
+PASS cmdAH-20.2
+PASS cmdAH-20.3
+PASS cmdAH-20.4
+PASS cmdAH-20.5
+PASS cmdAH-21.1
+PASS cmdAH-21.2
+PASS cmdAH-21.3
+PASS cmdAH-22.1
+PASS cmdAH-22.2
+PASS cmdAH-22.3
+PASS cmdAH-23.1
+PASS cmdAH-23.10
+PASS cmdAH-23.11
+PASS cmdAH-23.2
+PASS cmdAH-23.6
+PASS cmdAH-23.7
+PASS cmdAH-23.8
+PASS cmdAH-23.9
+PASS cmdAH-24.1
+PASS cmdAH-24.12
+PASS cmdAH-24.13
+PASS cmdAH-24.2
+PASS cmdAH-24.20.1
+PASS cmdAH-24.20.2
+PASS cmdAH-24.3
+PASS cmdAH-24.4
+PASS cmdAH-24.5
+PASS cmdAH-24.7
+PASS cmdAH-24.8
+PASS cmdAH-24.9
+PASS cmdAH-25.1
+PASS cmdAH-25.2.1
+PASS cmdAH-25.3
+PASS cmdAH-25.4
+PASS cmdAH-26.1
+PASS cmdAH-27.1
+PASS cmdAH-27.2
+PASS cmdAH-27.3
+PASS cmdAH-28.1
+PASS cmdAH-28.12
+PASS cmdAH-28.2
+PASS cmdAH-28.3
+PASS cmdAH-28.4
+PASS cmdAH-28.5
+PASS cmdAH-28.6
+PASS cmdAH-28.7
+PASS cmdAH-28.8
+PASS cmdAH-29.1
+PASS cmdAH-29.2
+PASS cmdAH-29.3
+PASS cmdAH-29.4
+PASS cmdAH-29.4.1
+PASS cmdAH-29.5
+PASS cmdAH-3.1
+PASS cmdAH-3.2
+PASS cmdAH-30.1
+PASS cmdAH-30.2
+PASS cmdAH-30.3
+PASS cmdAH-30.4
+PASS cmdAH-30.5
+PASS cmdAH-30.6
+PASS cmdAH-30.7
+PASS cmdAH-30.8
+PASS cmdAH-31.1
+PASS cmdAH-31.10
+PASS cmdAH-31.11
+PASS cmdAH-31.12
+PASS cmdAH-31.13
+PASS cmdAH-31.2
+PASS cmdAH-31.3
+PASS cmdAH-31.4
+PASS cmdAH-31.5
+PASS cmdAH-31.6
+PASS cmdAH-31.7
+PASS cmdAH-31.8
+PASS cmdAH-31.9
+PASS cmdAH-32.1
+PASS cmdAH-32.2
+PASS cmdAH-32.3
+PASS cmdAH-32.4
+PASS cmdAH-32.5
+PASS cmdAH-4.1
+PASS cmdAH-4.10
+PASS cmdAH-4.11
+PASS cmdAH-4.12
+PASS cmdAH-4.13
+PASS cmdAH-4.2
+PASS cmdAH-4.3
+PASS cmdAH-4.4
+PASS cmdAH-4.5
+PASS cmdAH-4.6
+PASS cmdAH-4.7
+PASS cmdAH-4.8
+PASS cmdAH-4.9
+PASS cmdAH-5.1
+PASS cmdAH-5.2
+PASS cmdAH-5.3
+PASS cmdAH-5.4
+PASS cmdAH-6.1
+PASS cmdAH-6.2
+PASS cmdAH-6.3
+PASS cmdAH-7.1
+PASS cmdAH-8.1
+PASS cmdAH-8.46
+PASS cmdAH-9.1
+PASS cmdAH-9.52
+SKIP cmdAH-10.10 testsetplatform
+SKIP cmdAH-10.2 testsetplatform
+SKIP cmdAH-10.23 testsetplatform
+SKIP cmdAH-10.24 testsetplatform
+SKIP cmdAH-10.25 testsetplatform
+SKIP cmdAH-10.26 testsetplatform
+SKIP cmdAH-10.27 testsetplatform
+SKIP cmdAH-10.28 testsetplatform
+SKIP cmdAH-10.29 testsetplatform
+SKIP cmdAH-10.3 testsetplatform
+SKIP cmdAH-10.30 testsetplatform
+SKIP cmdAH-10.31 testsetplatform
+SKIP cmdAH-10.32 testsetplatform
+SKIP cmdAH-10.33 testsetplatform
+SKIP cmdAH-10.34 testsetplatform
+SKIP cmdAH-10.35 testsetplatform
+SKIP cmdAH-10.36 testsetplatform
+SKIP cmdAH-10.37 testsetplatform
+SKIP cmdAH-10.38 testsetplatform
+SKIP cmdAH-10.39 testsetplatform
+SKIP cmdAH-10.4 testsetplatform
+SKIP cmdAH-10.40 testsetplatform
+SKIP cmdAH-10.41 testsetplatform
+SKIP cmdAH-10.42 testsetplatform
+SKIP cmdAH-10.43 testsetplatform
+SKIP cmdAH-10.44 testsetplatform
+SKIP cmdAH-10.45 testsetplatform
+SKIP cmdAH-10.46 testsetplatform
+SKIP cmdAH-10.47 testsetplatform
+SKIP cmdAH-10.48 testsetplatform
+SKIP cmdAH-10.49 testsetplatform
+SKIP cmdAH-10.5 testsetplatform
+SKIP cmdAH-10.50 testsetplatform
+SKIP cmdAH-10.51 testsetplatform
+SKIP cmdAH-10.52 testsetplatform
+SKIP cmdAH-10.53 testsetplatform
+SKIP cmdAH-10.54 testsetplatform
+SKIP cmdAH-10.55 testsetplatform
+SKIP cmdAH-10.56 testsetplatform
+SKIP cmdAH-10.57 testsetplatform
+SKIP cmdAH-10.58 testsetplatform
+SKIP cmdAH-10.59 testsetplatform
+SKIP cmdAH-10.6 testsetplatform
+SKIP cmdAH-10.7 testsetplatform
+SKIP cmdAH-10.8 testsetplatform
+SKIP cmdAH-10.9 testsetplatform
+SKIP cmdAH-11.10 testsetplatform
+SKIP cmdAH-11.2 testsetplatform
+SKIP cmdAH-11.23 testsetplatform
+SKIP cmdAH-11.24 testsetplatform
+SKIP cmdAH-11.25 testsetplatform
+SKIP cmdAH-11.26 testsetplatform
+SKIP cmdAH-11.27 testsetplatform
+SKIP cmdAH-11.28 testsetplatform
+SKIP cmdAH-11.29 testsetplatform
+SKIP cmdAH-11.3 testsetplatform
+SKIP cmdAH-11.30 testsetplatform
+SKIP cmdAH-11.31 testsetplatform
+SKIP cmdAH-11.32 testsetplatform
+SKIP cmdAH-11.33 testsetplatform
+SKIP cmdAH-11.34 testsetplatform
+SKIP cmdAH-11.35 testsetplatform
+SKIP cmdAH-11.36 testsetplatform
+SKIP cmdAH-11.37 testsetplatform
+SKIP cmdAH-11.38 testsetplatform
+SKIP cmdAH-11.39 testsetplatform
+SKIP cmdAH-11.4 testsetplatform
+SKIP cmdAH-11.40 testsetplatform
+SKIP cmdAH-11.41 testsetplatform
+SKIP cmdAH-11.42 testsetplatform
+SKIP cmdAH-11.5 testsetplatform
+SKIP cmdAH-11.6 testsetplatform
+SKIP cmdAH-11.7 testsetplatform
+SKIP cmdAH-11.8 testsetplatform
+SKIP cmdAH-11.9 testsetplatform
+SKIP cmdAH-12.2 testsetplatform
+SKIP cmdAH-12.3 testsetplatform
+SKIP cmdAH-12.4 testsetplatform
+SKIP cmdAH-13.2 testsetplatform
+SKIP cmdAH-13.3 testsetplatform
+SKIP cmdAH-14.1 testsetplatform
+SKIP cmdAH-14.2 testsetplatform
+SKIP cmdAH-14.3 testsetplatform
+SKIP cmdAH-15.1 testsetplatform
+SKIP cmdAH-16.2 testchmod
+SKIP cmdAH-16.3 testchmod
+SKIP cmdAH-17.2 testchmod
+SKIP cmdAH-17.3 testchmod
+SKIP cmdAH-18.3 testchmod
+SKIP cmdAH-18.5 win
+SKIP cmdAH-19.6 testsetplatform
+SKIP cmdAH-19.7 testsetplatform
+SKIP cmdAH-2.6.2 nonPortable
+SKIP cmdAH-20.6 win
+SKIP cmdAH-20.7 win
+SKIP cmdAH-20.7.1 win
+SKIP cmdAH-23.3 nonPortable
+SKIP cmdAH-23.4 nonPortable
+SKIP cmdAH-23.5 nonPortable
+SKIP cmdAH-24.10 win
+SKIP cmdAH-24.11 win
+SKIP cmdAH-24.14 win
+SKIP cmdAH-24.14.1 win
+SKIP cmdAH-25.2 win
+SKIP cmdAH-25.3.1 win
+SKIP cmdAH-26.2 nonPortable
+SKIP cmdAH-26.3 nonPortable
+SKIP cmdAH-26.5 win
+SKIP cmdAH-27.4 win
+SKIP cmdAH-27.4.1 win
+SKIP cmdAH-28.10 win
+SKIP cmdAH-28.11 win
+SKIP cmdAH-28.13 win
+SKIP cmdAH-28.13.1 win
+SKIP cmdAH-28.9 win
+SKIP cmdAH-29.3.0 nonPortable
+SKIP cmdAH-29.6 win
+SKIP cmdAH-29.6.1 win
+SKIP cmdAH-32.6 nonPortable
+SKIP cmdAH-6.4 win
+SKIP cmdAH-8.10 testsetplatform
+SKIP cmdAH-8.11 testsetplatform
+SKIP cmdAH-8.12 testsetplatform
+SKIP cmdAH-8.13 testsetplatform
+SKIP cmdAH-8.14 testsetplatform
+SKIP cmdAH-8.15 testsetplatform
+SKIP cmdAH-8.16 testsetplatform
+SKIP cmdAH-8.17 testsetplatform
+SKIP cmdAH-8.18 testsetplatform
+SKIP cmdAH-8.19 testsetplatform
+SKIP cmdAH-8.2 testsetplatform
+SKIP cmdAH-8.20 testsetplatform
+SKIP cmdAH-8.21 testsetplatform
+SKIP cmdAH-8.22 testsetplatform
+SKIP cmdAH-8.23 testsetplatform
+SKIP cmdAH-8.24 testsetplatform
+SKIP cmdAH-8.25 testsetplatform
+SKIP cmdAH-8.26 testsetplatform
+SKIP cmdAH-8.3 testsetplatform
+SKIP cmdAH-8.38 testsetplatform
+SKIP cmdAH-8.39 testsetplatform
+SKIP cmdAH-8.43 testsetplatform
+SKIP cmdAH-8.44 testsetplatform
+SKIP cmdAH-8.45 win
+SKIP cmdAH-8.5 testsetplatform
+SKIP cmdAH-8.6 testsetplatform
+SKIP cmdAH-8.8 testsetplatform
+SKIP cmdAH-8.9 testsetplatform
+SKIP cmdAH-9.10 testsetplatform
+SKIP cmdAH-9.11 testsetplatform
+SKIP cmdAH-9.12 testsetplatform
+SKIP cmdAH-9.13 testsetplatform
+SKIP cmdAH-9.14 testsetplatform
+SKIP cmdAH-9.15 testsetplatform
+SKIP cmdAH-9.16 testsetplatform
+SKIP cmdAH-9.17 testsetplatform
+SKIP cmdAH-9.18 testsetplatform
+SKIP cmdAH-9.19 testsetplatform
+SKIP cmdAH-9.2 testsetplatform
+SKIP cmdAH-9.20 testsetplatform
+SKIP cmdAH-9.21 testsetplatform
+SKIP cmdAH-9.22 testsetplatform
+SKIP cmdAH-9.23 testsetplatform
+SKIP cmdAH-9.24 testsetplatform
+SKIP cmdAH-9.25 testsetplatform
+SKIP cmdAH-9.26 testsetplatform
+SKIP cmdAH-9.3 testsetplatform
+SKIP cmdAH-9.42 testsetplatform
+SKIP cmdAH-9.43 testsetplatform
+SKIP cmdAH-9.44 testsetplatform
+SKIP cmdAH-9.46 testsetplatform
+SKIP cmdAH-9.47 testsetplatform
+SKIP cmdAH-9.48 testsetplatform
+SKIP cmdAH-9.49 testsetplatform
+SKIP cmdAH-9.5 testsetplatform
+SKIP cmdAH-9.50 testsetplatform
+SKIP cmdAH-9.51 testsetplatform
+SKIP cmdAH-9.6 testsetplatform
+SKIP cmdAH-9.8 testsetplatform
+SKIP cmdAH-9.9 testsetplatform
+---
+TOTAL   323
+PASSED  143
+SKIPPED 180
+FAILED  0

@@ -1,0 +1,24 @@
+{
+  "seed": 1772875238,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {$buf == 4} {\n                set n 0\n                while {$n < 5} {\n                    set x 73\n                    incr x 1\n                  ...\"\n    (\"default\" arm line 8)\n    invoked from within\n\"switch -- 31 {\n    no {\n        set result {-950 yemlqdjk -944}\n        if {$result} {\n            set y 0\n            while {$y < 1} {\n              ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {$buf == 4} {\n                set n 0\n                while {$n < 5} {\n                    set x 73\n                    incr x 1\n                  ...\"\n    (\"default\" arm line 8)\n    invoked from within\n\"switch -- 31 {\n    no {\n        set result {-950 yemlqdjk -944}\n        if {$result} {\n            set y 0\n            while {$y < 1} {\n              ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000"
+    }
+  ],
+  "fixed": true,
+  "fix": "if-else-elseif pre-validation in _cmd_if",
+  "category": "if-else-elseif"
+}

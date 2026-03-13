@@ -1,0 +1,19 @@
+TCLSH    /usr/local/bin/tclsh8.4
+VERSION  8.4.20
+FILE     concat.test
+DATE     2026-03-03T12:54:47
+---
+PASS concat-1.1
+PASS concat-1.2
+PASS concat-1.3
+PASS concat-1.4
+PASS concat-2.1
+PASS concat-3.1
+PASS concat-4.1
+PASS concat-4.2
+PASS concat-4.3
+---
+TOTAL   9
+PASSED  9
+SKIPPED 0
+FAILED  0

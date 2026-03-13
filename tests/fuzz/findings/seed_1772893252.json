@@ -1,0 +1,23 @@
+{
+  "seed": 1772893252,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"25.20\" as right operand of \">>\"\n    invoked from within\n\"expr {(((48 >> 25.20) + -86) ? (($x % max(1, abs(85))) + (-65.31 >> -72)) : -86)}\"\n    (\"foreach\" body line 28)\n    invoked from within\n\"foreach data {false -35.98 954 -365} {\n    catch {\n        foreach item {l 329 true 47.48 -696 0} {\n            if {-64} {\n                expr {61}\n ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp18qiof60.tcl\" line 231)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"25.20\" as right operand of \">>\"\n    invoked from within\n\"expr {(((48 >> 25.20) + -86) ? (($x % max(1, abs(85))) + (-65.31 >> -72)) : -86)}\"\n    (\"foreach\" body line 28)\n    invoked from within\n\"foreach data {false -35.98 954 -365} {\n    catch {\n        foreach item {l 329 true 47.48 -696 0} {\n            if {-64} {\n                expr {61}\n ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp18qiof60.tcl\" line 231)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

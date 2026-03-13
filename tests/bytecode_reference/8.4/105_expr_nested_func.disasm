@@ -1,0 +1,34 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xad0c0640, refCt 1, epoch 0, interp 0xacc0d000 (epoch 0)
+  Source "expr {sqrt(pow(3.0, 2.0))}\nexpr {abs(int(-3.7))}\nexpr {"
+  Cmds 3, src 90, inst 34, litObjs 8, aux 0, stkDepth 5, code/src 3.07
+  Code 276 = header 160+inst 34+litObj 64+exc 0+aux 0+cmdMap 12
+  Proc 0xad0c9c40, refCt 1, args 0, compiled locals 0
+  Commands 3:
+      1: pc 0-9, src 0-25   	   2: pc 10-17, src 27-47
+      3: pc 18-32, src 49-88
+  Command 1: "expr {sqrt(pow(3.0, 2.0))}"
+    (0) push1 0  	# "3.0"
+    (2) push1 1  	# "2.0"
+    (4) callBuiltinFunc1 13 
+    (6) callBuiltinFunc1 16 
+    (8) tryCvtToNumeric 
+    (9) pop 
+  Command 2: "expr {abs(int(-3.7))}"
+    (10) push1 2  	# "3.7"
+    (12) uminus 
+    (13) callBuiltinFunc1 21 
+    (15) callBuiltinFunc1 19 
+    (17) pop 
+  Command 3: "expr {pow(2.1, 27.5 - (24.4 * (5 % 2)))}"
+    (18) push1 3  	# "2.1"
+    (20) push1 4  	# "27.5"
+    (22) push1 5  	# "24.4"
+    (24) push1 6  	# "5"
+    (26) push1 7  	# "2"
+    (28) mod 
+    (29) mult 
+    (30) sub 
+    (31) callBuiltinFunc1 13 
+    (33) done 

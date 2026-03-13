@@ -1,0 +1,23 @@
+{
+  "seed": 1772893468,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"if {$flag >= -5} {\n                    set key 7\n                    incr key -3\n                    if {(($result % max(1, abs(-58.86))) ? -89 : 40)}...\"\n    (\"default\" arm line 61)\n    invoked from within\n\"switch -- 665 {\n    848 {\n        for {set z 0} {$z < 5} {incr z} {\n            for {set flag 0} {$flag < 5} {incr flag} {\n                append a \"1...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgglfug0x.tcl\" lin"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"if {$flag >= -5} {\n                    set key 7\n                    incr key -3\n                    if {(($result % max(1, abs(-58.86))) ? -89 : 40)}...\"\n    (\"default\" arm line 61)\n    invoked from within\n\"switch -- 665 {\n    848 {\n        for {set z 0} {$z < 5} {incr z} {\n            for {set flag 0} {$flag < 5} {incr flag} {\n                append a \"1...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgglfug0x.tcl\" lin"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

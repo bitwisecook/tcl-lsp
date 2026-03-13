@@ -1,0 +1,24 @@
+{
+  "seed": 1772875332,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use a list as left operand of \"+\"\n    while executing\n\"if {($acc + (!-81))} {\n                append msg gesxolfy\n                foreach val {true -90.95} {\n                    expr {(-(~abs($z)))}\n      ...\"\n    (\"default\" arm line 9)\n    invoked from within\n\"switch -- -137 {\n    \"og6:9ow79!a#oahz\" {\n        if {-3} {\n            set n {-24.32 -38.40 z fzmrnxb}\n            set i [expr {25}]\n            set ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpzftg74vu.tcl\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use a list as left operand of \"+\"\n    while executing\n\"if {($acc + (!-81))} {\n                append msg gesxolfy\n                foreach val {true -90.95} {\n                    expr {(-(~abs($z)))}\n      ...\"\n    (\"default\" arm line 9)\n    invoked from within\n\"switch -- -137 {\n    \"og6:9ow79!a#oahz\" {\n        if {-3} {\n            set n {-24.32 -38.40 z fzmrnxb}\n            set i [expr {25}]\n            set ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpzftg74vu.tcl\""
+    }
+  ],
+  "fixed": true,
+  "fix": "list-as-operand errors now propagate correctly",
+  "category": "list-as-operand"
+}

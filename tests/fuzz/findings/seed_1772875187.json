@@ -1,0 +1,24 @@
+{
+  "seed": 1772875187,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "cannot use non-numeric string \"yes\" as operand of \"~\"\n    while executing\n\"expr {(((81 % max(1, abs(-1))) * (17 ? 5.13 : 2)) / max(1, abs((~(53 ? $idx : $count)))))}\"\n    (\"for\" body line 52)\n    invoked from within\n\"for {set buf 0} {$buf < 4} {incr buf} {\n    list igyfhh \"-emohltyww@7#j7 j?ey\" \"55iohsokhn #qmx;\"\n    if {52.70} {\n        foreach a {-27.46 -65 218} ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp2t1680s7.tcl\" line 67)"
+    },
+    {
+      "kind": "error_status",
+      "description": "vm_opt ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "cannot use non-numeric string \"yes\" as operand of \"~\"\n    while executing\n\"expr {(((81 % max(1, abs(-1))) * (17 ? 5.13 : 2)) / max(1, abs((~(53 ? $idx : $count)))))}\"\n    (\"for\" body line 52)\n    invoked from within\n\"for {set buf 0} {$buf < 4} {incr buf} {\n    list igyfhh \"-emohltyww@7#j7 j?ey\" \"55iohsokhn #qmx;\"\n    if {52.70} {\n        foreach a {-27.46 -65 218} ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp2t1680s7.tcl\" line 67)"
+    }
+  ],
+  "fixed": true,
+  "fix": "boolean coercion rejection in arithmetic operators",
+  "category": "boolean-coercion"
+}

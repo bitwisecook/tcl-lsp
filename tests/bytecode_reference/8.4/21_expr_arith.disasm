@@ -1,0 +1,36 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x290c0640, refCt 1, epoch 0, interp 0x28c0d000 (epoch 0)
+  Source "expr {2 + 3}\nexpr {10 - 4}\nexpr {3 * 7}\nexpr {20 / 4}\ne"
+  Cmds 5, src 68, inst 30, litObjs 8, aux 0, stkDepth 2, code/src 4.06
+  Code 276 = header 160+inst 30+litObj 64+exc 0+aux 0+cmdMap 20
+  Proc 0x290c9c40, refCt 1, args 0, compiled locals 0
+  Commands 5:
+      1: pc 0-5, src 0-11   	   2: pc 6-11, src 13-25
+      3: pc 12-17, src 27-38   	   4: pc 18-23, src 40-52
+      5: pc 24-28, src 54-66
+  Command 1: "expr {2 + 3}"
+    (0) push1 0  	# "2"
+    (2) push1 1  	# "3"
+    (4) add 
+    (5) pop 
+  Command 2: "expr {10 - 4}"
+    (6) push1 2  	# "10"
+    (8) push1 3  	# "4"
+    (10) sub 
+    (11) pop 
+  Command 3: "expr {3 * 7}"
+    (12) push1 1  	# "3"
+    (14) push1 4  	# "7"
+    (16) mult 
+    (17) pop 
+  Command 4: "expr {20 / 4}"
+    (18) push1 5  	# "20"
+    (20) push1 3  	# "4"
+    (22) div 
+    (23) pop 
+  Command 5: "expr {17 % 5}"
+    (24) push1 6  	# "17"
+    (26) push1 7  	# "5"
+    (28) mod 
+    (29) done 

@@ -1,0 +1,32 @@
+{
+  "seed": 1772822472,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ZeroDivisionError: 0.0 cannot be raised to a negative power",
+      "detail_b": "CRASH: ZeroDivisionError: 0.0 cannot be raised to a negative power"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ZeroDivisionError: 0.0 cannot be raised to a negative power",
+      "detail_b": "exponentiation of zero by negative power\n    while executing\n\"expr {(((31 ? 50 : 6) & ($idx ** -76.14)) + (4 + $idx))}\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set idx 0} {$idx < 1} {incr idx} {\n    expr {(((31 ? 50 : 6) & ($idx ** -76.14)) + (4 + $idx))}\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpg2vup_qt.tcl\" line 3)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ZeroDivisionError: 0.0 cannot be raised to a negative power",
+      "detail_b": "exponentiation of zero by negative power\n    while executing\n\"expr {(((31 ? 50 : 6) & ($idx ** -76.14)) + (4 + $idx))}\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set idx 0} {$idx < 1} {incr idx} {\n    expr {(((31 ? 50 : 6) & ($idx ** -76.14)) + (4 + $idx))}\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpg2vup_qt.tcl\" line 3)"
+    }
+  ],
+  "fixed": true,
+  "fix": "exponentiation of zero by negative power check in _arith_binary",
+  "category": "zero-negative-power"
+}

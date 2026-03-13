@@ -1,0 +1,16 @@
+ByteCode 0x0x9b2d15410, refCt 1, epoch 3, interp 0x0x9b2c20010 (epoch 3)
+  Source "set result [lmap x {1 2 3 4 5} {\n    expr {$x * $x}\n}]\n"
+  Cmds 2, src 55, inst 14, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 2:
+      1: pc 0-12, src 0-53   	   2: pc 2-11, src 12-52
+  Command 1: "set result [lmap x {1 2 3 4 5} {\n    expr {$x * $x}\n}]"
+    (0) push1 0 	# "result"
+  Command 2: "lmap x {1 2 3 4 5} {\n    expr {$x * $x}\n}"
+    (2) push1 1 	# "lmap"
+    (4) push1 2 	# "x"
+    (6) push1 3 	# "1 2 3 4 5"
+    (8) push1 4 	# "\n    expr {$x * $x}\n"
+    (10) invokeStk1 4 
+    (12) storeScalarStk 
+    (13) done 
+

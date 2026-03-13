@@ -1,0 +1,32 @@
+{
+  "seed": 1772823091,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"no\"\n    while executing\n\"incr acc\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set acc 0} {$acc < 4} {incr acc} {\n    if {$acc >= 16} {\n        regexp \"[a-z]+\" \"5=rbbw8caa\"\n        set key \"=24zkd89e!nf\"\n        set y 1\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpr422mg8v.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"no\"\n    while executing\n\"incr acc\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set acc 0} {$acc < 4} {incr acc} {\n    if {$acc >= 16} {\n        regexp \"[a-z]+\" \"5=rbbw8caa\"\n        set key \"=24zkd89e!nf\"\n        set y 1\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpr422mg8v.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "incr now rejects boolean literals via _parse_int_strict",
+  "category": "incr-boolean"
+}

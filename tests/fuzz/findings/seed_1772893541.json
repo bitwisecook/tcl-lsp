@@ -1,0 +1,23 @@
+{
+  "seed": 1772893541,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable\n    while executing\n\"if {$buf >= 7} {\n    set acc {fro 364 66.73}\n    set b {}\n    for {set tmp 0} {$tmp < 2} {incr tmp} {\n        catch {transform \"cz7w_rb4!7@b;u\"}\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp2fiawaik.tcl\" line 119)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable\n    while executing\n\"if {$buf >= 7} {\n    set acc {fro 364 66.73}\n    set b {}\n    for {set tmp 0} {$tmp < 2} {incr tmp} {\n        catch {transform \"cz7w_rb4!7@b;u\"}\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp2fiawaik.tcl\" line 119)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

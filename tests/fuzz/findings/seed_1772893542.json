@@ -1,0 +1,23 @@
+{
+  "seed": 1772893542,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected number but got \"wrong # args: extra words after \"else\" clause in \"if\" command\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected number but got a list\n    while executing\n\"expr {((-61.10 / max(1, abs(min($data, 7)))) >> abs((72.55 | -81.30)))}\"\n    (\"for\" body line 32)\n    invoked from within\n\"for {set flag 0} {$flag < 5} {incr flag} {\n    set flag 30\n    incr flag 1\n    catch {\n        if {((41 ? $flag : 73.80) ? (!37) : (-11.44))} {\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpg1m0ra7p.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: expected number but got a list"
+}

@@ -1,0 +1,32 @@
+{
+  "seed": 1772823342,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"false\"\n    while executing\n\"incr buf\"\n    (\"foreach\" body line 15)\n    invoked from within\n\"foreach count {91.25 929 cwupd} {\n        if {$count == -2} {\n            expr {-89}\n            expr {(-((83 != 6.65) <= (95.08 >= $count)))}\n       ...\"\n    (\"for\" body line 3)\n    invoked from within\n\"for {set z 0} {$z < 5} {incr z} {\n    set val \"-8sul8v+b@d9\"\n    foreach count {91.25 929 cwupd} {\n        if {$count == -2} {\n            expr {-89}\n...\"\n    (file \"/var/folders"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"false\"\n    while executing\n\"incr buf\"\n    (\"foreach\" body line 15)\n    invoked from within\n\"foreach count {91.25 929 cwupd} {\n        if {$count == -2} {\n            expr {-89}\n            expr {(-((83 != 6.65) <= (95.08 >= $count)))}\n       ...\"\n    (\"for\" body line 3)\n    invoked from within\n\"for {set z 0} {$z < 5} {incr z} {\n    set val \"-8sul8v+b@d9\"\n    foreach count {91.25 929 cwupd} {\n        if {$count == -2} {\n            expr {-89}\n...\"\n    (file \"/var/folders"
+    }
+  ],
+  "fixed": true,
+  "fix": "incr boolean rejection via _parse_int_strict prevents infinite loop",
+  "category": "incr-boolean"
+}

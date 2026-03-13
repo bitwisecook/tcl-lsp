@@ -1,0 +1,71 @@
+ByteCode 0x0xcba48f710, refCt 1, epoch 17, interp 0x0xcbac28010 (epoch 17)
+  Source "proc test {} {\n    set sum 0\n    for {set i 0; set j ..."
+  Cmds 1, src 133, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-131
+  Command 1: "proc test {} {\n    set sum 0\n    for {set i 0; set j ..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set sum 0\n    for {set i 0; set j..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xcba490210, refCt 1, epoch 72, interp 0x0xcba47e010 (epoch 72)
+  Source "\n    set sum 0\n    for {set i 0; set j 10} {$i < $j} ..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 8, src 117, inst 98, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0xcba496c10, refCt 1, args 0, compiled locals 3
+      slot 0, scalar, "sum"
+      slot 1, scalar, "i"
+      slot 2, scalar, "j"
+  Exception ranges 2, depth 1:
+      0: level 0, loop, pc 35-47, continue 49, break 82
+      1: level 0, loop, pc 49-73, continue -1, break 82
+  Commands 8:
+      1: pc 0-4, src 5-13        2: pc 5-84, src 19-99
+      3: pc 14-18, src 24-30        4: pc 19-31, src 33-40
+      5: pc 35-47, src 83-93        6: pc 49-61, src 54-59
+      7: pc 62-73, src 62-70        8: pc 85-96, src 105-115
+  Command 1: "set sum 0..."
+    (0) push1 0 	# "0"
+    (2) storeScalar1 %v0 	# var "sum"
+    (4) pop 
+  Command 2: "for {set i 0; set j 10} {$i < $j} {incr i; incr j -1} {..."
+    (5) startCommand +79 2 	# next cmd at pc 84, 2 cmds start here
+  Command 3: "set i 0..."
+    (14) push1 0 	# "0"
+    (16) storeScalar1 %v1 	# var "i"
+    (18) pop 
+  Command 4: "set j 10..."
+    (19) startCommand +13 1 	# next cmd at pc 32, 1 cmds start here
+    (28) push1 1 	# "10"
+    (30) storeScalar1 %v2 	# var "j"
+    (32) pop 
+    (33) jump1 +42 	# pc 75
+  Command 5: "incr sum $i..."
+    (35) startCommand +13 1 	# next cmd at pc 48, 1 cmds start here
+    (44) loadScalar1 %v1 	# var "i"
+    (46) incrScalar1 %v0 	# var "sum"
+    (48) pop 
+  Command 6: "incr i..."
+    (49) startCommand +12 1 	# next cmd at pc 61, 1 cmds start here
+    (58) incrScalar1Imm %v1 +1 	# var "i"
+    (61) pop 
+  Command 7: "incr j -1..."
+    (62) startCommand +12 1 	# next cmd at pc 74, 1 cmds start here
+    (71) incrScalar1Imm %v2 -1 	# var "j"
+    (74) pop 
+    (75) loadScalar1 %v1 	# var "i"
+    (77) loadScalar1 %v2 	# var "j"
+    (79) lt 
+    (80) jumpTrue1 -45 	# pc 35
+    (82) push1 2 	# ""
+    (84) pop 
+  Command 8: "return $sum..."
+    (85) startCommand +12 1 	# next cmd at pc 97, 1 cmds start here
+    (94) loadScalar1 %v0 	# var "sum"
+    (96) done 
+    (97) done 
+

@@ -1,0 +1,24 @@
+{
+  "seed": 1772875183,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"36.96\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"36.96\" as right operand of \"&\"\n    while executing\n\"expr {(((38 && -31) & max(36.96, -81)) > (~(--95)))}\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach z {no ms yzyyf 737 -433 -389} {\n                append item 452\n                set buf -293\n                string trimright \"3w\"\n           ...\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach j {-110} {\n        set idx 0\n        while {$idx < 2} {\n            set idx \"ux?5idw:_15:j\"\n"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

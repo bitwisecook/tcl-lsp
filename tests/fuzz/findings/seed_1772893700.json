@@ -1,0 +1,23 @@
+{
+  "seed": 1772893700,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"zibupag\" as operand of \"-\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"zibupag\" as operand of \"-\"\n    while executing\n\"expr {((-$b) ? (-82) : ((59.04 || -70) < int(3.22)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach b {zibupag -93.57 yes 63.69} {\n        expr {((-$b) ? (-82) : ((59.04 || -70) < int(3.22)))}\n    }\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set b 0} {$b < 5} {incr b} {\n    foreach b {zibupag -93.57 yes 63.69} {\n        expr {((-$b) ? (-82) : ((59.04 || -70) < int(3.22)))}\n    }\n    f...\"\n "
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"zibupag\" as operand of \"-\""
+}

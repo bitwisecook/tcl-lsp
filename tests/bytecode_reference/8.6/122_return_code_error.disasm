@@ -1,0 +1,46 @@
+ByteCode 0x0xbd4ce8610, refCt 1, epoch 17, interp 0x0xbd4c28010 (epoch 17)
+  Source "proc safediv {a b} {\n    if {$b == 0} {\n        retur..."
+  Cmds 1, src 122, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-120
+  Command 1: "proc safediv {a b} {\n    if {$b == 0} {\n        retur..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "safediv"
+    (4) push1 2 	# "a b"
+    (6) push1 3 	# "\n    if {$b == 0} {\n        return -co..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xbd4d06810, refCt 1, epoch 72, interp 0x0xbd4cd6810 (epoch 72)
+  Source "\n    if {$b == 0} {\n        return -code error \"divi..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 4, src 100, inst 50, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0xbd4d03c90, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "a"
+      slot 1, scalar, arg, "b"
+  Commands 4:
+      1: pc 0-33, src 5-70        2: pc 7-28, src 28-64
+      3: pc 34-48, src 76-98        4: pc 43-47, src 84-97
+  Command 1: "if {$b == 0} {\n        return -code error \"division b..."
+    (0) loadScalar1 %v1 	# var "b"
+    (2) push1 0 	# "0"
+    (4) eq 
+    (5) jumpFalse1 +26 	# pc 31
+  Command 2: "return -code error \"division by zero..."
+    (7) startCommand +22 1 	# next cmd at pc 29, 1 cmds start here
+    (16) push1 1 	# "division by zero"
+    (18) push1 2 	# ""
+    (20) returnImm +1 1 
+    (29) jump1 +4 	# pc 33
+    (31) push1 3 	# ""
+    (33) pop 
+  Command 3: "return [expr {$a / $b}]..."
+    (34) startCommand +15 2 	# next cmd at pc 49, 2 cmds start here
+  Command 4: "expr {$a / $b}..."
+    (43) loadScalar1 %v0 	# var "a"
+    (45) loadScalar1 %v1 	# var "b"
+    (47) div 
+    (48) done 
+    (49) done 
+

@@ -1,0 +1,46 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x4f0c4640, refCt 1, epoch 0, interp 0xfdae20 (epoch 0)
+  Source "foreach array(index) [list 1 2 3] break\nforeach ::foo {"
+  Cmds 3, src 65, inst 31, litObjs 9, aux 0, stkDepth 5, code/src 4.25
+  Code 276 = header 160+inst 31+litObj 72+exc 0+aux 0+cmdMap 12
+  Proc 0x4f0bd0c0, refCt 1, args 0, compiled locals 0
+  Commands 3:
+      1: pc 0-19, src 0-38   	   2: pc 4-14, src 22-31
+      3: pc 20-29, src 40-63
+  Command 1: "foreach array(index) [list 1 2 3] break"
+    (0) push1 0  	# "foreach"
+    (2) push1 1  	# "array(index)"
+  Command 2: "list 1 2 3"
+    (4) push1 2  	# "1"
+    (6) push1 3  	# "2"
+    (8) push1 4  	# "3"
+    (10) list 3 
+    (15) push1 5  	# "break"
+    (17) invokeStk1 4 
+    (19) pop 
+  Command 3: "foreach ::foo {1 2 3} {}"
+    (20) push1 0  	# "foreach"
+    (22) push1 6  	# "::foo"
+    (24) push1 7  	# "1 2 3"
+    (26) push1 8  	# ""
+    (28) invokeStk1 4 
+    (30) done 
+  Compiling: "break"
+
+ByteCode 0x4f0c01c0, refCt 1, epoch 0, interp 0xfdae20 (epoch 0)
+  Source "break"
+  Cmds 1, src 5, inst 2, litObjs 0, aux 0, stkDepth 0, code/src 34.40
+  Code 172 = header 160+inst 2+litObj 0+exc 0+aux 0+cmdMap 4
+  Commands 1:
+      1: pc 0-0, src 0-4
+  Command 1: "break"
+    (0) break 
+    (1) done 
+
+ByteCode 0x4f0c02a0, refCt 1, epoch 0, interp 0xfdae20 (epoch 0)
+  Source ""
+  Cmds 0, src 0, inst 3, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Code 176 = header 160+inst 3+litObj 8+exc 0+aux 0+cmdMap 0
+    (0) push1 0  	# ""
+    (2) done 

@@ -1,0 +1,43 @@
+ByteCode 0x0x966832410, refCt 1, epoch 3, interp 0x0x966c20010 (epoch 3)
+  Source "set d [dict create name Alice age 30]\ndict get $d name\n"
+  Cmds 5, src 97, inst 63, litObjs 11, aux 0, stkDepth 7, code/src 0.00
+  Commands 5:
+      1: pc 0-17, src 0-36   	   2: pc 2-15, src 7-35
+      3: pc 18-37, src 38-53   	   4: pc 38-50, src 55-76
+      5: pc 51-61, src 78-95
+  Command 1: "set d [dict create name Alice age 30]"
+    (0) push1 0 	# "d"
+  Command 2: "dict create name Alice age 30"
+    (2) push1 1 	# "dict"
+    (4) push1 2 	# "create"
+    (6) push1 3 	# "name"
+    (8) push1 4 	# "Alice"
+    (10) push1 5 	# "age"
+    (12) push1 6 	# "30"
+    (14) invokeStk1 6 
+    (16) storeScalarStk 
+    (17) pop 
+  Command 3: "dict get $d name"
+    (18) startCommand +19 1 	# next cmd at pc 37
+    (27) push1 0 	# "d"
+    (29) loadScalarStk 
+    (30) push1 3 	# "name"
+    (32) dictGet 1 
+    (37) pop 
+  Command 4: "dict set d city London"
+    (38) push1 1 	# "dict"
+    (40) push1 7 	# "set"
+    (42) push1 0 	# "d"
+    (44) push1 8 	# "city"
+    (46) push1 9 	# "London"
+    (48) invokeStk1 5 
+    (50) pop 
+  Command 5: "dict exists $d age"
+    (51) push1 1 	# "dict"
+    (53) push1 10 	# "exists"
+    (55) push1 0 	# "d"
+    (57) loadScalarStk 
+    (58) push1 5 	# "age"
+    (60) invokeStk1 4 
+    (62) done 
+

@@ -1,0 +1,29 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x2f08c640, refCt 1, epoch 0, interp 0x2ec0d000 (epoch 0)
+  Source "foreach item {a b c} {\n    set x $item\n}\n"
+  Cmds 2, src 41, inst 27, litObjs 2, aux 1, stkDepth 1, code/src 6.44
+  Code 264 = header 160+inst 27+litObj 16+exc 28+aux 16+cmdMap 8
+  Proc 0x2f095bc0, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, temp
+      slot 1, scalar, temp
+      slot 2, scalar, "item"
+      slot 3, scalar, "x"
+  Exception ranges 1, depth 1:
+      0: level 1, loop, pc 17-20, continue 10, break 24
+  Commands 2:
+      1: pc 0-25, src 0-39   	   2: pc 17-20, src 27-37
+  Command 1: "foreach item {a b c} {\n    set x $item\n}"
+    (0) push1 0  	# "a b c"
+    (2) storeScalar1 0	# temp var 0
+    (4) pop 
+    (5) foreach_start4 0 
+    (10) foreach_step4 0 
+    (15) jumpFalse1 9  	# pc 24
+  Command 2: "set x $item"
+    (17) loadScalar1 2	# var "item"
+    (19) storeScalar1 3	# var "x"
+    (21) pop 
+    (22) jump1 -12  	# pc 10
+    (24) push1 1  	# ""
+    (26) done 

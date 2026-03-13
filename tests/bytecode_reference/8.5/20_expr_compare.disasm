@@ -1,0 +1,51 @@
+ByteCode 0x0x85a8c6410, refCt 1, epoch 3, interp 0x0x85ac20010 (epoch 3)
+  Source "set a 10\nset b 20\nexpr {$a == $b}\nexpr {$a != $b}\nexpr "
+  Cmds 6, src 81, inst 89, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Commands 6:
+      1: pc 0-5, src 0-7   	   2: pc 6-20, src 9-16
+      3: pc 21-37, src 18-32   	   4: pc 38-54, src 34-48
+      5: pc 55-71, src 50-63   	   6: pc 72-87, src 65-79
+  Command 1: "set a 10"
+    (0) push1 0 	# "a"
+    (2) push1 1 	# "10"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set b 20"
+    (6) startCommand +14 1 	# next cmd at pc 20
+    (15) push1 2 	# "b"
+    (17) push1 3 	# "20"
+    (19) storeScalarStk 
+    (20) pop 
+  Command 3: "expr {$a == $b}"
+    (21) startCommand +16 1 	# next cmd at pc 37
+    (30) push1 0 	# "a"
+    (32) loadScalarStk 
+    (33) push1 2 	# "b"
+    (35) loadScalarStk 
+    (36) eq 
+    (37) pop 
+  Command 4: "expr {$a != $b}"
+    (38) startCommand +16 1 	# next cmd at pc 54
+    (47) push1 0 	# "a"
+    (49) loadScalarStk 
+    (50) push1 2 	# "b"
+    (52) loadScalarStk 
+    (53) neq 
+    (54) pop 
+  Command 5: "expr {$a < $b}"
+    (55) startCommand +16 1 	# next cmd at pc 71
+    (64) push1 0 	# "a"
+    (66) loadScalarStk 
+    (67) push1 2 	# "b"
+    (69) loadScalarStk 
+    (70) lt 
+    (71) pop 
+  Command 6: "expr {$a >= $b}"
+    (72) startCommand +16 1 	# next cmd at pc 88
+    (81) push1 0 	# "a"
+    (83) loadScalarStk 
+    (84) push1 2 	# "b"
+    (86) loadScalarStk 
+    (87) ge 
+    (88) done 
+

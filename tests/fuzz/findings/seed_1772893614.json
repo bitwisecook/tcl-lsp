@@ -1,0 +1,23 @@
+{
+  "seed": 1772893614,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "cannot use non-numeric string \"crvuekvg\" as operand of \"~\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"crvuekvg\" as operand of \"~\"\n    while executing\n\"expr {(~$acc)}\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach acc {0 641 45.00 izfprq -618} {\n    string repeat \"?\" 2\n    lassign {-486 crvuekvg} j acc j\n    string length \":6? !0j\"\n    append tmp cwi\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpsavfq1du.tcl\" line 64)"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"crvuekvg\" as operand of \"~\""
+}

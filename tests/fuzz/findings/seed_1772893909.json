@@ -1,0 +1,23 @@
+{
+  "seed": 1772893909,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    invoked from within\n\"if {$flag != 7} {\n    if {(int(65) ? 11 : -4)} {\n        lassign {967 -93.79 41.24 -682 oor 602} count flag\n        foreach count {118 -694 -342 jj} {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpycgc82dp.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    invoked from within\n\"if {$flag != 7} {\n    if {(int(65) ? 11 : -4)} {\n        lassign {967 -93.79 41.24 -682 oor 602} count flag\n        foreach count {118 -694 -342 jj} {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpycgc82dp.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

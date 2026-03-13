@@ -1,0 +1,23 @@
+{
+  "seed": 1772893583,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm error vs tclsh(tclsh9.0) ok",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "cannot use floating-point value \"24.94\" as right operand of \"%\"",
+      "detail_b": "(ok)"
+    },
+    {
+      "kind": "error_status",
+      "description": "vm_opt error vs tclsh(tclsh9.0) ok",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "cannot use floating-point value \"24.94\" as right operand of \"%\"",
+      "detail_b": "(ok)"
+    }
+  ],
+  "category": "vm-too-strict",
+  "triage": "VM rejects valid input (float in integer-only op context)"
+}

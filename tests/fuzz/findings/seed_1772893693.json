@@ -1,0 +1,23 @@
+{
+  "seed": 1772893693,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"-22.18-315\" as left operand of \"-\"\n    while executing\n\"expr {((($a - $x) - -20) != ((57 != 88) != (!7)))}\"\n    (\"foreach\" body line 49)\n    invoked from within\n\"foreach buf {0 or lkatfdr} {\n        for {set z 0} {$z < 1} {incr z} {\n            append item 0\n            set msg no\n        }\n        switch -- \"h...\"\n    (in namespace eval \"::util\" script line 6)\n    invoked from within\n\"namespace eval util {\n    foreach buf {264 -72.54 373 -33 dpyr -97.28} {\n       "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"-22.18-315\" as left operand of \"-\"\n    while executing\n\"expr {((($a - $x) - -20) != ((57 != 88) != (!7)))}\"\n    (\"foreach\" body line 49)\n    invoked from within\n\"foreach buf {0 or lkatfdr} {\n        for {set z 0} {$z < 1} {incr z} {\n            append item 0\n            set msg no\n        }\n        switch -- \"h...\"\n    (in namespace eval \"::util\" script line 6)\n    invoked from within\n\"namespace eval util {\n    foreach buf {264 -72.54 373 -33 dpyr -97.28} {\n       "
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"-22.18-315\" as left operand o"
+}

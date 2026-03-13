@@ -1,0 +1,13 @@
+ByteCode ::top, 5 instructions, 15 bytes, 2 literals, 0 variables
+  Literals:
+    0: "a \n b"
+    1: "hello world"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "a \n b"
+    (2) listRangeImm 0 end
+    (11) pop
+    (12) push1 1	# "hello world"
+  # cmd_end_1:
+  # exit_2:
+    (14) done

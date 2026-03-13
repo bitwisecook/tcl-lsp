@@ -1,0 +1,32 @@
+{
+  "seed": 1772845894,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"if {($n >= $flag)} {\n                    string trimleft \"\"\n                }\"\n    (\"foreach\" body line 7)\n    invoked from within\n\"foreach result {-864 184 -14.89 93.23} {\n            set key 1\n            string last \"a\" \"es=71d!fgh\"\n            set buf [expr {20.12}]\n           ...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- \"tzj=ibo=63:?x 48=\" {\n    37 {\n        for {set y 0} {$y < 2} {incr y} {\n            expr {(round"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"if {($n >= $flag)} {\n                    string trimleft \"\"\n                }\"\n    (\"foreach\" body line 7)\n    invoked from within\n\"foreach result {-864 184 -14.89 93.23} {\n            set key 1\n            string last \"a\" \"es=71d!fgh\"\n            set buf [expr {20.12}]\n           ...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- \"tzj=ibo=63:?x 48=\" {\n    37 {\n        for {set y 0} {$y < 2} {incr y} {\n            expr {(round"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

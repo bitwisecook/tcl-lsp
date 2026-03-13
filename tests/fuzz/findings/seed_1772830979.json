@@ -1,0 +1,16 @@
+{
+  "seed": 1772830979,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ValueError: Exceeds the limit (10000 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit",
+      "detail_b": "CRASH: ValueError: Exceeds the limit (10000 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

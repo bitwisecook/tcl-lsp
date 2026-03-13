@@ -1,0 +1,55 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "safe_divide"
+    2: "a b"
+    3: "\n    if {$b == 0} {\n        error \..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "safe_divide"
+    (4) push1 2	# "a b"
+    (6) push1 3	# "\n    if {$b == 0} {\n        error \..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::safe_divide, 21 instructions, 61 bytes, 6 literals, 2 variables
+  Literals:
+    0: "0"
+    1: "division by zero"
+    2: "-errorinfo"
+    3: ""
+    4: "-errorcode"
+    5: "ARITH DIVZERO"
+  Local variables:
+    %v0: "a"
+    %v1: "b"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v1	# var "b"
+    (2) push1 0	# "0"
+    (4) eq
+    (5) jumpFalse1 +37	# pc 42
+  # if_then_3:
+    (7) startCommand +33 1	# next cmd at pc 40, 1 cmds start here
+    (16) push1 1	# "division by zero"
+    (18) push1 2	# "-errorinfo"
+    (20) push1 3	# ""
+    (22) push1 4	# "-errorcode"
+    (24) push1 5	# "ARITH DIVZERO"
+    (26) list 4
+    (31) returnImm +1 0
+  # cmd_end_1:
+    (40) jump1 +4	# pc 44
+  # if_next_4:
+    (42) push1 3	# ""
+  # if_end_2:
+    (44) pop
+    (45) startCommand +15 2	# next cmd at pc 60, 2 cmds start here
+    (54) loadScalar1 %v0	# var "a"
+    (56) loadScalar1 %v1	# var "b"
+    (58) div
+    (59) done
+  # ret_end_2:
+    (60) done

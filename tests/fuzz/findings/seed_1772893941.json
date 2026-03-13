@@ -1,0 +1,23 @@
+{
+  "seed": 1772893941,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0_\"\n    while executing\n\"incr key\"\n    (\"foreach\" body line 9)\n    invoked from within\n\"foreach msg {fycp} {\n        append buf \"7\"\n        string length \"\"\n        set n 0\n        while {$n < 2} {\n            set n {no 539 1 10.44 bvokj}...\"\n    (\"while\" body line 5)\n    invoked from within\n\"while {$msg < 1} {\n    foreach msg {-969 false} {\n        join {-44.23 477 -853} \"-\"\n    }\n    foreach msg {fycp} {\n        append buf \"7\"\n        str...\"\n    (file \"/var/folders/2"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0_\"\n    while executing\n\"incr key\"\n    (\"foreach\" body line 9)\n    invoked from within\n\"foreach msg {fycp} {\n        append buf \"7\"\n        string length \"\"\n        set n 0\n        while {$n < 2} {\n            set n {no 539 1 10.44 bvokj}...\"\n    (\"while\" body line 5)\n    invoked from within\n\"while {$msg < 1} {\n    foreach msg {-969 false} {\n        join {-44.23 477 -853} \"-\"\n    }\n    foreach msg {fycp} {\n        append buf \"7\"\n        str...\"\n    (file \"/var/folders/2"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

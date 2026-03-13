@@ -1,0 +1,23 @@
+{
+  "seed": 1772893772,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"if {$val >= 11} {\n                    catch {\n                        set z -654\n                        append buf \"sk3!yym:85u8+h8#\"\n               ...\"\n    (\"default\" arm line 91)\n    invoked from within\n\"switch -- \"f2 a9+;y_k4hrxld\" {\n    47 {\n        set a 0\n        while {$a < 4} {\n            set idx {uyj no}\n            lappend idx -53\n            ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp74m2r5x_.tcl\" line"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"if {$val >= 11} {\n                    catch {\n                        set z -654\n                        append buf \"sk3!yym:85u8+h8#\"\n               ...\"\n    (\"default\" arm line 91)\n    invoked from within\n\"switch -- \"f2 a9+;y_k4hrxld\" {\n    47 {\n        set a 0\n        while {$a < 4} {\n            set idx {uyj no}\n            lappend idx -53\n            ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp74m2r5x_.tcl\" line"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

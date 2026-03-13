@@ -1,0 +1,13 @@
+<snippet>
+	<content><![CDATA[when HTTP_REQUEST {
+    if {[TCP::local_port] == 80} {
+        HTTP::redirect "https://[HTTP::host][HTTP::uri]"
+        return
+    }
+
+    ${0:# continue request handling}
+}]]></content>
+	<tabTrigger>irule-redirect-https</tabTrigger>
+	<scope>source.irule</scope>
+	<description>Redirect HTTP traffic to HTTPS</description>
+</snippet>

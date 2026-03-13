@@ -1,0 +1,54 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xc2818500, refCt 1, epoch 0, interp 0x173ec60 (epoch 0)
+  Source "set a [expr {sin(0.5)}]\nset b [expr {cos(0.0)}]\nset c ["
+  Cmds 10, src 130, inst 42, litObjs 5, aux 0, stkDepth 2, code/src 2.22
+  Code 288 = header 160+inst 42+litObj 40+exc 0+aux 0+cmdMap 40
+  Proc 0xc3c34c00, refCt 1, args 0, compiled locals 5
+      slot 0, scalar, "a"
+      slot 1, scalar, "b"
+      slot 2, scalar, "c"
+      slot 3, scalar, "d"
+      slot 4, scalar, "e"
+  Commands 10:
+      1: pc 0-7, src 0-22   	   2: pc 0-4, src 7-21
+      3: pc 8-15, src 24-46   	   4: pc 8-12, src 31-45
+      5: pc 16-23, src 48-71   	   6: pc 16-20, src 55-70
+      7: pc 24-33, src 73-102   	   8: pc 24-30, src 80-101
+      9: pc 34-40, src 104-128   	  10: pc 34-38, src 111-127
+  Command 1: "set a [expr {sin(0.5)}]"
+  Command 2: "expr {sin(0.5)}"
+    (0) push1 0  	# "0.5"
+    (2) callBuiltinFunc1 14 
+    (4) tryCvtToNumeric 
+    (5) storeScalar1 0	# var "a"
+    (7) pop 
+  Command 3: "set b [expr {cos(0.0)}]"
+  Command 4: "expr {cos(0.0)}"
+    (8) push1 1  	# "0.0"
+    (10) callBuiltinFunc1 5 
+    (12) tryCvtToNumeric 
+    (13) storeScalar1 1	# var "b"
+    (15) pop 
+  Command 5: "set c [expr {sqrt(2.0)}]"
+  Command 6: "expr {sqrt(2.0)}"
+    (16) push1 2  	# "2.0"
+    (18) callBuiltinFunc1 16 
+    (20) tryCvtToNumeric 
+    (21) storeScalar1 2	# var "c"
+    (23) pop 
+  Command 7: "set d [expr {atan2(1.0, 1.0)}]"
+  Command 8: "expr {atan2(1.0, 1.0)}"
+    (24) push1 3  	# "1.0"
+    (26) push1 3  	# "1.0"
+    (28) callBuiltinFunc1 3 
+    (30) tryCvtToNumeric 
+    (31) storeScalar1 3	# var "d"
+    (33) pop 
+  Command 9: "set e [expr {double(42)}]"
+  Command 10: "expr {double(42)}"
+    (34) push1 4  	# "42"
+    (36) callBuiltinFunc1 20 
+    (38) tryCvtToNumeric 
+    (39) storeScalar1 4	# var "e"
+    (41) done 

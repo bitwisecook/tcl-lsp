@@ -1,0 +1,23 @@
+{
+  "seed": 1772893389,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "cannot use floating-point value \"97.55\" as right operand of \"%\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"97.55\" as right operand of \"%\"\n    while executing\n\"expr {(-(round(21) == (50 % max(1, abs(97.55)))))}\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach a {996 owldx 98.61 859 322 yoixehv} {\n        if {(~(-35))} {\n            set val {}\n        }\n        expr {((!(-60 != -48)) ? (~(~-57)) : $v...\"\n    (\"while\" body line 22)\n    invoked from within\n\"while {$a < 4} {\n    set count 0\n    while {$count < 1} {\n        set a 31\n        incr a 5\n        exp"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

@@ -1,0 +1,23 @@
+{
+  "seed": 1772893761,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"i\": no such variable\n    while executing\n\"if {($i % max(1, abs(wide(-83.24))))} {\n        set n {0 -589 52.85 igpqtgu}\n        set key nkljukz\n        catch {\n            expr {(-99)}\n        ...\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set item 0} {$item < 4} {incr item} {\n    if {($i % max(1, abs(wide(-83.24))))} {\n        set n {0 -589 52.85 igpqtgu}\n        set key nkljukz\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp5zcr536t.tcl\" line 34)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"i\": no such variable\n    while executing\n\"if {($i % max(1, abs(wide(-83.24))))} {\n        set n {0 -589 52.85 igpqtgu}\n        set key nkljukz\n        catch {\n            expr {(-99)}\n        ...\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set item 0} {$item < 4} {incr item} {\n    if {($i % max(1, abs(wide(-83.24))))} {\n        set n {0 -589 52.85 igpqtgu}\n        set key nkljukz\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp5zcr536t.tcl\" line 34)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

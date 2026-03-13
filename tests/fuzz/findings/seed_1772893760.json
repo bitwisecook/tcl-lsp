@@ -1,0 +1,23 @@
+{
+  "seed": 1772893760,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"i\": no such variable\n    while executing\n\"expr {min((~$item), ((30 || -82) * (45 % max(1, abs($i)))))}\"\n    invoked from within\n\"if {((28 == -57.67) ? (46 || 14) : 48)} {\n    set item 91\n    incr item -2\n    catch {\n        for {set tmp 0} {$tmp < 2} {incr tmp} {\n            set...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp62kx1sch.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"i\": no such variable\n    while executing\n\"expr {min((~$item), ((30 || -82) * (45 % max(1, abs($i)))))}\"\n    invoked from within\n\"if {((28 == -57.67) ? (46 || 14) : 48)} {\n    set item 91\n    incr item -2\n    catch {\n        for {set tmp 0} {$tmp < 2} {incr tmp} {\n            set...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp62kx1sch.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

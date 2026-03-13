@@ -1,0 +1,51 @@
+ByteCode ::top, 12 instructions, 22 bytes, 6 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "helper"
+    2: "x"
+    3: "\n    return [expr {$x + 1}]\n"
+    4: "caller"
+    5: "\n    tailcall helper $x\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "helper"
+    (4) push1 2	# "x"
+    (6) push1 3	# "\n    return [expr {$x + 1}]\n"
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) push1 0	# "proc"
+    (13) push1 4	# "caller"
+    (15) push1 2	# "x"
+    (17) push1 5	# "\n    tailcall helper $x\n"
+    (19) invokeStk1 4	# proc
+  # cmd_end_1:
+  # exit_2:
+    (21) done
+
+ByteCode ::caller, 5 instructions, 9 bytes, 2 literals, 1 variables
+  Literals:
+    0: "tailcall"
+    1: "helper"
+  Local variables:
+    %v0: "x"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "tailcall"
+    (2) push1 1	# "helper"
+    (4) loadScalar1 %v0	# var "x"
+    (6) tailcall 3
+  # exit_2:
+    (8) done
+
+ByteCode ::helper, 4 instructions, 6 bytes, 1 literals, 1 variables
+  Literals:
+    0: "1"
+  Local variables:
+    %v0: "x"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "x"
+    (2) push1 0	# "1"
+    (4) add
+    (5) done

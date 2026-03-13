@@ -1,0 +1,40 @@
+ByteCode 0x0x8f68c2210, refCt 1, epoch 3, interp 0x0x8f6c20010 (epoch 3)
+  Source "set a [expr {-1}]\nset b [expr {--1}]\nset c [expr {~0}]\n"
+  Cmds 8, src 74, inst 87, litObjs 8, aux 0, stkDepth 2, code/src 0.00
+  Commands 8:
+      1: pc 0-14, src 0-16   	   2: pc 2-12, src 7-15
+      3: pc 15-38, src 18-35   	   4: pc 26-36, src 25-34
+      5: pc 39-62, src 37-53   	   6: pc 50-60, src 44-52
+      7: pc 63-85, src 55-72   	   8: pc 74-84, src 62-71
+  Command 1: "set a [expr {-1}]"
+    (0) push1 0 	# "a"
+  Command 2: "expr {-1}"
+    (2) startCommand +11 1 	# next cmd at pc 13
+    (11) push1 1 	# "-1"
+    (13) storeScalarStk 
+    (14) pop 
+  Command 3: "set b [expr {--1}]"
+    (15) startCommand +23 1 	# next cmd at pc 38
+    (24) push1 2 	# "b"
+  Command 4: "expr {--1}"
+    (26) startCommand +11 1 	# next cmd at pc 37
+    (35) push1 3 	# "1"
+    (37) storeScalarStk 
+    (38) pop 
+  Command 5: "set c [expr {~0}]"
+    (39) startCommand +23 1 	# next cmd at pc 62
+    (48) push1 4 	# "c"
+  Command 6: "expr {~0}"
+    (50) startCommand +11 1 	# next cmd at pc 61
+    (59) push1 5 	# "-1"
+    (61) storeScalarStk 
+    (62) pop 
+  Command 7: "set d [expr {~-1}]"
+    (63) startCommand +23 1 	# next cmd at pc 86
+    (72) push1 6 	# "d"
+  Command 8: "expr {~-1}"
+    (74) startCommand +11 1 	# next cmd at pc 85
+    (83) push1 7 	# "0"
+    (85) storeScalarStk 
+    (86) done 
+

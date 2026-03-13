@@ -1,0 +1,29 @@
+ByteCode 0x0x709124010, refCt 1, epoch 17, interp 0x0x70901c010 (epoch 17)
+  Source "set name Alice\nset greeting \"Hello, $name!\"\nset msg..."
+  Cmds 4, src 77, inst 29, litObjs 8, aux 0, stkDepth 4, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-13        2: pc 6-18, src 15-42
+      3: pc 19-27, src 44-75        4: pc 23-24, src 62-73
+  Command 1: "set name Alice..."
+    (0) push1 0 	# "name"
+    (2) push1 1 	# "Alice"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set greeting \"Hello, $name!..."
+    (6) push1 2 	# "greeting"
+    (8) push1 3 	# "Hello, "
+    (10) push1 0 	# "name"
+    (12) loadStk 
+    (13) push1 4 	# "!"
+    (15) strcat 3 
+    (17) storeStk 
+    (18) pop 
+  Command 3: "set msg \"Result: [expr {1 + 2}]..."
+    (19) push1 5 	# "msg"
+    (21) push1 6 	# "Result: "
+  Command 4: "expr {1 + 2}..."
+    (23) push1 7 	# "3"
+    (25) strcat 2 
+    (27) storeStk 
+    (28) done 
+

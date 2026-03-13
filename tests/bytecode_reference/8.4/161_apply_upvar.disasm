@@ -1,0 +1,19 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xaccb8600, refCt 1, epoch 0, interp 0x337ee20 (epoch 0)
+  Source "set x 10\napply {{} {\n    upvar 1 x local\n    incr local"
+  Cmds 2, src 61, inst 12, litObjs 3, aux 0, stkDepth 2, code/src 3.41
+  Code 208 = header 160+inst 12+litObj 24+exc 0+aux 0+cmdMap 8
+  Proc 0xad0bd140, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 2:
+      1: pc 0-4, src 0-7   	   2: pc 5-10, src 9-59
+  Command 1: "set x 10"
+    (0) push1 0  	# "10"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "apply {{} {\n    upvar 1 x local\n    incr local 5\n}}"
+    (5) push1 1  	# "apply"
+    (7) push1 2  	# "{} {\n    upvar 1 x local\n    incr local "
+    (9) invokeStk1 2 
+    (11) done 

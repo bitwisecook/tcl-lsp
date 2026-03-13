@@ -1,0 +1,27 @@
+ByteCode ::top, 14 instructions, 22 bytes, 5 literals, 0 variables
+  Literals:
+    0: "x"
+    1: "5"
+    2: "0"
+    3: "positive"
+    4: "non-positive"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "x"
+    (2) push1 1	# "5"
+    (4) storeStk
+    (5) pop
+    (6) push1 0	# "x"
+    (8) loadStk
+    (9) push1 2	# "0"
+    (11) gt
+    (12) jumpFalse1 +6	# pc 18
+    (14) push1 3	# "positive"
+    (16) jump1 +4	# pc 20
+  # tern_f_2:
+    (18) push1 4	# "non-positive"
+  # tern_end_3:
+    (20) tryCvtToNumeric
+  # cmd_end_1:
+  # exit_2:
+    (21) done

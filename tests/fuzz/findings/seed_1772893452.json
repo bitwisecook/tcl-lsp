@@ -1,0 +1,23 @@
+{
+  "seed": 1772893452,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-62.07\" as right operand of \"|\"\n    while executing\n\"expr {min(((--27) ? (--2.20) : int($j)), (($j | -62.07) || (--65)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach j {369} {\n    expr {min(((--27) ? (--2.20) : int($j)), (($j | -62.07) || (--65)))}\n    if {(12 > (!38.40))} {\n        expr {(((4 ? 63 : 55) !=...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpnhf85y8r.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-62.07\" as right operand of \"|\"\n    while executing\n\"expr {min(((--27) ? (--2.20) : int($j)), (($j | -62.07) || (--65)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach j {369} {\n    expr {min(((--27) ? (--2.20) : int($j)), (($j | -62.07) || (--65)))}\n    if {(12 > (!38.40))} {\n        expr {(((4 ? 63 : 55) !=...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpnhf85y8r.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

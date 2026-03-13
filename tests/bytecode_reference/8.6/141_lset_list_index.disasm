@@ -1,0 +1,41 @@
+ByteCode 0x0x92acf9210, refCt 1, epoch 17, interp 0x0x92ac28010 (epoch 17)
+  Source "proc test {} {\n    set x {{1 2} {3 4}}\n    lset x {1 ..."
+  Cmds 1, src 74, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-72
+  Command 1: "proc test {} {\n    set x {{1 2} {3 4}}\n    lset x {1 ..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set x {{1 2} {3 4}}\n    lset x {1..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x92ace4c10, refCt 1, epoch 72, interp 0x0x92acc2010 (epoch 72)
+  Source "\n    set x {{1 2} {3 4}}\n    lset x {1 1} 5\n    retu..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 3, src 58, inst 37, litObjs 3, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0x92ace3d10, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 3:
+      1: pc 0-4, src 5-23        2: pc 5-23, src 29-42
+      3: pc 24-35, src 48-56
+  Command 1: "set x {{1 2} {3 4}}..."
+    (0) push1 0 	# "{1 2} {3 4}"
+    (2) storeScalar1 %v0 	# var "x"
+    (4) pop 
+  Command 2: "lset x {1 1} 5..."
+    (5) startCommand +18 1 	# next cmd at pc 23, 1 cmds start here
+    (14) push1 1 	# "1 1"
+    (16) push1 2 	# "5"
+    (18) loadScalar1 %v0 	# var "x"
+    (20) lsetList 
+    (21) storeScalar1 %v0 	# var "x"
+    (23) pop 
+  Command 3: "return $x..."
+    (24) startCommand +12 1 	# next cmd at pc 36, 1 cmds start here
+    (33) loadScalar1 %v0 	# var "x"
+    (35) done 
+    (36) done 
+

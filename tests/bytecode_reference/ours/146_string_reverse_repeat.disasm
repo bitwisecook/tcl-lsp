@@ -1,0 +1,49 @@
+ByteCode ::top, 28 instructions, 92 bytes, 10 literals, 0 variables
+  Literals:
+    0: "a"
+    1: "::tcl::string::reverse"
+    2: "hello"
+    3: "b"
+    4: "::tcl::string::repeat"
+    5: "ab"
+    6: "3"
+    7: "c"
+    8: "xyz"
+    9: "2"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "a"
+    (2) startCommand +15 1	# next cmd at pc 17, 1 cmds start here
+    (11) push1 1	# "::tcl::string::reverse"
+    (13) push1 2	# "hello"
+    (15) invokeStk1 2
+  # subcmd_end_1:
+    (17) storeStk
+    (18) pop
+    (19) startCommand +29 1	# next cmd at pc 48, 1 cmds start here
+    (28) push1 3	# "b"
+    (30) startCommand +17 1	# next cmd at pc 47, 1 cmds start here
+    (39) push1 4	# "::tcl::string::repeat"
+    (41) push1 5	# "ab"
+    (43) push1 6	# "3"
+    (45) invokeStk1 3
+  # subcmd_end_3:
+    (47) storeStk
+  # cmd_end_2:
+    (48) pop
+    (49) startCommand +42 1	# next cmd at pc 91, 1 cmds start here
+    (58) push1 7	# "c"
+    (60) startCommand +30 1	# next cmd at pc 90, 1 cmds start here
+    (69) push1 1	# "::tcl::string::reverse"
+    (71) startCommand +17 1	# next cmd at pc 88, 1 cmds start here
+    (80) push1 4	# "::tcl::string::repeat"
+    (82) push1 8	# "xyz"
+    (84) push1 9	# "2"
+    (86) invokeStk1 3
+  # subcmd_end_6:
+    (88) invokeStk1 2
+  # subcmd_end_5:
+    (90) storeStk
+  # cmd_end_4:
+  # exit_2:
+    (91) done

@@ -1,0 +1,34 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xad89c500, refCt 1, epoch 0, interp 0xa76e10 (epoch 0)
+  Source "set a \"hello\"\nset b \"world\"\nstring cat $a \" \" $b\nstring"
+  Cmds 4, src 63, inst 32, litObjs 5, aux 0, stkDepth 5, code/src 3.94
+  Code 248 = header 160+inst 32+litObj 40+exc 0+aux 0+cmdMap 16
+  Proc 0xad899c80, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "a"
+      slot 1, scalar, "b"
+  Commands 4:
+      1: pc 0-4, src 0-12   	   2: pc 5-9, src 14-26
+      3: pc 10-22, src 28-47   	   4: pc 23-30, src 49-61
+  Command 1: "set a \"hello\""
+    (0) push1 0  	# "hello"
+    (2) storeScalar1 0	# var "a"
+    (4) pop 
+  Command 2: "set b \"world\""
+    (5) push1 1  	# "world"
+    (7) storeScalar1 1	# var "b"
+    (9) pop 
+  Command 3: "string cat $a \" \" $b"
+    (10) push1 2  	# "string"
+    (12) push1 3  	# "cat"
+    (14) loadScalar1 0	# var "a"
+    (16) push1 4  	# " "
+    (18) loadScalar1 1	# var "b"
+    (20) invokeStk1 5 
+    (22) pop 
+  Command 4: "string cat $a"
+    (23) push1 2  	# "string"
+    (25) push1 3  	# "cat"
+    (27) loadScalar1 0	# var "a"
+    (29) invokeStk1 3 
+    (31) done 

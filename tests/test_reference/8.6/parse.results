@@ -1,0 +1,281 @@
+TCLSH    /opt/homebrew/bin/tclsh8.6
+VERSION  8.6.17
+FILE     parse.test
+DATE     2026-03-03T12:53:39Z
+---
+PASS parse-15.10
+PASS parse-15.11
+PASS parse-15.12
+PASS parse-15.13
+PASS parse-15.14
+PASS parse-15.15
+PASS parse-15.16
+PASS parse-15.17
+PASS parse-15.18
+PASS parse-15.19
+PASS parse-15.20
+PASS parse-15.21
+PASS parse-15.22
+PASS parse-15.23
+PASS parse-15.24
+PASS parse-15.25
+PASS parse-15.26
+PASS parse-15.27
+PASS parse-15.28
+PASS parse-15.29
+PASS parse-15.30
+PASS parse-15.31
+PASS parse-15.32
+PASS parse-15.33
+PASS parse-15.34
+PASS parse-15.35
+PASS parse-15.36
+PASS parse-15.37
+PASS parse-15.38
+PASS parse-15.39
+PASS parse-15.40
+PASS parse-15.41
+PASS parse-15.42
+PASS parse-15.43
+PASS parse-15.44
+PASS parse-15.45
+PASS parse-15.46
+PASS parse-15.47
+PASS parse-15.48
+PASS parse-15.49
+PASS parse-15.5
+PASS parse-15.50
+PASS parse-15.51
+PASS parse-15.52
+PASS parse-15.53
+PASS parse-15.54
+PASS parse-15.57
+PASS parse-15.58
+PASS parse-15.6
+PASS parse-15.60
+PASS parse-15.7
+PASS parse-15.8
+PASS parse-15.9
+PASS parse-16.1
+PASS parse-17.1
+PASS parse-18.1
+PASS parse-18.10
+PASS parse-18.11
+PASS parse-18.12
+PASS parse-18.13
+PASS parse-18.14
+PASS parse-18.15
+PASS parse-18.16
+PASS parse-18.17
+PASS parse-18.18
+PASS parse-18.19
+PASS parse-18.2
+PASS parse-18.20
+PASS parse-18.21
+PASS parse-18.22
+PASS parse-18.23
+PASS parse-18.24
+PASS parse-18.25
+PASS parse-18.26
+PASS parse-18.27
+PASS parse-18.28
+PASS parse-18.29
+PASS parse-18.3
+PASS parse-18.30
+PASS parse-18.4
+PASS parse-18.5
+PASS parse-18.6
+PASS parse-18.7
+PASS parse-18.8
+PASS parse-18.9
+PASS parse-6.10
+PASS parse-6.8
+PASS parse-6.9
+PASS parse-8.12
+PASS parse-9.2
+SKIP parse-1.1 testparser
+SKIP parse-1.10 testparser
+SKIP parse-1.2 testparser
+SKIP parse-1.3 testparser
+SKIP parse-1.4 testparser
+SKIP parse-1.5 testparser
+SKIP parse-1.6 testparser
+SKIP parse-1.7 testparser
+SKIP parse-1.8 testparser
+SKIP parse-1.9 testparser
+SKIP parse-10.1 testevalex
+SKIP parse-10.10 testevalex
+SKIP parse-10.11 testevalex
+SKIP parse-10.12 testevalex
+SKIP parse-10.13 testevalex
+SKIP parse-10.14 testevalex
+SKIP parse-10.2 testevalex
+SKIP parse-10.3 testevalex
+SKIP parse-10.4 testevalex
+SKIP parse-10.5 testevalex
+SKIP parse-10.6 testevalex
+SKIP parse-10.7 testevalex
+SKIP parse-10.8 testevalex
+SKIP parse-10.9 testevalex
+SKIP parse-11.1 testevalex
+SKIP parse-11.10 testevalex
+SKIP parse-11.11 testevalex
+SKIP parse-11.12 testevalex
+SKIP parse-11.2 testevalex
+SKIP parse-11.3 testevalex
+SKIP parse-11.4 testevalex
+SKIP parse-11.5 testevalex
+SKIP parse-11.6 testevalex
+SKIP parse-11.7 testevalex
+SKIP parse-11.8 testevalex
+SKIP parse-11.9 testevalex
+SKIP parse-12.1 testparsevarname
+SKIP parse-12.10 testparsevarname
+SKIP parse-12.11 testparser
+SKIP parse-12.12 testparser
+SKIP parse-12.13 testparser
+SKIP parse-12.14 testparser
+SKIP parse-12.15 testparsevarname
+SKIP parse-12.16 testparsevarname
+SKIP parse-12.17 testparsevarname
+SKIP parse-12.18 testparser
+SKIP parse-12.19 testparsevarname
+SKIP parse-12.2 testparsevarname
+SKIP parse-12.20 testparser
+SKIP parse-12.21 testparser
+SKIP parse-12.22 testparser
+SKIP parse-12.23 testparser
+SKIP parse-12.24 testparsevarname
+SKIP parse-12.25 testparser
+SKIP parse-12.26 testparser
+SKIP parse-12.3 testparsevarname
+SKIP parse-12.4 testparsevarname
+SKIP parse-12.5 testparsevarname
+SKIP parse-12.6 testparser
+SKIP parse-12.7 testparser
+SKIP parse-12.8 testparser
+SKIP parse-12.9 testparsevarname
+SKIP parse-13.1 testparsevar
+SKIP parse-13.2 testparsevar
+SKIP parse-13.3 testparsevar
+SKIP parse-13.4 testparsevar
+SKIP parse-13.5 testparsevar
+SKIP parse-13.6 memory
+SKIP parse-14.1 testparser
+SKIP parse-14.10 testparser
+SKIP parse-14.11 testparser
+SKIP parse-14.12 testparser
+SKIP parse-14.2 testparser
+SKIP parse-14.3 testparser
+SKIP parse-14.4 testparser
+SKIP parse-14.5 testparser
+SKIP parse-14.6 testparser
+SKIP parse-14.7 testparser
+SKIP parse-14.8 testparser
+SKIP parse-14.9 testparser
+SKIP parse-15.1 testparser
+SKIP parse-15.2 testparser
+SKIP parse-15.3 testparser
+SKIP parse-15.4 testparser
+SKIP parse-15.55 testbytestring
+SKIP parse-15.56 testbytestring
+SKIP parse-15.59 testbytestring
+SKIP parse-19.1 testevalex
+SKIP parse-19.2 testevalex
+SKIP parse-19.3 emptyTest
+SKIP parse-19.4 emptyTest
+SKIP parse-2.1 testparser
+SKIP parse-2.2 testparser
+SKIP parse-2.3 testparser
+SKIP parse-2.4 testparser
+SKIP parse-2.5 testparser
+SKIP parse-20.1 testparser
+SKIP parse-20.10 testparser
+SKIP parse-20.11 testparser
+SKIP parse-20.12 testparser
+SKIP parse-20.2 testparser
+SKIP parse-20.3 testparser
+SKIP parse-20.4 testparser
+SKIP parse-20.5 testparser
+SKIP parse-20.6 testparser
+SKIP parse-20.7 testparser
+SKIP parse-20.8 testparser
+SKIP parse-20.9 testparser
+SKIP parse-21.0 testevent
+SKIP parse-21.1 testevent
+SKIP parse-3.1 testparser
+SKIP parse-3.2 testparser
+SKIP parse-3.3 testparser
+SKIP parse-3.4 testparser
+SKIP parse-3.5 testparser
+SKIP parse-3.6 testparser
+SKIP parse-3.7 testparser
+SKIP parse-4.1 testparser
+SKIP parse-4.2 testparser
+SKIP parse-4.3 testparser
+SKIP parse-4.4 testparser
+SKIP parse-4.5 testparser
+SKIP parse-4.6 testparser
+SKIP parse-5.1 testparser
+SKIP parse-5.10 testparser
+SKIP parse-5.11 testparser
+SKIP parse-5.12 testparser
+SKIP parse-5.13 testparser
+SKIP parse-5.14 testparser
+SKIP parse-5.15 testparser
+SKIP parse-5.16 testparser
+SKIP parse-5.17 testparser
+SKIP parse-5.18 testparser
+SKIP parse-5.19 testparser
+SKIP parse-5.2 testparser
+SKIP parse-5.20 testparser
+SKIP parse-5.21 testparser
+SKIP parse-5.22 testparser
+SKIP parse-5.23 testparser
+SKIP parse-5.24 testparser
+SKIP parse-5.25 testparser
+SKIP parse-5.26 testparser
+SKIP parse-5.27 testparser
+SKIP parse-5.28 testparser
+SKIP parse-5.29 testparser
+SKIP parse-5.3 testparser
+SKIP parse-5.30 testparser
+SKIP parse-5.31 testparser
+SKIP parse-5.4 testparser
+SKIP parse-5.5 testparser
+SKIP parse-5.6 testparser
+SKIP parse-5.7 testparser
+SKIP parse-5.8 testparser
+SKIP parse-5.9 testparser
+SKIP parse-6.1 testparser
+SKIP parse-6.11 testparser
+SKIP parse-6.12 testparser
+SKIP parse-6.13 testparser
+SKIP parse-6.14 testparser
+SKIP parse-6.15 testparser
+SKIP parse-6.16 testparser
+SKIP parse-6.17 testparser
+SKIP parse-6.18 testparser
+SKIP parse-6.2 testparser
+SKIP parse-6.3 testparser
+SKIP parse-6.4 testparser
+SKIP parse-6.5 testparser
+SKIP parse-6.6 testparser
+SKIP parse-6.7 testparser
+SKIP parse-7.1 testparser
+SKIP parse-8.1 testevalobjv
+SKIP parse-8.10 testevalobjv
+SKIP parse-8.11 testevalobjv
+SKIP parse-8.2 testevalobjv
+SKIP parse-8.3 testevalobjv
+SKIP parse-8.4 testevalobjv
+SKIP parse-8.5 testevalobjv
+SKIP parse-8.7 testevalobjv
+SKIP parse-8.8 testevalobjv
+SKIP parse-8.9 testevalobjv
+SKIP parse-9.1 testevalex
+---
+TOTAL   271
+PASSED  90
+SKIPPED 181
+FAILED  0

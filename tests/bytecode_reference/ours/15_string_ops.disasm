@@ -1,0 +1,38 @@
+ByteCode ::top, 25 instructions, 41 bytes, 3 literals, 0 variables
+  Literals:
+    0: "s"
+    1: "Hello World"
+    2: "0"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "s"
+    (2) push1 1	# "Hello World"
+    (4) storeStk
+    (5) pop
+    (6) push1 0	# "s"
+    (8) loadStk
+    (9) strlen
+  # cmd_end_1:
+    (10) pop
+    (11) push1 0	# "s"
+    (13) loadStk
+    (14) push1 2	# "0"
+    (16) strindex
+  # cmd_end_2:
+    (17) pop
+    (18) push1 0	# "s"
+    (20) loadStk
+    (21) strrangeImm 0 4
+  # cmd_end_3:
+    (30) pop
+    (31) push1 0	# "s"
+    (33) loadStk
+    (34) strcaseUpper
+  # cmd_end_4:
+    (35) pop
+    (36) push1 0	# "s"
+    (38) loadStk
+    (39) strcaseLower
+  # cmd_end_5:
+  # exit_2:
+    (40) done

@@ -1,0 +1,24 @@
+{
+  "seed": 1772875290,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"acc\": no such variable\n    while executing\n\"expr {(($acc % max(1, abs(97))) < (27 ? (!-71) : -95))}\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- -35 {\n    \"4_a.n10h4u#,_-a_!zz2\" {\n        string trim \";@,of9\"\n    }\n    \"p m nc6db#mgoa\" {\n        for {set acc 0} {$acc < 5} {incr acc} {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpwmq308m1.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"acc\": no such variable\n    while executing\n\"expr {(($acc % max(1, abs(97))) < (27 ? (!-71) : -95))}\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- -35 {\n    \"4_a.n10h4u#,_-a_!zz2\" {\n        string trim \";@,of9\"\n    }\n    \"p m nc6db#mgoa\" {\n        for {set acc 0} {$acc < 5} {incr acc} {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpwmq308m1.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

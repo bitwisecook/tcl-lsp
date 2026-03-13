@@ -1,0 +1,50 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x10c4640, refCt 1, epoch 0, interp 0x4a9ae20 (epoch 0)
+  Source "set s \"abcdef\"\nset a [string index $s 0]\nset b [string "
+  Cmds 9, src 125, inst 37, litObjs 5, aux 0, stkDepth 2, code/src 2.21
+  Code 276 = header 160+inst 37+litObj 40+exc 0+aux 0+cmdMap 36
+  Proc 0x10bd0c0, refCt 1, args 0, compiled locals 5
+      slot 0, scalar, "s"
+      slot 1, scalar, "a"
+      slot 2, scalar, "b"
+      slot 3, scalar, "c"
+      slot 4, scalar, "d"
+  Commands 9:
+      1: pc 0-4, src 0-13   	   2: pc 5-12, src 15-39
+      3: pc 5-9, src 22-38   	   4: pc 13-20, src 41-67
+      5: pc 13-17, src 48-66   	   6: pc 21-28, src 69-97
+      7: pc 21-25, src 76-96   	   8: pc 29-35, src 99-123
+      9: pc 29-33, src 106-122
+  Command 1: "set s \"abcdef\""
+    (0) push1 0  	# "abcdef"
+    (2) storeScalar1 0	# var "s"
+    (4) pop 
+  Command 2: "set a [string index $s 0]"
+  Command 3: "string index $s 0"
+    (5) loadScalar1 0	# var "s"
+    (7) push1 1  	# "0"
+    (9) strindex 
+    (10) storeScalar1 1	# var "a"
+    (12) pop 
+  Command 4: "set b [string index $s end]"
+  Command 5: "string index $s end"
+    (13) loadScalar1 0	# var "s"
+    (15) push1 2  	# "end"
+    (17) strindex 
+    (18) storeScalar1 2	# var "b"
+    (20) pop 
+  Command 6: "set c [string index $s end-1]"
+  Command 7: "string index $s end-1"
+    (21) loadScalar1 0	# var "s"
+    (23) push1 3  	# "end-1"
+    (25) strindex 
+    (26) storeScalar1 3	# var "c"
+    (28) pop 
+  Command 8: "set d [string index $s 3]"
+  Command 9: "string index $s 3"
+    (29) loadScalar1 0	# var "s"
+    (31) push1 4  	# "3"
+    (33) strindex 
+    (34) storeScalar1 4	# var "d"
+    (36) done 

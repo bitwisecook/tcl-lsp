@@ -1,0 +1,23 @@
+{
+  "seed": 1772893556,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"msg\": no such variable\n    while executing\n\"if {((~$msg) << (88.82 ? -35 : $b))} {\n                regexp \".\" \" +exl50ou:,en: ?6f\"\n                regexp \"^[a-z]\" \"gng@q5?17!qj5,m?\"\n            ...\"\n    (\"for\" body line 69)\n    invoked from within\n\"for {set z 0} {$z < 5} {incr z} {\n    regexp \"\\\\d+\" \"s;-wwfk\"\n    switch -- \"?wlsj0k=2\" {\n        \"=y4c:9zoqj.gzv;\" {\n            switch -- \" ioe\" {\n ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmphrawducw.tcl\" line 11"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"msg\": no such variable\n    while executing\n\"if {((~$msg) << (88.82 ? -35 : $b))} {\n                regexp \".\" \" +exl50ou:,en: ?6f\"\n                regexp \"^[a-z]\" \"gng@q5?17!qj5,m?\"\n            ...\"\n    (\"for\" body line 69)\n    invoked from within\n\"for {set z 0} {$z < 5} {incr z} {\n    regexp \"\\\\d+\" \"s;-wwfk\"\n    switch -- \"?wlsj0k=2\" {\n        \"=y4c:9zoqj.gzv;\" {\n            switch -- \" ioe\" {\n ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmphrawducw.tcl\" line 11"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

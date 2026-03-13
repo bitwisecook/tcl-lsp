@@ -1,0 +1,40 @@
+ByteCode 0x0x8d08c6410, refCt 1, epoch 3, interp 0x0x8d0c20010 (epoch 3)
+  Source "set a [expr {true && false}]\nset b [expr {!true}]\nset c"
+  Cmds 8, src 111, inst 87, litObjs 8, aux 0, stkDepth 2, code/src 0.00
+  Commands 8:
+      1: pc 0-14, src 0-27   	   2: pc 2-12, src 7-26
+      3: pc 15-38, src 29-48   	   4: pc 26-36, src 36-47
+      5: pc 39-62, src 50-77   	   6: pc 50-60, src 57-76
+      7: pc 63-85, src 79-109   	   8: pc 74-84, src 86-108
+  Command 1: "set a [expr {true && false}]"
+    (0) push1 0 	# "a"
+  Command 2: "expr {true && false}"
+    (2) startCommand +11 1 	# next cmd at pc 13
+    (11) push1 1 	# "0"
+    (13) storeScalarStk 
+    (14) pop 
+  Command 3: "set b [expr {!true}]"
+    (15) startCommand +23 1 	# next cmd at pc 38
+    (24) push1 2 	# "b"
+  Command 4: "expr {!true}"
+    (26) startCommand +11 1 	# next cmd at pc 37
+    (35) push1 3 	# "0"
+    (37) storeScalarStk 
+    (38) pop 
+  Command 5: "set c [expr {\"yes\" ? 1 : 0}]"
+    (39) startCommand +23 1 	# next cmd at pc 62
+    (48) push1 4 	# "c"
+  Command 6: "expr {\"yes\" ? 1 : 0}"
+    (50) startCommand +11 1 	# next cmd at pc 61
+    (59) push1 5 	# "1"
+    (61) storeScalarStk 
+    (62) pop 
+  Command 7: "set d [expr {0 ? \"no\" : \"yes\"}]"
+    (63) startCommand +23 1 	# next cmd at pc 86
+    (72) push1 6 	# "d"
+  Command 8: "expr {0 ? \"no\" : \"yes\"}"
+    (74) startCommand +11 1 	# next cmd at pc 85
+    (83) push1 7 	# "yes"
+    (85) storeScalarStk 
+    (86) done 
+

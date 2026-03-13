@@ -1,0 +1,10 @@
+<snippet>
+	<content><![CDATA[try {
+    ${1:# body}
+} trap {${2:TCL} ${3:*}} {result opts} {
+    ${0:# recovery}
+}]]></content>
+	<tabTrigger>tcl-try</tabTrigger>
+	<scope>source.tcl, source.irule</scope>
+	<description>Create a try/trap block</description>
+</snippet>

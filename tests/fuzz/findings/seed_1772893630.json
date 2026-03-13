@@ -1,0 +1,23 @@
+{
+  "seed": 1772893630,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"20.79\" as right operand of \"&\"\n    invoked from within\n\"expr {(-29 >> (-(90 & 20.79)))}\"\n    (\"foreach\" body line 10)\n    invoked from within\n\"foreach count {219 -75.84 86.50} {\n        set count {-105 true 0 725}\n        set tmp 0\n        while {$tmp < 3} {\n            for {set count 0} {$co...\"\n    invoked from within\n\"if {((19 <= 9) ? (-8 < 78) : (-69 ? -19 : 60))} {\n    foreach count {219 -75.84 86.50} {\n        set count {-105 true 0 725}\n        set tmp 0\n "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"20.79\" as right operand of \"&\"\n    invoked from within\n\"expr {(-29 >> (-(90 & 20.79)))}\"\n    (\"foreach\" body line 10)\n    invoked from within\n\"foreach count {219 -75.84 86.50} {\n        set count {-105 true 0 725}\n        set tmp 0\n        while {$tmp < 3} {\n            for {set count 0} {$co...\"\n    invoked from within\n\"if {((19 <= 9) ? (-8 < 78) : (-69 ? -19 : 60))} {\n    foreach count {219 -75.84 86.50} {\n        set count {-105 true 0 725}\n        set tmp 0\n "
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

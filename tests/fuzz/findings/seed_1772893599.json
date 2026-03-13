@@ -1,0 +1,23 @@
+{
+  "seed": 1772893599,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable\n    while executing\n\"expr {($y ? (($b >> -23) ? (-92) : $item) : -46.64)}\"\n    (\"foreach\" body line 7)\n    invoked from within\n\"foreach b {false 0 0} {\n        foreach item {-547 74.99 -853 -728 tvidewt} {\n            expr {wide(wide((-48 < 54.18)))}\n            set b [expr {-1...\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach item {yes 1 -8.59} {\n    foreach b {false 0 0} {\n        foreach item {-547 74.99 -853 -728 tvidewt} {\n            expr {wi"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable\n    while executing\n\"expr {($y ? (($b >> -23) ? (-92) : $item) : -46.64)}\"\n    (\"foreach\" body line 7)\n    invoked from within\n\"foreach b {false 0 0} {\n        foreach item {-547 74.99 -853 -728 tvidewt} {\n            expr {wide(wide((-48 < 54.18)))}\n            set b [expr {-1...\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach item {yes 1 -8.59} {\n    foreach b {false 0 0} {\n        foreach item {-547 74.99 -853 -728 tvidewt} {\n            expr {wi"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

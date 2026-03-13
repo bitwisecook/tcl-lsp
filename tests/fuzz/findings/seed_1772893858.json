@@ -1,0 +1,23 @@
+{
+  "seed": 1772893858,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"z\": no such variable\n    while executing\n\"expr {(($z & 66.70) ^ -29)}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach data {violf 472 1 -18} {\n                expr {(($z & 66.70) ^ -29)}\n                string tolower \"j!=jp4q6sz7g@f28b5+=\"\n                exp...\"\n    (\"for\" body line 70)\n    invoked from within\n\"for {set data 0} {$data < 2} {incr data} {\n    foreach y {674 -251 856 661 yes} {\n        set x 0.80\n        expr {-53}\n        foreach y {} {\n       ...\"\n    "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"z\": no such variable\n    while executing\n\"expr {(($z & 66.70) ^ -29)}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach data {violf 472 1 -18} {\n                expr {(($z & 66.70) ^ -29)}\n                string tolower \"j!=jp4q6sz7g@f28b5+=\"\n                exp...\"\n    (\"for\" body line 70)\n    invoked from within\n\"for {set data 0} {$data < 2} {incr data} {\n    foreach y {674 -251 856 661 yes} {\n        set x 0.80\n        expr {-53}\n        foreach y {} {\n       ...\"\n    "
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

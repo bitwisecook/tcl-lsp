@@ -1,0 +1,23 @@
+{
+  "seed": 1772893871,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got a list\n    while executing\n\"if {$z} {\n            append b 25\n            list -50\n        } else {\n            set count 0\n            while {$count < 5} {\n                expr ...\"\n    (\"default\" arm line 39)\n    invoked from within\n\"switch -- -96 {\n    \"g1p\" {\n        set count 473\n        switch -- true {\n            -80 {\n                set acc \"wsm+f5piob\"\n            }\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpywgunn7i.tcl\" l"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got a list\n    while executing\n\"if {$z} {\n            append b 25\n            list -50\n        } else {\n            set count 0\n            while {$count < 5} {\n                expr ...\"\n    (\"default\" arm line 39)\n    invoked from within\n\"switch -- -96 {\n    \"g1p\" {\n        set count 473\n        switch -- true {\n            -80 {\n                set acc \"wsm+f5piob\"\n            }\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpywgunn7i.tcl\" l"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: expected boolean value but got a list expected boolean value"
+}

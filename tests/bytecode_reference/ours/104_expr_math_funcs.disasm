@@ -1,0 +1,60 @@
+ByteCode ::top, 38 instructions, 99 bytes, 12 literals, 0 variables
+  Literals:
+    0: "tcl::mathfunc::sin"
+    1: "2.0"
+    2: "tcl::mathfunc::cos"
+    3: "0.0"
+    4: "tcl::mathfunc::sqrt"
+    5: "4.0"
+    6: "tcl::mathfunc::atan2"
+    7: "1.0"
+    8: "tcl::mathfunc::pow"
+    9: "3.0"
+    10: "tcl::mathfunc::fmod"
+    11: "7.0"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "tcl::mathfunc::sin"
+    (2) push1 1	# "2.0"
+    (4) invokeStk1 2
+    (6) tryCvtToNumeric
+    (7) pop
+    (8) startCommand +16 1	# next cmd at pc 24, 1 cmds start here
+    (17) push1 2	# "tcl::mathfunc::cos"
+    (19) push1 3	# "0.0"
+    (21) invokeStk1 2
+    (23) tryCvtToNumeric
+  # cmd_end_1:
+    (24) pop
+    (25) startCommand +16 1	# next cmd at pc 41, 1 cmds start here
+    (34) push1 4	# "tcl::mathfunc::sqrt"
+    (36) push1 5	# "4.0"
+    (38) invokeStk1 2
+    (40) tryCvtToNumeric
+  # cmd_end_2:
+    (41) pop
+    (42) startCommand +18 1	# next cmd at pc 60, 1 cmds start here
+    (51) push1 6	# "tcl::mathfunc::atan2"
+    (53) push1 7	# "1.0"
+    (55) push1 1	# "2.0"
+    (57) invokeStk1 3
+    (59) tryCvtToNumeric
+  # cmd_end_3:
+    (60) pop
+    (61) startCommand +18 1	# next cmd at pc 79, 1 cmds start here
+    (70) push1 8	# "tcl::mathfunc::pow"
+    (72) push1 1	# "2.0"
+    (74) push1 9	# "3.0"
+    (76) invokeStk1 3
+    (78) tryCvtToNumeric
+  # cmd_end_4:
+    (79) pop
+    (80) startCommand +18 1	# next cmd at pc 98, 1 cmds start here
+    (89) push1 10	# "tcl::mathfunc::fmod"
+    (91) push1 11	# "7.0"
+    (93) push1 9	# "3.0"
+    (95) invokeStk1 3
+    (97) tryCvtToNumeric
+  # cmd_end_5:
+  # exit_2:
+    (98) done

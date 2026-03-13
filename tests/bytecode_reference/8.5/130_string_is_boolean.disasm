@@ -1,0 +1,29 @@
+ByteCode 0x0x7f8d0c310, refCt 1, epoch 3, interp 0x0x7f8c20010 (epoch 3)
+  Source "proc check {val} {\n    string is boolean $val\n}\n"
+  Cmds 1, src 48, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-46
+  Command 1: "proc check {val} {\n    string is boolean $val\n}"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "check"
+    (4) push1 2 	# "val"
+    (6) push1 3 	# "\n    string is boolean $val\n"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x7f8d16d10, refCt 1, epoch 3, interp 0x0x7f8d04010 (epoch 3)
+  Source "\n    string is boolean $val\n"
+  Cmds 1, src 28, inst 11, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x0x7f8cf6e10, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "val"
+  Commands 1:
+      1: pc 0-9, src 5-26
+  Command 1: "string is boolean $val"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "is"
+    (4) push1 2 	# "boolean"
+    (6) loadScalar1 %v0 	# var "val"
+    (8) invokeStk1 4 
+    (10) done 
+

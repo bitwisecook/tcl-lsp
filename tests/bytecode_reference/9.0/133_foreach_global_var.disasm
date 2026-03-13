@@ -1,0 +1,35 @@
+ByteCode 0x7fb180410, refCt 1, epoch 21, interp 0x7fb01c010 (epoch 21)
+  Source "proc test {} {\n    foreach ::x {1 2 3} {\n        set ..."
+  Cmds 1, src 84, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-82
+  Command 1: "proc test {} {\n    foreach ::x {1 2 3} {\n        set ..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    foreach ::x {1 2 3} {\n        set..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x7fb180410, refCt 1, epoch 95, interp 0x7fb114010 (epoch 95)
+  Source "\n    foreach ::x {1 2 3} {\n        set y $::x\n    }\n..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 2, src 68, inst 25, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x7fb1b2a10, refCt 1, args 0, compiled locals 0
+  Commands 2:
+      1: pc 0-10, src 5-50        2: pc 11-23, src 56-66
+  Command 1: "foreach ::x {1 2 3} {\n        set y $::x\n   ..."
+    (0) push1 0 	# "foreach"
+    (2) push1 1 	# "::x"
+    (4) push1 2 	# "1 2 3"
+    (6) push1 3 	# "\n        set y $::x\n  ..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "return $::x..."
+    (11) startCommand +13 1 	# next cmd at pc 24, 1 cmds start here
+    (20) push1 1 	# "::x"
+    (22) loadStk 
+    (23) done 
+    (24) done 
+

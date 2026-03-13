@@ -1,0 +1,30 @@
+ByteCode 0x0xa40c32510, refCt 1, epoch 3, interp 0x0xa40c20010 (epoch 3)
+  Source "proc test {} {\n    set x \"abcd\"\n    append x\n}\n"
+  Cmds 1, src 47, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-45
+  Command 1: "proc test {} {\n    set x \"abcd\"\n    append x\n}"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set x \"abcd\"\n    append x\n"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xa40d17c10, refCt 1, epoch 3, interp 0x0xa40cf4810 (epoch 3)
+  Source "\n    set x \"abcd\"\n    append x\n"
+  Cmds 2, src 31, inst 17, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x0xa40cf6410, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 2:
+      1: pc 0-4, src 5-16   	   2: pc 5-15, src 22-29
+  Command 1: "set x \"abcd\""
+    (0) push1 0 	# "abcd"
+    (2) storeScalar1 %v0 	# var "x"
+    (4) pop 
+  Command 2: "append x"
+    (5) startCommand +11 1 	# next cmd at pc 16
+    (14) loadScalar1 %v0 	# var "x"
+    (16) done 
+

@@ -1,0 +1,44 @@
+ByteCode 0x0xbb8852410, refCt 1, epoch 3, interp 0x0xbb880c010 (epoch 3)
+  Source "set a [string reverse \"hello\"]\nset b [string repeat \"ab"
+  Cmds 7, src 107, inst 64, litObjs 11, aux 0, stkDepth 7, code/src 0.00
+  Commands 7:
+      1: pc 0-11, src 0-29   	   2: pc 2-9, src 7-28
+      3: pc 12-34, src 31-58   	   4: pc 23-32, src 38-57
+      5: pc 35-62, src 60-105   	   6: pc 46-61, src 67-104
+      7: pc 50-59, src 83-103
+  Command 1: "set a [string reverse \"hello\"]"
+    (0) push1 0 	# "a"
+  Command 2: "string reverse \"hello\""
+    (2) push1 1 	# "string"
+    (4) push1 2 	# "reverse"
+    (6) push1 3 	# "hello"
+    (8) invokeStk1 3 
+    (10) storeScalarStk 
+    (11) pop 
+  Command 3: "set b [string repeat \"ab\" 3]"
+    (12) startCommand +22 1 	# next cmd at pc 34
+    (21) push1 4 	# "b"
+  Command 4: "string repeat \"ab\" 3"
+    (23) push1 1 	# "string"
+    (25) push1 5 	# "repeat"
+    (27) push1 6 	# "ab"
+    (29) push1 7 	# "3"
+    (31) invokeStk1 4 
+    (33) storeScalarStk 
+    (34) pop 
+  Command 5: "set c [string reverse [string repeat \"xyz\" 2]]"
+    (35) startCommand +28 1 	# next cmd at pc 63
+    (44) push1 8 	# "c"
+  Command 6: "string reverse [string repeat \"xyz\" 2]"
+    (46) push1 1 	# "string"
+    (48) push1 2 	# "reverse"
+  Command 7: "string repeat \"xyz\" 2"
+    (50) push1 1 	# "string"
+    (52) push1 5 	# "repeat"
+    (54) push1 9 	# "xyz"
+    (56) push1 10 	# "2"
+    (58) invokeStk1 4 
+    (60) invokeStk1 3 
+    (62) storeScalarStk 
+    (63) done 
+

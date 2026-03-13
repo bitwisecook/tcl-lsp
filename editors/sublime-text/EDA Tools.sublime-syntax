@@ -1,0 +1,8 @@
+%YAML 1.2
+---
+# EDA Tools dialect — selects eda-tools for LSP analysis
+name: EDA Tools
+scope: source.tcl
+version: 2
+
+extends: Tcl.sublime-syntax

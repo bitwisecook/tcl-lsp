@@ -1,0 +1,31 @@
+{
+  "seed": 1772893354,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "invalid command name \"0-9\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"foreach\" body line 37)\n    invoked from within\n\"foreach y {ftuslfbc 327 -403 373 nxre} {\n        llength {no 743 gbvm 220 0}\n        set msg {-215}\n        foreach tmp {33.13} {\n            set key ...\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach n {-994 566} {\n    expr {(5.81 >= $val)}\n    foreach y {ftuslfbc 327 -403 373 nxre} {\n        llength {no 743 gbvm 220 0}\n        set msg {-21...\"\n    (file \"/var/folders/2s/cly"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

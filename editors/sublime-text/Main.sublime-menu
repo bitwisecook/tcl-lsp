@@ -1,0 +1,46 @@
+[
+    {
+        "caption": "Preferences",
+        "mnemonic": "n",
+        "id": "preferences",
+        "children": [
+            {
+                "caption": "Package Settings",
+                "mnemonic": "P",
+                "id": "package-settings",
+                "children": [
+                    {
+                        "caption": "Tcl",
+                        "children": [
+                            {
+                                "caption": "LSP Settings",
+                                "command": "edit_settings",
+                                "args": {
+                                    "base_file": "${packages}/Tcl/LSP-Tcl.sublime-settings",
+                                    "default": "// Tcl LSP Settings\n// See the default settings for available options.\n{\n\t$0\n}\n"
+                                }
+                            },
+                            {
+                                "caption": "Editor Settings",
+                                "command": "edit_settings",
+                                "args": {
+                                    "base_file": "${packages}/Tcl/Tcl.sublime-settings",
+                                    "default": "// Tcl Editor Settings\n{\n\t$0\n}\n"
+                                }
+                            },
+                            { "caption": "-" },
+                            {
+                                "caption": "Select Dialect",
+                                "command": "tcl_select_dialect"
+                            },
+                            {
+                                "caption": "Restart Language Server",
+                                "command": "tcl_restart_server"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+]

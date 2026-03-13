@@ -1,0 +1,24 @@
+{
+  "seed": 1772874938,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"if {$val >= 8} {\n                lindex {} 3\n                set b 705\n                append buf 92\n                string first \"a\" \"g9y\"\n          ...\"\n    invoked from within\n\"if {((~-29) & round(-36))} {\n    lreverse {}\n    if {((46 ? -44 : 38) % max(1, abs(-71)))} {\n        append a \"2s=ro\"\n        append a -477\n        ap...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp3pf7k479.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"if {$val >= 8} {\n                lindex {} 3\n                set b 705\n                append buf 92\n                string first \"a\" \"g9y\"\n          ...\"\n    invoked from within\n\"if {((~-29) & round(-36))} {\n    lreverse {}\n    if {((46 ? -44 : 38) % max(1, abs(-71)))} {\n        append a \"2s=ro\"\n        append a -477\n        ap...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp3pf7k479.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

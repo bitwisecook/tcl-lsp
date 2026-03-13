@@ -1,0 +1,23 @@
+{
+  "seed": 1772893907,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"53.64\" as right operand of \"^\"\n    invoked from within\n\"expr {((-(-97 ^ 53.64)) > abs((-$i)))}\"\n    (\"foreach\" body line 212)\n    invoked from within\n\"foreach tmp {pglj 203 -333 380 yes -124} {\n    switch -- nzju {\n        -27 {\n            expr {26}\n            for {set tmp 0} {$tmp < 5} {incr tmp} ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp36o5z3y5.tcl\" line 6)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"53.64\" as right operand of \"^\"\n    invoked from within\n\"expr {((-(-97 ^ 53.64)) > abs((-$i)))}\"\n    (\"foreach\" body line 212)\n    invoked from within\n\"foreach tmp {pglj 203 -333 380 yes -124} {\n    switch -- nzju {\n        -27 {\n            expr {26}\n            for {set tmp 0} {$tmp < 5} {incr tmp} ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp36o5z3y5.tcl\" line 6)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

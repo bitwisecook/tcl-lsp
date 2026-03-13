@@ -1,0 +1,24 @@
+ByteCode ::top, 12 instructions, 27 bytes, 5 literals, 0 variables
+  Literals:
+    0: "f"
+    1: "{x y} {expr {$x + $y}}"
+    2: "apply"
+    3: "3"
+    4: "4"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "f"
+    (2) startCommand +11 1	# next cmd at pc 13, 1 cmds start here
+    (11) push1 1	# "{x y} {expr {$x + $y}}"
+  # cmd_end_1:
+    (13) storeStk
+    (14) pop
+    (15) push1 2	# "apply"
+    (17) push1 0	# "f"
+    (19) loadStk
+    (20) push1 3	# "3"
+    (22) push1 4	# "4"
+    (24) invokeStk1 4	# apply
+  # cmd_end_2:
+  # exit_2:
+    (26) done

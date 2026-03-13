@@ -1,0 +1,29 @@
+TCLSH    /usr/local/bin/tclsh8.5
+VERSION  8.5.19
+FILE     rename.test
+DATE     2026-03-03T12:53:33Z
+---
+PASS rename-1.1
+PASS rename-1.2
+PASS rename-1.3
+PASS rename-2.1
+PASS rename-3.1
+PASS rename-3.2
+PASS rename-3.3
+PASS rename-3.4
+PASS rename-3.5
+PASS rename-5.1
+PASS rename-6.1
+SKIP rename-4.1 testdel
+SKIP rename-4.2 testdel
+SKIP rename-4.3 testdel
+SKIP rename-4.4 testdel
+SKIP rename-4.5 testdel
+SKIP rename-4.6 testdel
+SKIP rename-4.7 testdel
+SKIP rename-4.8 testdel
+---
+TOTAL   19
+PASSED  11
+SKIPPED 8
+FAILED  0

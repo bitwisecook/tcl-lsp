@@ -1,0 +1,29 @@
+ByteCode 0x8bb145a10, refCt 1, epoch 21, interp 0x8bb01c010 (epoch 21)
+  Source "proc add {a b} {\n    expr {$a + $b}\n..."
+  Cmds 1, src 38, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-36
+  Command 1: "proc add {a b} {\n    expr {$a + $b}\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "add"
+    (4) push1 2 	# "a b"
+    (6) push1 3 	# "\n    expr {$a + $b}..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x8bb110510, refCt 1, epoch 95, interp 0x8bb103010 (epoch 95)
+  Source "\n    expr {$a + $b}..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 1, src 20, inst 6, litObjs 0, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x8bb149990, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "a"
+      slot 1, scalar, arg, "b"
+  Commands 1:
+      1: pc 0-4, src 5-18
+  Command 1: "expr {$a + $b}..."
+    (0) loadScalar1 %v0 	# var "a"
+    (2) loadScalar1 %v1 	# var "b"
+    (4) add 
+    (5) done 
+

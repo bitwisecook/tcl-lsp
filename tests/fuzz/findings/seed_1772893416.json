@@ -1,0 +1,23 @@
+{
+  "seed": 1772893416,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected boolean value but got \"\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got \"\"\n    while executing\n\"expr {((!65) ? (wide(4) * (-96.68 >> 59)) : (($count ? $data : -31) ? (-73 | $count) : (-67 < 39.42)))}\"\n    (\"default\" arm line 10)\n    invoked from within\n\"switch -- \"7u2rllmsi!1 g\" {\n    \"@zh.n++j\" {\n        set data {no no eeuje 798}\n        lappend data -402\n    }\n    default {\n        set count yes\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpvqqbevrr.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: expected boolean value but got \"\""
+}

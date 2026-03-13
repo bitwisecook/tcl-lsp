@@ -1,0 +1,23 @@
+{
+  "seed": 1772893299,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "wrong # args: extra words after \"else\" clause in \"if\" command",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"item\": no such variable\n    while executing\n\"if {$item < 6} {\n                        set b \" :ycvb,#rj\"\n                        set msg 23\n                        incr msg -1\n                   ...\"\n    (\"foreach\" body line 26)\n    invoked from within\n\"foreach tmp {-312} {\n            string range \"\" 4 5\n            expr {(!95)}\n            switch -- no {\n                48.70 {\n                    i...\"\n    (\"default\" arm line 3)\n    invoked from within\n\"switch -- -16.67 {\n    zdks"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

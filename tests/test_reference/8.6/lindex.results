@@ -1,0 +1,93 @@
+TCLSH    /opt/homebrew/bin/tclsh8.6
+VERSION  8.6.17
+FILE     lindex.test
+DATE     2026-03-03T12:53:45Z
+---
+PASS lindex-10.1
+PASS lindex-10.2
+PASS lindex-10.3
+PASS lindex-10.4
+PASS lindex-11.1
+PASS lindex-11.2
+PASS lindex-11.3
+PASS lindex-11.4
+PASS lindex-11.5
+PASS lindex-11.6
+PASS lindex-12.1
+PASS lindex-12.10
+PASS lindex-12.2
+PASS lindex-12.3
+PASS lindex-12.4
+PASS lindex-12.5
+PASS lindex-12.6
+PASS lindex-12.7
+PASS lindex-12.8
+PASS lindex-12.9
+PASS lindex-13.1
+PASS lindex-13.2
+PASS lindex-13.3
+PASS lindex-14.1
+PASS lindex-14.2
+PASS lindex-14.3
+PASS lindex-15.1
+PASS lindex-15.2
+PASS lindex-15.3
+PASS lindex-15.4
+PASS lindex-16.1
+PASS lindex-16.2
+PASS lindex-16.3
+PASS lindex-16.4
+PASS lindex-16.5
+PASS lindex-16.6
+PASS lindex-16.7
+PASS lindex-17.0
+PASS lindex-17.1
+PASS lindex-3.10
+PASS lindex-3.7
+PASS lindex-3.8
+PASS lindex-3.9
+PASS lindex-7.4
+PASS lindex-9.1
+PASS lindex-9.2
+SKIP lindex-1.1 testevalex
+SKIP lindex-2.1 testevalex
+SKIP lindex-2.2 testevalex
+SKIP lindex-2.3 testevalex
+SKIP lindex-2.4 testevalex
+SKIP lindex-3.1 testevalex
+SKIP lindex-3.2 testevalex
+SKIP lindex-3.3 testevalex
+SKIP lindex-3.4 testevalex
+SKIP lindex-3.5 testevalex
+SKIP lindex-3.6 testevalex
+SKIP lindex-4.1 testevalex
+SKIP lindex-4.10 testevalex
+SKIP lindex-4.2 testevalex
+SKIP lindex-4.3 testevalex
+SKIP lindex-4.4 testevalex
+SKIP lindex-4.5 testevalex
+SKIP lindex-4.6 testevalex
+SKIP lindex-4.7 testevalex
+SKIP lindex-4.8 testevalex
+SKIP lindex-4.9 testevalex
+SKIP lindex-5.1 testevalex
+SKIP lindex-5.2 testevalex
+SKIP lindex-5.3 testevalex
+SKIP lindex-6.1 testevalex
+SKIP lindex-6.2 testevalex
+SKIP lindex-6.3 testevalex
+SKIP lindex-7.1 testevalex
+SKIP lindex-7.2 testevalex
+SKIP lindex-7.3 testevalex
+SKIP lindex-8.1 testevalex
+SKIP lindex-8.2 testevalex
+SKIP lindex-8.3 testevalex
+SKIP lindex-8.4 testevalex
+SKIP lindex-8.5 testevalex
+SKIP lindex-8.6 testevalex
+SKIP lindex-8.7 testevalex
+---
+TOTAL   83
+PASSED  46
+SKIPPED 37
+FAILED  0

@@ -1,0 +1,24 @@
+{
+  "seed": 1772875386,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"z\": no such variable\n    while executing\n\"expr {((-88) == (!($z << 91.71)))}\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach y {8.22 74.86 37.39} {\n            set i {}\n            lappend i -37\n            set val 0\n            while {$val < 4} {\n                exp...\"\n    (\"default\" arm line 5)\n    invoked from within\n\"switch -- utxmow {\n    78 {\n        append val \"jg.yvaf9#io!\"\n    }\n    230 {\n        set val 62\n        incr val 3\n        for {set key 0} {$key < 4}"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"z\": no such variable\n    while executing\n\"expr {((-88) == (!($z << 91.71)))}\"\n    (\"foreach\" body line 6)\n    invoked from within\n\"foreach y {8.22 74.86 37.39} {\n            set i {}\n            lappend i -37\n            set val 0\n            while {$val < 4} {\n                exp...\"\n    (\"default\" arm line 5)\n    invoked from within\n\"switch -- utxmow {\n    78 {\n        append val \"jg.yvaf9#io!\"\n    }\n    230 {\n        set val 62\n        incr val 3\n        for {set key 0} {$key < 4}"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

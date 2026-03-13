@@ -1,0 +1,48 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test_types"
+    2: "s"
+    3: "\n    set a [string is alpha $s]\n   ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test_types"
+    (4) push1 2	# "s"
+    (6) push1 3	# "\n    set a [string is alpha $s]\n   ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test_types, 20 instructions, 60 bytes, 0 literals, 4 variables
+  Local variables:
+    %v0: "s"
+    %v1: "a"
+    %v2: "b"
+    %v3: "c"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "s"
+    (2) strclass alpha
+    (4) storeScalar1 %v1	# var "a"
+    (6) pop
+    (7) startCommand +15 2	# next cmd at pc 22, 2 cmds start here
+    (16) loadScalar1 %v0	# var "s"
+    (18) strclass digit
+    (20) storeScalar1 %v2	# var "b"
+  # cmd_end_1:
+    (22) pop
+    (23) startCommand +15 2	# next cmd at pc 38, 2 cmds start here
+    (32) loadScalar1 %v0	# var "s"
+    (34) strclass alnum
+    (36) storeScalar1 %v3	# var "c"
+  # cmd_end_2:
+    (38) pop
+    (39) startCommand +20 1	# next cmd at pc 59, 1 cmds start here
+    (48) loadScalar1 %v1	# var "a"
+    (50) loadScalar1 %v2	# var "b"
+    (52) loadScalar1 %v3	# var "c"
+    (54) list 3
+  # cmd_end_3:
+  # exit_2:
+    (59) done

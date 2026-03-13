@@ -1,0 +1,32 @@
+ByteCode ::top, 18 instructions, 43 bytes, 6 literals, 0 variables
+  Literals:
+    0: "i"
+    1: "0"
+    2: "j"
+    3: "while"
+    4: "3"
+    5: "\n    set j [incr i]\n    if {$j > 3}..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "i"
+    (2) push1 1	# "0"
+    (4) storeStk
+    (5) pop
+    (6) startCommand +14 1	# next cmd at pc 20, 1 cmds start here
+    (15) push1 2	# "j"
+    (17) push1 1	# "0"
+    (19) storeStk
+  # cmd_end_1:
+    (20) pop
+    (21) push1 3	# "while"
+    (23) startCommand +15 1	# next cmd at pc 38, 1 cmds start here
+    (32) push1 0	# "i"
+    (34) loadStk
+    (35) push1 4	# "3"
+    (37) lt
+  # cmd_end_3:
+    (38) push1 5	# "\n    set j [incr i]\n    if {$j > 3}..."
+    (40) invokeStk1 3
+  # cmd_end_2:
+  # exit_2:
+    (42) done

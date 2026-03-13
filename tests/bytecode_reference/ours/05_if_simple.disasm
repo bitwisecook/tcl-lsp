@@ -1,0 +1,28 @@
+ByteCode ::top, 14 instructions, 22 bytes, 5 literals, 0 variables
+  Literals:
+    0: "x"
+    1: "1"
+    2: "y"
+    3: "10"
+    4: ""
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "x"
+    (2) push1 1	# "1"
+    (4) storeStk
+    (5) pop
+    (6) push1 0	# "x"
+    (8) loadStk
+    (9) nop
+    (10) jumpFalse1 +9	# pc 19
+  # if_then_3:
+    (12) push1 2	# "y"
+    (14) push1 3	# "10"
+    (16) storeStk
+  # cmd_end_1:
+    (17) jump1 +4	# pc 21
+  # if_next_4:
+    (19) push1 4	# ""
+  # if_end_2:
+  # exit_5:
+    (21) done

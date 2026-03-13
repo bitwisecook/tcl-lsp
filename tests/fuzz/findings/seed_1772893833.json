@@ -1,0 +1,23 @@
+{
+  "seed": 1772893833,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    invoked from within\n\"if {$b == 7} {\n    for {set z 0} {$z < 6} {incr z} {\n        set z 83\n        incr z 1\n        set z 47\n        incr z 4\n        for {set acc 0} {$acc...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpbdx23vwh.tcl\" line 8)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    invoked from within\n\"if {$b == 7} {\n    for {set z 0} {$z < 6} {incr z} {\n        set z 83\n        incr z 1\n        set z 47\n        incr z 4\n        for {set acc 0} {$acc...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpbdx23vwh.tcl\" line 8)"
+    }
+  ],
+  "category": "vm-timeout-invalid-cmd",
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+}

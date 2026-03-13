@@ -1,0 +1,5 @@
+when CLIENT_DATA {
+    set payload [TCP::payload]
+    eval $payload
+}
+#   ^--- cursor

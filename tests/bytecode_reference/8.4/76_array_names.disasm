@@ -1,0 +1,39 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x16cfc000, refCt 1, epoch 0, interp 0xba2e20 (epoch 0)
+  Source "set arr(one) 1\nset arr(two) 2\nset arr(three) 3\narray na"
+  Cmds 5, src 78, inst 39, litObjs 10, aux 0, stkDepth 3, code/src 3.85
+  Code 300 = header 160+inst 39+litObj 80+exc 0+aux 0+cmdMap 20
+  Proc 0x170bd0c0, refCt 1, args 0, compiled locals 1
+      slot 0, array, "arr"
+  Commands 5:
+      1: pc 0-6, src 0-13   	   2: pc 7-13, src 15-28
+      3: pc 14-20, src 30-45   	   4: pc 21-29, src 47-61
+      5: pc 30-37, src 63-76
+  Command 1: "set arr(one) 1"
+    (0) push1 0  	# "one"
+    (2) push1 1  	# "1"
+    (4) storeArray1 0	# var "arr"
+    (6) pop 
+  Command 2: "set arr(two) 2"
+    (7) push1 2  	# "two"
+    (9) push1 3  	# "2"
+    (11) storeArray1 0	# var "arr"
+    (13) pop 
+  Command 3: "set arr(three) 3"
+    (14) push1 4  	# "three"
+    (16) push1 5  	# "3"
+    (18) storeArray1 0	# var "arr"
+    (20) pop 
+  Command 4: "array names arr"
+    (21) push1 6  	# "array"
+    (23) push1 7  	# "names"
+    (25) push1 8  	# "arr"
+    (27) invokeStk1 3 
+    (29) pop 
+  Command 5: "array size arr"
+    (30) push1 6  	# "array"
+    (32) push1 9  	# "size"
+    (34) push1 8  	# "arr"
+    (36) invokeStk1 3 
+    (38) done 

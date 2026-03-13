@@ -1,0 +1,56 @@
+ByteCode 0x72f145c10, refCt 1, epoch 21, interp 0x72f01c010 (epoch 21)
+  Source "set d [dict create a [dict create x 1 y 2] b [dict crea..."
+  Cmds 7, src 118, inst 119, litObjs 14, aux 0, stkDepth 7, code/src 0.00
+  Commands 7:
+      1: pc 0-46, src 0-66        2: pc 2-44, src 7-65
+      3: pc 15-27, src 22-40        4: pc 30-42, src 46-64
+      5: pc 47-68, src 68-82        6: pc 69-98, src 84-99
+      7: pc 99-117, src 101-116
+  Command 1: "set d [dict create a [dict create x 1 y 2] b [dict crea..."
+    (0) push1 0 	# "d"
+  Command 2: "dict create a [dict create x 1 y 2] b [dict create x 3 ..."
+    (2) startCommand +43 1 	# next cmd at pc 45, 1 cmds start here
+    (11) push1 1 	# "::tcl::dict::create"
+    (13) push1 2 	# "a"
+  Command 3: "dict create x 1 y 2..."
+    (15) startCommand +13 1 	# next cmd at pc 28, 1 cmds start here
+    (24) push1 3 	# "x 1 y 2"
+    (26) dup 
+    (27) verifyDict 
+    (28) push1 4 	# "b"
+  Command 4: "dict create x 3 y 4..."
+    (30) startCommand +13 1 	# next cmd at pc 43, 1 cmds start here
+    (39) push1 5 	# "x 3 y 4"
+    (41) dup 
+    (42) verifyDict 
+    (43) invokeStk1 5 
+    (45) storeStk 
+    (46) pop 
+  Command 5: "dict get $d a x..."
+    (47) startCommand +21 1 	# next cmd at pc 68, 1 cmds start here
+    (56) push1 0 	# "d"
+    (58) loadStk 
+    (59) push1 2 	# "a"
+    (61) push1 6 	# "x"
+    (63) dictGet 2 
+    (68) pop 
+  Command 6: "dict set d a z 5..."
+    (69) startCommand +29 1 	# next cmd at pc 98, 1 cmds start here
+    (78) push1 7 	# "dict"
+    (80) push1 8 	# "set"
+    (82) push1 0 	# "d"
+    (84) push1 2 	# "a"
+    (86) push1 9 	# "z"
+    (88) push1 10 	# "5"
+    (90) push1 11 	# "::tcl::dict::set"
+    (92) invokeReplace 6 2 
+    (98) pop 
+  Command 7: "dict unset d b y..."
+    (99) startCommand +19 1 	# next cmd at pc 118, 1 cmds start here
+    (108) push1 12 	# "::tcl::dict::unset"
+    (110) push1 0 	# "d"
+    (112) push1 4 	# "b"
+    (114) push1 13 	# "y"
+    (116) invokeStk1 4 
+    (118) done 
+

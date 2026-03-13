@@ -1,0 +1,28 @@
+ByteCode 0x0x78ac48a10, refCt 1, epoch 3, interp 0x0x78ac20010 (epoch 3)
+  Source "set arr(key) hello\nset arr(idx) world\nset x $arr(key)\n"
+  Cmds 3, src 54, inst 43, litObjs 6, aux 0, stkDepth 3, code/src 0.00
+  Commands 3:
+      1: pc 0-7, src 0-17   	   2: pc 8-24, src 19-36
+      3: pc 25-41, src 38-52
+  Command 1: "set arr(key) hello"
+    (0) push1 0 	# "arr"
+    (2) push1 1 	# "key"
+    (4) push1 2 	# "hello"
+    (6) storeArrayStk 
+    (7) pop 
+  Command 2: "set arr(idx) world"
+    (8) startCommand +16 1 	# next cmd at pc 24
+    (17) push1 0 	# "arr"
+    (19) push1 3 	# "idx"
+    (21) push1 4 	# "world"
+    (23) storeArrayStk 
+    (24) pop 
+  Command 3: "set x $arr(key)"
+    (25) startCommand +17 1 	# next cmd at pc 42
+    (34) push1 5 	# "x"
+    (36) push1 0 	# "arr"
+    (38) push1 1 	# "key"
+    (40) loadArrayStk 
+    (41) storeScalarStk 
+    (42) done 
+

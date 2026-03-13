@@ -1,0 +1,46 @@
+ByteCode 0x8ac4ada10, refCt 1, epoch 21, interp 0x8acc28010 (epoch 21)
+  Source "set lst {a b c}\nset a [linsert $lst 0 X]\nset b [linse..."
+  Cmds 7, src 97, inst 61, litObjs 13, aux 0, stkDepth 5, code/src 0.00
+  Commands 7:
+      1: pc 0-5, src 0-14        2: pc 6-22, src 16-39
+      3: pc 8-20, src 23-38        4: pc 23-41, src 41-68
+      5: pc 25-39, src 48-67        6: pc 42-59, src 70-95
+      7: pc 44-58, src 77-94
+  Command 1: "set lst {a b c}..."
+    (0) push1 0 	# "lst"
+    (2) push1 1 	# "a b c"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set a [linsert $lst 0 X]..."
+    (6) push1 2 	# "a"
+  Command 3: "linsert $lst 0 X..."
+    (8) push1 0 	# "lst"
+    (10) loadStk 
+    (11) push1 3 	# "0"
+    (13) push1 4 	# "X"
+    (15) lreplace4 3 2 
+    (21) storeStk 
+    (22) pop 
+  Command 4: "set b [linsert $lst end Y Z]..."
+    (23) push1 5 	# "b"
+  Command 5: "linsert $lst end Y Z..."
+    (25) push1 0 	# "lst"
+    (27) loadStk 
+    (28) push1 6 	# "end"
+    (30) push1 7 	# "Y"
+    (32) push1 8 	# "Z"
+    (34) lreplace4 4 2 
+    (40) storeStk 
+    (41) pop 
+  Command 6: "set c [linsert $lst 1 M N]..."
+    (42) push1 9 	# "c"
+  Command 7: "linsert $lst 1 M N..."
+    (44) push1 0 	# "lst"
+    (46) loadStk 
+    (47) push1 10 	# "1"
+    (49) push1 11 	# "M"
+    (51) push1 12 	# "N"
+    (53) lreplace4 4 2 
+    (59) storeStk 
+    (60) done 
+

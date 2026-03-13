@@ -1,0 +1,24 @@
+{
+  "seed": 1772875094,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"x\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"x\": no such variable\n    while executing\n\"if {$x > 19} {\n        foreach flag {} {\n            expr {(($b ? (40 < 14.50) : -78) ? (-68 < (37.57 | $y)) : -36.07)}\n            append buf yes\n   ...\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set idx 0} {$idx < 2} {incr idx} {\n    if {$x > 19} {\n        foreach flag {} {\n            expr {(($b ? (40 < 14.50) : -78) ? (-68 < (37.57 | $y...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp1grktsox.tcl\" line 52)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

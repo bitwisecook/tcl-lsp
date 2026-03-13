@@ -1,0 +1,77 @@
+ByteCode 0xa9b0ca410, refCt 1, epoch 21, interp 0xa9b01c010 (epoch 21)
+  Source "proc test_continue {} {\n    set result {}\n    set i 0..."
+  Cmds 1, src 206, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-204
+  Command 1: "proc test_continue {} {\n    set result {}\n    set i 0..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test_continue"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set result {}\n    set i 0\n    wh..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0xa9b0ca410, refCt 1, epoch 95, interp 0xa9b0f8810 (epoch 95)
+  Source "\n    set result {}\n    set i 0\n    while {[incr i] <..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 10, src 181, inst 127, litObjs 5, aux 0, stkDepth 3, code/src 0.00
+  Proc 0xa9b137190, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "result"
+      slot 1, scalar, "i"
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 30-92, continue 94, break 111
+  Commands 10:
+      1: pc 0-4, src 5-17        2: pc 5-18, src 23-29
+      3: pc 19-113, src 35-160        4: pc 30-43, src 68-84
+      5: pc 44-79, src 94-129        6: pc 53-76, src 110-128
+      7: pc 55-69, src 118-125        8: pc 80-92, src 139-154
+      9: pc 94-105, src 43-48       10: pc 114-125, src 166-179
+  Command 1: "set result {}..."
+    (0) push1 0 	# ""
+    (2) storeScalar1 %v0 	# var "result"
+    (4) pop 
+  Command 2: "set i 0..."
+    (5) startCommand +13 1 	# next cmd at pc 18, 1 cmds start here
+    (14) push1 1 	# "0"
+    (16) storeScalar1 %v1 	# var "i"
+    (18) pop 
+  Command 3: "while {[incr i] <= 10} {\n        lappend result $i\n  ..."
+    (19) startCommand +94 1 	# next cmd at pc 113, 1 cmds start here
+    (28) jump1 +66 	# pc 94
+  Command 4: "lappend result $i..."
+    (30) startCommand +13 1 	# next cmd at pc 43, 1 cmds start here
+    (39) loadScalar1 %v1 	# var "i"
+    (41) lappendScalar1 %v0 	# var "result"
+    (43) pop 
+  Command 5: "lappend result [list b [continue] c]..."
+    (44) startCommand +35 2 	# next cmd at pc 79, 2 cmds start here
+  Command 6: "list b [continue] c..."
+    (53) push1 2 	# "b"
+  Command 7: "continue..."
+    (55) startCommand +15 1 	# next cmd at pc 70, 1 cmds start here
+    (64) pop 
+    (65) jump4 +29 	# pc 94
+    (70) push1 3 	# "c"
+    (72) list 3 
+    (77) lappendScalar1 %v0 	# var "result"
+    (79) pop 
+  Command 8: "lappend result c..."
+    (80) startCommand +13 1 	# next cmd at pc 93, 1 cmds start here
+    (89) push1 3 	# "c"
+    (91) lappendScalar1 %v0 	# var "result"
+    (93) pop 
+  Command 9: "incr i..."
+    (94) startCommand +12 1 	# next cmd at pc 106, 1 cmds start here
+    (103) incrScalar1Imm %v1 +1 	# var "i"
+    (106) push1 4 	# "10"
+    (108) le 
+    (109) jumpTrue1 -79 	# pc 30
+    (111) push1 0 	# ""
+    (113) pop 
+  Command 10: "return $result..."
+    (114) startCommand +12 1 	# next cmd at pc 126, 1 cmds start here
+    (123) loadScalar1 %v0 	# var "result"
+    (125) done 
+    (126) done 
+

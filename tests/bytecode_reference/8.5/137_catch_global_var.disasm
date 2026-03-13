@@ -1,0 +1,32 @@
+ByteCode 0x0x81ccfa210, refCt 1, epoch 3, interp 0x0x81cc20010 (epoch 3)
+  Source "set ::foo 1\nproc test {} {\n    catch {set x 3} ::foo\n}\n"
+  Cmds 2, src 55, inst 17, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-10   	   2: pc 6-15, src 12-53
+  Command 1: "set ::foo 1"
+    (0) push1 0 	# "::foo"
+    (2) push1 1 	# "1"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "proc test {} {\n    catch {set x 3} ::foo\n}"
+    (6) push1 2 	# "proc"
+    (8) push1 3 	# "test"
+    (10) push1 4 	# ""
+    (12) push1 5 	# "\n    catch {set x 3} ::foo\n"
+    (14) invokeStk1 4 
+    (16) done 
+
+
+ByteCode 0x0x81cc32510, refCt 1, epoch 3, interp 0x0x81cd4a010 (epoch 3)
+  Source "\n    catch {set x 3} ::foo\n"
+  Cmds 1, src 27, inst 9, litObjs 3, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0x81ccf1590, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-7, src 5-25
+  Command 1: "catch {set x 3} ::foo"
+    (0) push1 0 	# "catch"
+    (2) push1 1 	# "set x 3"
+    (4) push1 2 	# "::foo"
+    (6) invokeStk1 3 
+    (8) done 
+

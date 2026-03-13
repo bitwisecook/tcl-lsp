@@ -1,0 +1,17 @@
+ByteCode 0x0xb1cc32c10, refCt 1, epoch 3, interp 0x0xb1cc20010 (epoch 3)
+  Source "string match {*.tcl} \"test.tcl\"\nstring match -nocase {h"
+  Cmds 2, src 76, inst 23, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Commands 2:
+      1: pc 0-6, src 0-30   	   2: pc 7-21, src 32-74
+  Command 1: "string match {*.tcl} \"test.tcl\""
+    (0) push1 0 	# "*.tcl"
+    (2) push1 1 	# "test.tcl"
+    (4) strmatch +0 
+    (6) pop 
+  Command 2: "string match -nocase {hello*} \"Hello World\""
+    (7) startCommand +15 1 	# next cmd at pc 22
+    (16) push1 2 	# "hello*"
+    (18) push1 3 	# "Hello World"
+    (20) strmatch +1 
+    (22) done 
+

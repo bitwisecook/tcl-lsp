@@ -1,0 +1,23 @@
+{
+  "seed": 1772893859,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    while executing\n\"expr {(abs((25.57 >= -43.61)) << (-11))}\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach buf {67.04 -588 445 fpvsjqll -256 patqcuo} {\n        string range \"5odhkw\" 0 5\n        append b -909\n        expr {(abs((25.57 >= -43.61)) << ...\"\n    (\"for\" body line 3)\n    invoked from within\n\"for {set n 0} {$n < 5} {incr n} {\n    set a \"fs-lwrz=h-ucjr\"\n    foreach buf {67.04 -588 445 fpvsjqll -256 patqcuo} {\n        string range \"5odhkw\" 0 ...\"\n "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    while executing\n\"expr {(abs((25.57 >= -43.61)) << (-11))}\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach buf {67.04 -588 445 fpvsjqll -256 patqcuo} {\n        string range \"5odhkw\" 0 5\n        append b -909\n        expr {(abs((25.57 >= -43.61)) << ...\"\n    (\"for\" body line 3)\n    invoked from within\n\"for {set n 0} {$n < 5} {incr n} {\n    set a \"fs-lwrz=h-ucjr\"\n    foreach buf {67.04 -588 445 fpvsjqll -256 patqcuo} {\n        string range \"5odhkw\" 0 ...\"\n "
+    }
+  ],
+  "category": "vm-timeout-negative-shift",
+  "triage": "VM loops; core negative-shift bug is FIXED; script wraps in retry loop"
+}

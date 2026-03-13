@@ -1,0 +1,23 @@
+{
+  "seed": 1772893476,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"88.55\" as operand of \"~\"\n    invoked from within\n\"expr {(-12.72 % max(1, abs((~88.55))))}\"\n    (\"while\" body line 63)\n    invoked from within\n\"while {$data < 5} {\n    switch -- true {\n        31 {\n            append val 378\n            lrepeat 2 696\n            string reverse \"b\"\n            ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmppluj1uwq.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"88.55\" as operand of \"~\"\n    invoked from within\n\"expr {(-12.72 % max(1, abs((~88.55))))}\"\n    (\"while\" body line 63)\n    invoked from within\n\"while {$data < 5} {\n    switch -- true {\n        31 {\n            append val 378\n            lrepeat 2 696\n            string reverse \"b\"\n            ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmppluj1uwq.tcl\" line 2)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

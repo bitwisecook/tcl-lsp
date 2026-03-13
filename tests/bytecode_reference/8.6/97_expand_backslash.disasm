@@ -1,0 +1,13 @@
+ByteCode 0x0x9050eb110, refCt 1, epoch 17, interp 0x0x90501c010 (epoch 17)
+  Source "list {*}{a \n b}\nlist {*}\"hello world..."
+  Cmds 2, src 39, inst 15, litObjs 2, aux 0, stkDepth 1, code/src 0.00
+  Commands 2:
+      1: pc 0-11, src 0-15        2: pc 12-13, src 17-37
+  Command 1: "list {*}{a \n b}..."
+    (0) push1 0 	# "a \n b"
+    (2) listRangeImm 0 end 
+    (11) pop 
+  Command 2: "list {*}\"hello world..."
+    (12) push1 1 	# "hello world"
+    (14) done 
+

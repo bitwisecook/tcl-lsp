@@ -1,0 +1,19 @@
+TCLSH    /usr/local/bin/tclsh8.4
+VERSION  8.4.20
+FILE     eval.test
+DATE     2026-03-03T12:54:53
+---
+PASS eval-1.1
+PASS eval-1.2
+PASS eval-1.3
+PASS eval-2.1
+PASS eval-2.2
+PASS eval-2.3
+PASS eval-2.4
+FAIL eval-2.5
+FAIL eval-2.5 error in eval'ed command: setting errorInfo
+---
+TOTAL   9
+PASSED  7
+SKIPPED 0
+FAILED  2

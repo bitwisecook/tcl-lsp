@@ -1,0 +1,56 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xd90dc000, refCt 1, epoch 0, interp 0x1462c60 (epoch 0)
+  Source "for {set i 0} {$i < 10} {incr i} {\n    if {$i == 3} con"
+  Cmds 8, src 99, inst 52, litObjs 5, aux 0, stkDepth 2, code/src 3.47
+  Code 344 = header 160+inst 52+litObj 40+exc 56+aux 0+cmdMap 32
+  Proc 0xd90d4c00, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "i"
+      slot 1, scalar, "x"
+  Exception ranges 2, depth 1:
+      0: level 1, loop, pc 7-36, continue 38, break 49
+      1: level 1, loop, pc 38-40, continue -1, break 49
+  Commands 8:
+      1: pc 0-50, src 0-97   	   2: pc 0-3, src 5-11
+      3: pc 7-19, src 39-59   	   4: pc 14-14, src 52-59
+      5: pc 20-32, src 65-82   	   6: pc 27-27, src 78-82
+      7: pc 33-36, src 88-95   	   8: pc 38-40, src 25-30
+  Command 1: "for {set i 0} {$i < 10} {incr i} {\n    if {$i == 3} con"
+  Command 2: "set i 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "i"
+    (4) pop 
+    (5) jump1 37  	# pc 42
+  Command 3: "if {$i == 3} continue"
+    (7) loadScalar1 0	# var "i"
+    (9) push1 1  	# "3"
+    (11) eq 
+    (12) jumpFalse1 5  	# pc 17
+  Command 4: "continue"
+    (14) continue 
+    (15) jump1 4  	# pc 19
+    (17) push1 2  	# ""
+    (19) pop 
+  Command 5: "if {$i == 7} break"
+    (20) loadScalar1 0	# var "i"
+    (22) push1 3  	# "7"
+    (24) eq 
+    (25) jumpFalse1 5  	# pc 30
+  Command 6: "break"
+    (27) break 
+    (28) jump1 4  	# pc 32
+    (30) push1 2  	# ""
+    (32) pop 
+  Command 7: "set x $i"
+    (33) loadScalar1 0	# var "i"
+    (35) storeScalar1 1	# var "x"
+    (37) pop 
+  Command 8: "incr i"
+    (38) incrScalar1Imm 0 1
+    (41) pop 
+    (42) loadScalar1 0	# var "i"
+    (44) push1 4  	# "10"
+    (46) lt 
+    (47) jumpTrue1 -40  	# pc 7
+    (49) push1 2  	# ""
+    (51) done 

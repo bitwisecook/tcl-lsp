@@ -1,0 +1,25 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x7029000, refCt 1, epoch 0, interp 0x6c0d000 (epoch 0)
+  Source "set s \"hello\tworld\n\"\nset t \"line1\nline2\nline3\"\nset "
+  Cmds 3, src 72, inst 15, litObjs 3, aux 0, stkDepth 1, code/src 2.94
+  Code 212 = header 160+inst 15+litObj 24+exc 0+aux 0+cmdMap 12
+  Proc 0x70c9c40, refCt 1, args 0, compiled locals 3
+      slot 0, scalar, "s"
+      slot 1, scalar, "t"
+      slot 2, scalar, "u"
+  Commands 3:
+      1: pc 0-4, src 0-21   	   2: pc 5-9, src 23-49
+      3: pc 10-13, src 51-70
+  Command 1: "set s \"hello\tworld\n\""
+    (0) push1 0  	# "hello\tworld\n"
+    (2) storeScalar1 0	# var "s"
+    (4) pop 
+  Command 2: "set t \"line1\nline2\nline3\""
+    (5) push1 1  	# "line1\nline2\nline3"
+    (7) storeScalar1 1	# var "t"
+    (9) pop 
+  Command 3: "set u \"\x41\x42\x43\""
+    (10) push1 2  	# "ABC"
+    (12) storeScalar1 2	# var "u"
+    (14) done 

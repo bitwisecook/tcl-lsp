@@ -1,0 +1,47 @@
+ByteCode ::top, 26 instructions, 92 bytes, 9 literals, 0 variables
+  Literals:
+    0: "a"
+    1: "4294967296"
+    2: "b"
+    3: "18446744065119617025"
+    4: "c"
+    5: "4294967296"
+    6: "d"
+    7: "tcl::mathfunc::wide"
+    8: "42"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "a"
+    (2) startCommand +11 1	# next cmd at pc 13, 1 cmds start here
+    (11) push1 1	# "4294967296"
+  # cmd_end_1:
+    (13) storeStk
+    (14) pop
+    (15) startCommand +23 1	# next cmd at pc 38, 1 cmds start here
+    (24) push1 2	# "b"
+    (26) startCommand +11 1	# next cmd at pc 37, 1 cmds start here
+    (35) push1 3	# "18446744065119617025"
+  # cmd_end_3:
+    (37) storeStk
+  # cmd_end_2:
+    (38) pop
+    (39) startCommand +23 1	# next cmd at pc 62, 1 cmds start here
+    (48) push1 4	# "c"
+    (50) startCommand +11 1	# next cmd at pc 61, 1 cmds start here
+    (59) push1 5	# "4294967296"
+  # cmd_end_5:
+    (61) storeStk
+  # cmd_end_4:
+    (62) pop
+    (63) startCommand +28 1	# next cmd at pc 91, 1 cmds start here
+    (72) push1 6	# "d"
+    (74) startCommand +16 1	# next cmd at pc 90, 1 cmds start here
+    (83) push1 7	# "tcl::mathfunc::wide"
+    (85) push1 8	# "42"
+    (87) invokeStk1 2
+    (89) tryCvtToNumeric
+  # cmd_end_7:
+    (90) storeStk
+  # cmd_end_6:
+  # exit_2:
+    (91) done

@@ -1,0 +1,41 @@
+ByteCode 0x0xc56cfa410, refCt 1, epoch 3, interp 0x0xc56c20010 (epoch 3)
+  Source "set s \"hello world\"\nset a [string replace $s 5 5 \"-\"]\ns"
+  Cmds 5, src 94, inst 62, litObjs 11, aux 0, stkDepth 7, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-18   	   2: pc 6-33, src 20-52
+      3: pc 17-31, src 27-51   	   4: pc 34-60, src 54-92
+      5: pc 45-59, src 61-91
+  Command 1: "set s \"hello world\""
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "hello world"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set a [string replace $s 5 5 \"-\"]"
+    (6) startCommand +27 1 	# next cmd at pc 33
+    (15) push1 2 	# "a"
+  Command 3: "string replace $s 5 5 \"-\""
+    (17) push1 3 	# "string"
+    (19) push1 4 	# "replace"
+    (21) push1 0 	# "s"
+    (23) loadScalarStk 
+    (24) push1 5 	# "5"
+    (26) push1 5 	# "5"
+    (28) push1 6 	# "-"
+    (30) invokeStk1 6 
+    (32) storeScalarStk 
+    (33) pop 
+  Command 4: "set b [string replace $s 0 4 \"goodbye\"]"
+    (34) startCommand +27 1 	# next cmd at pc 61
+    (43) push1 7 	# "b"
+  Command 5: "string replace $s 0 4 \"goodbye\""
+    (45) push1 3 	# "string"
+    (47) push1 4 	# "replace"
+    (49) push1 0 	# "s"
+    (51) loadScalarStk 
+    (52) push1 8 	# "0"
+    (54) push1 9 	# "4"
+    (56) push1 10 	# "goodbye"
+    (58) invokeStk1 6 
+    (60) storeScalarStk 
+    (61) done 
+

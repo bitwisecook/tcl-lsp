@@ -1,0 +1,24 @@
+{
+  "seed": 1772875108,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"if {(-44 | (-$val))} {\n            expr {wide((-12 ? max($idx, 23) : (-99)))}\n            expr {(double(69) >= 94)}\n            expr {((!min(82, -1)) ...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- \"c822ppdzj4jd,r\" {\n    34 {\n        switch -- 38.80 {\n            -688 {\n                set flag 0\n                while {$flag < 3} {\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpajrtb2ip.tcl\" line "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"if {(-44 | (-$val))} {\n            expr {wide((-12 ? max($idx, 23) : (-99)))}\n            expr {(double(69) >= 94)}\n            expr {((!min(82, -1)) ...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- \"c822ppdzj4jd,r\" {\n    34 {\n        switch -- 38.80 {\n            -688 {\n                set flag 0\n                while {$flag < 3} {\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpajrtb2ip.tcl\" line "
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

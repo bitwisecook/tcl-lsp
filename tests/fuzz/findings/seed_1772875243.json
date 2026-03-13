@@ -1,0 +1,24 @@
+{
+  "seed": 1772875243,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach tmp {436 nhksrq -393 uvup} {\n                join {true} \"-\"\n                regexp \"^[a-z]\" \"0dg;9.1?bg1\"\n                lassign {ska} count...\"\n    (\"while\" body line 55)\n    invoked from within\n\"while {$z < 5} {\n    set z -842\n    for {set z 0} {$z < 5} {incr z} {\n        switch -- -52 {\n            skmf {\n                set x jmldjgvr\n      ...\"\n    (file \"/var/folders/2s/clyp0"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach tmp {436 nhksrq -393 uvup} {\n                join {true} \"-\"\n                regexp \"^[a-z]\" \"0dg;9.1?bg1\"\n                lassign {ska} count...\"\n    (\"while\" body line 55)\n    invoked from within\n\"while {$z < 5} {\n    set z -842\n    for {set z 0} {$z < 5} {incr z} {\n        switch -- -52 {\n            skmf {\n                set x jmldjgvr\n      ...\"\n    (file \"/var/folders/2s/clyp0"
+    }
+  ],
+  "fixed": true,
+  "fix": "command resolution errors now propagate correctly",
+  "category": "invalid-command"
+}

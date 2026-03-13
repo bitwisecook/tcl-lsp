@@ -1,0 +1,23 @@
+{
+  "seed": 1772893895,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"9nc55o1cb_yq?_8\"\n    while executing\n\"incr acc\"\n    invoked from within\n\"if {(wide(46) ? (43 >= 17) : (34 ^ -19))} {\n    append acc yes\n    for {set acc 0} {$acc < 2} {incr acc} {\n        expr {-42}\n        set acc -523\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpij6x2do4.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"9nc55o1cb_yq?_8\"\n    while executing\n\"incr acc\"\n    invoked from within\n\"if {(wide(46) ? (43 >= 17) : (34 ^ -19))} {\n    append acc yes\n    for {set acc 0} {$acc < 2} {incr acc} {\n        expr {-42}\n        set acc -523\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpij6x2do4.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-type-error",
+  "triage": "VM loops on script with type errors; tclsh errors immediately"
+}

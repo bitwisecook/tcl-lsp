@@ -1,0 +1,24 @@
+{
+  "seed": 1772875328,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"a\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"if {$a > 16} {\n        lassign {-54.50 66 248 -26.04 17.18} b buf val\n    } else {\n        lassign {} z\n        switch -- -19.33 {\n            409 {\n ...\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach tmp {yes true} {\n    if {$a > 16} {\n        lassign {-54.50 66 248 -26.04 17.18} b buf val\n    } else {\n        lassign {} z\n        switch --...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpq2ni8yee.tcl\" line 7"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

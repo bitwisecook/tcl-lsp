@@ -1,0 +1,33 @@
+ByteCode 0x7534f2210, refCt 1, epoch 21, interp 0x75301c010 (epoch 21)
+  Source "set a [expr {true && false}]\nset b [expr {!true}]\nset..."
+  Cmds 8, src 111, inst 24, litObjs 7, aux 0, stkDepth 2, code/src 0.00
+  Commands 8:
+      1: pc 0-5, src 0-27        2: pc 2-3, src 7-26
+      3: pc 6-11, src 29-48        4: pc 8-9, src 36-47
+      5: pc 12-17, src 50-77        6: pc 14-15, src 57-76
+      7: pc 18-22, src 79-109        8: pc 20-21, src 86-108
+  Command 1: "set a [expr {true && false}]..."
+    (0) push1 0 	# "a"
+  Command 2: "expr {true && false}..."
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+  Command 3: "set b [expr {!true}]..."
+    (6) push1 2 	# "b"
+  Command 4: "expr {!true}..."
+    (8) push1 1 	# "0"
+    (10) storeStk 
+    (11) pop 
+  Command 5: "set c [expr {\"yes\" ? 1 : 0..."
+    (12) push1 3 	# "c"
+  Command 6: "expr {\"yes\" ? 1 : ..."
+    (14) push1 4 	# "1"
+    (16) storeStk 
+    (17) pop 
+  Command 7: "set d [expr {0 ? \"no\" : \"yes..."
+    (18) push1 5 	# "d"
+  Command 8: "expr {0 ? \"no\" : \"ye..."
+    (20) push1 6 	# "yes"
+    (22) storeStk 
+    (23) done 
+

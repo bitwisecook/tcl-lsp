@@ -1,0 +1,83 @@
+{
+    // LSP client configuration for tcl-lsp.
+    // See https://github.com/bitwisecook/tcl-lsp for documentation.
+
+    "command": ["${python}", "${server_path}"],
+    "selector": "source.tcl | source.irule",
+    "schemes": ["file", "buffer"],
+
+    // Server settings — passed as workspace/didChangeConfiguration.
+    // All keys live under "tclLsp" to match the server's expected format.
+    "settings": {
+        "tclLsp": {
+            // Dialect: tcl8.4, tcl8.5, tcl8.6, tcl9.0, f5-irules, f5-iapps, eda-tools
+            "dialect": "tcl8.6",
+
+            // Formatting options (used by textDocument/formatting)
+            "formatting": {
+                "indentSize": 4,
+                "maxLineLength": 120
+            }
+        }
+    },
+
+    // Map custom semantic token types to Sublime Text scopes.
+    // Standard LSP types (keyword, function, variable, string, comment,
+    // number, operator, parameter, namespace, regexp, event, decorator)
+    // are already handled by the LSP package's built-in map.
+    // Only custom / non-standard types need entries here.
+    "semantic_tokens": {
+        // Tcl-specific
+        "escape": "constant.character.escape.lsp",
+        // BIG-IP object types
+        "object": "entity.name.tag.object.lsp",
+        "fqdn": "string.other.fqdn.lsp",
+        "ipAddress": "constant.numeric.ip-address.lsp",
+        "port": "constant.numeric.port.lsp",
+        "routeDomain": "constant.numeric.route-domain.lsp",
+        "partition": "entity.name.tag.partition.lsp",
+        "username": "string.other.username.lsp",
+        "encrypted": "string.other.encrypted.lsp",
+        "pool": "entity.name.tag.pool.lsp",
+        "monitor": "entity.name.tag.monitor.lsp",
+        "profile": "entity.name.tag.profile.lsp",
+        "vlan": "entity.name.tag.vlan.lsp",
+        "interface": "entity.name.tag.interface.lsp",
+        // Regex sub-token types
+        "regexpGroup": "punctuation.section.group.regexp.lsp",
+        "regexpCharClass": "constant.other.character-class.regexp.lsp",
+        "regexpQuantifier": "keyword.operator.quantifier.regexp.lsp",
+        "regexpAnchor": "keyword.control.anchor.regexp.lsp",
+        "regexpEscape": "constant.character.escape.regexp.lsp",
+        "regexpBackref": "keyword.other.back-reference.regexp.lsp",
+        "regexpAlternation": "keyword.operator.alternation.regexp.lsp",
+        // binary scan/format sub-token types
+        "binarySpec": "constant.other.placeholder.binary.lsp",
+        "binaryCount": "constant.numeric.binary-count.lsp",
+        "binaryFlag": "storage.modifier.binary-flag.lsp",
+        // format/scan (sprintf) sub-token types
+        "formatPercent": "punctuation.definition.placeholder.format.lsp",
+        "formatSpec": "constant.other.placeholder.format.lsp",
+        "formatFlag": "storage.modifier.format-flag.lsp",
+        "formatWidth": "constant.numeric.format-width.lsp",
+        // clock format sub-token types
+        "clockPercent": "punctuation.definition.placeholder.clock.lsp",
+        "clockSpec": "constant.other.placeholder.clock.lsp",
+        "clockModifier": "storage.modifier.clock.lsp"
+    },
+
+    // Diagnostics: highlight style for each severity level.
+    "diagnostics_highlight_style": {
+        "error": "squiggly",
+        "warning": "squiggly",
+        "information": "stippled",
+        "hint": "stippled"
+    },
+
+    // User-configurable overrides — leave empty to use auto-detection.
+    //
+    // "server_path": "/path/to/server/__main__.py",
+    // "python_path": "/usr/bin/python3",
+
+    "initializationOptions": {}
+}

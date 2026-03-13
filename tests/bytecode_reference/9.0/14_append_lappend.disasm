@@ -1,0 +1,35 @@
+ByteCode 0xaa8d27a10, refCt 1, epoch 21, interp 0xaa8c28010 (epoch 21)
+  Source "set s \"\"\nappend s hello \" \" world\nset lst {}\nlap..."
+  Cmds 4, src 63, inst 58, litObjs 10, aux 0, stkDepth 5, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-7        2: pc 6-18, src 9-32
+      3: pc 19-33, src 34-43        4: pc 34-56, src 45-61
+  Command 1: "set s \"..."
+    (0) push1 0 	# "s"
+    (2) push1 1 	# ""
+    (4) storeStk 
+    (5) pop 
+  Command 2: "append s hello \" \" wor..."
+    (6) push1 2 	# "append"
+    (8) push1 0 	# "s"
+    (10) push1 3 	# "hello"
+    (12) push1 4 	# " "
+    (14) push1 5 	# "world"
+    (16) invokeStk1 5 
+    (18) pop 
+  Command 3: "set lst {}..."
+    (19) startCommand +14 1 	# next cmd at pc 33, 1 cmds start here
+    (28) push1 6 	# "lst"
+    (30) push1 1 	# ""
+    (32) storeStk 
+    (33) pop 
+  Command 4: "lappend lst a b c..."
+    (34) startCommand +23 1 	# next cmd at pc 57, 1 cmds start here
+    (43) push1 6 	# "lst"
+    (45) push1 7 	# "a"
+    (47) push1 8 	# "b"
+    (49) push1 9 	# "c"
+    (51) list 3 
+    (56) lappendListStk 
+    (57) done 
+

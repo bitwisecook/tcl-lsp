@@ -1,0 +1,19 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x62c8c600, refCt 1, epoch 0, interp 0x134ae20 (epoch 0)
+  Source "string match {*.tcl} \"test.tcl\"\nstring match -nocase {h"
+  Cmds 2, src 76, inst 14, litObjs 4, aux 0, stkDepth 2, code/src 2.84
+  Code 216 = header 160+inst 14+litObj 32+exc 0+aux 0+cmdMap 8
+  Proc 0x630810c0, refCt 1, args 0, compiled locals 0
+  Commands 2:
+      1: pc 0-6, src 0-30   	   2: pc 7-12, src 32-74
+  Command 1: "string match {*.tcl} \"test.tcl\""
+    (0) push1 0  	# "*.tcl"
+    (2) push1 1  	# "test.tcl"
+    (4) strmatch 0
+    (6) pop 
+  Command 2: "string match -nocase {hello*} \"Hello World\""
+    (7) push1 2  	# "hello*"
+    (9) push1 3  	# "Hello World"
+    (11) strmatch 1
+    (13) done 

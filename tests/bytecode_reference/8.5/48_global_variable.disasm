@@ -1,0 +1,39 @@
+ByteCode 0x0x846c48a10, refCt 1, epoch 3, interp 0x0x846c20010 (epoch 3)
+  Source "set ::gvar 100\nproc readglobal {} {\n    global gvar\n   "
+  Cmds 2, src 71, inst 17, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-13   	   2: pc 6-15, src 15-69
+  Command 1: "set ::gvar 100"
+    (0) push1 0 	# "::gvar"
+    (2) push1 1 	# "100"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "proc readglobal {} {\n    global gvar\n    return $gvar\n}"
+    (6) push1 2 	# "proc"
+    (8) push1 3 	# "readglobal"
+    (10) push1 4 	# ""
+    (12) push1 5 	# "\n    global gvar\n    return $gvar\n"
+    (14) invokeStk1 4 
+    (16) done 
+
+
+ByteCode 0x0x846c32610, refCt 1, epoch 3, interp 0x0x846d4a810 (epoch 3)
+  Source "\n    global gvar\n    return $gvar\n"
+  Cmds 2, src 34, inst 26, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x846cff710, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "gvar"
+  Commands 2:
+      1: pc 0-12, src 5-15   	   2: pc 13-24, src 21-32
+  Command 1: "global gvar"
+    (0) push1 0 	# "::"
+    (2) push1 1 	# "gvar"
+    (4) nsupvar %v0 	# var "gvar"
+    (9) pop 
+    (10) push1 2 	# ""
+    (12) pop 
+  Command 2: "return $gvar"
+    (13) startCommand +12 1 	# next cmd at pc 25
+    (22) loadScalar1 %v0 	# var "gvar"
+    (24) done 
+    (25) done 
+

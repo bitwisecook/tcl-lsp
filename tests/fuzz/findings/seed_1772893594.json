@@ -1,0 +1,23 @@
+{
+  "seed": 1772893594,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"yes\" as right operand of \"|\"\n    while executing\n\"expr {double((($buf | $n) / max(1, abs(-78))))}\"\n    (\"while\" body line 46)\n    invoked from within\n\"while {$z < 4} {\n    set flag 0\n    while {$flag < 5} {\n        append buf 76\n        incr flag\n    }\n    foreach n {679 59 -786 1 yes} {\n        stri...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpfiz4bkti.tcl\" line 289)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"yes\" as right operand of \"|\"\n    while executing\n\"expr {double((($buf | $n) / max(1, abs(-78))))}\"\n    (\"while\" body line 46)\n    invoked from within\n\"while {$z < 4} {\n    set flag 0\n    while {$flag < 5} {\n        append buf 76\n        incr flag\n    }\n    foreach n {679 59 -786 1 yes} {\n        stri...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpfiz4bkti.tcl\" line 289)"
+    }
+  ],
+  "category": "vm-timeout-other",
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"yes\" as right operand of \"|\" "
+}

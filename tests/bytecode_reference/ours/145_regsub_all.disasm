@@ -1,0 +1,41 @@
+ByteCode ::top, 22 instructions, 39 bytes, 12 literals, 0 variables
+  Literals:
+    0: "s"
+    1: "abc123def456"
+    2: "regsub"
+    3: "-all"
+    4: "\d+"
+    5: "NUM"
+    6: "result"
+    7: "-nocase"
+    8: "[aeiou]"
+    9: "Hello World"
+    10: "*"
+    11: "result2"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "s"
+    (2) push1 1	# "abc123def456"
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "regsub"
+    (8) push1 3	# "-all"
+    (10) push1 4	# "\d+"
+    (12) push1 0	# "s"
+    (14) loadStk
+    (15) push1 5	# "NUM"
+    (17) push1 6	# "result"
+    (19) invokeStk1 6	# regsub
+  # cmd_end_1:
+    (21) pop
+    (22) push1 2	# "regsub"
+    (24) push1 3	# "-all"
+    (26) push1 7	# "-nocase"
+    (28) push1 8	# "[aeiou]"
+    (30) push1 9	# "Hello World"
+    (32) push1 10	# "*"
+    (34) push1 11	# "result2"
+    (36) invokeStk1 7	# regsub
+  # cmd_end_2:
+  # exit_2:
+    (38) done

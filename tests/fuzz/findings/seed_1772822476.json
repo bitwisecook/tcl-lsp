@@ -1,0 +1,32 @@
+{
+  "seed": 1772822476,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "CRASH: ValueError: negative shift count"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (in namespace eval \"::util\" script line 3)\n    invoked from within\n\"namespace eval util {\n    for {set flag 0} {$flag < 4} {incr flag} {\n        regexp \"[0-9]\" \"t?_p08_3..0\"\n        set data 0\n        while {$data < 1}...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpqq4jme6_.tcl\" line 222)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (in namespace eval \"::util\" script line 3)\n    invoked from within\n\"namespace eval util {\n    for {set flag 0} {$flag < 4} {incr flag} {\n        regexp \"[0-9]\" \"t?_p08_3..0\"\n        set data 0\n        while {$data < 1}...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpqq4jme6_.tcl\" line 222)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

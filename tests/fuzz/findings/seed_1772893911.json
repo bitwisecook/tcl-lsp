@@ -1,0 +1,23 @@
+{
+  "seed": 1772893911,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"data\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"data\": no such variable\n    while executing\n\"if {$data < -2} {\n        expr {26}\n        set acc {-535 bojaew 0 qu 511}\n    } else {\n        regexp \"[a-z]+\" \"mi74lt6+44imm56h12\"\n        set b 14\n...\"\n    (\"foreach\" body line 24)\n    invoked from within\n\"foreach flag {bk no -150} {\n    if {$n > -8} {\n        set key 17.34\n        append j 159\n        set b {}\n        set z 0\n        while {$z < 5} {\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgy0zxc67.tcl\" li"
+    }
+  ],
+  "category": "vm-timeout-undefined-var",
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+}

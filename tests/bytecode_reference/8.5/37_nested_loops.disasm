@@ -1,0 +1,64 @@
+ByteCode 0x0xb26c48a10, refCt 1, epoch 3, interp 0x0xb26c20010 (epoch 3)
+  Source "set sum 0\nfor {set i 0} {$i < 3} {incr i} {\n    for {se"
+  Cmds 8, src 107, inst 104, litObjs 6, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 4, depth 2:
+      0: level 0, loop, pc 23-77, continue 79, break 101
+      1: level 0, loop, pc 79-91, continue -1, break 101
+      2: level 1, loop, pc 40-52, continue 54, break 76
+      3: level 1, loop, pc 54-66, continue -1, break 76
+  Commands 8:
+      1: pc 0-5, src 0-8   	   2: pc 6-102, src 10-105
+      3: pc 15-19, src 15-21   	   4: pc 23-77, src 48-103
+      5: pc 32-36, src 53-59   	   6: pc 40-52, src 90-97
+      7: pc 54-66, src 72-77   	   8: pc 79-91, src 34-39
+  Command 1: "set sum 0"
+    (0) push1 0 	# "sum"
+    (2) push1 1 	# "0"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "for {set i 0} {$i < 3} {incr i} {\n    for {set j 0} {$j"
+    (6) startCommand +97 2 	# next cmd at pc 103, 2 cmds start here
+  Command 3: "set i 0"
+    (15) push1 2 	# "i"
+    (17) push1 1 	# "0"
+    (19) storeScalarStk 
+    (20) pop 
+    (21) jump1 +72 	# pc 93
+  Command 4: "for {set j 0} {$j < 3} {incr j} {\n        incr sum\n    "
+    (23) startCommand +55 2 	# next cmd at pc 78, 2 cmds start here
+  Command 5: "set j 0"
+    (32) push1 3 	# "j"
+    (34) push1 1 	# "0"
+    (36) storeScalarStk 
+    (37) pop 
+    (38) jump1 +30 	# pc 68
+  Command 6: "incr sum"
+    (40) startCommand +13 1 	# next cmd at pc 53
+    (49) push1 0 	# "sum"
+    (51) incrScalarStkImm +1 
+    (53) pop 
+  Command 7: "incr j"
+    (54) startCommand +13 1 	# next cmd at pc 67
+    (63) push1 3 	# "j"
+    (65) incrScalarStkImm +1 
+    (67) pop 
+    (68) push1 3 	# "j"
+    (70) loadScalarStk 
+    (71) push1 4 	# "3"
+    (73) lt 
+    (74) jumpTrue1 -34 	# pc 40
+    (76) push1 5 	# ""
+    (78) pop 
+  Command 8: "incr i"
+    (79) startCommand +13 1 	# next cmd at pc 92
+    (88) push1 2 	# "i"
+    (90) incrScalarStkImm +1 
+    (92) pop 
+    (93) push1 2 	# "i"
+    (95) loadScalarStk 
+    (96) push1 4 	# "3"
+    (98) lt 
+    (99) jumpTrue1 -76 	# pc 23
+    (101) push1 5 	# ""
+    (103) done 
+

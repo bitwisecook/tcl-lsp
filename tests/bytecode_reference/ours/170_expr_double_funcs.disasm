@@ -1,0 +1,74 @@
+ByteCode ::top, 45 instructions, 138 bytes, 15 literals, 0 variables
+  Literals:
+    0: "a"
+    1: "tcl::mathfunc::sin"
+    2: "0.5"
+    3: "b"
+    4: "tcl::mathfunc::cos"
+    5: "0.0"
+    6: "c"
+    7: "tcl::mathfunc::sqrt"
+    8: "2.0"
+    9: "d"
+    10: "tcl::mathfunc::atan2"
+    11: "1.0"
+    12: "e"
+    13: "tcl::mathfunc::double"
+    14: "42"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "a"
+    (2) startCommand +16 1	# next cmd at pc 18, 1 cmds start here
+    (11) push1 1	# "tcl::mathfunc::sin"
+    (13) push1 2	# "0.5"
+    (15) invokeStk1 2
+    (17) tryCvtToNumeric
+  # cmd_end_1:
+    (18) storeStk
+    (19) pop
+    (20) startCommand +28 1	# next cmd at pc 48, 1 cmds start here
+    (29) push1 3	# "b"
+    (31) startCommand +16 1	# next cmd at pc 47, 1 cmds start here
+    (40) push1 4	# "tcl::mathfunc::cos"
+    (42) push1 5	# "0.0"
+    (44) invokeStk1 2
+    (46) tryCvtToNumeric
+  # cmd_end_3:
+    (47) storeStk
+  # cmd_end_2:
+    (48) pop
+    (49) startCommand +28 1	# next cmd at pc 77, 1 cmds start here
+    (58) push1 6	# "c"
+    (60) startCommand +16 1	# next cmd at pc 76, 1 cmds start here
+    (69) push1 7	# "tcl::mathfunc::sqrt"
+    (71) push1 8	# "2.0"
+    (73) invokeStk1 2
+    (75) tryCvtToNumeric
+  # cmd_end_5:
+    (76) storeStk
+  # cmd_end_4:
+    (77) pop
+    (78) startCommand +30 1	# next cmd at pc 108, 1 cmds start here
+    (87) push1 9	# "d"
+    (89) startCommand +18 1	# next cmd at pc 107, 1 cmds start here
+    (98) push1 10	# "tcl::mathfunc::atan2"
+    (100) push1 11	# "1.0"
+    (102) push1 11	# "1.0"
+    (104) invokeStk1 3
+    (106) tryCvtToNumeric
+  # cmd_end_7:
+    (107) storeStk
+  # cmd_end_6:
+    (108) pop
+    (109) startCommand +28 1	# next cmd at pc 137, 1 cmds start here
+    (118) push1 12	# "e"
+    (120) startCommand +16 1	# next cmd at pc 136, 1 cmds start here
+    (129) push1 13	# "tcl::mathfunc::double"
+    (131) push1 14	# "42"
+    (133) invokeStk1 2
+    (135) tryCvtToNumeric
+  # cmd_end_9:
+    (136) storeStk
+  # cmd_end_8:
+  # exit_2:
+    (137) done

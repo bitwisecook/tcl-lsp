@@ -1,0 +1,44 @@
+ByteCode 0xb1cd45610, refCt 1, epoch 21, interp 0xb1cc28010 (epoch 21)
+  Source "proc test {} {\n    set ::x {{1 2} {3 4}}\n    lset ::x..."
+  Cmds 1, src 80, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-78
+  Command 1: "proc test {} {\n    set ::x {{1 2} {3 4}}\n    lset ::x..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set ::x {{1 2} {3 4}}\n    lset ::..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0xb1cd45610, refCt 1, epoch 95, interp 0xb1cd74010 (epoch 95)
+  Source "\n    set ::x {{1 2} {3 4}}\n    lset ::x {1 1} 5\n    ..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 3, src 64, inst 44, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Proc 0xb1cd58f10, refCt 1, args 0, compiled locals 0
+  Commands 3:
+      1: pc 0-5, src 5-25        2: pc 6-29, src 31-46
+      3: pc 30-42, src 52-62
+  Command 1: "set ::x {{1 2} {3 4}}..."
+    (0) push1 0 	# "::x"
+    (2) push1 1 	# "{1 2} {3 4}"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "lset ::x {1 1} 5..."
+    (6) startCommand +23 1 	# next cmd at pc 29, 1 cmds start here
+    (15) push1 0 	# "::x"
+    (17) push1 2 	# "1 1"
+    (19) push1 3 	# "5"
+    (21) over 2 
+    (26) loadStk 
+    (27) lsetList 
+    (28) storeStk 
+    (29) pop 
+  Command 3: "return $::x..."
+    (30) startCommand +13 1 	# next cmd at pc 43, 1 cmds start here
+    (39) push1 0 	# "::x"
+    (41) loadStk 
+    (42) done 
+    (43) done 
+

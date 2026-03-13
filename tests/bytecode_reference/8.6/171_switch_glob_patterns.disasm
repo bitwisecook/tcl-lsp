@@ -1,0 +1,30 @@
+ByteCode 0x0xa330c0910, refCt 1, epoch 17, interp 0x0xa3301c010 (epoch 17)
+  Source "proc classify {name} {\n    switch -glob $name {\n     ..."
+  Cmds 1, src 188, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-186
+  Command 1: "proc classify {name} {\n    switch -glob $name {\n     ..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "classify"
+    (4) push1 2 	# "name"
+    (6) push1 3 	# "\n    switch -glob $name {\n        *.tc..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xa3305dc10, refCt 1, epoch 72, interp 0x0xa330b2810 (epoch 72)
+  Source "\n    switch -glob $name {\n        *.tcl { return \"tc..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 1, src 164, inst 11, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x0xa330f9210, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-9, src 5-162
+  Command 1: "switch -glob $name {\n        *.tcl { return \"tcl\" }\n..."
+    (0) push1 0 	# "switch"
+    (2) push1 1 	# "-glob"
+    (4) loadScalar1 %v0 	# var "name"
+    (6) push1 2 	# "\n        *.tcl { return \"tcl\" }\n    ..."
+    (8) invokeStk1 4 
+    (10) done 
+

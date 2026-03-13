@@ -1,0 +1,23 @@
+{
+  "seed": 1772893764,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"26.52\" as right operand of \"&\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"26.52\" as right operand of \"&\"\n    invoked from within\n\"expr {(~((77 & 26.52) % max(1, abs(min(33.65, 13)))))}\"\n    (\"foreach\" body line 112)\n    invoked from within\n\"foreach z {-80.63 -48.65} {\n    lassign {false} z x data\n    set acc 289\n    set x [expr {5.11}]\n    switch -- \".u6t+t\" {\n        \"n@3 r\" {\n          ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpggltdzsq.tcl\" line 1)"
+    }
+  ],
+  "category": "vm-timeout-float-int",
+  "triage": "VM loops; tclsh errors on float in integer-only op"
+}

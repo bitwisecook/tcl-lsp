@@ -1,0 +1,24 @@
+{
+  "seed": 1772875052,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"expr {(((!-2.74) << (19 < $b)) <= (90 || 8))}\"\n    (\"for\" body line 53)\n    invoked from within\n\"for {set key 0} {$key < 5} {incr key} {\n    switch -- 83.19 {\n        \":g\" {\n            lsort {-913}\n            set msg \"0\"\n        }\n        -983 {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp36dop42m.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"expr {(((!-2.74) << (19 < $b)) <= (90 || 8))}\"\n    (\"for\" body line 53)\n    invoked from within\n\"for {set key 0} {$key < 5} {incr key} {\n    switch -- 83.19 {\n        \":g\" {\n            lsort {-913}\n            set msg \"0\"\n        }\n        -983 {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp36dop42m.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

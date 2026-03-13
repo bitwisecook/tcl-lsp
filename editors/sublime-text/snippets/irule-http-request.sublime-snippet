@@ -1,0 +1,16 @@
+<snippet>
+	<content><![CDATA[when HTTP_REQUEST {
+    set host [string tolower [HTTP::host]]
+    set path [HTTP::path]
+    set uri [HTTP::uri]
+
+    if {\$debug} {
+        log local0.debug "HTTP_REQUEST host=\$host path=\$path"
+    }
+
+    ${0:# routing logic}
+}]]></content>
+	<tabTrigger>irule-http-request</tabTrigger>
+	<scope>source.irule</scope>
+	<description>Create an HTTP_REQUEST handler with safe defaults</description>
+</snippet>

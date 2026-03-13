@@ -1,0 +1,32 @@
+{
+  "seed": 1772845432,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"j\": no such variable\n    while executing\n\"expr {(~min(-34, ($j || 21)))}\"\n    (\"foreach\" body line 41)\n    invoked from within\n\"foreach b {0 vytpmeuq -67 -71.12 false} {\n    foreach b {fzl 579 true fhgrbv -14.80} {\n        set b cg\n        string range \"!8cg5-b=#0xnl83\" 0 2\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpiobdvy9w.tcl\" line 3)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"j\": no such variable\n    while executing\n\"expr {(~min(-34, ($j || 21)))}\"\n    (\"foreach\" body line 41)\n    invoked from within\n\"foreach b {0 vytpmeuq -67 -71.12 false} {\n    foreach b {fzl 579 true fhgrbv -14.80} {\n        set b cg\n        string range \"!8cg5-b=#0xnl83\" 0 2\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpiobdvy9w.tcl\" line 3)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}
