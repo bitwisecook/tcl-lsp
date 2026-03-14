@@ -3,11 +3,16 @@
   "displayName": "Tcl Language Support",
   "description": "Tcl language support with semantic highlighting, diagnostics, completions, and more",
   "version": "0.2.0",
-  "publisher": "tcl-lsp",
+  "publisher": "bitwisecook",
   "license": "AGPL-3.0-or-later",
+  "icon": "docs/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/bitwisecook/tcl-lsp"
+  },
+  "homepage": "https://github.com/bitwisecook/tcl-lsp#readme",
+  "bugs": {
+    "url": "https://github.com/bitwisecook/tcl-lsp/issues"
   },
   "engines": {
     "vscode": "^1.93.0"
