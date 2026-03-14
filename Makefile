@@ -110,6 +110,9 @@ install: package-vsix ## Build and install the .vsix into VS Code
 	@echo "==> Installing VS Code extension"
 	$(VSCODE) --install-extension $(VSIX_FILE) --force
 
+publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
+	cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE)
+
 README_SRC     := $(ROOT)README.md
 SCREENSHOT_DIR := $(ROOT)docs/screenshots
 SCREENSHOTS    := $(wildcard $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif)
@@ -135,6 +138,7 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 	cp $(README_SRC) $(STAGE_DIR)/README.md
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
+	cp "$(ROOT)docs/Tcl LSP Logo-8bit-128.png" $(STAGE_DIR)/docs/icon.png
 	@echo "==> Optimising images for release"
 	@if command -v pngquant >/dev/null 2>&1 && command -v optipng >/dev/null 2>&1; then \
 		for f in $(STAGE_DIR)/docs/screenshots/*.png; do \
@@ -679,11 +683,11 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
 # Zed extension
 
 ZED_DIR     := $(ROOT)editors/zed
-ZED_ARCHIVE := $(BUILD_DIR)/tcl-lsp-zed-$(VERSION).tar.gz
+ZED_ARCHIVE := $(BUILD_DIR)/tcl-lsp-zed-$(VERSION).zip
 ZED_SRCS    := $(shell find $(ZED_DIR)/src -name '*.rs' 2>/dev/null)
 ZED_BUNDLED := $(ZED_DIR)/bundled
 
-zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.tar.gz)
+zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.zip)
 
 $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building LSP + MCP server zipapps for bundling"
@@ -695,6 +699,12 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY
 		--version $(VERSION) \
 		--output $(ZED_BUNDLED)/tcl-lsp-mcp-server.pyz
 	@echo "==> Building Zed extension WASM (with bundled servers)"
+	@if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
+	if ! rustup target list --installed 2>/dev/null | grep -q wasm32-wasip2; then \
+		echo "  -> Installing wasm32-wasip2 target via rustup"; \
+		rustup target add wasm32-wasip2; \
+	fi
+	@if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
 	cd $(ZED_DIR) && TCL_LSP_BUNDLED_VERSION="$(VERSION)" cargo build --target wasm32-wasip2 --release
 	@echo "==> Staging Zed extension archive"
 	@rm -rf $(BUILD_DIR)/zed-stage
@@ -706,7 +716,7 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY
 	cp -r $(ZED_DIR)/snippets $(BUILD_DIR)/zed-stage/
 	@echo "==> Packaging Zed extension archive"
 	mkdir -p $(BUILD_DIR)
-	tar -czf $(ZED_ARCHIVE) -C $(BUILD_DIR)/zed-stage .
+	cd $(BUILD_DIR)/zed-stage && zip -qr $(abspath $(ZED_ARCHIVE)) .
 	@rm -rf $(ZED_BUNDLED)
 	@echo ""
 	@echo "Built: $(ZED_ARCHIVE)"

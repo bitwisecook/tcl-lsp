@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/Tcl LSP Logo-8bit-512.png" alt="Tcl LSP" width="128">
+</p>
+
 # tcl-lsp
 
 A language server for Tcl with multi-editor support.
@@ -90,8 +94,13 @@ exposing all 23 analysis tools, and slash commands (`/tcl-doc`, `/irule-event`,
 
 ```sh
 # Install from the Zed extension registry (search "Tcl")
-# Or as a dev extension:
-#   Command Palette > Extensions: Install Dev Extension > editors/zed/
+# Or install from a release artifact (no Rust required):
+#   1. Download tcl-lsp-zed-*.zip from the GitHub Releases page
+#   2. unzip tcl-lsp-zed-*.zip -d /tmp/tcl-lsp-zed
+#   3. Command Palette (Cmd+Shift+P) > "zed: install dev extension" > select /tmp/tcl-lsp-zed
+# Or build from source (requires Rust via rustup — https://rustup.rs):
+#   1. make zed
+#   2. Command Palette > "zed: install dev extension" > select editors/zed/
 ```
 
 ### Emacs

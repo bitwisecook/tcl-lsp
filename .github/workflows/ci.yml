@@ -625,12 +625,12 @@ jobs:
       - name: Smoke-test Zed archive
         run: |
           python3 -c "
-          import tarfile, glob
-          path = glob.glob('build/tcl-lsp-zed-*.tar.gz')[0]
-          tf = tarfile.open(path)
-          names = tf.getnames()
-          assert './extension.toml' in names, 'missing extension.toml'
-          assert './extension.wasm' in names, 'missing extension.wasm'
+          import zipfile, glob
+          path = glob.glob('build/tcl-lsp-zed-*.zip')[0]
+          zf = zipfile.ZipFile(path)
+          names = zf.namelist()
+          assert 'extension.toml' in names, 'missing extension.toml'
+          assert 'extension.wasm' in names, 'missing extension.wasm'
           assert any('languages/tcl/config.toml' in n for n in names), 'missing Tcl language config'
           assert any('snippets/tcl.json' in n for n in names), 'missing snippets'
           print(f'OK: {len(names)} entries')
@@ -640,7 +640,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zed-extension
-          path: "build/tcl-lsp-zed-*.tar.gz"
+          path: "build/tcl-lsp-zed-*.zip"
           retention-days: 7
 
       - name: Upload Zed extension to GitHub Release
@@ -648,7 +648,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-zed-*.tar.gz --clobber
+          gh release upload "$tag" build/tcl-lsp-zed-*.zip --clobber
 
   # Cleanup: delete workflow artifacts for all releases except the 3 most recent
   cleanup-old-artifacts:

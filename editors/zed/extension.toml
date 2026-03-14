@@ -1,4 +1,3 @@
-[extension]
 id = "tcl-lsp"
 name = "Tcl"
 version = "0.2.0"
@@ -9,7 +8,7 @@ repository = "https://github.com/bitwisecook/tcl-lsp"
 
 [grammars.tcl]
 repository = "https://github.com/tree-sitter-grammars/tree-sitter-tcl"
-rev = "e02f614ba64a0e81a0fae666b7d66cf7e9c0ed6e"
+rev = "8f11ac7206a54ed11210491cee1e0657e2962c47"
 
 [language_servers.tcl-lsp]
 name = "tcl-lsp"
