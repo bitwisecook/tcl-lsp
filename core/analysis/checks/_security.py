@@ -42,6 +42,11 @@ def check_eval_string_concat(
     if all(_first_token_is_braced(tok) for tok in arg_tokens):
         return []
 
+    # eval [list cmd $arg ...] is safe -- list produces a properly-quoted
+    # string that won't undergo double substitution.
+    if len(arg_tokens) == 1 and _is_list_command_token(arg_tokens[0], args[0]):
+        return []
+
     # Check if any token in the command is a VAR or CMD substitution
     # (skip the first token which is "eval" itself)
     has_substitution = any(
@@ -180,6 +185,23 @@ def check_eval_subst_double_decode(
     return diagnostics
 
 
+def _is_list_command_token(tok: Token, arg_text: str) -> bool:
+    """Return True if *tok* is a ``[list ...]`` command substitution.
+
+    ``uplevel 1 [list cmd $arg ...]`` is the canonical Tcl idiom for safe
+    argument passing to uplevel/eval — ``list`` produces a properly-quoted
+    string that never undergoes double substitution.
+
+    Handles both the segmenter path (arg_text includes ``[...]``) and the
+    compiler path (arg_text is the bare inner text of the CMD token).
+    """
+    if tok.type != TokenType.CMD:
+        return False
+    # The CMD token's .text is always the inner content without brackets.
+    inner = tok.text.lstrip()
+    return inner == "list" or inner.startswith("list ") or inner.startswith("list\t")
+
+
 # W301: uplevel with string-built script
 
 
@@ -234,6 +256,11 @@ def check_uplevel_injection(
         # Single arg -- check if it's unbraced with substitutions
         tok = remaining_toks[0]
         if not _first_token_is_braced(tok):
+            # [list ...] is the canonical safe idiom for uplevel/eval --
+            # it produces a properly-quoted single-element list that
+            # won't undergo double substitution.
+            if _is_list_command_token(tok, remaining_args[0]):
+                return []
             has_substitution = any(
                 t.type in (TokenType.VAR, TokenType.CMD)
                 for t in all_tokens[1:]  # skip "uplevel" token

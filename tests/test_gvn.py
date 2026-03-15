@@ -208,6 +208,22 @@ class TestGVNLoopInvariantCodeMotion:
         o106 = [w for w in warnings if w.code == "O106"]
         assert len(o106) == 0
 
+    def test_foreach_list_arg_not_flagged_as_loop_invariant(self):
+        """foreach's list argument is evaluated once, not on each iteration."""
+        source = textwrap.dedent("""\
+            foreach s [lsort -unique $filelist] {
+                if {[file tail $s] ni {. ..}} {
+                    file copy -force -- $s [file join $dest [file tail $s]]
+                }
+            }
+        """)
+        warnings = find_redundant_computations(source)
+        o106 = [w for w in warnings if w.code == "O106"]
+        lsort_warnings = [w for w in o106 if "lsort" in w.expression_text]
+        assert len(lsort_warnings) == 0, (
+            f"foreach list argument should not be flagged: {lsort_warnings}"
+        )
+
 
 class TestGVNProcBodies:
     """Redundancy detection in proc bodies."""

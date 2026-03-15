@@ -165,6 +165,11 @@ class TestEvalInjection:
         diags = _diag_with_code("eval puts hello", "W101")
         assert len(diags) == 0
 
+    def test_eval_list_idiom_clean(self):
+        """eval [list ...] is safe -- list prevents double substitution."""
+        diags = _diag_with_code("eval [list set $varname $value]", "W101")
+        assert len(diags) == 0
+
 
 # W102: subst on variable input
 
@@ -394,6 +399,18 @@ class TestUplevelInjection:
     def test_uplevel_no_level_unbraced(self):
         diags = _diag_with_code('uplevel "set x $y"', "W301")
         assert len(diags) == 1
+
+    def test_uplevel_list_idiom_clean(self):
+        """uplevel 1 [list ...] is the canonical safe quoting pattern."""
+        diags = _diag_with_code("uplevel 1 [list set $varname $value]", "W301")
+        assert len(diags) == 0
+
+    def test_uplevel_list_namespace_current(self):
+        """Real-world idiom: uplevel 1 [list ::namespace current]."""
+        diags = _diag_with_code(
+            "set ns [uplevel 1 [list ::namespace current]]", "W301"
+        )
+        assert len(diags) == 0
 
 
 # W302: catch without result variable
