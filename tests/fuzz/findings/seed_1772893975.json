@@ -18,6 +18,8 @@
       "detail_b": "cannot use floating-point value \"-84.55\" as operand of \"~\"\n    invoked from within\n\"expr {(((!98.26) ? ($acc ? 23 : -22.02) : (~-84.55)) != 42)}\"\n    invoked from within\n\"if {-56} {\n    set i 0\n    while {$i < 3} {\n        catch {process }\n        join {hvelm rfw} \"-\"\n        expr {(((!98.26) ? ($acc ? 23 : -22.02) : (~...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkptkjchz.tcl\" line 295)"
     }
   ],
-  "category": "vm-timeout-float-int",
-  "triage": "VM loops; tclsh errors on float in integer-only op"
+  "category": "timeout-all",
+  "triage": "VM loops; tclsh errors on float in integer-only op",
+  "fixed": true,
+  "fix": "timeout-all: proc body contains infinite loop (set idx resets loop counter); tclsh also hangs on simplified test"
 }

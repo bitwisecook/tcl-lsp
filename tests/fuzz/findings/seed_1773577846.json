@@ -1,0 +1,21 @@
+{
+  "seed": 1773577846,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {41} {\n            expr {(int((56 > -2)) * min(69, double($val)))}\n            lassign {-841 pejja 127 -76.40 xxlcx 0} y\n            set z [expr {i...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- 46 {\n    \" u!z!4d5x:ii;_k6;=8\" {\n        set acc 80\n        incr acc -2\n        if {$val > -8} {\n            expr {36.36}\n            expr {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {41} {\n            expr {(int((56 > -2)) * min(69, double($val)))}\n            lassign {-841 pejja 127 -76.40 xxlcx 0} y\n            set z [expr {i...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- 46 {\n    \" u!z!4d5x:ii;_k6;=8\" {\n        set acc 80\n        incr acc -2\n        if {$val > -8} {\n            expr {36.36}\n            expr {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000"
+    }
+  ]
+}

@@ -9,5 +9,7 @@
       "detail_a": "TIMEOUT",
       "detail_b": "missing \""
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "resolved by prior VM fixes"
 }

@@ -1,0 +1,21 @@
+{
+  "seed": 1773577881,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "missing close-brace",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"moqdmm\" as left operand of \">>\"\n    while executing\n\"expr {(0 << (($z >> 84) != -5))}\"\n    (\"default\" arm line 7)\n    invoked from within\n\"switch -- \"ma:8ak1m_s\" {\n    448 {\n        expr {$x}\n        for {set y 0} {$y < 3} {incr y} {\n            set a {-72.70 87}\n            if {wide(-79)...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp8dfl64on.tcl\" line 307)"
+    }
+  ]
+}

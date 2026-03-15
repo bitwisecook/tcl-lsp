@@ -9,5 +9,8 @@
       "detail_a": "missing close-brace",
       "detail_b": "TIMEOUT"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "parse divergence: vm and vm_opt parse corrupted input differently",
+  "category": "parse-divergence"
 }

@@ -9,5 +9,8 @@
       "detail_a": "CRASH: MemoryError: ",
       "detail_b": "CRASH: MemoryError: "
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "catch MemoryError from huge left shift; convert to TclError",
+  "category": "memory-error"
 }

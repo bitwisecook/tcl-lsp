@@ -467,6 +467,10 @@ class TclInterp:
         """Dispatch a command by name, annotating errors with errorInfo."""
         try:
             return self._invoke_inner(cmd_name, args)
+        except RecursionError:
+            msg = "too many nested evaluations (infinite loop?)"
+            cmd_text = _format_cmd_text(cmd_name, args)
+            raise TclError(msg, error_info=[msg, f'    while executing\n"{cmd_text}"']) from None
         except TclError as e:
             if not e.error_info:
                 if self._error_cmd_text:

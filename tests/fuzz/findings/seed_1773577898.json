@@ -1,0 +1,21 @@
+{
+  "seed": 1773577898,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0_a5g!._v:qa7o94767:07bdy;fa#.\"\n    while executing\n\"incr result\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set result 0} {$result < 5} {incr result} {\n    if {(~1)} {\n        append result \"_a5g!._v:qa7o94767\"\n        concat {cdok -68.80 62.67 0 no vln...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpli3d0n77.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0_a5g!._v:qa7o94767:07bdy;fa#.\"\n    while executing\n\"incr result\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set result 0} {$result < 5} {incr result} {\n    if {(~1)} {\n        append result \"_a5g!._v:qa7o94767\"\n        concat {cdok -68.80 62.67 0 no vln...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpli3d0n77.tcl\" line 2)"
+    }
+  ]
+}

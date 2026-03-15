@@ -19,5 +19,7 @@
     }
   ],
   "category": "vm-timeout-other",
-  "triage": "VM timeout, tclsh: cannot use a list as right operand of \"-\" cannot use a list "
+  "triage": "VM timeout, tclsh: cannot use a list as right operand of \"-\" cannot use a list ",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes (vm-timeout-other)"
 }

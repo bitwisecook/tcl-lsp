@@ -19,5 +19,7 @@
     }
   ],
   "category": "vm-timeout-if-else",
-  "triage": "VM loops; core if-else-elseif bug is FIXED; script wraps in retry loop"
+  "triage": "VM loops; core if-else-elseif bug is FIXED; script wraps in retry loop",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes"
 }

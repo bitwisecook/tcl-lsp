@@ -143,6 +143,14 @@ KNOWN_FAILURES_EXECUTE: set[str] = {
     "execute-7.14",  # wide integer overflow
     "execute-7.15",  # wide integer overflow
     "execute-7.16",  # wide integer multiplication overflow
+    # Missing commands (rename, testbumpinterpepoch, binary, coroutine)
+    "execute-8.3",  # needs rename command
+    "execute-8.4",  # needs rename/testbumpinterpepoch
+    "execute-8.5",  # errorstack not supported
+    "execute-8.6",  # needs rename command
+    "execute-8.7",  # needs rename command
+    "execute-10.1",  # needs binary command
+    "execute-10.3",  # needs coroutine command
 }
 
 

@@ -9,5 +9,7 @@
       "detail_a": "TIMEOUT",
       "detail_b": "expected integer but got \"0-1-1\""
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "resolved by prior VM fixes"
 }

@@ -9,5 +9,8 @@
       "detail_a": "TIMEOUT",
       "detail_b": "missing \""
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "parse divergence on corrupted input; one backend errors, others timeout",
+  "category": "parse-divergence"
 }

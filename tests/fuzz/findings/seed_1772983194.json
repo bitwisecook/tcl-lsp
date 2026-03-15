@@ -9,5 +9,7 @@
       "detail_a": "cannot use floating-point value \"1.2639029322548028\" as right operand of \"<<\"",
       "detail_b": "TIMEOUT"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "resolved by prior VM fixes"
 }

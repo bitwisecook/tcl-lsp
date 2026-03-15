@@ -9,5 +9,7 @@
       "detail_a": "missing close-brace",
       "detail_b": "(ok)"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "resolved by prior VM fixes"
 }

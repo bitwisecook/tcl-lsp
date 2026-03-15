@@ -9,5 +9,8 @@
       "detail_a": "missing close-brace",
       "detail_b": "TIMEOUT"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "parse divergence on corrupted input; one backend errors, others timeout",
+  "category": "parse-divergence"
 }
