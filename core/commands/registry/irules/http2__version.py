@@ -45,7 +45,11 @@ class Http2VersionCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP2"})),
+            event_requires=EventRequires(
+                transport="tcp",
+                profiles=frozenset({"HTTP"}),
+                also_in=frozenset({"MR_INGRESS"}),
+            ),
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.HTTP2_STATE,

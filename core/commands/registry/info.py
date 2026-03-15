@@ -78,7 +78,10 @@ def lookup_event_info(event_name: str, *, dialect: str = "f5-irules") -> EventIn
         multiplicity=event_multiplicity(name),
         description=get_event_description(name) or "",
         side=event_side_label(props) if props is not None else "unknown",
-        transport=props.transport if props is not None else None,
+        transport=(
+            "/".join(props.transport) if isinstance(props.transport, tuple)
+            else props.transport
+        ) if props is not None else None,
         implied_profiles=tuple(sorted(props.implied_profiles)) if props is not None else (),
         valid_commands=valid_commands,
     )

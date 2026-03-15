@@ -7,11 +7,13 @@ from core.commands.registry.namespace_data import (
     compute_file_profiles,
     event_satisfies,
     events_matching,
+    expand_profile_stack,
     get_event_props,
     infer_profiles_from_events,
     missing_requirements_description,
     parse_profile_directive,
     profile_info_description,
+    profile_stack_satisfies,
     scan_file_events,
 )
 from core.commands.registry.namespace_models import EventRequires
@@ -33,13 +35,13 @@ class TestEventPropsTable:
         props = EVENT_PROPS["CLIENT_ACCEPTED"]
         assert props.client_side
         assert not props.server_side
-        assert props.transport == "tcp"
+        assert props.transport == ("tcp", "udp")
 
     def test_server_connected_has_both_sides(self):
         props = EVENT_PROPS["SERVER_CONNECTED"]
         assert props.client_side
         assert props.server_side
-        assert props.transport == "tcp"
+        assert props.transport == ("tcp", "udp")
 
     def test_http_request_implies_http_profile(self):
         props = EVENT_PROPS["HTTP_REQUEST"]
@@ -80,11 +82,11 @@ class TestEventPropsTable:
         assert props.transport == "udp"
         assert "DNS" in props.implied_profiles
 
-    def test_lb_selected_is_client_only(self):
+    def test_lb_selected_is_both_sides(self):
         props = EVENT_PROPS["LB_SELECTED"]
         assert props.client_side
-        assert not props.server_side
-        assert props.transport == "tcp"
+        assert props.server_side
+        assert props.transport == ("tcp", "udp")
 
     def test_ip_gtm_has_no_connection(self):
         """IP_GTM is a GTM event — no standard connection context."""
@@ -152,7 +154,8 @@ class TestEventSatisfies:
     def test_transport_udp(self):
         req = EventRequires(client_side=True, transport="udp")
         assert event_satisfies(EVENT_PROPS["DNS_REQUEST"], req)
-        assert not event_satisfies(EVENT_PROPS["CLIENT_ACCEPTED"], req)
+        # CLIENT_ACCEPTED is now tcp/udp dual-transport (L4 event)
+        assert event_satisfies(EVENT_PROPS["CLIENT_ACCEPTED"], req)
 
     def test_profile_requirement(self):
         req = EventRequires(profiles=frozenset({"HTTP", "FASTHTTP"}))
@@ -314,6 +317,21 @@ class TestProfileInfoDescription:
     def test_partial_coverage_suppresses(self):
         req = EventRequires(profiles=frozenset({"HTTP", "FASTHTTP"}))
         assert profile_info_description(req, frozenset({"HTTP"})) is None
+
+    def test_transitive_stack_coverage_suppresses(self):
+        req = EventRequires(profiles=frozenset({"HTTP"}))
+        assert profile_info_description(req, frozenset({"HTTP2"})) is None
+
+
+class TestProfileStackExpansion:
+    def test_expand_http2_stack(self):
+        expanded = expand_profile_stack(frozenset({"HTTP2"}))
+        assert "HTTP2" in expanded
+        assert "HTTP" in expanded
+        assert "TCP" in expanded
+
+    def test_profile_stack_satisfies_transitive_requirement(self):
+        assert profile_stack_satisfies(frozenset({"HTTP"}), frozenset({"HTTP2"}))
 
 
 # events_matching
