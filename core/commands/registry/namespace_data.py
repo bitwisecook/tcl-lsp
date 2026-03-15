@@ -53,10 +53,10 @@ _TCP_UDP = ("tcp", "udp")
 
 _HP = frozenset({"HTTP", "FASTHTTP"})
 _H = frozenset({"HTTP"})
-_CS = frozenset({"CLIENTSSL", "SSL_PERSISTENCE"})
-_SS = frozenset({"SERVERSSL", "SSL_PERSISTENCE"})
-_CS_PERSIST = frozenset({"CLIENTSSL", "PERSIST"})
-_SS_PERSIST = frozenset({"SERVERSSL", "PERSIST"})
+_CS = frozenset({"CLIENTSSL", "PERSIST", "SSL_PERSISTENCE"})
+_SS = frozenset({"SERVERSSL", "PERSIST", "SSL_PERSISTENCE"})
+_CS_PERSIST = frozenset({"CLIENTSSL", "PERSIST", "SSL_PERSISTENCE"})
+_SS_PERSIST = frozenset({"SERVERSSL", "PERSIST", "SSL_PERSISTENCE"})
 _HTTP_PROXY = frozenset({"HTTP", "HTTP_PROXY_CONNECT"})
 _DNS = frozenset({"DNS"})
 _SIP = frozenset({"SIP", "SIPROUTER", "SIPSESSION"})
@@ -1526,7 +1526,7 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
                                     layer="application", side="both"),
     "HTTP2":  ProtocolNamespaceSpec("HTTP2", profiles=frozenset({"HTTP2"}),
                                     layer="application", side="both"),
-    "SSL":    ProtocolNamespaceSpec("SSL",   profiles=frozenset({"CLIENTSSL", "SERVERSSL", "SSL_PERSISTENCE"}),
+    "SSL":    ProtocolNamespaceSpec("SSL",   profiles=frozenset({"CLIENTSSL", "SERVERSSL", "PERSIST", "SSL_PERSISTENCE"}),
                                     layer="tls", side="both", side_selectable=True),
     "TCP":    ProtocolNamespaceSpec("TCP",   profiles=frozenset({"TCP"}),
                                     layer="transport", side="both", side_selectable=True),
@@ -1580,6 +1580,8 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
     # Security
     "ACCESS": ProtocolNamespaceSpec("ACCESS",profiles=frozenset({"ACCESS"}),
                                     layer="security", side="client"),
+    "ACCESS2": ProtocolNamespaceSpec("ACCESS2", profiles=frozenset({"ACCESS"}),
+                                    layer="security", side="client"),
     "ASM":    ProtocolNamespaceSpec("ASM",   profiles=frozenset({"ASM"}),
                                     layer="security", side="both"),
     "AUTH":   ProtocolNamespaceSpec("AUTH",  profiles=frozenset({"AUTH"}),
@@ -1588,6 +1590,8 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
                                     layer="security", side="client"),
     "AVR":    ProtocolNamespaceSpec("AVR",   profiles=frozenset({"AVR"}),
                                     layer="acceleration", side="both"),
+    "AM":     ProtocolNamespaceSpec("AM",    profiles=frozenset(),
+                                    layer="acceleration", side="global"),
     "BOTDEFENSE": ProtocolNamespaceSpec("BOTDEFENSE", profiles=frozenset({"BOTDEFENSE"}),
                                     layer="security", side="client"),
     "DOSL7":  ProtocolNamespaceSpec("DOSL7", profiles=frozenset({"DOSL7"}),
@@ -1611,6 +1615,8 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
                                     layer="acceleration", side="both"),
     "HTML":   ProtocolNamespaceSpec("HTML",  profiles=frozenset({"HTML"}),
                                     layer="acceleration", side="both"),
+    "HTTPLOG": ProtocolNamespaceSpec("HTTPLOG", profiles=frozenset({"HTTP"}),
+                                    layer="application", side="both"),
     "ICAP":   ProtocolNamespaceSpec("ICAP",  profiles=frozenset({"ICAP"}),
                                     layer="acceleration", side="both"),
     "JSON":   ProtocolNamespaceSpec("JSON",  profiles=frozenset({"JSON"}),
@@ -1654,6 +1660,10 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
                                     layer="utility", side="global"),
     "DECOMPRESS": ProtocolNamespaceSpec("DECOMPRESS", profiles=frozenset(),
                                     layer="utility", side="global"),
+    "DEMANGLE": ProtocolNamespaceSpec("DEMANGLE", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "DIAG":   ProtocolNamespaceSpec("DIAG",  profiles=frozenset(),
+                                    layer="utility", side="global"),
     "DHCP":   ProtocolNamespaceSpec("DHCP",  profiles=frozenset(),
                                     layer="application", side="both"),
     "DHCPv4": ProtocolNamespaceSpec("DHCPv4", profiles=frozenset(),
@@ -1686,6 +1696,8 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
                                     layer="utility", side="global"),
     "LDAP":   ProtocolNamespaceSpec("LDAP",  profiles=frozenset(),
                                     layer="application", side="global"),
+    "LINE":   ProtocolNamespaceSpec("LINE",  profiles=frozenset(),
+                                    layer="utility", side="global"),
     "LINK":   ProtocolNamespaceSpec("LINK",  profiles=frozenset(),
                                     layer="utility", side="global"),
     "NSH":    ProtocolNamespaceSpec("NSH",   profiles=frozenset(),
@@ -1696,6 +1708,8 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
                                     layer="application", side="global"),
     "ONECONNECT": ProtocolNamespaceSpec("ONECONNECT", profiles=frozenset(),
                                     layer="application", side="global"),
+    "PLUGIN": ProtocolNamespaceSpec("PLUGIN", profiles=frozenset(),
+                                    layer="utility", side="global"),
     "POLICY": ProtocolNamespaceSpec("POLICY", profiles=frozenset(),
                                     layer="application", side="both"),
     "POP3":   ProtocolNamespaceSpec("POP3",  profiles=frozenset(),
@@ -1706,8 +1720,12 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
                                     layer="security", side="global"),
     "PSM":    ProtocolNamespaceSpec("PSM",   profiles=frozenset({"HTTP"}),
                                     layer="application", side="both"),
+    "RESOLV": ProtocolNamespaceSpec("RESOLV", profiles=frozenset(),
+                                    layer="utility", side="global"),
     "RESOLVER": ProtocolNamespaceSpec("RESOLVER", profiles=frozenset(),
                                     layer="application", side="global"),
+    "REST":   ProtocolNamespaceSpec("REST",  profiles=frozenset(),
+                                    layer="utility", side="global"),
     "ROUTE":  ProtocolNamespaceSpec("ROUTE", profiles=frozenset(),
                                     layer="utility", side="global"),
     "SDP":    ProtocolNamespaceSpec("SDP",   profiles=frozenset(),
@@ -1723,6 +1741,8 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
     "URI":    ProtocolNamespaceSpec("URI",   profiles=frozenset({"HTTP"}),
                                     layer="application", side="both"),
     "VALIDATE": ProtocolNamespaceSpec("VALIDATE", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "VDI":    ProtocolNamespaceSpec("VDI",   profiles=frozenset(),
                                     layer="utility", side="global"),
     "WAM":    ProtocolNamespaceSpec("WAM",   profiles=frozenset({"HTTP"}),
                                     layer="application", side="both"),

@@ -54,7 +54,7 @@ class SipPersistCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(profiles=frozenset({"SIP"})),
+            event_requires=EventRequires(profiles=frozenset({"SIP"}), also_in=frozenset({"MR_EGRESS", "MR_FAILED", "MR_INGRESS"})),
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.PERSISTENCE_TABLE,

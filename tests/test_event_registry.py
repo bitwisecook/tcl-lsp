@@ -193,11 +193,12 @@ class TestNamespaceLookup:
         assert spec is not None
         assert spec.prefix == "HTTP"
 
-    def test_get_protocol_namespace_fallback_for_known_irules_prefix(self):
+    def test_get_protocol_namespace_explicit_utility_prefix(self):
+        """RESOLV has an explicit spec (no longer needs fallback)."""
         spec = EVENT_REGISTRY.get_protocol_namespace("RESOLV")
         assert spec is not None
         assert spec.prefix == "RESOLV"
-        assert spec.layer == "application"
+        assert spec.layer == "utility"
 
     def test_get_protocol_namespace_unknown_returns_none(self):
         assert EVENT_REGISTRY.get_protocol_namespace("NOT_A_NAMESPACE") is None

@@ -280,11 +280,12 @@ class TestRegistryInfoHelpers:
         assert "HTTP_REQUEST" not in info.valid_events
         assert any(name.startswith("ACCESS_") for name in info.valid_events)
 
-    def test_lookup_command_info_flow_only_command_is_not_any_event(self):
+    def test_lookup_command_info_any_event_command(self):
+        """RESOLV::lookup is valid in any event per BIG-IP manpage."""
         info = lookup_command_info("RESOLV::lookup", dialect="f5-irules")
         assert info.found
-        assert not info.valid_in_any_event
-        assert "RULE_INIT" not in info.valid_events
+        assert info.valid_in_any_event
+        assert "RULE_INIT" in info.valid_events
         assert "HTTP_REQUEST" in info.valid_events
 
     def test_lookup_command_info_not_found(self):

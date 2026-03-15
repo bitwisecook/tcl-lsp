@@ -61,7 +61,7 @@ class UdpPayloadCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(transport="udp"),
+            event_requires=EventRequires(transport="udp", also_in=frozenset({"SIP_REQUEST", "SIP_REQUEST_SEND", "SIP_RESPONSE", "STREAM_MATCHED"})),
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.UDP_STATE,

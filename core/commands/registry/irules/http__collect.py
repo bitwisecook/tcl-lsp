@@ -61,7 +61,7 @@ class HttpCollectCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"})),
+            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}), also_in=frozenset({"AUTH_ERROR", "AUTH_FAILURE", "AUTH_RESULT", "AUTH_SUCCESS", "AUTH_WANTCREDENTIAL"})),
             diagram_action=True,
             side_effect_hints=(
                 SideEffect(

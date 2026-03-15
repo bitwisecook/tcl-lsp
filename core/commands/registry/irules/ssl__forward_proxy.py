@@ -87,7 +87,7 @@ class SslForwardProxyCommand(CommandDef):
                 arity=Arity(),
             ),
             event_requires=EventRequires(
-                transport="tcp", profiles=frozenset({"CLIENTSSL", "SERVERSSL"})
+                transport="tcp", profiles=frozenset({"CLIENTSSL", "SERVERSSL"}), also_in=frozenset({"CLIENT_ACCEPTED", "SERVER_CONNECTED"})
             ),
             side_effect_hints=(
                 SideEffect(

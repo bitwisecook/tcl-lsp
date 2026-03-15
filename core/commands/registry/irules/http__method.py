@@ -43,7 +43,7 @@ class HttpMethodCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"})),
+            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}), also_in=frozenset({"MR_INGRESS"})),
             cse_candidate=True,
             side_effect_hints=(
                 SideEffect(

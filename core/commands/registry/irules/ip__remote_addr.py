@@ -68,7 +68,7 @@ class IpRemoteAddrCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(client_side=True),
+            event_requires=EventRequires(client_side=True, also_in=frozenset({"IP_GTM"})),
             cse_candidate=True,
             side_effect_hints=(
                 SideEffect(

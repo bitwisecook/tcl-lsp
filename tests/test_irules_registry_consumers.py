@@ -55,13 +55,14 @@ def test_lsp_command_description_inherits_namespace_profile_requirements() -> No
     assert any(name.startswith("ACCESS_") for name in payload["validEvents"])
 
 
-def test_lsp_command_description_flow_requirement_is_not_any_event() -> None:
+def test_lsp_command_description_any_event_command() -> None:
+    """RESOLV::lookup is ANY_EVENT per BIG-IP manpage."""
     payload = on_describe_irule_command("RESOLV::lookup")
 
     assert payload["found"] is True
-    assert payload["anyEvent"] is False
+    assert payload["anyEvent"] is True
     assert payload["eventRequires"]["profiles"] == []
-    assert "RULE_INIT" not in payload["validEvents"]
+    assert "RULE_INIT" in payload["validEvents"]
     assert "HTTP_REQUEST" in payload["validEvents"]
 
 

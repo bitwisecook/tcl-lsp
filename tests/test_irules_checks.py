@@ -67,19 +67,17 @@ class TestIrule1001:
         assert len(diags) == 1
         assert "connect" in diags[0].message
 
-    def test_lb_select_in_rule_init_warns(self):
-        """LB::select requires flow — should warn in RULE_INIT."""
+    def test_lb_select_in_rule_init_no_warning(self):
+        """LB::select is ANY_EVENT per BIG-IP manpage — no IRULE1001 in RULE_INIT."""
         src = "when RULE_INIT {\n    LB::select pool mypool\n}"
         diags = _diag_with_code(src, "IRULE1001")
-        assert len(diags) == 1
-        assert "LB::select" in diags[0].message
+        assert len(diags) == 0
 
-    def test_resolv_lookup_in_rule_init_warns(self):
-        """RESOLV::lookup requires flow — should warn in RULE_INIT."""
+    def test_resolv_lookup_in_rule_init_no_warning(self):
+        """RESOLV::lookup is ANY_EVENT per BIG-IP manpage — no IRULE1001 in RULE_INIT."""
         src = "when RULE_INIT {\n    RESOLV::lookup @192.168.1.1 a example.com\n}"
         diags = _diag_with_code(src, "IRULE1001")
-        assert len(diags) == 1
-        assert "RESOLV::lookup" in diags[0].message
+        assert len(diags) == 0
 
     def test_persist_in_persist_down_no_warning(self):
         """persist has also_in={PERSIST_DOWN} — should NOT warn."""
