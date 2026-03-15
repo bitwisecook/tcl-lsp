@@ -831,6 +831,11 @@ def _tool_event_info(event_name: str) -> str:
             "event": info.event,
             "known": info.known,
             "deprecated": info.deprecated,
+            "multiplicity": info.multiplicity,
+            "description": info.description,
+            "side": info.side,
+            "transport": info.transport,
+            "implied_profiles": list(info.implied_profiles),
             "valid_commands": list(info.valid_commands),
             "valid_command_count": info.valid_command_count,
         }

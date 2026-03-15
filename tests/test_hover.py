@@ -111,6 +111,14 @@ class TestCommandHover:
         text = _hover_text(result)
         assert "note:" not in text.lower()
 
+    def test_namespace_only_irules_hover_shows_profile_requirement(self):
+        configure_signatures(dialect="f5-irules")
+        result = get_hover('ACCESS::log 1 "trace"', 0, 5)
+        assert result is not None
+        text = _hover_text(result)
+        assert "Requires" in text
+        assert "ACCESS" in text
+
 
 class TestProcHover:
     def test_proc_signature(self):

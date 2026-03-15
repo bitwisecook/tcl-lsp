@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Verify the profile/protocol stack model against the BIG-IP schema.
 
 Checks:
@@ -11,20 +12,24 @@ Checks:
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.commands.registry import REGISTRY  # noqa: E402
-from core.commands.registry.namespace_data import (  # noqa: E402
+from core.commands.registry import REGISTRY
+from core.commands.registry.info import effective_event_requires
+from core.commands.registry.namespace_data import (
     EVENT_PROPS,
     FLOW_CHAINS,
     PROFILE_SPECS,
     PROTOCOL_NAMESPACE_SPECS,
+    event_satisfies,
+    expand_profile_stack,
 )
-from core.commands.registry.runtime import configure_signatures  # noqa: E402
+from core.commands.registry.runtime import configure_signatures
 
 SCHEMA_DIR = Path.home() / "src" / "bigip-extract" / "irule-schema-split"
 
@@ -40,6 +45,34 @@ def load_schema_namespace_commands(ns: str) -> list[dict]:
         return []
     with open(path) as f:
         return json.load(f)
+
+
+_WHEN_BLOCK_RE = re.compile(r"when\s+([A-Z_][A-Z0-9_]*)\s*\{")
+
+
+def iter_example_event_blocks(source: str) -> list[tuple[str, str]]:
+    """Return ``(event_name, body_text)`` pairs for ``when EVENT { ... }`` blocks."""
+    blocks: list[tuple[str, str]] = []
+    for match in _WHEN_BLOCK_RE.finditer(source):
+        event_name = match.group(1)
+        brace_index = source.find("{", match.start())
+        if brace_index == -1:
+            continue
+        depth = 0
+        end_index = None
+        for index in range(brace_index, len(source)):
+            char = source[index]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    end_index = index
+                    break
+        if end_index is None:
+            continue
+        blocks.append((event_name, source[brace_index : end_index + 1]))
+    return blocks
 
 
 def main():
@@ -64,9 +97,23 @@ def main():
 
     registry_profiles = set(PROFILE_SPECS.keys())
 
+    # Known name mappings (schema name -> registry name)
+    PROFILE_NAME_MAP = {
+        "IPS": "PROTOCOL_INSPECTION",
+        "MSSQL": "TDS",
+        "RADIUS_AAA": "RADIUS",
+        "DIAMETERSESSION": "DIAMETER",
+        "DIAMETER_ENDPOINT": "DIAMETER",
+        "SIPSESSION": "SIP",
+        "SIPROUTER": "SIP",
+        "PERSIST": "SSL_PERSISTENCE",
+        "HTTP_PROXY_CONNECT": "HTTP",
+    }
+
     missing_profiles = set()
     for p in sorted(schema_profiles):
-        if p not in registry_profiles:
+        mapped = PROFILE_NAME_MAP.get(p, p)
+        if mapped not in registry_profiles:
             missing_profiles.add(p)
 
     if missing_profiles:
@@ -76,7 +123,7 @@ def main():
             evts = [e["eventName"] for e in schema_events if p in e.get("profiles:", [])]
             print(f"  {p}: used by {', '.join(evts[:5])}")
     else:
-        print("\n  All schema profiles are in PROFILE_SPECS.")
+        print("\n  All schema profiles are in PROFILE_SPECS (with name mappings).")
 
     # ---- 2. EVENT PROFILE STACKING ----
     print("\n" + "=" * 70)
@@ -94,11 +141,17 @@ def main():
 
         registry_profs = set(props.implied_profiles)
 
-        # Check if all schema profiles are in registry
-        missing = schema_profs - registry_profs
+        # Map schema profile names to registry names
+        mapped_schema = set()
+        for p in schema_profs:
+            mapped = PROFILE_NAME_MAP.get(p, p)
+            mapped_schema.add(mapped)
+
+        # Check if all mapped schema profiles are in registry
+        missing = mapped_schema - registry_profs
         if missing:
             # Check if ANY of the schema profiles are present
-            present = schema_profs & registry_profs
+            present = mapped_schema & registry_profs
             mismatches.append((event_name, schema_profs, registry_profs, missing, present))
 
     if mismatches:
@@ -164,8 +217,7 @@ def main():
     print("=" * 70)
 
     # Collect all namespaces from schema
-    with open(SCHEMA_DIR / "namespaces.json") as f:
-        ns_json = json.load(f)
+    ns_json = json.load(open(SCHEMA_DIR / "namespaces.json"))
     schema_namespaces = set(ns_json)
 
     pns_namespaces = set(PROTOCOL_NAMESPACE_SPECS.keys())
@@ -192,12 +244,13 @@ def main():
         if pspec.requires:
             # Check that events with this profile also include the required profiles
             for event_name, props in EVENT_PROPS.items():
-                if pname in props.implied_profiles:
+                expanded_profiles = expand_profile_stack(props.implied_profiles)
+                if pname in expanded_profiles:
                     for req in pspec.requires:
-                        if req not in props.implied_profiles:
+                        if req not in expanded_profiles:
                             issues.append(
                                 f"  {event_name}: has profile {pname} which requires {req}, "
-                                f"but {req} not in implied_profiles {props.implied_profiles}"
+                                f"but {req} not in expanded stack {sorted(expanded_profiles)}"
                             )
 
     if issues:
@@ -212,9 +265,8 @@ def main():
     print("SECTION 6: COMMAND-EVENT CROSS CHECK (schema examples)")
     print("=" * 70)
 
-    # Parse schema command examples to extract which events they're used in
-    # Then verify those commands are legal in those events
-    import re
+    # Parse schema examples and only check events whose block actually
+    # contains the command being audited.
     legality = REGISTRY.command_legality("f5-irules")
 
     violations = []
@@ -225,37 +277,52 @@ def main():
             examples = cmd_entry.get("examples", "")
             if not examples:
                 continue
-
-            # Extract events from "when EVENT_NAME {" patterns
-            example_events = re.findall(r'when\s+(\w+)\s*\{', examples)
-            for event in set(example_events):
+            spec = REGISTRY.get(cmd_name, "f5-irules")
+            if spec is None:
+                continue
+            requires = effective_event_requires(cmd_name, spec.event_requires, dialect="f5-irules")
+            for event, block_text in iter_example_event_blocks(examples):
                 if event not in EVENT_PROPS:
                     continue
-                spec = REGISTRY.get(cmd_name, "f5-irules")
-                if spec is None:
+                if cmd_name not in block_text:
                     continue
                 checked += 1
-                if not legality.is_legal(event, cmd_name):
-                    violations.append((cmd_name, event))
+                if legality.is_legal(event, cmd_name):
+                    continue
+                if requires is not None and event_satisfies(
+                    EVENT_PROPS[event],
+                    requires,
+                    event_name=event,
+                ):
+                    continue
+                violations.append((cmd_name, event))
 
     # Also check global commands
-    with open(SCHEMA_DIR / "global_commands.json") as f:
-        global_cmds = json.load(f)
+    global_cmds = json.load(open(SCHEMA_DIR / "global_commands.json"))
     for cmd_entry in global_cmds:
         cmd_name = cmd_entry["commandName"]
         examples = cmd_entry.get("examples", "")
         if not examples:
             continue
-        example_events = re.findall(r'when\s+(\w+)\s*\{', examples)
-        for event in set(example_events):
+        spec = REGISTRY.get(cmd_name, "f5-irules")
+        if spec is None:
+            continue
+        requires = effective_event_requires(cmd_name, spec.event_requires, dialect="f5-irules")
+        for event, block_text in iter_example_event_blocks(examples):
             if event not in EVENT_PROPS:
                 continue
-            spec = REGISTRY.get(cmd_name, "f5-irules")
-            if spec is None:
+            if cmd_name not in block_text:
                 continue
             checked += 1
-            if not legality.is_legal(event, cmd_name):
-                violations.append((cmd_name, event))
+            if legality.is_legal(event, cmd_name):
+                continue
+            if requires is not None and event_satisfies(
+                EVENT_PROPS[event],
+                requires,
+                event_name=event,
+            ):
+                continue
+            violations.append((cmd_name, event))
 
     print(f"\n  Checked {checked} command-in-event pairs from schema examples.")
     if violations:
@@ -272,7 +339,7 @@ def main():
     print("SECTION 7: FLOW CHAIN VALIDATION")
     print("=" * 70)
 
-    for chain in FLOW_CHAINS:
+    for chain in FLOW_CHAINS.values():
         chain_events = [step.event for step in chain.steps]
         missing_events = [e for e in chain_events if e not in EVENT_PROPS]
         if missing_events:

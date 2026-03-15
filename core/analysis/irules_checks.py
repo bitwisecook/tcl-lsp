@@ -79,7 +79,7 @@ def check_command_event_validity(
     legality = REGISTRY.command_legality(dialect)
     if legality.is_legal(event, cmd_name):
         # Still check for informational profile hints.
-        if file_profiles and "::" in cmd_name:
+        if "::" in cmd_name:
             prefix = cmd_name.split("::", 1)[0]
             ns_spec = EVENT_REGISTRY.get_protocol_namespace(prefix)
             if ns_spec is not None and ns_spec.profiles:

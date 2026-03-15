@@ -11,6 +11,7 @@ from pygls.lsp.server import LanguageServer
 
 from core.analysis.analyser import analyse
 from core.commands.registry import REGISTRY
+from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import configure_signatures
 from core.common.lsp import to_lsp_location
@@ -808,19 +809,24 @@ def on_describe_irule_command(command_name: str) -> dict:
         "switches": list(spec.switch_names()),
     }
 
-    if spec.event_requires is not None:
-        result["validEvents"] = EVENT_REGISTRY.events_matching(spec.event_requires)
+    requires = effective_event_requires(name, spec.event_requires, dialect="f5-irules")
+    if requires is not None:
+        result["validEvents"] = EVENT_REGISTRY.events_matching(requires)
         result["anyEvent"] = not (
-            spec.event_requires.client_side
-            or spec.event_requires.server_side
-            or spec.event_requires.transport
-            or spec.event_requires.profiles
+            requires.client_side
+            or requires.server_side
+            or requires.transport is not None
+            or bool(requires.profiles)
+            or bool(requires.also_in)
+            or requires.init_only
+            or requires.flow
+            or requires.capability is not None
         )
         result["eventRequires"] = {
-            "clientSide": spec.event_requires.client_side,
-            "serverSide": spec.event_requires.server_side,
-            "transport": spec.event_requires.transport,
-            "profiles": sorted(spec.event_requires.profiles),
+            "clientSide": requires.client_side,
+            "serverSide": requires.server_side,
+            "transport": requires.transport,
+            "profiles": sorted(requires.profiles),
         }
 
     return result
