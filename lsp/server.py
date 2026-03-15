@@ -127,9 +127,14 @@ server = LanguageServer("tcl-lsp", f"v{_version}")
 class _LspLogHandler(logging.Handler):
     """Logging handler that forwards records via ``window/logMessage``.
 
-    A re-entrancy guard prevents infinite loops: pygls itself logs when
-    sending ``window/logMessage``, which would trigger this handler again.
-    We also skip pygls internal loggers entirely to avoid the feedback path.
+    A thread-local re-entrancy guard prevents infinite loops: pygls itself
+    logs when sending ``window/logMessage``, which would trigger this handler
+    again.  We also skip pygls internal loggers entirely to avoid the
+    feedback path.
+
+    When called from a background thread we marshal the send onto the
+    server's asyncio event-loop via ``loop.call_soon_threadsafe`` so that
+    pygls I/O is never performed off the event-loop thread.
     """
 
     _LEVEL_MAP = {
@@ -146,15 +151,14 @@ class _LspLogHandler(logging.Handler):
 
     def __init__(self) -> None:
         super().__init__()
-        self._emitting = False
+        # Thread-local re-entrancy guard — each thread gets its own flag.
+        self._local = threading.local()
 
-    def emit(self, record: logging.LogRecord) -> None:
-        # Skip pygls internals and guard against re-entrancy.
-        if self._emitting:
+    def _send_to_client(self, record: logging.LogRecord) -> None:
+        """Send a log record to the LSP client (must run on the event-loop thread)."""
+        if getattr(self._local, "emitting", False):
             return
-        if record.name in self._SKIP_LOGGERS or record.name.startswith("pygls."):
-            return
-        self._emitting = True
+        self._local.emitting = True
         try:
             msg_type = self._LEVEL_MAP.get(record.levelno, types.MessageType.Log)
             server.window_log_message(
@@ -164,7 +168,23 @@ class _LspLogHandler(logging.Handler):
             # Server not yet initialised or already shut down — swallow.
             pass
         finally:
-            self._emitting = False
+            self._local.emitting = False
+
+    def emit(self, record: logging.LogRecord) -> None:
+        # Skip pygls internals to avoid feedback paths.
+        if record.name in self._SKIP_LOGGERS or record.name.startswith("pygls."):
+            return
+        # Marshal the send onto the server's event loop when possible so
+        # that pygls I/O is never performed from background threads.
+        loop = getattr(server, "loop", None)
+        try:
+            if loop is not None and loop.is_running():
+                loop.call_soon_threadsafe(self._send_to_client, record)
+            else:
+                # Early startup / shutdown — send directly.
+                self._send_to_client(record)
+        except Exception:
+            pass
 
 
 def _install_lsp_log_handler() -> None:
@@ -1601,36 +1621,41 @@ async def _publish_diagnostics(
     optimiser_enabled = feature_config.optimiser_enabled
     disabled_optimisations = set(feature_config.disabled_optimisations)
 
-    def _phase1():
-        """Run Phase 1 analysis in a thread to keep the event loop free."""
-        state = workspace_state.update(
-            uri,
-            source,
-            version,
-            force_reanalyse=force_reanalyse,
-        )
-        partial_mode = state.has_partial_commands
+    # Mutate workspace_state on the event-loop thread to avoid data
+    # races with other LSP handlers that read it concurrently.
+    state = workspace_state.update(
+        uri,
+        source,
+        version,
+        force_reanalyse=force_reanalyse,
+    )
+    partial_mode = state.has_partial_commands
 
-        if not diagnostics_enabled:
-            return state, partial_mode, [], None, set()
-
+    if not diagnostics_enabled:
+        basic_diags: list[types.Diagnostic] = []
+        analysis_result = None
+        suppressed: set[str] = set()
+    else:
+        # Cache lookup also touches state — do it on the event loop.
         cached_style = state.get_cached_style_diagnostics(
             disabled_diagnostics=disabled_diagnostics,
             line_length=line_length,
         )
-        basic_diags, analysis_result, suppressed = get_basic_diagnostics(
-            source,
-            analysis=state.analysis,
-            cu=state.compilation_unit,
-            optimiser_enabled=optimiser_enabled and not partial_mode,
-            disabled_diagnostics=disabled_diagnostics,
-            disabled_optimisations=disabled_optimisations,
-            line_length=line_length,
-            cached_style_diagnostics=cached_style,
-        )
-        return state, partial_mode, basic_diags, analysis_result, suppressed
 
-    state, partial_mode, basic_diags, analysis_result, suppressed = await asyncio.to_thread(_phase1)
+        def _phase1():
+            """Run CPU-heavy diagnostics in a thread to keep the event loop free."""
+            return get_basic_diagnostics(
+                source,
+                analysis=state.analysis,
+                cu=state.compilation_unit,
+                optimiser_enabled=optimiser_enabled and not partial_mode,
+                disabled_diagnostics=disabled_diagnostics,
+                disabled_optimisations=disabled_optimisations,
+                line_length=line_length,
+                cached_style_diagnostics=cached_style,
+            )
+
+        basic_diags, analysis_result, suppressed = await asyncio.to_thread(_phase1)
 
     if not diagnostics_enabled:
         _publish_diags_to_client(uri, [], version)

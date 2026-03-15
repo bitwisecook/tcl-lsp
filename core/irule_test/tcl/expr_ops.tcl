@@ -286,12 +286,14 @@ namespace eval ::tmm::expr_ops {
     # ── Source-level rewriting ─────────────────────────────────────────
     #
     # Preprocess iRule source text to rewrite TMM custom operators in
-    # expression contexts (if/while/for/expr conditions).  This avoids
-    # the need to replace the if/while/for commands with procs, which
+    # expression contexts (if/while/expr conditions).  This avoids
+    # the need to replace the if/while commands with procs, which
     # breaks break/continue/return propagation.
     #
     # Strategy: scan for braced expression arguments to if/elseif/
-    # while/for/expr and run rewrite_expr on their contents.
+    # while/expr and run rewrite_expr on their contents.
+    # Note: `for` is handled separately by the ::for proc override
+    # above (its test expression is the 2nd argument, not the 1st).
 
     proc rewrite_irule_source {source} {
         variable _tmm_operators

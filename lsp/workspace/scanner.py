@@ -102,7 +102,7 @@ class BackgroundScanner:
         return result
 
     def analyse_one(self, full_path: str, ext: str) -> ScanResult | None:
-        """Analyse a single file (thread-safe wrapper around _analyse_file)."""
+        """Analyse a single file and cache the result."""
         return self._analyse_file(full_path, ext)
 
     # Maximum time (seconds) to spend analysing a single file during
@@ -136,12 +136,14 @@ class BackgroundScanner:
         """Run _analyse_file with a per-file timeout.
 
         Uses a daemon thread so that a hung analysis does not block
-        the scan indefinitely.
+        the scan indefinitely.  The analysis result is written to
+        ``_cached`` only after the thread completes within the timeout,
+        so a timed-out thread cannot mutate shared state later.
         """
         result_box: list[ScanResult | None] = [None]
 
         def _work() -> None:
-            result_box[0] = self._analyse_file(full_path, ext)
+            result_box[0] = self._run_analysis(full_path, ext)
 
         t = threading.Thread(target=_work, daemon=True)
         t.start()
@@ -153,7 +155,11 @@ class BackgroundScanner:
                 full_path,
             )
             return None
-        return result_box[0]
+        # Only cache after a successful, timely completion.
+        result = result_box[0]
+        if result is not None:
+            self._cached[result.uri] = result
+        return result
 
     def rescan_file(self, file_path: str) -> ScanResult | None:
         """Re-scan a single file (e.g. after a filesystem change)."""
@@ -238,7 +244,8 @@ class BackgroundScanner:
             log.debug("Scanner: failed to parse bigip config %s", full_path, exc_info=True)
             return None
 
-    def _analyse_file(self, full_path: str, ext: str) -> ScanResult | None:
+    def _run_analysis(self, full_path: str, ext: str) -> ScanResult | None:
+        """Run analysis for a single file without caching the result."""
         uri = path_to_uri(full_path)
         try:
             source = Path(full_path).read_text(encoding="utf-8", errors="replace")
@@ -249,18 +256,23 @@ class BackgroundScanner:
                 from core.compiler.irules_flow import extract_rule_init_vars
 
                 rule_init_exports = extract_rule_init_vars(source)
-            scan_result = ScanResult(
+            return ScanResult(
                 uri=uri,
                 file_path=full_path,
                 analysis=result,
                 dialect_hint=dialect,
                 rule_init_exports=rule_init_exports,
             )
-            self._cached[uri] = scan_result
-            return scan_result
         except Exception:
             log.debug("Scanner: failed to analyse %s", full_path, exc_info=True)
             return None
+
+    def _analyse_file(self, full_path: str, ext: str) -> ScanResult | None:
+        """Analyse a single file and cache the result."""
+        scan_result = self._run_analysis(full_path, ext)
+        if scan_result is not None:
+            self._cached[scan_result.uri] = scan_result
+        return scan_result
 
 
 # URI / path utilities
