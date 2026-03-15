@@ -16,6 +16,7 @@ from .namespace_data import (
     get_event_description,
     get_event_props,
 )
+from .namespace_models import EventRequires
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,35 @@ class CommandInfo:
     switches: tuple[str, ...]
     valid_events: tuple[str, ...]
     valid_in_any_event: bool
+
+
+def effective_event_requires(
+    command_name: str,
+    requires: EventRequires | None,
+    *,
+    dialect: str = "f5-irules",
+) -> EventRequires | None:
+    """Augment command requirements with namespace-backed profile metadata."""
+    if dialect != "f5-irules" or requires is None or requires.profiles or "::" not in command_name:
+        return requires
+
+    from .namespace_registry import NAMESPACE_REGISTRY
+
+    prefix = command_name.split("::", 1)[0]
+    ns_spec = NAMESPACE_REGISTRY.get_protocol_namespace(prefix)
+    if ns_spec is None or not ns_spec.profiles:
+        return requires
+
+    return EventRequires(
+        client_side=requires.client_side,
+        server_side=requires.server_side,
+        transport=requires.transport,
+        profiles=ns_spec.profiles,
+        also_in=requires.also_in,
+        init_only=requires.init_only,
+        flow=requires.flow,
+        capability=requires.capability,
+    )
 
 
 def lookup_event_info(event_name: str, *, dialect: str = "f5-irules") -> EventInfo:
@@ -118,9 +148,9 @@ def lookup_command_info(command_name: str, *, dialect: str) -> CommandInfo:
 
     valid_events: tuple[str, ...] = ()
     valid_in_any_event = False
-    if spec.event_requires is not None:
-        requires = spec.event_requires
-        valid_events = tuple(events_matching(spec.event_requires))
+    requires = effective_event_requires(resolved_name, spec.event_requires, dialect=dialect)
+    if requires is not None:
+        valid_events = tuple(events_matching(requires))
         valid_in_any_event = not (
             requires.client_side
             or requires.server_side

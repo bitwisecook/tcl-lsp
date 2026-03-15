@@ -256,6 +256,10 @@ class TestRegistryInfoHelpers:
         assert info.valid_command_count >= 1
         assert info.side in {"client-side", "server-side", "client-side and server-side", "global"}
 
+    def test_lookup_event_info_dual_transport_is_serialised(self):
+        info = lookup_event_info("client_accepted", dialect="f5-irules")
+        assert info.transport == "tcp/udp"
+
     def test_lookup_event_info_unknown_event(self):
         info = lookup_event_info("totally_fake_event", dialect="f5-irules")
         assert info.event == "TOTALLY_FAKE_EVENT"
@@ -267,6 +271,21 @@ class TestRegistryInfoHelpers:
         info = lookup_command_info("http::uri", dialect="f5-irules")
         assert info.found
         assert info.command == "HTTP::uri"
+
+    def test_lookup_command_info_inherits_namespace_profile_requirements(self):
+        info = lookup_command_info("ACCESS::log", dialect="f5-irules")
+        assert info.found
+        assert not info.valid_in_any_event
+        assert info.valid_events
+        assert "HTTP_REQUEST" not in info.valid_events
+        assert any(name.startswith("ACCESS_") for name in info.valid_events)
+
+    def test_lookup_command_info_flow_only_command_is_not_any_event(self):
+        info = lookup_command_info("RESOLV::lookup", dialect="f5-irules")
+        assert info.found
+        assert not info.valid_in_any_event
+        assert "RULE_INIT" not in info.valid_events
+        assert "HTTP_REQUEST" in info.valid_events
 
     def test_lookup_command_info_not_found(self):
         info = lookup_command_info("definitely::not_a_command", dialect="f5-irules")

@@ -237,6 +237,15 @@ def test_event_info_json_known_event(capsys):
     assert err == ""
 
 
+def test_event_info_json_dual_transport_event(capsys):
+    code, out, err = _run(["event-info", "CLIENT_ACCEPTED", "--json"], capsys)
+
+    assert code == 0
+    payload = json.loads(out)
+    assert payload["transport"] == "tcp/udp"
+    assert err == ""
+
+
 def test_command_info_json_known_command(capsys):
     code, out, err = _run(
         ["command-info", "HTTP::uri", "--dialect", "f5-irules", "--json"],

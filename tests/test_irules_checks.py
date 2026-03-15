@@ -136,10 +136,12 @@ class TestIrule1001:
         assert len(diags) == 1
         assert diags[0].severity is Severity.WARNING
 
-    def test_tcp_collect_in_client_data_no_warning(self):
+    def test_tcp_collect_in_client_data_emits_transport_profile_hint(self):
         src = "when CLIENT_DATA {\n    TCP::collect\n}"
         diags = _diag_with_code(src, "IRULE1001")
-        assert len(diags) == 0
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.HINT
+        assert "TCP" in diags[0].message
 
     def test_ssl_release_in_clientssl_data_no_warning(self):
         src = "when CLIENTSSL_DATA {\n    SSL::release\n}"
@@ -152,6 +154,14 @@ class TestIrule1001:
         assert len(diags) == 1
         assert diags[0].severity is Severity.HINT
         assert "HTTP2" in diags[0].message
+
+    def test_access_log_in_client_accepted_emits_namespace_profile_hint(self):
+        src = 'when CLIENT_ACCEPTED {\n    ACCESS::log 1 "trace"\n}'
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.HINT
+        assert "ACCESS::log" in diags[0].message
+        assert "ACCESS" in diags[0].message
 
 
 # IRULE2001: Deprecated matchclass

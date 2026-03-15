@@ -871,6 +871,16 @@ class TestGenerateProfilesHeader:
         snippets = _action_snippets(sa)
         assert snippets[0] == "# Profiles: CLIENTSSL\n"
 
+    def test_clientssl_clienthello_omits_persist_helper_profile(self):
+        source = 'when CLIENTSSL_CLIENTHELLO {\n    log local0. "TLS hello"\n}\n'
+        actions = get_code_actions(source, _FULL_DOC_RANGE, _NO_DIAG_CONTEXT)
+        sa = _source_actions(actions)
+        assert len(sa) == 1
+        snippets = _action_snippets(sa)
+        assert snippets[0] == "# Profiles: CLIENTSSL\n"
+        assert "PERSIST" not in snippets[0]
+        assert "SSL_PERSISTENCE" not in snippets[0]
+
     def test_multiple_events_combines_profiles(self):
         source = (
             "when HTTP_REQUEST {\n    HTTP::uri\n}\n"
