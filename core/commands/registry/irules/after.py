@@ -62,7 +62,7 @@ class AfterCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
-            event_requires=EventRequires(init_only=True),
+            event_requires=EventRequires(),
             diagram_action=True,
             xc_translatable=False,
             side_effect_hints=(

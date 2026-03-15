@@ -49,18 +49,21 @@ from .namespace_models import (
 
 _TCP = "tcp"
 _UDP = "udp"
+_TCP_UDP = ("tcp", "udp")
 
 _HP = frozenset({"HTTP", "FASTHTTP"})
 _H = frozenset({"HTTP"})
-_CS = frozenset({"CLIENTSSL"})
-_SS = frozenset({"SERVERSSL"})
+_CS = frozenset({"CLIENTSSL", "SSL_PERSISTENCE"})
+_SS = frozenset({"SERVERSSL", "SSL_PERSISTENCE"})
+_HTTP_PROXY = frozenset({"HTTP", "HTTP_PROXY_CONNECT"})
 _DNS = frozenset({"DNS"})
-_SIP = frozenset({"SIP"})
+_SIP = frozenset({"SIP", "SIPROUTER", "SIPSESSION"})
 _AUTH = frozenset({"AUTH"})
 _ACCESS = frozenset({"ACCESS"})
 _STREAM = frozenset({"STREAM"})
 _FIX = frozenset({"FIX"})
-_DIAMETER = frozenset({"DIAMETER"})
+_DIAMETER = frozenset({"DIAMETER", "DIAMETERSESSION", "DIAMETER_ENDPOINT"})
+_DIAMETER_RETRANS = frozenset({"DIAMETER", "DIAMETERSESSION"})
 _MQTT = frozenset({"MQTT"})
 _ICAP = frozenset({"ICAP"})
 _BOTDEFENSE = frozenset({"BOTDEFENSE"})
@@ -74,30 +77,30 @@ _ADAPT_RESP = frozenset({"RESPONSEADAPT"})
 _PEM = frozenset({"PEM"})
 # Compound profile sets: sub-feature events carry both parent + own profile.
 _ASM = frozenset({"ASM", "HTTP", "FASTHTTP"})
-_ASM_RESP = frozenset({"ASM", "HTTP"})  # ASM response events (HTTP only, no FASTHTTP)
+_ASM_RESP = frozenset({"ASM", "HTTP", "FASTHTTP"})
 _WS = frozenset({"WS", "HTTP"})
 _HTML = frozenset({"HTML", "HTTP"})
 _CACHE = frozenset({"CACHE", "WEBACCELERATION"})
-_DOSL7 = frozenset({"DOSL7"})
+_DOSL7 = frozenset({"DOSL7", "HTTP", "FASTHTTP"})
 _SOCKS = frozenset({"SOCKS"})
 _TAP = frozenset({"TAP"})
-_CATEGORY = frozenset({"CATEGORY"})
+_CATEGORY = frozenset({"CATEGORY", "HTTP", "ACCESS"})
 _PCP = frozenset({"PCP"})
-_TDS = frozenset({"TDS"})
+_TDS = frozenset({"TDS", "MSSQL"})
 _SSE = frozenset({"SSE"})
 _NAME = frozenset({"NAME"})
-_PROTO_INSPECT = frozenset({"PROTOCOL_INSPECTION"})
-_REWRITE = frozenset({"REWRITE"})
+_PROTO_INSPECT = frozenset({"PROTOCOL_INSPECTION", "IPS"})
+_REWRITE = frozenset({"REWRITE", "HTTP"})
 _QOE = frozenset({"QOE"})
 _L7CHECK = frozenset({"L7CHECK"})
 _IVS = frozenset({"IVS_ENTRY"})
 _RTSP = frozenset({"RTSP"})
 _FLOW = frozenset({"FLOW"})
 _DATAGRAM = frozenset({"DATAGRAM"})
-_RADIUS = frozenset({"RADIUS"})
+_RADIUS = frozenset({"RADIUS", "RADIUS_AAA"})
 _CONNECTOR = frozenset({"CONNECTOR"})
 _JSON = frozenset({"JSON"})
-_XML = frozenset({"XML"})
+_XML = frozenset({"XML", "HTTP", "FASTHTTP"})
 _GTP = frozenset({"GTP"})
 _AVR = frozenset({"AVR"})
 _ECA = frozenset({"ECA"})
@@ -132,22 +135,22 @@ EVENT_PROPS: dict[str, EventProps] = {
     "RULE_INIT":            _ep(flow=False, common=True),
     "PERSIST_DOWN":         _ep(flow=False),
 
-    # L4 client-side (TCP)
-    "CLIENT_ACCEPTED":      _ep(client_side=True, transport=_TCP, hot=True, common=True),
-    "CLIENT_DATA":          _ep(client_side=True, transport=_TCP),
-    "CLIENT_CLOSED":        _ep(client_side=True, transport=_TCP, common=True),
+    # L4 client-side (TCP or UDP)
+    "CLIENT_ACCEPTED":      _ep(client_side=True, transport=_TCP_UDP, hot=True, common=True),
+    "CLIENT_DATA":          _ep(client_side=True, transport=_TCP_UDP),
+    "CLIENT_CLOSED":        _ep(client_side=True, transport=_TCP_UDP, common=True),
 
-    # Load-balancing / server init
-    "LB_SELECTED":          _ep(client_side=True, transport=_TCP, common=True),
-    "LB_FAILED":            _ep(client_side=True, transport=_TCP, common=True),
-    "LB_QUEUED":            _ep(client_side=True, transport=_TCP),
-    "SERVER_INIT":          _ep(client_side=True, transport=_TCP),
-    "SA_PICKED":            _ep(client_side=True, transport=_TCP),
+    # Load-balancing / server init (TCP or UDP)
+    "LB_SELECTED":          _ep(client_side=True, server_side=True, transport=_TCP_UDP, common=True),
+    "LB_FAILED":            _ep(client_side=True, transport=_TCP_UDP, common=True),
+    "LB_QUEUED":            _ep(client_side=True, server_side=True, transport=_TCP_UDP),
+    "SERVER_INIT":          _ep(client_side=True, server_side=True, transport=_TCP_UDP),
+    "SA_PICKED":            _ep(client_side=True, transport=_TCP_UDP),
 
-    # L4 server-side (TCP)
-    "SERVER_CONNECTED":     _ep(client_side=True, server_side=True, transport=_TCP, hot=True, common=True),
-    "SERVER_DATA":          _ep(client_side=True, server_side=True, transport=_TCP),
-    "SERVER_CLOSED":        _ep(client_side=True, server_side=True, transport=_TCP, common=True),
+    # L4 server-side (TCP or UDP)
+    "SERVER_CONNECTED":     _ep(client_side=True, server_side=True, transport=_TCP_UDP, hot=True, common=True),
+    "SERVER_DATA":          _ep(client_side=True, server_side=True, transport=_TCP_UDP),
+    "SERVER_CLOSED":        _ep(client_side=True, server_side=True, transport=_TCP_UDP, common=True),
 
     # HTTP
     "HTTP_REQUEST":             _ep(client_side=True, transport=_TCP, profiles=_HP, hot=True, common=True),
@@ -160,9 +163,9 @@ EVENT_PROPS: dict[str, EventProps] = {
     "HTTP_RESPONSE_RELEASE":    _ep(client_side=True, server_side=True, transport=_TCP, profiles=_H),
     "HTTP_DISABLED":            _ep(client_side=True, transport=_TCP, profiles=_H),
     "HTTP_REJECT":              _ep(client_side=True, transport=_TCP, profiles=_H),
-    "HTTP_PROXY_REQUEST":       _ep(client_side=True, transport=_TCP, profiles=_H),
-    "HTTP_PROXY_CONNECT":       _ep(client_side=True, transport=_TCP, profiles=_H),
-    "HTTP_PROXY_RESPONSE":      _ep(client_side=True, server_side=True, transport=_TCP, profiles=_H),
+    "HTTP_PROXY_REQUEST":       _ep(client_side=True, transport=_TCP, profiles=_HTTP_PROXY),
+    "HTTP_PROXY_CONNECT":       _ep(client_side=True, transport=_TCP, profiles=_HTTP_PROXY),
+    "HTTP_PROXY_RESPONSE":      _ep(client_side=True, server_side=True, transport=_TCP, profiles=_HTTP_PROXY),
     "HTTP_CLASS_FAILED":        _ep(client_side=True, transport=_TCP, profiles=_H, deprecated=True),
     "HTTP_CLASS_SELECTED":      _ep(client_side=True, transport=_TCP, profiles=_H, deprecated=True),
 
@@ -240,9 +243,9 @@ EVENT_PROPS: dict[str, EventProps] = {
     # Bot / Fraud
     "BOTDEFENSE_REQUEST":   _ep(client_side=True, transport=_TCP, profiles=_BOTDEFENSE),
     "BOTDEFENSE_ACTION":    _ep(client_side=True, transport=_TCP, profiles=_BOTDEFENSE),
-    "ANTIFRAUD_LOGIN":      _ep(client_side=True, transport=_TCP, profiles=_ANTIFRAUD),
+    "ANTIFRAUD_LOGIN":      _ep(client_side=True, server_side=True, transport=_TCP, profiles=_ANTIFRAUD),
     "ANTIFRAUD_ALERT":      _ep(client_side=True, transport=_TCP, profiles=_ANTIFRAUD),
-    "IN_DOSL7_ATTACK":      _ep(client_side=True, transport=_TCP, profiles=frozenset({"DOSL7"})),
+    "IN_DOSL7_ATTACK":      _ep(client_side=True, transport=_TCP, profiles=_DOSL7),
 
     # Content inspection / matching
     "CLASSIFICATION_DETECTED":      _ep(client_side=True, transport=_TCP, profiles=_CLASSIFICATION),
@@ -301,7 +304,7 @@ EVENT_PROPS: dict[str, EventProps] = {
     # DIAMETER
     "DIAMETER_INGRESS":         _ep(client_side=True, transport=_TCP, profiles=_DIAMETER),
     "DIAMETER_EGRESS":          _ep(client_side=True, server_side=True, transport=_TCP, profiles=_DIAMETER),
-    "DIAMETER_RETRANSMISSION":  _ep(client_side=True, transport=_TCP, profiles=_DIAMETER),
+    "DIAMETER_RETRANSMISSION":  _ep(client_side=True, transport=_TCP, profiles=_DIAMETER_RETRANS),
 
     # MQTT
     "MQTT_CLIENT_INGRESS":  _ep(client_side=True, transport=_TCP, profiles=_MQTT),
@@ -368,12 +371,12 @@ EVENT_PROPS: dict[str, EventProps] = {
 
     # Miscellaneous
     "NAME_RESOLVED":            _ep(client_side=True, transport=_TCP, profiles=_NAME),
-    "FLOW_INIT":                _ep(client_side=True, profiles=_FLOW),
+    "FLOW_INIT":                _ep(client_side=True, transport=_TCP_UDP, profiles=_FLOW),
     "TAP_REQUEST":              _ep(client_side=True, transport=_TCP, profiles=_TAP),
     "CONNECTOR_OPEN":           _ep(client_side=True, transport=_TCP, profiles=_CONNECTOR),
-    "PING_REQUEST_READY":       _ep(client_side=True),
-    "PING_RESPONSE_READY":      _ep(client_side=True, server_side=True),
-    "USER_REQUEST":             _ep(client_side=True, transport=_TCP),
+    "PING_REQUEST_READY":       _ep(client_side=True, transport=_TCP, profiles=_H),
+    "PING_RESPONSE_READY":      _ep(client_side=True, server_side=True, transport=_TCP, profiles=_H),
+    "USER_REQUEST":             _ep(client_side=True, server_side=True, transport=_TCP),
     "USER_RESPONSE":            _ep(client_side=True, server_side=True, transport=_TCP),
     "EPI_NA_CHECK_HTTP_REQUEST":_ep(client_side=True, transport=_TCP),
 
@@ -1012,14 +1015,14 @@ MASTER_ORDER: tuple[tuple[str, frozenset[str]], ...] = (
     ("ACCESS_POLICY_COMPLETED", frozenset({"ACCESS"})),
     # Classification / content matching (pre-LB)
     ("CLASSIFICATION_DETECTED", frozenset({"CLASSIFICATION"})),
-    ("CATEGORY_MATCHED", frozenset({"CATEGORY"})),
+    ("CATEGORY_MATCHED", frozenset({"CATEGORY", "ACCESS", "HTTP"})),
     ("HTTP_CLASS_SELECTED", frozenset({"HTTP"})),
     ("HTTP_CLASS_FAILED", frozenset({"HTTP"})),
     # Caching (WebAcceleration, pre-LB)
     ("CACHE_REQUEST", frozenset({"CACHE", "WEBACCELERATION"})),
     ("CACHE_RESPONSE", frozenset({"CACHE", "WEBACCELERATION"})),  # cache hit shortcut
     # L7 DoS (pre-LB, BIG-IP 14.1+)
-    ("IN_DOSL7_ATTACK", frozenset({"DOSL7"})),
+    ("IN_DOSL7_ATTACK", frozenset({"DOSL7", "HTTP", "FASTHTTP"})),
     # ASM / WAF request-side (pre-LB, BIG-IP 14.1+)
     # Normal mode:        ASM_REQUEST_DONE fires after every request
     # Compatibility mode: ASM_REQUEST_VIOLATION fires only for violations
@@ -1044,7 +1047,7 @@ MASTER_ORDER: tuple[tuple[str, frozenset[str]], ...] = (
     ("ACCESS_ACL_ALLOWED", frozenset({"ACCESS"})),
     ("ACCESS_ACL_DENIED", frozenset({"ACCESS"})),
     ("ACCESS_PER_REQUEST_AGENT_EVENT", frozenset({"ACCESS"})),
-    ("REWRITE_REQUEST_DONE", frozenset({"REWRITE"})),
+    ("REWRITE_REQUEST_DONE", frozenset({"REWRITE", "HTTP"})),
     # L4 server-side
     ("SERVER_CONNECTED", frozenset()),
     # Server-side TLS
@@ -1069,8 +1072,8 @@ MASTER_ORDER: tuple[tuple[str, frozenset[str]], ...] = (
     ("HTTP_RESPONSE_DATA", frozenset({"HTTP"})),  # conditional: HTTP::collect
     ("HTTP_RESPONSE_CONTINUE", frozenset({"HTTP"})),  # conditional: 100-continue
     # ASM / WAF response-side
-    ("ASM_RESPONSE_VIOLATION", frozenset({"ASM"})),
-    ("ASM_RESPONSE_LOGIN", frozenset({"ASM"})),
+    ("ASM_RESPONSE_VIOLATION", frozenset({"ASM", "HTTP", "FASTHTTP"})),
+    ("ASM_RESPONSE_LOGIN", frozenset({"ASM", "HTTP", "FASTHTTP"})),
     # Bot Defense
     ("BOTDEFENSE_REQUEST", frozenset({"BOTDEFENSE"})),
     ("BOTDEFENSE_ACTION", frozenset({"BOTDEFENSE"})),
@@ -1081,7 +1084,7 @@ MASTER_ORDER: tuple[tuple[str, frozenset[str]], ...] = (
     ("HTML_TAG_MATCHED", frozenset({"HTML"})),
     ("HTML_COMMENT_MATCHED", frozenset({"HTML"})),
     # Rewrite (response)
-    ("REWRITE_RESPONSE_DONE", frozenset({"REWRITE"})),
+    ("REWRITE_RESPONSE_DONE", frozenset({"REWRITE", "HTTP"})),
     # HTTP response release
     ("HTTP_RESPONSE_RELEASE", frozenset({"HTTP"})),
     # HTTP disabled / reject (can fire at various points)
@@ -1401,16 +1404,30 @@ PROFILE_SPECS: dict[str, ProfileSpec] = {
                                capabilities=frozenset({
                                    "sni", "extensions", "sessionid",
                                })),
+    "PERSIST":     ProfileSpec("PERSIST",   layer="tls",          side="both",
+                               requires=frozenset({"TCP"})),
     "HTTP":        ProfileSpec("HTTP",      layer="application",  side="both",
                                requires=frozenset({"TCP"})),
     "FASTHTTP":    ProfileSpec("FASTHTTP",  layer="application",  side="both",
                                requires=frozenset({"TCP"})),
+    "HTTP_PROXY_CONNECT": ProfileSpec("HTTP_PROXY_CONNECT", layer="application", side="both",
+                               requires=frozenset({"HTTP"})),
+    "HTTP2":       ProfileSpec("HTTP2",     layer="application",  side="both",
+                               requires=frozenset({"HTTP"})),
     "DNS":         ProfileSpec("DNS",       layer="application",  side="both"),
     "SIP":         ProfileSpec("SIP",       layer="application",  side="both"),
+    "SIPROUTER":   ProfileSpec("SIPROUTER", layer="application",  side="both",
+                               requires=frozenset({"SIP"})),
+    "SIPSESSION":  ProfileSpec("SIPSESSION",layer="application",  side="both",
+                               requires=frozenset({"SIP"})),
     "FIX":         ProfileSpec("FIX",       layer="application",  side="both",
                                requires=frozenset({"TCP"})),
     "DIAMETER":    ProfileSpec("DIAMETER",  layer="application",  side="both",
                                requires=frozenset({"TCP"})),
+    "DIAMETERSESSION": ProfileSpec("DIAMETERSESSION", layer="application", side="both",
+                               requires=frozenset({"DIAMETER"})),
+    "DIAMETER_ENDPOINT": ProfileSpec("DIAMETER_ENDPOINT", layer="application", side="both",
+                               requires=frozenset({"DIAMETER"})),
     "MQTT":        ProfileSpec("MQTT",      layer="application",  side="both",
                                requires=frozenset({"TCP"})),
     "RTSP":        ProfileSpec("RTSP",      layer="application",  side="both",
@@ -1421,11 +1438,15 @@ PROFILE_SPECS: dict[str, ProfileSpec] = {
                                requires=frozenset({"TCP"})),
     "GTP":         ProfileSpec("GTP",       layer="application",  side="both"),
     "RADIUS":      ProfileSpec("RADIUS",    layer="application",  side="both"),
+    "RADIUS_AAA":  ProfileSpec("RADIUS_AAA",layer="application",  side="both",
+                               requires=frozenset({"RADIUS"})),
     "PCP":         ProfileSpec("PCP",       layer="application",  side="both"),
     "SOCKS":       ProfileSpec("SOCKS",     layer="application",  side="client",
                                requires=frozenset({"TCP"})),
     "TDS":         ProfileSpec("TDS",       layer="application",  side="both",
                                requires=frozenset({"TCP"})),
+    "MSSQL":       ProfileSpec("MSSQL",     layer="application",  side="both",
+                               requires=frozenset({"TDS"})),
     "IVS_ENTRY":   ProfileSpec("IVS_ENTRY", layer="application",  side="both",
                                requires=frozenset({"TCP"})),
     "ASM":         ProfileSpec("ASM",       layer="security",     side="both",
@@ -1444,6 +1465,8 @@ PROFILE_SPECS: dict[str, ProfileSpec] = {
                                requires=frozenset({"TCP"})),
     "PROTOCOL_INSPECTION": ProfileSpec("PROTOCOL_INSPECTION", layer="security", side="both",
                                requires=frozenset({"TCP"})),
+    "IPS":         ProfileSpec("IPS",       layer="security",     side="both",
+                               requires=frozenset({"PROTOCOL_INSPECTION"})),
     "PEM":         ProfileSpec("PEM",       layer="security",     side="client",
                                requires=frozenset({"TCP"})),
     "TAP":         ProfileSpec("TAP",       layer="security",     side="client",
@@ -1489,6 +1512,7 @@ PROFILE_SPECS: dict[str, ProfileSpec] = {
                                requires=frozenset({"TCP"})),
     "DATAGRAM":    ProfileSpec("DATAGRAM",  layer="application",  side="both",
                                requires=frozenset({"UDP"})),
+    "LSN":         ProfileSpec("LSN",       layer="application",  side="client"),
 }
 # fmt: on
 
@@ -1496,29 +1520,30 @@ PROFILE_SPECS: dict[str, ProfileSpec] = {
 
 # fmt: off
 PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
-    "HTTP":   ProtocolNamespaceSpec("HTTP",  profiles=frozenset({"HTTP", "FASTHTTP"}),
+    "HTTP":   ProtocolNamespaceSpec("HTTP",  profiles=frozenset({"HTTP", "FASTHTTP", "HTTP_PROXY_CONNECT"}),
+                                    layer="application", side="both"),
+    "HTTP2":  ProtocolNamespaceSpec("HTTP2", profiles=frozenset({"HTTP2"}),
                                     layer="application", side="both"),
     "SSL":    ProtocolNamespaceSpec("SSL",   profiles=frozenset({"CLIENTSSL", "SERVERSSL", "SSL_PERSISTENCE"}),
                                     layer="tls", side="both", side_selectable=True),
     "TCP":    ProtocolNamespaceSpec("TCP",   profiles=frozenset({"TCP"}),
                                     layer="transport", side="both", side_selectable=True),
     "UDP":    ProtocolNamespaceSpec("UDP",   profiles=frozenset({"UDP"}),
+                                    layer="transport", side="both", side_selectable=True),
+    "SCTP":   ProtocolNamespaceSpec("SCTP",  profiles=frozenset({"SCTP"}),
                                     layer="transport", side="both"),
-    "IP":     ProtocolNamespaceSpec("IP",    profiles=frozenset({"TCP", "UDP"}),
+    "IP":     ProtocolNamespaceSpec("IP",    profiles=frozenset(),
                                     layer="transport", side="both", side_selectable=True),
     "LB":     ProtocolNamespaceSpec("LB",    profiles=frozenset(),
                                     layer="load_balance", side="global"),
+    # Application protocols
     "DNS":    ProtocolNamespaceSpec("DNS",   profiles=frozenset({"DNS"}),
                                     layer="application", side="both"),
-    "SIP":    ProtocolNamespaceSpec("SIP",   profiles=frozenset({"SIP"}),
+    "SIP":    ProtocolNamespaceSpec("SIP",   profiles=frozenset({"SIP", "SIPROUTER", "SIPSESSION"}),
                                     layer="application", side="both"),
-    "ACCESS": ProtocolNamespaceSpec("ACCESS",profiles=frozenset({"ACCESS"}),
-                                    layer="security", side="client"),
-    "ASM":    ProtocolNamespaceSpec("ASM",   profiles=frozenset({"ASM"}),
-                                    layer="security", side="both"),
     "FIX":    ProtocolNamespaceSpec("FIX",   profiles=frozenset({"FIX"}),
                                     layer="application", side="both"),
-    "DIAMETER": ProtocolNamespaceSpec("DIAMETER", profiles=frozenset({"DIAMETER"}),
+    "DIAMETER": ProtocolNamespaceSpec("DIAMETER", profiles=frozenset({"DIAMETER", "DIAMETERSESSION", "DIAMETER_ENDPOINT"}),
                                     layer="application", side="both"),
     "MQTT":   ProtocolNamespaceSpec("MQTT",  profiles=frozenset({"MQTT"}),
                                     layer="application", side="both"),
@@ -1530,20 +1555,181 @@ PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
                                     layer="application", side="both"),
     "GTP":    ProtocolNamespaceSpec("GTP",   profiles=frozenset({"GTP"}),
                                     layer="application", side="both"),
-    "RADIUS": ProtocolNamespaceSpec("RADIUS",profiles=frozenset({"RADIUS"}),
+    "RADIUS": ProtocolNamespaceSpec("RADIUS",profiles=frozenset({"RADIUS", "RADIUS_AAA"}),
                                     layer="application", side="both"),
     "PCP":    ProtocolNamespaceSpec("PCP",   profiles=frozenset({"PCP"}),
                                     layer="application", side="both"),
     "SOCKS":  ProtocolNamespaceSpec("SOCKS", profiles=frozenset({"SOCKS"}),
                                     layer="application", side="client"),
+    "TDS":    ProtocolNamespaceSpec("TDS",   profiles=frozenset({"TDS", "MSSQL"}),
+                                    layer="application", side="both"),
+    "CONNECTOR": ProtocolNamespaceSpec("CONNECTOR", profiles=frozenset({"CONNECTOR"}),
+                                    layer="application", side="both"),
+    "DATAGRAM": ProtocolNamespaceSpec("DATAGRAM", profiles=frozenset({"DATAGRAM"}),
+                                    layer="application", side="both"),
+    "FLOW":   ProtocolNamespaceSpec("FLOW",  profiles=frozenset({"FLOW"}),
+                                    layer="application", side="both"),
+    "NAME":   ProtocolNamespaceSpec("NAME",  profiles=frozenset({"NAME"}),
+                                    layer="application", side="both"),
+    "LSN":    ProtocolNamespaceSpec("LSN",   profiles=frozenset({"LSN"}),
+                                    layer="application", side="client"),
+    "MESSAGE": ProtocolNamespaceSpec("MESSAGE", profiles=frozenset({"MR"}),
+                                    layer="application", side="both"),
+    # Security
+    "ACCESS": ProtocolNamespaceSpec("ACCESS",profiles=frozenset({"ACCESS"}),
+                                    layer="security", side="client"),
+    "ASM":    ProtocolNamespaceSpec("ASM",   profiles=frozenset({"ASM"}),
+                                    layer="security", side="both"),
+    "AUTH":   ProtocolNamespaceSpec("AUTH",  profiles=frozenset({"AUTH"}),
+                                    layer="security", side="client"),
+    "ANTIFRAUD": ProtocolNamespaceSpec("ANTIFRAUD", profiles=frozenset({"ANTIFRAUD"}),
+                                    layer="security", side="client"),
+    "AVR":    ProtocolNamespaceSpec("AVR",   profiles=frozenset({"AVR"}),
+                                    layer="acceleration", side="both"),
+    "BOTDEFENSE": ProtocolNamespaceSpec("BOTDEFENSE", profiles=frozenset({"BOTDEFENSE"}),
+                                    layer="security", side="client"),
+    "DOSL7":  ProtocolNamespaceSpec("DOSL7", profiles=frozenset({"DOSL7"}),
+                                    layer="security", side="both"),
+    "ECA":    ProtocolNamespaceSpec("ECA",   profiles=frozenset({"ECA"}),
+                                    layer="security", side="client"),
     "PEM":    ProtocolNamespaceSpec("PEM",   profiles=frozenset({"PEM"}),
                                     layer="security", side="client"),
+    "PROTOCOL_INSPECTION": ProtocolNamespaceSpec("PROTOCOL_INSPECTION", profiles=frozenset({"PROTOCOL_INSPECTION", "IPS"}),
+                                    layer="security", side="both"),
+    "TAP":    ProtocolNamespaceSpec("TAP",   profiles=frozenset({"TAP"}),
+                                    layer="security", side="client"),
+    # Acceleration / content
     "STREAM": ProtocolNamespaceSpec("STREAM",profiles=frozenset({"STREAM"}),
                                     layer="acceleration", side="both"),
     "CACHE":  ProtocolNamespaceSpec("CACHE", profiles=frozenset({"CACHE", "WEBACCELERATION"}),
                                     layer="acceleration", side="both"),
+    "CATEGORY": ProtocolNamespaceSpec("CATEGORY", profiles=frozenset({"CATEGORY"}),
+                                    layer="acceleration", side="both"),
+    "CLASSIFICATION": ProtocolNamespaceSpec("CLASSIFICATION", profiles=frozenset({"CLASSIFICATION"}),
+                                    layer="acceleration", side="both"),
+    "HTML":   ProtocolNamespaceSpec("HTML",  profiles=frozenset({"HTML"}),
+                                    layer="acceleration", side="both"),
+    "ICAP":   ProtocolNamespaceSpec("ICAP",  profiles=frozenset({"ICAP"}),
+                                    layer="acceleration", side="both"),
+    "JSON":   ProtocolNamespaceSpec("JSON",  profiles=frozenset({"JSON"}),
+                                    layer="acceleration", side="both"),
+    "L7CHECK": ProtocolNamespaceSpec("L7CHECK", profiles=frozenset({"L7CHECK"}),
+                                    layer="application", side="both"),
+    "IVS_ENTRY": ProtocolNamespaceSpec("IVS_ENTRY", profiles=frozenset({"IVS_ENTRY"}),
+                                    layer="application", side="both"),
+    "QOE":    ProtocolNamespaceSpec("QOE",   profiles=frozenset({"QOE"}),
+                                    layer="acceleration", side="both"),
     "REWRITE":ProtocolNamespaceSpec("REWRITE",profiles=frozenset({"REWRITE"}),
                                     layer="acceleration", side="both"),
+    "SSE":    ProtocolNamespaceSpec("SSE",   profiles=frozenset({"SSE"}),
+                                    layer="acceleration", side="both"),
+    "WS":     ProtocolNamespaceSpec("WS",    profiles=frozenset({"WS"}),
+                                    layer="acceleration", side="both"),
+    "XML":    ProtocolNamespaceSpec("XML",   profiles=frozenset({"XML"}),
+                                    layer="acceleration", side="both"),
+    # Utility / global namespaces (no profile requirement)
+    "AAA":    ProtocolNamespaceSpec("AAA",   profiles=frozenset(),
+                                    layer="security", side="global"),
+    "ACL":    ProtocolNamespaceSpec("ACL",   profiles=frozenset(),
+                                    layer="security", side="global"),
+    "ADAPT":  ProtocolNamespaceSpec("ADAPT", profiles=frozenset({"HTTP", "REQUESTADAPT", "RESPONSEADAPT"}),
+                                    layer="acceleration", side="both"),
+    "AES":    ProtocolNamespaceSpec("AES",   profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "ASN1":   ProtocolNamespaceSpec("ASN1",  profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "BIGPROTO": ProtocolNamespaceSpec("BIGPROTO", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "BIGTCP": ProtocolNamespaceSpec("BIGTCP", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "BWC":    ProtocolNamespaceSpec("BWC",   profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "CLASSIFY": ProtocolNamespaceSpec("CLASSIFY", profiles=frozenset({"FASTHTTP"}),
+                                    layer="application", side="both"),
+    "COMPRESS": ProtocolNamespaceSpec("COMPRESS", profiles=frozenset({"HTTP", "FASTHTTP"}),
+                                    layer="application", side="both"),
+    "CRYPTO": ProtocolNamespaceSpec("CRYPTO", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "DECOMPRESS": ProtocolNamespaceSpec("DECOMPRESS", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "DHCP":   ProtocolNamespaceSpec("DHCP",  profiles=frozenset(),
+                                    layer="application", side="both"),
+    "DHCPv4": ProtocolNamespaceSpec("DHCPv4", profiles=frozenset(),
+                                    layer="application", side="both"),
+    "DHCPv6": ProtocolNamespaceSpec("DHCPv6", profiles=frozenset(),
+                                    layer="application", side="both"),
+    "DNSMSG": ProtocolNamespaceSpec("DNSMSG", profiles=frozenset(),
+                                    layer="application", side="both"),
+    "DSLITE": ProtocolNamespaceSpec("DSLITE", profiles=frozenset(),
+                                    layer="application", side="global"),
+    "FLOWTABLE": ProtocolNamespaceSpec("FLOWTABLE", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "FTP":    ProtocolNamespaceSpec("FTP",   profiles=frozenset(),
+                                    layer="application", side="global"),
+    "HA":     ProtocolNamespaceSpec("HA",    profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "HSL":    ProtocolNamespaceSpec("HSL",   profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "IKE":    ProtocolNamespaceSpec("IKE",   profiles=frozenset(),
+                                    layer="application", side="global"),
+    "ILX":    ProtocolNamespaceSpec("ILX",   profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "IMAP":   ProtocolNamespaceSpec("IMAP",  profiles=frozenset(),
+                                    layer="application", side="global"),
+    "IPFIX":  ProtocolNamespaceSpec("IPFIX", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "ISESSION": ProtocolNamespaceSpec("ISESSION", profiles=frozenset(),
+                                    layer="application", side="global"),
+    "ISTATS": ProtocolNamespaceSpec("ISTATS", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "LDAP":   ProtocolNamespaceSpec("LDAP",  profiles=frozenset(),
+                                    layer="application", side="global"),
+    "LINK":   ProtocolNamespaceSpec("LINK",  profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "NSH":    ProtocolNamespaceSpec("NSH",   profiles=frozenset(),
+                                    layer="application", side="global"),
+    "NTLM":   ProtocolNamespaceSpec("NTLM",  profiles=frozenset(),
+                                    layer="application", side="global"),
+    "OFFBOX": ProtocolNamespaceSpec("OFFBOX", profiles=frozenset(),
+                                    layer="application", side="global"),
+    "ONECONNECT": ProtocolNamespaceSpec("ONECONNECT", profiles=frozenset(),
+                                    layer="application", side="global"),
+    "POLICY": ProtocolNamespaceSpec("POLICY", profiles=frozenset(),
+                                    layer="application", side="both"),
+    "POP3":   ProtocolNamespaceSpec("POP3",  profiles=frozenset(),
+                                    layer="application", side="global"),
+    "PROFILE": ProtocolNamespaceSpec("PROFILE", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "PSC":    ProtocolNamespaceSpec("PSC",   profiles=frozenset(),
+                                    layer="security", side="global"),
+    "PSM":    ProtocolNamespaceSpec("PSM",   profiles=frozenset({"HTTP"}),
+                                    layer="application", side="both"),
+    "RESOLVER": ProtocolNamespaceSpec("RESOLVER", profiles=frozenset(),
+                                    layer="application", side="global"),
+    "ROUTE":  ProtocolNamespaceSpec("ROUTE", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "SDP":    ProtocolNamespaceSpec("SDP",   profiles=frozenset(),
+                                    layer="application", side="global"),
+    "SIPALG": ProtocolNamespaceSpec("SIPALG", profiles=frozenset({"MR", "SIP"}),
+                                    layer="application", side="both"),
+    "SMTPS":  ProtocolNamespaceSpec("SMTPS", profiles=frozenset(),
+                                    layer="application", side="global"),
+    "STATS":  ProtocolNamespaceSpec("STATS", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "TMM":    ProtocolNamespaceSpec("TMM",   profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "URI":    ProtocolNamespaceSpec("URI",   profiles=frozenset({"HTTP"}),
+                                    layer="application", side="both"),
+    "VALIDATE": ProtocolNamespaceSpec("VALIDATE", profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "WAM":    ProtocolNamespaceSpec("WAM",   profiles=frozenset({"HTTP"}),
+                                    layer="application", side="both"),
+    "WEBSSO": ProtocolNamespaceSpec("WEBSSO", profiles=frozenset({"ACCESS", "HTTP"}),
+                                    layer="security", side="client"),
+    "X509":   ProtocolNamespaceSpec("X509",  profiles=frozenset(),
+                                    layer="utility", side="global"),
+    "XLAT":   ProtocolNamespaceSpec("XLAT",  profiles=frozenset(),
+                                    layer="application", side="global"),
 }
 # fmt: on
 
@@ -1595,9 +1781,14 @@ def event_satisfies(
         return False
     if requires.server_side and not event.server_side:
         return False
-    if requires.transport is not None and event.transport != requires.transport:
-        return False
-    if requires.profiles and not (event.implied_profiles & requires.profiles):
+    if requires.transport is not None:
+        et = event.transport
+        if isinstance(et, tuple):
+            if requires.transport not in et:
+                return False
+        elif et != requires.transport:
+            return False
+    if requires.profiles and not profile_stack_satisfies(requires.profiles, event.implied_profiles):
         return False
     return True
 
@@ -1617,12 +1808,56 @@ def missing_requirements_description(
         reasons.append("no client-side connection")
     if requires.server_side and not event.server_side:
         reasons.append("no server-side connection")
-    if requires.transport is not None and event.transport != requires.transport:
-        actual = event.transport or "none"
-        reasons.append(f"transport is {actual}, needs {requires.transport}")
-    if requires.profiles and not (event.implied_profiles & requires.profiles):
+    if requires.transport is not None:
+        et = event.transport
+        mismatch = (
+            (isinstance(et, tuple) and requires.transport not in et)
+            or (not isinstance(et, tuple) and et != requires.transport)
+        )
+        if mismatch:
+            actual = "/".join(et) if isinstance(et, tuple) else (et or "none")
+            reasons.append(f"transport is {actual}, needs {requires.transport}")
+    if requires.profiles and not profile_stack_satisfies(requires.profiles, event.implied_profiles):
         reasons.append(f"requires profile {' or '.join(sorted(requires.profiles))}")
     return "; ".join(reasons)
+
+
+def expand_profile_stack(profiles: frozenset[str]) -> frozenset[str]:
+    """Return *profiles* plus all transitive ``ProfileSpec.requires`` parents."""
+    expanded: set[str] = {p.upper() for p in profiles}
+    pending: list[str] = list(expanded)
+    while pending:
+        current = pending.pop()
+        spec = PROFILE_SPECS.get(current)
+        if spec is None:
+            continue
+        for required in spec.requires:
+            name = required.upper()
+            if name in expanded:
+                continue
+            expanded.add(name)
+            pending.append(name)
+    return frozenset(expanded)
+
+
+def profile_stack_satisfies(
+    required_profiles: frozenset[str],
+    active_profiles: frozenset[str],
+) -> bool:
+    """Return True if *active_profiles* satisfies any required profile stack.
+
+    ``required_profiles`` is treated as OR semantics (same as existing
+    ``EventRequires.profiles`` behaviour).  For each candidate profile,
+    its transitive dependency stack must be present.
+    """
+    if not required_profiles:
+        return True
+    active_expanded = expand_profile_stack(active_profiles)
+    for candidate in required_profiles:
+        required_stack = expand_profile_stack(frozenset({candidate}))
+        if required_stack <= active_expanded:
+            return True
+    return False
 
 
 def profile_info_description(
@@ -1636,7 +1871,7 @@ def profile_info_description(
     """
     if not requires.profiles:
         return None
-    if requires.profiles & file_profiles:
+    if profile_stack_satisfies(requires.profiles, file_profiles):
         return None
     return f"assumes profile {' or '.join(sorted(requires.profiles))} on the virtual server"
 
@@ -1775,7 +2010,9 @@ def compute_file_profiles(source: str) -> frozenset[str]:
     Combines explicit ``# profiles: ...`` directive with profiles
     inferred from ``when`` event handlers present in the file.
     """
-    return parse_profile_directive(source) | infer_profiles_from_events(scan_file_events(source))
+    return expand_profile_stack(
+        parse_profile_directive(source) | infer_profiles_from_events(scan_file_events(source))
+    )
 
 
 def order_events(file_events: frozenset[str]) -> list[str]:
