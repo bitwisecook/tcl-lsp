@@ -10,7 +10,7 @@ import * as vscode from "vscode";
 export async function run(): Promise<void> {
   // Activate the extension (which registers the demo command when
   // __SCREENSHOT_MODE__ is true).
-  const ext = vscode.extensions.getExtension("tcl-lsp.tcl-lsp");
+  const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
   if (ext && !ext.isActive) {
     await ext.activate();
   }

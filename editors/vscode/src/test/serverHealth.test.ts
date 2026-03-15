@@ -8,7 +8,7 @@ interface TclLspApi {
 }
 
 function getApi(): TclLspApi {
-  const ext = vscode.extensions.getExtension("tcl-lsp.tcl-lsp")!;
+  const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
   return ext.exports as TclLspApi;
 }
 
@@ -19,7 +19,7 @@ function getApi(): TclLspApi {
 // client.start() fails, and the whole test run aborts with a clear message.
 suiteSetup(async function () {
   this.timeout(60_000);
-  const ext = vscode.extensions.getExtension("tcl-lsp.tcl-lsp")!;
+  const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
   await ext.activate();
   assert.ok(ext.isActive, "Extension failed to activate – server may have crashed on startup");
 });

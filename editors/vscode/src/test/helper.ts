@@ -22,7 +22,7 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
   // Ensure the extension is activated first.
   // ext.activate() awaits client.start() which resolves after the LSP
   // initialise/initialised handshake -- the server is ready at that point.
-  const ext = vscode.extensions.getExtension("tcl-lsp.tcl-lsp");
+  const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
   if (ext && !ext.isActive) {
     await ext.activate();
   }
