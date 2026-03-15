@@ -476,7 +476,10 @@ when HTTP_REQUEST {
 
 Switch between Tcl 8.4/8.5/8.6/9.0, F5 iRules, F5 iApps, and EDA tooling
 profiles.  Tk, tcllib, and stdlib commands activate automatically when their
-`package require` appears.
+`package require` appears. F5 iRules metadata follows BIG-IP command/event
+source data, including profile aliases used by newer namespaces and events,
+shared TLS helper profiles such as `PERSIST`, and protocol namespace layer
+metadata that stays aligned with the enabling profile stack.
 
 ```tcl
 # With dialect = tcl8.6:

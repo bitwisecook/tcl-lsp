@@ -304,10 +304,26 @@ class TestProfileAndNamespaceCoverage:
         assert "SSL_PERSISTENCE" in stack.tls_shared
         assert stack.all_profiles == frozenset({"CLIENTSSL", "SSL_PERSISTENCE"})
 
+    def test_virtual_server_model_accepts_alias_profile_gates(self):
+        sip_model = EVENT_REGISTRY.build_virtual_server_model(frozenset({"SIPSESSION"}))
+        assert "SIP_REQUEST" in sip_model.valid_events
+
+        tls_model = EVENT_REGISTRY.build_virtual_server_model(frozenset({"PERSIST"}))
+        assert "CLIENTSSL_CLIENTHELLO" in tls_model.valid_events
+        assert "SERVERSSL_SERVERHELLO" in tls_model.valid_events
+
     def test_namespace_layers_follow_unique_profile_layers(self):
         mismatches = []
         for prefix, spec in PROTOCOL_NAMESPACE_SPECS.items():
             layers = {PROFILE_SPECS[p].layer for p in spec.profiles if p in PROFILE_SPECS}
             if len(layers) == 1 and spec.layer != next(iter(layers)):
                 mismatches.append((prefix, spec.layer, next(iter(layers))))
+        assert mismatches == []
+
+    def test_namespace_sides_follow_unique_profile_sides(self):
+        mismatches = []
+        for prefix, spec in PROTOCOL_NAMESPACE_SPECS.items():
+            sides = {PROFILE_SPECS[p].side for p in spec.profiles if p in PROFILE_SPECS}
+            if len(sides) == 1 and spec.side != next(iter(sides)):
+                mismatches.append((prefix, spec.side, next(iter(sides))))
         assert mismatches == []

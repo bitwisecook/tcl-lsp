@@ -55,6 +55,8 @@ _HP = frozenset({"HTTP", "FASTHTTP"})
 _H = frozenset({"HTTP"})
 _CS = frozenset({"CLIENTSSL", "SSL_PERSISTENCE"})
 _SS = frozenset({"SERVERSSL", "SSL_PERSISTENCE"})
+_CS_PERSIST = frozenset({"CLIENTSSL", "PERSIST"})
+_SS_PERSIST = frozenset({"SERVERSSL", "PERSIST"})
 _HTTP_PROXY = frozenset({"HTTP", "HTTP_PROXY_CONNECT"})
 _DNS = frozenset({"DNS"})
 _SIP = frozenset({"SIP", "SIPROUTER", "SIPSESSION"})
@@ -170,8 +172,8 @@ EVENT_PROPS: dict[str, EventProps] = {
     "HTTP_CLASS_SELECTED":      _ep(client_side=True, transport=_TCP, profiles=_H, deprecated=True),
 
     # TLS (client-side)
-    "CLIENTSSL_CLIENTHELLO":        _ep(client_side=True, transport=_TCP, profiles=_CS),
-    "CLIENTSSL_CLIENTCERT":         _ep(client_side=True, transport=_TCP, profiles=_CS),
+    "CLIENTSSL_CLIENTHELLO":        _ep(client_side=True, transport=_TCP, profiles=_CS_PERSIST),
+    "CLIENTSSL_CLIENTCERT":         _ep(client_side=True, transport=_TCP, profiles=_CS_PERSIST),
     "CLIENTSSL_HANDSHAKE":          _ep(client_side=True, transport=_TCP, profiles=_CS, common=True),
     "CLIENTSSL_SERVERHELLO_SEND":   _ep(client_side=True, transport=_TCP, profiles=_CS),
     "CLIENTSSL_DATA":               _ep(client_side=True, transport=_TCP, profiles=_CS),
@@ -179,9 +181,9 @@ EVENT_PROPS: dict[str, EventProps] = {
 
     # TLS (server-side)
     "SERVERSSL_CLIENTHELLO_SEND":   _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS),
-    "SERVERSSL_SERVERHELLO":        _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS),
+    "SERVERSSL_SERVERHELLO":        _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS_PERSIST),
     "SERVERSSL_SERVERCERT":         _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS),
-    "SERVERSSL_HANDSHAKE":          _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS, common=True),
+    "SERVERSSL_HANDSHAKE":          _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS_PERSIST, common=True),
     "SERVERSSL_DATA":               _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS),
 
     # DNS
@@ -993,9 +995,9 @@ MASTER_ORDER: tuple[tuple[str, frozenset[str]], ...] = (
     ("CLIENT_ACCEPTED", frozenset()),
     ("CLIENT_DATA", frozenset()),  # conditional: TCP::collect
     # Client-side TLS
-    ("CLIENTSSL_CLIENTHELLO", frozenset({"CLIENTSSL"})),
+    ("CLIENTSSL_CLIENTHELLO", frozenset({"CLIENTSSL", "PERSIST"})),
     ("CLIENTSSL_SERVERHELLO_SEND", frozenset({"CLIENTSSL"})),
-    ("CLIENTSSL_CLIENTCERT", frozenset({"CLIENTSSL"})),  # conditional: mutual TLS
+    ("CLIENTSSL_CLIENTCERT", frozenset({"CLIENTSSL", "PERSIST"})),  # conditional: mutual TLS
     ("CLIENTSSL_HANDSHAKE", frozenset({"CLIENTSSL"})),
     ("CLIENTSSL_DATA", frozenset({"CLIENTSSL"})),  # conditional: SSL::collect
     ("CLIENTSSL_PASSTHROUGH", frozenset({"CLIENTSSL"})),  # conditional: plaintext
@@ -1052,9 +1054,9 @@ MASTER_ORDER: tuple[tuple[str, frozenset[str]], ...] = (
     ("SERVER_CONNECTED", frozenset()),
     # Server-side TLS
     ("SERVERSSL_CLIENTHELLO_SEND", frozenset({"SERVERSSL"})),
-    ("SERVERSSL_SERVERHELLO", frozenset({"SERVERSSL"})),
+    ("SERVERSSL_SERVERHELLO", frozenset({"SERVERSSL", "PERSIST"})),
     ("SERVERSSL_SERVERCERT", frozenset({"SERVERSSL"})),
-    ("SERVERSSL_HANDSHAKE", frozenset({"SERVERSSL"})),
+    ("SERVERSSL_HANDSHAKE", frozenset({"SERVERSSL", "PERSIST"})),
     ("SERVERSSL_DATA", frozenset({"SERVERSSL"})),  # conditional: SSL::collect
     # HTTP request (server-side)
     ("HTTP_REQUEST_SEND", frozenset({"HTTP"})),
