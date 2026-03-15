@@ -17,16 +17,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.commands.registry import REGISTRY
-from core.commands.registry.namespace_data import (
+from core.commands.registry import REGISTRY  # noqa: E402
+from core.commands.registry.namespace_data import (  # noqa: E402
     EVENT_PROPS,
     FLOW_CHAINS,
-    MODIFICATION_SPECS,
     PROFILE_SPECS,
     PROTOCOL_NAMESPACE_SPECS,
-    event_satisfies,
 )
-from core.commands.registry.runtime import configure_signatures
+from core.commands.registry.runtime import configure_signatures  # noqa: E402
 
 SCHEMA_DIR = Path.home() / "src" / "bigip-extract" / "irule-schema-split"
 
@@ -66,23 +64,9 @@ def main():
 
     registry_profiles = set(PROFILE_SPECS.keys())
 
-    # Known name mappings (schema name -> registry name)
-    PROFILE_NAME_MAP = {
-        "IPS": "PROTOCOL_INSPECTION",
-        "MSSQL": "TDS",
-        "RADIUS_AAA": "RADIUS",
-        "DIAMETERSESSION": "DIAMETER",
-        "DIAMETER_ENDPOINT": "DIAMETER",
-        "SIPSESSION": "SIP",
-        "SIPROUTER": "SIP",
-        "PERSIST": "SSL_PERSISTENCE",
-        "HTTP_PROXY_CONNECT": "HTTP",
-    }
-
     missing_profiles = set()
     for p in sorted(schema_profiles):
-        mapped = PROFILE_NAME_MAP.get(p, p)
-        if mapped not in registry_profiles:
+        if p not in registry_profiles:
             missing_profiles.add(p)
 
     if missing_profiles:
@@ -92,7 +76,7 @@ def main():
             evts = [e["eventName"] for e in schema_events if p in e.get("profiles:", [])]
             print(f"  {p}: used by {', '.join(evts[:5])}")
     else:
-        print("\n  All schema profiles are in PROFILE_SPECS (with name mappings).")
+        print("\n  All schema profiles are in PROFILE_SPECS.")
 
     # ---- 2. EVENT PROFILE STACKING ----
     print("\n" + "=" * 70)
@@ -110,17 +94,11 @@ def main():
 
         registry_profs = set(props.implied_profiles)
 
-        # Map schema profile names to registry names
-        mapped_schema = set()
-        for p in schema_profs:
-            mapped = PROFILE_NAME_MAP.get(p, p)
-            mapped_schema.add(mapped)
-
-        # Check if all mapped schema profiles are in registry
-        missing = mapped_schema - registry_profs
+        # Check if all schema profiles are in registry
+        missing = schema_profs - registry_profs
         if missing:
             # Check if ANY of the schema profiles are present
-            present = mapped_schema & registry_profs
+            present = schema_profs & registry_profs
             mismatches.append((event_name, schema_profs, registry_profs, missing, present))
 
     if mismatches:
@@ -163,11 +141,11 @@ def main():
 
         # CLIENTSIDE category -> client_side should be True
         if "CLIENTSIDE" in cats and not props.client_side:
-            issues.append(f"schema has CLIENTSIDE but client_side=False")
+            issues.append("schema has CLIENTSIDE but client_side=False")
 
         # SERVERSIDE category -> server_side should be True
         if "SERVERSIDE" in cats and not props.server_side:
-            issues.append(f"schema has SERVERSIDE but server_side=False")
+            issues.append("schema has SERVERSIDE but server_side=False")
 
         if issues:
             cat_mismatches.append((event_name, issues))
@@ -186,7 +164,8 @@ def main():
     print("=" * 70)
 
     # Collect all namespaces from schema
-    ns_json = json.load(open(SCHEMA_DIR / "namespaces.json"))
+    with open(SCHEMA_DIR / "namespaces.json") as f:
+        ns_json = json.load(f)
     schema_namespaces = set(ns_json)
 
     pns_namespaces = set(PROTOCOL_NAMESPACE_SPECS.keys())
@@ -260,7 +239,8 @@ def main():
                     violations.append((cmd_name, event))
 
     # Also check global commands
-    global_cmds = json.load(open(SCHEMA_DIR / "global_commands.json"))
+    with open(SCHEMA_DIR / "global_commands.json") as f:
+        global_cmds = json.load(f)
     for cmd_entry in global_cmds:
         cmd_name = cmd_entry["commandName"]
         examples = cmd_entry.get("examples", "")
