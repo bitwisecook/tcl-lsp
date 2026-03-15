@@ -43,7 +43,7 @@ class Http2ConcurrencyCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP2"})),
+            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP"})),
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.HTTP2_STATE,

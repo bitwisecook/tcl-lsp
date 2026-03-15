@@ -146,6 +146,13 @@ class TestIrule1001:
         diags = _diag_with_code(src, "IRULE1001")
         assert len(diags) == 0
 
+    def test_http2_active_in_http_request_emits_profile_stack_hint(self):
+        src = "when HTTP_REQUEST {\n    HTTP2::active\n}"
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.HINT
+        assert "HTTP2" in diags[0].message
+
 
 # IRULE2001: Deprecated matchclass
 
@@ -233,8 +240,7 @@ class TestIruleExamples:
         configure_signatures(dialect="f5-irules")
         example = (
             Path(__file__).resolve().parent.parent
-            / "examples"
-            / "irules"
+            / "samples"
             / "cookbook_tcp_collect.irul"
         )
         src = example.read_text()

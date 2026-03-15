@@ -33,12 +33,14 @@ from .namespace_data import (
     events_after,
     events_before,
     events_matching,
+    expand_profile_stack,
     get_event_detail,
     get_event_props,
     infer_profiles_from_events,
     order_events,
     order_events_for_file,
     parse_profile_directive,
+    profile_stack_satisfies,
     scan_file_events,
     variable_scope_note,
 )
@@ -73,6 +75,7 @@ class NamespaceRegistry:
     _profile_specs: dict[str, ProfileSpec]
     _protocol_namespace_specs: dict[str, ProtocolNamespaceSpec]
     _modification_specs: dict[str, StackModification]
+    _known_irules_namespaces: frozenset[str]
 
     # Derived caches built at construction time.
     _all_names: frozenset[str]
@@ -80,6 +83,11 @@ class NamespaceRegistry:
     @classmethod
     def build_default(cls) -> NamespaceRegistry:
         """Construct the registry from the module-level data tables."""
+        from .command_registry import REGISTRY
+
+        known_irules_namespaces = frozenset(
+            name.split("::", 1)[0] for name in REGISTRY.command_names("f5-irules") if "::" in name
+        )
         master_index = {evt: idx for idx, (evt, _gates) in enumerate(MASTER_ORDER)}
         return cls(
             _props=EVENT_PROPS,
@@ -91,6 +99,7 @@ class NamespaceRegistry:
             _profile_specs=PROFILE_SPECS,
             _protocol_namespace_specs=PROTOCOL_NAMESPACE_SPECS,
             _modification_specs=MODIFICATION_SPECS,
+            _known_irules_namespaces=known_irules_namespaces,
             _all_names=frozenset(EVENT_PROPS),
         )
 
@@ -214,6 +223,18 @@ class NamespaceRegistry:
         """Compute effective profiles for a file (directive + inferred)."""
         return compute_file_profiles(source)
 
+    def expand_profile_stack(self, profiles: frozenset[str]) -> frozenset[str]:
+        """Expand *profiles* with all transitive parent requirements."""
+        return expand_profile_stack(profiles)
+
+    def profile_stack_satisfies(
+        self,
+        required_profiles: frozenset[str],
+        active_profiles: frozenset[str],
+    ) -> bool:
+        """Return True if *active_profiles* satisfies any required profile stack."""
+        return profile_stack_satisfies(required_profiles, active_profiles)
+
     def parse_profile_directive(self, source: str) -> frozenset[str]:
         """Scan leading comments for ``# profiles: ...`` directive."""
         return parse_profile_directive(source)
@@ -234,7 +255,19 @@ class NamespaceRegistry:
 
     def get_protocol_namespace(self, prefix: str) -> ProtocolNamespaceSpec | None:
         """Look up a protocol namespace spec by prefix."""
-        return self._protocol_namespace_specs.get(prefix)
+        spec = self._protocol_namespace_specs.get(prefix)
+        if spec is not None:
+            return spec
+        # Fallback: treat any known iRules namespace prefix as a generic
+        # application-layer namespace to avoid hard-failing lookups.
+        if prefix in self._known_irules_namespaces:
+            return ProtocolNamespaceSpec(
+                prefix,
+                profiles=frozenset(),
+                layer="application",
+                side="both",
+            )
+        return None
 
     def get_modification_spec(self, command: str) -> StackModification | None:
         """Look up a stack modification spec by command name."""
@@ -249,16 +282,17 @@ class NamespaceRegistry:
 
         Computes the layer stack and determines which events can fire.
         """
-        stack = _build_layer_stack(profiles)
-        # An event can fire if its profile gates are a subset of the
-        # active profiles (empty gate = always fires).
         upper = frozenset(p.upper() for p in profiles)
+        expanded = expand_profile_stack(upper)
+        stack = _build_layer_stack(expanded)
+        # An event can fire if any gate profile stack is present in the
+        # active profile stack (empty gate = always fires).
         valid: set[str] = set()
         for evt, gates in MASTER_ORDER:
-            if not gates or gates & upper:
+            if not gates or profile_stack_satisfies(gates, expanded):
                 valid.add(evt)
         return VirtualServerModel(
-            profiles=profiles,
+            profiles=expanded,
             layer_stack=stack,
             valid_events=frozenset(valid),
         )
@@ -268,10 +302,11 @@ class NamespaceRegistry:
         explicit = parse_profile_directive(source)
         events = scan_file_events(source)
         implied = infer_profiles_from_events(events)
+        combined = expand_profile_stack(implied | explicit)
         return ProfileContext(
             implied=implied,
             explicit=explicit,
-            combined=implied | explicit,
+            combined=combined,
         )
 
     # Backward-compatible aliases

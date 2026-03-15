@@ -166,6 +166,24 @@ class TestCommandLegality:
             valid = legality.valid_commands(event_name)
             assert isinstance(valid, frozenset)
 
+    def test_event_scoped_commands_have_at_least_one_legal_event(self):
+        legality = REGISTRY.command_legality("f5-irules")
+        for name in REGISTRY.command_names("f5-irules"):
+            spec = REGISTRY.get(name, "f5-irules")
+            if spec is None:
+                continue
+            if spec.event_requires is None and not spec.excluded_events:
+                continue
+            assert legality.events_for_command(name), f"{name} is legal in zero events"
+
+    def test_http2_commands_are_legal_in_http_events(self):
+        legality = REGISTRY.command_legality("f5-irules")
+        for command in ("HTTP2::active", "HTTP2::concurrency", "HTTP2::stream", "HTTP2::version"):
+            assert legality.is_legal("HTTP_REQUEST", command)
+        assert legality.is_legal("MR_INGRESS", "HTTP2::active")
+        assert legality.is_legal("MR_EGRESS", "HTTP2::active")
+        assert legality.is_legal("MR_INGRESS", "HTTP2::version")
+
 
 class TestLegalityParity:
     """Ensure legality answers are consistent across consumers."""
