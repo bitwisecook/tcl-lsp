@@ -19,5 +19,7 @@
     }
   ],
   "category": "vm-timeout-invalid-cmd",
-  "triage": "VM loops on script with invalid commands; tclsh errors immediately"
+  "triage": "VM loops on script with invalid commands; tclsh errors immediately",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes (vm-timeout-invalid-cmd)"
 }

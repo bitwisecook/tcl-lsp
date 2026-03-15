@@ -480,7 +480,10 @@ def _arith_binary(a_str: str, b_str: str, op_name: str) -> str:
                         except OverflowError:
                             result = math.copysign(math.inf, a) if a < 0 and b % 2 else math.inf
                 else:
-                    result = a**b
+                    try:
+                        result = a**b
+                    except (MemoryError, OverflowError):
+                        raise TclError("integer value too large to represent") from None
             else:
                 fa, fb = float(a), float(b)
                 if fa == 0.0 and fb < 0:
@@ -505,23 +508,28 @@ def _bitwise_binary(a_str: str, b_str: str, op_name: str) -> str:
     """Perform a bitwise operation (requires integer operands)."""
     a = _parse_int_arith(a_str, op_name, position="left")
     b = _parse_int_arith(b_str, op_name, position="right")
-    match op_name:
-        case "lshift":
-            if b < 0:
-                raise TclError("negative shift argument")
-            result = a << b
-        case "rshift":
-            if b < 0:
-                raise TclError("negative shift argument")
-            result = a >> b
-        case "bitor":
-            result = a | b
-        case "bitxor":
-            result = a ^ b
-        case "bitand":
-            result = a & b
-        case _:
-            raise TclError(f"unknown bitwise op: {op_name}")
+    try:
+        match op_name:
+            case "lshift":
+                if b < 0:
+                    raise TclError("negative shift argument")
+                if a != 0 and b > 131072:
+                    raise TclError("integer value too large to represent")
+                result = a << b
+            case "rshift":
+                if b < 0:
+                    raise TclError("negative shift argument")
+                result = a >> b
+            case "bitor":
+                result = a | b
+            case "bitxor":
+                result = a ^ b
+            case "bitand":
+                result = a & b
+            case _:
+                raise TclError(f"unknown bitwise op: {op_name}")
+    except MemoryError:
+        raise TclError("integer value too large to represent") from None
     try:
         return str(result)
     except ValueError:

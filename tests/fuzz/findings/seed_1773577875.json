@@ -1,0 +1,21 @@
+{
+  "seed": 1773577875,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected boolean value but got \"watybawg\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got \"watybawg\"\n    while executing\n\"if {((85 && -3) - ($idx ? -51 : -98))} {\n    foreach i {-829 -95.97 -199} {\n        lsearch {ifflbnry -68.31 878 844 -580 125} \"ek=@jve;!1r2xw:\"\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpg31n03hj.tcl\" line 3)"
+    }
+  ]
+}

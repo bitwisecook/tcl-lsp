@@ -19,5 +19,7 @@
     }
   ],
   "category": "vm-timeout-other",
-  "triage": "VM timeout, tclsh: cannot use non-numeric string \"-59-35\" as right operand of \""
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"-59-35\" as right operand of \"",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes (vm-timeout-other)"
 }

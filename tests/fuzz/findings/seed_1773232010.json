@@ -9,5 +9,7 @@
       "detail_a": "wrong # args: extra words after \"else\" clause in \"if\" command",
       "detail_b": "TIMEOUT"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "resolved by prior VM fixes"
 }

@@ -19,5 +19,7 @@
     }
   ],
   "category": "vm-too-strict",
-  "triage": "VM rejects valid input (float in integer-only op context)"
+  "triage": "VM rejects valid input (float in integer-only op context)",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes (vm-too-strict)"
 }

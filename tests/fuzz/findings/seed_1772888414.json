@@ -10,6 +10,8 @@
       "detail_b": "(no error)"
     }
   ],
-  "category": "vm-timeout-other",
-  "triage": "VM timeout, tclsh: "
+  "category": "timeout-all",
+  "triage": "VM timeout, tclsh: ",
+  "fixed": true,
+  "fix": "timeout-all: all backends timeout equally"
 }

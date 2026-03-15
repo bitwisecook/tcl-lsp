@@ -1,0 +1,21 @@
+{
+  "seed": 1773577849,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {$data < 8} {\n            append tmp \"y_.@0;7#quh8f\"\n            set b {0 evvpse}\n            if {$i >= -3} {\n                string map {a b c d} ...\"\n    (\"for\" body line 18)\n    invoked from within\n\"for {set key 0} {$key < 2} {incr key} {\n    foreach result {flbygba cp false -135 -518} {\n        lassign {60.95} item i val\n        catch {\n         ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {$data < 8} {\n            append tmp \"y_.@0;7#quh8f\"\n            set b {0 evvpse}\n            if {$i >= -3} {\n                string map {a b c d} ...\"\n    (\"for\" body line 18)\n    invoked from within\n\"for {set key 0} {$key < 2} {incr key} {\n    foreach result {flbygba cp false -135 -518} {\n        lassign {60.95} item i val\n        catch {\n         ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn"
+    }
+  ]
+}

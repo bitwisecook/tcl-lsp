@@ -19,5 +19,7 @@
     }
   ],
   "category": "vm-timeout-other",
-  "triage": "VM timeout, tclsh: expected number but got a list"
+  "triage": "VM timeout, tclsh: expected number but got a list",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes (vm-timeout-other)"
 }

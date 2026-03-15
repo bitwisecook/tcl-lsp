@@ -18,6 +18,8 @@
       "detail_b": "TIMEOUT"
     }
   ],
-  "category": "vm-timeout-other",
-  "triage": "VM timeout, tclsh: "
+  "category": "parse-divergence",
+  "triage": "VM timeout, tclsh: ",
+  "fixed": true,
+  "fix": "parse divergence on corrupted input; one backend errors, others timeout"
 }

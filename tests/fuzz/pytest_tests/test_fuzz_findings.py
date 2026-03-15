@@ -16,7 +16,7 @@ from vm.types import TclError
 
 pytestmark = pytest.mark.slow
 
-FINDINGS_DIR = Path(__file__).parent / "fuzz" / "findings"
+FINDINGS_DIR = Path(__file__).parent.parent / "findings"
 
 
 def _run(source: str, *, timeout: int = 5) -> tuple[str, str]:

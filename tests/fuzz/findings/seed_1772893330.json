@@ -19,5 +19,7 @@
     }
   ],
   "category": "vm-timeout-float-int",
-  "triage": "VM loops; tclsh errors on float in integer-only op"
+  "triage": "VM loops; tclsh errors on float in integer-only op",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes"
 }

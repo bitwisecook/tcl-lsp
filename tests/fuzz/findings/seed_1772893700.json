@@ -19,5 +19,7 @@
     }
   ],
   "category": "vm-timeout-other",
-  "triage": "VM timeout, tclsh: cannot use non-numeric string \"zibupag\" as operand of \"-\""
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"zibupag\" as operand of \"-\"",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes"
 }

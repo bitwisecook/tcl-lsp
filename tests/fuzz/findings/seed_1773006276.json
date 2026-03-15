@@ -9,5 +9,8 @@
       "detail_a": "TIMEOUT",
       "detail_b": "can't read \"tmp\": no such variable"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "timeout-all: all backends timeout equally",
+  "category": "timeout-all"
 }

@@ -1,5 +1,7 @@
 {
   "seed": 1773254954,
   "mismatches": [],
-  "parse_error": "extra characters after close-brace"
+  "parse_error": "extra characters after close-brace",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes (unknown)"
 }

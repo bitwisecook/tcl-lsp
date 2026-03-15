@@ -11,5 +11,7 @@
     }
   ],
   "category": "parse-divergence",
-  "triage": "Interpreter and compiler parse script differently"
+  "triage": "Interpreter and compiler parse script differently",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes (parse-divergence)"
 }

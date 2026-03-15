@@ -11,5 +11,7 @@
     }
   ],
   "category": "vm-timeout-other",
-  "triage": "VM timeout, tclsh: "
+  "triage": "VM timeout, tclsh: ",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes"
 }

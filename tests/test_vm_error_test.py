@@ -30,7 +30,6 @@ KNOWN_FAILURES_ERROR: set[str] = {
     # return -code / errorCode handling
     "error-1.6",
     "error-1.7",
-    "error-1.8",
     # errorInfo / stack trace formatting
     "error-2.3",
     "error-2.6",

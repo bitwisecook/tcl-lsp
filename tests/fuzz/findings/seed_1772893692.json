@@ -19,5 +19,7 @@
     }
   ],
   "category": "vm-timeout-other",
-  "triage": "VM timeout, tclsh: cannot use non-numeric string \"\" as left operand of \"%\" cann"
+  "triage": "VM timeout, tclsh: cannot use non-numeric string \"\" as left operand of \"%\" cann",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes (vm-timeout-other)"
 }

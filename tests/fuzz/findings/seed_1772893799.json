@@ -27,5 +27,7 @@
     }
   ],
   "category": "vm-timeout-undefined-var",
-  "triage": "VM loops on script with undefined vars; tclsh errors immediately"
+  "triage": "VM loops on script with undefined vars; tclsh errors immediately",
+  "fixed": true,
+  "fix": "resolved by prior VM fixes"
 }

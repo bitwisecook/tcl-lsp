@@ -9,5 +9,8 @@
       "detail_a": "missing \"",
       "detail_b": "TIMEOUT"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "timeout-all: all backends timeout equally",
+  "category": "timeout-all"
 }
