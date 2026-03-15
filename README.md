@@ -33,8 +33,8 @@ be invoked from source (`uv run python -m server`) or as a standalone zipapp
 (`python3 tcl-lsp-server.pyz`).
 
 **File types recognised:** `.tcl`, `.tk`, `.itcl`, `.tm`, `.irul`, `.irule`,
-`.iapp`, `.iappimpl`, `.impl`, plus shebang detection for `#!/usr/bin/tclsh`
-and `#!/usr/bin/wish`.
+`.iapp`, `.iappimpl`, `.impl`, `.exp`, plus shebang detection for
+`#!/usr/bin/tclsh`, `#!/usr/bin/wish`, and `#!/usr/bin/expect`.
 
 ### VS Code
 
@@ -1151,6 +1151,7 @@ constraints apply.
 | `f5-irules` | F5 BIG-IP iRules: HTTP/SSL/DNS/LB namespaces, event-validity checks, taint analysis, `static::` scoping rules |
 | `f5-iapps` | F5 iApps template commands |
 | `eda-tools` | EDA/VLSI tooling seed profile (Synopsys, Cadence, Mentor conventions) |
+| `expect` | Expect: `spawn`, `expect`, `send`, `interact` and related commands for automating interactive programs |
 
 **Tk**, **tcllib**, and **Tcl stdlib** commands are automatically recognised
 when the corresponding `package require` appears in the file.  No manual

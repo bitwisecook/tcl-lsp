@@ -205,3 +205,39 @@ class TestDialectProfiles:
     def test_tcllib_completion_absent_without_package_require(self):
         labels = {item.label for item in get_completions("", 0, 0)}
         assert "json::json2dict" not in labels
+
+    # --- Expect dialect -------------------------------------------------
+
+    def test_expect_profile_adds_expect_commands(self):
+        configure_signatures(dialect="expect")
+        assert "spawn" in SIGNATURES
+        assert "expect" in SIGNATURES
+        assert "send" in SIGNATURES
+        assert "interact" in SIGNATURES
+        assert "log_user" in SIGNATURES
+
+    def test_expect_profile_includes_base_tcl(self):
+        configure_signatures(dialect="expect")
+        assert "set" in SIGNATURES
+        assert "proc" in SIGNATURES
+        assert "if" in SIGNATURES
+
+    def test_expect_profile_does_not_include_irules(self):
+        configure_signatures(dialect="expect")
+        assert "when" not in SIGNATURES
+        assert "HTTP::header" not in SIGNATURES
+
+    def test_expect_body_in_expect_command(self):
+        configure_signatures(dialect="expect")
+        indices = arg_indices_for_role(
+            "expect",
+            ["-re", "password:", "{ send secret\\r }"],
+            ArgRole.BODY,
+        )
+        assert indices == {2}
+
+    def test_completion_reflects_expect_profile(self):
+        configure_signatures(dialect="expect")
+        labels = {item.label for item in get_completions("", 0, 0)}
+        assert "spawn" in labels
+        assert "expect" in labels

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ...compiler.side_effects import SideEffect
     from .models import CodegenHook, CommandHandler, LoweringHook, SubcommandHandler
 
+from .expect import expect_command_specs
 from .iapps import iapps_command_specs
 from .irules import irules_command_specs
 from .models import (
@@ -56,6 +57,7 @@ def _all_command_specs() -> tuple:
         + tk_command_specs()
         + irules_command_specs()
         + iapps_command_specs()
+        + expect_command_specs()
     )
 
 

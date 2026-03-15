@@ -203,9 +203,13 @@ def _signature_from_spec(spec: "CommandSpec") -> CommandSig | SubcommandSig:
             allow_unknown=spec.allow_unknown_subcommands,
         )
     # Simple command: use inline arg_roles if available.
-    if spec.arg_roles:
+    if spec.arg_roles or spec.arg_role_resolver:
         arity = spec.validation.arity if spec.validation else Arity()
-        return CommandSig(arity=arity, arg_roles=dict(spec.arg_roles))
+        return CommandSig(
+            arity=arity,
+            arg_roles=dict(spec.arg_roles) if spec.arg_roles else {},
+            arg_role_resolver=spec.arg_role_resolver,
+        )
     return _signature_from_validation(spec.validation)
 
 
@@ -257,6 +261,9 @@ def _build_signatures(
             signatures = _registry_signatures_for_dialect("tcl8.6")
             for name, sig in _EDA_TOOLS_SIGNATURES.items():
                 signatures[name] = _with_roles(name, sig)
+        case "expect":
+            signatures = _registry_signatures_for_dialect("tcl8.6")
+            signatures.update(_registry_signatures_for_dialect("expect"))
         case _:
             # Guard for defensive callers; configure_signatures should validate.
             return {}
@@ -633,6 +640,10 @@ def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[in
         }
 
     if isinstance(sig, CommandSig):
+        # Dynamic resolver takes priority for variable-layout commands.
+        if sig.arg_role_resolver is not None:
+            resolved = sig.arg_role_resolver(args)
+            return {idx for idx, r in resolved.items() if r is role and idx < len(args)}
         result = {
             idx for idx, arg_role in sig.arg_roles.items() if arg_role is role and idx < len(args)
         }

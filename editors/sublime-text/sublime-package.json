@@ -20,7 +20,8 @@
                                                 "tcl9.0",
                                                 "f5-irules",
                                                 "f5-iapps",
-                                                "eda-tools"
+                                                "eda-tools",
+                                                "expect"
                                             ],
                                             "markdownDescription": "Tcl dialect for analysis and completions."
                                         },

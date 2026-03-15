@@ -7,6 +7,7 @@ by command definition files without introducing circular dependencies.
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import ClassVar
@@ -67,6 +68,9 @@ class CommandSig:
 
     arity: Arity = field(default_factory=Arity)
     arg_roles: dict[int, ArgRole] = field(default_factory=dict)
+    arg_role_resolver: Callable[[list[str]], dict[int, ArgRole]] | None = field(
+        default=None, hash=False, compare=False
+    )
 
 
 @dataclass(frozen=True, slots=True)
