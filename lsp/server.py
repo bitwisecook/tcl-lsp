@@ -121,7 +121,12 @@ server = LanguageServer("tcl-lsp", f"v{_version}")
 # ---------------------------------------------------------------------------
 
 class _LspLogHandler(logging.Handler):
-    """Logging handler that forwards records via ``window/logMessage``."""
+    """Logging handler that forwards records via ``window/logMessage``.
+
+    A re-entrancy guard prevents infinite loops: pygls itself logs when
+    sending ``window/logMessage``, which would trigger this handler again.
+    We also skip pygls internal loggers entirely to avoid the feedback path.
+    """
 
     _LEVEL_MAP = {
         logging.DEBUG: types.MessageType.Log,
@@ -131,7 +136,20 @@ class _LspLogHandler(logging.Handler):
         logging.CRITICAL: types.MessageType.Error,
     }
 
+    _SKIP_LOGGERS = frozenset({"pygls", "pygls.protocol", "pygls.server",
+                                "pygls.feature_manager", "pygls.client"})
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._emitting = False
+
     def emit(self, record: logging.LogRecord) -> None:
+        # Skip pygls internals and guard against re-entrancy.
+        if self._emitting:
+            return
+        if record.name in self._SKIP_LOGGERS or record.name.startswith("pygls."):
+            return
+        self._emitting = True
         try:
             msg_type = self._LEVEL_MAP.get(record.levelno, types.MessageType.Log)
             server.window_log_message(
@@ -140,20 +158,26 @@ class _LspLogHandler(logging.Handler):
         except Exception:
             # Server not yet initialised or already shut down — swallow.
             pass
+        finally:
+            self._emitting = False
 
 
 def _install_lsp_log_handler() -> None:
-    """Attach the LSP handler to the root ``lsp`` logger."""
+    """Attach the LSP handler to our own loggers (not the root logger).
+
+    Attaching to the root logger caused a feedback loop: every pygls
+    internal debug message triggered another ``window/logMessage`` send
+    which logged again.  Instead we attach only to the ``lsp`` and
+    ``core`` loggers that carry our application messages.
+    """
     handler = _LspLogHandler()
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
-    # Attach to the package-level logger so all lsp.* and core.* messages
-    # are forwarded.
-    root = logging.getLogger()
-    root.addHandler(handler)
-    # Ensure the root logger level allows INFO through.
-    if root.level > logging.DEBUG:
-        root.setLevel(logging.DEBUG)
+    for name in ("lsp", "core"):
+        lgr = logging.getLogger(name)
+        lgr.addHandler(handler)
+        if lgr.level > logging.DEBUG:
+            lgr.setLevel(logging.DEBUG)
 
 
 _install_lsp_log_handler()
