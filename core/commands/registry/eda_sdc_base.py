@@ -9,10 +9,10 @@ from __future__ import annotations
 from .models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from .signatures import Arity
 
-_SOURCE = "IEEE 1801 / SDC 2.1 standard"
+_SOURCE = "Synopsys Design Constraints (SDC) 2.1 specification"
 
-# Dialect sets are injected at import time by each vendor module;
-# this module only defines the specs.
+# Shared dialect set used by all vendor EDA modules that inherit
+# these command specifications.
 
 _SDC_DIALECTS: frozenset[str] = frozenset(
     {

@@ -961,7 +961,8 @@ function isTclLanguageId(languageId: string): boolean {
     languageId === "tcl-cadence" ||
     languageId === "tcl-xilinx" ||
     languageId === "tcl-quartus" ||
-    languageId === "tcl-mentor"
+    languageId === "tcl-mentor" ||
+    languageId === "tcl-expect"
   );
 }
 

@@ -85,7 +85,6 @@ class TestCommandHover:
         assert "header" in text.lower()
 
 
-
 class TestProcHover:
     def test_proc_signature(self):
         source = textwrap.dedent("""\

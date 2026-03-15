@@ -264,6 +264,9 @@ def _build_signatures(
         case "f5-iapps":
             signatures = _registry_signatures_for_dialect("tcl8.6")
             signatures.update(_registry_signatures_for_dialect("f5-iapps"))
+        case "f5-bigip":
+            signatures = _registry_signatures_for_dialect("tcl8.6")
+            signatures.update(_registry_signatures_for_dialect("f5-bigip"))
         case d if d in _EDA_VENDOR_DIALECTS:
             signatures = _registry_signatures_for_dialect(_EDA_TCL_BASE[d])
             # EDA vendor commands (SDC base + vendor-specific) are registered

@@ -20,6 +20,7 @@
                                                 "tcl9.0",
                                                 "f5-irules",
                                                 "f5-iapps",
+                                                "f5-bigip",
                                                 "synopsys-eda-tcl",
                                                 "cadence-eda-tcl",
                                                 "xilinx-eda-tcl",

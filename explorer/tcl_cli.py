@@ -361,6 +361,14 @@ _HELP_DIALECT_TERMS: dict[str, tuple[str, ...]] = {
         "f5",
         "big-ip",
     ),
+    "f5-bigip": (
+        "bigip",
+        "big-ip",
+        "bigip.conf",
+        "f5",
+        "ltm",
+        "gtm",
+    ),
     "f5-irules": (
         "irules",
         "irule",

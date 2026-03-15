@@ -1772,7 +1772,7 @@ Server/runtime settings are available through the `tclLsp.*` namespace.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `dialect` | `tcl8.6` | Command/signature profile (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `f5-iapps`, `synopsys-eda-tcl`, `cadence-eda-tcl`, `xilinx-eda-tcl`, `intel-quartus-eda-tcl`, `mentor-eda-tcl`) |
+| `dialect` | `tcl8.6` | Command/signature profile (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `f5-iapps`, `f5-bigip`, `synopsys-eda-tcl`, `cadence-eda-tcl`, `xilinx-eda-tcl`, `intel-quartus-eda-tcl`, `mentor-eda-tcl`, `expect`) |
 | `extraCommands` | `[]` | Extra command names treated as known varargs commands |
 | `libraryPaths` | `[]` | Additional directories to scan for Tcl packages and libraries |
 
