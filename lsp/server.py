@@ -121,6 +121,7 @@ server = LanguageServer("tcl-lsp", f"v{_version}")
 # and VS Code's Output → Tcl LSP channel.
 # ---------------------------------------------------------------------------
 
+
 class _LspLogHandler(logging.Handler):
     """Logging handler that forwards records via ``window/logMessage``.
 
@@ -137,8 +138,9 @@ class _LspLogHandler(logging.Handler):
         logging.CRITICAL: types.MessageType.Error,
     }
 
-    _SKIP_LOGGERS = frozenset({"pygls", "pygls.protocol", "pygls.server",
-                                "pygls.feature_manager", "pygls.client"})
+    _SKIP_LOGGERS = frozenset(
+        {"pygls", "pygls.protocol", "pygls.server", "pygls.feature_manager", "pygls.client"}
+    )
 
     def __init__(self) -> None:
         super().__init__()
@@ -213,18 +215,20 @@ _orig_handle_request = server.protocol._handle_request
 _orig_handle_notification = server.protocol._handle_notification
 
 # Noisy methods that fire on every keystroke or cursor move — log at DEBUG.
-_FREQUENT_METHODS = frozenset({
-    "textDocument/semanticTokens/full",
-    "textDocument/completion",
-    "textDocument/hover",
-    "textDocument/signatureHelp",
-    "textDocument/documentSymbol",
-    "textDocument/foldingRange",
-    "textDocument/selectionRange",
-    "textDocument/inlayHint",
-    "textDocument/didChange",
-    "$/cancelRequest",
-})
+_FREQUENT_METHODS = frozenset(
+    {
+        "textDocument/semanticTokens/full",
+        "textDocument/completion",
+        "textDocument/hover",
+        "textDocument/signatureHelp",
+        "textDocument/documentSymbol",
+        "textDocument/foldingRange",
+        "textDocument/selectionRange",
+        "textDocument/inlayHint",
+        "textDocument/didChange",
+        "$/cancelRequest",
+    }
+)
 
 
 def _log_request(msg_id, method: str, params):  # type: ignore[override]
@@ -1868,6 +1872,7 @@ def _run_background_scan() -> None:
 def on_initialized(params: types.InitializedParams) -> None:
     """After client initialization, scan workspace for Tcl files."""
     from core.common.dialect import active_dialect
+
     log.info(
         "Server initialized (version=%s, dialect=%s)",
         _version,
@@ -1876,9 +1881,7 @@ def on_initialized(params: types.InitializedParams) -> None:
 
     # Advise editors that don't request semantic tokens.
     caps = server.client_capabilities
-    st = getattr(
-        getattr(caps, "text_document", None), "semantic_tokens", None
-    )
+    st = getattr(getattr(caps, "text_document", None), "semantic_tokens", None)
     if st is None:
         log.info("Client did not advertise semantic token support")
         server.window_show_message(
@@ -1886,7 +1889,7 @@ def on_initialized(params: types.InitializedParams) -> None:
                 type=types.MessageType.Info,
                 message=(
                     "Tip: enable semantic tokens for richer Tcl highlighting. "
-                    "In Zed, add '\"semantic_tokens\": \"full\"' to your "
+                    'In Zed, add \'"semantic_tokens": "full"\' to your '
                     "language settings."
                 ),
             )
@@ -1958,7 +1961,10 @@ def _switch_dialect(dialect: str) -> dict:
         # Re-analyse all open documents with the new dialect.
         for uri, state in workspace_state.items():
             _publish_diagnostics_sync(
-                uri, state.source, state.version, force_reanalyse=True,
+                uri,
+                state.source,
+                state.version,
+                force_reanalyse=True,
             )
 
     return {"success": True, "dialect": current}
@@ -2274,7 +2280,12 @@ def did_change_configuration(params: types.DidChangeConfigurationParams) -> None
     )
     if signatures_changed:
         from core.common.dialect import active_dialect
-        log.info("Dialect changed to %s (explicit=%s)", active_dialect(), feature_config.dialect_explicitly_set)
+
+        log.info(
+            "Dialect changed to %s (explicit=%s)",
+            active_dialect(),
+            feature_config.dialect_explicitly_set,
+        )
 
     features_changed = _apply_feature_settings(tcl_settings)
 
