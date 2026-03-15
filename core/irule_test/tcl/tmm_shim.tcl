@@ -52,6 +52,7 @@ namespace eval ::tmm {
 
     proc init {args} {
         variable tmos_version
+        variable _initialized
 
         # Parse arguments
         foreach {opt val} $args {
@@ -61,11 +62,17 @@ namespace eval ::tmm {
             }
         }
 
+        # Guard against double-init (e.g. multiple ::orch::test calls)
+        if {[info exists _initialized] && $_initialized} {
+            return
+        }
+
         _install_disabled_commands
         _install_post84_blocks
         _install_info_override
         _install_namespace_restriction
 
+        set _initialized 1
         return
     }
 
@@ -103,6 +110,13 @@ namespace eval ::tmm {
     # ── Block Tcl 8.5+ commands ───────────────────────────────────────
     #
     # If running on 8.5/8.6/9.0, remove commands that TMM 8.4 wouldn't have.
+    # Blockers are namespace-aware: framework namespaces (::tmm::, ::itest::,
+    # ::orch::, ::state::, ::proto::, ::static::) may call through to the
+    # original command.  iRule handler code (::_irh_* in global ns) and
+    # namespace (::) are blocked.
+    #
+    # The blocker body uses only Tcl 8.4 commands (string match, linsert,
+    # uplevel) to avoid chicken-and-egg issues.
 
     proc _install_post84_blocks {} {
         variable post84_commands
@@ -110,9 +124,21 @@ namespace eval ::tmm {
         foreach cmd $post84_commands {
             if {[llength [::info commands ::$cmd]]} {
                 ::tmm::_orig_rename ::$cmd ::tmm::_orig_$cmd
+                # Smart blocker: checks caller namespace at call time.
+                # By call time, _install_namespace_restriction has run so
+                # ::namespace (the wrapper) handles "current" correctly.
                 set body [format {
+                    set _caller_ns [uplevel 1 {namespace current}]
+                    if {[string match "::tmm*" $_caller_ns] ||
+                        [string match "::itest*" $_caller_ns] ||
+                        [string match "::orch*" $_caller_ns] ||
+                        [string match "::state*" $_caller_ns] ||
+                        [string match "::proto*" $_caller_ns] ||
+                        [string match "::static*" $_caller_ns]} {
+                        return [uplevel 1 [linsert $args 0 ::tmm::_orig_%s]]
+                    }
                     error "invalid command name \"%s\"" "invalid command name \"%s\""
-                } $cmd $cmd]
+                } $cmd $cmd $cmd]
                 proc ::$cmd {args} $body
             }
         }
@@ -123,7 +149,7 @@ namespace eval ::tmm {
     proc _install_info_override {} {
         # Only rename once
         if {![llength [::info commands ::tmm::_orig_info]]} {
-            rename ::info ::tmm::_orig_info
+            ::tmm::_orig_rename ::info ::tmm::_orig_info
         }
 
         proc ::info {subcommand args} {
@@ -168,6 +194,8 @@ namespace eval ::tmm {
                         if {[string match "state::*" $cmd]} { continue }
                         if {[string match "::itest::*" $cmd]} { continue }
                         if {[string match "itest::*" $cmd]} { continue }
+                        if {[string match "::_irh_*" $cmd]} { continue }
+                        if {[string match "_irh_*" $cmd]} { continue }
                         lappend filtered $cmd
                     }
                     return $filtered
@@ -186,16 +214,20 @@ namespace eval ::tmm {
                         if {[string match "state::*" $p]} { continue }
                         if {[string match "::itest::*" $p]} { continue }
                         if {[string match "itest::*" $p]} { continue }
+                        if {[string match "::_irh_*" $p]} { continue }
+                        if {[string match "_irh_*" $p]} { continue }
                         lappend filtered $p
                     }
                     return $filtered
                 }
                 default {
-                    # Pass through to real info
+                    # Pass through to real info in the CALLER's scope
+                    # (uplevel is essential for scope-sensitive subcommands
+                    # like exists, vars, locals, level, args, body, etc.)
                     if {[llength $args] > 0} {
-                        return [eval [list ::tmm::_orig_info $subcommand] $args]
+                        return [uplevel 1 [linsert $args 0 ::tmm::_orig_info $subcommand]]
                     } else {
-                        return [::tmm::_orig_info $subcommand]
+                        return [uplevel 1 [list ::tmm::_orig_info $subcommand]]
                     }
                 }
             }
@@ -205,8 +237,8 @@ namespace eval ::tmm {
     # ── namespace restriction ─────────────────────────────────────────
 
     proc _install_namespace_restriction {} {
-        if {![llength [::info commands ::tmm::_orig_namespace]]} {
-            rename ::namespace ::tmm::_orig_namespace
+        if {![llength [::tmm::_orig_info commands ::tmm::_orig_namespace]]} {
+            ::tmm::_orig_rename ::namespace ::tmm::_orig_namespace
         }
 
         proc ::namespace {subcommand args} {
@@ -234,7 +266,15 @@ namespace eval ::tmm {
                     if {[string match "::tmm::_orig_*" $result]} {
                         return ""
                     }
+                    if {[string match "::_irh_*" $result]} {
+                        return ""
+                    }
                     return $result
+                }
+                current {
+                    # Must use uplevel so _orig_namespace sees the
+                    # caller's scope, not this wrapper proc's scope.
+                    return [uplevel 1 [list ::tmm::_orig_namespace current]]
                 }
                 default {
                     return [eval [list ::tmm::_orig_namespace $subcommand] $args]
@@ -300,21 +340,36 @@ namespace eval ::tmm {
     proc restore {} {
         variable disabled_commands
         variable post84_commands
+        variable _initialized
+        set _initialized 0
 
-        # Restore disabled commands
+        # Restore disabled and post-8.4 commands.
+        # Skip "rename" -- it must be restored LAST because _orig_rename
+        # is the tool we use to restore everything else.
         foreach cmd [concat $disabled_commands $post84_commands] {
+            if {$cmd eq "rename"} continue
             if {[llength [::tmm::_orig_info commands ::tmm::_orig_$cmd]]} {
-                catch { rename ::$cmd {} }
-                rename ::tmm::_orig_$cmd ::$cmd
+                catch { ::tmm::_orig_rename ::$cmd {} }
+                ::tmm::_orig_rename ::tmm::_orig_$cmd ::$cmd
             }
         }
 
-        # Restore wrapped builtins
+        # Restore wrapped builtins (info, namespace)
         foreach wrapped {info namespace} {
             if {[llength [::tmm::_orig_info commands ::tmm::_orig_$wrapped]]} {
-                catch { rename ::$wrapped {} }
-                rename ::tmm::_orig_$wrapped ::$wrapped
+                catch { ::tmm::_orig_rename ::$wrapped {} }
+                ::tmm::_orig_rename ::tmm::_orig_$wrapped ::$wrapped
             }
         }
+
+        # Restore rename itself last
+        if {[llength [::tmm::_orig_info commands ::tmm::_orig_rename]]} {
+            # Remove the blocker proc and move original back
+            catch { ::tmm::_orig_rename ::rename {} }
+            ::tmm::_orig_rename ::tmm::_orig_rename ::rename
+        }
+
+        # Uninstall expr_ops overrides
+        catch { ::tmm::expr_ops::uninstall }
     }
 }

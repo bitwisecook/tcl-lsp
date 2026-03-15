@@ -114,6 +114,7 @@ class DocumentState:
     """Cached analysis state for a single document."""
 
     uri: str
+    language_id: str = ""
     version: int | None = None
     source: str = ""
     tokens: list[Token] = field(default_factory=list)
@@ -621,10 +622,28 @@ class WorkspaceState:
         source: str,
         version: int | None = None,
         *,
+        language_id: str = "",
         force_reanalyse: bool = False,
+        analyse: bool = True,
     ) -> DocumentState:
-        state = DocumentState(uri=uri)
-        state.update(source, version, force_reanalyse=force_reanalyse)
+        """Register a newly opened document.
+
+        Parameters
+        ----------
+        analyse:
+            When *False*, only store the source text and metadata without
+            running the analysis pipeline.  The caller is responsible for
+            triggering analysis later (e.g. via ``_publish_diagnostics``
+            running in a background thread).  This keeps ``didOpen`` fast
+            so the event loop remains responsive for other requests.
+        """
+        state = DocumentState(uri=uri, language_id=language_id)
+        if analyse:
+            state.update(source, version, force_reanalyse=force_reanalyse)
+        else:
+            # Lightweight open: store source and version without analysis.
+            state.source = source
+            state.version = version
         self._documents[uri] = state
         return state
 
@@ -644,6 +663,11 @@ class WorkspaceState:
 
     def close(self, uri: str) -> None:
         self._documents.pop(uri, None)
+
+    def get_language_id(self, uri: str) -> str:
+        """Return the ``language_id`` from the editor for *uri*, or ``""``."""
+        state = self._documents.get(uri)
+        return state.language_id if state is not None else ""
 
     def items(self) -> list[tuple[str, DocumentState]]:
         """Return all open documents."""

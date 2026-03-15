@@ -237,64 +237,126 @@ namespace eval ::tmm::expr_ops {
     # We wrap the builtins to pre-process expressions before evaluation.
 
     proc install {} {
-        # Save originals
+        # Only override ::expr.  We deliberately do NOT replace
+        # if/while/for -- wrapping control-flow commands with procs
+        # breaks break/continue/return propagation.  Instead the
+        # iRule source is preprocessed at load time by
+        # rewrite_irule_source (called from itest::load_irule).
         if {![llength [::tmm::_orig_info commands ::tmm::expr_ops::_orig_expr]]} {
-            rename ::expr ::tmm::expr_ops::_orig_expr
-        }
-        if {![llength [::tmm::_orig_info commands ::tmm::expr_ops::_orig_if]]} {
-            rename ::if ::tmm::expr_ops::_orig_if
-        }
-        if {![llength [::tmm::_orig_info commands ::tmm::expr_ops::_orig_while]]} {
-            rename ::while ::tmm::expr_ops::_orig_while
-        }
-        if {![llength [::tmm::_orig_info commands ::tmm::expr_ops::_orig_for]]} {
-            rename ::for ::tmm::expr_ops::_orig_for
-        }
-        if {![llength [::tmm::_orig_info commands ::tmm::expr_ops::_orig_switch]]} {
-            rename ::switch ::tmm::expr_ops::_orig_switch
+            ::tmm::_orig_rename ::expr ::tmm::expr_ops::_orig_expr
         }
 
-        # expr -- rewrite and evaluate
+        # Re-entrancy guard so the rewriter and operator
+        # implementations can use expr without infinite recursion.
+        variable _in_rewrite 0
+
         proc ::expr {args} {
-            if {[llength $args] == 1} {
-                set rewritten [::tmm::expr_ops::rewrite_expr [lindex $args 0]]
-                return [::tmm::expr_ops::_orig_expr $rewritten]
+            variable ::tmm::expr_ops::_in_rewrite
+            if {$_in_rewrite} {
+                return [uplevel 1 ::tmm::expr_ops::_orig_expr $args]
             }
-            # Multi-arg expr: concatenate, rewrite, evaluate
-            set joined [join $args " "]
-            set rewritten [::tmm::expr_ops::rewrite_expr $joined]
-            return [::tmm::expr_ops::_orig_expr $rewritten]
+            set _in_rewrite 1
+            set code [catch {
+                if {[llength $args] == 1} {
+                    set rewritten [::tmm::expr_ops::rewrite_expr [lindex $args 0]]
+                    set _result [uplevel 1 [list ::tmm::expr_ops::_orig_expr $rewritten]]
+                } else {
+                    set joined [join $args " "]
+                    set rewritten [::tmm::expr_ops::rewrite_expr $joined]
+                    set _result [uplevel 1 [list ::tmm::expr_ops::_orig_expr $rewritten]]
+                }
+            } result opts]
+            set _in_rewrite 0
+            if {$code} {
+                return -code $code $result
+            }
+            return $_result
         }
-
-        # if -- rewrite condition expression
-        proc ::if {args} {
-            # First arg is the condition
-            set condition [::tmm::expr_ops::rewrite_expr [lindex $args 0]]
-            set rest [lrange $args 1 end]
-            return [eval [list ::tmm::expr_ops::_orig_if $condition] $rest]
-        }
-
-        # while -- rewrite condition expression
-        proc ::while {condition body} {
-            set rewritten [::tmm::expr_ops::rewrite_expr $condition]
-            return [::tmm::expr_ops::_orig_while $rewritten $body]
-        }
-
-        # for -- rewrite test expression
-        proc ::for {init test next body} {
-            set rewritten [::tmm::expr_ops::rewrite_expr $test]
-            return [::tmm::expr_ops::_orig_for $init $rewritten $next $body]
-        }
-
-        # switch passes through unchanged -- it doesn't use expressions
     }
 
     proc uninstall {} {
-        foreach cmd {expr if while for switch} {
+        foreach cmd {expr} {
             if {[llength [::tmm::_orig_info commands ::tmm::expr_ops::_orig_$cmd]]} {
-                catch { rename ::$cmd {} }
-                rename ::tmm::expr_ops::_orig_$cmd ::$cmd
+                catch { ::tmm::_orig_rename ::$cmd {} }
+                ::tmm::_orig_rename ::tmm::expr_ops::_orig_$cmd ::$cmd
             }
         }
+    }
+
+    # ── Source-level rewriting ─────────────────────────────────────────
+    #
+    # Preprocess iRule source text to rewrite TMM custom operators in
+    # expression contexts (if/while/expr conditions).  This avoids
+    # the need to replace the if/while commands with procs, which
+    # breaks break/continue/return propagation.
+    #
+    # Strategy: scan for braced expression arguments to if/elseif/
+    # while/expr and run rewrite_expr on their contents.
+    # Note: `for` is handled separately by the ::for proc override
+    # above (its test expression is the 2nd argument, not the 1st).
+
+    proc rewrite_irule_source {source} {
+        variable _tmm_operators
+
+        # Quick check: if no TMM operators appear anywhere, return unchanged
+        set found 0
+        foreach op $_tmm_operators {
+            if {[string first $op $source] >= 0} {
+                set found 1
+                break
+            }
+        }
+        if {!$found} {
+            return $source
+        }
+
+        # Rewrite braced expression arguments to if/elseif/while/expr.
+        # Find each keyword, locate its braced condition, rewrite the
+        # expression content, and splice back.  This is intentionally
+        # simple — it handles the common iRule patterns.
+
+        set OB \{  ;# open brace
+        set CB \}  ;# close brace
+        set result ""
+        set len [string length $source]
+        set pos 0
+        set re "\\m(if|elseif|while|expr)\\s*\\$OB"
+
+        while {$pos < $len} {
+            # Look for keyword followed by whitespace and open brace.
+            if {[regexp -start $pos -indices \
+                    $re $source full_match kw_match]} {
+                set full_end [lindex $full_match 1]
+                set brace_pos $full_end
+
+                # Append everything before the brace, then the brace
+                append result [string range $source $pos [expr {$brace_pos - 1}]]
+                append result $OB
+
+                # Find the matching close brace
+                set depth 1
+                set scan [expr {$brace_pos + 1}]
+                while {$scan < $len && $depth > 0} {
+                    set ch [string index $source $scan]
+                    if {$ch eq $OB} { incr depth }
+                    if {$ch eq $CB} { incr depth -1 }
+                    if {$ch eq "\\"} { incr scan }
+                    incr scan
+                }
+
+                # Extract expression content (between braces), rewrite, splice
+                set inner [string range $source [expr {$brace_pos + 1}] [expr {$scan - 2}]]
+                append result [rewrite_expr $inner]
+                append result $CB
+
+                set pos $scan
+            } else {
+                # No more keywords found, append remainder
+                append result [string range $source $pos end]
+                break
+            }
+        }
+
+        return $result
     }
 }

@@ -487,14 +487,15 @@ namespace eval ::orch {
     # Close the current connection
     proc close_connection {} {
         variable _connection_active
-        variable _init_done
 
         if {$_connection_active} {
             # Fire CLIENT_CLOSED
             ::itest::fire_event CLIENT_CLOSED
         }
         set _connection_active 0
-        set _init_done 0
+        # Note: do NOT reset _init_done here.  RULE_INIT fires once per
+        # iRule lifetime (when the iRule is first loaded), not once per
+        # connection.  The orchestrator's reset (full teardown) clears it.
         ::state::reset_connection_state
     }
 
@@ -1247,7 +1248,7 @@ namespace eval ::orch {
     # Convenience: run done and exit with appropriate code
     proc run_and_exit {} {
         set failed [done]
-        exit $failed
+        ::tmm::_orig_exit $failed
     }
 
     # ══════════════════════════════════════════════════════════════════
@@ -1478,17 +1479,20 @@ namespace eval ::orch {
     # NOT the real BIG-IP CMP algorithm -- a test-only simulation.
     proc _fakecmp_hash {src_addr src_port dst_addr dst_port} {
         variable _tmm_count
-        # Simple hash: combine all 4 tuple elements into a
-        # deterministic integer, then mod by TMM count.
-        set hash 0
+        # FNV-1a-inspired hash: combine all 4-tuple elements into a
+        # deterministic integer, then mod by TMM count.  Uses XOR + multiply
+        # for good avalanche (small input changes → large hash changes).
+        set hash 0x811C9DC5
         foreach octet [split $src_addr .] {
-            set hash [expr {($hash * 31 + $octet) & 0x7FFFFFFF}]
+            set hash [expr {(($hash ^ $octet) * 0x01000193) & 0x7FFFFFFF}]
         }
-        set hash [expr {($hash * 31 + $src_port) & 0x7FFFFFFF}]
+        set hash [expr {(($hash ^ ($src_port & 0xFF)) * 0x01000193) & 0x7FFFFFFF}]
+        set hash [expr {(($hash ^ (($src_port >> 8) & 0xFF)) * 0x01000193) & 0x7FFFFFFF}]
         foreach octet [split $dst_addr .] {
-            set hash [expr {($hash * 31 + $octet) & 0x7FFFFFFF}]
+            set hash [expr {(($hash ^ $octet) * 0x01000193) & 0x7FFFFFFF}]
         }
-        set hash [expr {($hash * 31 + $dst_port) & 0x7FFFFFFF}]
+        set hash [expr {(($hash ^ ($dst_port & 0xFF)) * 0x01000193) & 0x7FFFFFFF}]
+        set hash [expr {(($hash ^ (($dst_port >> 8) & 0xFF)) * 0x01000193) & 0x7FFFFFFF}]
         return [expr {$hash % $_tmm_count}]
     }
 

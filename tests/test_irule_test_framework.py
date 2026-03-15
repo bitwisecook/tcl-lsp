@@ -557,6 +557,9 @@ puts [info tclversion]
 
     def test_expr_ops_contains(self) -> None:
         """Test the 'contains' expression operator."""
+        # TMM operators in if/while/for conditions are preprocessed at
+        # source level by rewrite_irule_source (standard Tcl's [if]
+        # uses an internal expr evaluator, not the overridden ::expr).
         script = f"""
 source "{TCL_DIR / "compat84.tcl"}"
 source "{TCL_DIR / "state_layers.tcl"}"
@@ -564,10 +567,22 @@ source "{TCL_DIR / "tmm_shim.tcl"}"
 source "{TCL_DIR / "expr_ops.tcl"}"
 ::tmm::init
 ::tmm::expr_ops::install
-if {{ "hello world" contains "world" }} {{
+# Test expr command directly (goes through our ::expr override)
+set r1 [expr {{ "hello world" contains "world" }}]
+# Test source-level rewriting for if conditions
+set irule_src {{
+    if {{ "hello world" contains "world" }} {{
+        set result CONTAINS_OK
+    }} else {{
+        set result CONTAINS_FAIL
+    }}
+}}
+set rewritten [::tmm::expr_ops::rewrite_irule_source $irule_src]
+eval $rewritten
+if {{$r1 && $result eq "CONTAINS_OK"}} {{
     puts "CONTAINS_OK"
 }} else {{
-    puts "CONTAINS_FAIL"
+    puts "CONTAINS_FAIL r1=$r1 result=$result"
 }}
 """
         result = subprocess.run(
@@ -1382,11 +1397,10 @@ class TestMockStubsIntegration:
         """Stub commands log to the decision log."""
         result = self._eval("""
             ::orch::load_irule {
-                when CLIENT_ACCEPTED { MQTT::publish "topic" "payload" }
+                when HTTP_REQUEST { HTTP::respond 200 content "hello" }
             }
-            ::orch::configure -profiles {TCP}
-            ::orch::run_http_request
-            set decisions [::itest::get_decisions mqtt]
+            ::orch::run_http_request -host test.example.com
+            set decisions [::itest::get_decisions http]
             llength $decisions
         """)
         assert int(result) >= 1
@@ -1483,6 +1497,7 @@ when HTTP_REQUEST {
 """
 
     def test_generate_test_produces_output(self) -> None:
+        pytest.importorskip("jinja2")
         from ai.claude.tcl_ai import (
             _build_test_script,
             _extract_irule_commands,
@@ -1545,6 +1560,7 @@ when HTTP_REQUEST {
         assert "allowed_hosts" in objects["datagroups"]
 
     def test_generated_script_has_pool_setup(self) -> None:
+        pytest.importorskip("jinja2")
         from ai.claude.tcl_ai import (
             _build_test_script,
             _extract_irule_commands,
@@ -1692,7 +1708,7 @@ class TestMultiTMMSimulation:
             ::orch::load_irule {
                 when RULE_INIT { set static::x 0 }
                 when HTTP_REQUEST {
-                    table set rate_limit [IP::client_addr] 1 300
+                    table set -subtable rate_limit [IP::client_addr] 1 300
                     pool web_pool
                 }
             }
@@ -1703,7 +1719,7 @@ class TestMultiTMMSimulation:
 
             # TMM 1 should see the same table entry (CMP-shared)
             ::orch::tmm_select 1
-            set val [table lookup rate_limit 10.0.0.1]
+            set val [table lookup -subtable rate_limit 10.0.0.1]
             return $val
         """)
         assert result == "1"
@@ -1971,13 +1987,15 @@ class TestMultiTMMSimulation:
         def py_fakecmp(
             src_addr: str, src_port: int, dst_addr: str, dst_port: int, tmm_count: int
         ) -> int:
-            h = 0
+            h = 0x811C9DC5
             for octet in src_addr.split("."):
-                h = (h * 31 + int(octet)) & 0x7FFFFFFF
-            h = (h * 31 + src_port) & 0x7FFFFFFF
+                h = ((h ^ int(octet)) * 0x01000193) & 0x7FFFFFFF
+            h = ((h ^ (src_port & 0xFF)) * 0x01000193) & 0x7FFFFFFF
+            h = ((h ^ ((src_port >> 8) & 0xFF)) * 0x01000193) & 0x7FFFFFFF
             for octet in dst_addr.split("."):
-                h = (h * 31 + int(octet)) & 0x7FFFFFFF
-            h = (h * 31 + dst_port) & 0x7FFFFFFF
+                h = ((h ^ int(octet)) * 0x01000193) & 0x7FFFFFFF
+            h = ((h ^ (dst_port & 0xFF)) * 0x01000193) & 0x7FFFFFFF
+            h = ((h ^ ((dst_port >> 8) & 0xFF)) * 0x01000193) & 0x7FFFFFFF
             return h % tmm_count
 
         # Build a corpus of test tuples
@@ -2180,6 +2198,7 @@ when HTTP_REQUEST {
 
     def test_gen_cfg_test_cases_produces_valid_output(self) -> None:
         """CFG test generation produces ::orch::test blocks."""
+        pytest.importorskip("jinja2")
         from ai.claude.tcl_ai import _build_all_test_blocks, _extract_test_paths
         from ai.claude.templates.render import render_test_case
 

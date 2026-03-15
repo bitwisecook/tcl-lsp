@@ -94,4 +94,4 @@ source [file join $script_dir orchestrator.tcl]
 
 # ── Summary ──────────────────────────────────────────────────────
 
-exit [::orch::done]
+::orch::run_and_exit
