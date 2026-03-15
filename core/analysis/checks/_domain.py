@@ -32,10 +32,16 @@ def check_disabled_command(
     dialect = active_dialect()
     status = REGISTRY.command_status(cmd_name, dialect)
     if status is DialectStatus.DISALLOWED:
+        msg = f"'{cmd_name}' is disabled in the active dialect profile"
+        # If the command exists in iRules, suggest selecting that dialect.
+        if cmd_name == "when":
+            msg += ". Select iRules as the language to enable F5 iRules support"
+        elif REGISTRY.command_status(cmd_name, "f5-irules") is DialectStatus.EXISTS:
+            msg += " (available in the iRules dialect)"
         return [
             Diagnostic(
                 range=range_from_token(all_tokens[0]),
-                message=f"'{cmd_name}' is disabled in the active dialect profile",
+                message=msg,
                 severity=Severity.WARNING,
                 code="W002",
             )
