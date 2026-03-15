@@ -1150,6 +1150,7 @@ constraints apply.
 | `tcl9.0` | Tcl 9.0 core commands (adds `lpop`, zipfs, updated `encoding`) |
 | `f5-irules` | F5 BIG-IP iRules: HTTP/SSL/DNS/LB namespaces, event-validity checks, taint analysis, `static::` scoping rules |
 | `f5-iapps` | F5 iApps template commands |
+| `f5-bigip` | F5 BIG-IP configuration (`bigip.conf`) commands |
 | `synopsys-eda-tcl` | Synopsys EDA commands (Design Compiler, PrimeTime, ICC2, Formality) |
 | `cadence-eda-tcl` | Cadence EDA commands (Genus, Innovus, Tempus, Xcelium) |
 | `xilinx-eda-tcl` | Xilinx/AMD EDA commands (Vivado, Vitis) |
