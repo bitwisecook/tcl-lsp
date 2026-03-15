@@ -316,14 +316,44 @@ def _load_config() -> _CliConfig:
 
 
 _HELP_DIALECT_TERMS: dict[str, tuple[str, ...]] = {
-    "eda-tools": (
-        "eda",
-        "asic",
-        "fpga",
-        "vivado",
-        "quartus",
+    "synopsys-eda-tcl": (
         "synopsys",
+        "dc_shell",
+        "design_compiler",
+        "primetime",
+        "icc2",
+        "formality",
+    ),
+    "cadence-eda-tcl": (
         "cadence",
+        "genus",
+        "innovus",
+        "tempus",
+        "xcelium",
+        "encounter",
+    ),
+    "xilinx-eda-tcl": (
+        "xilinx",
+        "vivado",
+        "vitis",
+        "amd",
+        "fpga",
+        "ise",
+    ),
+    "intel-quartus-eda-tcl": (
+        "quartus",
+        "intel",
+        "altera",
+        "fpga",
+        "quartus_sh",
+    ),
+    "mentor-eda-tcl": (
+        "mentor",
+        "siemens",
+        "modelsim",
+        "questa",
+        "calibre",
+        "vsim",
     ),
     "f5-iapps": (
         "iapps",

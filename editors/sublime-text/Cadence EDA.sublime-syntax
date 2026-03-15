@@ -1,0 +1,8 @@
+%YAML 1.2
+---
+# Cadence EDA dialect — selects cadence-eda-tcl for LSP analysis
+name: Cadence EDA
+scope: source.tcl
+version: 2
+
+extends: Tcl.sublime-syntax

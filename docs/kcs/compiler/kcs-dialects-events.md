@@ -27,7 +27,11 @@ KNOWN_DIALECTS = frozenset({
     "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0",   # Tcl version dialects
     "f5-irules",                                 # F5 iRules
     "f5-iapps",                                  # F5 iApps
-    "eda-tools",                                 # EDA tooling
+    "synopsys-eda-tcl",                          # Synopsys EDA
+    "cadence-eda-tcl",                           # Cadence EDA
+    "xilinx-eda-tcl",                            # Xilinx/AMD EDA
+    "intel-quartus-eda-tcl",                     # Intel Quartus
+    "mentor-eda-tcl",                            # Mentor/Siemens EDA
 })
 ```
 

@@ -232,7 +232,11 @@ _TCL_LANGUAGE_IDS = (
     "tcl8.4",
     "tcl8.5",
     "tcl9.0",
-    "tcl-eda",
+    "tcl-synopsys",
+    "tcl-cadence",
+    "tcl-xilinx",
+    "tcl-quartus",
+    "tcl-mentor",
     "tcl-expect",
 )
 _TCL_DOCUMENT_SELECTOR = [

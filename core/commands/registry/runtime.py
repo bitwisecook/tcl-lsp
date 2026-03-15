@@ -104,19 +104,10 @@ from .tcl import tcl_taint_hints as _tcl_taint_hints  # noqa: E402
 
 TAINT_HINTS: dict[str, TaintHint] = {**_tcl_taint_hints(), **_irules_taint_hints()}
 
-# Generic EDA-tooling profile seed. Kept intentionally conservative; users can
-# extend with tclLsp.extraCommands.
-_EDA_TOOLS_SIGNATURES: dict[str, CommandSig | SubcommandSig] = {
-    "define_proc_attributes": CommandSig(arity=Arity(1)),
-    "get_cells": CommandSig(),
-    "get_pins": CommandSig(),
-    "get_nets": CommandSig(),
-    "all_registers": CommandSig(),
-    "report_timing": CommandSig(),
-    "create_clock": CommandSig(arity=Arity(1)),
-    "set_false_path": CommandSig(),
-    "set_multicycle_path": CommandSig(),
-}
+_EDA_VENDOR_DIALECTS = frozenset({
+    "synopsys-eda-tcl", "cadence-eda-tcl", "xilinx-eda-tcl",
+    "intel-quartus-eda-tcl", "mentor-eda-tcl",
+})
 
 from .dialects import KNOWN_DIALECTS as _KNOWN_DIALECTS  # noqa: E402
 
@@ -257,10 +248,12 @@ def _build_signatures(
         case "f5-iapps":
             signatures = _registry_signatures_for_dialect("tcl8.6")
             signatures.update(_registry_signatures_for_dialect("f5-iapps"))
-        case "eda-tools":
+        case d if d in _EDA_VENDOR_DIALECTS:
             signatures = _registry_signatures_for_dialect("tcl8.6")
-            for name, sig in _EDA_TOOLS_SIGNATURES.items():
-                signatures[name] = _with_roles(name, sig)
+            # EDA vendor commands (SDC base + vendor-specific) are registered
+            # as CommandSpecs in the central registry and resolved via the
+            # standard dialect-filtering path; overlay them here.
+            signatures.update(_registry_signatures_for_dialect(d))
         case "expect":
             signatures = _registry_signatures_for_dialect("tcl8.6")
             signatures.update(_registry_signatures_for_dialect("expect"))

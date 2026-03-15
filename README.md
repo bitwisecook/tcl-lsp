@@ -1150,7 +1150,11 @@ constraints apply.
 | `tcl9.0` | Tcl 9.0 core commands (adds `lpop`, zipfs, updated `encoding`) |
 | `f5-irules` | F5 BIG-IP iRules: HTTP/SSL/DNS/LB namespaces, event-validity checks, taint analysis, `static::` scoping rules |
 | `f5-iapps` | F5 iApps template commands |
-| `eda-tools` | EDA/VLSI tooling seed profile (Synopsys, Cadence, Mentor conventions) |
+| `synopsys-eda-tcl` | Synopsys EDA commands (Design Compiler, PrimeTime, ICC2, Formality) |
+| `cadence-eda-tcl` | Cadence EDA commands (Genus, Innovus, Tempus, Xcelium) |
+| `xilinx-eda-tcl` | Xilinx/AMD EDA commands (Vivado, Vitis) |
+| `intel-quartus-eda-tcl` | Intel Quartus Prime commands |
+| `mentor-eda-tcl` | Mentor/Siemens EDA commands (ModelSim, Questa, Calibre) |
 | `expect` | Expect: `spawn`, `expect`, `send`, `interact` and related commands for automating interactive programs |
 
 **Tk**, **tcllib**, and **Tcl stdlib** commands are automatically recognised
@@ -1768,7 +1772,7 @@ Server/runtime settings are available through the `tclLsp.*` namespace.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `dialect` | `tcl8.6` | Command/signature profile (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `f5-iapps`, `eda-tools`) |
+| `dialect` | `tcl8.6` | Command/signature profile (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `f5-iapps`, `synopsys-eda-tcl`, `cadence-eda-tcl`, `xilinx-eda-tcl`, `intel-quartus-eda-tcl`, `mentor-eda-tcl`) |
 | `extraCommands` | `[]` | Extra command names treated as known varargs commands |
 | `libraryPaths` | `[]` | Additional directories to scan for Tcl packages and libraries |
 
