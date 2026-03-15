@@ -957,7 +957,11 @@ function isTclLanguageId(languageId: string): boolean {
     languageId === "tcl8.4" ||
     languageId === "tcl8.5" ||
     languageId === "tcl9.0" ||
-    languageId === "tcl-eda"
+    languageId === "tcl-synopsys" ||
+    languageId === "tcl-cadence" ||
+    languageId === "tcl-xilinx" ||
+    languageId === "tcl-quartus" ||
+    languageId === "tcl-mentor"
   );
 }
 

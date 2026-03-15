@@ -28,7 +28,11 @@ DIALECTS = [
     ("tcl9.0", "Tcl 9.0"),
     ("f5-irules", "F5 iRules"),
     ("f5-iapps", "F5 iApps"),
-    ("eda-tools", "EDA Tools"),
+    ("synopsys-eda-tcl", "Synopsys EDA"),
+    ("cadence-eda-tcl", "Cadence EDA"),
+    ("xilinx-eda-tcl", "Xilinx EDA"),
+    ("intel-quartus-eda-tcl", "Intel Quartus"),
+    ("mentor-eda-tcl", "Mentor EDA"),
     ("expect", "Expect"),
 ]
 
@@ -41,7 +45,11 @@ _SYNTAX_DIALECT_MAP = {
     "Tcl 9.0": "tcl9.0",
     "iRule": "f5-irules",
     "iApp": "f5-iapps",
-    "EDA Tools": "eda-tools",
+    "Synopsys EDA": "synopsys-eda-tcl",
+    "Cadence EDA": "cadence-eda-tcl",
+    "Xilinx EDA": "xilinx-eda-tcl",
+    "Intel Quartus": "intel-quartus-eda-tcl",
+    "Mentor EDA": "mentor-eda-tcl",
     "Expect": "expect",
 }
 

@@ -20,7 +20,11 @@
                                                 "tcl9.0",
                                                 "f5-irules",
                                                 "f5-iapps",
-                                                "eda-tools",
+                                                "synopsys-eda-tcl",
+                                                "cadence-eda-tcl",
+                                                "xilinx-eda-tcl",
+                                                "intel-quartus-eda-tcl",
+                                                "mentor-eda-tcl",
                                                 "expect"
                                             ],
                                             "markdownDescription": "Tcl dialect for analysis and completions."

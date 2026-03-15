@@ -30,7 +30,11 @@
     "onLanguage:tcl8.4",
     "onLanguage:tcl8.5",
     "onLanguage:tcl9.0",
-    "onLanguage:tcl-eda",
+    "onLanguage:tcl-synopsys",
+    "onLanguage:tcl-cadence",
+    "onLanguage:tcl-xilinx",
+    "onLanguage:tcl-quartus",
+    "onLanguage:tcl-mentor",
     "onLanguage:tcl-expect",
     "onChatParticipant:tcl-lsp.irule",
     "onChatParticipant:tcl-lsp.tcl",
@@ -115,10 +119,42 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl-eda",
+        "id": "tcl-synopsys",
         "aliases": [
-          "EDA Tcl",
-          "eda"
+          "Synopsys EDA Tcl",
+          "synopsys"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-cadence",
+        "aliases": [
+          "Cadence EDA Tcl",
+          "cadence"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-xilinx",
+        "aliases": [
+          "Xilinx EDA Tcl",
+          "xilinx"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-quartus",
+        "aliases": [
+          "Intel Quartus Tcl",
+          "quartus"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-mentor",
+        "aliases": [
+          "Mentor EDA Tcl",
+          "mentor"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -171,7 +207,27 @@
         "path": "./syntaxes/tcl.tmLanguage.json"
       },
       {
-        "language": "tcl-eda",
+        "language": "tcl-synopsys",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-cadence",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-xilinx",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-quartus",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-mentor",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       },
@@ -1321,80 +1377,148 @@
         }
       },
       {
-        "language": "tcl-eda",
+        "language": "tcl-synopsys",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
-          "regexp": [
-            "string.regexp.tcl"
-          ],
-          "escape": [
-            "constant.character.escape.tcl"
-          ],
-          "number": [
-            "constant.numeric.tcl"
-          ],
-          "event": [
-            "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
-          ],
-          "regexpGroup": [
-            "keyword.operator.regexp.group.tcl"
-          ],
-          "regexpCharClass": [
-            "constant.other.regexp.charclass.tcl"
-          ],
-          "regexpQuantifier": [
-            "keyword.operator.regexp.quantifier.tcl"
-          ],
-          "regexpAnchor": [
-            "keyword.operator.regexp.anchor.tcl"
-          ],
-          "regexpEscape": [
-            "constant.character.escape.regexp.tcl"
-          ],
-          "regexpBackref": [
-            "constant.other.regexp.backref.tcl"
-          ],
-          "regexpAlternation": [
-            "keyword.operator.regexp.alternation.tcl"
-          ],
-          "binarySpec": [
-            "keyword.operator.binary.specifier.tcl"
-          ],
-          "binaryCount": [
-            "constant.numeric.binary.count.tcl"
-          ],
-          "binaryFlag": [
-            "keyword.operator.binary.flag.tcl"
-          ],
-          "formatPercent": [
-            "keyword.operator.format.percent.tcl"
-          ],
-          "formatSpec": [
-            "keyword.operator.format.specifier.tcl"
-          ],
-          "formatFlag": [
-            "keyword.operator.format.flag.tcl"
-          ],
-          "formatWidth": [
-            "constant.numeric.format.width.tcl"
-          ],
-          "clockPercent": [
-            "keyword.operator.clock.percent.tcl"
-          ],
-          "clockSpec": [
-            "keyword.operator.clock.specifier.tcl"
-          ],
-          "clockModifier": [
-            "keyword.operator.clock.modifier.tcl"
-          ]
+          "operator": ["keyword.operator.format.tcl"],
+          "regexp": ["string.regexp.tcl"],
+          "escape": ["constant.character.escape.tcl"],
+          "number": ["constant.numeric.tcl"],
+          "event": ["entity.name.tag.event.tcl"],
+          "namespace": ["entity.name.namespace.tcl"],
+          "decorator": ["entity.other.attribute-name.option.tcl"],
+          "regexpGroup": ["keyword.operator.regexp.group.tcl"],
+          "regexpCharClass": ["constant.other.regexp.charclass.tcl"],
+          "regexpQuantifier": ["keyword.operator.regexp.quantifier.tcl"],
+          "regexpAnchor": ["keyword.operator.regexp.anchor.tcl"],
+          "regexpEscape": ["constant.character.escape.regexp.tcl"],
+          "regexpBackref": ["constant.other.regexp.backref.tcl"],
+          "regexpAlternation": ["keyword.operator.regexp.alternation.tcl"],
+          "binarySpec": ["keyword.operator.binary.specifier.tcl"],
+          "binaryCount": ["constant.numeric.binary.count.tcl"],
+          "binaryFlag": ["keyword.operator.binary.flag.tcl"],
+          "formatPercent": ["keyword.operator.format.percent.tcl"],
+          "formatSpec": ["keyword.operator.format.specifier.tcl"],
+          "formatFlag": ["keyword.operator.format.flag.tcl"],
+          "formatWidth": ["constant.numeric.format.width.tcl"],
+          "clockPercent": ["keyword.operator.clock.percent.tcl"],
+          "clockSpec": ["keyword.operator.clock.specifier.tcl"],
+          "clockModifier": ["keyword.operator.clock.modifier.tcl"]
+        }
+      },
+      {
+        "language": "tcl-cadence",
+        "scopes": {
+          "operator": ["keyword.operator.format.tcl"],
+          "regexp": ["string.regexp.tcl"],
+          "escape": ["constant.character.escape.tcl"],
+          "number": ["constant.numeric.tcl"],
+          "event": ["entity.name.tag.event.tcl"],
+          "namespace": ["entity.name.namespace.tcl"],
+          "decorator": ["entity.other.attribute-name.option.tcl"],
+          "regexpGroup": ["keyword.operator.regexp.group.tcl"],
+          "regexpCharClass": ["constant.other.regexp.charclass.tcl"],
+          "regexpQuantifier": ["keyword.operator.regexp.quantifier.tcl"],
+          "regexpAnchor": ["keyword.operator.regexp.anchor.tcl"],
+          "regexpEscape": ["constant.character.escape.regexp.tcl"],
+          "regexpBackref": ["constant.other.regexp.backref.tcl"],
+          "regexpAlternation": ["keyword.operator.regexp.alternation.tcl"],
+          "binarySpec": ["keyword.operator.binary.specifier.tcl"],
+          "binaryCount": ["constant.numeric.binary.count.tcl"],
+          "binaryFlag": ["keyword.operator.binary.flag.tcl"],
+          "formatPercent": ["keyword.operator.format.percent.tcl"],
+          "formatSpec": ["keyword.operator.format.specifier.tcl"],
+          "formatFlag": ["keyword.operator.format.flag.tcl"],
+          "formatWidth": ["constant.numeric.format.width.tcl"],
+          "clockPercent": ["keyword.operator.clock.percent.tcl"],
+          "clockSpec": ["keyword.operator.clock.specifier.tcl"],
+          "clockModifier": ["keyword.operator.clock.modifier.tcl"]
+        }
+      },
+      {
+        "language": "tcl-xilinx",
+        "scopes": {
+          "operator": ["keyword.operator.format.tcl"],
+          "regexp": ["string.regexp.tcl"],
+          "escape": ["constant.character.escape.tcl"],
+          "number": ["constant.numeric.tcl"],
+          "event": ["entity.name.tag.event.tcl"],
+          "namespace": ["entity.name.namespace.tcl"],
+          "decorator": ["entity.other.attribute-name.option.tcl"],
+          "regexpGroup": ["keyword.operator.regexp.group.tcl"],
+          "regexpCharClass": ["constant.other.regexp.charclass.tcl"],
+          "regexpQuantifier": ["keyword.operator.regexp.quantifier.tcl"],
+          "regexpAnchor": ["keyword.operator.regexp.anchor.tcl"],
+          "regexpEscape": ["constant.character.escape.regexp.tcl"],
+          "regexpBackref": ["constant.other.regexp.backref.tcl"],
+          "regexpAlternation": ["keyword.operator.regexp.alternation.tcl"],
+          "binarySpec": ["keyword.operator.binary.specifier.tcl"],
+          "binaryCount": ["constant.numeric.binary.count.tcl"],
+          "binaryFlag": ["keyword.operator.binary.flag.tcl"],
+          "formatPercent": ["keyword.operator.format.percent.tcl"],
+          "formatSpec": ["keyword.operator.format.specifier.tcl"],
+          "formatFlag": ["keyword.operator.format.flag.tcl"],
+          "formatWidth": ["constant.numeric.format.width.tcl"],
+          "clockPercent": ["keyword.operator.clock.percent.tcl"],
+          "clockSpec": ["keyword.operator.clock.specifier.tcl"],
+          "clockModifier": ["keyword.operator.clock.modifier.tcl"]
+        }
+      },
+      {
+        "language": "tcl-quartus",
+        "scopes": {
+          "operator": ["keyword.operator.format.tcl"],
+          "regexp": ["string.regexp.tcl"],
+          "escape": ["constant.character.escape.tcl"],
+          "number": ["constant.numeric.tcl"],
+          "event": ["entity.name.tag.event.tcl"],
+          "namespace": ["entity.name.namespace.tcl"],
+          "decorator": ["entity.other.attribute-name.option.tcl"],
+          "regexpGroup": ["keyword.operator.regexp.group.tcl"],
+          "regexpCharClass": ["constant.other.regexp.charclass.tcl"],
+          "regexpQuantifier": ["keyword.operator.regexp.quantifier.tcl"],
+          "regexpAnchor": ["keyword.operator.regexp.anchor.tcl"],
+          "regexpEscape": ["constant.character.escape.regexp.tcl"],
+          "regexpBackref": ["constant.other.regexp.backref.tcl"],
+          "regexpAlternation": ["keyword.operator.regexp.alternation.tcl"],
+          "binarySpec": ["keyword.operator.binary.specifier.tcl"],
+          "binaryCount": ["constant.numeric.binary.count.tcl"],
+          "binaryFlag": ["keyword.operator.binary.flag.tcl"],
+          "formatPercent": ["keyword.operator.format.percent.tcl"],
+          "formatSpec": ["keyword.operator.format.specifier.tcl"],
+          "formatFlag": ["keyword.operator.format.flag.tcl"],
+          "formatWidth": ["constant.numeric.format.width.tcl"],
+          "clockPercent": ["keyword.operator.clock.percent.tcl"],
+          "clockSpec": ["keyword.operator.clock.specifier.tcl"],
+          "clockModifier": ["keyword.operator.clock.modifier.tcl"]
+        }
+      },
+      {
+        "language": "tcl-mentor",
+        "scopes": {
+          "operator": ["keyword.operator.format.tcl"],
+          "regexp": ["string.regexp.tcl"],
+          "escape": ["constant.character.escape.tcl"],
+          "number": ["constant.numeric.tcl"],
+          "event": ["entity.name.tag.event.tcl"],
+          "namespace": ["entity.name.namespace.tcl"],
+          "decorator": ["entity.other.attribute-name.option.tcl"],
+          "regexpGroup": ["keyword.operator.regexp.group.tcl"],
+          "regexpCharClass": ["constant.other.regexp.charclass.tcl"],
+          "regexpQuantifier": ["keyword.operator.regexp.quantifier.tcl"],
+          "regexpAnchor": ["keyword.operator.regexp.anchor.tcl"],
+          "regexpEscape": ["constant.character.escape.regexp.tcl"],
+          "regexpBackref": ["constant.other.regexp.backref.tcl"],
+          "regexpAlternation": ["keyword.operator.regexp.alternation.tcl"],
+          "binarySpec": ["keyword.operator.binary.specifier.tcl"],
+          "binaryCount": ["constant.numeric.binary.count.tcl"],
+          "binaryFlag": ["keyword.operator.binary.flag.tcl"],
+          "formatPercent": ["keyword.operator.format.percent.tcl"],
+          "formatSpec": ["keyword.operator.format.specifier.tcl"],
+          "formatFlag": ["keyword.operator.format.flag.tcl"],
+          "formatWidth": ["constant.numeric.format.width.tcl"],
+          "clockPercent": ["keyword.operator.clock.percent.tcl"],
+          "clockSpec": ["keyword.operator.clock.specifier.tcl"],
+          "clockModifier": ["keyword.operator.clock.modifier.tcl"]
         }
       },
       {
@@ -1631,18 +1755,78 @@
             "foreground": "#9cdcfe",
             "italic": true
           },
-          "regexp:tcl-eda": {
+          "regexp:tcl-synopsys": {
             "foreground": "#d16969",
             "italic": true
           },
-          "escape:tcl-eda": {
+          "regexp:tcl-cadence": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexp:tcl-xilinx": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexp:tcl-quartus": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexp:tcl-mentor": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl-synopsys": {
             "foreground": "#d7ba7d"
           },
-          "event:tcl-eda": {
+          "escape:tcl-cadence": {
+            "foreground": "#d7ba7d"
+          },
+          "escape:tcl-xilinx": {
+            "foreground": "#d7ba7d"
+          },
+          "escape:tcl-quartus": {
+            "foreground": "#d7ba7d"
+          },
+          "escape:tcl-mentor": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl-synopsys": {
             "foreground": "#4ec9b0",
             "bold": true
           },
-          "decorator:tcl-eda": {
+          "event:tcl-cadence": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "event:tcl-xilinx": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "event:tcl-quartus": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "event:tcl-mentor": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl-synopsys": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "decorator:tcl-cadence": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "decorator:tcl-xilinx": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "decorator:tcl-quartus": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "decorator:tcl-mentor": {
             "foreground": "#9cdcfe",
             "italic": true
           },
@@ -2052,61 +2236,293 @@
             "foreground": "#9cdcfe",
             "italic": true
           },
-          "regexpGroup:tcl-eda": {
+          "regexpGroup:tcl-synopsys": {
             "foreground": "#c586c0"
           },
-          "regexpCharClass:tcl-eda": {
+          "regexpGroup:tcl-cadence": {
+            "foreground": "#c586c0"
+          },
+          "regexpGroup:tcl-xilinx": {
+            "foreground": "#c586c0"
+          },
+          "regexpGroup:tcl-quartus": {
+            "foreground": "#c586c0"
+          },
+          "regexpGroup:tcl-mentor": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl-synopsys": {
             "foreground": "#d16969",
             "italic": true
           },
-          "regexpQuantifier:tcl-eda": {
+          "regexpCharClass:tcl-cadence": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpCharClass:tcl-xilinx": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpCharClass:tcl-quartus": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpCharClass:tcl-mentor": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl-synopsys": {
             "foreground": "#dcdcaa"
           },
-          "regexpAnchor:tcl-eda": {
+          "regexpQuantifier:tcl-cadence": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpQuantifier:tcl-xilinx": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpQuantifier:tcl-quartus": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpQuantifier:tcl-mentor": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl-synopsys": {
             "foreground": "#569cd6",
             "bold": true
           },
-          "regexpEscape:tcl-eda": {
+          "regexpAnchor:tcl-cadence": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpAnchor:tcl-xilinx": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpAnchor:tcl-quartus": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpAnchor:tcl-mentor": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl-synopsys": {
             "foreground": "#d7ba7d"
           },
-          "regexpBackref:tcl-eda": {
+          "regexpEscape:tcl-cadence": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpEscape:tcl-xilinx": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpEscape:tcl-quartus": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpEscape:tcl-mentor": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl-synopsys": {
             "foreground": "#b5cea8"
           },
-          "regexpAlternation:tcl-eda": {
+          "regexpBackref:tcl-cadence": {
+            "foreground": "#b5cea8"
+          },
+          "regexpBackref:tcl-xilinx": {
+            "foreground": "#b5cea8"
+          },
+          "regexpBackref:tcl-quartus": {
+            "foreground": "#b5cea8"
+          },
+          "regexpBackref:tcl-mentor": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl-synopsys": {
             "foreground": "#c586c0"
           },
-          "binarySpec:tcl-eda": {
+          "regexpAlternation:tcl-cadence": {
+            "foreground": "#c586c0"
+          },
+          "regexpAlternation:tcl-xilinx": {
+            "foreground": "#c586c0"
+          },
+          "regexpAlternation:tcl-quartus": {
+            "foreground": "#c586c0"
+          },
+          "regexpAlternation:tcl-mentor": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl-synopsys": {
             "foreground": "#4ec9b0",
             "bold": true
           },
-          "binaryCount:tcl-eda": {
+          "binarySpec:tcl-cadence": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binarySpec:tcl-xilinx": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binarySpec:tcl-quartus": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binarySpec:tcl-mentor": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl-synopsys": {
             "foreground": "#b5cea8"
           },
-          "binaryFlag:tcl-eda": {
+          "binaryCount:tcl-cadence": {
+            "foreground": "#b5cea8"
+          },
+          "binaryCount:tcl-xilinx": {
+            "foreground": "#b5cea8"
+          },
+          "binaryCount:tcl-quartus": {
+            "foreground": "#b5cea8"
+          },
+          "binaryCount:tcl-mentor": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl-synopsys": {
             "foreground": "#569cd6",
             "italic": true
           },
-          "formatPercent:tcl-eda": {
+          "binaryFlag:tcl-cadence": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "binaryFlag:tcl-xilinx": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "binaryFlag:tcl-quartus": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "binaryFlag:tcl-mentor": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl-synopsys": {
             "foreground": "#c586c0"
           },
-          "formatSpec:tcl-eda": {
+          "formatPercent:tcl-cadence": {
+            "foreground": "#c586c0"
+          },
+          "formatPercent:tcl-xilinx": {
+            "foreground": "#c586c0"
+          },
+          "formatPercent:tcl-quartus": {
+            "foreground": "#c586c0"
+          },
+          "formatPercent:tcl-mentor": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl-synopsys": {
             "foreground": "#4fc1ff",
             "bold": true
           },
-          "formatFlag:tcl-eda": {
+          "formatSpec:tcl-cadence": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatSpec:tcl-xilinx": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatSpec:tcl-quartus": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatSpec:tcl-mentor": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl-synopsys": {
             "foreground": "#d8a0df"
           },
-          "formatWidth:tcl-eda": {
+          "formatFlag:tcl-cadence": {
+            "foreground": "#d8a0df"
+          },
+          "formatFlag:tcl-xilinx": {
+            "foreground": "#d8a0df"
+          },
+          "formatFlag:tcl-quartus": {
+            "foreground": "#d8a0df"
+          },
+          "formatFlag:tcl-mentor": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl-synopsys": {
             "foreground": "#b5cea8"
           },
-          "clockPercent:tcl-eda": {
+          "formatWidth:tcl-cadence": {
+            "foreground": "#b5cea8"
+          },
+          "formatWidth:tcl-xilinx": {
+            "foreground": "#b5cea8"
+          },
+          "formatWidth:tcl-quartus": {
+            "foreground": "#b5cea8"
+          },
+          "formatWidth:tcl-mentor": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl-synopsys": {
             "foreground": "#dcdcaa"
           },
-          "clockSpec:tcl-eda": {
+          "clockPercent:tcl-cadence": {
+            "foreground": "#dcdcaa"
+          },
+          "clockPercent:tcl-xilinx": {
+            "foreground": "#dcdcaa"
+          },
+          "clockPercent:tcl-quartus": {
+            "foreground": "#dcdcaa"
+          },
+          "clockPercent:tcl-mentor": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl-synopsys": {
             "foreground": "#ce9178",
             "bold": true
           },
-          "clockModifier:tcl-eda": {
+          "clockSpec:tcl-cadence": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockSpec:tcl-xilinx": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockSpec:tcl-quartus": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockSpec:tcl-mentor": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl-synopsys": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "clockModifier:tcl-cadence": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "clockModifier:tcl-xilinx": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "clockModifier:tcl-quartus": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "clockModifier:tcl-mentor": {
             "foreground": "#9cdcfe",
             "italic": true
           }
@@ -2141,7 +2557,11 @@
               "f5-irules",
               "f5-iapps",
               "f5-bigip",
-              "eda-tools",
+              "synopsys-eda-tcl",
+              "cadence-eda-tcl",
+              "xilinx-eda-tcl",
+              "intel-quartus-eda-tcl",
+              "mentor-eda-tcl",
               "expect"
             ],
             "enumDescriptions": [
@@ -2152,7 +2572,11 @@
               "F5 BIG-IP iRules command set",
               "F5 iApps utility/template commands",
               "F5 BIG-IP configuration file support",
-              "EDA/ASIC tooling commands (Synopsys, Cadence)",
+              "Synopsys EDA commands (Design Compiler, PrimeTime, ICC2, Formality)",
+              "Cadence EDA commands (Genus, Innovus, Tempus, Xcelium)",
+              "Xilinx/AMD EDA commands (Vivado, Vitis)",
+              "Intel Quartus Prime commands",
+              "Mentor/Siemens EDA commands (ModelSim, Questa, Calibre)",
               "Expect (automate interactive programs)"
             ],
             "description": "Command/signature profile used for diagnostics, completion, and hover.",
@@ -3202,7 +3626,11 @@
                       "f5-irules",
                       "f5-iapps",
                       "f5-bigip",
-                      "eda-tools"
+                      "synopsys-eda-tcl",
+                      "cadence-eda-tcl",
+                      "xilinx-eda-tcl",
+                      "intel-quartus-eda-tcl",
+                      "mentor-eda-tcl"
                     ]
                   },
                   "description": "Dialects this prompt applies to. Use \"*\" for all dialects."

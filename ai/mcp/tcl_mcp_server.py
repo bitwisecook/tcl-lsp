@@ -1378,7 +1378,7 @@ def _tool_help(topic: str = "") -> str:
     params={
         "dialect": {
             **_STR,
-            "description": "One of: tcl8.4, tcl8.5, tcl8.6, tcl9.0, f5-irules, f5-iapps, eda-tools",
+            "description": "One of: tcl8.4, tcl8.5, tcl8.6, tcl9.0, f5-irules, f5-iapps, synopsys-eda-tcl, cadence-eda-tcl, xilinx-eda-tcl, intel-quartus-eda-tcl, mentor-eda-tcl",
         }
     },
     required=["dialect"],

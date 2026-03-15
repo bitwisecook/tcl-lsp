@@ -585,7 +585,11 @@ body {
     <div class="status-light synced" id="statusLight" title="In sync"></div>
     <h1>Tcl Compiler Explorer</h1>
     <select id="dialect">
-      <option value="eda-tools">EDA tools</option>
+      <option value="synopsys-eda-tcl">Synopsys EDA</option>
+      <option value="cadence-eda-tcl">Cadence EDA</option>
+      <option value="xilinx-eda-tcl">Xilinx EDA</option>
+      <option value="intel-quartus-eda-tcl">Intel Quartus</option>
+      <option value="mentor-eda-tcl">Mentor EDA</option>
       <option value="f5-iapps">F5 iapps</option>
       <option value="f5-irules">F5 irules</option>
       <option value="tcl8.4">Tcl 8.4</option>
