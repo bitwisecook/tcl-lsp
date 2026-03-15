@@ -109,6 +109,17 @@ _EDA_VENDOR_DIALECTS = frozenset({
     "intel-quartus-eda-tcl", "mentor-eda-tcl",
 })
 
+# Map each EDA vendor dialect to its underlying Tcl base version.
+# Synopsys DC/PT/ICC2 and Cadence Genus/Innovus/Tempus embed Tcl 8.6.
+# Xilinx Vivado, Intel Quartus, and Mentor ModelSim/Questa embed Tcl 8.5.
+_EDA_TCL_BASE: dict[str, str] = {
+    "synopsys-eda-tcl": "tcl8.6",
+    "cadence-eda-tcl": "tcl8.6",
+    "xilinx-eda-tcl": "tcl8.5",
+    "intel-quartus-eda-tcl": "tcl8.5",
+    "mentor-eda-tcl": "tcl8.5",
+}
+
 from .dialects import KNOWN_DIALECTS as _KNOWN_DIALECTS  # noqa: E402
 
 _active_dialect = "tcl8.6"
@@ -249,7 +260,7 @@ def _build_signatures(
             signatures = _registry_signatures_for_dialect("tcl8.6")
             signatures.update(_registry_signatures_for_dialect("f5-iapps"))
         case d if d in _EDA_VENDOR_DIALECTS:
-            signatures = _registry_signatures_for_dialect("tcl8.6")
+            signatures = _registry_signatures_for_dialect(_EDA_TCL_BASE[d])
             # EDA vendor commands (SDC base + vendor-specific) are registered
             # as CommandSpecs in the central registry and resolved via the
             # standard dialect-filtering path; overlay them here.
