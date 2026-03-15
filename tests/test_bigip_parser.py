@@ -396,9 +396,7 @@ def test_parse_example_bigip_base_conf():
     """Parse the example bigip_base.conf and verify key object extraction."""
     import os
 
-    conf_path = os.path.join(
-        os.path.dirname(__file__), "..", "samples", "bigip", "bigip_base.conf"
-    )
+    conf_path = os.path.join(os.path.dirname(__file__), "..", "samples", "bigip", "bigip_base.conf")
     with open(conf_path) as f:
         source = f.read()
 
