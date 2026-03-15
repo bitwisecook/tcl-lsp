@@ -75,7 +75,7 @@ namespace eval ::itest {
         if {[llength [::tmm::_orig_info commands ::tmm::_orig_unknown]]} {
             # Already saved
         } elseif {[llength [::tmm::_orig_info commands ::unknown]]} {
-            rename ::unknown ::tmm::_orig_unknown
+            ::tmm::_orig_rename ::unknown ::tmm::_orig_unknown
         }
 
         proc ::unknown {cmd args} {
@@ -1189,7 +1189,9 @@ namespace eval ::itest::cmd {
         # sourced during framework load) are both discovered here.
         foreach irule_cmd [concat $_gen_namespaced_commands $_gen_toplevel_commands] {
             set mock [_mock_proc_name $irule_cmd]
-            if {[llength [::info commands $mock]]} {
+            # Use _orig_info to bypass the TMM shim's info filter
+            # (which hides ::itest::* from info commands).
+            if {[llength [::tmm::_orig_info commands $mock]]} {
                 ::itest::register_command $irule_cmd $mock
             }
         }

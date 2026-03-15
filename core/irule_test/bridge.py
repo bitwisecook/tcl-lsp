@@ -218,7 +218,7 @@ class _InProcessBackend:
 
     def send(self, msg: dict[str, Any]) -> dict[str, Any]:
         """Execute a command and return a result dict."""
-        cmd = msg.get("cmd", "")
+        cmd = msg.get("cmd", "") or msg.get("command", "")
         try:
             result = self._dispatch(cmd, msg)
             return {"status": "ok", "result": result}
@@ -248,7 +248,9 @@ class _InProcessBackend:
 
         if cmd == "fire_event":
             event = msg.get("event", "")
-            result_str = str(interp.call("::itest::fire_event", event))
+            # Use eval (not call) to get Tcl list string instead of
+            # Python tuple from tkinter.
+            result_str = interp.eval(f"::itest::fire_event {{{event}}}")
             return self._parse_flat_dict(result_str)
 
         if cmd == "get_state":
@@ -257,9 +259,11 @@ class _InProcessBackend:
         if cmd == "get_decisions":
             category = msg.get("category", "")
             if category:
-                result_str = str(interp.call("::itest::get_decisions", category))
+                result_str = interp.eval(
+                    f"::itest::get_decisions {{{category}}}"
+                )
             else:
-                result_str = str(interp.call("::itest::get_decisions"))
+                result_str = interp.eval("::itest::get_decisions")
             return self._parse_tcl_list(result_str)
 
         if cmd == "get_logs":
@@ -292,7 +296,10 @@ class _InProcessBackend:
 
         if cmd == "eval":
             script = msg.get("script", "")
-            return str(interp.eval(script))
+            # Evaluate in ::orch:: namespace so that framework commands
+            # (dict, lassign, etc.) are available via the namespace-aware
+            # post-8.4 blockers.
+            return str(interp.eval(f"namespace eval ::orch {{{script}}}"))
 
         if cmd == "quit":
             return "ok"
@@ -642,7 +649,7 @@ class IruleTestSession:
             result_dict = result_data
         return EventResult(
             event=event,
-            fired=bool(result_dict.get("fired", 0)),
+            fired=str(result_dict.get("fired", "0")) not in ("0", "", "false"),
             reason=str(result_dict.get("reason", "")),
         )
 

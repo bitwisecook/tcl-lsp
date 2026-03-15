@@ -28,6 +28,10 @@ namespace eval ::itest {
     proc load_irule {source} {
         variable event_handlers
 
+        # Preprocess: rewrite TMM custom operators (contains, starts_with,
+        # etc.) in expression contexts so standard Tcl can evaluate them.
+        set source [::tmm::expr_ops::rewrite_irule_source $source]
+
         # Parse when blocks from the source
         # Pattern: when EVENT_NAME ?priority N? ?timing on|off? { body }
         set remaining $source
@@ -71,10 +75,14 @@ namespace eval ::itest {
                 if {![info exists event_handlers($event_name)]} {
                     set event_handlers($event_name) [list]
                 }
-                # Create a proc for this handler (unique name via counter)
+                # Create a proc for this handler in the global namespace
+                # so that variable resolution matches real TMM behavior
+                # (e.g. set static::counter resolves to ::static::counter).
+                # The _irh_ prefix is hidden from [info commands] and
+                # [info procs] by the TMM shim filters.
                 variable _handler_counter
                 incr _handler_counter
-                set proc_name "::itest::_handler_${event_name}_${priority}_${_handler_counter}"
+                set proc_name "::_irh_${event_name}_${priority}_${_handler_counter}"
                 proc $proc_name {} $body
 
                 lappend event_handlers($event_name) [list $priority $proc_name]

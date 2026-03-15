@@ -1247,7 +1247,7 @@ namespace eval ::orch {
     # Convenience: run done and exit with appropriate code
     proc run_and_exit {} {
         set failed [done]
-        exit $failed
+        ::tmm::_orig_exit $failed
     }
 
     # ══════════════════════════════════════════════════════════════════

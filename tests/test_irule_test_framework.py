@@ -557,6 +557,9 @@ puts [info tclversion]
 
     def test_expr_ops_contains(self) -> None:
         """Test the 'contains' expression operator."""
+        # TMM operators in if/while/for conditions are preprocessed at
+        # source level by rewrite_irule_source (standard Tcl's [if]
+        # uses an internal expr evaluator, not the overridden ::expr).
         script = f"""
 source "{TCL_DIR / "compat84.tcl"}"
 source "{TCL_DIR / "state_layers.tcl"}"
@@ -564,10 +567,22 @@ source "{TCL_DIR / "tmm_shim.tcl"}"
 source "{TCL_DIR / "expr_ops.tcl"}"
 ::tmm::init
 ::tmm::expr_ops::install
-if {{ "hello world" contains "world" }} {{
+# Test expr command directly (goes through our ::expr override)
+set r1 [expr {{ "hello world" contains "world" }}]
+# Test source-level rewriting for if conditions
+set irule_src {{
+    if {{ "hello world" contains "world" }} {{
+        set result CONTAINS_OK
+    }} else {{
+        set result CONTAINS_FAIL
+    }}
+}}
+set rewritten [::tmm::expr_ops::rewrite_irule_source $irule_src]
+eval $rewritten
+if {{$r1 && $result eq "CONTAINS_OK"}} {{
     puts "CONTAINS_OK"
 }} else {{
-    puts "CONTAINS_FAIL"
+    puts "CONTAINS_FAIL r1=$r1 result=$result"
 }}
 """
         result = subprocess.run(
