@@ -1480,13 +1480,15 @@ def _fakecmp_hash(
     Must stay in sync with _fakecmp_hash in orchestrator.tcl.
     Cross-language parity is verified by test_fakecmp_python_tcl_parity.
     """
-    h = 0
+    h = 0x811C9DC5
     for octet in src_addr.split("."):
-        h = (h * 31 + int(octet)) & 0x7FFFFFFF
-    h = (h * 31 + src_port) & 0x7FFFFFFF
+        h = ((h ^ int(octet)) * 0x01000193) & 0x7FFFFFFF
+    h = ((h ^ (src_port & 0xFF)) * 0x01000193) & 0x7FFFFFFF
+    h = ((h ^ ((src_port >> 8) & 0xFF)) * 0x01000193) & 0x7FFFFFFF
     for octet in dst_addr.split("."):
-        h = (h * 31 + int(octet)) & 0x7FFFFFFF
-    h = (h * 31 + dst_port) & 0x7FFFFFFF
+        h = ((h ^ int(octet)) * 0x01000193) & 0x7FFFFFFF
+    h = ((h ^ (dst_port & 0xFF)) * 0x01000193) & 0x7FFFFFFF
+    h = ((h ^ ((dst_port >> 8) & 0xFF)) * 0x01000193) & 0x7FFFFFFF
     return h % tmm_count
 
 

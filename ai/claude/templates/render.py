@@ -8,18 +8,22 @@ formatting pass uses ``core.formatting.formatter.format_tcl``.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import jinja2
+if TYPE_CHECKING:
+    import jinja2
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent
 _env: jinja2.Environment | None = None
 
 
 def _get_env() -> jinja2.Environment:
+    import jinja2 as _jinja2  # lazy – no C deps, pure-Python wheel
+
     global _env
     if _env is None:
-        _env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
+        _env = _jinja2.Environment(
+            loader=_jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
             keep_trailing_newline=True,
             lstrip_blocks=True,
             trim_blocks=True,

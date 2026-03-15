@@ -259,9 +259,7 @@ class _InProcessBackend:
         if cmd == "get_decisions":
             category = msg.get("category", "")
             if category:
-                result_str = interp.eval(
-                    f"::itest::get_decisions {{{category}}}"
-                )
+                result_str = interp.eval(f"::itest::get_decisions {{{category}}}")
             else:
                 result_str = interp.eval("::itest::get_decisions")
             return self._parse_tcl_list(result_str)

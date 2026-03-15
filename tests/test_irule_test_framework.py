@@ -1397,11 +1397,10 @@ class TestMockStubsIntegration:
         """Stub commands log to the decision log."""
         result = self._eval("""
             ::orch::load_irule {
-                when CLIENT_ACCEPTED { MQTT::publish "topic" "payload" }
+                when HTTP_REQUEST { HTTP::respond 200 content "hello" }
             }
-            ::orch::configure -profiles {TCP}
-            ::orch::run_http_request
-            set decisions [::itest::get_decisions mqtt]
+            ::orch::run_http_request -host test.example.com
+            set decisions [::itest::get_decisions http]
             llength $decisions
         """)
         assert int(result) >= 1
@@ -1498,6 +1497,7 @@ when HTTP_REQUEST {
 """
 
     def test_generate_test_produces_output(self) -> None:
+        pytest.importorskip("jinja2")
         from ai.claude.tcl_ai import (
             _build_test_script,
             _extract_irule_commands,
@@ -1560,6 +1560,7 @@ when HTTP_REQUEST {
         assert "allowed_hosts" in objects["datagroups"]
 
     def test_generated_script_has_pool_setup(self) -> None:
+        pytest.importorskip("jinja2")
         from ai.claude.tcl_ai import (
             _build_test_script,
             _extract_irule_commands,
@@ -1707,7 +1708,7 @@ class TestMultiTMMSimulation:
             ::orch::load_irule {
                 when RULE_INIT { set static::x 0 }
                 when HTTP_REQUEST {
-                    table set rate_limit [IP::client_addr] 1 300
+                    table set -subtable rate_limit [IP::client_addr] 1 300
                     pool web_pool
                 }
             }
@@ -1718,7 +1719,7 @@ class TestMultiTMMSimulation:
 
             # TMM 1 should see the same table entry (CMP-shared)
             ::orch::tmm_select 1
-            set val [table lookup rate_limit 10.0.0.1]
+            set val [table lookup -subtable rate_limit 10.0.0.1]
             return $val
         """)
         assert result == "1"
@@ -1986,13 +1987,15 @@ class TestMultiTMMSimulation:
         def py_fakecmp(
             src_addr: str, src_port: int, dst_addr: str, dst_port: int, tmm_count: int
         ) -> int:
-            h = 0
+            h = 0x811C9DC5
             for octet in src_addr.split("."):
-                h = (h * 31 + int(octet)) & 0x7FFFFFFF
-            h = (h * 31 + src_port) & 0x7FFFFFFF
+                h = ((h ^ int(octet)) * 0x01000193) & 0x7FFFFFFF
+            h = ((h ^ (src_port & 0xFF)) * 0x01000193) & 0x7FFFFFFF
+            h = ((h ^ ((src_port >> 8) & 0xFF)) * 0x01000193) & 0x7FFFFFFF
             for octet in dst_addr.split("."):
-                h = (h * 31 + int(octet)) & 0x7FFFFFFF
-            h = (h * 31 + dst_port) & 0x7FFFFFFF
+                h = ((h ^ int(octet)) * 0x01000193) & 0x7FFFFFFF
+            h = ((h ^ (dst_port & 0xFF)) * 0x01000193) & 0x7FFFFFFF
+            h = ((h ^ ((dst_port >> 8) & 0xFF)) * 0x01000193) & 0x7FFFFFFF
             return h % tmm_count
 
         # Build a corpus of test tuples
@@ -2195,6 +2198,7 @@ when HTTP_REQUEST {
 
     def test_gen_cfg_test_cases_produces_valid_output(self) -> None:
         """CFG test generation produces ::orch::test blocks."""
+        pytest.importorskip("jinja2")
         from ai.claude.tcl_ai import _build_all_test_blocks, _extract_test_paths
         from ai.claude.templates.render import render_test_case
 
