@@ -92,8 +92,10 @@ class TclInterp:
         optimise: bool = False,
         source_init: bool = False,
         tcl_library: str | None = None,
+        debug_hook: Any | None = None,
     ) -> None:
         self.optimise = optimise
+        self._debug_hook = debug_hook
 
         # Namespace tree — the root namespace is ::
         self.root_namespace = Namespace("", parent=None)
@@ -289,7 +291,7 @@ class TclInterp:
             self._register_ir_proc(ir_proc.name, ir_proc, compiled_asm, source=source)
 
         # Execute the top-level bytecode
-        vm = BytecodeVM(self)
+        vm = BytecodeVM(self, debug_hook=self._debug_hook)
         try:
             return vm.execute(module_asm.top_level)
         except TclReturn as ret:
@@ -642,7 +644,7 @@ class TclInterp:
         self.current_namespace = proc_ns
         try:
             if proc.compiled_asm is not None:
-                vm = BytecodeVM(self)
+                vm = BytecodeVM(self, debug_hook=self._debug_hook)
                 result = vm.execute(proc.compiled_asm)
             else:
                 result = self.eval(proc.body)
