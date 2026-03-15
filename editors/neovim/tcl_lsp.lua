@@ -16,7 +16,7 @@ return {
 
   settings = {
     tclLsp = {
-      dialect = 'tcl8.6',       -- tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | f5-irules | f5-iapps | eda-tools
+      dialect = 'tcl8.6',       -- tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | f5-irules | f5-iapps | eda-tools | expect
       extraCommands = {},
       libraryPaths = {},
 

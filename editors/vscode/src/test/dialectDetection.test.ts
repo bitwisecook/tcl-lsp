@@ -55,4 +55,12 @@ suite("Dialect Detection", () => {
       'Expected "iapp::template" completion for .iapp file',
     );
   });
+
+  test("maps .exp extension to expect", async () => {
+    const uri = getDocUri("dialect.exp");
+    await activate(uri);
+
+    const labels = await completionLabels(uri, new vscode.Position(2, 0));
+    assert.ok(labels.includes("spawn"), 'Expected "spawn" completion for .exp file');
+  });
 });

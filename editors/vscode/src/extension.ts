@@ -78,6 +78,7 @@ const DIALECT_LABELS: Record<string, string> = {
   "f5-iapps": "F5 iApps",
   "f5-bigip": "F5 BIG-IP Config",
   "eda-tools": "EDA Tools",
+  expect: "Expect",
 };
 
 const DEFAULT_DIALECT = "tcl8.6";
@@ -91,6 +92,7 @@ const TCL_LANGUAGE_IDS = new Set([
   "tcl8.5",
   "tcl9.0",
   "tcl-eda",
+  "tcl-expect",
 ]);
 
 export function isTclLanguage(languageId: string): boolean {
@@ -106,6 +108,7 @@ const LANGUAGE_ID_DIALECTS: Record<string, string> = {
   "tcl8.5": "tcl8.5",
   "tcl9.0": "tcl9.0",
   "tcl-eda": "eda-tools",
+  "tcl-expect": "expect",
 };
 
 const TCL_VERSION_DIALECTS: Record<string, string> = {
@@ -704,6 +707,8 @@ function detectDialectFromDocument(document: TextDocument): string {
     case ".iappimpl":
     case ".impl":
       return "f5-iapps";
+    case ".exp":
+      return "expect";
     case ".tcl":
     case ".tk":
     case ".itcl":
@@ -717,6 +722,9 @@ function detectDialectFromDocument(document: TextDocument): string {
 
   if (document.lineCount > 0) {
     const firstLine = document.lineAt(0).text;
+    if (/^#!.*\bexpect\b/i.test(firstLine)) {
+      return "expect";
+    }
     const shebangMatch = firstLine.match(/^#!.*\btclsh(\d+\.\d+)\b/i);
     if (shebangMatch) {
       const versionDialect = TCL_VERSION_DIALECTS[shebangMatch[1]];

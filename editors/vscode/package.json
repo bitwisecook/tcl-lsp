@@ -31,6 +31,7 @@
     "onLanguage:tcl8.5",
     "onLanguage:tcl9.0",
     "onLanguage:tcl-eda",
+    "onLanguage:tcl-expect",
     "onChatParticipant:tcl-lsp.irule",
     "onChatParticipant:tcl-lsp.tcl",
     "onChatParticipant:tcl-lsp.tk"
@@ -120,6 +121,17 @@
           "eda"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-expect",
+        "aliases": [
+          "Expect",
+          "expect"
+        ],
+        "extensions": [
+          ".exp"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -160,6 +172,11 @@
       },
       {
         "language": "tcl-eda",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-expect",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       }
@@ -1379,6 +1396,83 @@
             "keyword.operator.clock.modifier.tcl"
           ]
         }
+      },
+      {
+        "language": "tcl-expect",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
       }
     ],
     "configurationDefaults": {
@@ -2047,7 +2141,8 @@
               "f5-irules",
               "f5-iapps",
               "f5-bigip",
-              "eda-tools"
+              "eda-tools",
+              "expect"
             ],
             "enumDescriptions": [
               "Tcl 8.4 core commands",
@@ -2057,7 +2152,8 @@
               "F5 BIG-IP iRules command set",
               "F5 iApps utility/template commands",
               "F5 BIG-IP configuration file support",
-              "EDA/ASIC tooling commands (Synopsys, Cadence)"
+              "EDA/ASIC tooling commands (Synopsys, Cadence)",
+              "Expect (automate interactive programs)"
             ],
             "description": "Command/signature profile used for diagnostics, completion, and hover.",
             "order": 2

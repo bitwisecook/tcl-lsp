@@ -295,6 +295,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             "f5-irules" to "F5 iRules",
             "f5-iapps" to "F5 iApps",
             "eda-tools" to "EDA Tools",
+            "expect" to "Expect",
         )
     }
 }

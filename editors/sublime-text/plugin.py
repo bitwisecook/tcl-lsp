@@ -29,6 +29,7 @@ DIALECTS = [
     ("f5-irules", "F5 iRules"),
     ("f5-iapps", "F5 iApps"),
     ("eda-tools", "EDA Tools"),
+    ("expect", "Expect"),
 ]
 
 # Map syntax name → dialect ID for automatic syncing when the user
@@ -41,6 +42,7 @@ _SYNTAX_DIALECT_MAP = {
     "iRule": "f5-irules",
     "iApp": "f5-iapps",
     "EDA Tools": "eda-tools",
+    "Expect": "expect",
 }
 
 # Tracks the last-observed syntax name per view ID so that only

@@ -24,9 +24,10 @@ Tcl, iRules, and iApps language support powered by
 | Tcl | `.tcl`, `.tk`, `.itcl`, `.tm` |
 | iRules | `.irul`, `.irule` |
 | iApps | `.iapp`, `.iappimpl`, `.impl` |
+| Expect | `.exp` |
 
-Shebang detection: files starting with `#!/usr/bin/tclsh` or `#!/usr/bin/wish`
-are recognised as Tcl.
+Shebang detection: files starting with `#!/usr/bin/tclsh`, `#!/usr/bin/wish`,
+or `#!/usr/bin/expect` are recognised as Tcl/Expect.
 
 ## Prerequisites
 
@@ -107,7 +108,7 @@ Add to your Zed `settings.json` to configure the language server:
 ### Dialect options
 
 `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `f5-iapps`,
-`f5-bigip`, `eda-tools`
+`f5-bigip`, `eda-tools`, `expect`
 
 ### Full settings reference
 

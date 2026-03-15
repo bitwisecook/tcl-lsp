@@ -18,6 +18,7 @@ class Dialect(Enum):
     F5_IAPPS = "f5-iapps"
     F5_BIGIP = "f5-bigip"
     EDA_TOOLS = "eda-tools"
+    EXPECT = "expect"
 
 
 def active_dialect() -> str:

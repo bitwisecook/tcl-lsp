@@ -233,6 +233,7 @@ _TCL_LANGUAGE_IDS = (
     "tcl8.5",
     "tcl9.0",
     "tcl-eda",
+    "tcl-expect",
 )
 _TCL_DOCUMENT_SELECTOR = [
     types.TextDocumentFilterLanguage(language=lang) for lang in _TCL_LANGUAGE_IDS

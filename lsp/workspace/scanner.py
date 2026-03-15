@@ -22,7 +22,7 @@ from core.compiler.irules_flow import RuleInitExport
 log = logging.getLogger(__name__)
 
 TCL_EXTENSIONS = frozenset(
-    {".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl"}
+    {".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl", ".exp"}
 )
 
 _IRULES_EXTENSIONS = frozenset({".irul", ".irule"})
@@ -231,4 +231,6 @@ def _dialect_from_ext(ext: str) -> str | None:
         return "f5-irules"
     if ext in (".iapp", ".iappimpl", ".impl"):
         return "f5-iapps"
+    if ext == ".exp":
+        return "expect"
     return None
