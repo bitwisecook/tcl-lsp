@@ -1116,6 +1116,33 @@ uv run python -m vm -e 'puts [expr {6 * 7}]'
 uv run python -m vm --disassemble script.tcl
 ```
 
+### Tcl debugger
+
+An interactive debugger that can single-step through Tcl scripts with
+breakpoints, variable inspection, and call stack visualisation.  Three
+backends are available:
+
+| Backend | Description |
+|---------|-------------|
+| `vm` | The project's own bytecode VM (default) |
+| `tclsh` | External `tclsh` subprocess |
+| `tkinter` | Python's built-in `tkinter.Tcl()` interpreter |
+
+```sh
+# Debug a script (uses VM backend by default)
+uv run python -m debugger script.tcl
+
+# Force a specific backend
+uv run python -m debugger --backend vm script.tcl
+
+# Read from stdin
+echo 'puts hello' | uv run python -m debugger -
+```
+
+Debugger commands: `run`, `step`/`s`, `next`/`n`, `finish`, `continue`/`c`,
+`break <line>`/`b`, `delete <id>`/`d`, `vars`, `print <var>`/`p`, `stack`,
+`list`/`l`, `quit`/`q`.
+
 ## Screenshots
 
 ### Diagnostics & quick fixes

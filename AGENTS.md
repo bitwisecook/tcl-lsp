@@ -12,6 +12,8 @@ tool dialects.
 ```
 lsp/             Python LSP server runtime and feature wiring
 core/            Reusable Tcl parser/compiler/analysis modules
+vm/              Bytecode VM, interpreter, and REPL
+debugger/        Interactive Tcl debugger (CLI, VM/tclsh/tkinter backends)
 editors/vscode/  VS Code extension (TypeScript)
 editors/         Other editor integrations (Neovim, Zed, Emacs, Helix, Sublime, JetBrains)
 explorer/        Web-based compiler explorer (Pyodide GUI)

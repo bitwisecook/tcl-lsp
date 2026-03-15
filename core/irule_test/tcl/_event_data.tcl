@@ -20,9 +20,9 @@ namespace eval ::orch {
         {FLOW_INIT                                {FLOW}}
         {CLIENT_ACCEPTED                          {}}
         {CLIENT_DATA                              {}}
-        {CLIENTSSL_CLIENTHELLO                    {CLIENTSSL}}
+        {CLIENTSSL_CLIENTHELLO                    {CLIENTSSL PERSIST}}
         {CLIENTSSL_SERVERHELLO_SEND               {CLIENTSSL}}
-        {CLIENTSSL_CLIENTCERT                     {CLIENTSSL}}
+        {CLIENTSSL_CLIENTCERT                     {CLIENTSSL PERSIST}}
         {CLIENTSSL_HANDSHAKE                      {CLIENTSSL}}
         {CLIENTSSL_DATA                           {CLIENTSSL}}
         {CLIENTSSL_PASSTHROUGH                    {CLIENTSSL}}
@@ -38,12 +38,12 @@ namespace eval ::orch {
         {ACCESS_POLICY_AGENT_EVENT                {ACCESS}}
         {ACCESS_POLICY_COMPLETED                  {ACCESS}}
         {CLASSIFICATION_DETECTED                  {CLASSIFICATION}}
-        {CATEGORY_MATCHED                         {CATEGORY}}
+        {CATEGORY_MATCHED                         {ACCESS CATEGORY HTTP}}
         {HTTP_CLASS_SELECTED                      {HTTP}}
         {HTTP_CLASS_FAILED                        {HTTP}}
         {CACHE_REQUEST                            {CACHE WEBACCELERATION}}
         {CACHE_RESPONSE                           {CACHE WEBACCELERATION}}
-        {IN_DOSL7_ATTACK                          {DOSL7}}
+        {IN_DOSL7_ATTACK                          {DOSL7 FASTHTTP HTTP}}
         {ASM_REQUEST_DONE                         {ASM}}
         {ASM_REQUEST_VIOLATION                    {ASM}}
         {ASM_REQUEST_BLOCKING                     {ASM}}
@@ -58,12 +58,12 @@ namespace eval ::orch {
         {ACCESS_ACL_ALLOWED                       {ACCESS}}
         {ACCESS_ACL_DENIED                        {ACCESS}}
         {ACCESS_PER_REQUEST_AGENT_EVENT           {ACCESS}}
-        {REWRITE_REQUEST_DONE                     {REWRITE}}
+        {REWRITE_REQUEST_DONE                     {HTTP REWRITE}}
         {SERVER_CONNECTED                         {}}
         {SERVERSSL_CLIENTHELLO_SEND               {SERVERSSL}}
-        {SERVERSSL_SERVERHELLO                    {SERVERSSL}}
+        {SERVERSSL_SERVERHELLO                    {PERSIST SERVERSSL}}
         {SERVERSSL_SERVERCERT                     {SERVERSSL}}
-        {SERVERSSL_HANDSHAKE                      {SERVERSSL}}
+        {SERVERSSL_HANDSHAKE                      {PERSIST SERVERSSL}}
         {SERVERSSL_DATA                           {SERVERSSL}}
         {HTTP_REQUEST_SEND                        {HTTP}}
         {HTTP_REQUEST_RELEASE                     {HTTP}}
@@ -75,15 +75,15 @@ namespace eval ::orch {
         {HTTP_RESPONSE                            {FASTHTTP HTTP}}
         {HTTP_RESPONSE_DATA                       {HTTP}}
         {HTTP_RESPONSE_CONTINUE                   {HTTP}}
-        {ASM_RESPONSE_VIOLATION                   {ASM}}
-        {ASM_RESPONSE_LOGIN                       {ASM}}
+        {ASM_RESPONSE_VIOLATION                   {ASM FASTHTTP HTTP}}
+        {ASM_RESPONSE_LOGIN                       {ASM FASTHTTP HTTP}}
         {BOTDEFENSE_REQUEST                       {BOTDEFENSE}}
         {BOTDEFENSE_ACTION                        {BOTDEFENSE}}
         {CACHE_UPDATE                             {CACHE WEBACCELERATION}}
         {STREAM_MATCHED                           {STREAM}}
         {HTML_TAG_MATCHED                         {HTML}}
         {HTML_COMMENT_MATCHED                     {HTML}}
-        {REWRITE_RESPONSE_DONE                    {REWRITE}}
+        {REWRITE_RESPONSE_DONE                    {HTTP REWRITE}}
         {HTTP_RESPONSE_RELEASE                    {HTTP}}
         {HTTP_DISABLED                            {HTTP}}
         {HTTP_REJECT                              {HTTP}}
