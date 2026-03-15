@@ -129,7 +129,9 @@ class BackgroundScanner:
         return dict(self._cached)
 
     def _analyse_file_with_timeout(
-        self, full_path: str, ext: str,
+        self,
+        full_path: str,
+        ext: str,
     ) -> ScanResult | None:
         """Run _analyse_file with a per-file timeout.
 
