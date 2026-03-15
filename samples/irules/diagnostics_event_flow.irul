@@ -1,0 +1,100 @@
+# iRules Diagnostics Showcase: Event Validity & Flow
+#
+# Open this file with the Tcl LSP to see diagnostics in action.
+# Each section triggers a specific diagnostic code.
+
+
+# ---------------------------------------------------------------
+# IRULE1001 — Command invalid/ineffective in this event
+# ---------------------------------------------------------------
+# Commands have valid events; using them elsewhere is flagged.
+
+when CLIENT_ACCEPTED {
+    # BAD: HTTP::respond is only valid in HTTP_* events.
+    HTTP::respond 200 content "too early"
+
+    # OK: IP::client_addr is valid in most events.
+    log local0. "Client [IP::client_addr] connected"
+}
+
+
+# ---------------------------------------------------------------
+# IRULE1002 — Unknown iRules event
+# ---------------------------------------------------------------
+# Misspelled or non-existent event names are flagged.
+
+when HTPT_REQUEST {
+    set uri [HTTP::uri]
+}
+
+
+# ---------------------------------------------------------------
+# IRULE1003 — Deprecated iRules event
+# ---------------------------------------------------------------
+# Events removed in modern TMOS versions.
+
+when HTTP_CLASS_SELECTED {
+    pool fallback_pool
+}
+
+
+# ---------------------------------------------------------------
+# IRULE1004 — when block missing explicit priority
+# ---------------------------------------------------------------
+# All the "when" blocks above also trigger IRULE1004 because they
+# lack a "priority" keyword.  Here is the correct form:
+
+when HTTP_REQUEST priority 500 {
+    set uri [HTTP::uri]
+}
+
+
+# ---------------------------------------------------------------
+# IRULE1005 — *_DATA event without matching *::collect
+# ---------------------------------------------------------------
+# CLIENT_DATA / SERVER_DATA only fire after TCP::collect has been
+# called in a preceding event.  Without it, the handler is dead.
+
+# BAD: no TCP::collect anywhere → CLIENT_DATA will never fire
+when CLIENT_DATA priority 500 {
+    set data [TCP::payload]
+    TCP::release
+}
+
+# BAD: no HTTP::collect → HTTP_REQUEST_DATA will never fire
+when HTTP_REQUEST_DATA priority 500 {
+    set body [HTTP::payload]
+    HTTP::release
+}
+
+
+# ---------------------------------------------------------------
+# IRULE1006 — *::payload without matching *::collect
+# ---------------------------------------------------------------
+# Accessing TCP::payload without a collect means the buffer is empty.
+# (The examples above also trigger IRULE1006 for the same reason.)
+
+
+# ---------------------------------------------------------------
+# IRULE1201 — HTTP command after response is committed
+# ---------------------------------------------------------------
+# Once HTTP::respond or HTTP::redirect fires, the HTTP context is
+# gone.  Any subsequent HTTP:: command is dead code.
+
+when HTTP_REQUEST priority 100 {
+    HTTP::respond 403 content "Forbidden"
+
+    # BAD: response is already committed
+    HTTP::header insert X-Debug "yes"
+}
+
+
+# ---------------------------------------------------------------
+# IRULE1202 — Multiple respond/redirect calls
+# ---------------------------------------------------------------
+# Only the first HTTP::respond / HTTP::redirect takes effect.
+
+when HTTP_RESPONSE priority 100 {
+    HTTP::respond 301 Location "https://example.com"
+    HTTP::respond 302 Location "https://other.com"
+}

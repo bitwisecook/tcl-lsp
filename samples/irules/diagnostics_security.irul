@@ -1,0 +1,100 @@
+# iRules Diagnostics Showcase: Security & Taint Analysis
+#
+# Demonstrates injection and taint diagnostics.  The taint engine
+# tracks data from untrusted sources (HTTP::uri, HTTP::header, etc.)
+# through variables and flags dangerous sinks.
+#
+# NOTE: taint analysis runs on the compiler's IR, which lowers each
+# proc and top-level code.  The examples below use bare command
+# sequences (outside "when") so the taint engine can analyse them.
+
+
+# ---------------------------------------------------------------
+# IRULE3001 — Tainted data in HTTP response body
+# ---------------------------------------------------------------
+# User-controlled input echoed in a response enables XSS.
+
+# BAD: raw URI reflected back in the response body
+set uri [HTTP::uri]
+HTTP::respond 200 content $uri
+
+
+# ---------------------------------------------------------------
+# IRULE3002 — Tainted data in HTTP header value
+# ---------------------------------------------------------------
+# Injecting user input into headers enables header injection / CRLF.
+
+# BAD: request host injected directly into response header
+set host [HTTP::host]
+HTTP::header insert X-Original-Host $host
+
+
+# ---------------------------------------------------------------
+# IRULE3003 — Tainted data in log command (log injection)
+# ---------------------------------------------------------------
+# Attacker-controlled strings in log messages can forge log entries.
+
+# BAD: raw user-agent written to syslog
+set user_agent [HTTP::header value "User-Agent"]
+log local0. $user_agent
+
+
+# ---------------------------------------------------------------
+# IRULE3101 — HTTP::uri set without provable leading /
+# ---------------------------------------------------------------
+# Setting the URI or path to a value that doesn't start with /
+# causes undefined behavior on the BIG-IP data plane.
+
+# BAD: string literal without leading /
+HTTP::uri "api/v2/resource"
+
+# OK: literal leading / is clearly safe
+HTTP::uri "/api/v2/resource"
+
+
+# ---------------------------------------------------------------
+# T100 — Tainted data in dangerous sink (eval, expr)
+# ---------------------------------------------------------------
+# User input flowing into eval or expr enables code injection.
+
+# BAD: tainted URI fed into expr
+set qs [HTTP::uri]
+expr {$qs + 1}
+
+
+# ---------------------------------------------------------------
+# T102 — Tainted data in option position without -- terminator
+# ---------------------------------------------------------------
+# If user input starts with "-", it may be interpreted as a flag.
+# HTTP::header values are generic-tainted (not PATH_PREFIXED),
+# so they trigger the option-injection check.
+
+# BAD: $h may start with "-" → option injection on regexp
+set h [HTTP::header value "Host"]
+regexp $h test
+
+# OK: -- terminates option parsing
+regexp -- $h test
+
+
+# ---------------------------------------------------------------
+# T200 — *::collect without matching *::release
+# ---------------------------------------------------------------
+# Forgetting to release collected data stalls the connection.
+
+# BAD: collect without release
+TCP::collect
+set data [TCP::payload]
+# missing TCP::release
+
+
+# ---------------------------------------------------------------
+# IRULE2003 — Unsafe iRules command
+# ---------------------------------------------------------------
+# uplevel and history are blocked in iRules because they allow
+# breaking out of the restricted command set.
+
+when HTTP_REQUEST priority 250 {
+    # BAD: uplevel allows execution context escalation
+    uplevel 1 {set x 1}
+}

@@ -1,0 +1,121 @@
+# iRules Diagnostics Showcase: Style, Deprecations & Performance
+#
+# Covers deprecated commands, performance hints, static variable
+# safety, and collect/release matching.
+
+
+# ---------------------------------------------------------------
+# IRULE2001 --Deprecated matchclass → class match
+# ---------------------------------------------------------------
+# matchclass was replaced in BIG-IP v10.
+
+when HTTP_REQUEST priority 500 {
+    # BAD: deprecated command (auto-fix available)
+    matchclass [HTTP::uri] equals "/api/blocked"
+
+    # OK: modern form
+    class match [HTTP::uri] equals url_denylist
+}
+
+
+# ---------------------------------------------------------------
+# IRULE2002 --Deprecated iRules command
+# ---------------------------------------------------------------
+# Old shorthand commands replaced by namespaced versions.
+
+when HTTP_REQUEST priority 400 {
+    # BAD: deprecated shorthand
+    set addr [client_addr]
+
+    # OK: namespaced replacement
+    set addr [IP::client_addr]
+}
+
+
+# ---------------------------------------------------------------
+# IRULE2101 --Heavy regex in hot event
+# ---------------------------------------------------------------
+# regexp is expensive; in high-frequency events consider
+# string match, switch -glob, or data-group lookups.
+
+when HTTP_REQUEST priority 300 {
+    # HINT: regexp in a hot event
+    if {[regexp {^/api/v\d+/users/\d+$} [HTTP::uri]]} {
+        pool api_pool
+    }
+
+    # Better: glob pattern is cheaper
+    if {[HTTP::uri] matches_glob {/api/v*/users/*}} {
+        pool api_pool
+    }
+}
+
+
+# ---------------------------------------------------------------
+# IRULE5001 --Ungated log in hot event
+# ---------------------------------------------------------------
+# Logging every request is expensive at high traffic volumes.
+# Guard with a debug flag.
+
+when CLIENT_ACCEPTED priority 500 {
+    set debug 0
+}
+
+when HTTP_REQUEST priority 200 {
+    # HINT: log fires on every single request
+    log local0. "Received [HTTP::method] [HTTP::uri]"
+}
+
+when HTTP_RESPONSE priority 200 {
+    # OK: gated behind a debug flag set in CLIENT_ACCEPTED
+    if {$debug} {
+        log local0. "Response [HTTP::status] for [HTTP::uri]"
+    }
+}
+
+
+# ---------------------------------------------------------------
+# IRULE4001 --Write to static:: outside RULE_INIT
+# ---------------------------------------------------------------
+# static:: variables are shared across ALL connections.
+# Writing them outside RULE_INIT causes race conditions.
+
+when HTTP_REQUEST priority 100 {
+    # BAD: concurrent writes from different connections
+    set static::request_count [expr {$static::request_count + 1}]
+}
+
+# OK: initialization in RULE_INIT is safe (single-threaded)
+when RULE_INIT priority 100 {
+    set static::request_count 0
+}
+
+
+# ---------------------------------------------------------------
+# IRULE4002 -- Generic static:: variable name — collision likely
+# ---------------------------------------------------------------
+# static:: variables are shared across every iRule on the BIG-IP
+# system.  Generic names like "debug", "timeout", "log_level"
+# will collide with other iRules using the same name, causing
+# unexpected behaviour (log storms, wrong config values, etc.).
+# Prefix with the application or rule name to avoid this.
+
+when RULE_INIT priority 200 {
+    # HINT: use a unique name like static::myapp_debug
+    set static::debug 0
+    set static::log_level 3
+}
+
+
+# ---------------------------------------------------------------
+# T200 --*::collect without matching *::release
+# ---------------------------------------------------------------
+# Forgetting to release collected data stalls the connection.
+# (T200 runs on the compiler IR; bare code triggers it cleanly.)
+
+when CLIENT_DATA priority 100 {
+    # BAD: collect without release --connection will stall
+    TCP::collect
+    set data [TCP::payload]
+    # Missing: TCP::release
+}
