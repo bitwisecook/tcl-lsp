@@ -29,8 +29,11 @@ def _interact_arg_roles(args: list[str]) -> dict[int, ArgRole]:
         ):
             i += 1
             continue
-        if arg in ("-input", "-output", "-u", "-o", "-i"):
+        if arg in ("-input", "-output", "-u", "-i"):
             i += 2  # option + value
+            continue
+        if arg == "-o":
+            i += 1  # flag only, no value
             continue
         if arg == "--":
             i += 1

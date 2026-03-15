@@ -10,6 +10,19 @@ from ._base import _EXPECT_ONLY, register
 _SOURCE = "Expect exit(1)"
 
 
+def _exit_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Resolve BODY role only for the -onexit handler argument."""
+    roles: dict[int, ArgRole] = {}
+    i = 0
+    while i < len(args):
+        if args[i] == "-onexit" and i + 1 < len(args):
+            roles[i + 1] = ArgRole.BODY
+            i += 2
+        else:
+            i += 1
+    return roles
+
+
 @register
 class ExitCommand(CommandDef):
     name = "exit"
@@ -48,5 +61,5 @@ class ExitCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(0)),
-            arg_roles={0: ArgRole.BODY},
+            arg_role_resolver=_exit_arg_roles,
         )
