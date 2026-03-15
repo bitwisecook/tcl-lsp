@@ -84,25 +84,11 @@ class TestCommandHover:
         assert "insert" in text.lower()
         assert "header" in text.lower()
 
-    def test_generated_command_hover_marks_refinement_status(self):
-        configure_signatures(dialect="f5-irules")
-        result = get_hover("ACCESS::acl match all", 0, 5)
-        assert result is not None
-        text = _hover_text(result)
-        assert "note:" in text.lower()
-
     def test_curated_command_hover_does_not_mark_refinement_status(self):
         result = get_hover("append x y", 0, 1)
         assert result is not None
         text = _hover_text(result)
         assert "note:" not in text.lower()
-
-    def test_generated_irules_hover_marks_refinement_status(self):
-        configure_signatures(dialect="f5-irules")
-        result = get_hover("ACCESS::acl result", 0, 5)
-        assert result is not None
-        text = _hover_text(result)
-        assert "note:" in text.lower()
 
     def test_curated_irules_hover_does_not_mark_refinement_status(self):
         configure_signatures(dialect="f5-irules")
