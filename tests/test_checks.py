@@ -407,9 +407,7 @@ class TestUplevelInjection:
 
     def test_uplevel_list_namespace_current(self):
         """Real-world idiom: uplevel 1 [list ::namespace current]."""
-        diags = _diag_with_code(
-            "set ns [uplevel 1 [list ::namespace current]]", "W301"
-        )
+        diags = _diag_with_code("set ns [uplevel 1 [list ::namespace current]]", "W301")
         assert len(diags) == 0
 
 
