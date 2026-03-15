@@ -231,7 +231,12 @@ class TestIruleExamples:
 
     def test_cookbook_tcp_collect_has_no_warnings(self):
         configure_signatures(dialect="f5-irules")
-        example = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_tcp_collect.irul"
+        example = (
+            Path(__file__).resolve().parent.parent
+            / "samples"
+            / "irules"
+            / "cookbook_tcp_collect.irul"
+        )
         src = example.read_text()
         result = analyse(src)
         warnings = [d for d in result.diagnostics if d.severity is Severity.WARNING]
