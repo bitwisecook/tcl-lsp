@@ -545,7 +545,7 @@ _PROFILE_LAYERS: dict[str, str] = {
     # TLS
     "CLIENTSSL": "tls_client",
     "SERVERSSL": "tls_server",
-    "SSL_PERSISTENCE": "tls_client",
+    "SSL_PERSISTENCE": "tls_shared",
     # Application
     "HTTP": "application",
     "FASTHTTP": "application",
