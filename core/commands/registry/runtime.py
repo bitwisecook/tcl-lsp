@@ -104,10 +104,15 @@ from .tcl import tcl_taint_hints as _tcl_taint_hints  # noqa: E402
 
 TAINT_HINTS: dict[str, TaintHint] = {**_tcl_taint_hints(), **_irules_taint_hints()}
 
-_EDA_VENDOR_DIALECTS = frozenset({
-    "synopsys-eda-tcl", "cadence-eda-tcl", "xilinx-eda-tcl",
-    "intel-quartus-eda-tcl", "mentor-eda-tcl",
-})
+_EDA_VENDOR_DIALECTS = frozenset(
+    {
+        "synopsys-eda-tcl",
+        "cadence-eda-tcl",
+        "xilinx-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "mentor-eda-tcl",
+    }
+)
 
 # Map each EDA vendor dialect to its underlying Tcl base version.
 # Synopsys DC/PT/ICC2 and Cadence Genus/Innovus/Tempus embed Tcl 8.6.
