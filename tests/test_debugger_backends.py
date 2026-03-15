@@ -32,7 +32,6 @@ class TestBackendFactory:
         assert backend is not None
 
     def test_invalid_preference_falls_through(self) -> None:
-        """Unknown preference should raise or fall back."""
-        # "auto" is the catch-all
-        backend = create_backend("auto")
-        assert backend is not None
+        """Unknown preference falls back to VM backend."""
+        backend = create_backend("nonexistent_backend")
+        assert isinstance(backend, VmBackend)

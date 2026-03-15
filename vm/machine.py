@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from core.compiler.codegen import FunctionAsm, Instruction, Op
@@ -634,7 +635,7 @@ class BytecodeVM:
         self,
         interp: TclInterp,
         *,
-        debug_hook: object | None = None,
+        debug_hook: Callable[..., object] | None = None,
     ) -> None:
         self.interp = interp
         self._debug_hook = debug_hook

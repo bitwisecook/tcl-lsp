@@ -204,7 +204,8 @@ proc ::__dbg::step_callback {args} {
                 }
                 get_vars {
                     set vars [collect_vars 3]
-                    ::__dbg::_original_puts stdout "\{\"type\":\"vars\",\"data\":[json_encode_vars $vars]\}"
+                    set jvars [json_encode_vars $vars]
+                    ::__dbg::_original_puts stdout "\{\"type\":\"vars\",\"data\":$jvars\}"
                     flush stdout
                 }
                 set_breakpoints {

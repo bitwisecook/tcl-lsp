@@ -132,8 +132,16 @@ class VmBackend(DebugBackend):
             from vm.interp import TclInterp
 
             interp: TclInterp = self._interp  # type: ignore[assignment]
-            result = interp.eval(expression)
-            return result.value
+            # Temporarily disable the debug hook to avoid re-entering it on
+            # the CLI thread, which would deadlock while the VM thread is
+            # paused inside DebugController.debug_hook().
+            saved_hook = interp._debug_hook
+            try:
+                interp._debug_hook = None
+                result = interp.eval(expression)
+                return result.value
+            finally:
+                interp._debug_hook = saved_hook
         except Exception as exc:
             return f"Error: {exc}"
 

@@ -92,7 +92,7 @@ class TclInterp:
         optimise: bool = False,
         source_init: bool = False,
         tcl_library: str | None = None,
-        debug_hook: Any | None = None,
+        debug_hook: Callable[..., object] | None = None,
     ) -> None:
         self.optimise = optimise
         self._debug_hook = debug_hook

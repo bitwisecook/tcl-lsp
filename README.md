@@ -1124,12 +1124,12 @@ backends are available:
 
 | Backend | Description |
 |---------|-------------|
-| `tclsh` | External `tclsh` subprocess (preferred when available) |
+| `vm` | The project's own bytecode VM (default) |
+| `tclsh` | External `tclsh` subprocess |
 | `tkinter` | Python's built-in `tkinter.Tcl()` interpreter |
-| `vm` | The project's own bytecode VM (always available) |
 
 ```sh
-# Debug a script (auto-detects best backend)
+# Debug a script (uses VM backend by default)
 uv run python -m debugger script.tcl
 
 # Force a specific backend

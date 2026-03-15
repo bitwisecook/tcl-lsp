@@ -18,7 +18,7 @@ cli
 ## How to use
 
 ```sh
-# Debug a script (auto-detects best backend)
+# Debug a script (uses VM backend by default)
 uv run python -m debugger script.tcl
 
 # Force a specific backend
@@ -49,22 +49,21 @@ echo 'puts hello' | uv run python -m debugger -
 
 ### Backends
 
-The debugger supports three backends, selected automatically in priority
-order (tclsh > tkinter > VM) or via `--backend`:
+The debugger supports three backends, selected via `--backend` (default: VM):
 
+- **VM** — Uses the project's bytecode VM with a debug hook in the
+  execution loop.  Full variable and stack introspection.  Default backend.
 - **tclsh** — Uses `trace add execution source enterstep` for stepping.
   Best compatibility with standard Tcl.
 - **tkinter** — Uses Python's `tkinter.Tcl()` with `createcommand` bridge.
   No subprocess needed.
-- **VM** — Uses the project's bytecode VM with a debug hook in the
-  execution loop.  Full variable and stack introspection.
 
 ## Operational context
 
 The debugger consists of:
 
 - A debug hook injected into the `BytecodeVM.execute()` loop that fires at
-  source line boundaries (zero overhead when not attached).
+  source line boundaries (minimal overhead when no debugger is attached).
 - A `DebugController` that manages breakpoints, step modes, and blocks the
   VM thread when stopped.
 - Backend-specific implementations that adapt tclsh, tkinter, and the VM
