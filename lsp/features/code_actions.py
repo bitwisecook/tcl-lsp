@@ -1231,6 +1231,15 @@ def _compute_required_profiles(source: str, analysis: AnalysisResult) -> list[st
     if "HTTP" in profiles and "FASTHTTP" in profiles:
         profiles.discard("FASTHTTP")
 
+    # Remove infrastructure profiles that are not user-configured on the
+    # virtual server: transport (TCP, UDP, SCTP, FASTL4) and TLS helpers
+    # (PERSIST, SSL_PERSISTENCE) are implied by the stack, not selected
+    # independently by the operator.
+    from core.commands.registry.namespace_models import _PROFILE_LAYERS
+
+    _INFRA_LAYERS = {"transport", "tls_shared"}
+    profiles -= {p for p in profiles if _PROFILE_LAYERS.get(p) in _INFRA_LAYERS}
+
     return sorted(profiles)
 
 

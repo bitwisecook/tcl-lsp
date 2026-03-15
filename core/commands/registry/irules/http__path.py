@@ -86,7 +86,11 @@ class HttpPathCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"})),
+            event_requires=EventRequires(
+                transport="tcp",
+                profiles=frozenset({"HTTP", "FASTHTTP"}),
+                also_in=frozenset({"MR_INGRESS", "SERVER_CONNECTED"}),
+            ),
             cse_candidate=True,
             diagram_action=True,
         )

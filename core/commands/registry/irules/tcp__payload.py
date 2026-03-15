@@ -43,7 +43,10 @@ class TcpPayloadCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(transport="tcp"),
+            event_requires=EventRequires(
+                transport="tcp",
+                also_in=frozenset({"SIP_REQUEST", "SIP_REQUEST_SEND", "SIP_RESPONSE"}),
+            ),
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.TCP_STATE,

@@ -437,7 +437,7 @@ impl zed::Extension for TclExtension {
                      exposes the `command_info` tool with synopsis, switches, valid \
                      events, and deprecation status.\n\n\
                      ## Usage\n\
-                     The `command_info` MCP tool accepts `{{\"name\": \"{cmd_name}\"}}` \
+                     The `command_info` MCP tool accepts `{{\"command_name\": \"{cmd_name}\"}}` \
                      and returns structured metadata."
                 );
                 let len = text.len();
@@ -457,7 +457,7 @@ impl zed::Extension for TclExtension {
                 let text = format!(
                     "# iRules Event: {event}\n\n\
                      Use the **tcl-lsp-mcp** context server for detailed event metadata.\n\n\
-                     The `event_info` MCP tool accepts `{{\"name\": \"{event}\"}}` and \
+                     The `event_info` MCP tool accepts `{{\"event_name\": \"{event}\"}}` and \
                      returns:\n\
                      - Valid commands for this event\n\
                      - Deprecation status\n\

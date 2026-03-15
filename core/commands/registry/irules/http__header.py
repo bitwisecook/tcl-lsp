@@ -213,7 +213,11 @@ class HttpHeaderCommand(CommandDef):
                 ),
             },
             validation=ValidationSpec(arity=Arity(1)),
-            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"})),
+            event_requires=EventRequires(
+                transport="tcp",
+                profiles=frozenset({"HTTP", "FASTHTTP"}),
+                also_in=frozenset({"MR_EGRESS", "MR_INGRESS", "SERVER_CONNECTED"}),
+            ),
             taint_output_sink="IRULE3002",
             taint_output_sink_subcommands=frozenset({"insert", "replace"}),
             cse_candidate=True,

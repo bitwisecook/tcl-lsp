@@ -37,7 +37,7 @@ class ResolvLookupCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(flow=True),
+            event_requires=EventRequires(),
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.DNS_STATE,

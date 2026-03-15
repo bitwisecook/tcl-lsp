@@ -56,7 +56,11 @@ class HttpRedirectCommand(CommandDef):
                 arity=Arity(),
             ),
             taint_output_sink="IRULE3004",
-            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"})),
+            event_requires=EventRequires(
+                transport="tcp",
+                profiles=frozenset({"HTTP", "FASTHTTP"}),
+                also_in=frozenset({"LB_FAILED", "NAME_RESOLVED"}),
+            ),
             diagram_action=True,
             side_effect_hints=(
                 SideEffect(

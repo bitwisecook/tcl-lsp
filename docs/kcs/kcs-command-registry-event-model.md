@@ -14,6 +14,11 @@ Known commands/events are flagged as unknown (or vice versa), event ordering che
 2. Event validity/ordering rules should be centralized in event registry/flow definitions.
 3. Consumers should query registry APIs rather than duplicating command/event classification logic.
 4. Parser/recovery known-command lookups must use the shared cache helper (`core/parsing/known_commands.py`) backed by registry command names.
+5. When BIG-IP source data introduces profile aliases (`MSSQL`, `RADIUS_AAA`, `SIPSESSION`, `DIAMETERSESSION`, etc.), keep the shared profile/event/namespace tables aligned rather than hardcoding alias fixes in a consumer.
+6. `VALID DURING` in BIG-IP command manpages is the source of truth for iRules command legality; avoid synthetic profile requirements unless some event in the shared model can actually satisfy them.
+7. Utility/control iRules prefixes (`ILX`, `CRYPTO`, `URI`, `X509`, `PROFILE`, etc.) still need `ProtocolNamespaceSpec` entries even when they are not profile-backed; represent them with an empty `profiles` set instead of leaving the namespace table incomplete.
+8. `LayerStack` must round-trip every registered `PROFILE_SPEC`; shared TLS helpers such as `PERSIST` belong in a shared TLS bucket instead of being dropped from the effective stack.
+9. When a protocol namespace is profile-backed and all of its enabling profiles share one layer or side, keep `ProtocolNamespaceSpec.layer` and `ProtocolNamespaceSpec.side` aligned with that profile metadata.
 
 ## File-path anchors
 

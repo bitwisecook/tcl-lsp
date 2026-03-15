@@ -265,7 +265,23 @@ class HttpRespondCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(1)),
-            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"})),
+            event_requires=EventRequires(
+                transport="tcp",
+                profiles=frozenset({"HTTP", "FASTHTTP"}),
+                also_in=frozenset(
+                    {
+                        "AUTH_ERROR",
+                        "AUTH_FAILURE",
+                        "AUTH_RESULT",
+                        "AUTH_SUCCESS",
+                        "AUTH_WANTCREDENTIAL",
+                        "LB_FAILED",
+                        "MR_EGRESS",
+                        "MR_FAILED",
+                        "NAME_RESOLVED",
+                    }
+                ),
+            ),
             taint_output_sink="IRULE3001",
             diagram_action=True,
             side_effect_hints=(

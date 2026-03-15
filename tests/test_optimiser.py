@@ -8,6 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from core.analysis.analyser import analyse
+from core.commands.registry.runtime import configure_signatures
 from core.compiler.optimiser import (
     demorgan_transform,
     find_optimisations,
@@ -47,6 +49,25 @@ class TestOptimiser:
         optimised, rewrites = optimise_source(source)
         assert optimised == "set c 8"
         assert any(r.code == "O102" for r in rewrites)
+
+    def test_profile_directive_survives_optimisation_for_http2_hints(self):
+        source = textwrap.dedent("""\
+            # profiles: HTTP2
+            when HTTP_REQUEST {
+                if {1} {
+                    HTTP2::active
+                }
+            }
+        """)
+
+        optimised, rewrites = optimise_source(source)
+
+        assert "# profiles: HTTP2" in optimised
+        assert any(r.code == "O112" for r in rewrites)
+
+        configure_signatures(dialect="f5-irules")
+        diags = [d for d in analyse(optimised).diagnostics if d.code == "IRULE1001"]
+        assert diags == []
 
     def test_unset_clears_constant(self):
         source = "set a 1\nunset a\nset b [expr {$a + 2}]"

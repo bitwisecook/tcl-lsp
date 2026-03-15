@@ -120,7 +120,8 @@ class EventProps:
     Attributes:
         client_side: Client-side connection is available.
         server_side: Server-side connection is available.
-        transport: ``"tcp"``, ``"udp"``, or ``None`` (no transport layer).
+        transport: ``"tcp"``, ``"udp"``, a tuple like ``("tcp", "udp")``
+            for L4 events that fire on both, or ``None`` (no transport layer).
         implied_profiles: Profiles implied by this event firing
             (e.g. ``{"HTTP"}`` for ``HTTP_REQUEST``).
         flow: Whether an active traffic flow is present.  ``False`` for
@@ -130,7 +131,7 @@ class EventProps:
 
     client_side: bool = False
     server_side: bool = False
-    transport: str | None = None
+    transport: str | tuple[str, ...] | None = None
     implied_profiles: frozenset[str] = field(default_factory=frozenset)
     flow: bool = True
     deprecated: bool = False
@@ -288,6 +289,8 @@ class LayerStack:
         transport: ``"TCP"``, ``"UDP"``, ``"FASTL4"``, or ``None``.
         tls_client: ``"CLIENTSSL"`` or ``None``.
         tls_server: ``"SERVERSSL"`` or ``None``.
+        tls_shared: Shared TLS helper profiles that can coexist with
+            client- or server-side TLS profiles (for example ``PERSIST``).
         application: Active application-layer profiles (e.g. ``{"HTTP"}``).
         security: Active security profiles (e.g. ``{"ASM", "ACCESS"}``).
         acceleration: Active acceleration profiles.
@@ -296,6 +299,7 @@ class LayerStack:
     transport: str | None = None
     tls_client: str | None = None
     tls_server: str | None = None
+    tls_shared: frozenset[str] = field(default_factory=frozenset)
     application: frozenset[str] = field(default_factory=frozenset)
     security: frozenset[str] = field(default_factory=frozenset)
     acceleration: frozenset[str] = field(default_factory=frozenset)
@@ -310,6 +314,7 @@ class LayerStack:
             profiles.add(self.tls_client)
         if self.tls_server:
             profiles.add(self.tls_server)
+        profiles.update(self.tls_shared)
         profiles.update(self.application)
         profiles.update(self.security)
         profiles.update(self.acceleration)
@@ -540,23 +545,31 @@ _PROFILE_LAYERS: dict[str, str] = {
     # TLS
     "CLIENTSSL": "tls_client",
     "SERVERSSL": "tls_server",
-    "SSL_PERSISTENCE": "tls_client",
+    "SSL_PERSISTENCE": "tls_shared",
     # Application
     "HTTP": "application",
     "FASTHTTP": "application",
+    "HTTP2": "application",
+    "HTTP_PROXY_CONNECT": "application",
     "DNS": "application",
     "SIP": "application",
+    "SIPROUTER": "application",
+    "SIPSESSION": "application",
     "FIX": "application",
     "DIAMETER": "application",
+    "DIAMETERSESSION": "application",
+    "DIAMETER_ENDPOINT": "application",
     "MQTT": "application",
     "RTSP": "application",
     "GENERICMSG": "application",
     "MR": "application",
     "GTP": "application",
     "RADIUS": "application",
+    "RADIUS_AAA": "application",
     "PCP": "application",
     "SOCKS": "application",
     "TDS": "application",
+    "MSSQL": "application",
     "IVS_ENTRY": "application",
     # Security
     "ASM": "security",
@@ -567,6 +580,7 @@ _PROFILE_LAYERS: dict[str, str] = {
     "AUTH": "security",
     "ECA": "security",
     "PROTOCOL_INSPECTION": "security",
+    "IPS": "security",
     # Acceleration / content
     "STREAM": "acceleration",
     "WEBACCELERATION": "acceleration",
@@ -591,6 +605,9 @@ _PROFILE_LAYERS: dict[str, str] = {
     "TAP": "security",
     "CONNECTOR": "application",
     "L7CHECK": "application",
+    "PERSIST": "tls_shared",
+    "LSN": "application",
+    "DATAGRAM": "application",
 }
 
 
@@ -599,6 +616,7 @@ def _build_layer_stack(profiles: frozenset[str]) -> LayerStack:
     transport: str | None = None
     tls_client: str | None = None
     tls_server: str | None = None
+    tls_shared: set[str] = set()
     application: set[str] = set()
     security: set[str] = set()
     acceleration: set[str] = set()
@@ -611,6 +629,8 @@ def _build_layer_stack(profiles: frozenset[str]) -> LayerStack:
             tls_client = p
         elif layer == "tls_server":
             tls_server = p
+        elif layer == "tls_shared":
+            tls_shared.add(p)
         elif layer == "application":
             application.add(p)
         elif layer == "security":
@@ -622,6 +642,7 @@ def _build_layer_stack(profiles: frozenset[str]) -> LayerStack:
         transport=transport,
         tls_client=tls_client,
         tls_server=tls_server,
+        tls_shared=frozenset(tls_shared),
         application=frozenset(application),
         security=frozenset(security),
         acceleration=frozenset(acceleration),

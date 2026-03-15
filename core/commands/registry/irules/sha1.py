@@ -49,7 +49,7 @@ class Sha1Command(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(init_only=True),
+            event_requires=EventRequires(),
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.UNKNOWN,

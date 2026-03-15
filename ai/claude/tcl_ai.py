@@ -277,6 +277,14 @@ def cmd_event_info(event_name: str) -> None:
     print(f"  Event: {info.event}")
     print(f"  Known: {'yes' if info.known else 'no'}")
     print(f"  Deprecated: {'yes' if info.deprecated else 'no'}")
+    print(f"  Multiplicity: {info.multiplicity}")
+    if info.description:
+        print(f"  Description: {info.description}")
+    print(f"  Side: {info.side}")
+    if info.transport:
+        print(f"  Transport: {info.transport}")
+    if info.implied_profiles:
+        print(f"  Profiles: {', '.join(info.implied_profiles)}")
     print(f"  Valid commands: {info.valid_command_count}")
     if info.valid_commands:
         show = list(info.valid_commands[:20])

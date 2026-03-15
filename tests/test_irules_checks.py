@@ -67,19 +67,17 @@ class TestIrule1001:
         assert len(diags) == 1
         assert "connect" in diags[0].message
 
-    def test_lb_select_in_rule_init_warns(self):
-        """LB::select requires flow — should warn in RULE_INIT."""
+    def test_lb_select_in_rule_init_no_warning(self):
+        """LB::select is ANY_EVENT per BIG-IP manpage — no IRULE1001 in RULE_INIT."""
         src = "when RULE_INIT {\n    LB::select pool mypool\n}"
         diags = _diag_with_code(src, "IRULE1001")
-        assert len(diags) == 1
-        assert "LB::select" in diags[0].message
+        assert len(diags) == 0
 
-    def test_resolv_lookup_in_rule_init_warns(self):
-        """RESOLV::lookup requires flow — should warn in RULE_INIT."""
+    def test_resolv_lookup_in_rule_init_no_warning(self):
+        """RESOLV::lookup is ANY_EVENT per BIG-IP manpage — no IRULE1001 in RULE_INIT."""
         src = "when RULE_INIT {\n    RESOLV::lookup @192.168.1.1 a example.com\n}"
         diags = _diag_with_code(src, "IRULE1001")
-        assert len(diags) == 1
-        assert "RESOLV::lookup" in diags[0].message
+        assert len(diags) == 0
 
     def test_persist_in_persist_down_no_warning(self):
         """persist has also_in={PERSIST_DOWN} — should NOT warn."""
@@ -136,15 +134,32 @@ class TestIrule1001:
         assert len(diags) == 1
         assert diags[0].severity is Severity.WARNING
 
-    def test_tcp_collect_in_client_data_no_warning(self):
+    def test_tcp_collect_in_client_data_emits_transport_profile_hint(self):
         src = "when CLIENT_DATA {\n    TCP::collect\n}"
         diags = _diag_with_code(src, "IRULE1001")
-        assert len(diags) == 0
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.HINT
+        assert "TCP" in diags[0].message
 
     def test_ssl_release_in_clientssl_data_no_warning(self):
         src = "when CLIENTSSL_DATA {\n    SSL::release\n}"
         diags = _diag_with_code(src, "IRULE1001")
         assert len(diags) == 0
+
+    def test_http2_active_in_http_request_emits_profile_stack_hint(self):
+        src = "when HTTP_REQUEST {\n    HTTP2::active\n}"
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.HINT
+        assert "HTTP2" in diags[0].message
+
+    def test_access_log_in_client_accepted_emits_namespace_profile_hint(self):
+        src = 'when CLIENT_ACCEPTED {\n    ACCESS::log 1 "trace"\n}'
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.HINT
+        assert "ACCESS::log" in diags[0].message
+        assert "ACCESS" in diags[0].message
 
 
 # IRULE2001: Deprecated matchclass

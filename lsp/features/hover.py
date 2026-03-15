@@ -9,6 +9,7 @@ from lsprotocol import types
 from core.analysis.analyser import analyse
 from core.analysis.semantic_model import AnalysisResult, ProcDef, Scope, VarDef
 from core.commands.registry import REGISTRY
+from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.operators import operator_hover
 from core.commands.registry.runtime import SIGNATURES, SubcommandSig
@@ -924,8 +925,13 @@ def get_hover(
             value = f"{value}\n\n**Requires**: `package require {cmd_spec.required_package}`"
         # Append valid events info for iRules commands.
         if dialect == "f5-irules":
-            if cmd_spec.event_requires is not None:
-                matching = EVENT_REGISTRY.events_matching(cmd_spec.event_requires)
+            effective_requires = effective_event_requires(
+                cmd_spec.name,
+                cmd_spec.event_requires,
+                dialect=dialect,
+            )
+            if effective_requires is not None:
+                matching = EVENT_REGISTRY.events_matching(effective_requires)
                 if matching:
                     sample = matching[:8]
                     event_list = ", ".join(f"`{e}`" for e in sample)
@@ -933,7 +939,7 @@ def get_hover(
                         event_list += f", ... ({len(matching)} total)"
                     value = f"{value}\n\n**Valid events**: {event_list}"
                 reqs: list[str] = []
-                er = cmd_spec.event_requires
+                er = effective_requires
                 if er.client_side:
                     reqs.append("client-side")
                 if er.server_side:

@@ -48,7 +48,7 @@ class IpServerAddrCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(server_side=True),
+            event_requires=EventRequires(server_side=True, also_in=frozenset({"IP_GTM"})),
             cse_candidate=True,
             side_effect_hints=(
                 SideEffect(

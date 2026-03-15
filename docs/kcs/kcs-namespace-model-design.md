@@ -322,10 +322,15 @@ class LayerStack:
     transport: str | None = None        # "TCP" or "UDP"
     tls_client: str | None = None       # "CLIENTSSL" or None
     tls_server: str | None = None       # "SERVERSSL" or None
+    tls_shared: frozenset[str] = frozenset()  # {"PERSIST"}, ...
     application: frozenset[str] = frozenset()  # {"HTTP"}, {"DNS"}, ...
     security: frozenset[str] = frozenset()     # {"ASM", "ACCESS"}, ...
     acceleration: frozenset[str] = frozenset() # {"STREAM", "WEBACCELERATION"}, ...
 ```
+
+Shared/non-terminating TLS helpers such as `PERSIST` live in `tls_shared`
+so they can coexist with client-side or server-side TLS profiles without
+displacing them in the stack model.
 
 #### StackModification -- dynamic profile changes
 
