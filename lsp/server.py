@@ -176,7 +176,11 @@ def _install_lsp_log_handler() -> None:
     for name in ("lsp", "core"):
         lgr = logging.getLogger(name)
         lgr.addHandler(handler)
-        if lgr.level > logging.DEBUG:
+        # Ensure messages at DEBUG and above reach the handler.
+        # A logger's default level is NOTSET (0) which inherits from
+        # the root logger (typically WARNING), so we must set it
+        # explicitly.
+        if lgr.getEffectiveLevel() > logging.DEBUG:
             lgr.setLevel(logging.DEBUG)
 
 
@@ -222,10 +226,10 @@ _FREQUENT_METHODS = frozenset({
 })
 
 
-def _log_request(method: str, params, msg_id):  # type: ignore[override]
+def _log_request(msg_id, method: str, params):  # type: ignore[override]
     level = logging.DEBUG if method in _FREQUENT_METHODS else logging.INFO
     log.log(level, "<-- request  %s (id=%s)", method, msg_id)
-    return _orig_handle_request(method, params, msg_id)
+    return _orig_handle_request(msg_id, method, params)
 
 
 def _log_notification(method: str, params):  # type: ignore[override]
