@@ -294,7 +294,12 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             "tcl9.0" to "Tcl 9.0",
             "f5-irules" to "F5 iRules",
             "f5-iapps" to "F5 iApps",
-            "eda-tools" to "EDA Tools",
+            "f5-bigip" to "F5 BIG-IP",
+            "synopsys-eda-tcl" to "Synopsys EDA",
+            "cadence-eda-tcl" to "Cadence EDA",
+            "xilinx-eda-tcl" to "Xilinx EDA",
+            "intel-quartus-eda-tcl" to "Intel Quartus",
+            "mentor-eda-tcl" to "Mentor EDA",
             "expect" to "Expect",
         )
     }

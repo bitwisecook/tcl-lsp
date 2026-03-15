@@ -93,11 +93,13 @@ def optimise_unused_procs(ctx: PassContext) -> None:
     reachable = _reachable_procs(event_procs, call_graph)
 
     # Conservative escape hatch: if any reachable proc has a dynamic barrier
-    # (eval, uplevel, etc.) or unknown calls, dynamic dispatch could target
-    # any "unused" proc.  Suppress O124 to avoid false positives.
+    # (eval, uplevel, etc.), dynamic dispatch could target any "unused" proc.
+    # Suppress O124 to avoid false positives.  We intentionally do NOT check
+    # has_unknown_calls here — that flag fires for any impure built-in command
+    # (pool, puts, etc.) which cannot dynamically invoke user procs.
     for qname in reachable:
         summary = ctx.interproc.procedures.get(qname)
-        if summary is not None and (summary.has_barrier or summary.has_unknown_calls):
+        if summary is not None and summary.has_barrier:
             return
 
     # Report unused user procs.

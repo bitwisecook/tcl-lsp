@@ -301,7 +301,11 @@ function dialectsSection(): HelpSection {
       { name: "tcl8.4 / tcl8.5 / tcl8.6 / tcl9.0", description: "Standard Tcl versions" },
       { name: "f5-irules", description: "F5 BIG-IP iRules" },
       { name: "f5-iapps / f5-bigip", description: "F5 iApps and BIG-IP config" },
-      { name: "eda-tools", description: "EDA tool Tcl dialects" },
+      { name: "synopsys-eda-tcl", description: "Synopsys EDA (DC, PrimeTime, ICC2)" },
+      { name: "cadence-eda-tcl", description: "Cadence EDA (Genus, Innovus, Tempus)" },
+      { name: "xilinx-eda-tcl", description: "Xilinx/AMD EDA (Vivado, Vitis)" },
+      { name: "intel-quartus-eda-tcl", description: "Intel Quartus Prime" },
+      { name: "mentor-eda-tcl", description: "Mentor/Siemens EDA (ModelSim, Questa, Calibre)" },
     ],
   };
 }

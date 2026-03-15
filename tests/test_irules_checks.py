@@ -233,7 +233,7 @@ class TestIruleExamples:
         configure_signatures(dialect="f5-irules")
         example = (
             Path(__file__).resolve().parent.parent
-            / "examples"
+            / "samples"
             / "irules"
             / "cookbook_tcp_collect.irul"
         )

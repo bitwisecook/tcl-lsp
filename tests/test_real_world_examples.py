@@ -18,7 +18,7 @@ from lsp.features.diagnostics import get_diagnostics
 
 def _example_text(*parts: str) -> str:
     root = Path(__file__).resolve().parent.parent
-    return (root / "examples" / Path(*parts)).read_text()
+    return (root / "samples" / Path(*parts)).read_text()
 
 
 def _diag_codes(source: str, *, optimiser_enabled: bool) -> set[str]:

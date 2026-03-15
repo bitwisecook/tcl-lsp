@@ -17,7 +17,11 @@ class Dialect(Enum):
     F5_IRULES = "f5-irules"
     F5_IAPPS = "f5-iapps"
     F5_BIGIP = "f5-bigip"
-    EDA_TOOLS = "eda-tools"
+    SYNOPSYS_EDA = "synopsys-eda-tcl"
+    CADENCE_EDA = "cadence-eda-tcl"
+    XILINX_EDA = "xilinx-eda-tcl"
+    INTEL_QUARTUS_EDA = "intel-quartus-eda-tcl"
+    MENTOR_EDA = "mentor-eda-tcl"
     EXPECT = "expect"
 
 

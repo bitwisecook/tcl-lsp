@@ -6,7 +6,7 @@
     },
     {
       "file": "tcl_system.md",
-      "dialects": ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "eda-tools", "expect"]
+      "dialects": ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "synopsys-eda-tcl", "cadence-eda-tcl", "xilinx-eda-tcl", "intel-quartus-eda-tcl", "mentor-eda-tcl", "expect"]
     },
     {
       "file": "tk_system.md",

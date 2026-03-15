@@ -117,7 +117,11 @@ dialect setting so diagnostics and completions match the chosen dialect.
 | `tcl9.0` | Tcl 9.0 |
 | `f5-irules` | F5 iRules |
 | `f5-iapps` | F5 iApps |
-| `eda-tools` | EDA Tools |
+| `synopsys-eda-tcl` | Synopsys EDA |
+| `cadence-eda-tcl` | Cadence EDA |
+| `xilinx-eda-tcl` | Xilinx EDA |
+| `intel-quartus-eda-tcl` | Intel Quartus |
+| `mentor-eda-tcl` | Mentor EDA |
 
 Select a dialect from the Command Palette: **Tcl: Select Dialect**.
 

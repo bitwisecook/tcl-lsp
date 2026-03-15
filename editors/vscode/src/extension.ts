@@ -77,7 +77,11 @@ const DIALECT_LABELS: Record<string, string> = {
   "f5-irules": "F5 iRules",
   "f5-iapps": "F5 iApps",
   "f5-bigip": "F5 BIG-IP Config",
-  "eda-tools": "EDA Tools",
+  "synopsys-eda-tcl": "Synopsys EDA",
+  "cadence-eda-tcl": "Cadence EDA",
+  "xilinx-eda-tcl": "Xilinx EDA",
+  "intel-quartus-eda-tcl": "Intel Quartus",
+  "mentor-eda-tcl": "Mentor EDA",
   expect: "Expect",
 };
 
@@ -91,7 +95,11 @@ const TCL_LANGUAGE_IDS = new Set([
   "tcl8.4",
   "tcl8.5",
   "tcl9.0",
-  "tcl-eda",
+  "tcl-synopsys",
+  "tcl-cadence",
+  "tcl-xilinx",
+  "tcl-quartus",
+  "tcl-mentor",
   "tcl-expect",
 ]);
 
@@ -107,7 +115,11 @@ const LANGUAGE_ID_DIALECTS: Record<string, string> = {
   "tcl8.4": "tcl8.4",
   "tcl8.5": "tcl8.5",
   "tcl9.0": "tcl9.0",
-  "tcl-eda": "eda-tools",
+  "tcl-synopsys": "synopsys-eda-tcl",
+  "tcl-cadence": "cadence-eda-tcl",
+  "tcl-xilinx": "xilinx-eda-tcl",
+  "tcl-quartus": "intel-quartus-eda-tcl",
+  "tcl-mentor": "mentor-eda-tcl",
   "tcl-expect": "expect",
 };
 

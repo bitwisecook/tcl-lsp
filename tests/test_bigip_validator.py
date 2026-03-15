@@ -376,7 +376,7 @@ def test_validate_example_config():
     """Validate the example bigip.conf and check expected diagnostic codes."""
     import os
 
-    conf_path = os.path.join(os.path.dirname(__file__), "..", "examples", "bigip", "bigip.conf")
+    conf_path = os.path.join(os.path.dirname(__file__), "..", "samples", "bigip", "bigip.conf")
     with open(conf_path) as f:
         source = f.read()
     config = parse_bigip_conf(source)

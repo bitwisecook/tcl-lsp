@@ -9,6 +9,12 @@ if TYPE_CHECKING:
     from ...compiler.side_effects import SideEffect
     from .models import CodegenHook, CommandHandler, LoweringHook, SubcommandHandler
 
+from .eda_cadence import cadence_command_specs
+from .eda_mentor import mentor_command_specs
+from .eda_quartus import quartus_command_specs
+from .eda_sdc_base import sdc_base_command_specs
+from .eda_synopsys import synopsys_command_specs
+from .eda_xilinx import xilinx_command_specs
 from .expect import expect_command_specs
 from .iapps import iapps_command_specs
 from .irules import irules_command_specs
@@ -57,6 +63,12 @@ def _all_command_specs() -> tuple:
         + tk_command_specs()
         + irules_command_specs()
         + iapps_command_specs()
+        + sdc_base_command_specs()
+        + synopsys_command_specs()
+        + cadence_command_specs()
+        + xilinx_command_specs()
+        + quartus_command_specs()
+        + mentor_command_specs()
         + expect_command_specs()
     )
 
