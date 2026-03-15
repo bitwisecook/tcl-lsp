@@ -30,6 +30,21 @@ class TestPropertyQueries:
     def test_get_props_unknown(self):
         assert EVENT_REGISTRY.get_props("NONEXISTENT") is None
 
+    def test_event_profiles_include_source_parent_profiles(self):
+        rewrite_done = EVENT_REGISTRY.get_props("REWRITE_REQUEST_DONE")
+        assert rewrite_done is not None
+        assert "HTTP" in rewrite_done.implied_profiles
+        assert "REWRITE" in rewrite_done.implied_profiles
+
+        ping_req = EVENT_REGISTRY.get_props("PING_REQUEST_READY")
+        assert ping_req is not None
+        assert "HTTP" in ping_req.implied_profiles
+
+        category = EVENT_REGISTRY.get_props("CATEGORY_MATCHED")
+        assert category is not None
+        assert "ACCESS" in category.implied_profiles
+        assert "HTTP" in category.implied_profiles
+
     def test_is_known(self):
         assert EVENT_REGISTRY.is_known("HTTP_REQUEST")
         assert not EVENT_REGISTRY.is_known("NONEXISTENT")
@@ -140,3 +155,58 @@ class TestFileLevelHelpers:
         src = "when CLIENTSSL_HANDSHAKE {\n    SSL::cert 0\n}"
         profiles = EVENT_REGISTRY.compute_file_profiles(src)
         assert "CLIENTSSL" in profiles
+        assert "TCP" in profiles
+
+    def test_compute_file_profiles_includes_source_profile_aliases(self):
+        src = "when RADIUS_AAA_AUTH_REQUEST {\n}\nwhen SIP_REQUEST {\n}\n"
+        profiles = EVENT_REGISTRY.compute_file_profiles(src)
+        assert "RADIUS" in profiles
+        assert "RADIUS_AAA" in profiles
+        assert "SIP" in profiles
+        assert "SIPROUTER" in profiles
+        assert "SIPSESSION" in profiles
+
+    def test_compute_file_profiles_expands_http2_stack(self):
+        src = "# profiles: HTTP2\nwhen HTTP_REQUEST {\n}\n"
+        profiles = EVENT_REGISTRY.compute_file_profiles(src)
+        assert "HTTP2" in profiles
+        assert "HTTP" in profiles
+        assert "TCP" in profiles
+
+    def test_build_profile_context_combined_expands_dependencies(self):
+        src = "# profiles: HTTP2\nwhen CLIENT_ACCEPTED {\n}\n"
+        context = EVENT_REGISTRY.build_profile_context(src)
+        assert "HTTP2" in context.explicit
+        assert "HTTP2" in context.combined
+        assert "HTTP" in context.combined
+        assert "TCP" in context.combined
+
+
+class TestNamespaceLookup:
+    def test_get_protocol_namespace_known(self):
+        spec = EVENT_REGISTRY.get_protocol_namespace("HTTP")
+        assert spec is not None
+        assert spec.prefix == "HTTP"
+
+    def test_get_protocol_namespace_fallback_for_known_irules_prefix(self):
+        spec = EVENT_REGISTRY.get_protocol_namespace("RESOLV")
+        assert spec is not None
+        assert spec.prefix == "RESOLV"
+        assert spec.layer == "application"
+
+    def test_get_protocol_namespace_unknown_returns_none(self):
+        assert EVENT_REGISTRY.get_protocol_namespace("NOT_A_NAMESPACE") is None
+
+
+class TestProfileStackHelpers:
+    def test_expand_profile_stack(self):
+        expanded = EVENT_REGISTRY.expand_profile_stack(frozenset({"HTTP2"}))
+        assert "HTTP2" in expanded
+        assert "HTTP" in expanded
+        assert "TCP" in expanded
+
+    def test_profile_stack_satisfies(self):
+        assert EVENT_REGISTRY.profile_stack_satisfies(
+            frozenset({"HTTP"}),
+            frozenset({"HTTP2"}),
+        )

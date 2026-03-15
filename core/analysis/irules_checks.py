@@ -30,6 +30,7 @@ from ..commands.registry.namespace_data import (
     missing_requirements_description,
     profile_info_description,
 )
+from ..commands.registry.namespace_models import EventRequires
 from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from ..common.dialect import active_dialect
 from ..common.ranges import range_from_token
@@ -78,6 +79,23 @@ def check_command_event_validity(
     legality = REGISTRY.command_legality(dialect)
     if legality.is_legal(event, cmd_name):
         # Still check for informational profile hints.
+        if file_profiles and "::" in cmd_name:
+            prefix = cmd_name.split("::", 1)[0]
+            ns_spec = EVENT_REGISTRY.get_protocol_namespace(prefix)
+            if ns_spec is not None and ns_spec.profiles:
+                ns_profile_info = profile_info_description(
+                    EventRequires(profiles=ns_spec.profiles),
+                    file_profiles,
+                )
+                if ns_profile_info is not None:
+                    return [
+                        Diagnostic(
+                            range=range_from_token(all_tokens[0]),
+                            message=f"'{cmd_name}' {ns_profile_info}.",
+                            severity=Severity.HINT,
+                            code="IRULE1001",
+                        )
+                    ]
         if spec.event_requires is not None:
             profile_info = profile_info_description(spec.event_requires, file_profiles)
             if profile_info is not None:

@@ -37,7 +37,9 @@ def _when_event_values() -> tuple[ArgumentValueSpec, ...]:
             side = event_side_label(props)
             parts: list[str] = [f"**Context**: {side}"]
             if props.transport:
-                parts.append(f"**Transport**: {props.transport.upper()}")
+                t = props.transport
+                tlabel = "/".join(x.upper() for x in t) if isinstance(t, tuple) else t.upper()
+                parts.append(f"**Transport**: {tlabel}")
             if props.implied_profiles:
                 parts.append(f"**Profile**: {', '.join(sorted(props.implied_profiles))}")
             snippet = "  \n".join(parts)

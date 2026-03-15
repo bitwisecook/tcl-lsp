@@ -120,7 +120,8 @@ class EventProps:
     Attributes:
         client_side: Client-side connection is available.
         server_side: Server-side connection is available.
-        transport: ``"tcp"``, ``"udp"``, or ``None`` (no transport layer).
+        transport: ``"tcp"``, ``"udp"``, a tuple like ``("tcp", "udp")``
+            for L4 events that fire on both, or ``None`` (no transport layer).
         implied_profiles: Profiles implied by this event firing
             (e.g. ``{"HTTP"}`` for ``HTTP_REQUEST``).
         flow: Whether an active traffic flow is present.  ``False`` for
@@ -130,7 +131,7 @@ class EventProps:
 
     client_side: bool = False
     server_side: bool = False
-    transport: str | None = None
+    transport: str | tuple[str, ...] | None = None
     implied_profiles: frozenset[str] = field(default_factory=frozenset)
     flow: bool = True
     deprecated: bool = False
@@ -544,19 +545,27 @@ _PROFILE_LAYERS: dict[str, str] = {
     # Application
     "HTTP": "application",
     "FASTHTTP": "application",
+    "HTTP2": "application",
+    "HTTP_PROXY_CONNECT": "application",
     "DNS": "application",
     "SIP": "application",
+    "SIPROUTER": "application",
+    "SIPSESSION": "application",
     "FIX": "application",
     "DIAMETER": "application",
+    "DIAMETERSESSION": "application",
+    "DIAMETER_ENDPOINT": "application",
     "MQTT": "application",
     "RTSP": "application",
     "GENERICMSG": "application",
     "MR": "application",
     "GTP": "application",
     "RADIUS": "application",
+    "RADIUS_AAA": "application",
     "PCP": "application",
     "SOCKS": "application",
     "TDS": "application",
+    "MSSQL": "application",
     "IVS_ENTRY": "application",
     # Security
     "ASM": "security",
@@ -567,6 +576,7 @@ _PROFILE_LAYERS: dict[str, str] = {
     "AUTH": "security",
     "ECA": "security",
     "PROTOCOL_INSPECTION": "security",
+    "IPS": "security",
     # Acceleration / content
     "STREAM": "acceleration",
     "WEBACCELERATION": "acceleration",
@@ -591,6 +601,9 @@ _PROFILE_LAYERS: dict[str, str] = {
     "TAP": "security",
     "CONNECTOR": "application",
     "L7CHECK": "application",
+    "PERSIST": "tls_client",
+    "LSN": "application",
+    "DATAGRAM": "application",
 }
 
 
