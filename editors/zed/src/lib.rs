@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::PathBuf;
 use std::sync::LazyLock;
 use zed_extension_api::{self as zed, LanguageServerId, Result};
 
@@ -54,6 +55,14 @@ fn find_python_global() -> Result<String> {
     Ok("python3".to_string())
 }
 
+/// Convert a relative path in the extension sandbox to an absolute path.
+/// Zed runs language server commands with the project folder as CWD, so
+/// any paths we return from the extension must be absolute.
+fn abs_path(relative: &str) -> String {
+    let base = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    base.join(relative).to_string_lossy().into_owned()
+}
+
 /// Download a .pyz asset from the latest GitHub release, caching by version.
 fn ensure_asset_downloaded(
     language_server_id: &LanguageServerId,
@@ -96,12 +105,13 @@ fn ensure_asset_downloaded(
 
     // Already have this version?
     if fs::metadata(&download_path).is_ok() {
-        *cached = Some(download_path.clone());
+        let absolute = abs_path(&download_path);
+        *cached = Some(absolute.clone());
         zed::set_language_server_installation_status(
             language_server_id,
             &zed::LanguageServerInstallationStatus::None,
         );
-        return Ok(download_path);
+        return Ok(absolute);
     }
 
     zed::set_language_server_installation_status(
@@ -117,14 +127,15 @@ fn ensure_asset_downloaded(
         zed::DownloadedFileType::Uncompressed,
     )?;
 
-    *cached = Some(download_path.clone());
+    let absolute = abs_path(&download_path);
+    *cached = Some(absolute.clone());
 
     zed::set_language_server_installation_status(
         language_server_id,
         &zed::LanguageServerInstallationStatus::None,
     );
 
-    Ok(download_path)
+    Ok(absolute)
 }
 
 /// Write a compile-time-embedded .pyz to the working directory (once per version).
@@ -133,11 +144,11 @@ fn ensure_bundled_asset(name: &str, bytes: &[u8]) -> Option<String> {
     let dir = format!("tcl-lsp-bundled-{BUNDLED_VERSION}");
     let path = format!("{dir}/{name}");
     if fs::metadata(&path).is_ok() {
-        return Some(path);
+        return Some(abs_path(&path));
     }
     let _ = fs::create_dir_all(&dir);
     match fs::write(&path, bytes) {
-        Ok(()) => Some(path),
+        Ok(()) => Some(abs_path(&path)),
         Err(_) => None,
     }
 }

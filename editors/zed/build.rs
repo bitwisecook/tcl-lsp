@@ -8,6 +8,7 @@ fn main() {
         ("tcl-lsp-server.pyz", "bundled_lsp"),
         ("tcl-lsp-mcp-server.pyz", "bundled_mcp"),
     ] {
+        println!("cargo::rustc-check-cfg=cfg({cfg})");
         let src = Path::new("bundled").join(name);
         println!("cargo:rerun-if-changed={}", src.display());
         if src.exists() {

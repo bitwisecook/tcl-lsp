@@ -12,7 +12,7 @@ from pygls.lsp.server import LanguageServer
 from core.analysis.analyser import analyse
 from core.commands.registry import REGISTRY
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from core.commands.registry.runtime import configure_signatures
+from core.commands.registry.runtime import configure_signatures, is_irules_dialect
 from core.common.lsp import to_lsp_location
 from core.common.source_map import SourceMap
 from core.compiler.optimiser import optimise_source
@@ -100,6 +100,11 @@ class FeatureConfig:
     # Style: maximum line length for W111.
     line_length: int = 120
 
+    # True once the user explicitly sets ``tclLsp.dialect`` in settings.
+    # When False, the server may auto-detect the dialect from the editor's
+    # ``language_id``.
+    dialect_explicitly_set: bool = False
+
 
 try:
     from ._build_info import FULL_VERSION as _version
@@ -107,6 +112,51 @@ except ImportError:
     _version = "dev"
 
 server = LanguageServer("tcl-lsp", f"v{_version}")
+
+
+# ---------------------------------------------------------------------------
+# Logging bridge: forward Python log records to the LSP client as
+# ``window/logMessage`` so they appear in Zed's language-server log panel
+# and VS Code's Output → Tcl LSP channel.
+# ---------------------------------------------------------------------------
+
+class _LspLogHandler(logging.Handler):
+    """Logging handler that forwards records via ``window/logMessage``."""
+
+    _LEVEL_MAP = {
+        logging.DEBUG: types.MessageType.Log,
+        logging.INFO: types.MessageType.Info,
+        logging.WARNING: types.MessageType.Warning,
+        logging.ERROR: types.MessageType.Error,
+        logging.CRITICAL: types.MessageType.Error,
+    }
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg_type = self._LEVEL_MAP.get(record.levelno, types.MessageType.Log)
+            server.window_log_message(
+                types.LogMessageParams(type=msg_type, message=self.format(record))
+            )
+        except Exception:
+            # Server not yet initialised or already shut down — swallow.
+            pass
+
+
+def _install_lsp_log_handler() -> None:
+    """Attach the LSP handler to the root ``lsp`` logger."""
+    handler = _LspLogHandler()
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+    # Attach to the package-level logger so all lsp.* and core.* messages
+    # are forwarded.
+    root = logging.getLogger()
+    root.addHandler(handler)
+    # Ensure the root logger level allows INFO through.
+    if root.level > logging.DEBUG:
+        root.setLevel(logging.DEBUG)
+
+
+_install_lsp_log_handler()
 
 
 # Silence benign "Cancel notification for unknown message id" warnings.
@@ -123,6 +173,46 @@ def _quiet_handle_cancel(msg_id: str | int) -> None:
 
 
 server.protocol._handle_cancel_notification = _quiet_handle_cancel  # type: ignore[invalid-assignment]
+
+
+# ---------------------------------------------------------------------------
+# Request / notification logging — wrap pygls dispatch so every incoming
+# message is logged to the client channel.
+# ---------------------------------------------------------------------------
+
+_orig_handle_request = server.protocol._handle_request
+_orig_handle_notification = server.protocol._handle_notification
+
+# Noisy methods that fire on every keystroke or cursor move — log at DEBUG.
+_FREQUENT_METHODS = frozenset({
+    "textDocument/semanticTokens/full",
+    "textDocument/completion",
+    "textDocument/hover",
+    "textDocument/signatureHelp",
+    "textDocument/documentSymbol",
+    "textDocument/foldingRange",
+    "textDocument/selectionRange",
+    "textDocument/inlayHint",
+    "textDocument/didChange",
+    "$/cancelRequest",
+})
+
+
+def _log_request(method: str, params, msg_id):  # type: ignore[override]
+    level = logging.DEBUG if method in _FREQUENT_METHODS else logging.INFO
+    log.log(level, "<-- request  %s (id=%s)", method, msg_id)
+    return _orig_handle_request(method, params, msg_id)
+
+
+def _log_notification(method: str, params):  # type: ignore[override]
+    level = logging.DEBUG if method in _FREQUENT_METHODS else logging.INFO
+    log.log(level, "<-- notify   %s", method)
+    return _orig_handle_notification(method, params)
+
+
+server.protocol._handle_request = _log_request  # type: ignore[assignment]
+server.protocol._handle_notification = _log_notification  # type: ignore[assignment]
+
 
 workspace_state = WorkspaceState()
 workspace_index = WorkspaceIndex()
@@ -225,6 +315,7 @@ def _extract_tcl_lsp_settings(settings: dict) -> dict:
 # Capabilities
 
 _TCL_LANGUAGE_IDS = (
+    # VS Code language IDs
     "tcl",
     "tcl-irule",
     "tcl-iapp",
@@ -234,6 +325,10 @@ _TCL_LANGUAGE_IDS = (
     "tcl9.0",
     "tcl-eda",
     "tcl-expect",
+    # Zed language names (used as language IDs)
+    "Tcl",
+    "iRules",
+    "iApps",
 )
 _TCL_DOCUMENT_SELECTOR = [
     types.TextDocumentFilterLanguage(language=lang) for lang in _TCL_LANGUAGE_IDS
@@ -1379,8 +1474,7 @@ def _update_workspace_index(uri: str, source: str, state: object) -> None:
     if not state.analysis or state.has_partial_commands:
         return
     workspace_index.update(uri, state.analysis, EntrySource.OPEN)
-    ext = uri.rsplit(".", 1)[-1].lower() if "." in uri else ""
-    if ext in ("irul", "irule"):
+    if _is_irules_source(uri):
         if state.analysis.all_procs:
             workspace_index.update_irules_globals(
                 uri,
@@ -1575,7 +1669,14 @@ def _is_bigip_conf(uri: str) -> bool:
 
 
 def _is_irules_source(uri: str) -> bool:
-    """Check whether a URI points to an iRules source file."""
+    """Check whether a URI points to an iRules source file.
+
+    Checks the editor's ``language_id`` first (set by the editor when the
+    user selects a language mode), then falls back to the file extension.
+    """
+    lang_id = workspace_state.get_language_id(uri).lower()
+    if lang_id in ("irules", "irul", "irule"):
+        return True
     basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
     return basename.endswith(".irul") or basename.endswith(".irule")
 
@@ -1617,16 +1718,44 @@ def _publish_bigip_diagnostics(
 
 @server.feature(types.TEXT_DOCUMENT_DID_OPEN)
 async def did_open(params: types.DidOpenTextDocumentParams) -> None:
-    log.info("Opened %s", params.text_document.uri)
-    if _is_bigip_conf(params.text_document.uri):
+    uri = params.text_document.uri
+    lang_id = params.text_document.language_id or ""
+    log.info("Opened %s (language_id=%r)", uri, lang_id)
+    # Pre-create the document state so the language_id is stored before
+    # _publish_diagnostics calls workspace_state.update (which would
+    # otherwise create the entry without one).
+    workspace_state.open(
+        uri,
+        params.text_document.text,
+        params.text_document.version,
+        language_id=lang_id,
+    )
+
+    # Auto-detect dialect from the editor's language selection when the
+    # user hasn't explicitly configured one.
+    if (
+        not feature_config.dialect_explicitly_set
+        and not is_irules_dialect()
+        and _is_irules_source(uri)
+    ):
+        log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
+        configure_signatures(dialect="f5-irules")
+        server.window_show_message(
+            types.ShowMessageParams(
+                type=types.MessageType.Info,
+                message="Switched to iRules dialect for F5 iRules support.",
+            )
+        )
+
+    if _is_bigip_conf(uri):
         _publish_bigip_diagnostics(
-            params.text_document.uri,
+            uri,
             params.text_document.text,
             params.text_document.version,
         )
         return
     await _publish_diagnostics(
-        params.text_document.uri,
+        uri,
         params.text_document.text,
         params.text_document.version,
     )
@@ -1700,13 +1829,101 @@ def _run_background_scan() -> None:
 @server.feature(types.INITIALIZED)
 def on_initialized(params: types.InitializedParams) -> None:
     """After client initialization, scan workspace for Tcl files."""
-    log.info("Server initialized, starting workspace scan")
+    from core.common.dialect import active_dialect
+    log.info(
+        "Server initialized (version=%s, dialect=%s)",
+        _version,
+        active_dialect(),
+    )
+
+    # Advise editors that don't request semantic tokens.
+    caps = server.client_capabilities
+    st = getattr(
+        getattr(caps, "text_document", None), "semantic_tokens", None
+    )
+    if st is None:
+        log.info("Client did not advertise semantic token support")
+        server.window_show_message(
+            types.ShowMessageParams(
+                type=types.MessageType.Info,
+                message=(
+                    "Tip: enable semantic tokens for richer Tcl highlighting. "
+                    "In Zed, add '\"semantic_tokens\": \"full\"' to your "
+                    "language settings."
+                ),
+            )
+        )
+
     roots: list[str] = []
     ws = server.workspace
     if ws.root_path:
         roots.append(ws.root_path)
     background_scanner.configure(workspace_roots=roots)
     server.thread_pool.submit(_run_background_scan)
+
+
+# ---------------------------------------------------------------------------
+# Custom commands (workspace/executeCommand)
+# ---------------------------------------------------------------------------
+
+_DIALECT_COMMAND = "tcl-lsp.setDialect"
+_DIALECT_LABELS = {
+    "tcl8.4": "Tcl 8.4",
+    "tcl8.5": "Tcl 8.5",
+    "tcl8.6": "Tcl 8.6",
+    "tcl9.0": "Tcl 9.0",
+    "f5-irules": "F5 iRules",
+    "f5-iapps": "F5 iApps",
+    "eda-tools": "EDA Tools",
+}
+
+
+@server.feature(
+    types.WORKSPACE_EXECUTE_COMMAND,
+    types.ExecuteCommandOptions(commands=[_DIALECT_COMMAND]),
+)
+def on_execute_command(
+    params: types.ExecuteCommandParams,
+) -> object:
+    """Handle custom commands."""
+    if params.command == _DIALECT_COMMAND:
+        args = params.arguments or []
+        if args:
+            dialect = str(args[0])
+        else:
+            dialect = ""
+        return _switch_dialect(dialect)
+    return None
+
+
+def _switch_dialect(dialect: str) -> dict:
+    """Switch the active dialect and re-publish diagnostics."""
+    from core.commands.registry.dialects import KNOWN_DIALECTS
+    from core.common.dialect import active_dialect
+
+    if dialect and dialect not in KNOWN_DIALECTS:
+        return {"success": False, "error": f"Unknown dialect: {dialect!r}"}
+
+    prev = active_dialect()
+    changed = configure_signatures(dialect=dialect or None)
+    current = active_dialect()
+    feature_config.dialect_explicitly_set = True
+    log.info("Dialect set to %s (was %s)", current, prev)
+
+    if changed:
+        server.window_show_message(
+            types.ShowMessageParams(
+                type=types.MessageType.Info,
+                message=f"Switched dialect to {_DIALECT_LABELS.get(current, current)}.",
+            )
+        )
+        # Re-analyse all open documents with the new dialect.
+        for uri, state in workspace_state.items():
+            _publish_diagnostics_sync(
+                uri, state.source, state.version, force_reanalyse=True,
+            )
+
+    return {"success": True, "dialect": current}
 
 
 @server.feature(types.SHUTDOWN)
@@ -2010,12 +2227,16 @@ def did_change_configuration(params: types.DidChangeConfigurationParams) -> None
         _loaded_packages.clear()
         server.thread_pool.submit(_run_background_scan)
 
+    dialect_setting = tcl_settings.get("dialect")
+    if isinstance(dialect_setting, str) and dialect_setting:
+        feature_config.dialect_explicitly_set = True
     signatures_changed = configure_signatures(
-        dialect=tcl_settings.get("dialect")
-        if isinstance(tcl_settings.get("dialect"), str)
-        else None,
+        dialect=dialect_setting if isinstance(dialect_setting, str) else None,
         extra_commands=extra_commands,
     )
+    if signatures_changed:
+        from core.common.dialect import active_dialect
+        log.info("Dialect changed to %s (explicit=%s)", active_dialect(), feature_config.dialect_explicitly_set)
 
     features_changed = _apply_feature_settings(tcl_settings)
 
