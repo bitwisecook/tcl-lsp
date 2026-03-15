@@ -114,6 +114,7 @@ class DocumentState:
     """Cached analysis state for a single document."""
 
     uri: str
+    language_id: str = ""
     version: int | None = None
     source: str = ""
     tokens: list[Token] = field(default_factory=list)
@@ -621,9 +622,10 @@ class WorkspaceState:
         source: str,
         version: int | None = None,
         *,
+        language_id: str = "",
         force_reanalyse: bool = False,
     ) -> DocumentState:
-        state = DocumentState(uri=uri)
+        state = DocumentState(uri=uri, language_id=language_id)
         state.update(source, version, force_reanalyse=force_reanalyse)
         self._documents[uri] = state
         return state
@@ -644,6 +646,11 @@ class WorkspaceState:
 
     def close(self, uri: str) -> None:
         self._documents.pop(uri, None)
+
+    def get_language_id(self, uri: str) -> str:
+        """Return the ``language_id`` from the editor for *uri*, or ``""``."""
+        state = self._documents.get(uri)
+        return state.language_id if state is not None else ""
 
     def items(self) -> list[tuple[str, DocumentState]]:
         """Return all open documents."""
