@@ -342,7 +342,7 @@ def test_parse_full_config():
     """Parse the example bigip.conf and verify object counts."""
     import os
 
-    conf_path = os.path.join(os.path.dirname(__file__), "..", "examples", "bigip", "bigip.conf")
+    conf_path = os.path.join(os.path.dirname(__file__), "..", "samples", "bigip", "bigip.conf")
     with open(conf_path) as f:
         source = f.read()
     config = parse_bigip_conf(source)
@@ -397,7 +397,7 @@ def test_parse_example_bigip_base_conf():
     import os
 
     conf_path = os.path.join(
-        os.path.dirname(__file__), "..", "examples", "bigip", "bigip_base.conf"
+        os.path.dirname(__file__), "..", "samples", "bigip", "bigip_base.conf"
     )
     with open(conf_path) as f:
         source = f.read()
