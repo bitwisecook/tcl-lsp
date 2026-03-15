@@ -9,7 +9,9 @@ def create_backend(preference: str = "auto") -> DebugBackend:
     """Create a debug backend based on *preference*.
 
     When *preference* is ``"auto"`` the priority order is:
-    tclsh > tkinter > VM.
+    VM > tkinter > tclsh.  The VM backend is always available and
+    provides the most reliable debugging experience (proper depth
+    tracking, variable inspection, and expression evaluation).
     """
     if preference == "vm":
         from .vm_backend import VmBackend
@@ -37,20 +39,8 @@ def create_backend(preference: str = "auto") -> DebugBackend:
             raise RuntimeError(msg)
         return TkinterBackend()
 
-    # auto: tclsh > tkinter > VM
-    from core.tcl_discovery import find_tclsh, has_tkinter_tcl
-
-    tclsh = find_tclsh()
-    if tclsh:
-        from .tclsh_backend import TclshBackend
-
-        return TclshBackend(tclsh)
-
-    if has_tkinter_tcl():
-        from .tkinter_backend import TkinterBackend
-
-        return TkinterBackend()
-
+    # auto: VM > tkinter > tclsh
+    # VM is always available and the most reliable.
     from .vm_backend import VmBackend
 
     return VmBackend()

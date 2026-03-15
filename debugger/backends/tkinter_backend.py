@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import queue
 import threading
 from pathlib import Path
 from typing import Any
@@ -33,7 +34,10 @@ class TkinterBackend(DebugBackend):
         self._step_mode: str = "step_in"
         self._terminated = False
         self._prev_line: int = -1
+        self._step_depth: int = 0
         self._variables: list[Variable] = []
+        self._eval_request: queue.Queue[str] = queue.Queue()
+        self._eval_response: queue.Queue[str] = queue.Queue()
 
     # -- Lifecycle ------------------------------------------------------------
 
@@ -60,30 +64,44 @@ class TkinterBackend(DebugBackend):
         # Register Python callback for the debug step hook
         self._interp.createcommand("__dbg_python_step", self._step_callback)
 
-        # Set up the execution trace using a Tcl wrapper that calls our Python callback
+        # Set up the execution trace using a Tcl wrapper that calls our Python callback.
+        # Computes the user source line AND user call depth (skipping debugger frames)
+        # so the Python side can implement step_over / step_out correctly.
         self._interp.eval("""
             proc ::__dbg_enterstep {args} {
                 set depth [info frame]
                 set line 0
                 set cmd_text ""
+                set user_depth 0
                 for {set i $depth} {$i >= 1} {incr i -1} {
-                    set finfo [info frame $i]
-                    if {[dict exists $finfo line]} {
-                        set line [dict get $finfo line]
-                        if {[dict exists $finfo cmd]} {
-                            set cmd_text [dict get $finfo cmd]
+                    catch {
+                        set finfo [info frame $i]
+                        if {[dict exists $finfo proc]} {
+                            set pn [dict get $finfo proc]
+                            if {[string match "::__dbg*" $pn] || [string match "__dbg*" $pn]} {
+                                continue
+                            }
                         }
-                        break
+                        if {[dict exists $finfo type] && [dict get $finfo type] eq "source"
+                            && [dict exists $finfo line]} {
+                            incr user_depth
+                            if {$line == 0} {
+                                set line [dict get $finfo line]
+                                if {[dict exists $finfo cmd]} {
+                                    set cmd_text [dict get $finfo cmd]
+                                }
+                            }
+                        }
                     }
                 }
                 if {$line > 0} {
-                    __dbg_python_step $line $cmd_text
+                    __dbg_python_step $line $cmd_text $user_depth
                 }
             }
             trace add execution source enterstep ::__dbg_enterstep
         """)
 
-    def _step_callback(self, line_str: str, cmd_text: str = "") -> str:
+    def _step_callback(self, line_str: str, cmd_text: str = "", depth_str: str = "0") -> str:
         """Called from Tcl on each traced step.
 
         This runs on the Tcl execution thread.  When we need to stop,
@@ -100,6 +118,11 @@ class TkinterBackend(DebugBackend):
         if line <= 0:
             return ""
 
+        try:
+            cur_depth = int(depth_str)
+        except (ValueError, TypeError):
+            cur_depth = 0
+
         # Dedup same-line hits when in continue mode
         if line == self._prev_line and self._step_mode == "continue":
             return ""
@@ -110,14 +133,19 @@ class TkinterBackend(DebugBackend):
             should_stop = True
         elif line in self._breakpoints:
             should_stop = True
-        elif self._step_mode in ("step_over", "step_out"):
-            should_stop = True
+        elif self._step_mode == "step_over":
+            if cur_depth <= self._step_depth:
+                should_stop = True
+        elif self._step_mode == "step_out":
+            if cur_depth < self._step_depth:
+                should_stop = True
 
         if not should_stop:
             return ""
 
         self._prev_line = line
         self._current_line = line
+        self._step_depth = cur_depth
         self._current_cmd = cmd_text if len(cmd_text) <= 200 else cmd_text[:197] + "..."
 
         # Collect variables from the Tcl interp
@@ -126,29 +154,52 @@ class TkinterBackend(DebugBackend):
         # Signal the frontend that we have stopped
         self._stopped.set()
 
-        # Block until the frontend tells us to resume
-        self._resume.wait()
-        self._resume.clear()
+        # Block until the frontend tells us to resume.
+        # While stopped, service evaluate() requests from the CLI thread
+        # so they run on the correct (Tcl) thread.
+        while True:
+            self._resume.wait()
+            self._resume.clear()
+
+            # Check for pending eval requests first
+            try:
+                expr = self._eval_request.get_nowait()
+                try:
+                    result = self._interp.eval(expr)  # type: ignore[union-attr]
+                except Exception as exc:
+                    result = f"Error: {exc}"
+                self._eval_response.put(result)
+                continue  # stay stopped, wait for next resume/eval
+            except queue.Empty:
+                pass
+
+            break  # real resume — exit the wait loop
 
         return ""
 
     def _collect_variables(self) -> None:
-        """Snapshot variables from the current Tcl scope."""
+        """Snapshot variables from the user's Tcl scope.
+
+        Execution is stopped inside ``::__dbg_enterstep`` which is called
+        from the trace.  We use ``uplevel #0`` to inspect the global
+        (user script) scope, avoiding debugger-internal locals like
+        ``args``, ``depth``, ``cmd_text``.
+        """
         self._variables = []
         if self._interp is None:
             return
         try:
-            var_names = self._interp.eval("info vars").split()
+            var_names = self._interp.eval("uplevel #0 {info vars}").split()
             for name in sorted(var_names):
                 # Skip debugger internals
                 if name.startswith("__dbg") or name.startswith("::__dbg"):
                     continue
                 try:
-                    is_array = self._interp.eval(f"array exists {name}")
+                    is_array = self._interp.eval(f"uplevel #0 {{array exists {name}}}")
                     if is_array == "1":
                         self._variables.append(Variable(name=name, value="(array)", type="array"))
                     else:
-                        val = self._interp.eval(f"set {name}")
+                        val = self._interp.eval(f"uplevel #0 {{set {name}}}")
                         self._variables.append(Variable(name=name, value=val, type="scalar"))
                 except Exception:
                     pass
@@ -225,12 +276,20 @@ class TkinterBackend(DebugBackend):
         return list(self._variables)
 
     def evaluate(self, expression: str) -> str:
+        """Evaluate a Tcl expression in the user's context.
+
+        Marshals the call onto the Tcl worker thread to avoid
+        ``Calling Tcl from different apartment`` errors.
+        """
         if self._interp is None:
             return "<no interpreter>"
+        # Post the request and wake the Tcl thread
+        self._eval_request.put(expression)
+        self._resume.set()
         try:
-            return self._interp.eval(expression)
-        except Exception as exc:
-            return f"Error: {exc}"
+            return self._eval_response.get(timeout=10.0)
+        except queue.Empty:
+            return "<evaluation timed out>"
 
     # -- Cleanup --------------------------------------------------------------
 

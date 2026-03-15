@@ -13,6 +13,7 @@ namespace eval ::__dbg {
     variable step_mode "step_in"
     variable prev_line -1
     variable script_file ""
+    variable step_depth 0
 }
 
 # Minimal JSON encoder (no external deps)
@@ -63,13 +64,27 @@ proc ::__dbg::step_callback {args} {
     set depth [info frame]
     if {$depth < 2} return
 
-    # Walk up the frame stack to find the user's source frame
+    # Walk up the frame stack to find the user's source frame.
+    # Skip frames belonging to the debugger itself (type=proc with
+    # proc name starting with ::__dbg).  We want the first *source*
+    # frame that came from the user script.
     set line 0
     set cmd_text ""
+    set user_depth 0
     for {set i $depth} {$i >= 1} {incr i -1} {
         set finfo [info frame $i]
-        if {[dict exists $finfo line]} {
+        # Skip frames from debugger procs
+        if {[dict exists $finfo proc]} {
+            set pname [dict get $finfo proc]
+            if {[string match "::__dbg*" $pname] || [string match "__dbg*" $pname]} {
+                continue
+            }
+        }
+        # Only stop on source-type frames (user script), not eval/proc internals
+        if {[dict exists $finfo type] && [dict get $finfo type] eq "source"
+            && [dict exists $finfo line]} {
             set line [dict get $finfo line]
+            set user_depth $i
             if {[dict exists $finfo cmd]} {
                 set cmd_text [dict get $finfo cmd]
             }
@@ -81,20 +96,45 @@ proc ::__dbg::step_callback {args} {
     if {$line == $prev_line && $step_mode eq "continue"} return
     if {$line == 0} return
 
+    # Calculate user call depth (number of user source frames)
+    variable step_depth
+    set cur_depth 0
+    for {set j $depth} {$j >= 1} {incr j -1} {
+        catch {
+            set fj [info frame $j]
+            if {[dict exists $fj proc]} {
+                set pn [dict get $fj proc]
+                if {[string match "::__dbg*" $pn] || [string match "__dbg*" $pn]} {
+                    continue
+                }
+            }
+            if {[dict exists $fj type] && [dict get $fj type] eq "source"
+                && [dict exists $fj line]} {
+                incr cur_depth
+            }
+        }
+    }
+
     # Check whether we should stop
     set should_stop 0
     if {$step_mode eq "step_in"} {
         set should_stop 1
     } elseif {$line in $breakpoints} {
         set should_stop 1
-    } elseif {$step_mode eq "step_over" || $step_mode eq "step_out"} {
-        # Simplified: always stop for now (proper depth tracking later)
-        set should_stop 1
+    } elseif {$step_mode eq "step_over"} {
+        if {$cur_depth <= $step_depth} {
+            set should_stop 1
+        }
+    } elseif {$step_mode eq "step_out"} {
+        if {$cur_depth < $step_depth} {
+            set should_stop 1
+        }
     }
 
     if {!$should_stop} return
 
     set prev_line $line
+    set step_depth $cur_depth
 
     # Truncate command text
     if {[string length $cmd_text] > 200} {
@@ -104,11 +144,17 @@ proc ::__dbg::step_callback {args} {
     # Collect variables from the caller's scope
     set vars [collect_vars 3]
 
-    # Build stack trace
+    # Build stack trace (skip debugger frames)
     set stack_frames {}
     for {set i $depth} {$i >= 1} {incr i -1} {
         catch {
             set fi [info frame $i]
+            if {[dict exists $fi proc]} {
+                set pn [dict get $fi proc]
+                if {[string match "::__dbg*" $pn] || [string match "__dbg*" $pn]} {
+                    continue
+                }
+            }
             set fl 0
             set fn "global"
             if {[dict exists $fi line]} { set fl [dict get $fi line] }
@@ -117,13 +163,14 @@ proc ::__dbg::step_callback {args} {
         }
     }
 
-    # Send stop event as JSON
+    # Send stop event as JSON (use _original_puts to avoid the
+    # intercepted puts that wraps stdout in JSON output messages)
     set event [dict create \
         type stopped \
         line $line \
         cmd $cmd_text \
     ]
-    puts stdout [json_encode $event]
+    ::__dbg::_original_puts stdout [json_encode $event]
     flush stdout
 
     # Wait for command from controller
@@ -157,7 +204,7 @@ proc ::__dbg::step_callback {args} {
                 }
                 get_vars {
                     set vars [collect_vars 3]
-                    puts stdout "\{\"type\":\"vars\",\"data\":[json_encode_vars $vars]\}"
+                    ::__dbg::_original_puts stdout "\{\"type\":\"vars\",\"data\":[json_encode_vars $vars]\}"
                     flush stdout
                 }
                 set_breakpoints {
@@ -168,14 +215,14 @@ proc ::__dbg::step_callback {args} {
                             if {$l ne ""} { lappend breakpoints $l }
                         }
                     }
-                    puts stdout [json_encode [dict create type ack cmd set_breakpoints]]
+                    ::__dbg::_original_puts stdout [json_encode [dict create type ack cmd set_breakpoints]]
                     flush stdout
                 }
                 terminate {
                     exit 0
                 }
                 default {
-                    puts stdout [json_encode [dict create type error message "unknown command: $cmd"]]
+                    ::__dbg::_original_puts stdout [json_encode [dict create type error message "unknown command: $cmd"]]
                     flush stdout
                 }
             }
@@ -225,17 +272,64 @@ proc ::__dbg::main {script_path} {
         }
     }
 
+    # Intercept user 'puts' so output lines don't mix with JSON protocol.
+    # Wrap output in a JSON message so the Python side can distinguish it.
+    rename ::puts ::__dbg::_original_puts
+    proc ::puts {args} {
+        # Replicate standard puts argument parsing:
+        #   puts ?-nonewline? ?channelId? string
+        set nonewline 0
+        set channel stdout
+        set str ""
+        set argc [llength $args]
+        if {$argc == 1} {
+            set str [lindex $args 0]
+        } elseif {$argc == 2} {
+            if {[lindex $args 0] eq "-nonewline"} {
+                set nonewline 1
+                set str [lindex $args 1]
+            } else {
+                set channel [lindex $args 0]
+                set str [lindex $args 1]
+            }
+        } elseif {$argc == 3} {
+            if {[lindex $args 0] ne "-nonewline"} {
+                error "wrong # args: should be \"puts ?-nonewline? ?channelId? string\""
+            }
+            set nonewline 1
+            set channel [lindex $args 1]
+            set str [lindex $args 2]
+        } else {
+            error "wrong # args: should be \"puts ?-nonewline? ?channelId? string\""
+        }
+
+        if {$channel eq "stdout"} {
+            # Wrap in JSON so the Python reader can distinguish it
+            set text $str
+            if {!$nonewline} { append text "\n" }
+            ::__dbg::_original_puts stdout [::__dbg::json_encode [dict create type output text $text]]
+            flush stdout
+        } else {
+            # Non-stdout channels pass through unchanged
+            if {$nonewline} {
+                ::__dbg::_original_puts -nonewline $channel $str
+            } else {
+                ::__dbg::_original_puts $channel $str
+            }
+        }
+    }
+
     # Set up the execution trace on 'source'
     trace add execution source enterstep ::__dbg::step_callback
 
     # Source the user's script
     if {[catch {source $script_path} result opts]} {
-        puts stdout [json_encode [dict create type error message $result]]
+        ::__dbg::_original_puts stdout [json_encode [dict create type error message $result]]
         flush stdout
     }
 
     # Signal completion
-    puts stdout [json_encode [dict create type finished]]
+    ::__dbg::_original_puts stdout [json_encode [dict create type finished]]
     flush stdout
 }
 

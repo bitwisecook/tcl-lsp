@@ -87,19 +87,25 @@ class TclshBackend(DebugBackend):
         self._process.stdin.flush()
 
     def _read_response(self) -> dict[str, Any] | None:
-        """Read a JSON response from the tclsh subprocess."""
+        """Read the next JSON response from the tclsh subprocess.
+
+        Non-JSON lines (user script ``puts`` output) are forwarded to
+        ``_on_output`` and silently skipped so they don't tear down the
+        debug loop.  Returns ``None`` only on true EOF.
+        """
         if self._process is None or self._process.stdout is None:
             return None
-        line = self._process.stdout.readline()
-        if not line:
-            return None
-        try:
-            return json.loads(line.strip())
-        except json.JSONDecodeError:
-            # Non-JSON output — treat as program output
-            if self._on_output:
-                self._on_output(line)
-            return None
+        while True:
+            line = self._process.stdout.readline()
+            if not line:
+                return None  # real EOF
+            try:
+                return json.loads(line.strip())
+            except json.JSONDecodeError:
+                # Non-JSON output — treat as program output, keep reading
+                if self._on_output:
+                    self._on_output(line)
+                continue
 
     def _run_loop(self) -> None:
         """Read events from tclsh in a background thread."""
