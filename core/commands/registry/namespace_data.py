@@ -111,7 +111,7 @@ _ECA = frozenset({"ECA"})
 def _ep(
     client_side: bool = False,
     server_side: bool = False,
-    transport: str | None = None,
+    transport: str | tuple[str, ...] | None = None,
     profiles: frozenset[str] | None = None,
     *,
     flow: bool = True,
@@ -1812,9 +1812,8 @@ def missing_requirements_description(
         reasons.append("no server-side connection")
     if requires.transport is not None:
         et = event.transport
-        mismatch = (
-            (isinstance(et, tuple) and requires.transport not in et)
-            or (not isinstance(et, tuple) and et != requires.transport)
+        mismatch = (isinstance(et, tuple) and requires.transport not in et) or (
+            not isinstance(et, tuple) and et != requires.transport
         )
         if mismatch:
             actual = "/".join(et) if isinstance(et, tuple) else (et or "none")
