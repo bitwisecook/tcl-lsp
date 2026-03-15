@@ -44,7 +44,7 @@ def check_eval_string_concat(
 
     # eval [list cmd $arg ...] is safe -- list produces a properly-quoted
     # string that won't undergo double substitution.
-    if len(arg_tokens) == 1 and _is_list_command_token(arg_tokens[0], args[0]):
+    if len(arg_tokens) == 1 and _is_list_command_token(arg_tokens[0]):
         return []
 
     # Check if any token in the command is a VAR or CMD substitution
@@ -185,21 +185,20 @@ def check_eval_subst_double_decode(
     return diagnostics
 
 
-def _is_list_command_token(tok: Token, arg_text: str) -> bool:
+def _is_list_command_token(tok: Token) -> bool:
     """Return True if *tok* is a ``[list ...]`` command substitution.
 
     ``uplevel 1 [list cmd $arg ...]`` is the canonical Tcl idiom for safe
     argument passing to uplevel/eval — ``list`` produces a properly-quoted
     string that never undergoes double substitution.
-
-    Handles both the segmenter path (arg_text includes ``[...]``) and the
-    compiler path (arg_text is the bare inner text of the CMD token).
     """
     if tok.type != TokenType.CMD:
         return False
     # The CMD token's .text is always the inner content without brackets.
-    inner = tok.text.lstrip()
-    return inner == "list" or inner.startswith("list ") or inner.startswith("list\t")
+    # Use split(None, 1) to handle any whitespace separator (space, tab,
+    # newline, backslash-newline continuation) between "list" and its args.
+    parts = tok.text.lstrip().split(None, 1)
+    return len(parts) >= 1 and parts[0] == "list"
 
 
 # W301: uplevel with string-built script
@@ -259,7 +258,7 @@ def check_uplevel_injection(
             # [list ...] is the canonical safe idiom for uplevel/eval --
             # it produces a properly-quoted single-element list that
             # won't undergo double substitution.
-            if _is_list_command_token(tok, remaining_args[0]):
+            if _is_list_command_token(tok):
                 return []
             has_substitution = any(
                 t.type in (TokenType.VAR, TokenType.CMD)
