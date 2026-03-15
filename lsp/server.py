@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
@@ -1575,9 +1576,10 @@ async def _publish_diagnostics(
 ) -> None:
     """Analyse source and publish diagnostics with async deep-pass scheduling.
 
-    Phase 1 (immediate): runs analysis + style checks synchronously on
-    the event loop — these are fast and the editor needs them for
-    instant feedback (squiggles, semantic tokens, etc.).
+    Phase 1 runs analysis + style checks in a background thread so
+    the asyncio event loop stays responsive (editors can still receive
+    responses to hover, completion, semantic-token requests while
+    analysis is in progress).
 
     Phase 2 (background): schedules the expensive compiler passes
     (optimiser, shimmer, taint, GVN, iRules flow) in a background
@@ -1585,34 +1587,55 @@ async def _publish_diagnostics(
     in a single notification.  If the document changes before the
     deep pass finishes, the task is cancelled automatically.
     """
-    state = workspace_state.update(
-        uri,
-        source,
-        version,
-        force_reanalyse=force_reanalyse,
-    )
-    partial_mode = state.has_partial_commands
+    # Yield the event loop before doing any CPU work.  This ensures
+    # that responses for any already-dispatched requests are flushed
+    # to the editor before we start blocking.
+    await asyncio.sleep(0)
 
-    if not feature_config.diagnostics_enabled:
+    # Snapshot config values before entering the thread — these are
+    # only mutated on the event loop so reading them here is safe.
+    diagnostics_enabled = feature_config.diagnostics_enabled
+    disabled_diagnostics = set(feature_config.disabled_diagnostics)
+    line_length = feature_config.line_length
+    optimiser_enabled = feature_config.optimiser_enabled
+    disabled_optimisations = set(feature_config.disabled_optimisations)
+
+    def _phase1():
+        """Run Phase 1 analysis in a thread to keep the event loop free."""
+        state = workspace_state.update(
+            uri,
+            source,
+            version,
+            force_reanalyse=force_reanalyse,
+        )
+        partial_mode = state.has_partial_commands
+
+        if not diagnostics_enabled:
+            return state, partial_mode, [], None, set()
+
+        cached_style = state.get_cached_style_diagnostics(
+            disabled_diagnostics=disabled_diagnostics,
+            line_length=line_length,
+        )
+        basic_diags, analysis_result, suppressed = get_basic_diagnostics(
+            source,
+            analysis=state.analysis,
+            cu=state.compilation_unit,
+            optimiser_enabled=optimiser_enabled and not partial_mode,
+            disabled_diagnostics=disabled_diagnostics,
+            disabled_optimisations=disabled_optimisations,
+            line_length=line_length,
+            cached_style_diagnostics=cached_style,
+        )
+        return state, partial_mode, basic_diags, analysis_result, suppressed
+
+    state, partial_mode, basic_diags, analysis_result, suppressed = await asyncio.to_thread(_phase1)
+
+    if not diagnostics_enabled:
         _publish_diags_to_client(uri, [], version)
         _update_workspace_index(uri, source, state)
         return
 
-    # Phase 1: basic diagnostics — immediate.
-    cached_style = state.get_cached_style_diagnostics(
-        disabled_diagnostics=feature_config.disabled_diagnostics,
-        line_length=feature_config.line_length,
-    )
-    basic_diags, analysis_result, suppressed = get_basic_diagnostics(
-        source,
-        analysis=state.analysis,
-        cu=state.compilation_unit,
-        optimiser_enabled=feature_config.optimiser_enabled and not partial_mode,
-        disabled_diagnostics=feature_config.disabled_diagnostics,
-        disabled_optimisations=feature_config.disabled_optimisations,
-        line_length=feature_config.line_length,
-        cached_style_diagnostics=cached_style,
-    )
     _publish_diags_to_client(uri, basic_diags, version)
     _update_workspace_index(uri, source, state)
 
