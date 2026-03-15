@@ -119,6 +119,7 @@ class TestCommandHover:
         assert "Requires" in text
         assert "ACCESS" in text
 
+
 class TestProcHover:
     def test_proc_signature(self):
         source = textwrap.dedent("""\
