@@ -53,7 +53,10 @@ class TcpClientPortCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(transport="tcp", also_in=frozenset({"SIP_REQUEST", "SIP_REQUEST_SEND", "SIP_RESPONSE"})),
+            event_requires=EventRequires(
+                transport="tcp",
+                also_in=frozenset({"SIP_REQUEST", "SIP_REQUEST_SEND", "SIP_RESPONSE"}),
+            ),
             cse_candidate=True,
             side_effect_hints=(
                 SideEffect(

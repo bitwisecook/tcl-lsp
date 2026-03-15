@@ -40,7 +40,11 @@ class HttpFallbackCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}), also_in=frozenset({"LB_FAILED", "MR_FAILED"})),
+            event_requires=EventRequires(
+                transport="tcp",
+                profiles=frozenset({"HTTP", "FASTHTTP"}),
+                also_in=frozenset({"LB_FAILED", "MR_FAILED"}),
+            ),
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.HTTP_HEADER,

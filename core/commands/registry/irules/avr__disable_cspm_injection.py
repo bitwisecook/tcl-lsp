@@ -44,7 +44,9 @@ class AvrDisableCspmInjectionCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            event_requires=EventRequires(profiles=frozenset({"FASTHTTP"}), also_in=frozenset({"AVR_CSPM_INJECTION"})),
+            event_requires=EventRequires(
+                profiles=frozenset({"FASTHTTP"}), also_in=frozenset({"AVR_CSPM_INJECTION"})
+            ),
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.LOG_IO, writes=True, connection_side=ConnectionSide.BOTH
