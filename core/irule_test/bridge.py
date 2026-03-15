@@ -16,10 +16,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from core.tcl_discovery import find_tclsh as _find_tclsh_shared
+from core.tcl_discovery import has_tkinter_tcl as _has_tkinter_tcl_shared
 
 log = logging.getLogger(__name__)
 
@@ -168,30 +170,17 @@ class RequestResult:
             raise AssertionError(detail)
 
 
-# Backend detection
+# Backend detection — delegated to shared discovery module
 
 
 def _has_tkinter_tcl() -> bool:
     """Check if tkinter.Tcl() is available."""
-    try:
-        import tkinter
-
-        interp = tkinter.Tcl()
-        # Verify the interp actually works
-        interp.eval("expr {1 + 1}")
-        del interp
-        return True
-    except Exception:
-        return False
+    return _has_tkinter_tcl_shared()
 
 
 def _find_tclsh() -> str | None:
     """Find a suitable tclsh binary, or return None."""
-    for name in ("tclsh8.5", "tclsh8.6", "tclsh8.4", "tclsh"):
-        path = shutil.which(name)
-        if path:
-            return path
-    return None
+    return _find_tclsh_shared()
 
 
 # In-process Tcl backend

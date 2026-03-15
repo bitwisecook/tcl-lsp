@@ -630,8 +630,14 @@ _FQ_CMD_RE = re.compile(r"^::tcl::(\w+)::(\w+)$")
 class BytecodeVM:
     """Stack-based bytecode interpreter."""
 
-    def __init__(self, interp: TclInterp) -> None:
+    def __init__(
+        self,
+        interp: TclInterp,
+        *,
+        debug_hook: object | None = None,
+    ) -> None:
         self.interp = interp
+        self._debug_hook = debug_hook
 
     def execute(self, asm: FunctionAsm) -> TclResult:
         """Execute a ``FunctionAsm`` and return the result."""
@@ -653,8 +659,22 @@ class BytecodeVM:
             loops = _find_loops(instrs, offset_map, asm.labels)
             asm._cached_loops = loops
 
+        debug_hook = self._debug_hook
+        _prev_source_line = -1
+
         while pc < len(instrs):
             instr = instrs[pc]
+
+            # Debug hook: fire at source line boundaries
+            if debug_hook is not None and instr.source_line != _prev_source_line:
+                _prev_source_line = instr.source_line
+                if instr.source_line > 0:
+                    from debugger.types import DebugAction
+
+                    action = debug_hook(instr, pc, stack, frame)
+                    if action == DebugAction.STOP:
+                        return TclResult(value=last_result)
+
             op = instr.op
 
             match op:

@@ -74,6 +74,7 @@ Every file must follow this structure so the help parser can extract metadata:
 ## CLI tools
 
 - [kcs-feature-tcl-verb-cli.md](kcs-feature-tcl-verb-cli.md)
+- [kcs-feature-debugger.md](kcs-feature-debugger.md)
 
 ## AI features
 
