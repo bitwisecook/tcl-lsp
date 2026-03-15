@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
@@ -69,11 +71,16 @@ class BackgroundScanner:
         if library_paths is not None:
             self._library_paths = list(library_paths)
 
-    def scan_all(self) -> dict[str, ScanResult]:
-        """Scan all configured directories.  Returns all results."""
+    def collect_files(self) -> list[tuple[str, str]]:
+        """Discover all Tcl and BIG-IP config files without analysing them.
+
+        Returns a list of ``(full_path, ext)`` pairs for Tcl files.
+        BIG-IP config files are parsed eagerly (they're lightweight).
+        """
         self._cached.clear()
         self._bigip_configs.clear()
         all_dirs = self._workspace_roots + self._library_paths
+        result: list[tuple[str, str]] = []
 
         for dir_path in all_dirs:
             expanded = os.path.expanduser(dir_path)
@@ -91,8 +98,28 @@ class BackgroundScanner:
                     ext = os.path.splitext(fname)[1].lower()
                     if ext not in TCL_EXTENSIONS:
                         continue
-                    full_path = os.path.join(root, fname)
-                    self._analyse_file(full_path, ext)
+                    result.append((os.path.join(root, fname), ext))
+        return result
+
+    def analyse_one(self, full_path: str, ext: str) -> ScanResult | None:
+        """Analyse a single file (thread-safe wrapper around _analyse_file)."""
+        return self._analyse_file(full_path, ext)
+
+    # Maximum time (seconds) to spend analysing a single file during
+    # the background scan.  Files that exceed this are skipped.
+    PER_FILE_TIMEOUT: float = 10.0
+
+    def scan_all(self) -> dict[str, ScanResult]:
+        """Scan all configured directories.  Returns all results.
+
+        Each file is analysed with a timeout so that a single
+        pathological file cannot stall the entire scan.
+        """
+        for full_path, ext in self.collect_files():
+            self._analyse_file_with_timeout(full_path, ext)
+            # Yield the GIL between files so the asyncio event
+            # loop's stdin reader thread can make progress.
+            time.sleep(0)
 
         log.info(
             "Background scan complete: indexed %d files, %d bigip configs",
@@ -100,6 +127,31 @@ class BackgroundScanner:
             len(self._bigip_configs),
         )
         return dict(self._cached)
+
+    def _analyse_file_with_timeout(
+        self, full_path: str, ext: str,
+    ) -> ScanResult | None:
+        """Run _analyse_file with a per-file timeout.
+
+        Uses a daemon thread so that a hung analysis does not block
+        the scan indefinitely.
+        """
+        result_box: list[ScanResult | None] = [None]
+
+        def _work() -> None:
+            result_box[0] = self._analyse_file(full_path, ext)
+
+        t = threading.Thread(target=_work, daemon=True)
+        t.start()
+        t.join(timeout=self.PER_FILE_TIMEOUT)
+        if t.is_alive():
+            log.warning(
+                "Scanner: analysis timed out after %.0fs for %s",
+                self.PER_FILE_TIMEOUT,
+                full_path,
+            )
+            return None
+        return result_box[0]
 
     def rescan_file(self, file_path: str) -> ScanResult | None:
         """Re-scan a single file (e.g. after a filesystem change)."""

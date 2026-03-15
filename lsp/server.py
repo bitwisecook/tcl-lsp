@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import threading
 from dataclasses import dataclass, field
 
 from lsprotocol import types
@@ -1876,7 +1877,13 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
 
 
 def _run_background_scan() -> None:
-    """Execute background scan and populate workspace index."""
+    """Execute background scan in a daemon thread.
+
+    Each file is analysed with a per-file timeout so that a single
+    pathological file cannot block the entire scan.  The daemon thread
+    runs independently of the asyncio event loop — the GIL switch
+    interval ensures the event loop stays responsive.
+    """
     try:
         results = background_scanner.scan_all()
         for uri, scan_result in results.items():
@@ -1927,7 +1934,7 @@ def on_initialized(params: types.InitializedParams) -> None:
     if ws.root_path:
         roots.append(ws.root_path)
     background_scanner.configure(workspace_roots=roots)
-    server.thread_pool.submit(_run_background_scan)
+    threading.Thread(target=_run_background_scan, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
@@ -2296,7 +2303,7 @@ def did_change_configuration(params: types.DidChangeConfigurationParams) -> None
         background_scanner.configure(library_paths=library_paths)
         package_resolver.configure(search_paths=library_paths)
         _loaded_packages.clear()
-        server.thread_pool.submit(_run_background_scan)
+        threading.Thread(target=_run_background_scan, daemon=True).start()
 
     dialect_setting = tcl_settings.get("dialect")
     if isinstance(dialect_setting, str) and dialect_setting:

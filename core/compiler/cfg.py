@@ -439,7 +439,7 @@ class _CFGBuilder:
         defs: list[str] = []
         import re
 
-        for m in re.finditer(r"\[(\w+)((?:\s+[^\[\]]*)*)\]", text):
+        for m in re.finditer(r"\[(\w+)([^\[\]]*)\]", text):
             cmd = m.group(1)
             info = self._upvar_procs.get(cmd)
             if info is None:
