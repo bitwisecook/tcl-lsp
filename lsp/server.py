@@ -1789,11 +1789,15 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     # Pre-create the document state so the language_id is stored before
     # _publish_diagnostics calls workspace_state.update (which would
     # otherwise create the entry without one).
+    #
+    # analyse=False keeps the event loop free — the full analysis runs
+    # later in _publish_diagnostics via asyncio.to_thread.
     workspace_state.open(
         uri,
         params.text_document.text,
         params.text_document.version,
         language_id=lang_id,
+        analyse=False,
     )
 
     # Auto-detect dialect from the editor's language selection when the

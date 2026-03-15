@@ -624,9 +624,26 @@ class WorkspaceState:
         *,
         language_id: str = "",
         force_reanalyse: bool = False,
+        analyse: bool = True,
     ) -> DocumentState:
+        """Register a newly opened document.
+
+        Parameters
+        ----------
+        analyse:
+            When *False*, only store the source text and metadata without
+            running the analysis pipeline.  The caller is responsible for
+            triggering analysis later (e.g. via ``_publish_diagnostics``
+            running in a background thread).  This keeps ``didOpen`` fast
+            so the event loop remains responsive for other requests.
+        """
         state = DocumentState(uri=uri, language_id=language_id)
-        state.update(source, version, force_reanalyse=force_reanalyse)
+        if analyse:
+            state.update(source, version, force_reanalyse=force_reanalyse)
+        else:
+            # Lightweight open: store source and version without analysis.
+            state.source = source
+            state.version = version
         self._documents[uri] = state
         return state
 
