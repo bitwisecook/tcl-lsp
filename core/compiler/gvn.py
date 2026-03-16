@@ -247,7 +247,7 @@ def _loop_invariant_message(expression_text: str) -> str:
     )
 
 
-def _vars_in_word(text: str) -> set[str]:
+def _vars_in_word(text: str) -> frozenset[str]:
     """Return normalized variable names referenced in one Tcl word."""
     return _VAR_REF_SCANNER.scan_word(text)
 
