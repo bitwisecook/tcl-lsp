@@ -30,6 +30,7 @@ from core.compiler.expr_ast import (
 )
 from core.parsing.expr_parser import parse_expr
 from core.parsing.lexer import TclParseError
+from core.parsing.lexer import _thread_local as _lexer_thread_local
 
 from .commands import CommandHandler, register_builtins
 from .compiler import compile_script
@@ -255,8 +256,6 @@ class TclInterp:
         if "\\\n" in source:
             source = self._collapse_continuations(source)
 
-        from core.parsing.lexer import TclLexer
-
         cacheable = len(source) <= self._eval_cache_max_source_len
         cached = self._eval_cache.get(source) if cacheable else None
 
@@ -264,7 +263,7 @@ class TclInterp:
             module_asm, ir_module = cached
             self._eval_cache.move_to_end(source)
         else:
-            TclLexer.strict_quoting = True
+            _lexer_thread_local.strict_quoting = True
             try:
                 module_asm, ir_module = compile_script(source, optimise=self.optimise)
             except TclParseError as e:
@@ -277,7 +276,7 @@ class TclInterp:
                 err.error_info = [str(e), f'    while executing\n"{display}"']
                 raise err from None
             finally:
-                TclLexer.strict_quoting = False
+                _lexer_thread_local.strict_quoting = False
 
             if cacheable:
                 self._eval_cache[source] = (module_asm, ir_module)

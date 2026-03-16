@@ -520,13 +520,15 @@ class TestSyntaxErrors:
 
     def test_10_5_chars_after_quote(self):
         """parseOld-10.5: Characters after close-quote raises TclParseError in strict mode."""
-        old = TclLexer.strict_quoting
-        TclLexer.strict_quoting = True
+        from core.parsing.lexer import _thread_local as _lexer_tl
+
+        old = getattr(_lexer_tl, "strict_quoting", False)
+        _lexer_tl.strict_quoting = True
         try:
             with pytest.raises(TclParseError, match="extra characters after close-quote"):
                 lex('set a "bcd"xy')
         finally:
-            TclLexer.strict_quoting = old
+            _lexer_tl.strict_quoting = old
 
     def test_10_7_chars_after_brace(self):
         """parseOld-10.7: Characters after close-brace."""

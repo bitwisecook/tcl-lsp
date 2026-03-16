@@ -9,5 +9,7 @@
       "detail_a": "TIMEOUT",
       "detail_b": "invalid command name \"a-z\""
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "Previously fixed in earlier commits"
 }

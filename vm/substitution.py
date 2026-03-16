@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from core.parsing.lexer import TclLexer
+from core.parsing.lexer import _thread_local as _lexer_thread_local
 from core.parsing.substitution import _BACKSLASH_MAP, backslash_subst
 from core.parsing.tokens import TokenType
 
@@ -326,7 +327,7 @@ def subst_command(
                             if _stripped:
                                 from core.parsing.lexer import TclParseError
 
-                                TclLexer.strict_quoting = True
+                                _lexer_thread_local.strict_quoting = True
                                 try:
                                     from vm.compiler import compile_script
 
@@ -334,7 +335,7 @@ def subst_command(
                                 except TclParseError as _pe:
                                     raise TclError(str(_pe)) from None
                                 finally:
-                                    TclLexer.strict_quoting = False
+                                    _lexer_thread_local.strict_quoting = False
                             continue
                         try:
                             result = interp.eval(_single_cmd)

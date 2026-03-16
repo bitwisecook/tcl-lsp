@@ -3,10 +3,21 @@
 from __future__ import annotations
 
 import bisect
+import threading
 
 from .tokens import SourcePosition, Token, TokenType
 
 _bisect_right = bisect.bisect_right
+
+# Thread-local storage for lexer flags that are modified during VM compilation.
+# These must be thread-local because the VM runs in daemon threads and
+# concurrent threads modifying class-level flags corrupt each other's state.
+_thread_local = threading.local()
+
+
+def _strict_quoting() -> bool:
+    """Return the strict_quoting flag for the current thread."""
+    return getattr(_thread_local, "strict_quoting", False)
 
 
 class TclParseError(Exception):
@@ -54,6 +65,9 @@ class TclLexer:
         "_line_starts",
     )
 
+    # strict_quoting is now thread-local; see _strict_quoting() below.
+    # Retained as class attribute ONLY for backward-compat reads from non-VM
+    # code; the VM always uses _thread_local.strict_quoting via the helper.
     strict_quoting: bool = False
     expand_syntax: bool = True
     irules_brace_separator: bool = False
@@ -272,7 +286,7 @@ class TclLexer:
                             self.pos = pos
                             self._line = line
                             self._col = col
-                            if TclLexer.strict_quoting:
+                            if _strict_quoting():
                                 raise TclParseError("missing close-brace for variable name")
                             self.warnings.append(
                                 (
@@ -335,7 +349,7 @@ class TclLexer:
                         while self.remaining and self._cur() != "}":
                             self._advance()
                         if not self.remaining:
-                            if TclLexer.strict_quoting:
+                            if _strict_quoting():
                                 raise TclParseError("missing close-brace for variable name")
                             self.warnings.append(
                                 (
@@ -355,7 +369,7 @@ class TclLexer:
         if self.remaining and self._cur() == "]":
             self._advance()
         elif level > 0:
-            if TclLexer.strict_quoting:
+            if _strict_quoting():
                 raise TclParseError("missing close-bracket")
             self.warnings.append(
                 (
@@ -378,7 +392,7 @@ class TclLexer:
             self._type = TokenType.VAR
             if self.remaining:
                 self._advance()  # skip '}'
-            elif TclLexer.strict_quoting:
+            elif _strict_quoting():
                 raise TclParseError("missing close-brace for variable name")
             else:
                 self.warnings.append(
@@ -420,7 +434,7 @@ class TclLexer:
                     while self.remaining and self._cur() != "}":
                         self._advance()
                     if not self.remaining:
-                        if TclLexer.strict_quoting:
+                        if _strict_quoting():
                             raise TclParseError("missing close-brace for variable name")
                         self.warnings.append(
                             (
@@ -434,7 +448,7 @@ class TclLexer:
             if self.remaining:
                 self._advance()  # skip closing ')'
             else:
-                if TclLexer.strict_quoting:
+                if _strict_quoting():
                     raise TclParseError("missing )")
                 self.warnings.append(
                     (
@@ -509,7 +523,7 @@ class TclLexer:
                                     start=sep_pos,
                                     end=sep_pos,
                                 )
-                            elif TclLexer.strict_quoting:
+                            elif _strict_quoting():
                                 raise TclParseError("extra characters after close-brace")
                             else:
                                 self.warnings.append(
@@ -535,7 +549,7 @@ class TclLexer:
             self._line = line
             self._col = col
             self._end = pos - 1
-            if TclLexer.strict_quoting:
+            if _strict_quoting():
                 raise TclParseError("missing close-brace")
             self.warnings.append(
                 (
@@ -551,7 +565,7 @@ class TclLexer:
             if not self.remaining:
                 # EOF without matching close-brace
                 self._end = self.pos - 1
-                if TclLexer.strict_quoting:
+                if _strict_quoting():
                     raise TclParseError("missing close-brace")
                 self.warnings.append(
                     (
@@ -588,7 +602,7 @@ class TclLexer:
                                 start=sep_pos,
                                 end=sep_pos,
                             )
-                        elif TclLexer.strict_quoting:
+                        elif _strict_quoting():
                             raise TclParseError("extra characters after close-brace")
                         else:
                             self.warnings.append(
@@ -709,7 +723,7 @@ class TclLexer:
                         ";",
                         "]",
                     ):
-                        if TclLexer.strict_quoting:
+                        if _strict_quoting():
                             raise TclParseError("extra characters after close-quote")
                         self.warnings.append(
                             (self._position(), "extra characters after close-quote")
@@ -728,7 +742,7 @@ class TclLexer:
             self._line = line
             self._col = col
             if insidequote:
-                if TclLexer.strict_quoting:
+                if _strict_quoting():
                     raise TclParseError('missing "')
                 self.warnings.append((self._position(), 'missing "'))
             self._end = pos - 1
@@ -739,7 +753,7 @@ class TclLexer:
         while True:
             if not self.remaining:
                 if self.insidequote:
-                    if TclLexer.strict_quoting:
+                    if _strict_quoting():
                         raise TclParseError('missing "')
                     self.warnings.append(
                         (
@@ -781,7 +795,7 @@ class TclLexer:
                         ";",
                         "]",
                     ):
-                        if TclLexer.strict_quoting:
+                        if _strict_quoting():
                             raise TclParseError("extra characters after close-quote")
                         self.warnings.append(
                             (
