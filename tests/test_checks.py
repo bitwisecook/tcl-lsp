@@ -170,6 +170,11 @@ class TestEvalInjection:
         diags = _diag_with_code("eval [list set $varname $value]", "W101")
         assert len(diags) == 0
 
+    def test_eval_linsert_idiom_clean(self):
+        """eval [linsert ...] is safe -- all list-returning cmds are canonical."""
+        diags = _diag_with_code("eval [linsert $cmdlist 0 extraarg]", "W101")
+        assert len(diags) == 0
+
 
 # W102: subst on variable input
 
@@ -409,6 +414,16 @@ class TestUplevelInjection:
         """Real-world idiom: uplevel 1 [list ::namespace current]."""
         diags = _diag_with_code("set ns [uplevel 1 [list ::namespace current]]", "W301")
         assert len(diags) == 0
+
+    def test_uplevel_lsort_idiom_clean(self):
+        """Any list-returning command is safe, not just [list]."""
+        diags = _diag_with_code("uplevel 1 [lsort $cmdlist]", "W301")
+        assert len(diags) == 0
+
+    def test_uplevel_concat_still_warns(self):
+        """concat strips quoting -- should still warn."""
+        diags = _diag_with_code("uplevel 1 [concat $script $args]", "W301")
+        assert len(diags) == 1
 
 
 # W302: catch without result variable

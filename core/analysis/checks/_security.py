@@ -185,20 +185,39 @@ def check_eval_subst_double_decode(
     return diagnostics
 
 
-def _is_list_command_token(tok: Token) -> bool:
-    """Return True if *tok* is a ``[list ...]`` command substitution.
+# Commands whose return value is always a canonical Tcl list representation —
+# properly quoted so that re-parsing by eval/uplevel never causes unwanted
+# substitution.  Notably, ``concat`` is excluded: it strips one level of
+# grouping from its arguments, so its output may contain unquoted specials.
+_LIST_SAFE_COMMANDS: frozenset[str] = frozenset({
+    "list",
+    "lappend",
+    "lassign",
+    "linsert",
+    "lmap",
+    "lrange",
+    "lrepeat",
+    "lreplace",
+    "lreverse",
+    "lset",
+    "lsort",
+})
 
-    ``uplevel 1 [list cmd $arg ...]`` is the canonical Tcl idiom for safe
-    argument passing to uplevel/eval — ``list`` produces a properly-quoted
-    string that never undergoes double substitution.
+
+def _is_list_command_token(tok: Token) -> bool:
+    """Return True if *tok* is a command substitution that returns a canonical list.
+
+    Any command in :data:`_LIST_SAFE_COMMANDS` produces a properly-quoted Tcl
+    list that will not undergo double substitution when re-parsed by
+    ``eval``, ``uplevel``, ``interp eval``, etc.
     """
     if tok.type != TokenType.CMD:
         return False
     # The CMD token's .text is always the inner content without brackets.
     # Use split(None, 1) to handle any whitespace separator (space, tab,
-    # newline, backslash-newline continuation) between "list" and its args.
+    # newline, backslash-newline continuation) between the command and its args.
     parts = tok.text.lstrip().split(None, 1)
-    return len(parts) >= 1 and parts[0] == "list"
+    return len(parts) >= 1 and parts[0] in _LIST_SAFE_COMMANDS
 
 
 # W301: uplevel with string-built script
