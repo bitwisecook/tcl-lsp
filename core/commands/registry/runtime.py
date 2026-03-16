@@ -11,6 +11,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from functools import lru_cache
 
+from ...compiler.types import TclType
 from ...parsing.tokens import Token
 from .command_registry import REGISTRY
 from .models import CommandSpec, ValidationSpec
@@ -103,6 +104,39 @@ from .irules import irules_taint_hints as _irules_taint_hints  # noqa: E402
 from .tcl import tcl_taint_hints as _tcl_taint_hints  # noqa: E402
 
 TAINT_HINTS: dict[str, TaintHint] = {**_tcl_taint_hints(), **_irules_taint_hints()}
+
+
+# Commands that return TclType.LIST but do NOT produce canonical list
+# representations.  concat strips one level of grouping from its arguments,
+# so its output may contain unquoted specials.
+_NON_CANONICAL_LIST_COMMANDS: frozenset[str] = frozenset({"concat"})
+
+
+@lru_cache(maxsize=1)
+def canonical_list_commands() -> frozenset[str]:
+    """Return command names whose output is always a canonical Tcl list.
+
+    A canonical list is properly quoted so that re-parsing by ``eval``,
+    ``uplevel``, or ``interp eval`` never causes unwanted substitution.
+
+    The set is derived from the command registry: every command (or
+    ``"cmd subcmd"`` pair) with ``return_type == TclType.LIST`` is
+    included, minus known exceptions in :data:`_NON_CANONICAL_LIST_COMMANDS`.
+    """
+    names: set[str] = set()
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            if spec.subcommands:
+                for sub_name, sub in spec.subcommands.items():
+                    if sub.return_type is TclType.LIST:
+                        full = f"{name} {sub_name}"
+                        if full not in _NON_CANONICAL_LIST_COMMANDS:
+                            names.add(full)
+            elif spec.return_type is TclType.LIST:
+                if name not in _NON_CANONICAL_LIST_COMMANDS:
+                    names.add(name)
+    return frozenset(names)
+
 
 _EDA_VENDOR_DIALECTS = frozenset(
     {

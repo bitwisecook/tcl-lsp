@@ -165,6 +165,26 @@ class TestEvalInjection:
         diags = _diag_with_code("eval puts hello", "W101")
         assert len(diags) == 0
 
+    def test_eval_list_idiom_clean(self):
+        """eval [list ...] is safe -- list prevents double substitution."""
+        diags = _diag_with_code("eval [list set $varname $value]", "W101")
+        assert len(diags) == 0
+
+    def test_eval_linsert_idiom_clean(self):
+        """eval [linsert ...] is safe -- all list-returning cmds are canonical."""
+        diags = _diag_with_code("eval [linsert $cmdlist 0 extraarg]", "W101")
+        assert len(diags) == 0
+
+    def test_eval_split_idiom_clean(self):
+        """eval [split ...] is safe -- registry-derived canonical list set."""
+        diags = _diag_with_code("eval [split $line :]", "W101")
+        assert len(diags) == 0
+
+    def test_eval_concat_still_warns(self):
+        """concat strips quoting -- should still warn for eval."""
+        diags = _diag_with_code("eval [concat $script $args]", "W101")
+        assert len(diags) == 1
+
 
 # W102: subst on variable input
 
@@ -393,6 +413,26 @@ class TestUplevelInjection:
 
     def test_uplevel_no_level_unbraced(self):
         diags = _diag_with_code('uplevel "set x $y"', "W301")
+        assert len(diags) == 1
+
+    def test_uplevel_list_idiom_clean(self):
+        """uplevel 1 [list ...] is the canonical safe quoting pattern."""
+        diags = _diag_with_code("uplevel 1 [list set $varname $value]", "W301")
+        assert len(diags) == 0
+
+    def test_uplevel_list_namespace_current(self):
+        """Real-world idiom: uplevel 1 [list ::namespace current]."""
+        diags = _diag_with_code("set ns [uplevel 1 [list ::namespace current]]", "W301")
+        assert len(diags) == 0
+
+    def test_uplevel_lsort_idiom_clean(self):
+        """Any list-returning command is safe, not just [list]."""
+        diags = _diag_with_code("uplevel 1 [lsort $cmdlist]", "W301")
+        assert len(diags) == 0
+
+    def test_uplevel_concat_still_warns(self):
+        """concat strips quoting -- should still warn."""
+        diags = _diag_with_code("uplevel 1 [concat $script $args]", "W301")
         assert len(diags) == 1
 
 
@@ -1728,6 +1768,11 @@ class TestInterpEvalInjection:
     def test_interp_aliases_clean(self):
         """interp aliases → no W312 (not eval/invokehidden)."""
         diags = _diag_with_code("interp aliases $child", "W312")
+        assert len(diags) == 0
+
+    def test_interp_eval_list_idiom_clean(self):
+        """interp eval $child [list ...] is the canonical safe pattern."""
+        diags = _diag_with_code("interp eval $child [list set $varname $value]", "W312")
         assert len(diags) == 0
 
 

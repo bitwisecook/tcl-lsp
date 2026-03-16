@@ -168,11 +168,11 @@ def resolve_call_target(
     return resolve_internal_call(command, caller_qname, known)
 
 
-def _vars_in_script(source: str) -> set[str]:
+def _vars_in_script(source: str) -> frozenset[str]:
     return _VAR_REF_SCANNER.scan_script(source)
 
 
-def _vars_in_word(text: str) -> set[str]:
+def _vars_in_word(text: str) -> frozenset[str]:
     return _VAR_REF_SCANNER.scan_word(text)
 
 

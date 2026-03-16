@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from ...commands.registry import REGISTRY
+from ...commands.registry.runtime import canonical_list_commands
 from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import Diagnostic, Severity
@@ -40,6 +41,11 @@ def check_eval_string_concat(
 
     # If every argument is a braced string, that's fine (eval {script})
     if all(_first_token_is_braced(tok) for tok in arg_tokens):
+        return []
+
+    # eval [list cmd $arg ...] is safe -- list produces a properly-quoted
+    # string that won't undergo double substitution.
+    if len(arg_tokens) == 1 and _is_list_command_token(arg_tokens[0]):
         return []
 
     # Check if any token in the command is a VAR or CMD substitution
@@ -180,6 +186,38 @@ def check_eval_subst_double_decode(
     return diagnostics
 
 
+def _is_list_command_token(tok: Token) -> bool:
+    """Return True if *tok* is a command substitution that returns a canonical list.
+
+    Any command in :func:`canonical_list_commands` produces a properly-quoted
+    Tcl list that will not undergo double substitution when re-parsed by
+    ``eval``, ``uplevel``, ``interp eval``, etc.
+
+    The set of recognised commands is derived from the command registry
+    (every command with ``return_type == TclType.LIST``, minus ``concat``).
+    """
+    if tok.type != TokenType.CMD:
+        return False
+    # The CMD token's .text is always the inner content without brackets.
+    # Use split(None, 1) to handle any whitespace separator (space, tab,
+    # newline, backslash-newline continuation) between the command and its args.
+    parts = tok.text.lstrip().split(None, 1)
+    if not parts:
+        return False
+    safe = canonical_list_commands()
+    # Check bare command name first (covers list, lsort, split, glob, …).
+    if parts[0] in safe:
+        return True
+    # Check "cmd subcmd" form (covers "dict keys", "array get", etc.).
+    rest = parts[1] if len(parts) > 1 else ""
+    sub_parts = rest.split(None, 1)
+    if sub_parts:
+        compound = f"{parts[0]} {sub_parts[0]}"
+        if compound in safe:
+            return True
+    return False
+
+
 # W301: uplevel with string-built script
 
 
@@ -234,6 +272,11 @@ def check_uplevel_injection(
         # Single arg -- check if it's unbraced with substitutions
         tok = remaining_toks[0]
         if not _first_token_is_braced(tok):
+            # [list ...] is the canonical safe idiom for uplevel/eval --
+            # it produces a properly-quoted single-element list that
+            # won't undergo double substitution.
+            if _is_list_command_token(tok):
+                return []
             has_substitution = any(
                 t.type in (TokenType.VAR, TokenType.CMD)
                 for t in all_tokens[1:]  # skip "uplevel" token
@@ -584,6 +627,9 @@ def check_interp_eval_injection(
     # Single script argument -- check if unbraced with substitutions
     tok = script_toks[0]
     if not _first_token_is_braced(tok):
+        # [list ...] is the canonical safe idiom -- same as eval/uplevel.
+        if _is_list_command_token(tok):
+            return []
         has_substitution = any(t.type in (TokenType.VAR, TokenType.CMD) for t in all_tokens[1:])
         if has_substitution:
             return [

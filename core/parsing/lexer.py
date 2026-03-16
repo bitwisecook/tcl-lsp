@@ -6,6 +6,8 @@ import bisect
 
 from .tokens import SourcePosition, Token, TokenType
 
+_bisect_right = bisect.bisect_right
+
 
 class TclParseError(Exception):
     """Raised for Tcl syntax errors detected during lexing."""
@@ -31,6 +33,27 @@ class TclLexer:
     iRules dialects.
     """
 
+    __slots__ = (
+        "text",
+        "_len",
+        "pos",
+        "_base_offset",
+        "_base_line",
+        "_base_col",
+        "_line",
+        "_col",
+        "_start",
+        "_end",
+        "_type",
+        "_at_command_start",
+        "insidequote",
+        "warnings",
+        "_virtuals",
+        "_has_virtuals",
+        "_pending_sep",
+        "_line_starts",
+    )
+
     strict_quoting: bool = False
     expand_syntax: bool = True
     irules_brace_separator: bool = False
@@ -44,6 +67,7 @@ class TclLexer:
         virtual_insertions: dict[int, str] | None = None,
     ) -> None:
         self.text = text
+        self._len = len(text)
         self.pos = 0
         self._base_offset = base_offset
         self._base_line = base_line
@@ -65,37 +89,63 @@ class TclLexer:
         # offsets without any text actually being inserted.  Used by
         # error recovery to inject missing delimiters (], }, {).
         self._virtuals: dict[int, str] = dict(virtual_insertions) if virtual_insertions else {}
+        self._has_virtuals: bool = bool(self._virtuals)
         # Pending synthetic SEP token for iRules }{ word boundary.
         self._pending_sep: Token | None = None
+        # Line index for _pos_at() — built eagerly.
+        starts = [0]
+        for i, ch in enumerate(text):
+            if ch == "\n":
+                starts.append(i + 1)
+        self._line_starts: list[int] = starts
 
     @property
     def remaining(self) -> int:
-        r = len(self.text) - self.pos
+        r = self._len - self.pos
         if r > 0:
             return r
         # A virtual token at the current position still counts as content.
-        if self.pos in self._virtuals:
+        if self._has_virtuals and self.pos in self._virtuals:
             return 1
         return 0
 
     def _cur(self) -> str:
-        v = self._virtuals.get(self.pos)
-        if v is not None:
-            return v
+        if self._has_virtuals:
+            v = self._virtuals.get(self.pos)
+            if v is not None:
+                return v
         return self.text[self.pos]
 
     def _advance(self, n: int = 1) -> None:
-        for _ in range(n):
-            if self.pos in self._virtuals:
-                del self._virtuals[self.pos]  # consumed — zero width
-                continue  # don't advance pos
-            if self.pos < len(self.text):
-                if self.text[self.pos] == "\n":
-                    self._line += 1
-                    self._col = 0
-                else:
-                    self._col += 1
-                self.pos += 1
+        text = self.text
+        _len = self._len
+        pos = self.pos
+        if self._has_virtuals:
+            virtuals = self._virtuals
+            for _ in range(n):
+                if pos in virtuals:
+                    del virtuals[pos]
+                    if not virtuals:
+                        self._has_virtuals = False
+                    continue
+                if pos < _len:
+                    if text[pos] == "\n":
+                        self._line += 1
+                        self._col = 0
+                    else:
+                        self._col += 1
+                    pos += 1
+        else:
+            # Fast path — no virtual insertions (>99% of instances).
+            for _ in range(n):
+                if pos < _len:
+                    if text[pos] == "\n":
+                        self._line += 1
+                        self._col = 0
+                    else:
+                        self._col += 1
+                    pos += 1
+        self.pos = pos
 
     def _position(self) -> SourcePosition:
         return SourcePosition(
@@ -104,15 +154,9 @@ class TclLexer:
 
     def _pos_at(self, offset: int) -> SourcePosition:
         """Compute SourcePosition for an arbitrary offset using a line index."""
-        if not hasattr(self, "_line_starts"):
-            # Build an index of offsets where each line begins (lazily, once).
-            starts = [0]
-            for i, ch in enumerate(self.text):
-                if ch == "\n":
-                    starts.append(i + 1)
-            self._line_starts = starts
-        line_idx = bisect.bisect_right(self._line_starts, offset) - 1
-        col = offset - self._line_starts[line_idx]
+        line_starts = self._line_starts
+        line_idx = _bisect_right(line_starts, offset) - 1
+        col = offset - line_starts[line_idx]
         return SourcePosition(
             line=self._base_line + line_idx,
             character=(self._base_col + col) if line_idx == 0 else col,
@@ -126,15 +170,43 @@ class TclLexer:
 
     def _parse_sep(self) -> None:
         self._start = self.pos
-        while self.remaining and self._cur() in " \t\r\x0b\x0c":
-            self._advance()
+        if not self._has_virtuals:
+            text = self.text
+            _len = self._len
+            pos = self.pos
+            col = self._col
+            while pos < _len and text[pos] in " \t\r\x0b\x0c":
+                col += 1
+                pos += 1
+            self.pos = pos
+            self._col = col
+        else:
+            while self.remaining and self._cur() in " \t\r\x0b\x0c":
+                self._advance()
         self._end = self.pos - 1
         self._type = TokenType.SEP
 
     def _parse_eol(self) -> None:
         self._start = self.pos
-        while self.remaining and self._cur() in " \t\n\r\x0b\x0c;":
-            self._advance()
+        if not self._has_virtuals:
+            text = self.text
+            _len = self._len
+            pos = self.pos
+            line = self._line
+            col = self._col
+            while pos < _len and text[pos] in " \t\n\r\x0b\x0c;":
+                if text[pos] == "\n":
+                    line += 1
+                    col = 0
+                else:
+                    col += 1
+                pos += 1
+            self.pos = pos
+            self._line = line
+            self._col = col
+        else:
+            while self.remaining and self._cur() in " \t\n\r\x0b\x0c;":
+                self._advance()
         self._end = self.pos - 1
         self._type = TokenType.EOL
         self._at_command_start = True
@@ -145,45 +217,139 @@ class TclLexer:
         in_quotes = False
         self._advance()  # skip opening '['
         self._start = self.pos
-        while True:
-            if not self.remaining:
-                break
-            ch = self._cur()
-            if ch == '"' and blevel == 0:
-                in_quotes = not in_quotes
-            elif ch == "[" and blevel == 0 and not in_quotes:
-                level += 1
-            elif ch == "]" and blevel == 0 and not in_quotes:
-                level -= 1
-                if level == 0:
-                    break
-            elif ch == "\\":
-                self._advance()
-            elif ch == "$" and not in_quotes and blevel == 0:
-                # ${ starts a variable name reference — skip past the
-                # matching } so that the brace is not counted toward the
-                # brace-depth used for word grouping.
-                if self.pos + 1 < len(self.text) and self.text[self.pos + 1] == "{":
-                    self._advance()  # skip $
-                    self._advance()  # skip {
-                    while self.remaining and self._cur() != "}":
-                        self._advance()
-                    if not self.remaining:
-                        if TclLexer.strict_quoting:
-                            raise TclParseError("missing close-brace for variable name")
-                        self.warnings.append(
-                            (
-                                self._position(),
-                                "missing close-brace for variable name",
+
+        if not self._has_virtuals:
+            # Fast path — direct text scanning.
+            text = self.text
+            _len = self._len
+            pos = self.pos
+            line = self._line
+            col = self._col
+
+            while pos < _len:
+                ch = text[pos]
+                if ch == '"' and blevel == 0:
+                    in_quotes = not in_quotes
+                    col += 1
+                    pos += 1
+                elif ch == "[" and blevel == 0 and not in_quotes:
+                    level += 1
+                    col += 1
+                    pos += 1
+                elif ch == "]" and blevel == 0 and not in_quotes:
+                    level -= 1
+                    if level == 0:
+                        break
+                    col += 1
+                    pos += 1
+                elif ch == "\\":
+                    # Skip backslash.
+                    col += 1
+                    pos += 1
+                    # Skip escaped char.
+                    if pos < _len:
+                        if text[pos] == "\n":
+                            line += 1
+                            col = 0
+                        else:
+                            col += 1
+                        pos += 1
+                elif ch == "$" and not in_quotes and blevel == 0:
+                    # ${...} inside command — scan for matching }.
+                    if pos + 1 < _len and text[pos + 1] == "{":
+                        col += 1
+                        pos += 1  # skip $
+                        col += 1
+                        pos += 1  # skip {
+                        while pos < _len and text[pos] != "}":
+                            if text[pos] == "\n":
+                                line += 1
+                                col = 0
+                            else:
+                                col += 1
+                            pos += 1
+                        if pos >= _len:
+                            self.pos = pos
+                            self._line = line
+                            self._col = col
+                            if TclLexer.strict_quoting:
+                                raise TclParseError("missing close-brace for variable name")
+                            self.warnings.append(
+                                (
+                                    self._position(),
+                                    "missing close-brace for variable name",
+                                )
                             )
-                        )
-                    # If } found, it will be advanced past at the end of the loop.
-            elif ch == "{" and not in_quotes:
-                blevel += 1
-            elif ch == "}" and not in_quotes:
-                if blevel:
-                    blevel -= 1
-            self._advance()
+                        else:
+                            # Advance past '}' — will be followed by the
+                            # outer-loop advance that handles the next char.
+                            if text[pos] == "\n":
+                                line += 1
+                                col = 0
+                            else:
+                                col += 1
+                            pos += 1
+                    else:
+                        col += 1
+                        pos += 1
+                elif ch == "{" and not in_quotes:
+                    blevel += 1
+                    col += 1
+                    pos += 1
+                elif ch == "}" and not in_quotes:
+                    if blevel:
+                        blevel -= 1
+                    col += 1
+                    pos += 1
+                else:
+                    if ch == "\n":
+                        line += 1
+                        col = 0
+                    else:
+                        col += 1
+                    pos += 1
+
+            self.pos = pos
+            self._line = line
+            self._col = col
+        else:
+            # Slow path — virtual insertion support.
+            while True:
+                if not self.remaining:
+                    break
+                ch = self._cur()
+                if ch == '"' and blevel == 0:
+                    in_quotes = not in_quotes
+                elif ch == "[" and blevel == 0 and not in_quotes:
+                    level += 1
+                elif ch == "]" and blevel == 0 and not in_quotes:
+                    level -= 1
+                    if level == 0:
+                        break
+                elif ch == "\\":
+                    self._advance()
+                elif ch == "$" and not in_quotes and blevel == 0:
+                    if self.pos + 1 < self._len and self.text[self.pos + 1] == "{":
+                        self._advance()  # skip $
+                        self._advance()  # skip {
+                        while self.remaining and self._cur() != "}":
+                            self._advance()
+                        if not self.remaining:
+                            if TclLexer.strict_quoting:
+                                raise TclParseError("missing close-brace for variable name")
+                            self.warnings.append(
+                                (
+                                    self._position(),
+                                    "missing close-brace for variable name",
+                                )
+                            )
+                elif ch == "{" and not in_quotes:
+                    blevel += 1
+                elif ch == "}" and not in_quotes:
+                    if blevel:
+                        blevel -= 1
+                self._advance()
+
         self._end = self.pos - 1
         self._type = TokenType.CMD
         if self.remaining and self._cur() == "]":
@@ -224,12 +390,13 @@ class TclLexer:
             return
 
         self._start = self.pos
+        _len = self._len
         # Accept alnum, underscore, :: (namespace separator)
         while self.remaining:
             ch = self._cur()
             if ch.isalnum() or ch == "_":
                 self._advance()
-            elif ch == ":" and self.pos + 1 < len(self.text) and self.text[self.pos + 1] == ":":
+            elif ch == ":" and self.pos + 1 < _len and self.text[self.pos + 1] == ":":
                 self._advance(2)  # skip '::'
             else:
                 break
@@ -246,7 +413,7 @@ class TclLexer:
                     level += 1
                 elif ch == ")":
                     level -= 1
-                elif ch == "$" and self.pos + 1 < len(self.text) and self.text[self.pos + 1] == "{":
+                elif ch == "$" and self.pos + 1 < _len and self.text[self.pos + 1] == "{":
                     # ${...} inside array index — scan for matching }
                     self._advance()  # skip $
                     self._advance()  # skip {
@@ -291,6 +458,95 @@ class TclLexer:
         level = 1
         self._advance()  # skip opening '{'
         self._start = self.pos
+
+        if not self._has_virtuals:
+            # Fast path — direct text scanning without virtual checks.
+            text = self.text
+            _len = self._len
+            pos = self.pos
+            line = self._line
+            col = self._col
+
+            while pos < _len:
+                ch = text[pos]
+                if ch == "\\":
+                    # Skip backslash (never a newline).
+                    col += 1
+                    pos += 1
+                    # Skip escaped char if available.
+                    if pos < _len:
+                        if text[pos] == "\n":
+                            line += 1
+                            col = 0
+                        else:
+                            col += 1
+                        pos += 1
+                    continue
+                elif ch == "}":
+                    level -= 1
+                    if level == 0:
+                        self._end = pos - 1
+                        # Advance past closing '}'.
+                        col += 1
+                        pos += 1
+                        self.pos = pos
+                        self._line = line
+                        self._col = col
+                        if pos < _len and text[pos] not in (
+                            " ",
+                            "\t",
+                            "\n",
+                            "\r",
+                            "\x0b",
+                            "\x0c",
+                            ";",
+                        ):
+                            if TclLexer.irules_brace_separator and text[pos] == "{":
+                                sep_pos = self._position()
+                                self._pending_sep = Token(
+                                    type=TokenType.SEP,
+                                    text="",
+                                    start=sep_pos,
+                                    end=sep_pos,
+                                )
+                            elif TclLexer.strict_quoting:
+                                raise TclParseError("extra characters after close-brace")
+                            else:
+                                self.warnings.append(
+                                    (
+                                        self._position(),
+                                        "extra characters after close-brace",
+                                    )
+                                )
+                        self._type = TokenType.STR
+                        return
+                elif ch == "{":
+                    level += 1
+                # Advance — track line/col.
+                if ch == "\n":
+                    line += 1
+                    col = 0
+                else:
+                    col += 1
+                pos += 1
+
+            # EOF without matching close-brace.
+            self.pos = pos
+            self._line = line
+            self._col = col
+            self._end = pos - 1
+            if TclLexer.strict_quoting:
+                raise TclParseError("missing close-brace")
+            self.warnings.append(
+                (
+                    self._position(),
+                    "missing close-brace",
+                )
+            )
+            self._type = TokenType.STR
+            return
+
+        # Slow path — virtual insertion support.
         while True:
             if not self.remaining:
                 # EOF without matching close-brace
@@ -359,16 +615,23 @@ class TclLexer:
         self._type = TokenType.EXPAND
 
     def _parse_string(self) -> None:
-        newword = self._type in (TokenType.SEP, TokenType.EOL, TokenType.STR, TokenType.EXPAND)
+        _type = self._type
+        newword = (
+            _type is TokenType.SEP
+            or _type is TokenType.EOL
+            or _type is TokenType.STR
+            or _type is TokenType.EXPAND
+        )
         if newword and self.remaining and self._cur() == "{":
             # Check for {*} expansion prefix (Tcl 8.5+)
+            _len = self._len
             if (
                 TclLexer.expand_syntax
-                and self.pos + 2 < len(self.text)
+                and self.pos + 2 < _len
                 and self.text[self.pos + 1] == "*"
                 and self.text[self.pos + 2] == "}"
                 # Must be followed by a non-separator (the word to expand)
-                and self.pos + 3 < len(self.text)
+                and self.pos + 3 < _len
                 and self.text[self.pos + 3] not in " \t\n\r\x0b\x0c;"
             ):
                 return self._parse_expand()
@@ -377,6 +640,102 @@ class TclLexer:
             self.insidequote = True
             self._advance()
         self._start = self.pos
+
+        if not self._has_virtuals:
+            # Fast path — direct text scanning.
+            text = self.text
+            _len = self._len
+            pos = self.pos
+            line = self._line
+            col = self._col
+            insidequote = self.insidequote
+
+            while pos < _len:
+                ch = text[pos]
+                if ch == "\\":
+                    if pos + 1 < _len:
+                        # Advance past backslash.
+                        col += 1
+                        pos += 1
+                        # Advance past escaped char.
+                        if text[pos] == "\n":
+                            line += 1
+                            col = 0
+                        else:
+                            col += 1
+                        pos += 1
+                        continue
+                    # Backslash at EOF — fall through to bottom advance.
+                elif ch == "$" or ch == "[":
+                    self._end = pos - 1
+                    self._type = TokenType.ESC
+                    self.pos = pos
+                    self._line = line
+                    self._col = col
+                    return
+                elif not insidequote and (
+                    ch == " "
+                    or ch == "\t"
+                    or ch == "\n"
+                    or ch == "\r"
+                    or ch == "\x0b"
+                    or ch == "\x0c"
+                    or ch == ";"
+                ):
+                    self._end = pos - 1
+                    self._type = TokenType.ESC
+                    self.pos = pos
+                    self._line = line
+                    self._col = col
+                    return
+                elif ch == '"' and insidequote:
+                    self._end = pos - 1
+                    self._type = TokenType.ESC
+                    # Advance past closing '"'.
+                    col += 1
+                    pos += 1
+                    self.insidequote = False
+                    self.pos = pos
+                    self._line = line
+                    self._col = col
+                    # After closing quote, next char must be separator or EOF.
+                    if pos < _len and text[pos] not in (
+                        " ",
+                        "\t",
+                        "\n",
+                        "\r",
+                        "\x0b",
+                        "\x0c",
+                        ";",
+                        "]",
+                    ):
+                        if TclLexer.strict_quoting:
+                            raise TclParseError("extra characters after close-quote")
+                        self.warnings.append(
+                            (self._position(), "extra characters after close-quote")
+                        )
+                    return
+                # Advance past current char.
+                if ch == "\n":
+                    line += 1
+                    col = 0
+                else:
+                    col += 1
+                pos += 1
+
+            # EOF
+            self.pos = pos
+            self._line = line
+            self._col = col
+            if insidequote:
+                if TclLexer.strict_quoting:
+                    raise TclParseError('missing "')
+                self.warnings.append((self._position(), 'missing "'))
+            self._end = pos - 1
+            self._type = TokenType.ESC
+            return
+
+        # Slow path — virtual insertion support.
         while True:
             if not self.remaining:
                 if self.insidequote:
@@ -435,28 +794,68 @@ class TclLexer:
 
     def _parse_comment(self) -> None:
         self._start = self.pos  # include the '#'
-        while self.remaining:
-            ch = self._cur()
-            if ch == "\\":
-                next_pos = self.pos + 1
-                if next_pos < len(self.text):
-                    next_ch = self.text[next_pos]
-                    if next_ch == "\n":
-                        # Backslash-newline continuation: extends the
-                        # comment onto the next line.
-                        self._advance()  # skip backslash
-                        self._advance()  # skip newline
-                        continue
-                    else:
-                        # Backslash followed by another char (e.g. \\):
-                        # skip both so the second char doesn't trigger
-                        # its own backslash-newline check.
-                        self._advance()  # skip backslash
-                        self._advance()  # skip escaped char
-                        continue
-            if ch == "\n":
-                break
-            self._advance()
+
+        if not self._has_virtuals:
+            # Fast path — direct text scanning.
+            text = self.text
+            _len = self._len
+            pos = self.pos
+            line = self._line
+            col = self._col
+
+            while pos < _len:
+                ch = text[pos]
+                if ch == "\\":
+                    next_pos = pos + 1
+                    if next_pos < _len:
+                        next_ch = text[next_pos]
+                        if next_ch == "\n":
+                            # Backslash-newline continuation.
+                            col += 1
+                            pos += 1
+                            line += 1
+                            col = 0
+                            pos += 1
+                            continue
+                        else:
+                            # Backslash followed by another char.
+                            col += 1
+                            pos += 1
+                            if text[pos] == "\n":
+                                line += 1
+                                col = 0
+                            else:
+                                col += 1
+                            pos += 1
+                            continue
+                if ch == "\n":
+                    break
+                col += 1
+                pos += 1
+
+            self.pos = pos
+            self._line = line
+            self._col = col
+        else:
+            # Slow path — virtual insertion support.
+            while self.remaining:
+                ch = self._cur()
+                if ch == "\\":
+                    next_pos = self.pos + 1
+                    if next_pos < self._len:
+                        next_ch = self.text[next_pos]
+                        if next_ch == "\n":
+                            self._advance()  # skip backslash
+                            self._advance()  # skip newline
+                            continue
+                        else:
+                            self._advance()  # skip backslash
+                            self._advance()  # skip escaped char
+                            continue
+                if ch == "\n":
+                    break
+                self._advance()
+
         self._end = self.pos - 1
         self._type = TokenType.COMMENT
 
@@ -469,43 +868,96 @@ class TclLexer:
             self._pending_sep = None
             self._type = TokenType.SEP
             return sep
+
+        # Cache frequently-accessed values as locals.
+        _base_offset = self._base_offset
+        _SourcePosition = SourcePosition
+        _Token = Token
+
         while True:
-            if not self.remaining:
-                if self._type not in (TokenType.EOL, TokenType.EOF):
+            pos = self.pos
+            _len = self._len
+
+            if pos >= _len and not (self._has_virtuals and pos in self._virtuals):
+                if self._type is not TokenType.EOL and self._type is not TokenType.EOF:
                     self._type = TokenType.EOL
                 else:
                     self._type = TokenType.EOF
                     return None
-                return Token(
-                    type=TokenType.EOL,
-                    text="",
-                    start=self._position(),
-                    end=self._position(),
+                p = _SourcePosition(
+                    line=self._line,
+                    character=self._col,
+                    offset=pos + _base_offset,
                 )
-            start_pos = self._position()
-            match self._cur():
-                case " " | "\t" | "\r" | "\x0b" | "\x0c" if not self.insidequote:
+                return _Token(type=TokenType.EOL, text="", start=p, end=p)
+
+            # Inline _position().
+            start_pos = _SourcePosition(
+                line=self._line,
+                character=self._col,
+                offset=pos + _base_offset,
+            )
+
+            # Inline _cur() for dispatch.
+            if self._has_virtuals:
+                ch = self._virtuals.get(pos)
+                if ch is None:
+                    ch = self.text[pos]
+            else:
+                ch = self.text[pos]
+
+            # Dispatch — if/elif is faster than match/case for guarded
+            # character checks because we test insidequote once up front.
+            if ch == "[":
+                self._parse_command()
+            elif ch == "$":
+                self._parse_var()
+            elif not self.insidequote:
+                if ch == " " or ch == "\t" or ch == "\r" or ch == "\x0b" or ch == "\x0c":
                     self._parse_sep()
-                case "\n" | ";" if not self.insidequote:
+                elif ch == "\n" or ch == ";":
                     self._parse_eol()
-                case "[":
-                    self._parse_command()
-                case "$":
-                    self._parse_var()
-                case "#" if self._at_command_start:
+                elif ch == "#" and self._at_command_start:
                     self._parse_comment()
-                case _:
+                else:
                     self._parse_string()
-            text = self._token_text()
-            end_pos = self._pos_at(max(self._end, self._start))
+            else:
+                self._parse_string()
+
+            # Inline _token_text().
+            _start = self._start
+            _end = self._end
+            end_offset = _end if _end >= _start else _start
+            if _end < _start:
+                tok_text = ""
+            else:
+                tok_text = self.text[_start : _end + 1]
+
+            # Inline _pos_at(end_offset).
+            line_starts = self._line_starts
+            line_idx = _bisect_right(line_starts, end_offset) - 1
+            col = end_offset - line_starts[line_idx]
+            _base_line = self._base_line
+            end_pos = _SourcePosition(
+                line=_base_line + line_idx,
+                character=(self._base_col + col) if line_idx == 0 else col,
+                offset=end_offset + _base_offset,
+            )
+
             # Track command-start position for comment detection:
             # _at_command_start stays True through SEP/EOL/COMMENT tokens
             # but resets for any actual command content.
-            if self._type not in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
+            _type = self._type
+            if (
+                _type is not TokenType.SEP
+                and _type is not TokenType.EOL
+                and _type is not TokenType.COMMENT
+            ):
                 self._at_command_start = False
-            return Token(
-                type=self._type,
-                text=text,
+
+            return _Token(
+                type=_type,
+                text=tok_text,
                 start=start_pos,
                 end=end_pos,
                 in_quote=self.insidequote,

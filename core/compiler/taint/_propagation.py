@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from ...commands.registry.runtime import canonical_list_commands
 from ...commands.registry.taint_hints import TaintColour
 from ...common.naming import normalise_var_name as _normalise_var_name
 from ...parsing.lexer import TclLexer
@@ -88,7 +89,7 @@ def _derive_transform_colours(
         return TaintColour(0)
 
     # Tcl list builders produce canonical list representations.
-    if command == "list":
+    if command in canonical_list_commands():
         return TaintColour.LIST_CANONICAL
     if (
         command == "concat"

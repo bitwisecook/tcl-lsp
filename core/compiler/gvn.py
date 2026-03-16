@@ -247,7 +247,7 @@ def _loop_invariant_message(expression_text: str) -> str:
     )
 
 
-def _vars_in_word(text: str) -> set[str]:
+def _vars_in_word(text: str) -> frozenset[str]:
     """Return normalized variable names referenced in one Tcl word."""
     return _VAR_REF_SCANNER.scan_word(text)
 
@@ -424,6 +424,11 @@ def _find_cmd_tokens_in_text(
     return result
 
 
+# Commands whose synthetic CFG header nodes carry list-expression args
+# that are evaluated exactly once before the loop, not on each iteration.
+_FOREACH_LIKE_CMDS = frozenset({"foreach", "lmap", "dict for", "dict map"})
+
+
 def _cmd_tokens_from_statement(
     ir_stmt,
     source: str,
@@ -433,11 +438,15 @@ def _cmd_tokens_from_statement(
     if ct is not None and ct.all_tokens:
         return [t for t in ct.all_tokens if t.type is TokenType.CMD]
 
-    # Synthetic CFG-lowering defs (e.g. foreach/catch/try header nodes)
+    # Synthetic CFG-lowering defs (e.g. foreach/lmap/catch/try header nodes)
     # carry a broad statement range but no real token stream; scanning
     # their range would incorrectly attribute nested body CMD tokens.
-    if isinstance(ir_stmt, IRCall) and ir_stmt.defs and not ir_stmt.args and ct is None:
-        return []
+    # foreach/lmap/dict-for headers also carry args (the list expressions)
+    # but those are evaluated exactly once before the loop, not on each
+    # iteration, so they must not be flagged as loop-invariant candidates.
+    if isinstance(ir_stmt, IRCall) and ir_stmt.defs and ct is None:
+        if not ir_stmt.args or ir_stmt.command in _FOREACH_LIKE_CMDS:
+            return []
 
     # Fall back to lexing the source range.
     stmt_range: Range | None = getattr(ir_stmt, "range", None)
