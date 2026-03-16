@@ -11,7 +11,6 @@ from ..models import (
     FormSpec,
     HoverSnippet,
     OptionSpec,
-    OptionTerminatorSpec,
     PatternType,
     ValidationSpec,
 )
@@ -42,13 +41,7 @@ class RegexpCommand(CommandDef):
                 source="Tcl regexp(1)",
                 return_value="1 if the pattern matches, 0 otherwise.",
             ),
-            option_terminator_profiles=(
-                OptionTerminatorSpec(
-                    scan_start=0,
-                    options_with_values=frozenset({"-start"}),
-                    warn_without_terminator=True,
-                ),
-            ),
+            warn_without_terminator=True,
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,

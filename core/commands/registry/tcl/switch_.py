@@ -11,7 +11,6 @@ from ..models import (
     FormSpec,
     HoverSnippet,
     OptionSpec,
-    OptionTerminatorSpec,
     ValidationSpec,
 )
 from ..signatures import Arity
@@ -30,12 +29,6 @@ class SwitchCommand(CommandDef):
             name="switch",
             is_control_flow=True,
             never_inline_body=True,
-            option_terminator_profiles=(
-                OptionTerminatorSpec(
-                    scan_start=0,
-                    options_with_values=frozenset({"-matchvar", "-indexvar"}),
-                ),
-            ),
             hover=HoverSnippet(
                 summary="Pattern-based branching on a subject string.",
                 synopsis=("switch ?options? string pattern body ?pattern body ...?",),
@@ -51,6 +44,18 @@ class SwitchCommand(CommandDef):
                         OptionSpec(name="-glob", detail="Glob pattern mode."),
                         OptionSpec(name="-regexp", detail="Regular expression mode."),
                         OptionSpec(name="-nocase", detail="Case-insensitive matching."),
+                        OptionSpec(
+                            name="-matchvar",
+                            detail="Store match in variable (regexp mode).",
+                            takes_value=True,
+                            value_hint="varName",
+                        ),
+                        OptionSpec(
+                            name="-indexvar",
+                            detail="Store match indices in variable (regexp mode).",
+                            takes_value=True,
+                            value_hint="varName",
+                        ),
                         OptionSpec(name="--", detail="End of options."),
                     ),
                 ),

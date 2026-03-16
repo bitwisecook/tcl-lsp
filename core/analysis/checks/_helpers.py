@@ -46,30 +46,35 @@ def _first_token_is_braced(tok: Token) -> bool:
 def _resolve_option_terminator_profile(
     cmd_name: str,
     args: list[str],
-) -> tuple[OptionTerminatorSpec | None, str | None]:
+) -> tuple[OptionTerminatorSpec | None, str | None, frozenset[str]]:
     """Find the matching option-terminator profile from the registry.
 
-    Returns ``(profile, subcommand)`` where *subcommand* is the matched
-    subcommand word (or ``None`` for top-level profiles).
+    Returns ``(profile, subcommand, options_with_values)`` where *subcommand*
+    is the matched subcommand word (or ``None`` for top-level profiles) and
+    *options_with_values* is derived from the ``OptionSpec`` entries for the
+    resolved scope.
     """
     profiles = REGISTRY.option_terminator_profiles(cmd_name)
     if not profiles:
-        return None, None
+        return None, None, frozenset()
     # Check subcommand-scoped profiles first.
     if args:
         for profile in profiles:
             if profile.subcommand is not None and profile.subcommand == args[0]:
-                return profile, args[0]
+                owv = REGISTRY.options_with_values(cmd_name, args[0])
+                return profile, args[0], owv
     # Fall back to top-level profile (subcommand=None).
     for profile in profiles:
         if profile.subcommand is None:
-            return profile, None
-    return None, None
+            owv = REGISTRY.options_with_values(cmd_name)
+            return profile, None, owv
+    return None, None, frozenset()
 
 
 def _first_positional_without_terminator(
     args: list[str],
     profile: OptionTerminatorSpec,
+    options_with_values: frozenset[str],
 ) -> int | None:
     """Return first positional arg index when '--' is missing, else None."""
     i = profile.scan_start
@@ -79,7 +84,7 @@ def _first_positional_without_terminator(
             return None
         if arg.startswith("-"):
             i += 1
-            if arg in profile.options_with_values and i < len(args):
+            if arg in options_with_values and i < len(args):
                 i += 1
             continue
         return i

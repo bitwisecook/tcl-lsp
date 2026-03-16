@@ -11,7 +11,7 @@ from ..models import (
     FormKind,
     FormSpec,
     HoverSnippet,
-    OptionTerminatorSpec,
+    OptionSpec,
     ValidationSpec,
 )
 from ..signatures import ArgRole, Arity
@@ -34,16 +34,16 @@ class UnsetCommand(CommandDef):
                 snippet="This command removes one or more variables.",
                 source=_SOURCE,
             ),
-            option_terminator_profiles=(
-                OptionTerminatorSpec(
-                    scan_start=0,
-                    options_with_values=frozenset(),
-                ),
-            ),
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
                     synopsis="unset ?-nocomplain? ?--? ?name name name ...?",
+                    options=(
+                        OptionSpec(
+                            name="-nocomplain", detail="Suppress errors for non-existent variables."
+                        ),
+                        OptionSpec(name="--", detail="End of options."),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

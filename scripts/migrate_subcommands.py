@@ -188,9 +188,6 @@ def generate_subcommands_for(cmd_name: str) -> str | None:
 
         if opt_term:
             ot_parts = [f"scan_start={opt_term.scan_start}"]
-            if opt_term.options_with_values:
-                vals = ", ".join(f'"{v}"' for v in sorted(opt_term.options_with_values))
-                ot_parts.append(f"options_with_values=frozenset({{{vals}}})")
             if opt_term.warn_without_terminator:
                 ot_parts.append("warn_without_terminator=True")
             ot_str = ", ".join(ot_parts)

@@ -12,7 +12,6 @@ from ..models import (
     FormSpec,
     HoverSnippet,
     OptionSpec,
-    OptionTerminatorSpec,
     ValidationSpec,
 )
 from ..signatures import Arity
@@ -40,12 +39,6 @@ class GlobCommand(CommandDef):
                 ),
                 source="Tcl glob(1)",
                 return_value="A list of file names matching the patterns.",
-            ),
-            option_terminator_profiles=(
-                OptionTerminatorSpec(
-                    scan_start=0,
-                    options_with_values=frozenset({"-directory", "-path", "-types"}),
-                ),
             ),
             forms=(
                 FormSpec(

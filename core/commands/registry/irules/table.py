@@ -157,18 +157,10 @@ class TableCommand(CommandDef):
                 arity=Arity(),
             ),
             option_terminator_profiles=(
-                OptionTerminatorSpec(
-                    scan_start=1, options_with_values=frozenset({"-subtable"}), subcommand="set"
-                ),
-                OptionTerminatorSpec(
-                    scan_start=1, options_with_values=frozenset({"-subtable"}), subcommand="add"
-                ),
-                OptionTerminatorSpec(
-                    scan_start=1, options_with_values=frozenset({"-subtable"}), subcommand="replace"
-                ),
-                OptionTerminatorSpec(
-                    scan_start=1, options_with_values=frozenset({"-subtable"}), subcommand="lookup"
-                ),
+                OptionTerminatorSpec(scan_start=1, subcommand="set"),
+                OptionTerminatorSpec(scan_start=1, subcommand="add"),
+                OptionTerminatorSpec(scan_start=1, subcommand="replace"),
+                OptionTerminatorSpec(scan_start=1, subcommand="lookup"),
             ),
             event_requires=EventRequires(flow=True),
             diagram_action=True,

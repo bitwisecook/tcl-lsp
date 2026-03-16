@@ -548,11 +548,11 @@ def check_missing_option_terminator(
     if not args or not arg_tokens:
         return []
 
-    profile, subcommand = _resolve_option_terminator_profile(cmd_name, args)
+    profile, subcommand, owv = _resolve_option_terminator_profile(cmd_name, args)
     if profile is None:
         return []
 
-    positional_idx = _first_positional_without_terminator(args, profile)
+    positional_idx = _first_positional_without_terminator(args, profile, owv)
     if positional_idx is None or positional_idx >= len(arg_tokens):
         return []
 

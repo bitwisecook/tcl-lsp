@@ -11,7 +11,6 @@ from ..models import (
     FormSpec,
     HoverSnippet,
     OptionSpec,
-    OptionTerminatorSpec,
     PatternType,
     ValidationSpec,
 )
@@ -43,12 +42,6 @@ class RegsubCommand(CommandDef):
                 return_value=(
                     "The substituted string (Tcl 8.5+), or the count of "
                     "replacements when *varName* is given."
-                ),
-            ),
-            option_terminator_profiles=(
-                OptionTerminatorSpec(
-                    scan_start=0,
-                    options_with_values=frozenset({"-start"}),
                 ),
             ),
             forms=(

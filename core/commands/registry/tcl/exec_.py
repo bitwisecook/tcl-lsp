@@ -11,7 +11,6 @@ from ..models import (
     FormKind,
     FormSpec,
     OptionSpec,
-    OptionTerminatorSpec,
     ValidationSpec,
 )
 from ..signatures import Arity
@@ -28,7 +27,6 @@ class ExecCommand(CommandDef):
         return CommandSpec(
             name="exec",
             dialects=DIALECTS_EXCEPT_IRULES,
-            option_terminator_profiles=(OptionTerminatorSpec(scan_start=0),),
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,

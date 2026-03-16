@@ -149,30 +149,37 @@ OptionSpec(
 )
 ```
 
-## Option terminator profiles (OptionTerminatorSpec)
+## Option terminator (`--`)
 
-Drives the W304 diagnostic ("missing `--`").  Add to `CommandSpec`:
+Drives the W304 diagnostic ("missing `--`").  To declare that a command
+accepts `--`, add `OptionSpec(name="--")` to its options — the same way
+you add any other option:
 
 ```python
-from ..models import OptionTerminatorSpec
-
-CommandSpec(
-    name="regexp",
-    option_terminator_profiles=(
-        OptionTerminatorSpec(
-            scan_start=0,
-            options_with_values=frozenset({"-start"}),
-            warn_without_terminator=True,   # always warn, not just dynamic values
-        ),
+FormSpec(
+    kind=FormKind.DEFAULT,
+    synopsis="regexp ?switches? exp string ?matchVar? ...",
+    options=(
+        OptionSpec(name="-nocase"),
+        OptionSpec(name="-start", takes_value=True, value_hint="index"),
+        OptionSpec(name="--"),   # <-- this is all you need
     ),
 )
 ```
 
-For subcommand-scoped profiles (e.g. `string match` but not `string length`):
+The registry auto-derives terminator profiles from `OptionSpec(name="--")`.
+Which options consume a value argument is derived from `OptionSpec.takes_value`.
+`scan_start` is inferred (0 for form-level, 1 for subcommand-level).
+
+For commands where W304 should **always** warn (not just for dynamic values),
+set `warn_without_terminator=True` on the `CommandSpec`:
 
 ```python
-OptionTerminatorSpec(scan_start=1, subcommand="match"),
+CommandSpec(name="regexp", warn_without_terminator=True, ...)
 ```
+
+For subcommand-scoped `--` (e.g. `string match` but not `string length`),
+add `OptionSpec(name="--")` to the SubCommand's `options` tuple.
 
 ## Argument values (ArgumentValueSpec)
 
@@ -399,7 +406,7 @@ When adding or enriching a command, ensure:
 - [ ] `arg_roles` set on `CommandSpec` or `SubCommand` entries
 - [ ] `return_type` / `arg_types` set on `CommandSpec` or `SubCommand` entries
 - [ ] Options added to `FormSpec` if the command takes switches
-- [ ] `OptionTerminatorSpec` added if command takes `--`
+- [ ] `OptionSpec(name="--")` included in options if command accepts `--`
 - [ ] `ArgumentValueSpec` added for enumerated argument values
 - [ ] Behavioral traits set if applicable (never_inline_body, etc.)
 - [ ] Tests pass: `pytest tcl-lsp/tests/ -x -q`

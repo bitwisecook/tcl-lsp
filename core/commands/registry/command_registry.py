@@ -591,10 +591,15 @@ class CommandRegistry:
     ) -> tuple[OptionTerminatorSpec, ...]:
         """Return option-terminator profiles for the command.
 
-        Merges profiles from all specs for the command.  Prefers
-        SubCommand-derived option terminators when the ``subcommands``
-        dict is populated, falling back to the legacy
-        ``option_terminator_profiles`` field.
+        Derives profiles from ``OptionSpec(name="--")`` on SubCommand or
+        FormSpec option lists.  For SubCommand-based commands, each
+        subcommand whose options include ``--`` gets a profile with
+        ``scan_start=1``.  For form-level options, the presence of ``--``
+        yields a top-level profile with ``scan_start=0``.
+
+        Falls back to explicit ``option_terminator_profiles`` on the
+        CommandSpec for legacy commands that use subcommand-scoped
+        terminator profiles without a SubCommand dict.
         """
         specs = self.specs_by_name.get(name)
         if specs is None:
@@ -602,24 +607,64 @@ class CommandRegistry:
         profiles: list[OptionTerminatorSpec] = []
         seen: set[str | None] = set()
         for spec in reversed(specs):
-            # Prefer SubCommand-derived option terminators
+            # Derive from SubCommand options containing OptionSpec(name="--")
             if spec.subcommands:
                 for sub_name, sub in spec.subcommands.items():
-                    if sub.option_terminator and sub_name not in seen:
+                    if sub_name not in seen and any(o.name == "--" for o in sub.options):
                         seen.add(sub_name)
-                        ot = sub.option_terminator
-                        # Ensure the profile carries the subcommand name
-                        if ot.subcommand != sub_name:
-                            from dataclasses import replace
-
-                            ot = replace(ot, subcommand=sub_name)
-                        profiles.append(ot)
-            # Fall back to legacy profiles
+                        profiles.append(
+                            OptionTerminatorSpec(
+                                scan_start=1,
+                                warn_without_terminator=spec.warn_without_terminator,
+                                subcommand=sub_name,
+                            )
+                        )
+            # Derive from FormSpec options containing OptionSpec(name="--")
+            if None not in seen:
+                for form in spec.forms:
+                    if any(o.name == "--" for o in form.options):
+                        seen.add(None)
+                        profiles.append(
+                            OptionTerminatorSpec(
+                                scan_start=0,
+                                warn_without_terminator=spec.warn_without_terminator,
+                            )
+                        )
+                        break
+            # Fall back to explicit legacy profiles (e.g. class, table)
             for p in spec.option_terminator_profiles:
                 if p.subcommand not in seen:
                     seen.add(p.subcommand)
                     profiles.append(p)
         return tuple(profiles)
+
+    def options_with_values(
+        self,
+        name: str,
+        subcommand: str | None = None,
+    ) -> frozenset[str]:
+        """Derive the set of option names that consume a value argument.
+
+        Returns option names where ``OptionSpec.takes_value`` is ``True``,
+        collected from the relevant scope (subcommand options if *subcommand*
+        is given, otherwise form-level options).
+        """
+        specs = self.specs_by_name.get(name)
+        if specs is None:
+            return frozenset()
+        result: set[str] = set()
+        for spec in specs:
+            if subcommand is not None:
+                sub = spec.subcommands.get(subcommand)
+                if sub is not None:
+                    for opt in sub.options:
+                        if opt.takes_value:
+                            result.add(opt.name)
+            for form in spec.forms:
+                for opt in form.options:
+                    if opt.takes_value:
+                        result.add(opt.name)
+        return frozenset(result)
 
     def dynamic_barrier_commands(self, dialect: str | None = None) -> frozenset[str]:
         """Return all commands that create dynamic barriers."""

@@ -302,10 +302,11 @@ class OptionTerminatorSpec:
     """How a command's option terminator (``--``) works.
 
     Used by the W304 check to detect missing ``--`` in option-bearing commands.
+    Which options consume a value argument is derived from ``OptionSpec.takes_value``
+    on the relevant ``FormSpec`` or ``SubCommand`` — not stored here.
 
     Attributes:
         scan_start: Arg index (0-based after command name) where option scanning begins.
-        options_with_values: Options that consume the next argument as a value.
         warn_without_terminator: Always warn when ``--`` is absent (not just for
             dynamic values).
         subcommand: If set, this profile applies only when the given subcommand is
@@ -313,7 +314,6 @@ class OptionTerminatorSpec:
     """
 
     scan_start: int = 0
-    options_with_values: frozenset[str] = field(default_factory=frozenset)
     warn_without_terminator: bool = False
     subcommand: str | None = None
 
@@ -357,9 +357,6 @@ class SubCommand:
 
     # Per-subcommand options (replaces command-wide FormSpec.options).
     options: tuple[OptionSpec, ...] = ()
-
-    # Per-subcommand option terminator.
-    option_terminator: OptionTerminatorSpec | None = None
 
     # Per-subcommand completable arg values (replaces FormSpec.subcommand_arg_values).
     # Maps arg index (0-based after subcommand word) to completable values.
@@ -491,6 +488,11 @@ class CommandSpec:
     has_loop_body: bool = False
     never_inline_body: bool = False
     option_terminator_profiles: tuple[OptionTerminatorSpec, ...] = ()
+
+    # When True, W304 fires even for non-dynamic positional values
+    # (not just variables/command substitutions).  Only needed for commands
+    # where option injection is especially dangerous (e.g. regexp).
+    warn_without_terminator: bool = False
 
     # Purity and CSE traits for compiler/gvn.py.
     pure: bool = False
@@ -742,11 +744,6 @@ class CommandSpec:
     def mutator_subcommand_names(self) -> frozenset[str]:
         """Subcommand names that mutate state (derived from subcommands dict)."""
         return frozenset(n for n, s in self.subcommands.items() if s.mutator)
-
-    def subcommand_option_terminator(self, sub: str) -> OptionTerminatorSpec | None:
-        """Return option terminator spec for a specific subcommand."""
-        s = self.subcommands.get(sub)
-        return s.option_terminator if s else None
 
     def subcommand_completions(self) -> tuple[ArgumentValueSpec, ...]:
         """Derive subcommand completion items from the subcommands dict."""

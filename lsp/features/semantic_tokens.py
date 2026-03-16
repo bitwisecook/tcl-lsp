@@ -1934,9 +1934,11 @@ def _option_arg_indices(cmd_name: str, argv_texts: list[str]) -> set[int]:
         return set()
     # Pick the best-matching profile (subcommand-aware).
     profile = None
+    subcommand: str | None = None
     for p in profiles:
         if p.subcommand is not None and argv_texts and p.subcommand == argv_texts[0]:
             profile = p
+            subcommand = p.subcommand
             break
     if profile is None:
         for p in profiles:
@@ -1945,6 +1947,8 @@ def _option_arg_indices(cmd_name: str, argv_texts: list[str]) -> set[int]:
                 break
     if profile is None:
         return set()
+
+    owv = REGISTRY.options_with_values(cmd_name, subcommand)
 
     result: set[int] = set()
     i = profile.scan_start
@@ -1955,7 +1959,7 @@ def _option_arg_indices(cmd_name: str, argv_texts: list[str]) -> set[int]:
         if not arg.startswith("-"):
             break
         result.add(i)
-        if arg in profile.options_with_values and i + 1 < len(argv_texts):
+        if arg in owv and i + 1 < len(argv_texts):
             i += 1  # skip the option's value argument
         i += 1
     return result
