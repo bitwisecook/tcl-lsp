@@ -138,23 +138,12 @@ def _classify_sink(
         results.append((sink.log_sink, command))
 
     # T102: option injection via tainted input (colour-suppressed below)
-    profiles = REGISTRY.option_terminator_profiles(command)
-    if profiles:
-        profile = None
-        for p in profiles:
-            if p.subcommand is not None and args and p.subcommand == args[0]:
-                profile = p
-                break
-        if profile is None:
-            for p in profiles:
-                if p.subcommand is None:
-                    profile = p
-                    break
-        if profile is not None and not _has_option_terminator(args, profile.scan_start):
-            cmd_label = command
-            if profile.subcommand is not None:
-                cmd_label = f"{command} {profile.subcommand}"
-            results.append(("T102", cmd_label))
+    profile = REGISTRY.resolve_option_terminator(command, args)
+    if profile is not None and not _has_option_terminator(args, profile.scan_start):
+        cmd_label = command
+        if profile.subcommand is not None:
+            cmd_label = f"{command} {profile.subcommand}"
+        results.append(("T102", cmd_label))
 
     # T104: network address sinks (SSRF)
     if sink.is_network_sink:

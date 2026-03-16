@@ -11,7 +11,6 @@ from ..models import (
     FormSpec,
     HoverSnippet,
     OptionSpec,
-    OptionTerminatorSpec,
     SubCommand,
     ValidationSpec,
 )
@@ -26,6 +25,7 @@ _av = make_av(_SOURCE)
 
 _WRITE_SUBS = frozenset({"set", "add", "replace", "incr", "append", "delete"})
 _READ_SUBS = frozenset({"lookup", "keys", "timeout", "lifetime"})
+_TERMINATOR_SUBS = frozenset({"set", "add", "replace", "lookup"})
 
 
 @register
@@ -156,12 +156,6 @@ class TableCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            option_terminator_profiles=(
-                OptionTerminatorSpec(scan_start=1, subcommand="set"),
-                OptionTerminatorSpec(scan_start=1, subcommand="add"),
-                OptionTerminatorSpec(scan_start=1, subcommand="replace"),
-                OptionTerminatorSpec(scan_start=1, subcommand="lookup"),
-            ),
             event_requires=EventRequires(flow=True),
             diagram_action=True,
             xc_translatable=False,
@@ -179,6 +173,7 @@ class TableCommand(CommandDef):
                     name=sub,
                     arity=Arity(),
                     mutator=sub in _WRITE_SUBS,
+                    options=(OptionSpec(name="--"),) if sub in _TERMINATOR_SUBS else (),
                     side_effect_hints=(
                         SideEffect(
                             target=SideEffectTarget.SESSION_TABLE,

@@ -747,8 +747,15 @@ def classify_side_effects(
             scope, ns = _scope_from_varname(varname)
             st = _storage_type_for_command(command, args)
             # For set with 1 arg it's a read, with 2 it's a write.
-            is_write = len(args) > idx + 1 or command not in ("set",)
-            is_read = command == "set" and len(args) == idx + 1
+            # For subcommand-bearing commands (e.g. array), check the
+            # subcommand's mutator flag instead of the generic heuristic.
+            if spec.subcommands and args:
+                sub = spec.subcommands.get(args[0])
+                is_write = sub is not None and sub.mutator
+                is_read = sub is not None and not sub.mutator
+            else:
+                is_write = len(args) > idx + 1 or command not in ("set",)
+                is_read = command == "set" and len(args) == idx + 1
             side = ConnectionSide.NONE
             if dialect in ("irules", "f5-irules") and scope is StorageScope.STATIC:
                 side = ConnectionSide.GLOBAL

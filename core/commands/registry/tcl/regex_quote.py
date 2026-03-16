@@ -37,7 +37,7 @@ class RegexQuoteUnderscoreCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(1, 1),
             ),
             taint_transform=TaintColour.REGEX_LITERAL,
             taint_double_encode_colour=TaintColour.REGEX_LITERAL,

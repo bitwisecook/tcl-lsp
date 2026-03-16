@@ -548,11 +548,11 @@ def check_missing_option_terminator(
     if not args or not arg_tokens:
         return []
 
-    profile, subcommand, owv = _resolve_option_terminator_profile(cmd_name, args)
+    profile = _resolve_option_terminator_profile(cmd_name, args)
     if profile is None:
         return []
 
-    positional_idx = _first_positional_without_terminator(args, profile, owv)
+    positional_idx = _first_positional_without_terminator(args, profile)
     if positional_idx is None or positional_idx >= len(arg_tokens):
         return []
 
@@ -568,7 +568,7 @@ def check_missing_option_terminator(
 
     severity = Severity.WARNING
     origin_diag: Diagnostic | None = None
-    command_label = cmd_name if subcommand is None else f"{cmd_name} {subcommand}"
+    command_label = cmd_name if profile.subcommand is None else f"{cmd_name} {profile.subcommand}"
     if is_dynamic and tok.type is TokenType.VAR and not looks_like_option:
         resolved = _last_literal_set_value_for_var(
             source,

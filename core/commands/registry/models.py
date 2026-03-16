@@ -297,27 +297,6 @@ class ValidationSpec:
     arity: Arity = field(default_factory=Arity)
 
 
-@dataclass(frozen=True, slots=True)
-class OptionTerminatorSpec:
-    """How a command's option terminator (``--``) works.
-
-    Used by the W304 check to detect missing ``--`` in option-bearing commands.
-    Which options consume a value argument is derived from ``OptionSpec.takes_value``
-    on the relevant ``FormSpec`` or ``SubCommand`` — not stored here.
-
-    Attributes:
-        scan_start: Arg index (0-based after command name) where option scanning begins.
-        warn_without_terminator: Always warn when ``--`` is absent (not just for
-            dynamic values).
-        subcommand: If set, this profile applies only when the given subcommand is
-            present (e.g. ``"match"`` for ``string match``).
-    """
-
-    scan_start: int = 0
-    warn_without_terminator: bool = False
-    subcommand: str | None = None
-
-
 @dataclass(slots=True)
 class SubCommand:
     """Complete metadata for a single subcommand.
@@ -487,8 +466,6 @@ class CommandSpec:
     creates_dynamic_barrier: bool = False
     has_loop_body: bool = False
     never_inline_body: bool = False
-    option_terminator_profiles: tuple[OptionTerminatorSpec, ...] = ()
-
     # When True, W304 fires even for non-dynamic positional values
     # (not just variables/command substitutions).  Only needed for commands
     # where option injection is especially dangerous (e.g. regexp).

@@ -21,7 +21,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.commands.registry.command_registry import REGISTRY
-from core.commands.registry.models import OptionTerminatorSpec
 
 
 def _find_command_def_classes():
@@ -77,12 +76,6 @@ def generate_subcommands_for(cmd_name: str) -> str | None:
     # Get pure/mutator sets
     pure_subs = spec.pure_subcommands
     mutator_subs = spec.mutator_subcommands
-
-    # Get option terminator profiles (subcommand-scoped)
-    sub_opt_terms: dict[str, OptionTerminatorSpec] = {}
-    for profile in spec.option_terminator_profiles:
-        if profile.subcommand:
-            sub_opt_terms[profile.subcommand] = profile
 
     # Try to get role_hints and type_hints from CommandDef
     role_hints_data: dict[str, object] = {}
@@ -145,9 +138,6 @@ def generate_subcommands_for(cmd_name: str) -> str | None:
         if rh is not None and hasattr(rh, "arg_roles"):
             arg_roles = rh.arg_roles
 
-        # Option terminator
-        opt_term = sub_opt_terms.get(sub_name)
-
         # Arg values
         arg_vals = sub_arg_values.get(sub_name, {})
 
@@ -185,13 +175,6 @@ def generate_subcommands_for(cmd_name: str) -> str | None:
             if types_parts:
                 types_str = ", ".join(types_parts)
                 parts.append(f"                    arg_types={{{types_str}}},")
-
-        if opt_term:
-            ot_parts = [f"scan_start={opt_term.scan_start}"]
-            if opt_term.warn_without_terminator:
-                ot_parts.append("warn_without_terminator=True")
-            ot_str = ", ".join(ot_parts)
-            parts.append(f"                    option_terminator=OptionTerminatorSpec({ot_str}),")
 
         if arg_vals:
             # This is complex - just note it

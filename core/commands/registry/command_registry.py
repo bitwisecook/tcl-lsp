@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from ...compiler.side_effects import SideEffect
@@ -25,7 +25,6 @@ from .models import (
     DialectStatus,
     EventCommandSet,
     OptionSpec,
-    OptionTerminatorSpec,
     ValidationSpec,
 )
 from .stdlib import stdlib_command_specs
@@ -33,6 +32,25 @@ from .taint_sink_info import _EMPTY_TAINT_SINK_INFO, TaintSinkInfo
 from .tcl import tcl_command_specs
 from .tcllib import tcllib_command_specs
 from .tk import tk_command_specs
+
+
+class ResolvedTerminator(NamedTuple):
+    """Resolved option-terminator info for a command invocation.
+
+    Returned by ``CommandRegistry.resolve_option_terminator()`` after
+    matching the invocation's subcommand against the registry.  Consumers
+    use the fields directly — no need for the old ``OptionTerminatorSpec``.
+    """
+
+    scan_start: int
+    """Arg index (0-based after command name) where option scanning begins."""
+    subcommand: str | None
+    """Matched subcommand word, or ``None`` for top-level profiles."""
+    options_with_values: frozenset[str]
+    """Option names that consume a value argument (derived from OptionSpec)."""
+    warn_without_terminator: bool
+    """Whether to warn even for non-dynamic positional values."""
+
 
 _BOOLEAN_TRAITS: tuple[str, ...] = (
     "creates_dynamic_barrier",
@@ -584,59 +602,47 @@ class CommandRegistry:
         """Check if the command's body should never be formatted inline."""
         return self._any_spec_has(name, "never_inline_body")
 
-    def option_terminator_profiles(
+    def resolve_option_terminator(
         self,
         name: str,
-        dialect: str | None = None,
-    ) -> tuple[OptionTerminatorSpec, ...]:
-        """Return option-terminator profiles for the command.
+        args: list[str] | tuple[str, ...],
+    ) -> ResolvedTerminator | None:
+        """Resolve the option-terminator profile for a command invocation.
 
-        Derives profiles from ``OptionSpec(name="--")`` on SubCommand or
-        FormSpec option lists.  For SubCommand-based commands, each
-        subcommand whose options include ``--`` gets a profile with
-        ``scan_start=1``.  For form-level options, the presence of ``--``
-        yields a top-level profile with ``scan_start=0``.
-
-        Falls back to explicit ``option_terminator_profiles`` on the
-        CommandSpec for legacy commands that use subcommand-scoped
-        terminator profiles without a SubCommand dict.
+        Matches the invocation's first argument against SubCommand entries
+        that declare ``OptionSpec(name="--")``.  Falls back to form-level
+        ``--`` declarations.  Returns ``None`` when the command does not
+        support ``--`` at all.
         """
         specs = self.specs_by_name.get(name)
         if specs is None:
-            return ()
-        profiles: list[OptionTerminatorSpec] = []
-        seen: set[str | None] = set()
+            return None
+
         for spec in reversed(specs):
-            # Derive from SubCommand options containing OptionSpec(name="--")
-            if spec.subcommands:
-                for sub_name, sub in spec.subcommands.items():
-                    if sub_name not in seen and any(o.name == "--" for o in sub.options):
-                        seen.add(sub_name)
-                        profiles.append(
-                            OptionTerminatorSpec(
-                                scan_start=1,
-                                warn_without_terminator=spec.warn_without_terminator,
-                                subcommand=sub_name,
-                            )
-                        )
-            # Derive from FormSpec options containing OptionSpec(name="--")
-            if None not in seen:
-                for form in spec.forms:
-                    if any(o.name == "--" for o in form.options):
-                        seen.add(None)
-                        profiles.append(
-                            OptionTerminatorSpec(
-                                scan_start=0,
-                                warn_without_terminator=spec.warn_without_terminator,
-                            )
-                        )
-                        break
-            # Fall back to explicit legacy profiles (e.g. class, table)
-            for p in spec.option_terminator_profiles:
-                if p.subcommand not in seen:
-                    seen.add(p.subcommand)
-                    profiles.append(p)
-        return tuple(profiles)
+            # Check subcommand-scoped first.
+            if args and spec.subcommands:
+                sub = spec.subcommands.get(args[0])
+                if sub is not None and any(o.name == "--" for o in sub.options):
+                    owv = self.options_with_values(name, args[0])
+                    return ResolvedTerminator(
+                        scan_start=1,
+                        subcommand=args[0],
+                        options_with_values=owv,
+                        warn_without_terminator=spec.warn_without_terminator,
+                    )
+
+            # Check form-level options.
+            for form in spec.forms:
+                if any(o.name == "--" for o in form.options):
+                    owv = self.options_with_values(name)
+                    return ResolvedTerminator(
+                        scan_start=0,
+                        subcommand=None,
+                        options_with_values=owv,
+                        warn_without_terminator=spec.warn_without_terminator,
+                    )
+
+        return None
 
     def options_with_values(
         self,

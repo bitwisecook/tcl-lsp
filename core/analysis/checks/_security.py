@@ -199,9 +199,15 @@ def _is_list_command_token(tok: Token) -> bool:
     if tok.type != TokenType.CMD:
         return False
     # The CMD token's .text is always the inner content without brackets.
+    # Be conservative: reject multi-command scripts (containing ; or newline)
+    # because [list a b; set x $user] returns the result of the *last*
+    # command, which is not necessarily a safe list.
+    script = tok.text.strip()
+    if not script or ";" in script or "\n" in script:
+        return False
     # Use split(None, 1) to handle any whitespace separator (space, tab,
-    # newline, backslash-newline continuation) between the command and its args.
-    parts = tok.text.lstrip().split(None, 1)
+    # backslash-newline continuation) between the command and its args.
+    parts = script.split(None, 1)
     if not parts:
         return False
     safe = canonical_list_commands()
