@@ -54,6 +54,16 @@ def _codes(diags: list[types.Diagnostic]) -> list[str]:
     return [d.code for d in diags if d.code]  # type: ignore[misc]
 
 
+async def _wait_for(predicate: Any, *, timeout: float = 5.0, interval: float = 0.05) -> None:
+    """Poll *predicate* until it returns truthy, or raise after *timeout* seconds."""
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        if predicate():
+            return
+        await asyncio.sleep(interval)
+    raise AssertionError(f"Condition not met within {timeout}s")
+
+
 class TestSchedulerBasic:
     """Basic scheduling and publishing."""
 
@@ -331,8 +341,8 @@ class TestSchedulerRapidUpdates:
                 )
                 await asyncio.sleep(0.005)
 
-            # Wait for the last task to complete.
-            await asyncio.sleep(0.5)
+            # Wait for the last task to complete (poll instead of fixed sleep).
+            await _wait_for(lambda: len(calls) >= 1)
 
             # Only the final version should have been published.
             assert len(calls) == 1

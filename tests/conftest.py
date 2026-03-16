@@ -81,14 +81,23 @@ def ensure_tcl_source(version: str = "9.0") -> Path:
 
 @pytest.fixture(autouse=True)
 def _reset_signature_profile() -> Generator[None, None, None]:
-    """Keep command-profile global state isolated between tests."""
-    from core.commands.registry.runtime import configure_signatures
+    """Keep command-profile global state isolated between tests.
 
+    We clear ``SIGNATURES`` before calling ``configure_signatures`` so that
+    the early-return optimisation inside ``configure_signatures`` (which
+    short-circuits when the dialect and extra-commands haven't changed) is
+    bypassed.  Without this, in-place mutations to ``SIGNATURES`` by an
+    earlier test would silently persist.
+    """
+    from core.commands.registry.runtime import SIGNATURES, configure_signatures
+
+    SIGNATURES.clear()
     configure_signatures(
         dialect="tcl8.6",
         extra_commands=[],
     )
     yield
+    SIGNATURES.clear()
     configure_signatures(
         dialect="tcl8.6",
         extra_commands=[],
