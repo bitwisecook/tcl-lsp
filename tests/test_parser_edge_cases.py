@@ -53,12 +53,14 @@ def lex_with_warnings(source: str) -> tuple[list[Token], list[tuple[SourcePositi
 
 def lex_strict(source: str) -> list[Token]:
     """Lex with strict_quoting enabled (raises on errors like C Tcl)."""
-    old = TclLexer.strict_quoting
-    TclLexer.strict_quoting = True
+    from core.parsing.lexer import _thread_local as _lexer_tl
+
+    old = getattr(_lexer_tl, "strict_quoting", False)
+    _lexer_tl.strict_quoting = True
     try:
         return lex(source)
     finally:
-        TclLexer.strict_quoting = old
+        _lexer_tl.strict_quoting = old
 
 
 # Group 1: Escaped special characters as bare words

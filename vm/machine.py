@@ -434,7 +434,14 @@ def _arith_binary(a_str: str, b_str: str, op_name: str) -> str:
 
     # Promote to float if either operand is float.
     if a_is_float or b_is_float:
-        a, b = float(a), float(b)
+        try:
+            a = float(a)
+        except OverflowError:
+            a = -math.inf if a < 0 else math.inf
+        try:
+            b = float(b)
+        except OverflowError:
+            b = -math.inf if b < 0 else math.inf
 
     match op_name:
         case "add":

@@ -9,5 +9,8 @@
       "detail_a": "TIMEOUT",
       "detail_b": "missing close-brace"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "Not a bug - script legitimately loops forever (tclsh also times out)",
+  "category": "timeout-all"
 }

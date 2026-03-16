@@ -17,5 +17,8 @@
       "detail_a": "missing close-brace",
       "detail_b": "TIMEOUT"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "Thread-safety: made strict_quoting thread-local; script legitimately loops (matches tclsh)",
+  "category": "timeout-all"
 }

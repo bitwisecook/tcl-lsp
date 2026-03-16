@@ -28,7 +28,7 @@ from core.compiler.ir import (
     IRWhile,
 )
 from core.compiler.lowering import lower_to_ir
-from core.parsing.lexer import TclLexer
+from core.parsing.lexer import TclLexer, _thread_local as _lexer_thread_local
 from core.parsing.tokens import TokenType
 
 from .substitution import backslash_subst
@@ -112,8 +112,8 @@ def _value_token_type(source: str, stmt: IRAssignValue | IRAssignConst) -> Token
     cmd_text = source[start : end + 1]
     # Disable strict_quoting during re-lexing — this is an internal
     # token-type check, not user-facing syntax validation.
-    old_strict = TclLexer.strict_quoting
-    TclLexer.strict_quoting = False
+    old_strict = getattr(_lexer_thread_local, "strict_quoting", False)
+    _lexer_thread_local.strict_quoting = False
     try:
         lexer = TclLexer(cmd_text)
         last_type: TokenType | None = None
@@ -124,7 +124,7 @@ def _value_token_type(source: str, stmt: IRAssignValue | IRAssignConst) -> Token
                 last_type = tok.type
         return last_type
     finally:
-        TclLexer.strict_quoting = old_strict
+        _lexer_thread_local.strict_quoting = old_strict
 
 
 def _process_stmt_literals(source: str, stmt: IRStatement) -> IRStatement:

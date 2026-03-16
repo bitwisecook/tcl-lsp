@@ -9,5 +9,7 @@
       "detail_a": "TIMEOUT",
       "detail_b": "can't read \"a\": no such variable"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "Previously fixed in earlier commits"
 }

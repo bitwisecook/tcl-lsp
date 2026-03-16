@@ -25,5 +25,8 @@
       "detail_a": "CRASH: OverflowError: int too large to convert to float",
       "detail_b": "cannot use floating-point value \"-70.74\" as left operand of \"%\"\n    while executing\n\"expr {(-70.74 % max(1, abs(((-94 ? 95 : -45) ** (94 ? $a : $i)))))}\"\n    (\"while\" body line 80)\n    invoked from within\n\"while {$data < 1} {\n    set result 89\n    incr result -5\n    switch -- 11.43 {\n        \"-a3@wqbgu#k22gs,\" {\n            for {set x 0} {$x < 3} {incr x...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpqgq_n4ut.tcl\" line 85)"
     }
-  ]
+  ],
+  "fixed": true,
+  "fix": "Handle OverflowError in float promotion for huge integers",
+  "category": "overflow-exponentiation"
 }
