@@ -610,6 +610,9 @@ def check_interp_eval_injection(
     # Single script argument -- check if unbraced with substitutions
     tok = script_toks[0]
     if not _first_token_is_braced(tok):
+        # [list ...] is the canonical safe idiom -- same as eval/uplevel.
+        if _is_list_command_token(tok):
+            return []
         has_substitution = any(t.type in (TokenType.VAR, TokenType.CMD) for t in all_tokens[1:])
         if has_substitution:
             return [

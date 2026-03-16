@@ -1745,6 +1745,11 @@ class TestInterpEvalInjection:
         diags = _diag_with_code("interp aliases $child", "W312")
         assert len(diags) == 0
 
+    def test_interp_eval_list_idiom_clean(self):
+        """interp eval $child [list ...] is the canonical safe pattern."""
+        diags = _diag_with_code("interp eval $child [list set $varname $value]", "W312")
+        assert len(diags) == 0
+
 
 # W313: Destructive file operations with variable path
 
