@@ -2,7 +2,7 @@
   "name": "tcl-lsp",
   "displayName": "Tcl Language Support",
   "description": "Tcl language support with semantic highlighting, diagnostics, completions, and more",
-  "version": "0.2.0",
+  "version": "1.1.1",
   "publisher": "bitwisecook",
   "license": "AGPL-3.0-or-later",
   "icon": "docs/icon.png",
