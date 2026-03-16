@@ -667,6 +667,11 @@ class CommandSpec:
                     names.append(name)
         return tuple(names)
 
+    @property
+    def supports_normalized_flag(self) -> bool:
+        """Whether this command accepts ``-normalized`` (derived from options)."""
+        return self.option("-normalized") is not None
+
     def option(self, option_name: str) -> OptionSpec | None:
         for form in self.forms:
             for option in form.options:

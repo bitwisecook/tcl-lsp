@@ -676,7 +676,7 @@ def classify_side_effects(
         resolved_form = sub_spec.resolve_form(sub_args)
     elif spec is not None and len(spec.forms) > 1:
         resolved_form = spec.resolve_form(tuple(args))
-        if spec.option("-normalized") is not None and args == ("-normalized",):
+        if spec.supports_normalized_flag and args == ("-normalized",):
             getter_form = spec.resolve_form(())
             if getter_form is not None:
                 resolved_form = getter_form

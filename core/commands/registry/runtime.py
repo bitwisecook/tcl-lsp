@@ -238,7 +238,7 @@ def normalized_flag_commands() -> frozenset[str]:
     names: set[str] = set()
     for name, specs in REGISTRY.specs_by_name.items():
         for spec in specs:
-            if spec.option("-normalized") is not None:
+            if spec.supports_normalized_flag:
                 names.add(name)
     return frozenset(names)
 
