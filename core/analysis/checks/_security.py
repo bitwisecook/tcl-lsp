@@ -209,13 +209,12 @@ def _is_list_command_token(tok: Token) -> bool:
     if parts[0] in safe:
         return True
     # Check "cmd subcmd" form (covers "dict keys", "array get", etc.).
-    if len(parts) >= 1:
-        rest = parts[1] if len(parts) > 1 else ""
-        sub_parts = rest.split(None, 1)
-        if sub_parts:
-            compound = f"{parts[0]} {sub_parts[0]}"
-            if compound in safe:
-                return True
+    rest = parts[1] if len(parts) > 1 else ""
+    sub_parts = rest.split(None, 1)
+    if sub_parts:
+        compound = f"{parts[0]} {sub_parts[0]}"
+        if compound in safe:
+            return True
     return False
 
 
