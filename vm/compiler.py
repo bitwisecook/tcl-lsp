@@ -28,7 +28,8 @@ from core.compiler.ir import (
     IRWhile,
 )
 from core.compiler.lowering import lower_to_ir
-from core.parsing.lexer import TclLexer, _thread_local as _lexer_thread_local
+from core.parsing.lexer import TclLexer
+from core.parsing.lexer import _thread_local as _lexer_thread_local
 from core.parsing.tokens import TokenType
 
 from .substitution import backslash_subst

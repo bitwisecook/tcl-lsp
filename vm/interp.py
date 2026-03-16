@@ -29,7 +29,8 @@ from core.compiler.expr_ast import (
     UnaryOp,
 )
 from core.parsing.expr_parser import parse_expr
-from core.parsing.lexer import TclParseError, _thread_local as _lexer_thread_local
+from core.parsing.lexer import TclParseError
+from core.parsing.lexer import _thread_local as _lexer_thread_local
 
 from .commands import CommandHandler, register_builtins
 from .compiler import compile_script
@@ -254,8 +255,6 @@ class TclInterp:
         # (the Tcl tokeniser does this; our lexer does not)
         if "\\\n" in source:
             source = self._collapse_continuations(source)
-
-        from core.parsing.lexer import TclLexer
 
         cacheable = len(source) <= self._eval_cache_max_source_len
         cached = self._eval_cache.get(source) if cacheable else None

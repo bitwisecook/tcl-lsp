@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from core.parsing.lexer import TclLexer, _thread_local as _lexer_thread_local
+from core.parsing.lexer import TclLexer
+from core.parsing.lexer import _thread_local as _lexer_thread_local
 from core.parsing.substitution import _BACKSLASH_MAP, backslash_subst
 from core.parsing.tokens import TokenType
 
