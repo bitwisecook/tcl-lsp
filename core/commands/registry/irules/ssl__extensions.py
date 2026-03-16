@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageScope
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -44,7 +44,21 @@ class SslExtensionsCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="SSL::extensions (count |",
+                    synopsis="SSL::extensions ?options?",
+                    options=(
+                        OptionSpec(
+                            name="-index",
+                            detail="Return extension at specified index.",
+                            takes_value=True,
+                            value_hint="EXT_NUMBER",
+                        ),
+                        OptionSpec(
+                            name="-type",
+                            detail="Return extension matching specified type value.",
+                            takes_value=True,
+                            value_hint="EXT_TYPE_VALUE",
+                        ),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

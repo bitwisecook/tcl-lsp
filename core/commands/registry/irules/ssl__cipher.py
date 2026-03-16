@@ -4,13 +4,25 @@
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageScope
-from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from .._base import CommandDef, make_av
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/SSL__cipher.html"
+
+
+_av = make_av(_SOURCE)
+
+_READ_EFFECT = (
+    SideEffect(
+        target=SideEffectTarget.SSL_STATE,
+        reads=True,
+        connection_side=ConnectionSide.BOTH,
+        scope=StorageScope.EVENT,
+    ),
+)
 
 
 @register
@@ -25,7 +37,12 @@ class SslCipherCommand(CommandDef):
             pure=True,
             hover=HoverSnippet(
                 summary="Returns SSL cipher information.",
-                synopsis=("SSL::cipher (bits | name | version |",),
+                synopsis=(
+                    "SSL::cipher bits",
+                    "SSL::cipher name",
+                    "SSL::cipher version",
+                    "SSL::cipher clientlist",
+                ),
                 snippet="Returns an SSL cipher name, its version, and the number of secret bits used.",
                 source=_SOURCE,
                 examples=(
@@ -51,7 +68,15 @@ class SslCipherCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="SSL::cipher (bits | name | version |",
+                    synopsis="SSL::cipher <subcommand>",
+                    arg_values={
+                        0: (
+                            _av("bits", "Get number of secret bits.", "SSL::cipher bits"),
+                            _av("name", "Get cipher name.", "SSL::cipher name"),
+                            _av("version", "Get cipher version.", "SSL::cipher version"),
+                            _av("clientlist", "Get client cipher list.", "SSL::cipher clientlist"),
+                        )
+                    },
                 ),
             ),
             validation=ValidationSpec(
@@ -67,4 +92,20 @@ class SslCipherCommand(CommandDef):
                     scope=StorageScope.EVENT,
                 ),
             ),
+            subcommands={
+                sub: SubCommand(
+                    name=sub,
+                    arity=Arity(0, 0),
+                    detail=detail,
+                    synopsis=f"SSL::cipher {sub}",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                )
+                for sub, detail in (
+                    ("bits", "Get number of secret bits used."),
+                    ("name", "Get cipher name."),
+                    ("version", "Get cipher version."),
+                    ("clientlist", "Get client cipher list."),
+                )
+            },
         )

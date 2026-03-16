@@ -63,9 +63,24 @@ class GtpIeCommand(CommandDef):
                     kind=FormKind.DEFAULT,
                     synopsis="GTP::ie 'exists' ('-message' MESSAGE)? (IE_PATH)?",
                     options=(
-                        OptionSpec(name="-message", detail="Option -message.", takes_value=True),
-                        OptionSpec(name="-type", detail="Option -type.", takes_value=True),
-                        OptionSpec(name="-instance", detail="Option -instance.", takes_value=True),
+                        OptionSpec(
+                            name="-message",
+                            detail="Operate on a specific GTP message object.",
+                            takes_value=True,
+                            value_hint="MESSAGE",
+                        ),
+                        OptionSpec(
+                            name="-type",
+                            detail="Filter by IE type value.",
+                            takes_value=True,
+                            value_hint="TYPE",
+                        ),
+                        OptionSpec(
+                            name="-instance",
+                            detail="Filter by IE instance.",
+                            takes_value=True,
+                            value_hint="INSTANCE",
+                        ),
                     ),
                     arg_values={
                         0: (

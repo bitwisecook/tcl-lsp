@@ -55,9 +55,14 @@ class HttpPathCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.GETTER,
-                    synopsis="HTTP::path",
+                    synopsis="HTTP::path ?-normalized?",
                     arity=Arity(0, 0),
-                    options=(OptionSpec(name="-normalized", detail="Return normalized path."),),
+                    options=(
+                        OptionSpec(
+                            name="-normalized",
+                            detail="Return path normalized for consistent comparisons.",
+                        ),
+                    ),
                     pure=True,
                     side_effect_hints=(
                         SideEffect(

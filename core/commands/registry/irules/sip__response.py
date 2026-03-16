@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -46,11 +46,16 @@ class SipResponseCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="SIP::response (code | phrase)",
+                    synopsis="SIP::response <subcommand> ?args?",
                     arg_values={
                         0: (
-                            _av("code", "SIP::response code", "SIP::response (code | phrase)"),
-                            _av("phrase", "SIP::response phrase", "SIP::response (code | phrase)"),
+                            _av("code", "Get response code.", "SIP::response code"),
+                            _av("phrase", "Get response phrase.", "SIP::response phrase"),
+                            _av(
+                                "rewrite",
+                                "Rewrite response code and phrase.",
+                                "SIP::response rewrite <code> ?phrase?",
+                            ),
                         )
                     },
                 ),
@@ -66,4 +71,49 @@ class SipResponseCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "code": SubCommand(
+                    name="code",
+                    arity=Arity(0, 0),
+                    detail="Get response code.",
+                    synopsis="SIP::response code",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.NETWORK_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "phrase": SubCommand(
+                    name="phrase",
+                    arity=Arity(0, 0),
+                    detail="Get response phrase.",
+                    synopsis="SIP::response phrase",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.NETWORK_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "rewrite": SubCommand(
+                    name="rewrite",
+                    arity=Arity(1, 2),
+                    detail="Rewrite response code and phrase.",
+                    synopsis="SIP::response rewrite <code> ?phrase?",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.NETWORK_IO,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

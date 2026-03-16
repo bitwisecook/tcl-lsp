@@ -10,6 +10,7 @@ from ..models import (
     FormKind,
     FormSpec,
     HoverSnippet,
+    OptionSpec,
     ValidationSpec,
 )
 from ..namespace_models import EventRequires
@@ -89,7 +90,14 @@ class LogCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="log ?facility.level? message",
+                    synopsis="log ?-noname? ?facility.level? message",
+                    options=(
+                        OptionSpec(
+                            name="-noname",
+                            detail="Suppress iRule name prefix in log message.",
+                            takes_value=False,
+                        ),
+                    ),
                     arg_values={
                         0: _FACILITIES,
                     },

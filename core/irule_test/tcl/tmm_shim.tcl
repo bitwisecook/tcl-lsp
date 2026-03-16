@@ -87,6 +87,17 @@ namespace eval ::tmm {
             ::rename ::rename ::tmm::_orig_rename
         }
 
+        # Pre-create parent namespaces for any namespaced commands
+        # (e.g. regex::quote → ::regex) before the loop disables namespace.
+        foreach cmd $disabled_commands {
+            if {[string first "::" $cmd] >= 0} {
+                set ns [namespace qualifiers ::$cmd]
+                if {$ns ne "" && $ns ne "::"} {
+                    catch {namespace eval $ns {}}
+                }
+            }
+        }
+
         foreach cmd $disabled_commands {
             # Skip rename -- handled above; we must keep our private copy.
             if {$cmd eq "rename"} continue

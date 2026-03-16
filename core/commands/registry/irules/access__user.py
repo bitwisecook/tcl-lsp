@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
-from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from .._base import CommandDef, make_av
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/ACCESS__user.html"
+
+
+_av = make_av(_SOURCE)
 
 
 @register
@@ -57,7 +60,19 @@ class AccessUserCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="ACCESS::user getkey SID_HASH",
+                    synopsis="ACCESS::user <subcommand> <arg>",
+                    arg_values={
+                        0: (
+                            _av(
+                                "getkey",
+                                "Get original SID from hash.",
+                                "ACCESS::user getkey <sid_hash>",
+                            ),
+                            _av(
+                                "getsid", "Get external SIDs for key.", "ACCESS::user getsid <key>"
+                            ),
+                        )
+                    },
                 ),
             ),
             validation=ValidationSpec(
@@ -71,4 +86,34 @@ class AccessUserCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "getkey": SubCommand(
+                    name="getkey",
+                    arity=Arity(1, 1),
+                    detail="Get original SID from hash.",
+                    synopsis="ACCESS::user getkey <sid_hash>",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "getsid": SubCommand(
+                    name="getsid",
+                    arity=Arity(1, 1),
+                    detail="Get external SIDs for key.",
+                    synopsis="ACCESS::user getsid <key>",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

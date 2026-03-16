@@ -52,20 +52,24 @@ class XlatListenCommand(CommandDef):
                     kind=FormKind.DEFAULT,
                     synopsis="XLAT::listen (-hairpin)? (-inherit-main-rules)? (-single-connection)? (-translation-loose)? (XLAT_LISTEN_SUBCMDS)+",
                     options=(
-                        OptionSpec(name="-hairpin", detail="Option -hairpin.", takes_value=False),
+                        OptionSpec(
+                            name="-hairpin",
+                            detail="Enable hairpin mode for the listener.",
+                            takes_value=False,
+                        ),
                         OptionSpec(
                             name="-inherit-main-rules",
-                            detail="Option -inherit-main-rules.",
+                            detail="Execute main rules attached to parent virtual.",
                             takes_value=False,
                         ),
                         OptionSpec(
                             name="-single-connection",
-                            detail="Option -single-connection.",
+                            detail="Listener expires after one connection.",
                             takes_value=False,
                         ),
                         OptionSpec(
                             name="-translation-loose",
-                            detail="Option -translation-loose.",
+                            detail="Use hint data as suggestion; don't fail if unusable.",
                             takes_value=False,
                         ),
                     ),

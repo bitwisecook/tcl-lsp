@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -15,6 +15,17 @@ _SOURCE = "https://clouddocs.f5.com/api/irules/WS__request.html"
 
 
 _av = make_av(_SOURCE)
+
+_READ_EFFECT = (
+    SideEffect(target=SideEffectTarget.NETWORK_IO, reads=True, connection_side=ConnectionSide.BOTH),
+)
+
+_FIELDS = {
+    "protocol": "Get Sec-WebSocket-Protocol header value.",
+    "extension": "Get Sec-WebSocket-Extensions header value.",
+    "version": "Get Sec-WebSocket-Version header value.",
+    "key": "Get Sec-WebSocket-Key header value.",
+}
 
 
 @register
@@ -55,29 +66,11 @@ class WsRequestCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="WS::request ('protocol' | 'extension' | 'version' | 'key' )",
+                    synopsis="WS::request <field>",
                     arg_values={
-                        0: (
-                            _av(
-                                "protocol",
-                                "WS::request protocol",
-                                "WS::request ('protocol' | 'extension' | 'version' | 'key' )",
-                            ),
-                            _av(
-                                "extension",
-                                "WS::request extension",
-                                "WS::request ('protocol' | 'extension' | 'version' | 'key' )",
-                            ),
-                            _av(
-                                "version",
-                                "WS::request version",
-                                "WS::request ('protocol' | 'extension' | 'version' | 'key' )",
-                            ),
-                            _av(
-                                "key",
-                                "WS::request key",
-                                "WS::request ('protocol' | 'extension' | 'version' | 'key' )",
-                            ),
+                        0: tuple(
+                            _av(field, detail, f"WS::request {field}")
+                            for field, detail in _FIELDS.items()
                         )
                     },
                 ),
@@ -93,6 +86,17 @@ class WsRequestCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                field: SubCommand(
+                    name=field,
+                    arity=Arity(0, 0),
+                    detail=detail,
+                    synopsis=f"WS::request {field}",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                )
+                for field, detail in _FIELDS.items()
+            },
         )
 
     @classmethod

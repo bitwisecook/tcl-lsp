@@ -49,29 +49,50 @@ class PersistCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="persist none",
+                    synopsis="persist <mode> ?args?",
                     arg_values={
                         0: (
+                            _av("none", "Disable persistence.", "persist none"),
                             _av(
-                                "insert",
-                                "persist insert",
-                                "persist cookie (('insert' (COOKIE_NAME (EXPIRATION)?)?) | ('rewrite' (COOKIE_NAME (EXPIRATION)?)?) | ('passive' (COOKIE_NAME)?) | ('hash' COOKIE_NAME ( (<OFFSET LENGTH>)? (TIMEOUT)?)?))?",
+                                "cookie",
+                                "Cookie-based persistence.",
+                                "persist cookie ?insert | rewrite | passive | hash? ?args?",
                             ),
                             _av(
-                                "rewrite",
-                                "persist rewrite",
-                                "persist cookie (('insert' (COOKIE_NAME (EXPIRATION)?)?) | ('rewrite' (COOKIE_NAME (EXPIRATION)?)?) | ('passive' (COOKIE_NAME)?) | ('hash' COOKIE_NAME ( (<OFFSET LENGTH>)? (TIMEOUT)?)?))?",
+                                "source_addr",
+                                "Source address persistence.",
+                                "persist source_addr ?mask? ?timeout?",
+                            ),
+                            _av("simple", "Simple persistence.", "persist simple ?mask? ?timeout?"),
+                            _av(
+                                "dest_addr",
+                                "Destination address persistence.",
+                                "persist dest_addr ?mask? ?timeout?",
+                            ),
+                            _av("ssl", "SSL session ID persistence.", "persist ssl ?timeout?"),
+                            _av(
+                                "uie",
+                                "Universal Inspection Engine persistence.",
+                                "persist uie ?expr? ?timeout?",
                             ),
                             _av(
-                                "passive",
-                                "persist passive",
-                                "persist cookie (('insert' (COOKIE_NAME (EXPIRATION)?)?) | ('rewrite' (COOKIE_NAME (EXPIRATION)?)?) | ('passive' (COOKIE_NAME)?) | ('hash' COOKIE_NAME ( (<OFFSET LENGTH>)? (TIMEOUT)?)?))?",
+                                "universal",
+                                "Universal persistence.",
+                                "persist universal ?expr? ?timeout?",
+                            ),
+                            _av("hash", "Hash persistence.", "persist hash ?expr? ?timeout?"),
+                            _av("carp", "CARP persistence.", "persist carp ?expr?"),
+                            _av("sip", "SIP Call-ID persistence.", "persist sip ?timeout?"),
+                            _av("host", "HTTP host header persistence.", "persist host ?timeout?"),
+                            _av(
+                                "add",
+                                "Add persistence record.",
+                                "persist add uie <key> ?timeout? ?pool? ?node?",
                             ),
                             _av(
-                                "hash",
-                                "persist hash",
-                                "persist cookie (('insert' (COOKIE_NAME (EXPIRATION)?)?) | ('rewrite' (COOKIE_NAME (EXPIRATION)?)?) | ('passive' (COOKIE_NAME)?) | ('hash' COOKIE_NAME ( (<OFFSET LENGTH>)? (TIMEOUT)?)?))?",
+                                "lookup", "Look up persistence record.", "persist lookup uie <key>"
                             ),
+                            _av("delete", "Delete persistence record.", "persist delete uie <key>"),
                         )
                     },
                 ),

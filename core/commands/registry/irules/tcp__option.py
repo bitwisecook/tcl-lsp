@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -27,7 +27,11 @@ class TcpOptionCommand(CommandDef):
             dialects=_IRULES_ONLY,
             hover=HoverSnippet(
                 summary="Retrieves or changes TCP header options.",
-                synopsis=("TCP::option ((get TCP_OPTION) |",),
+                synopsis=(
+                    "TCP::option get <kind>",
+                    "TCP::option set <kind> <value> ?all?",
+                    "TCP::option noset <kind>",
+                ),
                 snippet=(
                     "Gets or sets the value of the specified option of the TCP header.\n"
                     "The TCP::option get command is only functional when BIG-IP has been configured to collect options before the iRule is called. In v10, this is done with a db variable and is effective only on the clientside. When called in the serverside context it returns an error indicating that the specified option was not configured for collection.\n"
@@ -47,9 +51,21 @@ class TcpOptionCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="TCP::option ((get TCP_OPTION) |",
+                    synopsis="TCP::option <get|set|noset> <kind> ?value? ?all?",
                     arg_values={
-                        0: (_av("get", "TCP::option get", "TCP::option ((get TCP_OPTION) |"),)
+                        0: (
+                            _av("get", "Get TCP option value.", "TCP::option get <kind>"),
+                            _av(
+                                "set",
+                                "Set TCP option value.",
+                                "TCP::option set <kind> <value> ?all?",
+                            ),
+                            _av(
+                                "noset",
+                                "Prevent option from being set.",
+                                "TCP::option noset <kind>",
+                            ),
+                        )
                     },
                 ),
             ),
@@ -67,4 +83,49 @@ class TcpOptionCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "get": SubCommand(
+                    name="get",
+                    arity=Arity(1, 1),
+                    detail="Get TCP option value.",
+                    synopsis="TCP::option get <kind>",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.TCP_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "set": SubCommand(
+                    name="set",
+                    arity=Arity(2, 3),
+                    detail="Set TCP option value.",
+                    synopsis="TCP::option set <kind> <value> ?all?",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.TCP_STATE,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "noset": SubCommand(
+                    name="noset",
+                    arity=Arity(1, 1),
+                    detail="Prevent option from being set.",
+                    synopsis="TCP::option noset <kind>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.TCP_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

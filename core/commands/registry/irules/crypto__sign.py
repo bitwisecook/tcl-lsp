@@ -71,7 +71,34 @@ class CryptoSignCommand(CommandDef):
                 FormSpec(
                     kind=FormKind.DEFAULT,
                     synopsis="CRYPTO::sign (('-alg' ('hmac-md5' | 'hmac-ripemd160' | 'hmac-sha1' | 'hmac-sha224'",
-                    options=(OptionSpec(name="-alg", detail="Option -alg.", takes_value=True),),
+                    options=(
+                        OptionSpec(
+                            name="-alg",
+                            detail="Signing algorithm.",
+                            takes_value=True,
+                            value_hint="ALG",
+                        ),
+                        OptionSpec(
+                            name="-ctx",
+                            detail="Context variable for multi-step operations.",
+                            takes_value=True,
+                            value_hint="CTX_VAR",
+                        ),
+                        OptionSpec(
+                            name="-final",
+                            detail="Finalize context-based operation.",
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-key", detail="Binary key.", takes_value=True, value_hint="KEY"
+                        ),
+                        OptionSpec(
+                            name="-keyhex",
+                            detail="Hex-encoded key.",
+                            takes_value=True,
+                            value_hint="KEY_HEX",
+                        ),
+                    ),
                     arg_values={
                         0: (
                             _av(

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -46,38 +46,28 @@ class SslForwardProxyCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="SSL::forward_proxy ( (policy (bypass | intercept)?) | cert)",
+                    synopsis="SSL::forward_proxy <subcommand> ?args?",
                     arg_values={
                         0: (
                             _av(
-                                "bypass",
-                                "SSL::forward_proxy bypass",
-                                "SSL::forward_proxy ( (policy (bypass | intercept)?) | cert)",
+                                "policy",
+                                "Set or get forward proxy bypass policy.",
+                                "SSL::forward_proxy policy ?bypass | intercept?",
                             ),
                             _av(
-                                "intercept",
-                                "SSL::forward_proxy intercept",
-                                "SSL::forward_proxy ( (policy (bypass | intercept)?) | cert)",
+                                "cert",
+                                "Retrieve the forged certificate or set cert options.",
+                                "SSL::forward_proxy cert ?response_control? ?status?",
                             ),
                             _av(
-                                "enable",
-                                "SSL::forward_proxy enable",
-                                "SSL::forward_proxy verified_handshake (enable | disable) ?",
+                                "verified_handshake",
+                                "Enable, disable, or get verified handshake semantics.",
+                                "SSL::forward_proxy verified_handshake ?enable | disable?",
                             ),
                             _av(
-                                "disable",
-                                "SSL::forward_proxy disable",
-                                "SSL::forward_proxy verified_handshake (enable | disable) ?",
-                            ),
-                            _av(
-                                "ignore",
-                                "SSL::forward_proxy ignore",
-                                "SSL::forward_proxy cert response_control (ignore | mask) ?",
-                            ),
-                            _av(
-                                "mask",
-                                "SSL::forward_proxy mask",
-                                "SSL::forward_proxy cert response_control (ignore | mask) ?",
+                                "extension",
+                                "Insert a certificate extension while forging.",
+                                "SSL::forward_proxy extension <oid> <value>",
                             ),
                         )
                     },
@@ -99,4 +89,106 @@ class SslForwardProxyCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "policy": SubCommand(
+                    name="policy",
+                    arity=Arity(0, 1),
+                    detail="Set or get forward proxy bypass policy.",
+                    synopsis="SSL::forward_proxy policy ?bypass | intercept?",
+                    arg_values={
+                        0: (
+                            _av(
+                                "bypass",
+                                "Bypass SSL forward proxy.",
+                                "SSL::forward_proxy policy bypass",
+                            ),
+                            _av(
+                                "intercept",
+                                "Intercept SSL forward proxy.",
+                                "SSL::forward_proxy policy intercept",
+                            ),
+                        )
+                    },
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "cert": SubCommand(
+                    name="cert",
+                    arity=Arity(0, 2),
+                    detail="Retrieve the forged certificate or set cert options.",
+                    synopsis="SSL::forward_proxy cert ?response_control? ?status?",
+                    arg_values={
+                        0: (
+                            _av(
+                                "response_control",
+                                "Control response to cert errors.",
+                                "SSL::forward_proxy cert response_control ?ignore | mask?",
+                            ),
+                            _av(
+                                "status",
+                                "Set server certificate status.",
+                                "SSL::forward_proxy cert status <value>",
+                            ),
+                        )
+                    },
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "verified_handshake": SubCommand(
+                    name="verified_handshake",
+                    arity=Arity(0, 1),
+                    detail="Enable, disable, or get verified handshake semantics.",
+                    synopsis="SSL::forward_proxy verified_handshake ?enable | disable?",
+                    arg_values={
+                        0: (
+                            _av(
+                                "enable",
+                                "Enable verified handshake.",
+                                "SSL::forward_proxy verified_handshake enable",
+                            ),
+                            _av(
+                                "disable",
+                                "Disable verified handshake.",
+                                "SSL::forward_proxy verified_handshake disable",
+                            ),
+                        )
+                    },
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "extension": SubCommand(
+                    name="extension",
+                    arity=Arity(2, 2),
+                    detail="Insert a certificate extension while forging.",
+                    synopsis="SSL::forward_proxy extension <oid> <value>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

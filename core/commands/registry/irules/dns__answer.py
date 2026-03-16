@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -53,23 +53,19 @@ class DnsAnswerCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="DNS::answer ('clear' | (('insert' | 'remove') RR_OBJECT))?",
+                    synopsis="DNS::answer ?clear | insert <rr> | remove <rr>?",
                     arg_values={
                         0: (
-                            _av(
-                                "clear",
-                                "DNS::answer clear",
-                                "DNS::answer ('clear' | (('insert' | 'remove') RR_OBJECT))?",
-                            ),
+                            _av("clear", "Clear all answer RRs.", "DNS::answer clear"),
                             _av(
                                 "insert",
-                                "DNS::answer insert",
-                                "DNS::answer ('clear' | (('insert' | 'remove') RR_OBJECT))?",
+                                "Insert an RR into the answer section.",
+                                "DNS::answer insert <rr_object>",
                             ),
                             _av(
                                 "remove",
-                                "DNS::answer remove",
-                                "DNS::answer ('clear' | (('insert' | 'remove') RR_OBJECT))?",
+                                "Remove an RR from the answer section.",
+                                "DNS::answer remove <rr_object>",
                             ),
                         )
                     },
@@ -88,6 +84,50 @@ class DnsAnswerCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "clear": SubCommand(
+                    name="clear",
+                    arity=Arity(0, 0),
+                    detail="Clear all answer RRs.",
+                    synopsis="DNS::answer clear",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.DNS_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "insert": SubCommand(
+                    name="insert",
+                    arity=Arity(1, 1),
+                    detail="Insert an RR into the answer section.",
+                    synopsis="DNS::answer insert <rr_object>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.DNS_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "remove": SubCommand(
+                    name="remove",
+                    arity=Arity(1, 1),
+                    detail="Remove an RR from the answer section.",
+                    synopsis="DNS::answer remove <rr_object>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.DNS_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )
 
     @classmethod

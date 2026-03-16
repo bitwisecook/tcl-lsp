@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -45,23 +45,18 @@ class SslTls13SecretCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="SSL::tls13_secret client (app | hs | early)",
+                    synopsis="SSL::tls13_secret <side> <secret_type>",
                     arg_values={
                         0: (
                             _av(
-                                "app",
-                                "SSL::tls13_secret app",
+                                "client",
+                                "Client-side TLS 1.3 secret.",
                                 "SSL::tls13_secret client (app | hs | early)",
                             ),
                             _av(
-                                "hs",
-                                "SSL::tls13_secret hs",
-                                "SSL::tls13_secret client (app | hs | early)",
-                            ),
-                            _av(
-                                "early",
-                                "SSL::tls13_secret early",
-                                "SSL::tls13_secret client (app | hs | early)",
+                                "server",
+                                "Server-side TLS 1.3 secret.",
+                                "SSL::tls13_secret server (app | hs)",
                             ),
                         )
                     },
@@ -80,4 +75,67 @@ class SslTls13SecretCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "client": SubCommand(
+                    name="client",
+                    arity=Arity(1, 1),
+                    detail="Client-side TLS 1.3 secret.",
+                    synopsis="SSL::tls13_secret client (app | hs | early)",
+                    pure=True,
+                    arg_values={
+                        0: (
+                            _av(
+                                "app",
+                                "Client application traffic secret.",
+                                "SSL::tls13_secret client app",
+                            ),
+                            _av(
+                                "hs",
+                                "Client handshake traffic secret.",
+                                "SSL::tls13_secret client hs",
+                            ),
+                            _av(
+                                "early",
+                                "Client early traffic secret.",
+                                "SSL::tls13_secret client early",
+                            ),
+                        )
+                    },
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.CLIENT,
+                        ),
+                    ),
+                ),
+                "server": SubCommand(
+                    name="server",
+                    arity=Arity(1, 1),
+                    detail="Server-side TLS 1.3 secret.",
+                    synopsis="SSL::tls13_secret server (app | hs)",
+                    pure=True,
+                    arg_values={
+                        0: (
+                            _av(
+                                "app",
+                                "Server application traffic secret.",
+                                "SSL::tls13_secret server app",
+                            ),
+                            _av(
+                                "hs",
+                                "Server handshake traffic secret.",
+                                "SSL::tls13_secret server hs",
+                            ),
+                        )
+                    },
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.SERVER,
+                        ),
+                    ),
+                ),
+            },
         )

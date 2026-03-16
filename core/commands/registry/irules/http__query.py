@@ -48,9 +48,14 @@ class HttpQueryCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.GETTER,
-                    synopsis="HTTP::query",
+                    synopsis="HTTP::query ?-normalized?",
                     arity=Arity(0, 0),
-                    options=(OptionSpec(name="-normalized", detail="Return normalized query."),),
+                    options=(
+                        OptionSpec(
+                            name="-normalized",
+                            detail="Return query normalized for consistent comparisons.",
+                        ),
+                    ),
                     pure=True,
                     side_effect_hints=(
                         SideEffect(

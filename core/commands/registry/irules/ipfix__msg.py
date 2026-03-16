@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -44,7 +44,15 @@ class IpfixMsgCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="IPFIX::msg ((create IPFIX_TEMPLATE) |",
+                    synopsis="IPFIX::msg <subcommand> ?options? args...",
+                    options=(
+                        OptionSpec(
+                            name="-pos",
+                            detail="Position index for duplicate field types.",
+                            takes_value=True,
+                            value_hint="IPFIX_POS",
+                        ),
+                    ),
                     arg_values={
                         0: (
                             _av(

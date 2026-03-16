@@ -59,13 +59,23 @@ class CategoryLookupCommand(CommandDef):
                     kind=FormKind.DEFAULT,
                     synopsis="CATEGORY::lookup URL ('-display' | '-id')? ('custom' | 'request_default' | 'request_default_and_custom')? ('-ip' IP)? ('-custom_cat_match' ANY_CHARS)?",
                     options=(
-                        OptionSpec(name="-display", detail="Option -display.", takes_value=True),
-                        OptionSpec(name="-id", detail="Option -id.", takes_value=True),
-                        OptionSpec(name="-ip", detail="Option -ip.", takes_value=True),
+                        OptionSpec(
+                            name="-display",
+                            detail="Return display name of categories.",
+                            takes_value=False,
+                        ),
+                        OptionSpec(name="-id", detail="Return category IDs.", takes_value=False),
+                        OptionSpec(
+                            name="-ip",
+                            detail="IP address to categorize.",
+                            takes_value=True,
+                            value_hint="IP",
+                        ),
                         OptionSpec(
                             name="-custom_cat_match",
-                            detail="Option -custom_cat_match.",
+                            detail="Match against a specified custom category.",
                             takes_value=True,
+                            value_hint="CUSTOM_CAT",
                         ),
                     ),
                     arg_values={

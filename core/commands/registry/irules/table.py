@@ -25,7 +25,9 @@ _av = make_av(_SOURCE)
 
 _WRITE_SUBS = frozenset({"set", "add", "replace", "incr", "append", "delete"})
 _READ_SUBS = frozenset({"lookup", "keys", "timeout", "lifetime"})
-_TERMINATOR_SUBS = frozenset({"set", "add", "replace", "lookup"})
+_TERMINATOR_SUBS = frozenset(
+    {"set", "add", "replace", "lookup", "incr", "append", "delete", "timeout", "lifetime"}
+)
 
 
 @register
@@ -94,6 +96,11 @@ class TableCommand(CommandDef):
                         OptionSpec(
                             name="-count",
                             detail="Return count of matching keys.",
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-all",
+                            detail="Delete all keys in a subtable.",
                             takes_value=False,
                         ),
                     ),

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -14,6 +14,24 @@ _SOURCE = "https://clouddocs.f5.com/api/irules/LB__server.html"
 
 
 _av = make_av(_SOURCE)
+
+_READ_EFFECT = (
+    SideEffect(
+        target=SideEffectTarget.POOL_SELECTION, reads=True, connection_side=ConnectionSide.SERVER
+    ),
+)
+
+_FIELDS = {
+    "name": "Get server name.",
+    "pool": "Get pool name.",
+    "route_domain": "Get route domain.",
+    "addr": "Get server address.",
+    "port": "Get server port.",
+    "priority": "Get server priority.",
+    "ratio": "Get server ratio.",
+    "weight": "Get server weight.",
+    "ripeness": "Get server ripeness.",
+}
 
 
 @register
@@ -27,7 +45,9 @@ class LbServerCommand(CommandDef):
             dialects=_IRULES_ONLY,
             hover=HoverSnippet(
                 summary="Returns information about the currently selected server.",
-                synopsis=("LB::server ('name' | 'pool' | 'route_domain' |",),
+                synopsis=(
+                    "LB::server ?name | pool | route_domain | addr | port | priority | ratio | weight | ripeness?",
+                ),
                 snippet=(
                     "This command allows you to query for information about the member selected after a load balancing decision has been made.\n"
                     "\n"
@@ -47,24 +67,11 @@ class LbServerCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="LB::server ('name' | 'pool' | 'route_domain' |",
+                    synopsis="LB::server ?field?",
                     arg_values={
-                        0: (
-                            _av(
-                                "name",
-                                "LB::server name",
-                                "LB::server ('name' | 'pool' | 'route_domain' |",
-                            ),
-                            _av(
-                                "pool",
-                                "LB::server pool",
-                                "LB::server ('name' | 'pool' | 'route_domain' |",
-                            ),
-                            _av(
-                                "route_domain",
-                                "LB::server route_domain",
-                                "LB::server ('name' | 'pool' | 'route_domain' |",
-                            ),
+                        0: tuple(
+                            _av(field, detail, f"LB::server {field}")
+                            for field, detail in _FIELDS.items()
                         )
                     },
                 ),
@@ -80,4 +87,15 @@ class LbServerCommand(CommandDef):
                     connection_side=ConnectionSide.SERVER,
                 ),
             ),
+            subcommands={
+                field: SubCommand(
+                    name=field,
+                    arity=Arity(0, 0),
+                    detail=detail,
+                    synopsis=f"LB::server {field}",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                )
+                for field, detail in _FIELDS.items()
+            },
         )

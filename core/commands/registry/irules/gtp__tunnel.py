@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -49,7 +49,15 @@ class GtpTunnelCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="GTP::tunnel ('is_ip'",
+                    synopsis="GTP::tunnel <subcommand> ?-message MESSAGE?",
+                    options=(
+                        OptionSpec(
+                            name="-message",
+                            detail="Operate on a specific GTP message object.",
+                            takes_value=True,
+                            value_hint="MESSAGE",
+                        ),
+                    ),
                     arg_values={0: (_av("is_ip", "GTP::tunnel is_ip", "GTP::tunnel ('is_ip'"),)},
                 ),
             ),

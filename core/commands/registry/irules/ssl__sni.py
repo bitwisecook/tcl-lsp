@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -15,6 +15,10 @@ _SOURCE = "https://clouddocs.f5.com/api/irules/SSL__sni.html"
 
 
 _av = make_av(_SOURCE)
+
+_READ_EFFECT = (
+    SideEffect(target=SideEffectTarget.SSL_STATE, reads=True, connection_side=ConnectionSide.BOTH),
+)
 
 
 @register
@@ -42,11 +46,11 @@ class SslSniCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="SSL::sni (name | required)",
+                    synopsis="SSL::sni <name | required>",
                     arg_values={
                         0: (
-                            _av("name", "SSL::sni name", "SSL::sni (name | required)"),
-                            _av("required", "SSL::sni required", "SSL::sni (name | required)"),
+                            _av("name", "Get SNI name.", "SSL::sni name"),
+                            _av("required", "Get SNI required setting.", "SSL::sni required"),
                         )
                     },
                 ),
@@ -62,6 +66,24 @@ class SslSniCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "name": SubCommand(
+                    name="name",
+                    arity=Arity(0, 0),
+                    detail="Get SNI name.",
+                    synopsis="SSL::sni name",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                ),
+                "required": SubCommand(
+                    name="required",
+                    arity=Arity(0, 0),
+                    detail="Get SNI required setting.",
+                    synopsis="SSL::sni required",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                ),
+            },
         )
 
     @classmethod

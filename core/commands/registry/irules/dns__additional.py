@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -51,23 +51,19 @@ class DnsAdditionalCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="DNS::additional ('clear' | (('insert' | 'remove') RR_OBJECT))?",
+                    synopsis="DNS::additional ?clear | insert <rr> | remove <rr>?",
                     arg_values={
                         0: (
-                            _av(
-                                "clear",
-                                "DNS::additional clear",
-                                "DNS::additional ('clear' | (('insert' | 'remove') RR_OBJECT))?",
-                            ),
+                            _av("clear", "Clear all additional RRs.", "DNS::additional clear"),
                             _av(
                                 "insert",
-                                "DNS::additional insert",
-                                "DNS::additional ('clear' | (('insert' | 'remove') RR_OBJECT))?",
+                                "Insert an RR into the additional section.",
+                                "DNS::additional insert <rr_object>",
                             ),
                             _av(
                                 "remove",
-                                "DNS::additional remove",
-                                "DNS::additional ('clear' | (('insert' | 'remove') RR_OBJECT))?",
+                                "Remove an RR from the additional section.",
+                                "DNS::additional remove <rr_object>",
                             ),
                         )
                     },
@@ -85,4 +81,48 @@ class DnsAdditionalCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "clear": SubCommand(
+                    name="clear",
+                    arity=Arity(0, 0),
+                    detail="Clear all additional RRs.",
+                    synopsis="DNS::additional clear",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.DNS_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "insert": SubCommand(
+                    name="insert",
+                    arity=Arity(1, 1),
+                    detail="Insert an RR into the additional section.",
+                    synopsis="DNS::additional insert <rr_object>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.DNS_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "remove": SubCommand(
+                    name="remove",
+                    arity=Arity(1, 1),
+                    detail="Remove an RR from the additional section.",
+                    synopsis="DNS::additional remove <rr_object>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.DNS_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

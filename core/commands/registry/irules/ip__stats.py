@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -14,6 +14,10 @@ _SOURCE = "https://clouddocs.f5.com/api/irules/IP__stats.html"
 
 
 _av = make_av(_SOURCE)
+
+_READ_EFFECT = (
+    SideEffect(target=SideEffectTarget.TCP_STATE, reads=True, connection_side=ConnectionSide.BOTH),
+)
 
 
 @register
@@ -71,19 +75,14 @@ class IpStatsCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="IP::stats ((pkts ('in' | 'out')?) | (bytes ('in' | 'out')?) | in | out | age)?",
+                    synopsis="IP::stats ?pkts|bytes|in|out|age? ?in|out?",
                     arg_values={
                         0: (
-                            _av(
-                                "in",
-                                "IP::stats in",
-                                "IP::stats ((pkts ('in' | 'out')?) | (bytes ('in' | 'out')?) | in | out | age)?",
-                            ),
-                            _av(
-                                "out",
-                                "IP::stats out",
-                                "IP::stats ((pkts ('in' | 'out')?) | (bytes ('in' | 'out')?) | in | out | age)?",
-                            ),
+                            _av("pkts", "Get packet counts.", "IP::stats pkts ?in|out?"),
+                            _av("bytes", "Get byte counts.", "IP::stats bytes ?in|out?"),
+                            _av("in", "Get all inbound stats.", "IP::stats in"),
+                            _av("out", "Get all outbound stats.", "IP::stats out"),
+                            _av("age", "Get connection age in ms.", "IP::stats age"),
                         )
                     },
                 ),
@@ -99,4 +98,58 @@ class IpStatsCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "pkts": SubCommand(
+                    name="pkts",
+                    arity=Arity(0, 1),
+                    detail="Get packet counts.",
+                    synopsis="IP::stats pkts ?in|out?",
+                    pure=True,
+                    arg_values={
+                        0: (
+                            _av("in", "Packets received.", "IP::stats pkts in"),
+                            _av("out", "Packets sent.", "IP::stats pkts out"),
+                        )
+                    },
+                    side_effect_hints=_READ_EFFECT,
+                ),
+                "bytes": SubCommand(
+                    name="bytes",
+                    arity=Arity(0, 1),
+                    detail="Get byte counts.",
+                    synopsis="IP::stats bytes ?in|out?",
+                    pure=True,
+                    arg_values={
+                        0: (
+                            _av("in", "Bytes received.", "IP::stats bytes in"),
+                            _av("out", "Bytes sent.", "IP::stats bytes out"),
+                        )
+                    },
+                    side_effect_hints=_READ_EFFECT,
+                ),
+                "in": SubCommand(
+                    name="in",
+                    arity=Arity(0, 0),
+                    detail="Get all inbound stats.",
+                    synopsis="IP::stats in",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                ),
+                "out": SubCommand(
+                    name="out",
+                    arity=Arity(0, 0),
+                    detail="Get all outbound stats.",
+                    synopsis="IP::stats out",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                ),
+                "age": SubCommand(
+                    name="age",
+                    arity=Arity(0, 0),
+                    detail="Get connection age in ms.",
+                    synopsis="IP::stats age",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                ),
+            },
         )

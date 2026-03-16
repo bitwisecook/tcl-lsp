@@ -5,7 +5,14 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    OptionSpec,
+    ValidationSpec,
+)
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -60,7 +67,22 @@ class SendCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="send ((",
+                    synopsis="send ?options? ?--? connection data",
+                    options=(
+                        OptionSpec(
+                            name="-timeout",
+                            detail="Time in ms to wait for data to be sent.",
+                            takes_value=True,
+                            value_hint="MSEC",
+                        ),
+                        OptionSpec(
+                            name="-status",
+                            detail="Save send status into variable.",
+                            takes_value=True,
+                            value_hint="VARIABLE",
+                        ),
+                        OptionSpec(name="--"),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

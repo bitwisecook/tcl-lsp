@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -40,7 +40,37 @@ class Http2PushCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="HTTP2::push PUSH_URI_STRING",
+                    synopsis="HTTP2::push PUSH_URI_STRING ?options? ?headers...?",
+                    options=(
+                        OptionSpec(
+                            name="-priority",
+                            detail="Push priority number.",
+                            takes_value=True,
+                            value_hint="PRIORITY",
+                        ),
+                        OptionSpec(
+                            name="-content",
+                            detail="Pushed response content.",
+                            takes_value=True,
+                            value_hint="CONTENT",
+                        ),
+                        OptionSpec(
+                            name="-ifile",
+                            detail="Serve content from iFile.",
+                            takes_value=True,
+                            value_hint="IFILE_OBJ",
+                        ),
+                        OptionSpec(
+                            name="-noserver",
+                            detail='Suppress "Server: BigIP" header.',
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-nohost",
+                            detail="Disable Host header requirement.",
+                            takes_value=False,
+                        ),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

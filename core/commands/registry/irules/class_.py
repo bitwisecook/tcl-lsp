@@ -76,6 +76,11 @@ class ClassCommand(CommandDef):
                         OptionSpec(
                             name="-nocase", detail="Case-insensitive comparison.", takes_value=False
                         ),
+                        OptionSpec(
+                            name="-list",
+                            detail="Return value always as a list.",
+                            takes_value=False,
+                        ),
                     ),
                     arg_values={
                         0: (

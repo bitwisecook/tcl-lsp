@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
-from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from .._base import CommandDef, make_av
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/ACCESS__saml.html"
+
+
+_av = make_av(_SOURCE)
 
 
 @register
@@ -58,7 +61,31 @@ class AccessSamlCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="ACCESS::saml authn (CONTENT)?",
+                    synopsis="ACCESS::saml <subcommand> ?content?",
+                    arg_values={
+                        0: (
+                            _av(
+                                "authn",
+                                "Get/set SAML authentication request.",
+                                "ACCESS::saml authn ?content?",
+                            ),
+                            _av(
+                                "assertion",
+                                "Get/set SAML assertion.",
+                                "ACCESS::saml assertion ?content?",
+                            ),
+                            _av(
+                                "slo_req",
+                                "Get/set SAML single logout request.",
+                                "ACCESS::saml slo_req ?content?",
+                            ),
+                            _av(
+                                "slo_resp",
+                                "Get/set SAML single logout response.",
+                                "ACCESS::saml slo_resp ?content?",
+                            ),
+                        )
+                    },
                 ),
             ),
             validation=ValidationSpec(
@@ -72,4 +99,28 @@ class AccessSamlCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                sub: SubCommand(
+                    name=sub,
+                    arity=Arity(0, 1),
+                    detail=detail,
+                    synopsis=f"ACCESS::saml {sub} ?content?",
+                    pure=True,
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                )
+                for sub, detail in (
+                    ("authn", "Get/set SAML authentication request."),
+                    ("assertion", "Get/set SAML assertion."),
+                    ("slo_req", "Get/set SAML single logout request."),
+                    ("slo_resp", "Get/set SAML single logout response."),
+                )
+            },
         )

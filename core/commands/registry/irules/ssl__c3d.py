@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
-from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from .._base import CommandDef, make_av
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/SSL__c3d.html"
+
+
+_av = make_av(_SOURCE)
 
 
 @register
@@ -47,7 +50,26 @@ class SslC3dCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="SSL::c3d extension (ARG ARG)",
+                    synopsis="SSL::c3d <subcommand> <args>",
+                    arg_values={
+                        0: (
+                            _av(
+                                "extension",
+                                "Insert a certificate extension.",
+                                "SSL::c3d extension <oid> <value>",
+                            ),
+                            _av(
+                                "cert",
+                                "Set the C3D client certificate.",
+                                "SSL::c3d cert <certificate>",
+                            ),
+                            _av(
+                                "subject",
+                                "Modify forged certificate subject CN.",
+                                "SSL::c3d subject <field> <value>",
+                            ),
+                        )
+                    },
                 ),
             ),
             validation=ValidationSpec(
@@ -62,4 +84,48 @@ class SslC3dCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "extension": SubCommand(
+                    name="extension",
+                    arity=Arity(2, 2),
+                    detail="Insert a certificate extension.",
+                    synopsis="SSL::c3d extension <oid> <value>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "cert": SubCommand(
+                    name="cert",
+                    arity=Arity(1, 1),
+                    detail="Set the C3D client certificate.",
+                    synopsis="SSL::c3d cert <certificate>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "subject": SubCommand(
+                    name="subject",
+                    arity=Arity(2, 2),
+                    detail="Modify forged certificate subject CN.",
+                    synopsis="SSL::c3d subject <field> <value>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -32,10 +32,10 @@ class SslAuthenticateCommand(CommandDef):
                     "Overrides the current setting for authentication frequency or for the maximum depth of certificate chain traversal.\n"
                     "\n"
                     'SSL::authenticate <"once" | "always">\n'
-                    "    Valid in a client-side context only, this command overrides the client-side SSL connection’s current setting regarding authentication frequency.\n"
+                    "    Valid in a client-side context only, this command overrides the client-side SSL connection's current setting regarding authentication frequency.\n"
                     "\n"
                     "SSL::authenticate depth <number>\n"
-                    "    When the system evaluates the command in a client-side context, the command overrides the client-side SSL connection’s current setting regarding maximum certificate chain traversal depth."
+                    "    When the system evaluates the command in a client-side context, the command overrides the client-side SSL connection's current setting regarding maximum certificate chain traversal depth."
                 ),
                 source=_SOURCE,
                 examples=("when CLIENT_ACCEPTED {\n    set session_flag 0\n}"),
@@ -43,13 +43,19 @@ class SslAuthenticateCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="SSL::authenticate (once | always | (depth DEPTH))",
+                    synopsis="SSL::authenticate <once | always | depth <number>>",
                     arg_values={
                         0: (
+                            _av("once", "Authenticate once per session.", "SSL::authenticate once"),
+                            _av(
+                                "always",
+                                "Authenticate on every connection.",
+                                "SSL::authenticate always",
+                            ),
                             _av(
                                 "depth",
-                                "SSL::authenticate depth",
-                                "SSL::authenticate (once | always | (depth DEPTH))",
+                                "Set max certificate chain depth.",
+                                "SSL::authenticate depth <number>",
                             ),
                         )
                     },
@@ -66,4 +72,48 @@ class SslAuthenticateCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "once": SubCommand(
+                    name="once",
+                    arity=Arity(0, 0),
+                    detail="Authenticate once per session.",
+                    synopsis="SSL::authenticate once",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "always": SubCommand(
+                    name="always",
+                    arity=Arity(0, 0),
+                    detail="Authenticate on every connection.",
+                    synopsis="SSL::authenticate always",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "depth": SubCommand(
+                    name="depth",
+                    arity=Arity(1, 1),
+                    detail="Set max certificate chain traversal depth.",
+                    synopsis="SSL::authenticate depth <number>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

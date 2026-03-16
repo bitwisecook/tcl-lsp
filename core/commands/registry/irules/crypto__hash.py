@@ -67,7 +67,25 @@ class CryptoHashCommand(CommandDef):
                 FormSpec(
                     kind=FormKind.DEFAULT,
                     synopsis="CRYPTO::hash (('-alg' ('md5' | 'ripemd160' | 'sha1' | 'sha224' | 'sha256' | 'sha384'",
-                    options=(OptionSpec(name="-alg", detail="Option -alg.", takes_value=True),),
+                    options=(
+                        OptionSpec(
+                            name="-alg",
+                            detail="Hash algorithm.",
+                            takes_value=True,
+                            value_hint="ALG",
+                        ),
+                        OptionSpec(
+                            name="-ctx",
+                            detail="Context variable for multi-step operations.",
+                            takes_value=True,
+                            value_hint="CTX_VAR",
+                        ),
+                        OptionSpec(
+                            name="-final",
+                            detail="Finalize context-based operation.",
+                            takes_value=False,
+                        ),
+                    ),
                     arg_values={
                         0: (
                             _av(

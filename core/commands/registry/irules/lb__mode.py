@@ -53,32 +53,25 @@ class LbModeCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="LB::mode (default | rr | roundrobin)",
+                    synopsis="LB::mode <mode>",
                     arg_values={
                         0: (
-                            _av(
-                                "default",
-                                "LB::mode default",
-                                "LB::mode (default | rr | roundrobin)",
-                            ),
-                            _av("rr", "LB::mode rr", "LB::mode (default | rr | roundrobin)"),
-                            _av(
-                                "roundrobin",
-                                "LB::mode roundrobin",
-                                "LB::mode (default | rr | roundrobin)",
-                            ),
-                            _av(
-                                "leastconns",
-                                "LB::mode leastconns",
-                                "LB::mode (leastconns | nodeleastconns)",
-                            ),
+                            _av("default", "Use default pool LB mode.", "LB::mode default"),
+                            _av("rr", "Round robin.", "LB::mode rr"),
+                            _av("roundrobin", "Round robin (alias).", "LB::mode roundrobin"),
+                            _av("leastconns", "Least connections.", "LB::mode leastconns"),
                             _av(
                                 "nodeleastconns",
+                                "Node least connections.",
                                 "LB::mode nodeleastconns",
-                                "LB::mode (leastconns | nodeleastconns)",
                             ),
-                            _av("fastest", "LB::mode fastest", "LB::mode (fastest)"),
-                            _av("predictive", "LB::mode predictive", "LB::mode (predictive)"),
+                            _av("fastest", "Fastest response.", "LB::mode fastest"),
+                            _av("predictive", "Predictive.", "LB::mode predictive"),
+                            _av("observed", "Observed.", "LB::mode observed"),
+                            _av("ratio", "Ratio.", "LB::mode ratio"),
+                            _av("noderatio", "Node ratio.", "LB::mode noderatio"),
+                            _av("dynratio", "Dynamic ratio.", "LB::mode dynratio"),
+                            _av("dynratiombr", "Dynamic ratio MBR.", "LB::mode dynratiombr"),
                         )
                     },
                 ),

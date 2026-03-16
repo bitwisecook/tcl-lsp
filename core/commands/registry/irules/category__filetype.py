@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -38,7 +38,21 @@ class CategoryFiletypeCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="CATEGORY::filetype HTTP_PAYLOAD",
+                    synopsis="CATEGORY::filetype HTTP_PAYLOAD ?options?",
+                    options=(
+                        OptionSpec(
+                            name="-mimetype",
+                            detail="Variable name to store MIME type.",
+                            takes_value=True,
+                            value_hint="TYPE",
+                        ),
+                        OptionSpec(
+                            name="-mimesubtype",
+                            detail="Variable name to store MIME subtype.",
+                            takes_value=True,
+                            value_hint="SUBTYPE",
+                        ),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

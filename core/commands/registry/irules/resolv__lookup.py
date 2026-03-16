@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -31,7 +31,34 @@ class ResolvLookupCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="RESOLV::lookup",
+                    synopsis="RESOLV::lookup ?@nameserver? ?-type? hostname",
+                    options=(
+                        OptionSpec(
+                            name="-a",
+                            detail="Query for type A (IPv4) records.",
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-aaaa",
+                            detail="Query for type AAAA (IPv6) records.",
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-ptr",
+                            detail="Query for PTR records.",
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-txt",
+                            detail="Query for TXT records.",
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-mx",
+                            detail="Query for MX records.",
+                            takes_value=False,
+                        ),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

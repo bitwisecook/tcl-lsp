@@ -10,6 +10,7 @@ from ..models import (
     FormKind,
     FormSpec,
     HoverSnippet,
+    OptionSpec,
     ValidationSpec,
 )
 from ..namespace_models import EventRequires
@@ -238,6 +239,36 @@ class HttpRespondCommand(CommandDef):
                 FormSpec(
                     kind=FormKind.DEFAULT,
                     synopsis="HTTP::respond <status> ?option value ...?",
+                    options=(
+                        OptionSpec(
+                            name="-version",
+                            detail="Set HTTP version (1.0, 1.1, auto).",
+                            takes_value=True,
+                            value_hint="VERSION",
+                        ),
+                        OptionSpec(
+                            name="-content",
+                            detail="Response body content.",
+                            takes_value=True,
+                            value_hint="CONTENT",
+                        ),
+                        OptionSpec(
+                            name="-ifile",
+                            detail="Serve content from iFile.",
+                            takes_value=True,
+                            value_hint="IFILE_OBJ",
+                        ),
+                        OptionSpec(
+                            name="-noserver",
+                            detail='Suppress "Server: BigIP" header.',
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-reset",
+                            detail="Reset server-side connection.",
+                            takes_value=False,
+                        ),
+                    ),
                     arg_values={
                         0: _HTTP_STATUS_CODES,
                         1: (

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -14,6 +14,30 @@ _SOURCE = "https://clouddocs.f5.com/api/irules/ACCESS__perflow.html"
 
 
 _av = make_av(_SOURCE)
+
+_SETTABLE_VARS = (
+    _av("perflow.custom", "Custom perflow variable.", "ACCESS::perflow set perflow.custom <value>"),
+    _av(
+        "perflow.scratchpad",
+        "Scratchpad perflow variable.",
+        "ACCESS::perflow set perflow.scratchpad <value>",
+    ),
+    _av(
+        "perflow.custom.flow",
+        "Custom flow perflow variable.",
+        "ACCESS::perflow set perflow.custom.flow <value>",
+    ),
+    _av(
+        "perflow.scratchpad.flow",
+        "Scratchpad flow perflow variable.",
+        "ACCESS::perflow set perflow.scratchpad.flow <value>",
+    ),
+    _av(
+        "perflow.l7_protocol_lookup.result",
+        "L7 protocol lookup result.",
+        "ACCESS::perflow set perflow.l7_protocol_lookup.result <value>",
+    ),
+)
 
 
 @register
@@ -54,33 +78,16 @@ class AccessPerflowCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="ACCESS::perflow get KEY",
+                    synopsis="ACCESS::perflow <get|set> <key> ?value?",
                     arg_values={
                         0: (
                             _av(
-                                "perflow.custom",
-                                "ACCESS::perflow perflow.custom",
-                                "ACCESS::perflow set ( 'perflow.custom' | 'perflow.scratchpad' | 'perflow.custom.flow' | 'perflow.scratchpad.flow' | 'perflow.l7_protocol_lookup.result' ) VALUE",
+                                "get", "Get a perflow variable value.", "ACCESS::perflow get <key>"
                             ),
                             _av(
-                                "perflow.scratchpad",
-                                "ACCESS::perflow perflow.scratchpad",
-                                "ACCESS::perflow set ( 'perflow.custom' | 'perflow.scratchpad' | 'perflow.custom.flow' | 'perflow.scratchpad.flow' | 'perflow.l7_protocol_lookup.result' ) VALUE",
-                            ),
-                            _av(
-                                "perflow.custom.flow",
-                                "ACCESS::perflow perflow.custom.flow",
-                                "ACCESS::perflow set ( 'perflow.custom' | 'perflow.scratchpad' | 'perflow.custom.flow' | 'perflow.scratchpad.flow' | 'perflow.l7_protocol_lookup.result' ) VALUE",
-                            ),
-                            _av(
-                                "perflow.scratchpad.flow",
-                                "ACCESS::perflow perflow.scratchpad.flow",
-                                "ACCESS::perflow set ( 'perflow.custom' | 'perflow.scratchpad' | 'perflow.custom.flow' | 'perflow.scratchpad.flow' | 'perflow.l7_protocol_lookup.result' ) VALUE",
-                            ),
-                            _av(
-                                "perflow.l7_protocol_lookup.result",
-                                "ACCESS::perflow perflow.l7_protocol_lookup.result",
-                                "ACCESS::perflow set ( 'perflow.custom' | 'perflow.scratchpad' | 'perflow.custom.flow' | 'perflow.scratchpad.flow' | 'perflow.l7_protocol_lookup.result' ) VALUE",
+                                "set",
+                                "Set a perflow variable value.",
+                                "ACCESS::perflow set <key> <value>",
                             ),
                         )
                     },
@@ -97,4 +104,36 @@ class AccessPerflowCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "get": SubCommand(
+                    name="get",
+                    arity=Arity(1, 1),
+                    detail="Get a perflow variable value.",
+                    synopsis="ACCESS::perflow get <key>",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "set": SubCommand(
+                    name="set",
+                    arity=Arity(2, 2),
+                    detail="Set a perflow variable value.",
+                    synopsis="ACCESS::perflow set <key> <value>",
+                    mutator=True,
+                    arg_values={0: _SETTABLE_VARS},
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

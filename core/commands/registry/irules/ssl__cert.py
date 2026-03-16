@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageScope
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -15,6 +15,15 @@ _SOURCE = "https://clouddocs.f5.com/api/irules/SSL__cert.html"
 
 
 _av = make_av(_SOURCE)
+
+_READ_EFFECT = (
+    SideEffect(
+        target=SideEffectTarget.SSL_STATE,
+        reads=True,
+        connection_side=ConnectionSide.BOTH,
+        scope=StorageScope.EVENT,
+    ),
+)
 
 
 @register
@@ -29,7 +38,12 @@ class SslCertCommand(CommandDef):
             pure=True,
             hover=HoverSnippet(
                 summary="Returns data about an X509 SSL certificate, or sets the certificate mode.",
-                synopsis=("SSL::cert (CERT_IDX | count | (issuer CERT_IDX) |",),
+                synopsis=(
+                    "SSL::cert <index>",
+                    "SSL::cert count",
+                    "SSL::cert issuer <index>",
+                    "SSL::cert mode ?ignore|request|require?",
+                ),
                 snippet="Returns data about an X509 SSL certificate, or sets the certificate mode.",
                 source=_SOURCE,
                 examples=("when RULE_INIT {\n    set ::key [AES::key 128]\n}"),
@@ -38,13 +52,19 @@ class SslCertCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="SSL::cert (CERT_IDX | count | (issuer CERT_IDX) |",
+                    synopsis="SSL::cert <subcommand|index> ?args?",
                     arg_values={
                         0: (
+                            _av("count", "Get certificate count.", "SSL::cert count"),
                             _av(
                                 "issuer",
-                                "SSL::cert issuer",
-                                "SSL::cert (CERT_IDX | count | (issuer CERT_IDX) |",
+                                "Get issuer info for cert at index.",
+                                "SSL::cert issuer <index>",
+                            ),
+                            _av(
+                                "mode",
+                                "Get/set certificate mode.",
+                                "SSL::cert mode ?ignore|request|require?",
                             ),
                         )
                     },
@@ -63,6 +83,48 @@ class SslCertCommand(CommandDef):
                     scope=StorageScope.EVENT,
                 ),
             ),
+            subcommands={
+                "count": SubCommand(
+                    name="count",
+                    arity=Arity(0, 0),
+                    detail="Get certificate count in chain.",
+                    synopsis="SSL::cert count",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                ),
+                "issuer": SubCommand(
+                    name="issuer",
+                    arity=Arity(1, 1),
+                    detail="Get issuer info for cert at index.",
+                    synopsis="SSL::cert issuer <index>",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                ),
+                "mode": SubCommand(
+                    name="mode",
+                    arity=Arity(0, 1),
+                    detail="Get/set certificate mode.",
+                    synopsis="SSL::cert mode ?ignore|request|require?",
+                    pure=True,
+                    mutator=True,
+                    arg_values={
+                        0: (
+                            _av("ignore", "Do not request client cert.", "SSL::cert mode ignore"),
+                            _av("request", "Request client cert.", "SSL::cert mode request"),
+                            _av("require", "Require client cert.", "SSL::cert mode require"),
+                        )
+                    },
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.SSL_STATE,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                            scope=StorageScope.EVENT,
+                        ),
+                    ),
+                ),
+            },
         )
 
     @classmethod

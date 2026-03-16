@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -47,23 +47,19 @@ class DnsAuthorityCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="DNS::authority ('clear' | (('insert' | 'remove') RR_OBJECT))?",
+                    synopsis="DNS::authority ?clear | insert <rr> | remove <rr>?",
                     arg_values={
                         0: (
-                            _av(
-                                "clear",
-                                "DNS::authority clear",
-                                "DNS::authority ('clear' | (('insert' | 'remove') RR_OBJECT))?",
-                            ),
+                            _av("clear", "Clear all authority RRs.", "DNS::authority clear"),
                             _av(
                                 "insert",
-                                "DNS::authority insert",
-                                "DNS::authority ('clear' | (('insert' | 'remove') RR_OBJECT))?",
+                                "Insert an RR into the authority section.",
+                                "DNS::authority insert <rr_object>",
                             ),
                             _av(
                                 "remove",
-                                "DNS::authority remove",
-                                "DNS::authority ('clear' | (('insert' | 'remove') RR_OBJECT))?",
+                                "Remove an RR from the authority section.",
+                                "DNS::authority remove <rr_object>",
                             ),
                         )
                     },
@@ -81,4 +77,48 @@ class DnsAuthorityCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "clear": SubCommand(
+                    name="clear",
+                    arity=Arity(0, 0),
+                    detail="Clear all authority RRs.",
+                    synopsis="DNS::authority clear",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.DNS_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "insert": SubCommand(
+                    name="insert",
+                    arity=Arity(1, 1),
+                    detail="Insert an RR into the authority section.",
+                    synopsis="DNS::authority insert <rr_object>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.DNS_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "remove": SubCommand(
+                    name="remove",
+                    arity=Arity(1, 1),
+                    detail="Remove an RR from the authority section.",
+                    synopsis="DNS::authority remove <rr_object>",
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.DNS_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

@@ -68,7 +68,50 @@ class CryptoEncryptCommand(CommandDef):
                     kind=FormKind.DEFAULT,
                     synopsis="CRYPTO::encrypt (('-padding' (pkcs | oaep | none) )",
                     options=(
-                        OptionSpec(name="-padding", detail="Option -padding.", takes_value=True),
+                        OptionSpec(
+                            name="-alg",
+                            detail="Encryption algorithm.",
+                            takes_value=True,
+                            value_hint="ALG",
+                        ),
+                        OptionSpec(
+                            name="-ctx",
+                            detail="Context variable for multi-step operations.",
+                            takes_value=True,
+                            value_hint="CTX_VAR",
+                        ),
+                        OptionSpec(
+                            name="-final",
+                            detail="Finalize context-based operation.",
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-key", detail="Binary key.", takes_value=True, value_hint="KEY"
+                        ),
+                        OptionSpec(
+                            name="-keyhex",
+                            detail="Hex-encoded key.",
+                            takes_value=True,
+                            value_hint="KEY_HEX",
+                        ),
+                        OptionSpec(
+                            name="-iv",
+                            detail="Initialization vector (binary).",
+                            takes_value=True,
+                            value_hint="IV",
+                        ),
+                        OptionSpec(
+                            name="-ivhex",
+                            detail="Initialization vector (hex).",
+                            takes_value=True,
+                            value_hint="IV_HEX",
+                        ),
+                        OptionSpec(
+                            name="-padding",
+                            detail="Padding mode (pkcs, oaep, none).",
+                            takes_value=True,
+                            value_hint="PADDING",
+                        ),
                     ),
                     arg_values={
                         0: (

@@ -50,9 +50,14 @@ class HttpUriCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.GETTER,
-                    synopsis="HTTP::uri",
+                    synopsis="HTTP::uri ?-normalized?",
                     arity=Arity(0, 0),
-                    options=(OptionSpec(name="-normalized", detail="Return normalized URI."),),
+                    options=(
+                        OptionSpec(
+                            name="-normalized",
+                            detail="Return URI normalized for consistent comparisons.",
+                        ),
+                    ),
                     pure=True,
                     side_effect_hints=(
                         SideEffect(

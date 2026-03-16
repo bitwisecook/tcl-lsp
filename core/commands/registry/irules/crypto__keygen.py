@@ -51,7 +51,47 @@ class CryptoKeygenCommand(CommandDef):
                 FormSpec(
                     kind=FormKind.DEFAULT,
                     synopsis="CRYPTO::keygen (('-alg' ('random' | 'pbkdf2-md5' | 'rsa'))",
-                    options=(OptionSpec(name="-alg", detail="Option -alg.", takes_value=True),),
+                    options=(
+                        OptionSpec(
+                            name="-alg",
+                            detail="Key generation algorithm.",
+                            takes_value=True,
+                            value_hint="ALG",
+                        ),
+                        OptionSpec(
+                            name="-len",
+                            detail="Key length (must be multiple of 8).",
+                            takes_value=True,
+                            value_hint="LENGTH",
+                        ),
+                        OptionSpec(
+                            name="-exp",
+                            detail="Exponent (for RSA).",
+                            takes_value=True,
+                            value_hint="EXPONENT",
+                        ),
+                        OptionSpec(
+                            name="-passphrase",
+                            detail="Passphrase for key derivation.",
+                            takes_value=True,
+                            value_hint="PASSPHRASE",
+                        ),
+                        OptionSpec(
+                            name="-salt", detail="Binary salt.", takes_value=True, value_hint="SALT"
+                        ),
+                        OptionSpec(
+                            name="-salthex",
+                            detail="Hex-encoded salt.",
+                            takes_value=True,
+                            value_hint="SALT_HEX",
+                        ),
+                        OptionSpec(
+                            name="-rounds",
+                            detail="Rounds for PBKDF2.",
+                            takes_value=True,
+                            value_hint="ROUNDS",
+                        ),
+                    ),
                     arg_values={
                         0: (
                             _av(

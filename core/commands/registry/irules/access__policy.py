@@ -4,13 +4,24 @@
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
-from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
+from .._base import CommandDef, make_av
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    OptionSpec,
+    SubCommand,
+    ValidationSpec,
+)
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/ACCESS__policy.html"
+
+
+_av = make_av(_SOURCE)
 
 
 @register
@@ -63,8 +74,23 @@ class AccessPolicyCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="ACCESS::policy agent_id",
-                    options=(OptionSpec(name="-sid", detail="Option -sid.", takes_value=True),),
+                    synopsis="ACCESS::policy <subcommand> ?args?",
+                    arg_values={
+                        0: (
+                            _av("agent_id", "Get the agent identifier.", "ACCESS::policy agent_id"),
+                            _av(
+                                "evaluate",
+                                "Evaluate an access policy.",
+                                "ACCESS::policy evaluate ?-sid id?",
+                            ),
+                            _av(
+                                "result",
+                                "Get the policy result.",
+                                "ACCESS::policy result ?-sid id?",
+                            ),
+                            _av("uri", "Check if URI is internal to ACCESS.", "ACCESS::policy uri"),
+                        )
+                    },
                 ),
             ),
             validation=ValidationSpec(
@@ -78,4 +104,78 @@ class AccessPolicyCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "agent_id": SubCommand(
+                    name="agent_id",
+                    arity=Arity(0, 0),
+                    detail="Get the agent identifier.",
+                    synopsis="ACCESS::policy agent_id",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "evaluate": SubCommand(
+                    name="evaluate",
+                    arity=Arity(0),
+                    detail="Evaluate an access policy.",
+                    synopsis="ACCESS::policy evaluate ?-sid id?",
+                    options=(
+                        OptionSpec(
+                            name="-sid",
+                            detail="Session ID.",
+                            takes_value=True,
+                            value_hint="SESSION_ID",
+                        ),
+                    ),
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "result": SubCommand(
+                    name="result",
+                    arity=Arity(0),
+                    detail="Get the policy result (allow/deny/redirect).",
+                    synopsis="ACCESS::policy result ?-sid id?",
+                    pure=True,
+                    options=(
+                        OptionSpec(
+                            name="-sid",
+                            detail="Session ID.",
+                            takes_value=True,
+                            value_hint="SESSION_ID",
+                        ),
+                    ),
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "uri": SubCommand(
+                    name="uri",
+                    arity=Arity(0, 0),
+                    detail="Check if URI is internal to ACCESS.",
+                    synopsis="ACCESS::policy uri",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

@@ -66,7 +66,15 @@ class IpAddrCommand(CommandDef):
                 FormSpec(
                     kind=FormKind.DEFAULT,
                     synopsis="IP::addr IP_ADDR_MASK 'equals' IP_ADDR_MASK",
-                    options=(OptionSpec(name="-swap", detail="Option -swap.", takes_value=True),),
+                    options=(
+                        OptionSpec(name="-swap", detail="Swap byte order.", takes_value=False),
+                        OptionSpec(
+                            name="-ipv4", detail="Parse as IPv4 address.", takes_value=False
+                        ),
+                        OptionSpec(
+                            name="-ipv6", detail="Parse as IPv6 address.", takes_value=False
+                        ),
+                    ),
                     arg_values={
                         0: (
                             _av(

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -43,7 +43,38 @@ class XlatSrcEndpointReservationCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="XLAT::src_endpoint_reservation create",
+                    synopsis="XLAT::src_endpoint_reservation create ?options? <client_ip> <client_port> <protocol> <lifetime>",
+                    options=(
+                        OptionSpec(
+                            name="-no-persist",
+                            detail="Skip creation of persist entry.",
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-dslite",
+                            detail="DS-Lite local and remote endpoint.",
+                            takes_value=True,
+                            value_hint="LOCAL_ADDR REMOTE_ADDR",
+                        ),
+                        OptionSpec(
+                            name="-pool",
+                            detail="Specify pool for endpoint reservation.",
+                            takes_value=True,
+                            value_hint="POOL_NAME",
+                        ),
+                        OptionSpec(
+                            name="-translation-loose",
+                            detail="Hint data; command won't fail if hints can't be used.",
+                            takes_value=True,
+                            value_hint="IP PORT",
+                        ),
+                        OptionSpec(
+                            name="-translation-strict",
+                            detail="Hint data; command fails if hints can't be used.",
+                            takes_value=True,
+                            value_hint="IP PORT",
+                        ),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

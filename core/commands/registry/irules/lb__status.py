@@ -4,13 +4,22 @@
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
-from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from .._base import CommandDef, make_av
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/LB__status.html"
+
+
+_av = make_av(_SOURCE)
+
+_READ_EFFECT = (
+    SideEffect(
+        target=SideEffectTarget.POOL_SELECTION, reads=True, connection_side=ConnectionSide.SERVER
+    ),
+)
 
 
 @register
@@ -52,7 +61,19 @@ class LbStatusCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="LB::status (LB_STATUS)?",
+                    synopsis="LB::status ?node <addr> | pool <pool> member <addr> <port>? ?status?",
+                    arg_values={
+                        0: (
+                            _av(
+                                "node", "Query/set node status.", "LB::status node <addr> ?status?"
+                            ),
+                            _av(
+                                "pool",
+                                "Query/set pool member status.",
+                                "LB::status pool <pool> member <addr> <port> ?status?",
+                            ),
+                        )
+                    },
                 ),
             ),
             validation=ValidationSpec(
@@ -66,4 +87,22 @@ class LbStatusCommand(CommandDef):
                     connection_side=ConnectionSide.SERVER,
                 ),
             ),
+            subcommands={
+                "node": SubCommand(
+                    name="node",
+                    arity=Arity(1),
+                    detail="Query/set node status.",
+                    synopsis="LB::status node <addr> ?status?",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                ),
+                "pool": SubCommand(
+                    name="pool",
+                    arity=Arity(3),
+                    detail="Query/set pool member status.",
+                    synopsis="LB::status pool <pool> member <addr> <port> ?status?",
+                    pure=True,
+                    side_effect_hints=_READ_EFFECT,
+                ),
+            },
         )

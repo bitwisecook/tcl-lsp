@@ -45,8 +45,35 @@ class AccessOauthCommand(CommandDef):
                     kind=FormKind.DEFAULT,
                     synopsis="ACCESS::oauth sign ((-payload VALUE) (-key JWK_OBJECT)",
                     options=(
-                        OptionSpec(name="-payload", detail="Option -payload.", takes_value=True),
-                        OptionSpec(name="-key", detail="Option -key.", takes_value=True),
+                        OptionSpec(
+                            name="-header",
+                            detail="Raw data for JOSE header section.",
+                            takes_value=True,
+                            value_hint="RAW_DATA",
+                        ),
+                        OptionSpec(
+                            name="-payload",
+                            detail="Raw data for JWS payload.",
+                            takes_value=True,
+                            value_hint="RAW_DATA",
+                        ),
+                        OptionSpec(
+                            name="-key",
+                            detail="JWK object for signing.",
+                            takes_value=True,
+                            value_hint="JWK_OBJECT",
+                        ),
+                        OptionSpec(
+                            name="-alg",
+                            detail="Signing algorithm.",
+                            takes_value=True,
+                            value_hint="ALG",
+                        ),
+                        OptionSpec(
+                            name="-ignore-cert-expiry",
+                            detail="Allow expired certificate.",
+                            takes_value=False,
+                        ),
                     ),
                 ),
             ),

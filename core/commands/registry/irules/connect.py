@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -46,7 +46,51 @@ class ConnectCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="connect info (",
+                    synopsis="connect ?options? destination",
+                    options=(
+                        OptionSpec(
+                            name="-protocol",
+                            detail="IP protocol (default TCP).",
+                            takes_value=True,
+                            value_hint="PROTO",
+                        ),
+                        OptionSpec(
+                            name="-myaddr",
+                            detail="Source address for the connection.",
+                            takes_value=True,
+                            value_hint="IP_ADDR",
+                        ),
+                        OptionSpec(
+                            name="-myport",
+                            detail="Source port for the connection.",
+                            takes_value=True,
+                            value_hint="PORT",
+                        ),
+                        OptionSpec(
+                            name="-timeout",
+                            detail="Time in ms to wait for connection.",
+                            takes_value=True,
+                            value_hint="MSEC",
+                        ),
+                        OptionSpec(
+                            name="-idle",
+                            detail="Idle timeout in seconds (default 300).",
+                            takes_value=True,
+                            value_hint="SEC",
+                        ),
+                        OptionSpec(
+                            name="-tos",
+                            detail="IP TOS value.",
+                            takes_value=True,
+                            value_hint="TOS",
+                        ),
+                        OptionSpec(
+                            name="-status",
+                            detail="Save connection status into variable.",
+                            takes_value=True,
+                            value_hint="VARIABLE",
+                        ),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -14,6 +14,15 @@ _SOURCE = "https://clouddocs.f5.com/api/irules/LB__down.html"
 
 
 _av = make_av(_SOURCE)
+
+_WRITE_EFFECT = (
+    SideEffect(
+        target=SideEffectTarget.POOL_SELECTION,
+        reads=True,
+        writes=True,
+        connection_side=ConnectionSide.SERVER,
+    ),
+)
 
 
 @register
@@ -27,7 +36,11 @@ class LbDownCommand(CommandDef):
             dialects=_IRULES_ONLY,
             hover=HoverSnippet(
                 summary="Sets the status of a node or pool member as being down.",
-                synopsis=("LB::down ((node IP_ADDR) |",),
+                synopsis=(
+                    "LB::down",
+                    "LB::down node <address>",
+                    "LB::down pool <pool> member <address> <port>",
+                ),
                 snippet=(
                     "Sets the status of the specified node or pool member as being down. If you specify no arguments, the status of the currently-selected node is modified.\n"
                     "Note: Calling LB::down in an iRule triggers an immediate monitor probe regardless of the monitor interval settings.\n"
@@ -51,8 +64,17 @@ class LbDownCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="LB::down ((node IP_ADDR) |",
-                    arg_values={0: (_av("node", "LB::down node", "LB::down ((node IP_ADDR) |"),)},
+                    synopsis="LB::down ?node <addr> | pool <pool> member <addr> <port>?",
+                    arg_values={
+                        0: (
+                            _av("node", "Mark node as down.", "LB::down node <address>"),
+                            _av(
+                                "pool",
+                                "Mark pool member as down.",
+                                "LB::down pool <pool> member <address> <port>",
+                            ),
+                        )
+                    },
                 ),
             ),
             validation=ValidationSpec(
@@ -66,4 +88,22 @@ class LbDownCommand(CommandDef):
                     connection_side=ConnectionSide.SERVER,
                 ),
             ),
+            subcommands={
+                "node": SubCommand(
+                    name="node",
+                    arity=Arity(1, 1),
+                    detail="Mark node as down.",
+                    synopsis="LB::down node <address>",
+                    mutator=True,
+                    side_effect_hints=_WRITE_EFFECT,
+                ),
+                "pool": SubCommand(
+                    name="pool",
+                    arity=Arity(3, 3),
+                    detail="Mark pool member as down.",
+                    synopsis="LB::down pool <pool> member <address> <port>",
+                    mutator=True,
+                    side_effect_hints=_WRITE_EFFECT,
+                ),
+            },
         )

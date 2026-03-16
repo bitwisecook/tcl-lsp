@@ -63,7 +63,7 @@ class CallCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="call <proc_name> [arg(s)]",
+                    synopsis="call <proc_name> ?arg ...?",
                 ),
             ),
             validation=ValidationSpec(

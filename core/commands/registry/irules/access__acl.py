@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -54,14 +54,13 @@ class AccessAclCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="ACCESS::acl (result | matched | lookup | (eval ACL_NAME))",
+                    synopsis="ACCESS::acl <subcommand> ?args?",
                     arg_values={
                         0: (
-                            _av(
-                                "eval",
-                                "ACCESS::acl eval",
-                                "ACCESS::acl (result | matched | lookup | (eval ACL_NAME))",
-                            ),
+                            _av("result", "Get ACL match result.", "ACCESS::acl result"),
+                            _av("matched", "Get matched ACL.", "ACCESS::acl matched"),
+                            _av("lookup", "List assigned ACLs.", "ACCESS::acl lookup"),
+                            _av("eval", "Enforce an ACL.", "ACCESS::acl eval <acl_name>"),
                         )
                     },
                 ),
@@ -77,4 +76,62 @@ class AccessAclCommand(CommandDef):
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),
+            subcommands={
+                "result": SubCommand(
+                    name="result",
+                    arity=Arity(0, 0),
+                    detail="Get ACL match result (Allow/Reject).",
+                    synopsis="ACCESS::acl result",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "matched": SubCommand(
+                    name="matched",
+                    arity=Arity(0, 0),
+                    detail="Get matched ACL.",
+                    synopsis="ACCESS::acl matched",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "lookup": SubCommand(
+                    name="lookup",
+                    arity=Arity(0, 0),
+                    detail="List assigned ACLs for the session.",
+                    synopsis="ACCESS::acl lookup",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "eval": SubCommand(
+                    name="eval",
+                    arity=Arity(1, 1),
+                    detail="Enforce an ACL by name.",
+                    synopsis="ACCESS::acl eval <acl_name>",
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
         )

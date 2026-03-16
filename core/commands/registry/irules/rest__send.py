@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -31,7 +31,15 @@ class RestSendCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="REST::send",
+                    synopsis="REST::send -method METHOD URI ?BODY?",
+                    options=(
+                        OptionSpec(
+                            name="-method",
+                            detail="HTTP method (GET, POST, PUT, DELETE, etc.).",
+                            takes_value=True,
+                            value_hint="METHOD",
+                        ),
+                    ),
                 ),
             ),
             validation=ValidationSpec(
