@@ -616,7 +616,12 @@ class TclLexer:
 
     def _parse_string(self) -> None:
         _type = self._type
-        newword = _type is TokenType.SEP or _type is TokenType.EOL or _type is TokenType.STR or _type is TokenType.EXPAND
+        newword = (
+            _type is TokenType.SEP
+            or _type is TokenType.EOL
+            or _type is TokenType.STR
+            or _type is TokenType.EXPAND
+        )
         if newword and self.remaining and self._cur() == "{":
             # Check for {*} expansion prefix (Tcl 8.5+)
             _len = self._len
@@ -668,7 +673,15 @@ class TclLexer:
                     self._line = line
                     self._col = col
                     return
-                elif not insidequote and (ch == " " or ch == "\t" or ch == "\n" or ch == "\r" or ch == "\x0b" or ch == "\x0c" or ch == ";"):
+                elif not insidequote and (
+                    ch == " "
+                    or ch == "\t"
+                    or ch == "\n"
+                    or ch == "\r"
+                    or ch == "\x0b"
+                    or ch == "\x0c"
+                    or ch == ";"
+                ):
                     self._end = pos - 1
                     self._type = TokenType.ESC
                     self.pos = pos
@@ -687,7 +700,14 @@ class TclLexer:
                     self._col = col
                     # After closing quote, next char must be separator or EOF.
                     if pos < _len and text[pos] not in (
-                        " ", "\t", "\n", "\r", "\x0b", "\x0c", ";", "]",
+                        " ",
+                        "\t",
+                        "\n",
+                        "\r",
+                        "\x0b",
+                        "\x0c",
+                        ";",
+                        "]",
                     ):
                         if TclLexer.strict_quoting:
                             raise TclParseError("extra characters after close-quote")
@@ -928,7 +948,11 @@ class TclLexer:
             # _at_command_start stays True through SEP/EOL/COMMENT tokens
             # but resets for any actual command content.
             _type = self._type
-            if _type is not TokenType.SEP and _type is not TokenType.EOL and _type is not TokenType.COMMENT:
+            if (
+                _type is not TokenType.SEP
+                and _type is not TokenType.EOL
+                and _type is not TokenType.COMMENT
+            ):
                 self._at_command_start = False
 
             return _Token(
