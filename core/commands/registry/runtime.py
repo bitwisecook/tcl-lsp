@@ -14,7 +14,7 @@ from functools import lru_cache
 from ...compiler.types import TclType
 from ...parsing.tokens import Token
 from .command_registry import REGISTRY
-from .models import CommandSpec, PatternType, SubCommand, ValidationSpec
+from .models import CommandSpec, PatternType, ValidationSpec
 from .signatures import ArgRole, Arity, CommandSig, SubcommandSig
 from .taint_hints import TaintColour, TaintHint
 from .type_hints import CommandTypeHint, SubcommandTypeHint

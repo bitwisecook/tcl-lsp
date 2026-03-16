@@ -24,7 +24,6 @@ from __future__ import annotations
 import re
 
 from ..commands.registry import REGISTRY
-from ..commands.registry.runtime import variable_writing_commands
 from ..commands.registry.namespace_data import (
     deprecated_events,
     hot_events,
@@ -33,6 +32,7 @@ from ..commands.registry.namespace_data import (
 )
 from ..commands.registry.namespace_models import EventRequires
 from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from ..commands.registry.runtime import variable_writing_commands
 from ..common.dialect import active_dialect
 from ..common.ranges import range_from_token
 from ..parsing.tokens import Token

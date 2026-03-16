@@ -29,8 +29,8 @@ class RegexQuoteCommand(CommandDef):
                     "pattern in ``regexp`` or ``regsub``."
                 ),
                 examples=(
-                    'set safe_pattern [regex::quote $user_input]\n'
-                    'if {[regexp $safe_pattern $haystack]} { ... }'
+                    "set safe_pattern [regex::quote $user_input]\n"
+                    "if {[regexp $safe_pattern $haystack]} { ... }"
                 ),
                 return_value="Returns a regex-escaped string.",
             ),

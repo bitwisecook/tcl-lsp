@@ -117,6 +117,7 @@ def _derive_transform_colours(
 
     return TaintColour(0)
 
+
 _COLOUR_LABELS: dict[TaintColour, str] = {
     TaintColour.URL_ENCODED: "URL-encoded",
     TaintColour.HTML_ESCAPED: "HTML-escaped",

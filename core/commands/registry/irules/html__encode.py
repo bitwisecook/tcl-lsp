@@ -33,7 +33,7 @@ class HtmlEncodeCommand(CommandDef):
                 source=_SOURCE,
                 examples=(
                     "when HTTP_REQUEST {\n"
-                    '  set user_input [HTTP::query]\n'
+                    "  set user_input [HTTP::query]\n"
                     '  HTTP::respond 200 content "<p>[HTML::encode $user_input]</p>"\n'
                     "}"
                 ),
