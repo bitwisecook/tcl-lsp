@@ -32,6 +32,7 @@ from ..commands.registry.namespace_data import (
 )
 from ..commands.registry.namespace_models import EventRequires
 from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from ..commands.registry.runtime import variable_writing_commands
 from ..common.dialect import active_dialect
 from ..common.ranges import range_from_token
 from ..parsing.tokens import Token
@@ -638,11 +639,10 @@ def _global_var_from_command(
     Detects ``set ::var``, ``array set ::var``, ``incr ::var``,
     ``append ::var``, ``lappend ::var``, and ``unset ::var``.
     """
-    if cmd_name in {"set", "incr", "append", "lappend", "unset"} and args:
-        if args[0].startswith("::"):
-            return args[0]
-    if cmd_name == "array" and len(args) >= 2 and args[1].startswith("::"):
-        return args[1]
+    var_idx = variable_writing_commands().get(cmd_name)
+    if var_idx is not None and var_idx < len(args):
+        if args[var_idx].startswith("::"):
+            return args[var_idx]
     return None
 
 
@@ -660,16 +660,20 @@ def _implicit_global_var_from_command(
     — a bare ``set var`` (read) in RULE_INIT is harmless if the variable
     was already created elsewhere.
     """
-    if cmd_name == "set" and len(args) >= 2:
-        var = args[0]
-        if not var.startswith("::") and not var.startswith("static::"):
-            return var
-    if cmd_name in {"incr", "append", "lappend"} and args:
-        var = args[0]
-        if not var.startswith("::") and not var.startswith("static::"):
-            return var
-    if cmd_name == "array" and len(args) >= 2 and args[0] == "set":
-        var = args[1]
+    var_idx = variable_writing_commands().get(cmd_name)
+    if var_idx is None:
+        return None
+    # ``set var`` with 1 arg is a read, not a write — skip.
+    if cmd_name == "set" and len(args) < 2:
+        return None
+    # ``unset`` destroys variables, it doesn't create implicit globals.
+    if cmd_name == "unset":
+        return None
+    # ``array`` only creates implicit globals via ``array set``.
+    if cmd_name == "array" and (not args or args[0] != "set"):
+        return None
+    if var_idx < len(args):
+        var = args[var_idx]
         if not var.startswith("::") and not var.startswith("static::"):
             return var
     return None
@@ -729,10 +733,9 @@ def check_global_namespace_usage(
         fix_range = range_from_token(all_tokens[0])
 
         # Determine the token that holds the variable name for the fix range
-        if cmd_name in {"set", "incr", "append", "lappend", "unset"} and arg_tokens:
-            fix_range = range_from_token(arg_tokens[0])
-        elif cmd_name == "array" and len(arg_tokens) >= 2:
-            fix_range = range_from_token(arg_tokens[1])
+        var_idx = variable_writing_commands().get(cmd_name)
+        if var_idx is not None and var_idx < len(arg_tokens):
+            fix_range = range_from_token(arg_tokens[var_idx])
 
         return [
             Diagnostic(
@@ -761,10 +764,9 @@ def check_global_namespace_usage(
         if bare is not None:
             static_name = f"static::{bare}"
             fix_range = range_from_token(all_tokens[0])
-            if cmd_name in {"set", "incr", "append", "lappend"} and arg_tokens:
-                fix_range = range_from_token(arg_tokens[0])
-            elif cmd_name == "array" and len(arg_tokens) >= 2:
-                fix_range = range_from_token(arg_tokens[1])
+            var_idx = variable_writing_commands().get(cmd_name)
+            if var_idx is not None and var_idx < len(arg_tokens):
+                fix_range = range_from_token(arg_tokens[var_idx])
 
             return [
                 Diagnostic(

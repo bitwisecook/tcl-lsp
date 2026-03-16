@@ -534,13 +534,12 @@ def _scope_from_varname(name: str) -> tuple[StorageScope, str | None]:
 
 
 def _storage_type_for_command(command: str, args: tuple[str, ...]) -> StorageType:
-    """Heuristic storage type from command name."""
-    if command in ("dict", "dict set", "dict append", "dict lappend", "dict unset"):
-        return StorageType.DICT
-    if command in ("lappend", "linsert", "lset", "lsort", "lreplace", "lrepeat"):
-        return StorageType.LIST
-    if command == "array" or (args and command == "array"):
-        return StorageType.ARRAY
+    """Infer storage type from command name via registry metadata."""
+    from ..commands.registry.runtime import storage_type_commands
+
+    st = storage_type_commands().get(command)
+    if st is not None:
+        return st  # type: ignore[return-value]
     return StorageType.SCALAR
 
 
@@ -677,7 +676,7 @@ def classify_side_effects(
         resolved_form = sub_spec.resolve_form(sub_args)
     elif spec is not None and len(spec.forms) > 1:
         resolved_form = spec.resolve_form(tuple(args))
-        if command in {"HTTP::uri", "HTTP::path", "HTTP::query"} and args == ("-normalized",):
+        if spec.supports_normalized_flag and args == ("-normalized",):
             getter_form = spec.resolve_form(())
             if getter_form is not None:
                 resolved_form = getter_form
@@ -748,8 +747,15 @@ def classify_side_effects(
             scope, ns = _scope_from_varname(varname)
             st = _storage_type_for_command(command, args)
             # For set with 1 arg it's a read, with 2 it's a write.
-            is_write = len(args) > idx + 1 or command not in ("set",)
-            is_read = command == "set" and len(args) == idx + 1
+            # For subcommand-bearing commands (e.g. array), check the
+            # subcommand's mutator flag instead of the generic heuristic.
+            if spec.subcommands and args:
+                sub = spec.subcommands.get(args[0])
+                is_write = sub is not None and sub.mutator
+                is_read = sub is not None and not sub.mutator
+            else:
+                is_write = len(args) > idx + 1 or command not in ("set",)
+                is_read = command == "set" and len(args) == idx + 1
             side = ConnectionSide.NONE
             if dialect in ("irules", "f5-irules") and scope is StorageScope.STATIC:
                 side = ConnectionSide.GLOBAL
@@ -844,9 +850,11 @@ def _classify_protocol_ns_command(
         is_write = False
 
     # Subcommand mutator flags can upgrade writes.
-    # HTTP::uri/path/query treat "-normalized" as getter mode even though
-    # these commands also have 1-arg setter forms.
-    if command in {"HTTP::uri", "HTTP::path", "HTTP::query"} and args == ("-normalized",):
+    # Commands with a ``-normalized`` option treat "-normalized" as getter
+    # mode even though they also have 1-arg setter forms.
+    from ..commands.registry.runtime import normalized_flag_commands
+
+    if command in normalized_flag_commands() and args == ("-normalized",):
         is_read = True
         is_write = False
 

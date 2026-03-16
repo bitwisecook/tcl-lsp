@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageType
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
@@ -39,6 +39,7 @@ class LappendCommand(CommandDef):
             assigns_variable_at=0,
             arg_roles={0: ArgRole.VAR_NAME},
             return_type=TclType.LIST,
+            inferred_storage_type=StorageType.LIST,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},
             side_effect_hints=(
                 SideEffect(

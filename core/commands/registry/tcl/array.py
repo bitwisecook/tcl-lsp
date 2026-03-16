@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageType
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
@@ -161,6 +161,7 @@ class ArrayCommand(CommandDef):
                     synopsis="array set arrayName list",
                     return_type=TclType.STRING,
                     arg_roles={0: ArgRole.VAR_NAME},
+                    mutator=True,
                 ),
                 "size": SubCommand(
                     name="size",
@@ -193,11 +194,14 @@ class ArrayCommand(CommandDef):
                     synopsis="array unset arrayName ?pattern?",
                     return_type=TclType.STRING,
                     arg_roles={0: ArgRole.VAR_NAME},
+                    mutator=True,
                 ),
             },
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
+            assigns_variable_at=1,
+            inferred_storage_type=StorageType.ARRAY,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.VARIABLE,

@@ -1946,7 +1946,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # HTML:: stubs (4 commands)
+    # HTML:: stubs (5 commands)
 
     proc html_comment {args} {
         ::itest::log_decision html comment $args
@@ -1960,6 +1960,11 @@ namespace eval ::itest::cmd {
 
     proc html_enable {args} {
         ::itest::log_decision html enable $args
+        return ""
+    }
+
+    proc html_encode {args} {
+        ::itest::log_decision html encode $args
         return ""
     }
 
@@ -4236,7 +4241,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # URI:: stubs (9 commands)
+    # URI:: stubs (11 commands)
 
     proc uri_basename {args} {
         ::itest::log_decision uri basename $args
@@ -4255,6 +4260,16 @@ namespace eval ::itest::cmd {
 
     proc uri_encode {args} {
         ::itest::log_decision uri encode $args
+        return ""
+    }
+
+    proc uri_encode_component {args} {
+        ::itest::log_decision uri encode_component $args
+        return ""
+    }
+
+    proc uri_escape {args} {
+        ::itest::log_decision uri escape $args
         return ""
     }
 
@@ -5415,7 +5430,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # Top-level stubs (193 commands)
+    # Top-level stubs (196 commands)
 
     proc cmd_accumulate {args} {
         ::itest::log_decision toplevel accumulate $args
@@ -5684,6 +5699,21 @@ namespace eval ::itest::cmd {
 
     proc cmd_history {args} {
         ::itest::log_decision toplevel history $args
+        return ""
+    }
+
+    proc cmd_html_encode {args} {
+        ::itest::log_decision toplevel html_encode $args
+        return ""
+    }
+
+    proc cmd_html_escape {args} {
+        ::itest::log_decision toplevel html_escape $args
+        return ""
+    }
+
+    proc cmd_htmlencode {args} {
+        ::itest::log_decision toplevel htmlencode $args
         return ""
     }
 
@@ -6384,4 +6414,4 @@ namespace eval ::itest::cmd {
 
 }
 
-# Total stub mocks generated: 1188
+# Total stub mocks generated: 1194

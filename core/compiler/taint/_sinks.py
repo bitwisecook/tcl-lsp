@@ -5,7 +5,13 @@ from __future__ import annotations
 from functools import lru_cache
 
 from ...commands.registry import REGISTRY
-from ...commands.registry.runtime import TAINT_HINTS, regexp_pattern_index
+from ...commands.registry.runtime import (
+    TAINT_HINTS,
+    regex_pattern_commands,
+    regexp_pattern_index,
+    taint_double_encode_map,
+    taint_sink_safe_colours,
+)
 from ...commands.registry.taint_hints import TaintColour
 from ...common.dialect import active_dialect
 from ...common.naming import normalise_var_name as _normalise_var_name
@@ -27,7 +33,7 @@ from ._lattice import (
     _UNTAINTED,
     TaintLattice,
 )
-from ._propagation import _COLOUR_LABELS, _DOUBLE_ENCODE_MAP
+from ._propagation import _COLOUR_LABELS
 from ._types import TaintWarning
 
 # Diagnostic messages
@@ -132,23 +138,12 @@ def _classify_sink(
         results.append((sink.log_sink, command))
 
     # T102: option injection via tainted input (colour-suppressed below)
-    profiles = REGISTRY.option_terminator_profiles(command)
-    if profiles:
-        profile = None
-        for p in profiles:
-            if p.subcommand is not None and args and p.subcommand == args[0]:
-                profile = p
-                break
-        if profile is None:
-            for p in profiles:
-                if p.subcommand is None:
-                    profile = p
-                    break
-        if profile is not None and not _has_option_terminator(args, profile.scan_start):
-            cmd_label = command
-            if profile.subcommand is not None:
-                cmd_label = f"{command} {profile.subcommand}"
-            results.append(("T102", cmd_label))
+    profile = REGISTRY.resolve_option_terminator(command, args)
+    if profile is not None and not _has_option_terminator(args, profile.scan_start):
+        cmd_label = command
+        if profile.subcommand is not None:
+            cmd_label = f"{command} {profile.subcommand}"
+        results.append(("T102", cmd_label))
 
     # T104: network address sinks (SSRF)
     if sink.is_network_sink:
@@ -171,12 +166,9 @@ def _classify_sink(
 def _should_suppress_t100(stmt, taint: TaintLattice) -> bool:
     """Return True if T100 should be suppressed for this taint colour + sink.
 
-    * ``exec`` with ``SHELL_ATOM``: the value is a single token with no
-      shell metacharacters, so it cannot cause argument splitting or
-      operator injection in exec.
-    * ``eval`` / ``uplevel`` with ``LIST_CANONICAL``: the value is a
-      canonical Tcl list, so element boundaries are preserved and the
-      data cannot inject new command words.
+    The suppression colour for each sink command is declared on its
+    ``CommandSpec.taint_sink_safe_colour`` field (e.g. ``exec`` →
+    ``SHELL_ATOM``, ``eval``/``uplevel`` → ``LIST_CANONICAL``).
     """
     if not taint.tainted:
         return False
@@ -184,9 +176,8 @@ def _should_suppress_t100(stmt, taint: TaintLattice) -> bool:
     if parsed is None:
         return False
     command, _ = parsed
-    if command == "exec" and bool(taint.colour & TaintColour.SHELL_ATOM):
-        return True
-    if command in ("eval", "uplevel") and bool(taint.colour & TaintColour.LIST_CANONICAL):
+    safe_colour = taint_sink_safe_colours().get(command)
+    if safe_colour is not None and bool(taint.colour & safe_colour):
         return True
     return False
 
@@ -270,7 +261,7 @@ def _should_suppress_sink_warning(
 
 def _regexp_pattern_arg_index(command: str, args: tuple[str, ...]) -> int | None:
     """Return the 0-based arg index of the regex pattern in *args*, or None."""
-    if command not in ("regexp", "regsub"):
+    if command not in regex_pattern_commands():
         return None
     return regexp_pattern_index(args)
 
@@ -355,7 +346,7 @@ def _find_taint_sinks(
                                 )
 
                 # T106: double-encoding detection.
-                dup_colour = _DOUBLE_ENCODE_MAP.get(cmd)
+                dup_colour = taint_double_encode_map().get(cmd)
                 if dup_colour is not None:
                     for name, ver in uses.items():
                         t = taints.get((name, ver), _UNTAINTED)

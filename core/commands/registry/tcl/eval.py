@@ -8,6 +8,7 @@ from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import ArgRole, Arity
+from ..taint_hints import TaintColour
 from ._base import register
 
 _SOURCE = "Tcl man page eval.n"
@@ -45,6 +46,7 @@ class EvalCommand(CommandDef):
                 arity=Arity(1),
             ),
             taint_sink=True,
+            taint_sink_safe_colour=TaintColour.LIST_CANONICAL,
             xc_translatable=False,
             arg_roles={0: ArgRole.BODY},
             return_type=TclType.STRING,

@@ -9,6 +9,7 @@ from .._base import CommandDef, make_av
 from ..dialects import DIALECTS_EXCEPT_IRULES
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..signatures import ArgRole, Arity
+from ..taint_hints import TaintColour
 from ._base import register
 
 _SOURCE = "Tcl man page file.n"
@@ -354,6 +355,7 @@ class FileCommand(CommandDef):
                     detail="Returns a unique normalized path representation for the file-system object (file, directory, link, etc), whose string value can be used as a unique identifier for it.",
                     synopsis="file normalize name",
                     return_type=TclType.STRING,
+                    taint_transform=TaintColour.PATH_NORMALISED,
                 ),
                 "owned": SubCommand(
                     name="owned",

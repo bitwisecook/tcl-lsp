@@ -11,7 +11,7 @@ from .namespace_models import EventRequires
 from .signatures import ArgRole, Arity
 
 if TYPE_CHECKING:
-    from ...compiler.side_effects import SideEffect
+    from ...compiler.side_effects import SideEffect, StorageType
     from ...compiler.types import TclType
     from ._base import CommandDef
     from .taint_hints import TaintColour
@@ -73,8 +73,11 @@ LoweringHook = Callable[..., object]
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 """Maps actual argument values to {index: ArgRole} for variable-layout commands."""
 
-TaintTransformHook = Callable[..., object]
-"""Taint colour transformation: (cmd, args, input_colours) -> output_colours."""
+# Note: TaintTransformHook was previously ``Callable[..., object]``.
+# It is now just ``TaintColour`` — a static colour-bit value that a
+# sanitiser command adds to its tainted output.  The type is written
+# inline on the field declarations as ``TaintColour | None`` (resolved
+# via TYPE_CHECKING + ``from __future__ import annotations``).
 
 DeprecationFixer = Callable[..., object]
 """Code action for deprecated usage: (cmd, args, arg_tokens, all_tokens) -> CodeFix | None."""
@@ -294,27 +297,6 @@ class ValidationSpec:
     arity: Arity = field(default_factory=Arity)
 
 
-@dataclass(frozen=True, slots=True)
-class OptionTerminatorSpec:
-    """How a command's option terminator (``--``) works.
-
-    Used by the W304 check to detect missing ``--`` in option-bearing commands.
-
-    Attributes:
-        scan_start: Arg index (0-based after command name) where option scanning begins.
-        options_with_values: Options that consume the next argument as a value.
-        warn_without_terminator: Always warn when ``--`` is absent (not just for
-            dynamic values).
-        subcommand: If set, this profile applies only when the given subcommand is
-            present (e.g. ``"match"`` for ``string match``).
-    """
-
-    scan_start: int = 0
-    options_with_values: frozenset[str] = field(default_factory=frozenset)
-    warn_without_terminator: bool = False
-    subcommand: str | None = None
-
-
 @dataclass(slots=True)
 class SubCommand:
     """Complete metadata for a single subcommand.
@@ -355,9 +337,6 @@ class SubCommand:
     # Per-subcommand options (replaces command-wide FormSpec.options).
     options: tuple[OptionSpec, ...] = ()
 
-    # Per-subcommand option terminator.
-    option_terminator: OptionTerminatorSpec | None = None
-
     # Per-subcommand completable arg values (replaces FormSpec.subcommand_arg_values).
     # Maps arg index (0-based after subcommand word) to completable values.
     arg_values: dict[int, tuple[ArgumentValueSpec, ...]] = field(default_factory=dict)
@@ -371,8 +350,8 @@ class SubCommand:
     codegen: CodegenHook | None = None
     lowering: LoweringHook | None = None
 
-    # Taint transform — how this subcommand transforms taint colours.
-    taint_transform: TaintTransformHook | None = None
+    # Taint transform — colour bits added to tainted output by this subcommand.
+    taint_transform: TaintColour | None = None
     taint_double_encode_colour: TaintColour | None = None
 
     # Taint output sink — for subcommands that are XSS/header-injection sinks.
@@ -409,6 +388,16 @@ class SubCommand:
     # When empty (the common case), the subcommand's top-level ``pure``/
     # ``mutator`` flags apply directly.
     forms: tuple[FormSpec, ...] = ()
+
+    # Inferred storage type for the target variable (DICT, LIST, ARRAY).
+    inferred_storage_type: StorageType | None = None
+
+    # Whether this subcommand's CFG header carries list-expression args
+    # that are evaluated once before the loop body.
+    loop_list_header: bool = False
+
+    # Whether this subcommand creates a scope alias (upvar-like binding).
+    creates_scope_alias: bool = False
 
     def resolve_form(self, args: tuple[str, ...] | list[str]) -> FormSpec | None:
         """Given actual arguments (after the subcommand word), return the matching form.
@@ -477,7 +466,10 @@ class CommandSpec:
     creates_dynamic_barrier: bool = False
     has_loop_body: bool = False
     never_inline_body: bool = False
-    option_terminator_profiles: tuple[OptionTerminatorSpec, ...] = ()
+    # When True, W304 fires even for non-dynamic positional values
+    # (not just variables/command substitutions).  Only needed for commands
+    # where option injection is especially dangerous (e.g. regexp).
+    warn_without_terminator: bool = False
 
     # Purity and CSE traits for compiler/gvn.py.
     pure: bool = False
@@ -545,8 +537,11 @@ class CommandSpec:
     taint_log_sink: str | None = None
     taint_network_sink_args: tuple[int, ...] | None = None
     taint_interp_eval_subcommands: frozenset[str] | None = None
-    taint_transform: TaintTransformHook | None = None
+    # Taint transform — colour bits added to tainted output by this command.
+    taint_transform: TaintColour | None = None
     taint_double_encode_colour: TaintColour | None = None
+    # Colour that suppresses T100 for this taint sink (e.g. SHELL_ATOM for exec).
+    taint_sink_safe_colour: TaintColour | None = None
 
     # Deprecation fixer — code action for deprecated usage.
     deprecation_fixer: DeprecationFixer | None = None
@@ -576,6 +571,16 @@ class CommandSpec:
 
     # Control flow classification.
     is_control_flow: bool = False
+
+    # Inferred storage type for the target variable (DICT, LIST, ARRAY).
+    inferred_storage_type: StorageType | None = None
+
+    # Whether this command's CFG header carries list-expression args
+    # that are evaluated once before the loop body (foreach, lmap).
+    loop_list_header: bool = False
+
+    # Whether this command creates a scope alias (upvar-like binding).
+    creates_scope_alias: bool = False
 
     def supports_dialect(self, dialect: str | None) -> bool:
         if dialect is None:
@@ -640,6 +645,11 @@ class CommandSpec:
                     seen.add(name)
                     names.append(name)
         return tuple(names)
+
+    @property
+    def supports_normalized_flag(self) -> bool:
+        """Whether this command accepts ``-normalized`` (derived from options)."""
+        return self.option("-normalized") is not None
 
     def option(self, option_name: str) -> OptionSpec | None:
         for form in self.forms:
@@ -711,11 +721,6 @@ class CommandSpec:
     def mutator_subcommand_names(self) -> frozenset[str]:
         """Subcommand names that mutate state (derived from subcommands dict)."""
         return frozenset(n for n, s in self.subcommands.items() if s.mutator)
-
-    def subcommand_option_terminator(self, sub: str) -> OptionTerminatorSpec | None:
-        """Return option terminator spec for a specific subcommand."""
-        s = self.subcommands.get(sub)
-        return s.option_terminator if s else None
 
     def subcommand_completions(self) -> tuple[ArgumentValueSpec, ...]:
         """Derive subcommand completion items from the subcommands dict."""

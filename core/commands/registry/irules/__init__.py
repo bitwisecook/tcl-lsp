@@ -412,7 +412,11 @@ from . import (
     html__comment,  # noqa: F401
     html__disable,  # noqa: F401
     html__enable,  # noqa: F401
+    html__encode,  # noqa: F401
     html__tag,  # noqa: F401
+    html_encode,  # noqa: F401
+    html_escape,  # noqa: F401
+    htmlencode,  # noqa: F401
     htonl,  # noqa: F401
     htons,  # noqa: F401
     http2__active,  # noqa: F401
@@ -951,6 +955,8 @@ from . import (
     uri__compare,  # noqa: F401
     uri__decode,  # noqa: F401
     uri__encode,  # noqa: F401
+    uri__encode_component,  # noqa: F401
+    uri__escape,  # noqa: F401
     uri__host,  # noqa: F401
     uri__path,  # noqa: F401
     uri__port,  # noqa: F401

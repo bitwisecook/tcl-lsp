@@ -11,7 +11,7 @@ from ..models import (
     FormSpec,
     HoverSnippet,
     OptionSpec,
-    OptionTerminatorSpec,
+    PatternType,
     ValidationSpec,
 )
 from ..signatures import Arity
@@ -44,12 +44,6 @@ class RegsubCommand(CommandDef):
                     "replacements when *varName* is given."
                 ),
             ),
-            option_terminator_profiles=(
-                OptionTerminatorSpec(
-                    scan_start=0,
-                    options_with_values=frozenset({"-start"}),
-                ),
-            ),
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
@@ -69,6 +63,7 @@ class RegsubCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(3),
             ),
+            pattern_type=PatternType.REGEX,
             return_type=TclType.INT,
             side_effect_hints=(
                 SideEffect(

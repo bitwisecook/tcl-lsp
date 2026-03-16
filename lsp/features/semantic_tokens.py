@@ -1925,24 +1925,11 @@ def _collect_glob_pattern_tokens(
 def _option_arg_indices(cmd_name: str, argv_texts: list[str]) -> set[int]:
     """Return arg indices (0-based after command name) that are option flags.
 
-    Uses the command's ``option_terminator_profiles`` to identify where
-    options start, walking args that begin with ``-`` until ``--`` or
-    the first positional argument.
+    Uses ``resolve_option_terminator()`` to identify where options start,
+    walking args that begin with ``-`` until ``--`` or the first positional
+    argument.
     """
-    profiles = REGISTRY.option_terminator_profiles(cmd_name)
-    if not profiles:
-        return set()
-    # Pick the best-matching profile (subcommand-aware).
-    profile = None
-    for p in profiles:
-        if p.subcommand is not None and argv_texts and p.subcommand == argv_texts[0]:
-            profile = p
-            break
-    if profile is None:
-        for p in profiles:
-            if p.subcommand is None:
-                profile = p
-                break
+    profile = REGISTRY.resolve_option_terminator(cmd_name, argv_texts)
     if profile is None:
         return set()
 

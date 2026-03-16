@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageType
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, OptionSpec, ValidationSpec
@@ -44,6 +44,7 @@ class LsortCommand(CommandDef):
             pure=True,
             cse_candidate=True,
             return_type=TclType.LIST,
+            inferred_storage_type=StorageType.LIST,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE

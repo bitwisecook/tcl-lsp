@@ -122,7 +122,9 @@ callback dynamically maps argument values to roles.
 ### OptionSpec and option terminators
 
 `OptionSpec(name, takes_value, detail)` declares `-flag` switches.
-`OptionTerminatorSpec` configures `W304` ("use `--` before dynamic pattern").
+`OptionSpec(name="--")` on a `SubCommand` or `FormSpec` declares `--` support;
+W304 ("use `--` before dynamic pattern") is derived automatically via
+`CommandRegistry.resolve_option_terminator()`.
 
 ### ArgumentValueSpec — completions
 

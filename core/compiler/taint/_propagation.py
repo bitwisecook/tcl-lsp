@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from ...commands.registry.runtime import canonical_list_commands
+from ...commands.registry.runtime import (
+    canonical_list_commands,
+    taint_double_encode_map,
+    taint_transform_map,
+)
 from ...commands.registry.taint_hints import TaintColour
 from ...common.naming import normalise_var_name as _normalise_var_name
 from ...parsing.lexer import TclLexer
@@ -98,38 +102,21 @@ def _derive_transform_colours(
     ):
         return TaintColour.LIST_CANONICAL
 
-    # URI/HTML encoders are contextual sanitisers.
-    if command in {"URI::encode", "URI::encode_component", "URI::escape"}:
-        return TaintColour.URL_ENCODED | TaintColour.CRLF_FREE
-    if command in {"HTML::encode", "htmlencode", "html_escape", "html_encode"}:
-        return TaintColour.HTML_ESCAPED | TaintColour.CRLF_FREE
-
-    # Path canonicalisation.
-    if command == "file" and args and args[0] == "normalize":
-        return TaintColour.PATH_NORMALISED
-
-    # Conservative regex-escape wrappers (project/custom helper names).
-    if command in {"regex::quote", "regexp::quote", "re_quote", "regex_quote"}:
-        return TaintColour.REGEX_LITERAL
+    # Registry-driven transform lookup (sanitisers, encoders, path normalisers).
+    transforms = taint_transform_map()
+    # Check "cmd sub" compound form first (e.g. "file normalize").
+    if args:
+        compound = f"{command} {args[0]}"
+        colour = transforms.get(compound)
+        if colour is not None:
+            return colour
+    # Then bare command name.
+    colour = transforms.get(command)
+    if colour is not None:
+        return colour
 
     return TaintColour(0)
 
-
-# Mapping: command → colour that indicates data has already been encoded.
-# Used by T106 (double-encoding) detection.
-_DOUBLE_ENCODE_MAP: dict[str, TaintColour] = {
-    "URI::encode": TaintColour.URL_ENCODED,
-    "URI::encode_component": TaintColour.URL_ENCODED,
-    "URI::escape": TaintColour.URL_ENCODED,
-    "HTML::encode": TaintColour.HTML_ESCAPED,
-    "htmlencode": TaintColour.HTML_ESCAPED,
-    "html_escape": TaintColour.HTML_ESCAPED,
-    "html_encode": TaintColour.HTML_ESCAPED,
-    "regex::quote": TaintColour.REGEX_LITERAL,
-    "regexp::quote": TaintColour.REGEX_LITERAL,
-    "re_quote": TaintColour.REGEX_LITERAL,
-    "regex_quote": TaintColour.REGEX_LITERAL,
-}
 
 _COLOUR_LABELS: dict[TaintColour, str] = {
     TaintColour.URL_ENCODED: "URL-encoded",
@@ -146,7 +133,7 @@ def _detect_double_encoding(
 
     Returns None when no double-encoding is detected.
     """
-    colour = _DOUBLE_ENCODE_MAP.get(command)
+    colour = taint_double_encode_map().get(command)
     if colour is None:
         return None
     # Check whether *any* tainted argument already carries this colour.

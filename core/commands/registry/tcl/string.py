@@ -11,7 +11,7 @@ from ..models import (
     FormKind,
     FormSpec,
     HoverSnippet,
-    OptionTerminatorSpec,
+    OptionSpec,
     SubCommand,
     ValidationSpec,
 )
@@ -150,8 +150,10 @@ class StringCommand(CommandDef):
                     synopsis="string compare ?-nocase? ?-length length? string1 string2",
                     pure=True,
                     return_type=TclType.INT,
-                    option_terminator=OptionTerminatorSpec(
-                        scan_start=1, options_with_values=frozenset({"-length"})
+                    options=(
+                        OptionSpec(name="-nocase"),
+                        OptionSpec(name="-length", takes_value=True, value_hint="int"),
+                        OptionSpec(name="--"),
                     ),
                 ),
                 "equal": SubCommand(
@@ -161,8 +163,10 @@ class StringCommand(CommandDef):
                     synopsis="string equal ?-nocase? ?-length length? string1 string2",
                     pure=True,
                     return_type=TclType.BOOLEAN,
-                    option_terminator=OptionTerminatorSpec(
-                        scan_start=1, options_with_values=frozenset({"-length"})
+                    options=(
+                        OptionSpec(name="-nocase"),
+                        OptionSpec(name="-length", takes_value=True, value_hint="int"),
+                        OptionSpec(name="--"),
                     ),
                 ),
                 "first": SubCommand(
@@ -227,7 +231,7 @@ class StringCommand(CommandDef):
                     synopsis="string match ?-nocase? pattern string",
                     pure=True,
                     return_type=TclType.BOOLEAN,
-                    option_terminator=OptionTerminatorSpec(scan_start=1),
+                    options=(OptionSpec(name="-nocase"), OptionSpec(name="--")),
                 ),
                 "range": SubCommand(
                     name="range",
@@ -328,19 +332,6 @@ class StringCommand(CommandDef):
             },
             validation=ValidationSpec(
                 arity=Arity(1),
-            ),
-            option_terminator_profiles=(
-                OptionTerminatorSpec(scan_start=1, subcommand="match"),
-                OptionTerminatorSpec(
-                    scan_start=1,
-                    options_with_values=frozenset({"-length"}),
-                    subcommand="equal",
-                ),
-                OptionTerminatorSpec(
-                    scan_start=1,
-                    options_with_values=frozenset({"-length"}),
-                    subcommand="compare",
-                ),
             ),
             cse_candidate=True,
             side_effect_hints=(
