@@ -6,6 +6,8 @@ import bisect
 
 from .tokens import SourcePosition, Token, TokenType
 
+_bisect_right = bisect.bisect_right
+
 
 class TclParseError(Exception):
     """Raised for Tcl syntax errors detected during lexing."""
@@ -90,8 +92,12 @@ class TclLexer:
         self._has_virtuals: bool = bool(self._virtuals)
         # Pending synthetic SEP token for iRules }{ word boundary.
         self._pending_sep: Token | None = None
-        # Lazily-built line index for _pos_at().
-        self._line_starts: list[int] | None = None
+        # Line index for _pos_at() — built eagerly.
+        starts = [0]
+        for i, ch in enumerate(text):
+            if ch == "\n":
+                starts.append(i + 1)
+        self._line_starts: list[int] = starts
 
     @property
     def remaining(self) -> int:
@@ -148,15 +154,9 @@ class TclLexer:
 
     def _pos_at(self, offset: int) -> SourcePosition:
         """Compute SourcePosition for an arbitrary offset using a line index."""
-        if self._line_starts is None:
-            # Build an index of offsets where each line begins (lazily, once).
-            starts = [0]
-            for i, ch in enumerate(self.text):
-                if ch == "\n":
-                    starts.append(i + 1)
-            self._line_starts = starts
-        line_idx = bisect.bisect_right(self._line_starts, offset) - 1
-        col = offset - self._line_starts[line_idx]
+        line_starts = self._line_starts
+        line_idx = _bisect_right(line_starts, offset) - 1
+        col = offset - line_starts[line_idx]
         return SourcePosition(
             line=self._base_line + line_idx,
             character=(self._base_col + col) if line_idx == 0 else col,
@@ -170,15 +170,43 @@ class TclLexer:
 
     def _parse_sep(self) -> None:
         self._start = self.pos
-        while self.remaining and self._cur() in " \t\r\x0b\x0c":
-            self._advance()
+        if not self._has_virtuals:
+            text = self.text
+            _len = self._len
+            pos = self.pos
+            col = self._col
+            while pos < _len and text[pos] in " \t\r\x0b\x0c":
+                col += 1
+                pos += 1
+            self.pos = pos
+            self._col = col
+        else:
+            while self.remaining and self._cur() in " \t\r\x0b\x0c":
+                self._advance()
         self._end = self.pos - 1
         self._type = TokenType.SEP
 
     def _parse_eol(self) -> None:
         self._start = self.pos
-        while self.remaining and self._cur() in " \t\n\r\x0b\x0c;":
-            self._advance()
+        if not self._has_virtuals:
+            text = self.text
+            _len = self._len
+            pos = self.pos
+            line = self._line
+            col = self._col
+            while pos < _len and text[pos] in " \t\n\r\x0b\x0c;":
+                if text[pos] == "\n":
+                    line += 1
+                    col = 0
+                else:
+                    col += 1
+                pos += 1
+            self.pos = pos
+            self._line = line
+            self._col = col
+        else:
+            while self.remaining and self._cur() in " \t\n\r\x0b\x0c;":
+                self._advance()
         self._end = self.pos - 1
         self._type = TokenType.EOL
         self._at_command_start = True
@@ -587,7 +615,8 @@ class TclLexer:
         self._type = TokenType.EXPAND
 
     def _parse_string(self) -> None:
-        newword = self._type in (TokenType.SEP, TokenType.EOL, TokenType.STR, TokenType.EXPAND)
+        _type = self._type
+        newword = _type is TokenType.SEP or _type is TokenType.EOL or _type is TokenType.STR or _type is TokenType.EXPAND
         if newword and self.remaining and self._cur() == "{":
             # Check for {*} expansion prefix (Tcl 8.5+)
             _len = self._len
@@ -606,6 +635,87 @@ class TclLexer:
             self.insidequote = True
             self._advance()
         self._start = self.pos
+
+        if not self._has_virtuals:
+            # Fast path — direct text scanning.
+            text = self.text
+            _len = self._len
+            pos = self.pos
+            line = self._line
+            col = self._col
+            insidequote = self.insidequote
+
+            while pos < _len:
+                ch = text[pos]
+                if ch == "\\":
+                    if pos + 1 < _len:
+                        # Advance past backslash.
+                        col += 1
+                        pos += 1
+                        # Advance past escaped char.
+                        if text[pos] == "\n":
+                            line += 1
+                            col = 0
+                        else:
+                            col += 1
+                        pos += 1
+                        continue
+                    # Backslash at EOF — fall through to bottom advance.
+                elif ch == "$" or ch == "[":
+                    self._end = pos - 1
+                    self._type = TokenType.ESC
+                    self.pos = pos
+                    self._line = line
+                    self._col = col
+                    return
+                elif not insidequote and (ch == " " or ch == "\t" or ch == "\n" or ch == "\r" or ch == "\x0b" or ch == "\x0c" or ch == ";"):
+                    self._end = pos - 1
+                    self._type = TokenType.ESC
+                    self.pos = pos
+                    self._line = line
+                    self._col = col
+                    return
+                elif ch == '"' and insidequote:
+                    self._end = pos - 1
+                    self._type = TokenType.ESC
+                    # Advance past closing '"'.
+                    col += 1
+                    pos += 1
+                    self.insidequote = False
+                    self.pos = pos
+                    self._line = line
+                    self._col = col
+                    # After closing quote, next char must be separator or EOF.
+                    if pos < _len and text[pos] not in (
+                        " ", "\t", "\n", "\r", "\x0b", "\x0c", ";", "]",
+                    ):
+                        if TclLexer.strict_quoting:
+                            raise TclParseError("extra characters after close-quote")
+                        self.warnings.append(
+                            (self._position(), "extra characters after close-quote")
+                        )
+                    return
+                # Advance past current char.
+                if ch == "\n":
+                    line += 1
+                    col = 0
+                else:
+                    col += 1
+                pos += 1
+
+            # EOF
+            self.pos = pos
+            self._line = line
+            self._col = col
+            if insidequote:
+                if TclLexer.strict_quoting:
+                    raise TclParseError('missing "')
+                self.warnings.append((self._position(), 'missing "'))
+            self._end = pos - 1
+            self._type = TokenType.ESC
+            return
+
+        # Slow path — virtual insertion support.
         while True:
             if not self.remaining:
                 if self.insidequote:
@@ -738,43 +848,92 @@ class TclLexer:
             self._pending_sep = None
             self._type = TokenType.SEP
             return sep
+
+        # Cache frequently-accessed values as locals.
+        _base_offset = self._base_offset
+        _SourcePosition = SourcePosition
+        _Token = Token
+
         while True:
-            if not self.remaining:
-                if self._type not in (TokenType.EOL, TokenType.EOF):
+            pos = self.pos
+            _len = self._len
+
+            if pos >= _len and not (self._has_virtuals and pos in self._virtuals):
+                if self._type is not TokenType.EOL and self._type is not TokenType.EOF:
                     self._type = TokenType.EOL
                 else:
                     self._type = TokenType.EOF
                     return None
-                return Token(
-                    type=TokenType.EOL,
-                    text="",
-                    start=self._position(),
-                    end=self._position(),
+                p = _SourcePosition(
+                    line=self._line,
+                    character=self._col,
+                    offset=pos + _base_offset,
                 )
-            start_pos = self._position()
-            match self._cur():
-                case " " | "\t" | "\r" | "\x0b" | "\x0c" if not self.insidequote:
+                return _Token(type=TokenType.EOL, text="", start=p, end=p)
+
+            # Inline _position().
+            start_pos = _SourcePosition(
+                line=self._line,
+                character=self._col,
+                offset=pos + _base_offset,
+            )
+
+            # Inline _cur() for dispatch.
+            if self._has_virtuals:
+                ch = self._virtuals.get(pos)
+                if ch is None:
+                    ch = self.text[pos]
+            else:
+                ch = self.text[pos]
+
+            # Dispatch — if/elif is faster than match/case for guarded
+            # character checks because we test insidequote once up front.
+            if ch == "[":
+                self._parse_command()
+            elif ch == "$":
+                self._parse_var()
+            elif not self.insidequote:
+                if ch == " " or ch == "\t" or ch == "\r" or ch == "\x0b" or ch == "\x0c":
                     self._parse_sep()
-                case "\n" | ";" if not self.insidequote:
+                elif ch == "\n" or ch == ";":
                     self._parse_eol()
-                case "[":
-                    self._parse_command()
-                case "$":
-                    self._parse_var()
-                case "#" if self._at_command_start:
+                elif ch == "#" and self._at_command_start:
                     self._parse_comment()
-                case _:
+                else:
                     self._parse_string()
-            text = self._token_text()
-            end_pos = self._pos_at(max(self._end, self._start))
+            else:
+                self._parse_string()
+
+            # Inline _token_text().
+            _start = self._start
+            _end = self._end
+            end_offset = _end if _end >= _start else _start
+            if _end < _start:
+                tok_text = ""
+            else:
+                tok_text = self.text[_start : _end + 1]
+
+            # Inline _pos_at(end_offset).
+            line_starts = self._line_starts
+            line_idx = _bisect_right(line_starts, end_offset) - 1
+            col = end_offset - line_starts[line_idx]
+            _base_line = self._base_line
+            end_pos = _SourcePosition(
+                line=_base_line + line_idx,
+                character=(self._base_col + col) if line_idx == 0 else col,
+                offset=end_offset + _base_offset,
+            )
+
             # Track command-start position for comment detection:
             # _at_command_start stays True through SEP/EOL/COMMENT tokens
             # but resets for any actual command content.
-            if self._type not in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
+            _type = self._type
+            if _type is not TokenType.SEP and _type is not TokenType.EOL and _type is not TokenType.COMMENT:
                 self._at_command_start = False
-            return Token(
-                type=self._type,
-                text=text,
+
+            return _Token(
+                type=_type,
+                text=tok_text,
                 start=start_pos,
                 end=end_pos,
                 in_quote=self.insidequote,
