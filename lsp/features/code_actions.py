@@ -11,7 +11,7 @@ from core.analysis.analyser import analyse
 from core.analysis.semantic_model import AnalysisResult, CodeFix, ProcDef
 from core.commands.registry import REGISTRY
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from core.commands.registry.runtime import is_irules_dialect
+from core.commands.registry.runtime import is_irules_dialect, taint_double_encode_map
 from core.common.ip_utils import ipv4_to_ipv6_mapped, parse_ip
 from core.common.lsp import to_lsp_range
 from core.common.position import find_command_at_position, offset_at_position
@@ -978,20 +978,8 @@ _TAINT_WRAP_FIXES: dict[str, tuple[str, str]] = {
     "T103": ("Wrap ${var} with [regex::quote]", "regex::quote"),
 }
 
-# Encoder commands for T106 (double-encoding) code action.
-_T106_ENCODERS = (
-    "HTML::encode",
-    "htmlencode",
-    "html_escape",
-    "html_encode",
-    "URI::encode",
-    "URI::encode_component",
-    "URI::escape",
-    "regex::quote",
-    "regexp::quote",
-    "re_quote",
-    "regex_quote",
-)
+# Encoder commands for T106 (double-encoding) code action — derived from registry.
+_T106_ENCODERS = tuple(taint_double_encode_map().keys())
 
 # Template proc definitions for helpers the code actions suggest.
 # Keyed by proc name; value is the complete proc source (with trailing \n\n).

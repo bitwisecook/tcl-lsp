@@ -8,6 +8,7 @@ from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
+from ..taint_hints import TaintColour
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/URI__encode.html"
@@ -51,6 +52,8 @@ class UriEncodeCommand(CommandDef):
                 arity=Arity(),
             ),
             event_requires=EventRequires(),
+            taint_transform=TaintColour.URL_ENCODED | TaintColour.CRLF_FREE,
+            taint_double_encode_colour=TaintColour.URL_ENCODED,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.HTTP_URI,

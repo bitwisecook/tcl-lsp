@@ -8,6 +8,7 @@ from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
+from ..taint_hints import TaintColour
 from ._base import register
 
 _SOURCE = "Tcl man page uplevel.n"
@@ -39,6 +40,7 @@ class UplevelCommand(CommandDef):
                 arity=Arity(1),
             ),
             taint_sink=True,
+            taint_sink_safe_colour=TaintColour.LIST_CANONICAL,
             xc_translatable=False,
             return_type=TclType.STRING,
             side_effect_hints=(

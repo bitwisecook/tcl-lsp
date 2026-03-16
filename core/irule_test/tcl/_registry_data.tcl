@@ -44,6 +44,10 @@ namespace eval ::tmm {
         pid
         pkg_mkindex
         pwd
+        re_quote
+        regex::quote
+        regex_quote
+        regexp::quote
         rename
         seek
         socket
@@ -111,7 +115,7 @@ namespace eval ::tmm::expr_ops {
 namespace eval ::itest::cmd {
 
     # All f5-irules namespaced commands (NS::subcommand).
-    # Count: 1054
+    # Count: 1057
 
     variable _gen_namespaced_commands {
         # AAA::
@@ -569,6 +573,7 @@ namespace eval ::itest::cmd {
         {HTML::comment}
         {HTML::disable}
         {HTML::enable}
+        {HTML::encode}
         {HTML::tag}
 
         # HTTP2::
@@ -1167,6 +1172,8 @@ namespace eval ::itest::cmd {
         {URI::compare}
         {URI::decode}
         {URI::encode}
+        {URI::encode_component}
+        {URI::escape}
         {URI::host}
         {URI::path}
         {URI::port}
@@ -1454,7 +1461,7 @@ namespace eval ::itest::cmd {
     }
 
     # All f5-irules top-level commands.
-    # Count: 207
+    # Count: 210
 
     variable _gen_toplevel_commands {
         accumulate
@@ -1516,6 +1523,9 @@ namespace eval ::itest::cmd {
         grab
         grid
         history
+        html_encode
+        html_escape
+        htmlencode
         htonl
         htons
         http_client_ip

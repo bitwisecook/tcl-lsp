@@ -44,6 +44,7 @@ class ExecCommand(CommandDef):
                 arity=Arity(1),
             ),
             taint_sink=True,
+            taint_sink_safe_colour=TaintColour.SHELL_ATOM,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

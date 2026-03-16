@@ -73,8 +73,11 @@ LoweringHook = Callable[..., object]
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 """Maps actual argument values to {index: ArgRole} for variable-layout commands."""
 
-TaintTransformHook = Callable[..., object]
-"""Taint colour transformation: (cmd, args, input_colours) -> output_colours."""
+# Note: TaintTransformHook was previously ``Callable[..., object]``.
+# It is now just ``TaintColour`` — a static colour-bit value that a
+# sanitiser command adds to its tainted output.  The type is written
+# inline on the field declarations as ``TaintColour | None`` (resolved
+# via TYPE_CHECKING + ``from __future__ import annotations``).
 
 DeprecationFixer = Callable[..., object]
 """Code action for deprecated usage: (cmd, args, arg_tokens, all_tokens) -> CodeFix | None."""
@@ -371,8 +374,8 @@ class SubCommand:
     codegen: CodegenHook | None = None
     lowering: LoweringHook | None = None
 
-    # Taint transform — how this subcommand transforms taint colours.
-    taint_transform: TaintTransformHook | None = None
+    # Taint transform — colour bits added to tainted output by this subcommand.
+    taint_transform: TaintColour | None = None
     taint_double_encode_colour: TaintColour | None = None
 
     # Taint output sink — for subcommands that are XSS/header-injection sinks.
@@ -545,8 +548,11 @@ class CommandSpec:
     taint_log_sink: str | None = None
     taint_network_sink_args: tuple[int, ...] | None = None
     taint_interp_eval_subcommands: frozenset[str] | None = None
-    taint_transform: TaintTransformHook | None = None
+    # Taint transform — colour bits added to tainted output by this command.
+    taint_transform: TaintColour | None = None
     taint_double_encode_colour: TaintColour | None = None
+    # Colour that suppresses T100 for this taint sink (e.g. SHELL_ATOM for exec).
+    taint_sink_safe_colour: TaintColour | None = None
 
     # Deprecation fixer — code action for deprecated usage.
     deprecation_fixer: DeprecationFixer | None = None

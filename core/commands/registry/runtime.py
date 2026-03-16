@@ -14,9 +14,9 @@ from functools import lru_cache
 from ...compiler.types import TclType
 from ...parsing.tokens import Token
 from .command_registry import REGISTRY
-from .models import CommandSpec, ValidationSpec
+from .models import CommandSpec, PatternType, ValidationSpec
 from .signatures import ArgRole, Arity, CommandSig, SubcommandSig
-from .taint_hints import TaintHint
+from .taint_hints import TaintColour, TaintHint
 from .type_hints import CommandTypeHint, SubcommandTypeHint
 
 # Re-export so existing callers keep working via ``from ...runtime import ...``.
@@ -135,6 +135,78 @@ def canonical_list_commands() -> frozenset[str]:
             elif spec.return_type is TclType.LIST:
                 if name not in _NON_CANONICAL_LIST_COMMANDS:
                     names.add(name)
+    return frozenset(names)
+
+
+@lru_cache(maxsize=1)
+def taint_transform_map() -> dict[str, TaintColour]:
+    """Return ``{command: colour_bits}`` for commands that sanitise tainted data.
+
+    Includes both top-level commands (e.g. ``"URI::encode"``) and
+    ``"cmd sub"`` compound keys (e.g. ``"file normalize"``).
+    Derived from ``taint_transform`` on :class:`CommandSpec` / :class:`SubCommand`.
+    """
+    result: dict[str, TaintColour] = {}
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            if spec.subcommands:
+                for sub_name, sub in spec.subcommands.items():
+                    if sub.taint_transform is not None:
+                        result[f"{name} {sub_name}"] = sub.taint_transform
+            if spec.taint_transform is not None:
+                result[name] = spec.taint_transform
+    return result
+
+
+@lru_cache(maxsize=1)
+def taint_double_encode_map() -> dict[str, TaintColour]:
+    """Return ``{command: colour}`` for T106 double-encoding detection.
+
+    Maps command names to the :class:`TaintColour` that, when already
+    present on the input, indicates the data has already been encoded
+    in the same way this command would encode it.
+    Derived from ``taint_double_encode_colour`` on :class:`CommandSpec` /
+    :class:`SubCommand`.
+    """
+    result: dict[str, TaintColour] = {}
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            if spec.subcommands:
+                for sub_name, sub in spec.subcommands.items():
+                    if sub.taint_double_encode_colour is not None:
+                        result[f"{name} {sub_name}"] = sub.taint_double_encode_colour
+            if spec.taint_double_encode_colour is not None:
+                result[name] = spec.taint_double_encode_colour
+    return result
+
+
+@lru_cache(maxsize=1)
+def taint_sink_safe_colours() -> dict[str, TaintColour]:
+    """Return ``{command: colour}`` for T100 taint-sink suppression.
+
+    When a tainted value carries the listed colour, the T100 warning
+    for this sink command is suppressed (e.g. ``exec`` + ``SHELL_ATOM``).
+    Derived from ``taint_sink_safe_colour`` on :class:`CommandSpec`.
+    """
+    result: dict[str, TaintColour] = {}
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            if spec.taint_sink_safe_colour is not None:
+                result[name] = spec.taint_sink_safe_colour
+    return result
+
+
+@lru_cache(maxsize=1)
+def regex_pattern_commands() -> frozenset[str]:
+    """Return command names that take a regex pattern argument.
+
+    Derived from ``pattern_type == PatternType.REGEX`` on :class:`CommandSpec`.
+    """
+    names: set[str] = set()
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            if spec.pattern_type is PatternType.REGEX:
+                names.add(name)
     return frozenset(names)
 
 

@@ -81,8 +81,12 @@ from . import (
     pid,  # noqa: F401
     proc_,  # noqa: F401
     puts_,  # noqa: F401
+    re_quote,  # noqa: F401
     read,  # noqa: F401
+    regex__quote,  # noqa: F401
+    regex_quote,  # noqa: F401
     regexp_,  # noqa: F401
+    regexp__quote,  # noqa: F401
     regsub_,  # noqa: F401
     rename,  # noqa: F401
     return_,  # noqa: F401

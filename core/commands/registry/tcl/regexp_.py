@@ -12,6 +12,7 @@ from ..models import (
     HoverSnippet,
     OptionSpec,
     OptionTerminatorSpec,
+    PatternType,
     ValidationSpec,
 )
 from ..signatures import Arity
@@ -69,6 +70,7 @@ class RegexpCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2),
             ),
+            pattern_type=PatternType.REGEX,
             return_type=TclType.INT,
             side_effect_hints=(
                 SideEffect(
