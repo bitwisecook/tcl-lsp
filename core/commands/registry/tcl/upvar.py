@@ -37,6 +37,7 @@ class UpvarCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2),
             ),
+            creates_scope_alias=True,
             xc_translatable=False,
             return_type=TclType.STRING,
             side_effect_hints=(

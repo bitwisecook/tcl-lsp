@@ -85,6 +85,7 @@ class HttpQueryCommand(CommandDef):
                 also_in=frozenset({"MR_INGRESS", "SERVER_CONNECTED"}),
             ),
             cse_candidate=True,
+            supports_normalized_flag=True,
         )
 
     @classmethod

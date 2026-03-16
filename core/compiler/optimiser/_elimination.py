@@ -274,11 +274,13 @@ def optimise_elimination_passes(
     # Also skip variables that are upvar/global/variable aliases —
     # writes to them are visible in other scopes even though the local
     # analysis sees no local reads.
+    from ...commands.registry.runtime import scope_alias_commands
+
     scope_aliases: set[str] = set()
-    _ALIAS_CMDS = frozenset(("upvar", "namespace upvar", "global", "variable"))
+    _alias_cmds = scope_alias_commands()
     for block in cfg.blocks.values():
         for stmt in block.statements:
-            if isinstance(stmt, IRCall) and stmt.command in _ALIAS_CMDS:
+            if isinstance(stmt, IRCall) and stmt.command in _alias_cmds:
                 scope_aliases.update(stmt.defs)
 
     unused_entries: list[tuple[int, tuple[str, int]]] = []

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageType
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
@@ -198,6 +198,8 @@ class ArrayCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
+            inferred_storage_type=StorageType.ARRAY,
+            assigns_variable_at=1,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.VARIABLE,

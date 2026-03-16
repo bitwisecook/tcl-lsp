@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageType
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
@@ -186,6 +186,7 @@ class DictCommand(CommandDef):
                     detail="This command takes three arguments, the first a two-element list of variable names (for the key and value respectively of each mapping in the dictionary), the second the dictionary value to iterate across, and the third…",
                     synopsis="dict for {keyVariable valueVariable} dictionaryValue body",
                     arg_roles={2: ArgRole.BODY},
+                    loop_list_header=True,
                 ),
                 "get": SubCommand(
                     name="get",
@@ -233,6 +234,7 @@ class DictCommand(CommandDef):
                     detail="This command applies a transformation to each element of a dictionary, returning a new dictionary.",
                     synopsis="dict map {keyVariable valueVariable} dictionaryValue body",
                     arg_roles={2: ArgRole.BODY},
+                    loop_list_header=True,
                 ),
                 "merge": SubCommand(
                     name="merge",
@@ -308,6 +310,7 @@ class DictCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
+            inferred_storage_type=StorageType.DICT,
             cse_candidate=True,
             side_effect_hints=(
                 SideEffect(

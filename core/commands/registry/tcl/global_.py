@@ -36,6 +36,7 @@ class GlobalCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
+            creates_scope_alias=True,
             arg_roles={0: ArgRole.VAR_NAME},
             return_type=TclType.STRING,
             side_effect_hints=(

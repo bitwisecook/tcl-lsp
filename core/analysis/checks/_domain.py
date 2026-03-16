@@ -7,6 +7,7 @@ from ...commands.registry.models import DialectStatus, FormKind
 from ...commands.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
+    normalized_flag_commands,
 )
 from ...common.dialect import active_dialect
 from ...common.ranges import range_from_token
@@ -104,14 +105,8 @@ def check_unsafe_irules_command(
 
 # IRULE3102: HTTP::path / HTTP::uri / HTTP::query should use -normalized
 
-# Only these commands actually support the -normalized flag.
-_NORMALIZABLE_HTTP_COMMANDS = frozenset(
-    {
-        "HTTP::uri",
-        "HTTP::path",
-        "HTTP::query",
-    }
-)
+# Derived from registry: commands with supports_normalized_flag=True.
+_NORMALIZABLE_HTTP_COMMANDS = normalized_flag_commands()
 
 
 def check_irules_unnormalized_http_getter(

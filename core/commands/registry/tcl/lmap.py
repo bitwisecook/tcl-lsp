@@ -21,6 +21,7 @@ class LmapCommand(CommandDef):
         return CommandSpec(
             name="lmap",
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
+            loop_list_header=True,
             hover=HoverSnippet(
                 summary="Iterate over all elements in one or more lists and collect results",
                 synopsis=(

@@ -41,6 +41,7 @@ from typing import TypeAlias
 
 from ..analysis.semantic_model import Range
 from ..commands.registry import REGISTRY
+from ..commands.registry.runtime import loop_list_header_commands
 from ..common.dialect import active_dialect
 from ..common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
@@ -424,9 +425,8 @@ def _find_cmd_tokens_in_text(
     return result
 
 
-# Commands whose synthetic CFG header nodes carry list-expression args
-# that are evaluated exactly once before the loop, not on each iteration.
-_FOREACH_LIKE_CMDS = frozenset({"foreach", "lmap", "dict for", "dict map"})
+# Derived from registry: commands with loop_list_header=True.
+_FOREACH_LIKE_CMDS = loop_list_header_commands()
 
 
 def _cmd_tokens_from_statement(

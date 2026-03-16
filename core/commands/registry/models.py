@@ -11,7 +11,7 @@ from .namespace_models import EventRequires
 from .signatures import ArgRole, Arity
 
 if TYPE_CHECKING:
-    from ...compiler.side_effects import SideEffect
+    from ...compiler.side_effects import SideEffect, StorageType
     from ...compiler.types import TclType
     from ._base import CommandDef
     from .taint_hints import TaintColour
@@ -413,6 +413,16 @@ class SubCommand:
     # ``mutator`` flags apply directly.
     forms: tuple[FormSpec, ...] = ()
 
+    # Inferred storage type for the target variable (DICT, LIST, ARRAY).
+    inferred_storage_type: StorageType | None = None
+
+    # Whether this subcommand's CFG header carries list-expression args
+    # that are evaluated once before the loop body.
+    loop_list_header: bool = False
+
+    # Whether this subcommand creates a scope alias (upvar-like binding).
+    creates_scope_alias: bool = False
+
     def resolve_form(self, args: tuple[str, ...] | list[str]) -> FormSpec | None:
         """Given actual arguments (after the subcommand word), return the matching form.
 
@@ -582,6 +592,19 @@ class CommandSpec:
 
     # Control flow classification.
     is_control_flow: bool = False
+
+    # Inferred storage type for the target variable (DICT, LIST, ARRAY).
+    inferred_storage_type: StorageType | None = None
+
+    # Whether this command supports the ``-normalized`` flag (HTTP getters).
+    supports_normalized_flag: bool = False
+
+    # Whether this command's CFG header carries list-expression args
+    # that are evaluated once before the loop body (foreach, lmap).
+    loop_list_header: bool = False
+
+    # Whether this command creates a scope alias (upvar-like binding).
+    creates_scope_alias: bool = False
 
     def supports_dialect(self, dialect: str | None) -> bool:
         if dialect is None:

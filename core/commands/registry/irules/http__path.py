@@ -93,6 +93,7 @@ class HttpPathCommand(CommandDef):
             ),
             cse_candidate=True,
             diagram_action=True,
+            supports_normalized_flag=True,
         )
 
     @classmethod

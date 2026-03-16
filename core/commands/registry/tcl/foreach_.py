@@ -23,6 +23,7 @@ class ForeachCommand(CommandDef):
             is_control_flow=True,
             never_inline_body=True,
             has_loop_body=True,
+            loop_list_header=True,
             hover=HoverSnippet(
                 summary="Iterate over list elements with one or more loop variables.",
                 synopsis=("foreach varList list ?varList list ...? body",),
