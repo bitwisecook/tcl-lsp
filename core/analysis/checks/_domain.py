@@ -105,7 +105,7 @@ def check_unsafe_irules_command(
 
 # IRULE3102: HTTP::path / HTTP::uri / HTTP::query should use -normalized
 
-# Derived from registry: commands with supports_normalized_flag=True.
+# Derived from registry: commands with a ``-normalized`` OptionSpec.
 _NORMALIZABLE_HTTP_COMMANDS = normalized_flag_commands()
 
 

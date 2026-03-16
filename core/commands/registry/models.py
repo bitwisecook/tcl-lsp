@@ -596,9 +596,6 @@ class CommandSpec:
     # Inferred storage type for the target variable (DICT, LIST, ARRAY).
     inferred_storage_type: StorageType | None = None
 
-    # Whether this command supports the ``-normalized`` flag (HTTP getters).
-    supports_normalized_flag: bool = False
-
     # Whether this command's CFG header carries list-expression args
     # that are evaluated once before the loop body (foreach, lmap).
     loop_list_header: bool = False

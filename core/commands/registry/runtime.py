@@ -232,12 +232,13 @@ def normalized_flag_commands() -> frozenset[str]:
 
     Used by IRULE3102 and side-effect analysis to detect HTTP getters
     that should use ``-normalized`` for consistent matching.
-    Derived from ``supports_normalized_flag`` on :class:`CommandSpec`.
+    Derived from the presence of a ``-normalized`` :class:`OptionSpec`
+    on the command's forms.
     """
     names: set[str] = set()
     for name, specs in REGISTRY.specs_by_name.items():
         for spec in specs:
-            if spec.supports_normalized_flag:
+            if spec.option("-normalized") is not None:
                 names.add(name)
     return frozenset(names)
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageScope
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -50,6 +50,7 @@ class HttpQueryCommand(CommandDef):
                     kind=FormKind.GETTER,
                     synopsis="HTTP::query",
                     arity=Arity(0, 0),
+                    options=(OptionSpec(name="-normalized", detail="Return normalized query."),),
                     pure=True,
                     side_effect_hints=(
                         SideEffect(
@@ -85,7 +86,6 @@ class HttpQueryCommand(CommandDef):
                 also_in=frozenset({"MR_INGRESS", "SERVER_CONNECTED"}),
             ),
             cse_candidate=True,
-            supports_normalized_flag=True,
         )
 
     @classmethod

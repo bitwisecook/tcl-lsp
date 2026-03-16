@@ -676,7 +676,7 @@ def classify_side_effects(
         resolved_form = sub_spec.resolve_form(sub_args)
     elif spec is not None and len(spec.forms) > 1:
         resolved_form = spec.resolve_form(tuple(args))
-        if spec.supports_normalized_flag and args == ("-normalized",):
+        if spec.option("-normalized") is not None and args == ("-normalized",):
             getter_form = spec.resolve_form(())
             if getter_form is not None:
                 resolved_form = getter_form
@@ -843,7 +843,7 @@ def _classify_protocol_ns_command(
         is_write = False
 
     # Subcommand mutator flags can upgrade writes.
-    # Commands with supports_normalized_flag treat "-normalized" as getter
+    # Commands with a ``-normalized`` option treat "-normalized" as getter
     # mode even though they also have 1-arg setter forms.
     from ..commands.registry.runtime import normalized_flag_commands
 
