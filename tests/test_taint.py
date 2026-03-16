@@ -1134,6 +1134,30 @@ class TestListCanonical:
         )
         assert len(ws) == 0  # suppressed by LIST_CANONICAL
 
+    def test_lsort_propagates_list_canonical(self):
+        """[lsort] returns canonical list → eval suppressed (T100)."""
+        ws = _taint_warnings(
+            "set raw [read $fd]\nset sorted [lsort $raw]\neval $sorted",
+            "T100",
+        )
+        assert len(ws) == 0  # suppressed by LIST_CANONICAL
+
+    def test_lrange_propagates_list_canonical(self):
+        """[lrange] returns canonical list → eval suppressed (T100)."""
+        ws = _taint_warnings(
+            "set raw [read $fd]\nset sub [lrange $raw 0 2]\neval $sub",
+            "T100",
+        )
+        assert len(ws) == 0  # suppressed by LIST_CANONICAL
+
+    def test_split_propagates_list_canonical(self):
+        """[split] returns canonical list → eval suppressed (T100)."""
+        ws = _taint_warnings(
+            "set raw [read $fd]\nset parts [split $raw :]\neval $parts",
+            "T100",
+        )
+        assert len(ws) == 0  # suppressed by LIST_CANONICAL
+
     def test_list_command_propagates_taint_to_puts(self):
         """[list] wrapping → taint still flows to non-eval sinks (T101)."""
         ws = _taint_warnings(

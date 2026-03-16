@@ -175,6 +175,16 @@ class TestEvalInjection:
         diags = _diag_with_code("eval [linsert $cmdlist 0 extraarg]", "W101")
         assert len(diags) == 0
 
+    def test_eval_split_idiom_clean(self):
+        """eval [split ...] is safe -- registry-derived canonical list set."""
+        diags = _diag_with_code("eval [split $line :]", "W101")
+        assert len(diags) == 0
+
+    def test_eval_concat_still_warns(self):
+        """concat strips quoting -- should still warn for eval."""
+        diags = _diag_with_code("eval [concat $script $args]", "W101")
+        assert len(diags) == 1
+
 
 # W102: subst on variable input
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from ...commands.registry import REGISTRY
+from ...commands.registry.runtime import canonical_list_commands
 from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import Diagnostic, Severity
@@ -185,31 +186,15 @@ def check_eval_subst_double_decode(
     return diagnostics
 
 
-# Commands whose return value is always a canonical Tcl list representation —
-# properly quoted so that re-parsing by eval/uplevel never causes unwanted
-# substitution.  Notably, ``concat`` is excluded: it strips one level of
-# grouping from its arguments, so its output may contain unquoted specials.
-_LIST_SAFE_COMMANDS: frozenset[str] = frozenset({
-    "list",
-    "lappend",
-    "lassign",
-    "linsert",
-    "lmap",
-    "lrange",
-    "lrepeat",
-    "lreplace",
-    "lreverse",
-    "lset",
-    "lsort",
-})
-
-
 def _is_list_command_token(tok: Token) -> bool:
     """Return True if *tok* is a command substitution that returns a canonical list.
 
-    Any command in :data:`_LIST_SAFE_COMMANDS` produces a properly-quoted Tcl
-    list that will not undergo double substitution when re-parsed by
+    Any command in :func:`canonical_list_commands` produces a properly-quoted
+    Tcl list that will not undergo double substitution when re-parsed by
     ``eval``, ``uplevel``, ``interp eval``, etc.
+
+    The set of recognised commands is derived from the command registry
+    (every command with ``return_type == TclType.LIST``, minus ``concat``).
     """
     if tok.type != TokenType.CMD:
         return False
@@ -217,7 +202,21 @@ def _is_list_command_token(tok: Token) -> bool:
     # Use split(None, 1) to handle any whitespace separator (space, tab,
     # newline, backslash-newline continuation) between the command and its args.
     parts = tok.text.lstrip().split(None, 1)
-    return len(parts) >= 1 and parts[0] in _LIST_SAFE_COMMANDS
+    if not parts:
+        return False
+    safe = canonical_list_commands()
+    # Check bare command name first (covers list, lsort, split, glob, …).
+    if parts[0] in safe:
+        return True
+    # Check "cmd subcmd" form (covers "dict keys", "array get", etc.).
+    if len(parts) >= 1:
+        rest = parts[1] if len(parts) > 1 else ""
+        sub_parts = rest.split(None, 1)
+        if sub_parts:
+            compound = f"{parts[0]} {sub_parts[0]}"
+            if compound in safe:
+                return True
+    return False
 
 
 # W301: uplevel with string-built script
