@@ -4,6 +4,7 @@
 #   make prep-pr       Run the full CI-equivalent gate before opening a PR
 #   make vsix          Build the .vsix file (runs tests first)
 #   make install       Build and install the .vsix into VS Code
+#   make publish-vsix  Publish the .vsix to the VS Code Marketplace
 #   make test          Run all tests (Python + VS Code extension)
 #   make test-py       Run the Python test suite only (excludes VM tcltest tests)
 #   make test-opt      Run optimiser coverage tests (not part of standard CI)
@@ -99,7 +100,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
+.PHONY: vsix verify-vsix install publish-vsix test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -110,7 +111,16 @@ install: package-vsix ## Build and install the .vsix into VS Code
 	@echo "==> Installing VS Code extension"
 	$(VSCODE) --install-extension $(VSIX_FILE) --force
 
+VSCE_PUBLISHER := bitwisecook
+
 publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
+	@echo "==> Verifying VS Code Marketplace credentials"
+	@if ! $(VSCE) verify-pat $(VSCE_PUBLISHER) 2>/dev/null; then \
+		echo "    No valid PAT found for publisher '$(VSCE_PUBLISHER)'."; \
+		echo "    Launching interactive login (create a PAT at https://dev.azure.com if needed)..."; \
+		$(VSCE) login $(VSCE_PUBLISHER); \
+	fi
+	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
 	cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE)
 
 README_SRC     := $(ROOT)README.md
@@ -139,23 +149,33 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
 	cp "$(ROOT)docs/Tcl LSP Logo-8bit-128.png" $(STAGE_DIR)/docs/icon.png
-	@echo "==> Optimising images for release"
-	@if command -v pngquant >/dev/null 2>&1 && command -v optipng >/dev/null 2>&1; then \
-		for f in $(STAGE_DIR)/docs/screenshots/*.png; do \
-			pngquant --quality=65-80 --speed 1 --strip --force --output "$$f" "$$f" 2>/dev/null; \
-			optipng -o5 -strip all -quiet "$$f" 2>/dev/null; \
-		done; \
-		echo "    PNG optimisation complete"; \
+	@IMG_STAMP="$(STAMP_DIR)/img-optimised"; \
+	SRC_HASH=$$(cat $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif 2>/dev/null | shasum -a 256 | cut -d' ' -f1); \
+	if [ -f "$$IMG_STAMP" ] && [ "$$(cat "$$IMG_STAMP" 2>/dev/null)" = "$$SRC_HASH" ]; then \
+		echo "==> Images already optimised — skipping"; \
+		cp "$(STAMP_DIR)"/img-cache/*.png "$(STAMP_DIR)"/img-cache/*.gif $(STAGE_DIR)/docs/screenshots/ 2>/dev/null; \
 	else \
-		echo "    WARN: pngquant/optipng not found — skipping PNG optimisation"; \
-	fi
-	@if command -v gifsicle >/dev/null 2>&1; then \
-		for f in $(STAGE_DIR)/docs/screenshots/*.gif; do \
-			gifsicle -O3 --lossy=80 --colors 128 "$$f" -o "$$f.opt" 2>/dev/null && mv "$$f.opt" "$$f"; \
-		done; \
-		echo "    GIF optimisation complete"; \
-	else \
-		echo "    WARN: gifsicle not found — skipping GIF optimisation"; \
+		echo "==> Optimising images for release"; \
+		if command -v pngquant >/dev/null 2>&1 && command -v optipng >/dev/null 2>&1; then \
+			for f in $(STAGE_DIR)/docs/screenshots/*.png; do \
+				pngquant --quality=65-80 --speed 1 --strip --force --output "$$f" "$$f" 2>/dev/null; \
+				optipng -o5 -strip all -quiet "$$f" 2>/dev/null; \
+			done; \
+			echo "    PNG optimisation complete"; \
+		else \
+			echo "    WARN: pngquant/optipng not found — skipping PNG optimisation"; \
+		fi; \
+		if command -v gifsicle >/dev/null 2>&1; then \
+			for f in $(STAGE_DIR)/docs/screenshots/*.gif; do \
+				gifsicle -O3 --lossy=80 --colors 128 "$$f" -o "$$f.opt" 2>/dev/null && mv "$$f.opt" "$$f"; \
+			done; \
+			echo "    GIF optimisation complete"; \
+		else \
+			echo "    WARN: gifsicle not found — skipping GIF optimisation"; \
+		fi; \
+		mkdir -p "$(STAMP_DIR)/img-cache"; \
+		cp $(STAGE_DIR)/docs/screenshots/*.png $(STAGE_DIR)/docs/screenshots/*.gif "$(STAMP_DIR)/img-cache/" 2>/dev/null; \
+		echo "$$SRC_HASH" > "$$IMG_STAMP"; \
 	fi
 	@echo "==> Packaging .vsix (stripped, not obfuscated)"
 	cd $(STAGE_DIR) && $(VSCE) package --allow-missing-repository --no-update-package-json --no-git-tag-version -o $(VSIX_FILE)
