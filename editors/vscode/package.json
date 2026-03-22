@@ -1,6 +1,6 @@
 {
   "name": "tcl-lsp",
-  "displayName": "Tcl Language Support",
+  "displayName": "Tcl LSP/MCP",
   "description": "Tcl language support with semantic highlighting, diagnostics, completions, and more",
   "version": "1.1.1",
   "publisher": "bitwisecook",
