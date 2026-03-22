@@ -1257,7 +1257,13 @@ def analyse_function(
         executable_blocks=executable_blocks,
     )
 
-    # Build def-use chains and memory-SSA (graceful degradation on error)
+    # Build def-use chains and memory-SSA (graceful degradation on error).
+    # Failures are logged but do not prevent the rest of analysis from
+    # completing — downstream consumers check for None.
+    import logging as _logging
+
+    _log = _logging.getLogger(__name__)
+
     du_result = None
     mem_ssa = None
     try:
@@ -1265,13 +1271,13 @@ def analyse_function(
 
         du_result = build_def_use_chains(ssa, cfg=cfg)
     except Exception:
-        pass
+        _log.debug("def-use chain construction failed", exc_info=True)
     try:
         from .memory_ssa import build_memory_ssa
 
         mem_ssa = build_memory_ssa(ssa)
     except Exception:
-        pass
+        _log.debug("memory-SSA construction failed", exc_info=True)
 
     return FunctionAnalysis(
         live_in=live_in,

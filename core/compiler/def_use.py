@@ -151,12 +151,17 @@ def build_def_use_chains(ssa: SSAFunction, cfg=None) -> DefUseResult:
         if key in chains:
             chains[key].uses.append(use)
         else:
-            # Use of a value we haven't seen a def for (version 0 = param/read-before-set).
+            # Synthesize a definition for values we haven't seen.
+            # Version 0 = parameter/read-before-set; non-zero without a
+            # known def is an SSA inconsistency but we handle it
+            # gracefully with PARAMETER kind rather than crashing.
+            _name, ver = key
+            kind = DefKind.PARAMETER if ver == 0 else DefKind.STATEMENT
             chain = DefUseChain(
                 key=key,
                 definition=DefSite(
                     block=ssa.entry,
-                    kind=DefKind.PARAMETER,
+                    kind=kind,
                 ),
             )
             chain.uses.append(use)
@@ -184,19 +189,20 @@ def build_def_use_chains(ssa: SSAFunction, cfg=None) -> DefUseResult:
     # Pass 2: Collect all uses.
     for bn, block in ssa.blocks.items():
         # Phi incoming edges are uses of the incoming versions.
+        # Version 0 (parameter/read-before-set) is included so that
+        # parameter chains correctly reflect phi consumption.
         for phi in block.phis:
             for pred_block, incoming_ver in phi.incoming.items():
-                if incoming_ver > 0:
-                    key = (phi.name, incoming_ver)
-                    _add_use(
-                        key,
-                        UseSite(
-                            block=pred_block,
-                            kind=UseKind.PHI_INCOMING,
-                            variable=phi.name,
-                            phi_version=phi.version,
-                        ),
-                    )
+                key = (phi.name, incoming_ver)
+                _add_use(
+                    key,
+                    UseSite(
+                        block=pred_block,
+                        kind=UseKind.PHI_INCOMING,
+                        variable=phi.name,
+                        phi_version=phi.version,
+                    ),
+                )
 
         # Statement operand uses
         for idx, stmt in enumerate(block.statements):

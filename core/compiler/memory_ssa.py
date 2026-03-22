@@ -269,58 +269,71 @@ def _is_clobber(stmt: IRStatement) -> bool:
 def compute_aliases(ssa: SSAFunction) -> list[AliasSet]:
     """Scan the SSA function for aliasing commands and build alias sets.
 
+    Uses union-find to merge transitive/overlapping aliases into connected
+    components.  For example, ``upvar 1 x a; upvar 1 x b`` correctly
+    merges ``a`` and ``b`` into the same alias set because they share
+    the caller-side variable ``x``.
+
     Detects:
     - ``upvar`` / ``namespace upvar``: links caller variable to local alias
     - ``global``: links local name to global namespace
     - ``variable``: links local name to namespace variable
     """
-    alias_sets: list[AliasSet] = []
+    # Union-find over MemoryLocation for merging overlapping aliases.
+    parent: dict[MemoryLocation, MemoryLocation] = {}
+    reasons: dict[MemoryLocation, set[str]] = {}
 
-    for bn, block in ssa.blocks.items():
+    def find(loc: MemoryLocation) -> MemoryLocation:
+        if loc not in parent:
+            parent[loc] = loc
+            reasons[loc] = set()
+            return loc
+        if parent[loc] is not loc:
+            parent[loc] = find(parent[loc])
+        return parent[loc]
+
+    def union(a: MemoryLocation, b: MemoryLocation, reason: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra is rb:
+            reasons[ra].add(reason)
+            return
+        parent[rb] = ra
+        reasons[ra] = reasons.get(ra, set()) | reasons.get(rb, set())
+        reasons[ra].add(reason)
+
+    for block in ssa.blocks.values():
         for stmt_ssa in block.statements:
             stmt = stmt_ssa.statement
 
             # upvar / namespace upvar
             for caller_var, local_var in _detect_upvar(stmt):
-                alias_sets.append(
-                    AliasSet(
-                        locations=frozenset(
-                            {
-                                MemoryLocation(MemoryLocationKind.UPVAR, local_var, caller_var),
-                                MemoryLocation(MemoryLocationKind.LOCAL, caller_var),
-                            }
-                        ),
-                        reason="upvar",
-                    )
-                )
+                upvar_loc = MemoryLocation(MemoryLocationKind.UPVAR, local_var, caller_var)
+                caller_loc = MemoryLocation(MemoryLocationKind.UPVAR, caller_var, local_var)
+                union(upvar_loc, caller_loc, "upvar")
 
             # global
             for gname in _detect_global(stmt):
-                alias_sets.append(
-                    AliasSet(
-                        locations=frozenset(
-                            {
-                                MemoryLocation(MemoryLocationKind.GLOBAL, gname),
-                                MemoryLocation(MemoryLocationKind.LOCAL, gname),
-                            }
-                        ),
-                        reason="global",
-                    )
-                )
+                global_loc = MemoryLocation(MemoryLocationKind.GLOBAL, gname)
+                local_loc = MemoryLocation(MemoryLocationKind.LOCAL, gname)
+                union(global_loc, local_loc, "global")
 
             # variable
             for vname in _detect_namespace_variable(stmt):
-                alias_sets.append(
-                    AliasSet(
-                        locations=frozenset(
-                            {
-                                MemoryLocation(MemoryLocationKind.NAMESPACE_VAR, vname),
-                                MemoryLocation(MemoryLocationKind.LOCAL, vname),
-                            }
-                        ),
-                        reason="variable",
-                    )
-                )
+                ns_loc = MemoryLocation(MemoryLocationKind.NAMESPACE_VAR, vname)
+                local_loc = MemoryLocation(MemoryLocationKind.LOCAL, vname)
+                union(ns_loc, local_loc, "variable")
+
+    # Build AliasSet objects from connected components.
+    components: dict[MemoryLocation, set[MemoryLocation]] = {}
+    for loc in parent:
+        root = find(loc)
+        components.setdefault(root, set()).add(loc)
+
+    alias_sets: list[AliasSet] = []
+    for root, locs in sorted(components.items(), key=lambda kv: str(kv[0])):
+        reason_set = reasons.get(root, set())
+        reason_str = ",".join(sorted(reason_set)) if reason_set else "alias"
+        alias_sets.append(AliasSet(locations=frozenset(locs), reason=reason_str))
 
     return alias_sets
 

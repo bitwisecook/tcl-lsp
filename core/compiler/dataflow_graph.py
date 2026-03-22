@@ -70,7 +70,9 @@ class AliasInfo:
     """Summary of an alias relationship."""
 
     local_name: str
+    local_kind: str  # "LOCAL", "UPVAR", "GLOBAL", etc.
     target_name: str
+    target_kind: str
     reason: str  # "upvar", "global", "variable"
 
 
@@ -185,15 +187,20 @@ def extract_function_dataflow(
                     )
                 )
 
-    # Build alias info from memory-SSA
+    # Build alias info from memory-SSA (stable ordering via sort key)
     if mem is not None:
         for alias_set in mem.alias_sets:
-            locs = list(alias_set.locations)
+            locs = sorted(
+                alias_set.locations,
+                key=lambda loc: (loc.kind.name, loc.name, loc.qualifier),
+            )
             if len(locs) >= 2:
                 aliases.append(
                     AliasInfo(
                         local_name=locs[0].name,
+                        local_kind=locs[0].kind.name,
                         target_name=locs[1].name,
+                        target_kind=locs[1].kind.name,
                         reason=alias_set.reason,
                     )
                 )
@@ -289,7 +296,9 @@ def dataflow_graph_to_dict(graph: DataFlowGraph) -> dict:
                 "aliases": [
                     {
                         "localName": a.local_name,
+                        "localKind": a.local_kind,
                         "targetName": a.target_name,
+                        "targetKind": a.target_kind,
                         "reason": a.reason,
                     }
                     for a in f.aliases

@@ -406,7 +406,8 @@ function renderDataFlow() {
     if(func.aliases.length){
       html+='<div class="analysis-entry" style="color:var(--orange)">aliases:</div>';
       for(var a of func.aliases){
-        html+='<div class="analysis-entry" style="margin-left:12px; color:var(--orange)">'+esc(a.localName)+' &harr; '+esc(a.targetName)+' <span style="color:var(--text-dim)">('+esc(a.reason)+')</span></div>';
+        var lk=a.localKind?a.localKind.toLowerCase():'';var tk=a.targetKind?a.targetKind.toLowerCase():'';
+        html+='<div class="analysis-entry" style="margin-left:12px; color:var(--orange)">'+(lk?lk+'(':'')+ esc(a.localName)+(lk?')':'')+' &harr; '+(tk?tk+'(':'')+ esc(a.targetName)+(tk?')':'')+' <span style="color:var(--text-dim)">('+esc(a.reason)+')</span></div>';
       }
     }
     // Nodes (def-use chains)
