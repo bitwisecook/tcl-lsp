@@ -163,10 +163,15 @@ class TestMemoryOpsExtended:
 
     def test_memory_phi_at_merge(self):
         """Aliased variables with different versions at merge create memory phis."""
+        from core.compiler.memory_ssa import MemoryOpKind
+
         source = "proc foo {cond} { global g\nif {$cond} {set g 1} else {set g 2}\nset x $g }"
         mem, _ = _build_proc(source, "foo")
-        # Should have at least one memory phi block
-        assert len(mem.memory_phis) >= 0  # may or may not have phis depending on SSA
+        assert len(mem.memory_phis) >= 1, "Expected memory phi at if-merge for aliased 'g'"
+        # The phi should be for variable 'g' with PHI kind.
+        phi_ops = [op for op in mem.memory_ops if op.kind is MemoryOpKind.PHI]
+        assert len(phi_ops) >= 1
+        assert phi_ops[0].location.name == "g"
 
 
 class TestMemorySSAIntegration:
