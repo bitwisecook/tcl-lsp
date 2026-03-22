@@ -1233,3 +1233,111 @@ class TestBigipSemanticTokens:
         token_types = {t["type"] for t in tokens}
         assert "keyword" in token_types  # 'set', 'if', 'puts'
         assert "variable" in token_types  # $port
+
+
+class TestAplSemanticTokens:
+    """Tests for APL (iApp presentation language) semantic tokens."""
+
+    def test_apl_section_and_field_tokens(self):
+        source = (
+            'section basic {\n    string addr default "0.0.0.0" required validator "IpAddress"\n}\n'
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        token_types = {t["type"] for t in tokens}
+        assert "aplSection" in token_types
+        assert "aplSectionName" in token_types
+        assert "aplFieldType" in token_types
+        assert "aplFieldName" in token_types
+        assert "aplAttribute" in token_types
+        assert "aplValidator" in token_types
+
+    def test_apl_define_tokens(self):
+        source = 'define choice yesno_choice {\n    "Yes" => "yes",\n    "No" => "no"\n}\n'
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        token_types = {t["type"] for t in tokens}
+        assert "aplDefine" in token_types
+        assert "aplDefineName" in token_types
+        assert "operator" in token_types
+        assert "string" in token_types
+
+    def test_apl_comment_tokens(self):
+        source = "# This is a comment\nsection foo {\n}\n"
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        comment_tokens = [t for t in tokens if t["type"] == "comment"]
+        assert len(comment_tokens) >= 1
+
+    def test_apl_directive_tokens(self):
+        source = '#include "f5.apl_common"\n'
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        token_types = {t["type"] for t in tokens}
+        assert "aplDirective" in token_types
+
+    def test_apl_optional_tokens(self):
+        source = 'optional ( basic.use_snat == "yes" ) {\n    string snat_pool required\n}\n'
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        token_types = {t["type"] for t in tokens}
+        assert "aplOptional" in token_types
+        assert "aplFieldType" in token_types
+
+    def test_apl_variable_tokens(self):
+        source = 'message "Value is $my_var and ${other_var}"\n'
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        token_types = {t["type"] for t in tokens}
+        assert "variable" in token_types
+
+    def test_apl_choice_with_mapping(self):
+        source = (
+            'choice protocol display "medium" default "tcp" {\n'
+            '    "TCP" => "tcp",\n'
+            '    "UDP" => "udp"\n'
+            "}\n"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        token_types = {t["type"] for t in tokens}
+        assert "aplFieldType" in token_types
+        assert "aplFieldName" in token_types
+        assert "aplAttribute" in token_types
+        assert "operator" in token_types
+
+    def test_apl_text_block(self):
+        source = 'text {\n    basic "Basic Configuration"\n    basic.addr "IP Address"\n}\n'
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        token_types = {t["type"] for t in tokens}
+        assert "aplSection" in token_types
+        assert "string" in token_types
+
+    def test_apl_all_field_types(self):
+        """All APL field-type keywords are highlighted."""
+        source = (
+            "section fields {\n"
+            "    string s1\n"
+            "    choice c1\n"
+            "    editchoice ec1\n"
+            "    multichoice mc1\n"
+            '    message "hello"\n'
+            "    password pw1\n"
+            "    yesno yn1\n"
+            "    noyes ny1\n"
+            "    enadis ed1\n"
+            "    truefalse tf1\n"
+            "    falsetrue ft1\n"
+            "}\n"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        field_type_tokens = [t for t in tokens if t["type"] == "aplFieldType"]
+        # string, choice, editchoice, multichoice, message, password,
+        # yesno, noyes, enadis, truefalse, falsetrue = 11
+        assert len(field_type_tokens) >= 11
+
+    def test_apl_table_and_row(self):
+        source = (
+            "table members {\n"
+            "    row member {\n"
+            '        string addr validator "IpAddress"\n'
+            "    }\n"
+            "}\n"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        token_types = {t["type"] for t in tokens}
+        assert "aplSection" in token_types
+        assert "aplSectionName" in token_types

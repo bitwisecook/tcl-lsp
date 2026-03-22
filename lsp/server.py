@@ -374,6 +374,7 @@ _TCL_LANGUAGE_IDS = (
     "tcl",
     "tcl-irule",
     "tcl-iapp",
+    "tcl-apl",
     "tcl-bigip",
     "tcl8.4",
     "tcl8.5",
@@ -388,6 +389,7 @@ _TCL_LANGUAGE_IDS = (
     "Tcl",
     "iRules",
     "iApps",
+    "APL",
 )
 _TCL_DOCUMENT_SELECTOR = [
     types.TextDocumentFilterLanguage(language=lang) for lang in _TCL_LANGUAGE_IDS
@@ -428,6 +430,7 @@ def on_semantic_tokens_full(
         analysis=analysis,
         is_bigip_conf=_is_bigip_conf(uri),
         is_irules=_is_irules_source(uri),
+        is_apl=_is_apl_source(uri),
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
     )
@@ -1770,6 +1773,19 @@ def _is_irules_source(uri: str) -> bool:
         return True
     basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
     return basename.endswith(".irul") or basename.endswith(".irule")
+
+
+def _is_apl_source(uri: str) -> bool:
+    """Check whether a URI points to an APL (iApp presentation) file.
+
+    Checks the editor's ``language_id`` first, then falls back to the file
+    extension or basename.
+    """
+    lang_id = workspace_state.get_language_id(uri).lower()
+    if lang_id in ("tcl-apl", "apl-lang", "apl"):
+        return True
+    basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
+    return basename.endswith(".apl") or basename == "presentation"
 
 
 def _publish_bigip_diagnostics(

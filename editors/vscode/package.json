@@ -26,6 +26,7 @@
     "onLanguage:tcl",
     "onLanguage:tcl-irule",
     "onLanguage:tcl-iapp",
+    "onLanguage:tcl-apl",
     "onLanguage:tcl-bigip",
     "onLanguage:tcl8.4",
     "onLanguage:tcl8.5",
@@ -81,6 +82,21 @@
           ".impl"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-apl",
+        "aliases": [
+          "iApp APL",
+          "apl",
+          "presentation"
+        ],
+        "extensions": [
+          ".apl"
+        ],
+        "filenames": [
+          "presentation"
+        ],
+        "configuration": "./apl-language-configuration.json"
       },
       {
         "id": "tcl-bigip",
@@ -183,6 +199,11 @@
       },
       {
         "language": "tcl-iapp",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-apl",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       },
@@ -1030,6 +1051,50 @@
         }
       },
       {
+        "language": "tcl-apl",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.apl"
+          ],
+          "number": [
+            "constant.numeric.apl"
+          ],
+          "aplSection": [
+            "keyword.control.apl"
+          ],
+          "aplFieldType": [
+            "keyword.other.apl"
+          ],
+          "aplAttribute": [
+            "entity.other.attribute-name.apl"
+          ],
+          "aplSectionName": [
+            "entity.name.section.apl"
+          ],
+          "aplFieldName": [
+            "variable.other.field.apl"
+          ],
+          "aplDefine": [
+            "keyword.other.define.apl"
+          ],
+          "aplDefineName": [
+            "entity.name.function.apl"
+          ],
+          "aplDirective": [
+            "keyword.control.directive.apl"
+          ],
+          "aplOptional": [
+            "keyword.control.optional.apl"
+          ],
+          "aplValidator": [
+            "support.constant.validator.apl"
+          ]
+        }
+      },
+      {
         "language": "tcl-bigip",
         "scopes": {
           "operator": [
@@ -1645,6 +1710,47 @@
           },
           "decorator:tcl-iapp": {
             "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "escape:tcl-apl": {
+            "foreground": "#d7ba7d"
+          },
+          "aplSection:tcl-apl": {
+            "foreground": "#c586c0",
+            "bold": true
+          },
+          "aplFieldType:tcl-apl": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "aplAttribute:tcl-apl": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "aplSectionName:tcl-apl": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "aplFieldName:tcl-apl": {
+            "foreground": "#dcdcaa"
+          },
+          "aplDefine:tcl-apl": {
+            "foreground": "#c586c0",
+            "bold": true
+          },
+          "aplDefineName:tcl-apl": {
+            "foreground": "#dcdcaa",
+            "bold": true
+          },
+          "aplDirective:tcl-apl": {
+            "foreground": "#c586c0"
+          },
+          "aplOptional:tcl-apl": {
+            "foreground": "#c586c0",
+            "italic": true
+          },
+          "aplValidator:tcl-apl": {
+            "foreground": "#c3e88d",
             "italic": true
           },
           "regexp:tcl-bigip": {

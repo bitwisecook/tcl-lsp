@@ -24,7 +24,19 @@ from core.compiler.irules_flow import RuleInitExport
 log = logging.getLogger(__name__)
 
 TCL_EXTENSIONS = frozenset(
-    {".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl", ".exp"}
+    {
+        ".tcl",
+        ".tk",
+        ".itcl",
+        ".tm",
+        ".irul",
+        ".irule",
+        ".iapp",
+        ".iappimpl",
+        ".impl",
+        ".exp",
+        ".apl",
+    }
 )
 
 _IRULES_EXTENSIONS = frozenset({".irul", ".irule"})
@@ -39,6 +51,9 @@ _BIGIP_CONF_NAMES = frozenset(
         "bigip_user.conf",
     }
 )
+
+# APL presentation file names (matched by basename, no extension).
+_APL_NAMES = frozenset({"presentation"})
 
 
 @dataclass
@@ -94,6 +109,10 @@ class BackgroundScanner:
                     if fname_lower in _BIGIP_CONF_NAMES:
                         full_path = os.path.join(root, fname)
                         self._parse_bigip_file(full_path)
+                        continue
+                    # APL presentation files (extensionless)
+                    if fname_lower in _APL_NAMES:
+                        result.append((os.path.join(root, fname), ".apl"))
                         continue
                     ext = os.path.splitext(fname)[1].lower()
                     if ext not in TCL_EXTENSIONS:
@@ -296,6 +315,8 @@ def _dialect_from_ext(ext: str) -> str | None:
     if ext in _IRULES_EXTENSIONS:
         return "f5-irules"
     if ext in (".iapp", ".iappimpl", ".impl"):
+        return "f5-iapps"
+    if ext == ".apl":
         return "f5-iapps"
     if ext == ".exp":
         return "expect"

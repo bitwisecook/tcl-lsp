@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 
 from core.analysis.semantic_model import AnalysisResult
+from core.bigip.apl_parser import AplTokenKind, tokenise_apl
 from core.bigip.iapp_extract import find_embedded_iapp_sections
 from core.bigip.irules_refs import extract_irules_object_references
 from core.bigip.rule_extract import find_embedded_rules
@@ -88,6 +89,17 @@ SEMANTIC_TOKEN_TYPES = [
     "clockPercent",  # 40 – the % introducer
     "clockSpec",  # 41 – specifier letter (Y m d H M S …)
     "clockModifier",  # 42 – locale modifier (E O)
+    # APL (iApp presentation language) token types
+    "aplSection",  # 43 – section/text/table/row keywords
+    "aplFieldType",  # 44 – field type keywords (string, choice, …)
+    "aplAttribute",  # 45 – attributes (default, display, required, validator)
+    "aplSectionName",  # 46 – name following section/text/table/row
+    "aplFieldName",  # 47 – name following a field-type keyword
+    "aplDefine",  # 48 – define keyword
+    "aplDefineName",  # 49 – name after define
+    "aplDirective",  # 50 – #include, #inline
+    "aplOptional",  # 51 – optional keyword
+    "aplValidator",  # 52 – validator value (IpAddress, PortNumber, …)
 ]
 
 SEMANTIC_TOKEN_MODIFIERS = [
@@ -616,6 +628,47 @@ def _collect_bigip_embedded_irules_object_tokens(
                 length=(end.character - start.character + 1),
                 type_name="object",
             )
+
+
+# Map APL token kinds to semantic token type names.
+_APL_KIND_TO_TYPE: dict[AplTokenKind, str] = {
+    AplTokenKind.COMMENT: "comment",
+    AplTokenKind.DIRECTIVE: "aplDirective",
+    AplTokenKind.SECTION_KW: "aplSection",
+    AplTokenKind.FIELD_TYPE: "aplFieldType",
+    AplTokenKind.DEFINE: "aplDefine",
+    AplTokenKind.DEFINE_NAME: "aplDefineName",
+    AplTokenKind.OPTIONAL: "aplOptional",
+    AplTokenKind.ATTRIBUTE: "aplAttribute",
+    AplTokenKind.SECTION_NAME: "aplSectionName",
+    AplTokenKind.FIELD_NAME: "aplFieldName",
+    AplTokenKind.VARIABLE: "variable",
+    AplTokenKind.STRING: "string",
+    AplTokenKind.NUMBER: "number",
+    AplTokenKind.OPERATOR: "operator",
+    AplTokenKind.ESCAPE: "escape",
+    AplTokenKind.VALIDATOR_VALUE: "aplValidator",
+}
+
+
+def _collect_apl_tokens(
+    tokens: list[tuple[int, int, int, int, int]],
+    source: str,
+) -> None:
+    """Collect APL-specific semantic tokens from presentation source."""
+    seen: set[tuple[int, int, int, int, int]] = set()
+    for apl_tok in tokenise_apl(source):
+        type_name = _APL_KIND_TO_TYPE.get(apl_tok.kind)
+        if type_name is None:
+            continue
+        _append_bigip_token(
+            tokens,
+            seen,
+            line=apl_tok.line,
+            char=apl_tok.char,
+            length=apl_tok.length,
+            type_name=type_name,
+        )
 
 
 def _collect_embedded_tcl_tokens(
@@ -2680,6 +2733,7 @@ def semantic_tokens_full(
     *,
     is_bigip_conf: bool = False,
     is_irules: bool = False,
+    is_apl: bool = False,
     chunk_token_cache: list[list[tuple[int, int, int, int, int]] | None] | None = None,
     chunk_line_ranges: list[tuple[int, int, int, int]] | None = None,
 ) -> list[int]:
@@ -2736,6 +2790,8 @@ def semantic_tokens_full(
         raw_tokens.extend(base_tokens)
     if is_irules:
         _collect_irules_object_tokens(raw_tokens, source)
+    if is_apl:
+        _collect_apl_tokens(raw_tokens, source)
 
     # Sort by position (line, then character) for correct delta encoding
     raw_tokens.sort(key=lambda t: (t[0], t[1]))

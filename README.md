@@ -33,8 +33,9 @@ be invoked from source (`uv run python -m server`) or as a standalone zipapp
 (`python3 tcl-lsp-server.pyz`).
 
 **File types recognised:** `.tcl`, `.tk`, `.itcl`, `.tm`, `.irul`, `.irule`,
-`.iapp`, `.iappimpl`, `.impl`, `.exp`, plus shebang detection for
+`.iapp`, `.iappimpl`, `.impl`, `.apl`, `.exp`, plus shebang detection for
 `#!/usr/bin/tclsh`, `#!/usr/bin/wish`, and `#!/usr/bin/expect`.
+Files named `presentation` (no extension) are auto-detected as APL.
 
 ### VS Code
 
@@ -659,6 +660,30 @@ ltm virtual /Common/my_vs {
     }
 }
 # "Extract All iRules to Files..." exports every iRule to separate .tcl files
+```
+
+### APL (iApp Presentation Language)
+
+Open `.apl` files or files named `presentation` to get semantic highlighting
+for the iApp Application Presentation Language.  APL-specific tokens include
+section/table/row keywords, field types (`string`, `choice`, `password`, ...),
+attributes (`default`, `display`, `required`, `validator`), `define` blocks,
+`optional` conditionals, `#include`/`#inline` directives, and validator names.
+
+```
+# iApp APL presentation file
+section basic {
+    string addr default "0.0.0.0" required validator "IpAddress"
+    choice protocol display "medium" default "tcp" {
+        "TCP" => "tcp",
+        "UDP" => "udp"
+    }
+    yesno use_snat default "yes"
+}
+text {
+    basic "Basic Configuration"
+    basic.addr "Virtual Server IP Address"
+}
 ```
 
 ### iRules-to-XC migration
