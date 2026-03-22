@@ -59,4 +59,4 @@ core/help/kcs_help.db
 
 # Local build artefacts
 tmp/
-editors/jetbrains/.intellijPlatform
+editors/jetbrains/.intellijPlatform/
