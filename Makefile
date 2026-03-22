@@ -149,33 +149,33 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
 	cp "$(ROOT)docs/Tcl LSP Logo-8bit-128.png" $(STAGE_DIR)/docs/icon.png
-	@IMG_STAMP="$(STAMP_DIR)/img-optimised"; \
-	SRC_HASH=$$(cat $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif 2>/dev/null | shasum -a 256 | cut -d' ' -f1); \
-	if [ -f "$$IMG_STAMP" ] && [ "$$(cat "$$IMG_STAMP" 2>/dev/null)" = "$$SRC_HASH" ]; then \
-		echo "==> Images already optimised — skipping"; \
-		cp "$(STAMP_DIR)"/img-cache/*.png "$(STAMP_DIR)"/img-cache/*.gif $(STAGE_DIR)/docs/screenshots/ 2>/dev/null; \
-	else \
-		echo "==> Optimising images for release"; \
+	@NEED_PNG=0; \
+	for f in $(STAGE_DIR)/docs/screenshots/*.png; do \
+		if ! file "$$f" | grep -q 'colormap'; then NEED_PNG=1; break; fi; \
+	done; \
+	if [ "$$NEED_PNG" -eq 1 ]; then \
+		echo "==> Optimising PNGs for release"; \
 		if command -v pngquant >/dev/null 2>&1 && command -v optipng >/dev/null 2>&1; then \
 			for f in $(STAGE_DIR)/docs/screenshots/*.png; do \
-				pngquant --quality=65-80 --speed 1 --strip --force --output "$$f" "$$f" 2>/dev/null; \
-				optipng -o5 -strip all -quiet "$$f" 2>/dev/null; \
+				if ! file "$$f" | grep -q 'colormap'; then \
+					pngquant --quality=65-80 --speed 1 --strip --force --output "$$f" "$$f" 2>/dev/null; \
+					optipng -o5 -strip all -quiet "$$f" 2>/dev/null; \
+				fi; \
 			done; \
 			echo "    PNG optimisation complete"; \
 		else \
 			echo "    WARN: pngquant/optipng not found — skipping PNG optimisation"; \
 		fi; \
-		if command -v gifsicle >/dev/null 2>&1; then \
-			for f in $(STAGE_DIR)/docs/screenshots/*.gif; do \
-				gifsicle -O3 --lossy=80 --colors 128 "$$f" -o "$$f.opt" 2>/dev/null && mv "$$f.opt" "$$f"; \
-			done; \
-			echo "    GIF optimisation complete"; \
-		else \
-			echo "    WARN: gifsicle not found — skipping GIF optimisation"; \
-		fi; \
-		mkdir -p "$(STAMP_DIR)/img-cache"; \
-		cp $(STAGE_DIR)/docs/screenshots/*.png $(STAGE_DIR)/docs/screenshots/*.gif "$(STAMP_DIR)/img-cache/" 2>/dev/null; \
-		echo "$$SRC_HASH" > "$$IMG_STAMP"; \
+	else \
+		echo "==> PNGs already quantised — skipping optimisation"; \
+	fi
+	@if command -v gifsicle >/dev/null 2>&1; then \
+		for f in $(STAGE_DIR)/docs/screenshots/*.gif; do \
+			gifsicle -O3 --lossy=80 --colors 128 "$$f" -o "$$f.opt" 2>/dev/null && mv "$$f.opt" "$$f"; \
+		done; \
+		echo "    GIF optimisation complete"; \
+	else \
+		echo "    WARN: gifsicle not found — skipping GIF optimisation"; \
 	fi
 	@echo "==> Packaging .vsix (stripped, not obfuscated)"
 	cd $(STAGE_DIR) && $(VSCE) package --allow-missing-repository --no-update-package-json --no-git-tag-version -o $(VSIX_FILE)
