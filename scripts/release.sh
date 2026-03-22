@@ -23,10 +23,8 @@ echo "==> Bumping version to $V"
 # pyproject.toml
 sed -i '' "s/^version = \".*\"/version = \"$V\"/" "$ROOT/pyproject.toml"
 
-# editors/vscode/package.json + package-lock.json (root package version only)
+# editors/vscode/package.json (package-lock.json is gitignored, updated by npm install)
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$V\"/" "$ROOT/editors/vscode/package.json"
-# Update only the top-level name/version block in package-lock.json (lines 1-10)
-sed -i '' '1,10s/"version": ".*"/"version": "'"$V"'"/' "$ROOT/editors/vscode/package-lock.json"
 
 # explorer/static/worker.js (wheel filename)
 sed -i '' "s/tcl_lsp-.*-py3-none-any\.whl/tcl_lsp-$V-py3-none-any.whl/" "$ROOT/explorer/static/worker.js"
@@ -49,7 +47,6 @@ echo "==> Committing version bump"
 git add \
     "$ROOT/pyproject.toml" \
     "$ROOT/editors/vscode/package.json" \
-    "$ROOT/editors/vscode/package-lock.json" \
     "$ROOT/explorer/static/worker.js" \
     "$ROOT/editors/zed/Cargo.toml" \
     "$ROOT/editors/zed/Cargo.lock" \
