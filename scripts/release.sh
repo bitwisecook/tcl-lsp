@@ -29,6 +29,15 @@ sed -i '' "s/\"version\": \".*\"/\"version\": \"$V\"/" "$ROOT/editors/vscode/pac
 # explorer/static/worker.js (wheel filename)
 sed -i '' "s/tcl_lsp-.*-py3-none-any\.whl/tcl_lsp-$V-py3-none-any.whl/" "$ROOT/explorer/static/worker.js"
 
+# editors/zed/Cargo.toml
+sed -i '' "s/^version = \".*\"/version = \"$V\"/" "$ROOT/editors/zed/Cargo.toml"
+
+# editors/zed/extension.toml
+sed -i '' "s/^version = \".*\"/version = \"$V\"/" "$ROOT/editors/zed/extension.toml"
+
+# editors/jetbrains/gradle.properties (pluginVersion=X.Y.Z-...)
+sed -i '' "s/^pluginVersion=.*/pluginVersion=$V/" "$ROOT/editors/jetbrains/gradle.properties"
+
 # Note: server/server.py version comes from git describe at build time
 # via server/_build_info.py — no source file update needed.
 
@@ -37,7 +46,10 @@ echo "==> Committing version bump"
 git add \
     "$ROOT/pyproject.toml" \
     "$ROOT/editors/vscode/package.json" \
-    "$ROOT/explorer/static/worker.js"
+    "$ROOT/explorer/static/worker.js" \
+    "$ROOT/editors/zed/Cargo.toml" \
+    "$ROOT/editors/zed/extension.toml" \
+    "$ROOT/editors/jetbrains/gradle.properties"
 
 git commit -m "Bump version to $V"
 
