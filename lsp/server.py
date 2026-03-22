@@ -1823,6 +1823,113 @@ def _publish_bigip_diagnostics(
     )
 
 
+def _uri_to_dir(uri: str) -> str | None:
+    """Extract the directory path from a file URI."""
+    if uri.startswith("file://"):
+        path = uri[7:]
+    else:
+        path = uri
+    import os
+
+    return os.path.dirname(path) if path else None
+
+
+def _publish_apl_diagnostics(
+    uri: str,
+    source: str,
+    version: int | None = None,
+) -> None:
+    """Parse an APL presentation file and publish cross-reference diagnostics."""
+
+    from core.analysis.semantic_model import Severity
+    from core.bigip.iapp_diagnostics import validate_iapp_presentation
+    from core.common.lsp import to_lsp_range
+
+    base_dir = _uri_to_dir(uri)
+    model = background_scanner.parse_apl_source(uri, source, base_dir)
+    if model is None:
+        server.text_document_publish_diagnostics(
+            types.PublishDiagnosticsParams(uri=uri, diagnostics=[], version=version)
+        )
+        return
+
+    if not feature_config.diagnostics_enabled:
+        server.text_document_publish_diagnostics(
+            types.PublishDiagnosticsParams(uri=uri, diagnostics=[], version=version)
+        )
+        return
+
+    # Look for sibling implementation to cross-validate
+    impl_var_refs = _find_sibling_impl_vars(uri, base_dir)
+
+    severity_map = {
+        Severity.ERROR: types.DiagnosticSeverity.Error,
+        Severity.WARNING: types.DiagnosticSeverity.Warning,
+        Severity.INFO: types.DiagnosticSeverity.Information,
+        Severity.HINT: types.DiagnosticSeverity.Hint,
+    }
+    raw = validate_iapp_presentation(model, impl_var_refs)
+    results: list[types.Diagnostic] = []
+    for d in raw:
+        if feature_config.disabled_diagnostics and d.code in feature_config.disabled_diagnostics:
+            continue
+        results.append(
+            types.Diagnostic(
+                range=to_lsp_range(d.range),
+                message=d.message,
+                severity=severity_map.get(d.severity, types.DiagnosticSeverity.Warning),
+                source="tcl-lsp",
+                code=d.code or None,
+            )
+        )
+    server.text_document_publish_diagnostics(
+        types.PublishDiagnosticsParams(uri=uri, diagnostics=results, version=version)
+    )
+
+
+def _find_sibling_impl_vars(uri: str, base_dir: str | None) -> list | None:
+    """Find and extract iApp variable references from a sibling implementation file."""
+    import os
+
+    from core.bigip.iapp_vars import extract_iapp_var_refs
+
+    # Check open documents first
+    impl_uri = background_scanner.find_sibling_impl_source(uri)
+    if impl_uri is not None:
+        try:
+            impl_doc = server.workspace.get_text_document(impl_uri)
+            if impl_doc is not None:
+                return extract_iapp_var_refs(impl_doc.source)
+        except Exception:
+            pass
+
+    # Try to find implementation file on disk
+    if not base_dir:
+        return None
+
+    candidates: list[str] = []
+    # Extensionless "implementation" file
+    impl_path = os.path.join(base_dir, "implementation")
+    if os.path.isfile(impl_path):
+        candidates.append(impl_path)
+    # Files with iApp extensions
+    try:
+        for fname in os.listdir(base_dir):
+            ext = os.path.splitext(fname)[1].lower()
+            if ext in (".iapp", ".iappimpl", ".impl"):
+                candidates.append(os.path.join(base_dir, fname))
+    except OSError:
+        pass
+
+    for path in candidates:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                return extract_iapp_var_refs(f.read())
+        except OSError:
+            continue
+    return None
+
+
 @server.feature(types.TEXT_DOCUMENT_DID_OPEN)
 async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     uri = params.text_document.uri
@@ -1865,6 +1972,13 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
             params.text_document.version,
         )
         return
+    if _is_apl_source(uri):
+        _publish_apl_diagnostics(
+            uri,
+            params.text_document.text,
+            params.text_document.version,
+        )
+        return
     await _publish_diagnostics(
         uri,
         params.text_document.text,
@@ -1877,6 +1991,13 @@ async def did_change(params: types.DidChangeTextDocumentParams) -> None:
     doc = server.workspace.get_text_document(params.text_document.uri)
     if _is_bigip_conf(params.text_document.uri):
         _publish_bigip_diagnostics(
+            params.text_document.uri,
+            doc.source,
+            params.text_document.version,
+        )
+        return
+    if _is_apl_source(params.text_document.uri):
+        _publish_apl_diagnostics(
             params.text_document.uri,
             doc.source,
             params.text_document.version,
@@ -1896,6 +2017,12 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
     diagnostic_scheduler.cancel(uri)
     if _is_bigip_conf(uri):
         background_scanner.remove_bigip_config(uri)
+        server.text_document_publish_diagnostics(
+            types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
+        )
+        return
+    if _is_apl_source(uri):
+        background_scanner.remove_apl_model(uri)
         server.text_document_publish_diagnostics(
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
         )

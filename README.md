@@ -669,6 +669,8 @@ for the iApp Application Presentation Language.  APL-specific tokens include
 section/table/row keywords, field types (`string`, `choice`, `password`, ...),
 attributes (`default`, `display`, `required`, `validator`), `define` blocks,
 `optional` conditionals, `#include`/`#inline` directives, and validator names.
+Embedded Tcl inside `[...]` brackets (e.g. `[tmsh::get_config ...]`) receives
+full Tcl semantic highlighting.
 
 ```
 # iApp APL presentation file
@@ -685,6 +687,25 @@ text {
     basic.addr "Virtual Server IP Address"
 }
 ```
+
+**Cross-file integration:** When a `presentation` (APL) file and an
+`implementation` (iApp Tcl) file are in the same directory, the server
+cross-validates them:
+
+- **IAPP7001**: Implementation references a variable (`$::section__field`) not
+  defined in the presentation
+- **IAPP7002**: Presentation field is never referenced in the implementation
+- **IAPP7003**: `#include` file not found
+
+The `#include` directive is resolved relative to the APL file's directory,
+with recursive resolution and circular-include protection.
+
+### tmsh commands
+
+The `f5-iapps` dialect includes 30+ `tmsh::` namespace commands
+(`tmsh::create`, `tmsh::modify`, `tmsh::get_config`, `tmsh::get_field_value`,
+etc.) and 4 `script::` commands (`script::run`, `script::init`, etc.) with
+hover documentation and arity validation.
 
 ### iRules-to-XC migration
 
@@ -1828,7 +1849,7 @@ Server/runtime settings are available through the `tclLsp.*` namespace.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `dialect` | `tcl8.6` | Command/signature profile (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `f5-iapps`, `f5-bigip`, `synopsys-eda-tcl`, `cadence-eda-tcl`, `xilinx-eda-tcl`, `intel-quartus-eda-tcl`, `mentor-eda-tcl`, `expect`) |
+| `dialect` | `tcl8.6` | Command/signature profile (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `synopsys-eda-tcl`, `cadence-eda-tcl`, `xilinx-eda-tcl`, `intel-quartus-eda-tcl`, `mentor-eda-tcl`, `expect`) |
 | `extraCommands` | `[]` | Extra command names treated as known varargs commands |
 | `libraryPaths` | `[]` | Additional directories to scan for Tcl packages and libraries |
 

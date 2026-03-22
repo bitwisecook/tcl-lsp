@@ -651,6 +651,60 @@ _APL_KIND_TO_TYPE: dict[AplTokenKind, str] = {
 }
 
 
+def _find_apl_embedded_tcl(source: str) -> list[tuple[int, int, int, str]]:
+    """Find ``[...]`` embedded Tcl regions in APL source.
+
+    Returns a list of ``(start_line, start_char, end_offset, body)`` tuples
+    for each top-level bracket expression found outside comments and strings.
+    """
+    regions: list[tuple[int, int, int, str]] = []
+    lines = source.split("\n")
+    offset = 0
+    for line_no, line in enumerate(lines):
+        stripped = line.lstrip()
+        # Skip comment lines
+        if (
+            stripped.startswith("#")
+            and not stripped.startswith("#include")
+            and not stripped.startswith("#inline")
+        ):
+            offset += len(line) + 1
+            continue
+        col = 0
+        in_string = False
+        while col < len(line):
+            ch = line[col]
+            if ch == "\\" and col + 1 < len(line):
+                col += 2
+                continue
+            if ch == '"':
+                in_string = not in_string
+                col += 1
+                continue
+            if ch == "[" and not in_string:
+                # Find matching ]
+                depth = 1
+                start_col = col
+                col += 1
+                while col < len(line) and depth > 0:
+                    c = line[col]
+                    if c == "\\":
+                        col += 1
+                    elif c == "[":
+                        depth += 1
+                    elif c == "]":
+                        depth -= 1
+                    col += 1
+                if depth == 0:
+                    body = line[start_col + 1 : col - 1]
+                    if body.strip():
+                        regions.append((line_no, start_col + 1, offset + col, body))
+                continue
+            col += 1
+        offset += len(line) + 1
+    return regions
+
+
 def _collect_apl_tokens(
     tokens: list[tuple[int, int, int, int, int]],
     source: str,
@@ -669,6 +723,18 @@ def _collect_apl_tokens(
             length=apl_tok.length,
             type_name=type_name,
         )
+
+    # Embedded Tcl inside [...] brackets (e.g. [tmsh::create ...])
+    for region_line, region_char, _end_offset, body in _find_apl_embedded_tcl(source):
+        body_token = Token(
+            type=TokenType.STR,
+            text=body,
+            start=SourcePosition(line=region_line, character=region_char, offset=0),
+            end=SourcePosition(
+                line=region_line, character=region_char + len(body), offset=len(body)
+            ),
+        )
+        _collect_tokens(tokens, body, body_token=body_token)
 
 
 def _collect_embedded_tcl_tokens(

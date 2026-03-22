@@ -1341,3 +1341,12 @@ class TestAplSemanticTokens:
         token_types = {t["type"] for t in tokens}
         assert "aplSection" in token_types
         assert "aplSectionName" in token_types
+
+    def test_apl_embedded_tcl_in_brackets(self):
+        """Embedded Tcl in [...] brackets gets Tcl semantic tokens."""
+        source = "section basic {\n    choice pools default [tmsh::get_config ltm pool]\n}\n"
+        tokens = _decode_tokens(semantic_tokens_full(source, is_apl=True))
+        token_types = {t["type"] for t in tokens}
+        # The [tmsh::get_config ...] should produce Tcl tokens
+        assert "aplSection" in token_types
+        assert "aplFieldType" in token_types
