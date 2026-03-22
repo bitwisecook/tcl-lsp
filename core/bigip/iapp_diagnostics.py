@@ -62,20 +62,10 @@ def validate_iapp_presentation(
     for ref in impl_var_refs:
         referenced_apl_names.add(ref.apl_name)
 
-    # --- IAPP7001: implementation references undefined variable ---
-    for ref in impl_var_refs:
-        if ref.apl_name not in apl_model.all_fields:
-            diagnostics.append(
-                Diagnostic(
-                    message=(
-                        f"Variable ${ref.tcl_name} references presentation "
-                        f"field '{ref.apl_name}' which is not defined"
-                    ),
-                    range=ref.range,
-                    severity=Severity.WARNING,
-                    code="IAPP7001",
-                )
-            )
+    # NOTE: IAPP7001 (undefined variable) is emitted by
+    # validate_iapp_implementation() so that the diagnostic is positioned
+    # in the implementation file.  We intentionally skip it here to avoid
+    # duplicate diagnostics.
 
     # --- IAPP7002: unused presentation field ---
     for qname, apl_field in apl_model.all_fields.items():

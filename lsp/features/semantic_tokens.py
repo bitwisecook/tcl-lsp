@@ -656,52 +656,83 @@ def _find_apl_embedded_tcl(source: str) -> list[tuple[int, int, int, str]]:
 
     Returns a list of ``(start_line, start_char, end_offset, body)`` tuples
     for each top-level bracket expression found outside comments and strings.
+
+    Handles multi-line ``[...]`` expressions that span across lines.
     """
     regions: list[tuple[int, int, int, str]] = []
     lines = source.split("\n")
-    offset = 0
-    for line_no, line in enumerate(lines):
-        stripped = line.lstrip()
-        # Skip comment lines
-        if (
-            stripped.startswith("#")
-            and not stripped.startswith("#include")
-            and not stripped.startswith("#inline")
-        ):
-            offset += len(line) + 1
+
+    # Build a line-offset table for converting absolute offsets
+    line_offsets: list[int] = []
+    off = 0
+    for ln in lines:
+        line_offsets.append(off)
+        off += len(ln) + 1
+
+    # Scan character-by-character through the entire source
+    pos = 0
+    length = len(source)
+    in_comment = False
+    in_string = False
+
+    while pos < length:
+        ch = source[pos]
+
+        # Track newlines — check if new line is a comment
+        if ch == "\n":
+            in_comment = False
+            pos += 1
+            # Check if next line is a comment
+            if pos < length:
+                rest = source[pos:].lstrip(" \t")
+                if (
+                    rest.startswith("#")
+                    and not rest.startswith("#include")
+                    and not rest.startswith("#inline")
+                ):
+                    in_comment = True
             continue
-        col = 0
-        in_string = False
-        while col < len(line):
-            ch = line[col]
-            if ch == "\\" and col + 1 < len(line):
-                col += 2
-                continue
-            if ch == '"':
-                in_string = not in_string
-                col += 1
-                continue
-            if ch == "[" and not in_string:
-                # Find matching ]
-                depth = 1
-                start_col = col
-                col += 1
-                while col < len(line) and depth > 0:
-                    c = line[col]
-                    if c == "\\":
-                        col += 1
-                    elif c == "[":
-                        depth += 1
-                    elif c == "]":
-                        depth -= 1
-                    col += 1
-                if depth == 0:
-                    body = line[start_col + 1 : col - 1]
-                    if body.strip():
-                        regions.append((line_no, start_col + 1, offset + col, body))
-                continue
-            col += 1
-        offset += len(line) + 1
+
+        if in_comment:
+            pos += 1
+            continue
+
+        # Handle escapes
+        if ch == "\\" and pos + 1 < length:
+            pos += 2
+            continue
+
+        # Handle strings
+        if ch == '"':
+            in_string = not in_string
+            pos += 1
+            continue
+
+        if ch == "[" and not in_string:
+            # Find matching ] (may span multiple lines)
+            depth = 1
+            start_pos = pos
+            pos += 1
+            while pos < length and depth > 0:
+                c = source[pos]
+                if c == "\\":
+                    pos += 1  # skip escaped char
+                elif c == "[":
+                    depth += 1
+                elif c == "]":
+                    depth -= 1
+                pos += 1
+            if depth == 0:
+                body = source[start_pos + 1 : pos - 1]
+                if body.strip():
+                    # Determine start line and column from absolute offset
+                    start_line = source.count("\n", 0, start_pos)
+                    start_col = start_pos - line_offsets[start_line] + 1  # +1 past '['
+                    regions.append((start_line, start_col, pos, body))
+            continue
+
+        pos += 1
+
     return regions
 
 

@@ -102,9 +102,7 @@ _OPTIONAL_RE = re.compile(r"\b(optional)\s*\(")
 _SECTION_KW_RE = re.compile(r"(?:^|(?<=[\s{;]))(section|text|table|row)\s+(\S+)")
 _FIELD_TYPE_RE = re.compile(
     r"(?:^|(?<=[\s{;]))"
-    r"(string|choice|editchoice|multichoice|message|password|"
-    r"yesno|noyes|enadis|enadisdry|disena|indefint|falsetrue|truefalse|"
-    r"tcpprof|addrport)"
+    r"(" + "|".join(sorted(_FIELD_TYPE_KEYWORDS)) + r")"
     r"\s+(\S+)"
 )
 _ATTRIBUTE_RE = re.compile(r"\b(default|display|required|validator)\b")

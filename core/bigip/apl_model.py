@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 
 from ..analysis.semantic_model import Range
 from ..parsing.tokens import SourcePosition
+from .apl_parser import _FIELD_TYPE_KEYWORDS
 
 log = logging.getLogger(__name__)
 
@@ -104,9 +105,7 @@ _SECTION_DECL_RE = re.compile(r"^\s*section\s+(\S+)\s*\{", re.MULTILINE)
 _TABLE_DECL_RE = re.compile(r"^\s*table\s+(\S+)\s*\{", re.MULTILINE)
 # field-type <name> ...
 _FIELD_DECL_RE = re.compile(
-    r"^\s*(string|choice|editchoice|multichoice|message|password|"
-    r"yesno|noyes|enadis|enadisdry|disena|indefint|falsetrue|truefalse|"
-    r"tcpprof|addrport)\s+(\S+)",
+    r"^\s*(" + "|".join(sorted(_FIELD_TYPE_KEYWORDS)) + r")\s+(\S+)",
     re.MULTILINE,
 )
 # define <type> <name>
@@ -123,11 +122,25 @@ _REQUIRED_RE = re.compile(r"\brequired\b")
 
 
 def _find_brace_end(source: str, start: int) -> int:
-    """Return offset past the closing ``}`` matching the ``{`` at *start*."""
+    """Return offset past the closing ``}`` matching the ``{`` at *start*.
+
+    Handles braces inside double-quoted strings so that a ``"}"`` literal
+    does not prematurely close the block.
+    """
     pos = start + 1
     depth = 1
     while pos < len(source) and depth > 0:
         ch = source[pos]
+        if ch == '"':
+            # Skip entire quoted string (may contain braces)
+            pos += 1
+            while pos < len(source) and source[pos] != '"':
+                if source[pos] == "\\":
+                    pos += 1  # skip escaped char inside string
+                pos += 1
+            # Advance past closing quote
+            pos += 1
+            continue
         if ch == "{":
             depth += 1
         elif ch == "}":
@@ -209,12 +222,14 @@ def parse_apl(source: str) -> AplModel:
         define_name = m.group(2)
         model.defines[define_name] = underlying_type
 
-    # Extract sections
+    # Extract sections (tracking their byte ranges for nested-table scoping)
+    section_ranges: list[tuple[int, int, str]] = []  # (start, end, name)
     for m in _SECTION_DECL_RE.finditer(source):
         sec_name = m.group(1)
         brace_pos = m.end() - 1
         end_pos = _find_brace_end(source, brace_pos)
         block = source[brace_pos + 1 : end_pos - 1]
+        section_ranges.append((brace_pos, end_pos, sec_name))
 
         abs_offset = m.start(1)
         line, char = _offset_to_line_char(source, abs_offset)
@@ -234,19 +249,28 @@ def parse_apl(source: str) -> AplModel:
         for field_obj in section.fields.values():
             model.all_fields[field_obj.qualified_name] = field_obj
 
-    # Extract tables
+    # Extract tables (qualify name with parent section if nested)
     for m in _TABLE_DECL_RE.finditer(source):
         tbl_name = m.group(1)
         brace_pos = m.end() - 1
         end_pos = _find_brace_end(source, brace_pos)
         block = source[brace_pos + 1 : end_pos - 1]
 
+        # Determine parent section by checking if this table falls inside one
+        parent_prefix = ""
+        for sec_start, sec_end, sec_name in section_ranges:
+            if sec_start < m.start() < sec_end:
+                parent_prefix = sec_name
+                break
+
+        qualified_tbl = f"{parent_prefix}.{tbl_name}" if parent_prefix else tbl_name
+
         abs_offset = m.start(1)
         line, char = _offset_to_line_char(source, abs_offset)
 
         table = AplTable(
             name=tbl_name,
-            qualified_name=tbl_name,
+            qualified_name=qualified_tbl,
             range=Range(
                 start=SourcePosition(line=line, character=char, offset=abs_offset),
                 end=SourcePosition(
@@ -254,8 +278,8 @@ def parse_apl(source: str) -> AplModel:
                 ),
             ),
         )
-        table.columns = _parse_fields_in_block(block, tbl_name, line, brace_pos + 1, source)
-        model.tables[tbl_name] = table
+        table.columns = _parse_fields_in_block(block, qualified_tbl, line, brace_pos + 1, source)
+        model.tables[qualified_tbl] = table
         for field_obj in table.columns.values():
             model.all_fields[field_obj.qualified_name] = field_obj
 

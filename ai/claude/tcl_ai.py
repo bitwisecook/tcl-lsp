@@ -74,39 +74,6 @@ def cmd_diagnostics(source: str, file_path: str) -> None:
 # Subcommand: symbols
 
 
-def _print_scope_symbols(scope, depth: int = 0) -> int:
-    """Recursively print symbols from a scope. Returns count."""
-    count = 0
-    indent = "  " * depth
-
-    for proc in scope.procs.values():
-        params = []
-        for p in proc.params:
-            params.append(p.name)
-        param_str = f"({', '.join(params)})" if params else "()"
-        line = proc.name_range.start.line + 1 if proc.name_range else "?"
-        print(f"  {indent}Function {proc.name} {param_str} (line {line})")
-        count += 1
-
-    if scope.kind in ("global", "namespace"):
-        for var in scope.variables.values():
-            if var.definition_range:
-                line = var.definition_range.start.line + 1
-                print(f"  {indent}Variable {var.name} (line {line})")
-                count += 1
-
-    for child in scope.children:
-        if child.kind == "namespace" and child.body_range:
-            line = child.body_range.start.line + 1
-            print(f"  {indent}Namespace {child.name} (line {line})")
-            count += 1
-            count += _print_scope_symbols(child, depth + 1)
-        elif child.kind == "proc":
-            count += _print_scope_symbols(child, depth + 1)
-
-    return count
-
-
 def cmd_symbols(source: str, file_path: str) -> None:
     from core.analysis.analyser import analyse
 

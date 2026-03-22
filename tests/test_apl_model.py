@@ -202,12 +202,16 @@ class TestIappCrossFileDiagnostics:
         )
         model = parse_apl(apl_source)
         refs = extract_iapp_var_refs(impl_source)
-        diags = validate_iapp_presentation(model, refs)
-        codes = {d.code for d in diags}
-        # IAPP7001: basic.port not defined
-        assert "IAPP7001" in codes
+        # IAPP7001 is emitted by validate_iapp_implementation (positioned
+        # in the implementation file), not validate_iapp_presentation.
+        impl_diags = validate_iapp_implementation(refs, model)
+        impl_codes = {d.code for d in impl_diags}
+        assert "IAPP7001" in impl_codes
+        # validate_iapp_presentation should not duplicate IAPP7001
+        pres_diags = validate_iapp_presentation(model, refs)
+        assert not any(d.code == "IAPP7001" for d in pres_diags)
         # IAPP7002 should not fire for basic.addr since it's referenced
-        iapp7002_fields = [d for d in diags if d.code == "IAPP7002"]
+        iapp7002_fields = [d for d in pres_diags if d.code == "IAPP7002"]
         assert not any("basic.addr" in d.message for d in iapp7002_fields)
 
     def test_unused_field_diagnostic(self):
