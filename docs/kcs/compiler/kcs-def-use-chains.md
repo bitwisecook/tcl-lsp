@@ -3,7 +3,7 @@
 ## Overview
 
 Def-use chains link each SSA variable definition to all statements that
-read (use) it.  They are built in a single pass over the SSA function
+read (use) it.  They are built in two passes over the SSA function
 after SSA construction, and stored in `FunctionAnalysis.def_use_chains`.
 
 ## Data Structure
@@ -47,11 +47,14 @@ UseSite
 
 ## Key Properties
 
-| Property | Meaning |
-|----------|---------|
+| Property / Method | Meaning |
+|-------------------|---------|
 | `chain.is_dead` | No uses at all — candidate for dead-store elimination |
 | `chain.use_count` | Number of use sites |
 | `chain.has_phi_use` | At least one use is a phi incoming edge |
+| `result.is_dead(name, ver)` | True if the SSA value has no uses |
+| `result.uses_of(name, ver)` | All use sites for a given SSA value (or empty list) |
+| `result.reaching_defs(name)` | All SSA definitions of a variable across the function |
 
 ## Consumer Contracts
 

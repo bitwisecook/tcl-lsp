@@ -69,6 +69,9 @@ Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. 
 - `tests/test_irules_checks.py`
 - `tests/test_diagnostics.py`
 - `tests/test_diagnostic_phases.py`
+- `tests/test_def_use.py`
+- `tests/test_memory_ssa.py`
+- `tests/test_dataflow_graph.py`
 
 ## Discoverability
 

@@ -145,3 +145,42 @@ class TestDefUseProc:
             # At least one use each (in the expr)
             assert len(x_uses) >= 1
             assert len(y_uses) >= 1
+
+
+class TestDefUseResultMethods:
+    def test_is_dead_method(self):
+        du, _ = _build("set x 1\nset y $x")
+        assert du.is_dead("x", 1) is False
+        assert du.is_dead("y", 1) is True
+
+    def test_is_dead_nonexistent_key(self):
+        du, _ = _build("set x 1")
+        assert du.is_dead("nonexistent", 99) is True
+
+    def test_chain_for_returns_none(self):
+        du, _ = _build("set x 1")
+        assert du.chain_for("nonexistent", 99) is None
+
+    def test_has_phi_use(self):
+        source = "if {$cond} {set a 1} else {set a 2}"
+        du, _ = _build(source)
+        # At least one branch definition should have a phi use
+        a_defs = du.reaching_defs("a")
+        has_phi = any(du.chains[k].has_phi_use for k in a_defs)
+        assert has_phi
+
+
+class TestDefUseNestedControlFlow:
+    def test_if_inside_while(self):
+        source = "set i 0\nwhile {$i < 10} {\nif {$i > 5} {set x 1} else {set x 2}\nincr i\n}"
+        du, _ = _build(source)
+        i_defs = du.reaching_defs("i")
+        assert len(i_defs) >= 2
+        x_defs = du.reaching_defs("x")
+        assert len(x_defs) >= 2
+
+    def test_foreach_loop(self):
+        source = "foreach item {a b c} { set result $item }"
+        du, _ = _build(source)
+        item_defs = du.reaching_defs("item")
+        assert len(item_defs) >= 1

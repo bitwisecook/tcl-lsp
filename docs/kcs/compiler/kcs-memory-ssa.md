@@ -70,6 +70,25 @@ Memory versions increment at:
 3. **Phi merge**: Where control flow merges and aliased variables
    have different versions on incoming edges
 
+**Limitation — global version counter**: The implementation uses a single
+`version_counter` for all memory locations within a function.  When a `DEF`
+to variable `x` bumps the counter, a subsequent `USE` of unrelated variable
+`y` records that bumped counter as its `reaching_version`.  This is correct
+for consumers that use `may_alias()` and alias sets, but any consumer relying
+on `reaching_version` for per-variable reaching-def analysis will get an
+over-approximation.
+
+## Key Methods and Properties
+
+| Method / Property | Meaning |
+|-------------------|---------|
+| `may_alias(a, b)` | True if two variable names may refer to the same storage |
+| `aliases_for(name)` | All alias sets containing the given variable name |
+| `aliased_names` | Frozenset of all variable names involved in aliasing |
+| `total_memory_defs` | Count of `DEF` memory operations |
+| `total_memory_uses` | Count of `USE` memory operations |
+| `total_clobbers` | Count of `CLOBBER` memory operations |
+
 ## Consumer Contracts
 
 | Consumer | What it reads | Benefit |

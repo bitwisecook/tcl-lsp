@@ -197,6 +197,23 @@ class ModuleAnalysis:
     procedures: dict[str, FunctionAnalysis]
 
 
+def _compute_predecessors(cfg: CFGFunction) -> dict[str, set[str]]:
+    """Build a predecessor map from the CFG terminators."""
+    preds: dict[str, set[str]] = {bn: set() for bn in cfg.blocks}
+    for bn, block in cfg.blocks.items():
+        match block.terminator:
+            case CFGGoto(target=target):
+                succs = (target,)
+            case CFGBranch(true_target=tt, false_target=ft):
+                succs = (tt, ft)
+            case _:
+                succs = ()
+        for succ in succs:
+            if succ in preds:
+                preds[succ].add(bn)
+    return preds
+
+
 def _cfg_order(cfg: CFGFunction) -> list[str]:
     seen: set[str] = set()
     order: list[str] = []
@@ -546,18 +563,7 @@ def _sccp(
 ) -> tuple[
     dict[SSAValueKey, LatticeValue], set[str], set[tuple[str, str]], tuple[ConstantBranch, ...]
 ]:
-    preds: dict[str, set[str]] = {bn: set() for bn in cfg.blocks}
-    for bn, block in cfg.blocks.items():
-        match block.terminator:
-            case CFGGoto(target=target):
-                succs = (target,)
-            case CFGBranch(true_target=tt, false_target=ft):
-                succs = (tt, ft)
-            case _:
-                succs = ()
-        for succ in succs:
-            if succ in preds:
-                preds[succ].add(bn)
+    preds = _compute_predecessors(cfg)
 
     executable_blocks: set[str] = {cfg.entry} if cfg.entry in cfg.blocks else set()
     executable_edges: set[tuple[str, str]] = set()
@@ -754,6 +760,65 @@ def _liveness(
     return live_in, live_out
 
 
+def _vars_in_return(value: str) -> set[str]:
+    """Extract variable names from a return value string using the lexer."""
+    result: set[str] = set()
+    lexer = TclLexer(value)
+    while True:
+        tok = lexer.get_token()
+        if tok is None:
+            break
+        if tok.type is TokenType.VAR:
+            name = _normalise_var_name(tok.text)
+            if name:
+                result.add(name)
+    return result
+
+
+def _collect_used_names(
+    cfg: CFGFunction,
+    ssa: SSAFunction,
+    *,
+    executable_blocks: set[str] | None = None,
+    executable_edges: set[tuple[str, str]] | None = None,
+    include_return_vars: bool = False,
+) -> set[str]:
+    """Collect all variable names that appear as uses across the function.
+
+    Scans statement operands, branch conditions, phi incoming edges,
+    and optionally return value variable references.
+    """
+    considered = executable_blocks if executable_blocks is not None else set(cfg.blocks)
+    used_names: set[str] = set()
+
+    for bn, block in ssa.blocks.items():
+        if bn not in considered:
+            continue
+        for stmt in block.statements:
+            used_names.update(stmt.uses.keys())
+
+        term = cfg.blocks[bn].terminator
+        if isinstance(term, CFGBranch):
+            used_names.update(vars_in_expr_node(term.condition))
+        if include_return_vars and isinstance(term, CFGReturn) and term.value is not None:
+            for name in _vars_in_return(term.value):
+                used_names.add(name)
+
+    for bn, block in ssa.blocks.items():
+        if bn not in considered:
+            continue
+        for phi in block.phis:
+            for pred, incoming_ver in phi.incoming.items():
+                if incoming_ver > 0:
+                    if pred not in considered:
+                        continue
+                    if executable_edges is not None and (pred, bn) not in executable_edges:
+                        continue
+                    used_names.add(phi.name)
+
+    return used_names
+
+
 def _dead_stores(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -912,33 +977,12 @@ def _unused_variables(
     """
     considered = executable_blocks if executable_blocks is not None else set(cfg.blocks)
 
-    # Collect all variable names that have any use.
-    used_names: set[str] = set()
-    for bn, block in ssa.blocks.items():
-        if bn not in considered:
-            continue
-        for stmt in block.statements:
-            used_names.update(stmt.uses.keys())
-
-        # Also count variables used in branch conditions.
-        term = cfg.blocks[bn].terminator
-        if isinstance(term, CFGBranch):
-            term_uses = _condition_use_versions(term.condition, block.exit_versions)
-            used_names.update(term_uses.keys())
-
-    # Count uses via phi incoming edges (a phi operand is a use of the
-    # variable version from the predecessor).
-    for bn, block in ssa.blocks.items():
-        if bn not in considered:
-            continue
-        for phi in block.phis:
-            for pred, incoming_ver in phi.incoming.items():
-                if incoming_ver > 0:
-                    if pred not in considered:
-                        continue
-                    if executable_edges is not None and (pred, bn) not in executable_edges:
-                        continue
-                    used_names.add(phi.name)
+    used_names = _collect_used_names(
+        cfg,
+        ssa,
+        executable_blocks=executable_blocks,
+        executable_edges=executable_edges,
+    )
 
     # Now find variables that are defined but never used.
     # Report at the first definition site.
@@ -973,21 +1017,6 @@ def _unused_variables(
     return tuple(result)
 
 
-def _vars_in_return(value: str) -> set[str]:
-    """Extract variable names from a return value string using the lexer."""
-    result: set[str] = set()
-    lexer = TclLexer(value)
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-        if tok.type is TokenType.VAR:
-            name = _normalise_var_name(tok.text)
-            if name:
-                result.add(name)
-    return result
-
-
 def _unused_parameters(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -1003,30 +1032,12 @@ def _unused_parameters(
     if not params:
         return ()
 
-    considered = executable_blocks if executable_blocks is not None else set(cfg.blocks)
-
-    used_names: set[str] = set()
-    for bn, block in ssa.blocks.items():
-        if bn not in considered:
-            continue
-        for stmt in block.statements:
-            used_names.update(stmt.uses.keys())
-        term = cfg.blocks[bn].terminator
-        if isinstance(term, CFGBranch):
-            # Use vars_in_expr_node directly — _condition_use_versions
-            # filters out version-0 uses which excludes parameters.
-            used_names.update(vars_in_expr_node(term.condition))
-        elif isinstance(term, CFGReturn) and term.value is not None:
-            for name in _vars_in_return(term.value):
-                used_names.add(name)
-
-    for bn, block in ssa.blocks.items():
-        if bn not in considered:
-            continue
-        for phi in block.phis:
-            for pred, incoming_ver in phi.incoming.items():
-                if incoming_ver > 0 and pred in considered:
-                    used_names.add(phi.name)
+    used_names = _collect_used_names(
+        cfg,
+        ssa,
+        executable_blocks=executable_blocks,
+        include_return_vars=True,
+    )
 
     result: list[str] = []
     for p in params:
@@ -1141,18 +1152,7 @@ def _type_propagation(
     executable_edges: set[tuple[str, str]],
 ) -> dict[SSAValueKey, TypeLattice]:
     """Run type propagation over the SSA graph."""
-    preds: dict[str, set[str]] = {bn: set() for bn in cfg.blocks}
-    for bn, block in cfg.blocks.items():
-        match block.terminator:
-            case CFGGoto(target=target):
-                succs = (target,)
-            case CFGBranch(true_target=tt, false_target=ft):
-                succs = (tt, ft)
-            case _:
-                succs = ()
-        for succ in succs:
-            if succ in preds:
-                preds[succ].add(bn)
+    preds = _compute_predecessors(cfg)
 
     types: dict[SSAValueKey, TypeLattice] = {}
     order = _cfg_order(cfg)
@@ -1271,13 +1271,13 @@ def analyse_function(
 
         du_result = build_def_use_chains(ssa, cfg=cfg)
     except Exception:
-        _log.debug("def-use chain construction failed", exc_info=True)
+        _log.warning("def-use chain construction failed", exc_info=True)
     try:
         from .memory_ssa import build_memory_ssa
 
         mem_ssa = build_memory_ssa(ssa)
     except Exception:
-        _log.debug("memory-SSA construction failed", exc_info=True)
+        _log.warning("memory-SSA construction failed", exc_info=True)
 
     return FunctionAnalysis(
         live_in=live_in,

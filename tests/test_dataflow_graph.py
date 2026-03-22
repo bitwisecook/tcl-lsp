@@ -53,6 +53,57 @@ class TestDataFlowGraphExtraction:
         assert len(phi_edges) >= 2  # Both branches feed into phi
 
 
+class TestDataFlowGraphEdgeKinds:
+    def test_alias_info_present(self):
+        source = "proc bar {} { global gvar\n set gvar 42 }"
+        graph = extract_dataflow_graph(source)
+        bar_fn = None
+        for f in graph.functions:
+            if "bar" in f.function_name:
+                bar_fn = f
+                break
+        assert bar_fn is not None
+        assert len(bar_fn.aliases) >= 1
+        alias = bar_fn.aliases[0]
+        assert alias.local_kind != ""
+        assert alias.target_kind != ""
+
+    def test_total_aliases_property(self):
+        source = "proc bar {} { global gvar\n set gvar 42 }"
+        graph = extract_dataflow_graph(source)
+        assert graph.total_aliases >= 1
+
+    def test_multi_proc_module(self):
+        source = "proc foo {x} { return $x }\nproc bar {y} { return $y }"
+        graph = extract_dataflow_graph(source)
+        # top + foo + bar
+        assert len(graph.functions) >= 3
+
+    def test_extract_function_dataflow_directly(self):
+        from core.compiler.cfg import build_cfg
+        from core.compiler.core_analyses import analyse_function
+        from core.compiler.dataflow_graph import extract_function_dataflow
+        from core.compiler.lowering import lower_to_ir
+        from core.compiler.ssa import build_ssa
+
+        source = "set x 1\nset y $x"
+        mod = lower_to_ir(source)
+        cfg_mod = build_cfg(mod)
+        ssa = build_ssa(cfg_mod.top_level)
+        analysis = analyse_function(cfg_mod.top_level, ssa)
+        func_graph = extract_function_dataflow("::top", ssa, analysis)
+        assert func_graph.function_name == "::top"
+        assert func_graph.total_defs >= 2
+
+    def test_prebuilt_cu(self):
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = "set x 1\nset y $x"
+        cu = ensure_compilation_unit(source, None, context="test")
+        graph = extract_dataflow_graph(source, cu=cu)
+        assert graph.total_defs >= 2
+
+
 class TestDataFlowGraphSerialisation:
     def test_to_dict(self):
         graph = extract_dataflow_graph("set x 1\nset y $x")
@@ -79,6 +130,21 @@ class TestDataFlowGraphSerialisation:
         mermaid = dataflow_graph_to_mermaid(graph)
         assert "flowchart TD" in mermaid
         assert "subgraph" in mermaid
+
+    def test_mermaid_no_phantom_nodes(self):
+        """Mermaid output should not contain phantom (undefined) node references."""
+        graph = extract_dataflow_graph("set x 1\nset y [expr {$x + 1}]")
+        mermaid = dataflow_graph_to_mermaid(graph)
+        # Phantom nodes would show as "_use_" references; we skip those now
+        assert "_use_" not in mermaid
+
+    def test_mermaid_sanitised_ids(self):
+        """Mermaid node IDs should only contain safe characters."""
+        from core.compiler.dataflow_graph import _sanitise_mermaid_id
+
+        assert _sanitise_mermaid_id("arr(idx)") == "arr_idx_"
+        assert _sanitise_mermaid_id("my-var") == "my_var"
+        assert _sanitise_mermaid_id("simple") == "simple"
 
     def test_empty_source(self):
         graph = extract_dataflow_graph("")

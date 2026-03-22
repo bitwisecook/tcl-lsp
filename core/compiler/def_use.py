@@ -8,7 +8,7 @@ that read (use) it.  This enables precise analyses:
 - Precise unused-variable detection.
 - Foundation for copy propagation (O127).
 
-The chain is derived from ``SSAFunction`` in a single pass over all
+The chain is derived from ``SSAFunction`` in two passes over all
 blocks.  Phi nodes act as both definitions (LHS) and uses (incoming
 edges from predecessor blocks).
 """
@@ -131,10 +131,10 @@ class DefUseResult:
 
 
 def build_def_use_chains(ssa: SSAFunction, cfg=None) -> DefUseResult:
-    """Build def-use chains from an SSA function in a single pass.
+    """Build def-use chains from an SSA function in two passes.
 
-    Walks all blocks collecting definitions (from phi nodes and
-    statements) and uses (from statement operands, phi incoming edges,
+    Pass 1 collects definitions (from phi nodes and statements).
+    Pass 2 collects uses (from statement operands, phi incoming edges,
     and branch conditions).
 
     If *cfg* is provided (a ``CFGFunction``), branch condition variables

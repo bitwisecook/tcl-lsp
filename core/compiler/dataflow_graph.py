@@ -13,12 +13,17 @@ the kind of flow (direct, phi, alias) and control-flow context.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
 from .core_analyses import FunctionAnalysis, LatticeKind
 from .def_use import UseKind
 from .ssa import SSAFunction, SSAValueKey
+
+if TYPE_CHECKING:
+    from .compilation_unit import CompilationUnit
 
 
 class EdgeKind(Enum):
@@ -223,7 +228,7 @@ def extract_function_dataflow(
 def extract_dataflow_graph(
     source: str,
     *,
-    cu=None,
+    cu: CompilationUnit | None = None,
 ) -> DataFlowGraph:
     """Extract the complete data-flow graph for a source file.
 
@@ -321,17 +326,26 @@ def dataflow_graph_to_dict(graph: DataFlowGraph) -> dict:
     }
 
 
+def _sanitise_mermaid_id(name: str) -> str:
+    """Sanitise a string for use as a Mermaid node ID."""
+    return re.sub(r"[^a-zA-Z0-9_]", "_", name)
+
+
 def dataflow_graph_to_mermaid(graph: DataFlowGraph) -> str:
     """Render the data-flow graph as a Mermaid flowchart."""
     lines = ["flowchart TD"]
 
     for func in graph.functions:
-        func_id = func.function_name.replace("::", "_").lstrip("_") or "top"
+        func_id = _sanitise_mermaid_id(func.function_name.replace("::", "_").lstrip("_")) or "top"
         lines.append(f'  subgraph {func_id}["{func.function_name}"]')
+
+        # Build set of defined node IDs for edge target validation.
+        defined_nids: set[str] = set()
 
         # Nodes
         for node in func.nodes:
-            nid = f"{func_id}_{node.name}_{node.version}"
+            nid = f"{func_id}_{_sanitise_mermaid_id(node.name)}_{node.version}"
+            defined_nids.add(nid)
             label = f"{node.name}#{node.version}"
             if node.lattice and node.lattice.startswith("CONST"):
                 label += f" = {node.lattice}"
@@ -342,20 +356,21 @@ def dataflow_graph_to_mermaid(graph: DataFlowGraph) -> str:
             else:
                 lines.append(f'    {nid}["{label}"]')
 
-        # Edges
+        # Edges — only emit edges whose destination node exists.
         for edge in func.edges:
-            src = f"{func_id}_{edge.from_name}_{edge.from_version}"
+            src = f"{func_id}_{_sanitise_mermaid_id(edge.from_name)}_{edge.from_version}"
             if edge.edge_kind == "phi" and edge.to_name:
-                dst = f"{func_id}_{edge.to_name}_{edge.to_version}"
-                lines.append(f"    {src} -.->|phi| {dst}")
+                dst = f"{func_id}_{_sanitise_mermaid_id(edge.to_name)}_{edge.to_version}"
+                if dst in defined_nids:
+                    lines.append(f"    {src} -.->|phi| {dst}")
             else:
-                dst = f"{func_id}_use_{edge.to_block}_{edge.to_statement_index}"
-                lines.append(f"    {src} --> {dst}")
+                # Skip edges to non-definition use sites (phantom nodes).
+                pass
 
         # Aliases
         for alias in func.aliases:
-            a_id = f"{func_id}_{alias.local_name}_alias"
-            b_id = f"{func_id}_{alias.target_name}_alias"
+            a_id = f"{func_id}_{_sanitise_mermaid_id(alias.local_name)}_alias"
+            b_id = f"{func_id}_{_sanitise_mermaid_id(alias.target_name)}_alias"
             lines.append(
                 f'    {a_id}(("{alias.local_name}")) <-.->|{alias.reason}| {b_id}(("{alias.target_name}"))'
             )

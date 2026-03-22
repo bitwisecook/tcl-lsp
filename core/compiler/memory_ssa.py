@@ -141,6 +141,10 @@ class MemorySSAFunction:
     memory_ops: list[MemoryOp]
     # Per-block memory phis: block -> list of memory phi ops
     memory_phis: dict[BlockName, list[MemoryOp]] = field(default_factory=dict)
+    # Pre-computed counts (set by build_memory_ssa).
+    _count_defs: int = 0
+    _count_uses: int = 0
+    _count_clobbers: int = 0
 
     @property
     def aliased_names(self) -> frozenset[str]:
@@ -165,15 +169,15 @@ class MemorySSAFunction:
 
     @property
     def total_memory_defs(self) -> int:
-        return sum(1 for op in self.memory_ops if op.kind is MemoryOpKind.DEF)
+        return self._count_defs
 
     @property
     def total_memory_uses(self) -> int:
-        return sum(1 for op in self.memory_ops if op.kind is MemoryOpKind.USE)
+        return self._count_uses
 
     @property
     def total_clobbers(self) -> int:
-        return sum(1 for op in self.memory_ops if op.kind is MemoryOpKind.CLOBBER)
+        return self._count_clobbers
 
 
 # ---------------------------------------------------------------------------
@@ -398,7 +402,9 @@ def build_memory_ssa(ssa: SSAFunction) -> MemorySSAFunction:
                         statement_index=idx,
                     )
                 )
-                continue
+                # Fall through to also record individual defs/uses on
+                # the same statement (e.g. IRBarrier that also defines
+                # aliased variables).
 
             # Check for defs to aliased variables
             for name, _ver in stmt_ssa.defs.items():
@@ -432,8 +438,16 @@ def build_memory_ssa(ssa: SSAFunction) -> MemorySSAFunction:
         for child in reversed(ssa.dominator_tree.get(bn, ())):
             stack.append(child)
 
+    # Pre-compute counts for cached property access.
+    count_defs = sum(1 for op in memory_ops if op.kind is MemoryOpKind.DEF)
+    count_uses = sum(1 for op in memory_ops if op.kind is MemoryOpKind.USE)
+    count_clobbers = sum(1 for op in memory_ops if op.kind is MemoryOpKind.CLOBBER)
+
     return MemorySSAFunction(
         alias_sets=alias_sets,
         memory_ops=memory_ops,
         memory_phis=memory_phis,
+        _count_defs=count_defs,
+        _count_uses=count_uses,
+        _count_clobbers=count_clobbers,
     )
