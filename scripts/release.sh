@@ -23,14 +23,17 @@ echo "==> Bumping version to $V"
 # pyproject.toml
 sed -i '' "s/^version = \".*\"/version = \"$V\"/" "$ROOT/pyproject.toml"
 
-# editors/vscode/package.json (first "version" key only)
+# editors/vscode/package.json + package-lock.json (root package version only)
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$V\"/" "$ROOT/editors/vscode/package.json"
+# Update only the top-level name/version block in package-lock.json (lines 1-10)
+sed -i '' '1,10s/"version": ".*"/"version": "'"$V"'"/' "$ROOT/editors/vscode/package-lock.json"
 
 # explorer/static/worker.js (wheel filename)
 sed -i '' "s/tcl_lsp-.*-py3-none-any\.whl/tcl_lsp-$V-py3-none-any.whl/" "$ROOT/explorer/static/worker.js"
 
-# editors/zed/Cargo.toml
+# editors/zed/Cargo.toml + Cargo.lock (tcl-lsp-zed entry only)
 sed -i '' "s/^version = \".*\"/version = \"$V\"/" "$ROOT/editors/zed/Cargo.toml"
+sed -i '' '/^name = "tcl-lsp-zed"/{n;s/^version = ".*"/version = "'"$V"'"/;}' "$ROOT/editors/zed/Cargo.lock"
 
 # editors/zed/extension.toml
 sed -i '' "s/^version = \".*\"/version = \"$V\"/" "$ROOT/editors/zed/extension.toml"
@@ -46,8 +49,10 @@ echo "==> Committing version bump"
 git add \
     "$ROOT/pyproject.toml" \
     "$ROOT/editors/vscode/package.json" \
+    "$ROOT/editors/vscode/package-lock.json" \
     "$ROOT/explorer/static/worker.js" \
     "$ROOT/editors/zed/Cargo.toml" \
+    "$ROOT/editors/zed/Cargo.lock" \
     "$ROOT/editors/zed/extension.toml" \
     "$ROOT/editors/jetbrains/gradle.properties"
 
