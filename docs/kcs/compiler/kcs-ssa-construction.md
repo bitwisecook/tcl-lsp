@@ -116,9 +116,30 @@ Three definitions merge — the phi has three incoming edges.
 - The dominator tree is essential for many analyses (SCCP, liveness) — if
   blocks are reachable but have no idom, check CFG connectivity.
 
+### Def-use chain derivation
+
+After SSA construction, def-use chains can be built with
+`build_def_use_chains(ssa)` from `core/compiler/def_use.py`.
+The chains map each `SSAValueKey` to its definition site and all
+use sites, enabling precise dead-store detection and copy propagation.
+
+Phi nodes participate in def-use chains in two roles:
+- **As definitions**: The phi's `(name, version)` is a `DefKind.PHI` def.
+- **As uses**: Each incoming edge `(pred_block, incoming_ver)` is a
+  `UseKind.PHI_INCOMING` use of the incoming version.
+
+### Memory-SSA for aliases
+
+Variables aliased via `upvar`, `global`, or `variable` are tracked by
+memory-SSA (`core/compiler/memory_ssa.py`).  Memory-SSA versions each
+store/load to aliased locations and builds alias sets, enabling
+alias-aware optimisation and taint tracking.
+
 ## Related docs
 
 - [Examples 5–9 in walkthroughs](../../example-script-walkthroughs.md#example-5-if-x--set-y-10-)
 - [GLOSSARY.md — SSA, Phi node, Dominator](../../GLOSSARY.md#ssa)
 - [kcs-cfg-ssa-fact-model.md](kcs-cfg-ssa-fact-model.md)
 - [kcs-cfg-construction.md](kcs-cfg-construction.md)
+- [kcs-def-use-chains.md](kcs-def-use-chains.md)
+- [kcs-memory-ssa.md](kcs-memory-ssa.md)

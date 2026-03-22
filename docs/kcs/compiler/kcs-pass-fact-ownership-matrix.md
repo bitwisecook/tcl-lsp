@@ -24,7 +24,10 @@ Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. 
 | `core/compiler/lowering.py` | `IRModule`, structured IR statements, `Range` mappings | CFG builder, interprocedural analysis, diagnostics range mapping | `lower_to_ir()`, `IR*` nodes |
 | `core/compiler/cfg.py` | `CFGModule` / `CFGFunction` blocks, terminators, loop structure | SSA builder, codegen, flow-sensitive diagnostics | `build_cfg_function()` |
 | `core/compiler/ssa.py` | SSA versions, phi nodes, dominance metadata | Core analyses (SCCP/liveness/types), taint, optimiser/GVN | `build_ssa()` |
-| `core/compiler/core_analyses.py` | constant lattice, unreachable blocks, dead stores, type lattice | optimiser, diagnostics-layer enrichment, shimmer/taint heuristics | `analyse_function()` |
+| `core/compiler/core_analyses.py` | constant lattice, unreachable blocks, dead stores, type lattice, def-use chains, memory-SSA | optimiser, diagnostics-layer enrichment, shimmer/taint heuristics, dataflow graph | `analyse_function()` |
+| `core/compiler/def_use.py` | def-use chains (per-SSA-value definition→use mapping) | dead store detection, unused variable precision, copy propagation, dataflow graph | `build_def_use_chains()` |
+| `core/compiler/memory_ssa.py` | memory versions, alias sets (upvar/global/variable) | alias-aware DSE, GVN across aliases, taint through aliases | `build_memory_ssa()` |
+| `core/compiler/dataflow_graph.py` | data-flow graph (nodes, edges, aliases per function) | compiler explorer, MCP tools, AI skills | `extract_dataflow_graph()` |
 | `core/compiler/interprocedural.py` | proc summaries (purity, call graph, constant return, parameter sensitivity) | optimiser (O103), interproc taint propagation | `analyse_interprocedural_ir()` |
 | `core/compiler/optimiser/` | optimisation findings (`O100`–`O125`) | diagnostics aggregation, code-action surfaces | `find_optimisations()` |
 | `core/compiler/gvn.py` | redundancy findings (`O105`, `O106`) | diagnostics aggregation, optimisation hint ranking | `find_redundant_computations()` |
@@ -45,6 +48,9 @@ Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. 
 - `core/compiler/taint/`
 - `core/compiler/shimmer.py`
 - `core/compiler/irules_flow.py`
+- `core/compiler/def_use.py`
+- `core/compiler/memory_ssa.py`
+- `core/compiler/dataflow_graph.py`
 - `lsp/features/diagnostics.py`
 
 ## Failure modes
@@ -63,6 +69,9 @@ Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. 
 - `tests/test_irules_checks.py`
 - `tests/test_diagnostics.py`
 - `tests/test_diagnostic_phases.py`
+- `tests/test_def_use.py`
+- `tests/test_memory_ssa.py`
+- `tests/test_dataflow_graph.py`
 
 ## Discoverability
 

@@ -750,6 +750,7 @@ puts $x"></textarea>
         <div class="tab" data-tab="cfg-post">SSA+Analysis</div>
         <div class="tab" data-tab="interproc">Interproc</div>
         <div class="tab" data-tab="types">Types</div>
+        <div class="tab" data-tab="dataflow">Data Flow</div>
         <div class="tab" data-tab="opt">Optimiser</div>
         <div class="tab" data-tab="gvn">GVN</div>
         <div class="tab" data-tab="shimmer">Shimmer</div>
@@ -769,6 +770,7 @@ puts $x"></textarea>
         <div class="tab-pane" id="pane-cfg-post"></div>
         <div class="tab-pane" id="pane-interproc"></div>
         <div class="tab-pane" id="pane-types"></div>
+        <div class="tab-pane" id="pane-dataflow"></div>
         <div class="tab-pane" id="pane-opt"></div>
         <div class="tab-pane" id="pane-gvn"></div>
         <div class="tab-pane" id="pane-shimmer"></div>
@@ -964,6 +966,7 @@ function renderAll() {
   renderCfgPost();
   renderInterproc();
   renderTypes();
+  renderDataFlow();
   renderOpt();
   renderGvn();
   renderShimmer();

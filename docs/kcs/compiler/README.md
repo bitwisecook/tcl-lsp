@@ -24,6 +24,9 @@ Focused, high-churn compiler guidance lives in this folder.
 
 - [kcs-sccp-core-analyses.md](kcs-sccp-core-analyses.md) — constant propagation and liveness.
 - [kcs-constant-folding-type-inference.md](kcs-constant-folding-type-inference.md) — SCCP and type lattice.
+- [kcs-def-use-chains.md](kcs-def-use-chains.md) — def-use chain construction and consumer contracts.
+- [kcs-memory-ssa.md](kcs-memory-ssa.md) — memory-SSA, alias detection, and versioned memory operations.
+- [kcs-dataflow-graph.md](kcs-dataflow-graph.md) — data-flow graph extraction, serialisation, and consumer contracts.
 - [kcs-taint-analysis.md](kcs-taint-analysis.md) — sources, sinks, colours, and propagation.
 - [kcs-interprocedural-analysis.md](kcs-interprocedural-analysis.md) — ProcSummary construction.
 - [kcs-optimisation-passes.md](kcs-optimisation-passes.md) — O100–O126 pass table and priorities.
@@ -52,6 +55,8 @@ Focused, high-churn compiler guidance lives in this folder.
 ## Optimisation passes
 
 - [kcs-tail-call-recursion-optimisation.md](kcs-tail-call-recursion-optimisation.md) — tail-call rewriting, recursion-to-loop, and accumulator hints (O121–O123).
+- [kcs-optimiser-o124-unused-irule-procs.md](kcs-optimiser-o124-unused-irule-procs.md) — O124: comment out unused procs in iRules.
+- [kcs-o125-code-sinking.md](kcs-o125-code-sinking.md) — O125 code sinking into decision blocks.
 
 ## Diagnostics and pass integration
 
@@ -60,11 +65,6 @@ Focused, high-churn compiler guidance lives in this folder.
 - [kcs-diagnostics-integration.md](kcs-diagnostics-integration.md) — aggregation and suppression policy boundary.
 - [kcs-async-diagnostics-tiering.md](kcs-async-diagnostics-tiering.md) — fast/deep tiering and cancellation expectations.
 - [kcs-phase4-lsp-consumers.md](kcs-phase4-lsp-consumers.md) — LSP feature consumers of shared compiler facts.
-
-## Optimisation passes
-
-- [kcs-optimiser-o124-unused-irule-procs.md](kcs-optimiser-o124-unused-irule-procs.md) — O124: comment out unused procs in iRules.
-- [kcs-o125-code-sinking.md](kcs-o125-code-sinking.md) — O125 code sinking into decision blocks.
 
 ## Codegen boundary
 

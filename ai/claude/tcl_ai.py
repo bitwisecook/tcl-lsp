@@ -705,6 +705,100 @@ def cmd_dataflow_graph(source: str, file_path: str) -> None:
     print(json.dumps(data, indent=2))
 
 
+def cmd_def_use(source: str, file_path: str, variable: str = "") -> None:
+    """Show def-use chains from compiler SSA analysis."""
+    _configure_dialect_from_path(file_path)
+
+    from core.compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
+
+    graph = extract_dataflow_graph(source)
+    result = dataflow_graph_to_dict(graph)
+
+    s = result["summary"]
+    print(
+        f"=== Def-Use Chains ({s['totalDefs']} defs, {s['totalUses']} uses, {s['totalAliases']} aliases) ==="
+    )
+
+    for func in result["functions"]:
+        nodes = func["nodes"]
+        edges = func["edges"]
+        aliases = func["aliases"]
+
+        # Filter by variable if requested
+        if variable:
+            nodes = [n for n in nodes if n["name"] == variable]
+            edges = [e for e in edges if e["fromName"] == variable or e.get("toName") == variable]
+
+        if not nodes and not aliases:
+            continue
+
+        fs = func["summary"]
+        print(
+            f"\n  {func['name']} ({fs['totalDefs']} defs, {fs['totalUses']} uses, {fs['deadDefs']} dead)"
+        )
+
+        if aliases:
+            for a in aliases:
+                print(f"    ALIAS: {a['localName']} <-> {a['targetName']} ({a['reason']})")
+
+        for n in nodes:
+            dead_str = " [DEAD]" if n["isDead"] else ""
+            lattice_str = f" = {n['lattice']}" if n["lattice"] else ""
+            type_str = f" : {n['typeInfo']}" if n["typeInfo"] and n["typeInfo"] != "UNKNOWN" else ""
+            print(
+                f"    {n['name']}#{n['version']}: {n['defKind']} in {n['block']}"
+                f"{lattice_str}{type_str} -> {n['useCount']} uses{dead_str}"
+            )
+
+        phi_edges = [e for e in edges if e["edgeKind"] == "phi"]
+        direct_edges = [e for e in edges if e["edgeKind"] == "direct"]
+        if direct_edges or phi_edges:
+            print(f"    edges: {len(direct_edges)} direct, {len(phi_edges)} phi")
+
+    print("\n  --- Raw JSON ---")
+    print(json.dumps(result, indent=2))
+
+
+def cmd_memory_aliases(source: str, file_path: str) -> None:
+    """Show memory alias information from memory-SSA analysis."""
+    _configure_dialect_from_path(file_path)
+
+    from core.compiler.compilation_unit import ensure_compilation_unit
+
+    cu = ensure_compilation_unit(source, context="cli.memory_aliases")
+    if cu is None:
+        print("  Compilation failed — no alias information available.")
+        return
+
+    total_aliases = 0
+
+    def _show_mem(name, analysis):
+        nonlocal total_aliases
+        mem = analysis.memory_ssa
+        if mem is None:
+            return
+        if not mem.alias_sets and not mem.memory_ops:
+            return
+        print(f"\n  {name}:")
+        for aset in mem.alias_sets:
+            total_aliases += 1
+            print(f"    ALIAS SET ({aset.reason}): {', '.join(sorted(aset.names))}")
+        if mem.memory_ops:
+            print(
+                f"    memory ops: {mem.total_memory_defs} defs, "
+                f"{mem.total_memory_uses} uses, {mem.total_clobbers} clobbers"
+            )
+
+    print("=== Memory-SSA Alias Analysis ===")
+    _show_mem("::top", cu.top_level.analysis)
+    for qname in sorted(cu.procedures):
+        fu = cu.procedures[qname]
+        _show_mem(qname, fu.analysis)
+
+    if total_aliases == 0:
+        print("  (no aliases detected)")
+
+
 # Subcommand: help
 
 
@@ -1977,6 +2071,13 @@ examples:
     )
     p.add_argument("file", help="Tcl/iRule file to analyze")
 
+    p = sub.add_parser("def-use", help="Show def-use chains from compiler SSA")
+    p.add_argument("file", help="Tcl/iRule file to analyze")
+    p.add_argument("--var", default="", help="Filter to specific variable name")
+
+    p = sub.add_parser("memory-aliases", help="Show memory alias information from memory-SSA")
+    p.add_argument("file", help="Tcl/iRule file to analyze")
+
     p = sub.add_parser("tk-layout", help="Extract Tk widget tree from source")
     p.add_argument("file", help="Tcl/Tk file to analyze")
 
@@ -2047,6 +2148,10 @@ examples:
             cmd_symbol_graph(source, file_path)
         case "dataflow-graph":
             cmd_dataflow_graph(source, file_path)
+        case "def-use":
+            cmd_def_use(source, file_path, variable=args.var)
+        case "memory-aliases":
+            cmd_memory_aliases(source, file_path)
         case "tk-layout":
             from core.tk.extract import extract_tk_layout
 
