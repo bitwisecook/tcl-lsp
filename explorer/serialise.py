@@ -8,7 +8,7 @@ from __future__ import annotations
 import sys
 
 from core.compiler.cfg import CFGBranch, CFGGoto, CFGReturn
-from core.compiler.dataflow_graph import DataFlowGraph, dataflow_graph_to_dict
+from core.compiler.dataflow_graph import dataflow_graph_to_dict
 from core.compiler.gvn import RedundantComputation
 from core.compiler.interprocedural import InterproceduralAnalysis
 from core.compiler.ir import (

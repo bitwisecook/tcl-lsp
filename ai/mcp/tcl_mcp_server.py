@@ -983,9 +983,7 @@ def _tool_def_use_chains(source: str, dialect: str = "", variable: str = "") -> 
         for func in result["functions"]:
             func["nodes"] = [n for n in func["nodes"] if n["name"] == variable]
             func["edges"] = [
-                e
-                for e in func["edges"]
-                if e["fromName"] == variable or e.get("toName") == variable
+                e for e in func["edges"] if e["fromName"] == variable or e.get("toName") == variable
             ]
 
     return json.dumps(result)

@@ -715,7 +715,9 @@ def cmd_def_use(source: str, file_path: str, variable: str = "") -> None:
     result = dataflow_graph_to_dict(graph)
 
     s = result["summary"]
-    print(f"=== Def-Use Chains ({s['totalDefs']} defs, {s['totalUses']} uses, {s['totalAliases']} aliases) ===")
+    print(
+        f"=== Def-Use Chains ({s['totalDefs']} defs, {s['totalUses']} uses, {s['totalAliases']} aliases) ==="
+    )
 
     for func in result["functions"]:
         nodes = func["nodes"]
@@ -731,7 +733,9 @@ def cmd_def_use(source: str, file_path: str, variable: str = "") -> None:
             continue
 
         fs = func["summary"]
-        print(f"\n  {func['name']} ({fs['totalDefs']} defs, {fs['totalUses']} uses, {fs['deadDefs']} dead)")
+        print(
+            f"\n  {func['name']} ({fs['totalDefs']} defs, {fs['totalUses']} uses, {fs['deadDefs']} dead)"
+        )
 
         if aliases:
             for a in aliases:
