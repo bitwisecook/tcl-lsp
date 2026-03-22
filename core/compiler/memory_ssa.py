@@ -184,8 +184,6 @@ class MemorySSAFunction:
 # Alias detection
 # ---------------------------------------------------------------------------
 
-_ALIAS_COMMANDS = frozenset({"upvar", "global", "variable", "namespace upvar"})
-
 
 def _detect_upvar(stmt: IRStatement) -> list[tuple[str, str]]:
     """Detect ``upvar ?level? otherVar myVar`` aliasing pairs.
