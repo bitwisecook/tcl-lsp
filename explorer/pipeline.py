@@ -13,10 +13,10 @@ from core.commands.registry.runtime import available_dialects, configure_signatu
 from core.compiler.cfg import CFGFunction
 from core.compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
 from core.compiler.core_analyses import FunctionAnalysis
+from core.compiler.dataflow_graph import DataFlowGraph, extract_dataflow_graph
 from core.compiler.gvn import RedundantComputation, find_redundant_computations
 from core.compiler.interprocedural import InterproceduralAnalysis
 from core.compiler.ir import IRModule
-from core.compiler.dataflow_graph import DataFlowGraph, extract_dataflow_graph
 from core.compiler.irules_flow import (
     EventOrderEntry,
     IrulesFlowWarning,

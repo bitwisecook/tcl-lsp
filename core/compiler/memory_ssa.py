@@ -24,8 +24,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 
 from .ir import IRBarrier, IRCall, IRStatement
-from .ssa import BlockName, SSAFunction, SSAVersion
-
+from .ssa import BlockName, SSAFunction
 
 # ---------------------------------------------------------------------------
 # Memory location model

@@ -71,7 +71,9 @@ class TestDefUsePhi:
 
         # Find phi definition of 'a'
         phi_defs = [
-            key for key in du.chains if key[0] == "a" and du.chains[key].definition.kind is DefKind.PHI
+            key
+            for key in du.chains
+            if key[0] == "a" and du.chains[key].definition.kind is DefKind.PHI
         ]
         assert len(phi_defs) >= 1, "Expected at least one phi def for 'a'"
 

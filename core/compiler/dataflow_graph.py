@@ -13,12 +13,11 @@ the kind of flow (direct, phi, alias) and control-flow context.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
 
 from .core_analyses import FunctionAnalysis, LatticeKind
-from .def_use import DefKind, DefUseResult, UseKind
-from .memory_ssa import MemorySSAFunction
+from .def_use import UseKind
 from .ssa import SSAFunction, SSAValueKey
 
 
@@ -142,9 +141,7 @@ def extract_function_dataflow(
     aliases: list[AliasInfo] = []
 
     if du is None:
-        return FunctionDataFlowGraph(
-            function_name=name, nodes=[], edges=[], aliases=[]
-        )
+        return FunctionDataFlowGraph(function_name=name, nodes=[], edges=[], aliases=[])
 
     # Build nodes from def-use chains
     for key, chain in du.chains.items():
@@ -227,7 +224,7 @@ def extract_dataflow_graph(
     Returns a ``DataFlowGraph`` containing per-function graphs
     with def-use nodes, edges, and alias information.
     """
-    from .compilation_unit import CompilationUnit, ensure_compilation_unit
+    from .compilation_unit import ensure_compilation_unit
 
     cu = ensure_compilation_unit(source, cu, context="dataflow_graph")
     if cu is None:
@@ -247,9 +244,7 @@ def extract_dataflow_graph(
     # Procedures
     for qname in sorted(cu.procedures):
         fu = cu.procedures[qname]
-        functions.append(
-            extract_function_dataflow(qname, fu.ssa, fu.analysis)
-        )
+        functions.append(extract_function_dataflow(qname, fu.ssa, fu.analysis))
 
     return DataFlowGraph(functions=functions)
 
@@ -323,7 +318,7 @@ def dataflow_graph_to_mermaid(graph: DataFlowGraph) -> str:
 
     for func in graph.functions:
         func_id = func.function_name.replace("::", "_").lstrip("_") or "top"
-        lines.append(f"  subgraph {func_id}[\"{func.function_name}\"]")
+        lines.append(f'  subgraph {func_id}["{func.function_name}"]')
 
         # Nodes
         for node in func.nodes:
@@ -332,11 +327,11 @@ def dataflow_graph_to_mermaid(graph: DataFlowGraph) -> str:
             if node.lattice and node.lattice.startswith("CONST"):
                 label += f" = {node.lattice}"
             if node.is_dead:
-                lines.append(f"    {nid}[/\"{label} DEAD\"/]")
+                lines.append(f'    {nid}[/"{label} DEAD"/]')
             elif node.def_kind == "phi":
-                lines.append(f"    {nid}{{\"{label} (phi)\"}}")
+                lines.append(f'    {nid}{{"{label} (phi)"}}')
             else:
-                lines.append(f"    {nid}[\"{label}\"]")
+                lines.append(f'    {nid}["{label}"]')
 
         # Edges
         for edge in func.edges:
@@ -352,7 +347,9 @@ def dataflow_graph_to_mermaid(graph: DataFlowGraph) -> str:
         for alias in func.aliases:
             a_id = f"{func_id}_{alias.local_name}_alias"
             b_id = f"{func_id}_{alias.target_name}_alias"
-            lines.append(f"    {a_id}((\"{alias.local_name}\")) <-.->|{alias.reason}| {b_id}((\"{alias.target_name}\"))")
+            lines.append(
+                f'    {a_id}(("{alias.local_name}")) <-.->|{alias.reason}| {b_id}(("{alias.target_name}"))'
+            )
 
         lines.append("  end")
 

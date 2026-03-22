@@ -10,10 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.compiler.cfg import build_cfg
 from core.compiler.lowering import lower_to_ir
 from core.compiler.memory_ssa import (
-    MemoryLocationKind,
-    MemoryOpKind,
     build_memory_ssa,
-    compute_aliases,
 )
 from core.compiler.ssa import build_ssa
 
