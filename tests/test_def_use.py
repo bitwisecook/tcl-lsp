@@ -18,7 +18,7 @@ def _build(source: str):
     mod = lower_to_ir(source)
     cfg = build_cfg(mod).top_level
     ssa = build_ssa(cfg)
-    return build_def_use_chains(ssa), ssa
+    return build_def_use_chains(ssa, cfg=cfg), ssa
 
 
 class TestDefUseBasic:
@@ -97,6 +97,29 @@ class TestDefUsePhi:
         assert len(phi_uses) >= 2, "Expected phi incoming uses for both branches"
 
 
+class TestDefUseTerminator:
+    def test_branch_condition_is_use(self):
+        du, _ = _build("set cond 1\nif {$cond} { set x 1 }")
+        cond1 = du.chain_for("cond", 1)
+        assert cond1 is not None
+        assert not cond1.is_dead, "cond#1 is read by branch — should not be dead"
+        assert cond1.use_count >= 1
+        has_terminator_use = any(u.kind is UseKind.TERMINATOR for u in cond1.uses)
+        assert has_terminator_use
+
+    def test_while_condition_is_use(self):
+        du, _ = _build("set i 0\nwhile {$i < 10} {incr i}")
+        # The phi-merged version of i is used in the while condition
+        i_defs = du.reaching_defs("i")
+        has_terminator = False
+        for key in i_defs:
+            chain = du.chains[key]
+            for use in chain.uses:
+                if use.kind is UseKind.TERMINATOR:
+                    has_terminator = True
+        assert has_terminator, "Expected at least one TERMINATOR use for loop condition"
+
+
 class TestDefUseLoop:
     def test_loop_phi(self):
         source = "set i 0\nwhile {$i < 10} {incr i}"
@@ -114,7 +137,7 @@ class TestDefUseProc:
         cfg_mod = build_cfg(mod)
         for qname, cfg in cfg_mod.procedures.items():
             ssa = build_ssa(cfg)
-            du = build_def_use_chains(ssa)
+            du = build_def_use_chains(ssa, cfg=cfg)
             # Parameters should appear as version-0 chains
             # and have uses from the expr
             x_uses = du.uses_of("x", 0)

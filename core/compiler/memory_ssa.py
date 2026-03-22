@@ -187,22 +187,34 @@ def _detect_upvar(stmt: IRStatement) -> list[tuple[str, str]]:
     """Detect ``upvar ?level? otherVar myVar`` aliasing pairs.
 
     Returns a list of ``(caller_var, local_var)`` pairs.
+
+    Handles both direct forms (``command="upvar"`` / ``command="namespace upvar"``)
+    and the lowered form where ``namespace upvar`` becomes
+    ``IRCall(command="namespace", args=("upvar", ns, src, dst, ...))``.
     """
     if not isinstance(stmt, (IRCall, IRBarrier)):
         return []
-    if stmt.command not in ("upvar", "namespace upvar"):
-        return []
+
+    command = stmt.command
     args = stmt.args
+
+    # Handle lowered form: command="namespace", args=("upvar", ns, src, dst, ...)
+    if command == "namespace" and args and args[0] == "upvar":
+        args = args[1:]  # strip "upvar" subcommand
+        command = "namespace upvar"
+
+    if command not in ("upvar", "namespace upvar"):
+        return []
     if not args:
         return []
 
     pairs: list[tuple[str, str]] = []
     start = 0
-    if stmt.command == "upvar":
+    if command == "upvar":
         # Skip optional level argument
         if args[0].lstrip("-").isdigit() or args[0].startswith("#"):
             start = 1
-    elif stmt.command == "namespace upvar":
+    elif command == "namespace upvar":
         start = 1  # skip namespace arg
 
     # Pairs: otherVar myVar

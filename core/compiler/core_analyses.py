@@ -1263,7 +1263,7 @@ def analyse_function(
     try:
         from .def_use import build_def_use_chains
 
-        du_result = build_def_use_chains(ssa)
+        du_result = build_def_use_chains(ssa, cfg=cfg)
     except Exception:
         pass
     try:

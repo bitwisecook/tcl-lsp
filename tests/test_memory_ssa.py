@@ -55,6 +55,16 @@ class TestAliasDetection:
         assert "local_x" in aset.names
         assert "caller_x" in aset.names
 
+    def test_namespace_upvar_lowered_form(self):
+        """namespace upvar is lowered as IRCall(command='namespace', args=('upvar', ...))."""
+        source = "proc foo {} { namespace upvar ::ns src dst\n set dst 42 }"
+        mem, _ = _build_proc(source, "foo")
+        assert len(mem.alias_sets) >= 1
+        aset = mem.alias_sets[0]
+        assert aset.reason == "upvar"
+        assert "dst" in aset.names
+        assert "src" in aset.names
+
     def test_no_aliases_for_local_only(self):
         source = "proc foo {} { set x 1\n set y $x }"
         mem, _ = _build_proc(source, "foo")

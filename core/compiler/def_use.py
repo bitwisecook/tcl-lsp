@@ -18,6 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
+from .cfg import CFGBranch
+from .expr_ast import vars_in_expr_node
 from .ssa import BlockName, SSAFunction, SSAValueKey, SSAVersion
 
 
@@ -128,12 +130,15 @@ class DefUseResult:
         return sum(c.use_count for c in self.chains.values())
 
 
-def build_def_use_chains(ssa: SSAFunction) -> DefUseResult:
+def build_def_use_chains(ssa: SSAFunction, cfg=None) -> DefUseResult:
     """Build def-use chains from an SSA function in a single pass.
 
     Walks all blocks collecting definitions (from phi nodes and
     statements) and uses (from statement operands, phi incoming edges,
     and branch conditions).
+
+    If *cfg* is provided (a ``CFGFunction``), branch condition variables
+    are resolved from terminators so that control-flow uses are tracked.
     """
     chains: dict[SSAValueKey, DefUseChain] = {}
 
@@ -206,11 +211,20 @@ def build_def_use_chains(ssa: SSAFunction) -> DefUseResult:
                     ),
                 )
 
-        # Terminator uses (branch conditions reference exit_versions)
-        # These are already captured in SSA statement uses, but we
-        # record them explicitly for completeness via exit_versions.
-        # The branch condition variables are part of the block's
-        # exit_versions — actual reads are captured in statement uses
-        # by the SSA renaming pass.
+        # Terminator uses — branch conditions read variables that may
+        # not appear in any statement's uses map.
+        if cfg is not None and bn in cfg.blocks:
+            term = cfg.blocks[bn].terminator
+            if isinstance(term, CFGBranch):
+                for name in vars_in_expr_node(term.condition):
+                    ver = block.exit_versions.get(name, 0)
+                    key = (name, ver)
+                    _add_use(
+                        key,
+                        UseSite(
+                            block=bn,
+                            kind=UseKind.TERMINATOR,
+                        ),
+                    )
 
     return DefUseResult(chains=chains)
