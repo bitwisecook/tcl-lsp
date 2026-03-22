@@ -34,7 +34,7 @@ async function init() {
   const micropip = pyodide.pyimport("micropip");
 
   // Install our wheel without pulling pygls/lsprotocol (not needed in worker).
-  const wheelUrl = baseUrl + "tcl_lsp-0.2.0-py3-none-any.whl";
+  const wheelUrl = baseUrl + "tcl_lsp-1.2.0-py3-none-any.whl";
   await micropip.install(wheelUrl, { deps: false });
 
   postMessage({ type: "status", message: "Initialising compiler..." });
