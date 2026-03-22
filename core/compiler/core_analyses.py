@@ -73,6 +73,8 @@ from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
 
 if TYPE_CHECKING:
+    from .def_use import DefUseResult
+    from .memory_ssa import MemorySSAFunction
     from .taint import TaintLattice
 
 
@@ -185,6 +187,8 @@ class FunctionAnalysis:
     read_before_set: tuple[ReadBeforeSet, ...] = ()
     unused_variables: tuple[UnusedVariable, ...] = ()
     unused_params: tuple[str, ...] = ()
+    def_use_chains: "DefUseResult | None" = None
+    memory_ssa: "MemorySSAFunction | None" = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1253,6 +1257,22 @@ def analyse_function(
         executable_blocks=executable_blocks,
     )
 
+    # Build def-use chains and memory-SSA (graceful degradation on error)
+    du_result = None
+    mem_ssa = None
+    try:
+        from .def_use import build_def_use_chains
+
+        du_result = build_def_use_chains(ssa)
+    except Exception:
+        pass
+    try:
+        from .memory_ssa import build_memory_ssa
+
+        mem_ssa = build_memory_ssa(ssa)
+    except Exception:
+        pass
+
     return FunctionAnalysis(
         live_in=live_in,
         live_out=live_out,
@@ -1265,6 +1285,8 @@ def analyse_function(
         read_before_set=rbs,
         unused_variables=unused,
         unused_params=unused_p,
+        def_use_chains=du_result,
+        memory_ssa=mem_ssa,
     )
 
 

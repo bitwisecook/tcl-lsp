@@ -24,6 +24,8 @@ Focused, high-churn compiler guidance lives in this folder.
 
 - [kcs-sccp-core-analyses.md](kcs-sccp-core-analyses.md) — constant propagation and liveness.
 - [kcs-constant-folding-type-inference.md](kcs-constant-folding-type-inference.md) — SCCP and type lattice.
+- [kcs-def-use-chains.md](kcs-def-use-chains.md) — def-use chain construction and consumer contracts.
+- [kcs-memory-ssa.md](kcs-memory-ssa.md) — memory-SSA, alias detection, and versioned memory operations.
 - [kcs-taint-analysis.md](kcs-taint-analysis.md) — sources, sinks, colours, and propagation.
 - [kcs-interprocedural-analysis.md](kcs-interprocedural-analysis.md) — ProcSummary construction.
 - [kcs-optimisation-passes.md](kcs-optimisation-passes.md) — O100–O126 pass table and priorities.

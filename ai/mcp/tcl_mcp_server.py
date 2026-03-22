@@ -957,6 +957,98 @@ def _tool_dataflow_graph(source: str, dialect: str = "") -> str:
     return json.dumps(build_dataflow_graph(source))
 
 
+@tool(
+    "def_use_chains",
+    "Build def-use chains and data-flow graph from compiler SSA. "
+    "Returns per-function def-use chain nodes (variable definitions with "
+    "use counts, lattice values, types), edges (def-to-use relationships), "
+    "and alias information from memory-SSA (upvar/global/variable).",
+    params={
+        "source": {**_STR, "description": "Tcl or iRules source code"},
+        "dialect": {**_STR, "description": "Language dialect. Auto-detected if empty."},
+        "variable": {**_STR, "description": "Filter to a specific variable name (optional)."},
+    },
+    required=["source"],
+)
+def _tool_def_use_chains(source: str, dialect: str = "", variable: str = "") -> str:
+    _configure_dialect(dialect or _detect_dialect(source))
+
+    from core.compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
+
+    graph = extract_dataflow_graph(source)
+    result = dataflow_graph_to_dict(graph)
+
+    # Filter to specific variable if requested
+    if variable:
+        for func in result["functions"]:
+            func["nodes"] = [n for n in func["nodes"] if n["name"] == variable]
+            func["edges"] = [
+                e
+                for e in func["edges"]
+                if e["fromName"] == variable or e.get("toName") == variable
+            ]
+
+    return json.dumps(result)
+
+
+@tool(
+    "memory_aliases",
+    "Show memory alias sets detected by memory-SSA analysis. "
+    "Identifies variables aliased via upvar, global, variable, and "
+    "namespace upvar commands. Returns alias groups and memory operations.",
+    params={
+        "source": {**_STR, "description": "Tcl or iRules source code"},
+        "dialect": {**_STR, "description": "Language dialect. Auto-detected if empty."},
+    },
+    required=["source"],
+)
+def _tool_memory_aliases(source: str, dialect: str = "") -> str:
+    _configure_dialect(dialect or _detect_dialect(source))
+
+    from core.compiler.compilation_unit import ensure_compilation_unit
+    from core.compiler.memory_ssa import MemorySSAFunction
+
+    cu = ensure_compilation_unit(source, context="mcp.memory_aliases")
+    if cu is None:
+        return json.dumps({"error": "compilation failed", "alias_sets": [], "summary": {}})
+
+    result: dict = {"functions": []}
+
+    def _serialize_mem(name: str, mem: MemorySSAFunction | None) -> dict:
+        if mem is None:
+            return {"name": name, "alias_sets": [], "memory_ops": 0}
+        return {
+            "name": name,
+            "alias_sets": [
+                {
+                    "names": sorted(aset.names),
+                    "reason": aset.reason,
+                    "locations": [str(loc) for loc in aset.locations],
+                }
+                for aset in mem.alias_sets
+            ],
+            "memory_ops": len(mem.memory_ops),
+            "memory_defs": mem.total_memory_defs,
+            "memory_uses": mem.total_memory_uses,
+            "clobbers": mem.total_clobbers,
+        }
+
+    result["functions"].append(_serialize_mem("::top", cu.top_level.analysis.memory_ssa))
+    for qname in sorted(cu.procedures):
+        fu = cu.procedures[qname]
+        result["functions"].append(_serialize_mem(qname, fu.analysis.memory_ssa))
+
+    total_aliases = sum(len(f.get("alias_sets", [])) for f in result["functions"])
+    total_ops = sum(f.get("memory_ops", 0) for f in result["functions"])
+    result["summary"] = {
+        "total_alias_sets": total_aliases,
+        "total_memory_ops": total_ops,
+        "function_count": len(result["functions"]),
+    }
+
+    return json.dumps(result)
+
+
 # Configuration
 
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 import sys
 
 from core.compiler.cfg import CFGBranch, CFGGoto, CFGReturn
+from core.compiler.dataflow_graph import DataFlowGraph, dataflow_graph_to_dict
 from core.compiler.gvn import RedundantComputation
 from core.compiler.interprocedural import InterproceduralAnalysis
 from core.compiler.ir import (
@@ -720,6 +721,9 @@ def serialise_result(result: CompilerExplorerResult) -> dict:
         "taintTracking": _serialise_taint_tracking(result.snapshots),
         "irulesFlow": _serialise_irules_flow(result.irules_flow_warnings),
         "eventOrder": _serialise_event_order(result.event_order),
+        "dataflow": dataflow_graph_to_dict(result.dataflow_graph)
+        if result.dataflow_graph is not None
+        else None,
         "types": _serialise_types(result.snapshots),
         "asm": asm,
         "asmOptimised": asm_optimised,

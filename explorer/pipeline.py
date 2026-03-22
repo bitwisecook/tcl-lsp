@@ -16,6 +16,7 @@ from core.compiler.core_analyses import FunctionAnalysis
 from core.compiler.gvn import RedundantComputation, find_redundant_computations
 from core.compiler.interprocedural import InterproceduralAnalysis
 from core.compiler.ir import IRModule
+from core.compiler.dataflow_graph import DataFlowGraph, extract_dataflow_graph
 from core.compiler.irules_flow import (
     EventOrderEntry,
     IrulesFlowWarning,
@@ -61,6 +62,7 @@ class CompilerExplorerResult:
     taint_warnings: list[TaintWarning | CollectWithoutReleaseWarning | ReleaseWithoutCollectWarning]
     irules_flow_warnings: list[IrulesFlowWarning]
     event_order: list[EventOrderEntry]
+    dataflow_graph: DataFlowGraph | None
 
 
 # View selection
@@ -72,6 +74,7 @@ ALL_VIEWS = frozenset(
         "ssa",
         "interproc",
         "types",
+        "dataflow",
         "opt",
         "gvn",
         "shimmer",
@@ -158,6 +161,7 @@ def run_pipeline(source: str, *, dialect: str | None = None) -> CompilerExplorer
             taint_warnings=[],
             irules_flow_warnings=[],
             event_order=[],
+            dataflow_graph=None,
         )
 
     ir_module = cu.ir_module
@@ -195,6 +199,11 @@ def run_pipeline(source: str, *, dialect: str | None = None) -> CompilerExplorer
     except (TypeError, AttributeError):
         event_order = []
 
+    try:
+        dataflow = extract_dataflow_graph(source, cu=cu)
+    except (TypeError, AttributeError):
+        dataflow = None
+
     return CompilerExplorerResult(
         source=source,
         ir_module=ir_module,
@@ -208,12 +217,13 @@ def run_pipeline(source: str, *, dialect: str | None = None) -> CompilerExplorer
         taint_warnings=taint_warnings,
         irules_flow_warnings=irules_flow_warnings,
         event_order=event_order,
+        dataflow_graph=dataflow,
     )
 
 
 def compute_stats(result: CompilerExplorerResult) -> dict[str, int]:
     """Compute summary statistics from a pipeline result."""
-    return {
+    stats: dict[str, int] = {
         "procedures": len(result.ir_module.procedures),
         "functions": len(result.snapshots),
         "blocks": result.total_blocks,
@@ -225,3 +235,8 @@ def compute_stats(result: CompilerExplorerResult) -> dict[str, int]:
         "taintWarnings": len(result.taint_warnings),
         "irulesFlowWarnings": len(result.irules_flow_warnings),
     }
+    if result.dataflow_graph is not None:
+        stats["dataflowDefs"] = result.dataflow_graph.total_defs
+        stats["dataflowUses"] = result.dataflow_graph.total_uses
+        stats["dataflowAliases"] = result.dataflow_graph.total_aliases
+    return stats

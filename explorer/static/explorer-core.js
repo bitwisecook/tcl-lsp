@@ -58,6 +58,10 @@ function renderStats() {
     'rewrites <span class="stat-value">' + s.rewrites + '</span>',
     'shimmer <span class="stat-value">' + s.shimmerWarnings + '</span>',
   ];
+  if (s.dataflowDefs !== undefined) {
+    parts.push('defs <span class="stat-value">' + s.dataflowDefs + '</span>');
+    parts.push('aliases <span class="stat-value">' + (s.dataflowAliases || 0) + '</span>');
+  }
   if (s.gvnWarnings) parts.push('gvn <span class="stat-value">' + s.gvnWarnings + '</span>');
   if (s.taintWarnings) parts.push('taint <span class="stat-value">' + s.taintWarnings + '</span>');
   if (s.irulesFlowWarnings) parts.push('irules <span class="stat-value">' + s.irulesFlowWarnings + '</span>');
@@ -379,6 +383,50 @@ function renderTypes() {
     html+='<div class="proc-name">'+esc(func.name)+'</div>';
     for(var e of func.entries){
       html+='<div class="type-entry"><span class="type-var">'+esc(e.variable)+'#'+e.version+'</span><span class="type-val type-'+e.kind+'">'+esc(e.type)+'</span></div>';
+    }
+    html+='</div>';
+  }
+  pane.innerHTML=html;
+}
+
+// Data Flow
+function renderDataFlow() {
+  var pane=$('#pane-dataflow');
+  if(!data.dataflow||!data.dataflow.functions.length){pane.innerHTML='<div class="empty-state">No data-flow information</div>';return;}
+  var html='';
+  var s=data.dataflow.summary;
+  html+='<div class="section-header">Summary: '+s.totalDefs+' defs, '+s.totalUses+' uses, '+s.totalAliases+' aliases</div>';
+  for(var func of data.dataflow.functions){
+    html+='<div class="proc-card">';
+    html+='<div class="proc-name">'+esc(func.name)+' <span style="color:var(--text-dim); font-size:11px">'+func.summary.totalDefs+' defs, '+func.summary.totalUses+' uses</span>';
+    if(func.summary.deadDefs>0)html+='<span class="pure-badge pure-no">'+func.summary.deadDefs+' dead</span>';
+    if(func.summary.aliasedVars>0)html+='<span class="pure-badge" style="background:var(--orange);color:#000">'+func.summary.aliasedVars+' aliased</span>';
+    html+='</div>';
+    // Aliases
+    if(func.aliases.length){
+      html+='<div class="analysis-entry" style="color:var(--orange)">aliases:</div>';
+      for(var a of func.aliases){
+        html+='<div class="analysis-entry" style="margin-left:12px; color:var(--orange)">'+esc(a.localName)+' &harr; '+esc(a.targetName)+' <span style="color:var(--text-dim)">('+esc(a.reason)+')</span></div>';
+      }
+    }
+    // Nodes (def-use chains)
+    html+='<div class="analysis-entry" style="color:var(--cyan)">def-use chains:</div>';
+    for(var n of func.nodes){
+      var cls=n.isDead?'color:var(--yellow)':'color:var(--green)';
+      html+='<div class="analysis-entry" style="margin-left:12px; '+cls+'">';
+      html+=esc(n.name)+'#'+n.version;
+      html+=' <span style="color:var(--text-dim)">['+esc(n.defKind)+' in '+esc(n.block)+']</span>';
+      if(n.lattice)html+=' = <span class="val">'+esc(n.lattice)+'</span>';
+      if(n.typeInfo&&n.typeInfo!=='UNKNOWN')html+=' : <span class="val">'+esc(n.typeInfo)+'</span>';
+      html+=' &rarr; '+n.useCount+' use'+(n.useCount!==1?'s':'');
+      if(n.isDead)html+=' <span style="color:var(--red)">(DEAD)</span>';
+      html+='</div>';
+    }
+    // Edges summary
+    if(func.edges.length){
+      var phiEdges=func.edges.filter(function(e){return e.edgeKind==='phi'}).length;
+      var directEdges=func.edges.filter(function(e){return e.edgeKind==='direct'}).length;
+      html+='<div class="analysis-entry" style="color:var(--blue)">edges: '+directEdges+' direct, '+phiEdges+' phi</div>';
     }
     html+='</div>';
   }

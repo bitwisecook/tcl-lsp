@@ -18,6 +18,8 @@ CFG/SSA/core analyses already compute high-value facts (reachability, definition
 
 - control-flow: unreachable blocks, constant branch outcomes,
 - data-flow: defs/uses, read-before-set signals,
+- def-use chains: precise per-SSA-value definition-to-use mapping (`FunctionAnalysis.def_use_chains`),
+- memory-SSA: versioned memory operations and alias sets for upvar/global/variable (`FunctionAnalysis.memory_ssa`),
 - type-flow: known/unknown/overdefined and concrete Tcl type hints,
 - execution-intent: command-substitution shape, side-effect/escape classes, shimmer pressure.
 
@@ -31,7 +33,12 @@ CFG/SSA/core analyses already compute high-value facts (reachability, definition
 
 - `core/compiler/core_analyses.py`
 - `core/compiler/ssa.py`
+- `core/compiler/def_use.py`
+- `core/compiler/memory_ssa.py`
+- `core/compiler/dataflow_graph.py`
 - `core/compiler/compilation_unit.py`
 - `docs/kcs/compiler/kcs-execution-intent-model.md`
+- `docs/kcs/compiler/kcs-def-use-chains.md`
+- `docs/kcs/compiler/kcs-memory-ssa.md`
 - `core/compiler/shimmer.py`
 - `core/compiler/optimiser/`
