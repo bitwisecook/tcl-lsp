@@ -15,7 +15,6 @@ from ..analysis.semantic_model import Range
 from ..parsing.tokens import SourcePosition
 
 # Match $::name__name or ${::name__name} or ${::name__name(index)}
-# Also match bare $name__name when it contains double underscore.
 _IAPP_VAR_RE = re.compile(
     r"\$\{?::"  # $:: or ${::
     r"([a-zA-Z_][a-zA-Z0-9_]*(?:__[a-zA-Z0-9_]+)+)"  # name with __ separator

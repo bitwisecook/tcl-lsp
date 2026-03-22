@@ -17,7 +17,8 @@ class TclFileType private constructor() : LanguageFileType(TclLanguage) {
         private val SUPPORTED_EXTENSIONS = setOf(
             "tcl", "tk", "itcl", "tm",
             "iapp", "iappimpl", "impl",
-            "irul", "irule"
+            "irul", "irule",
+            "apl", "exp"
         )
 
         @JvmStatic

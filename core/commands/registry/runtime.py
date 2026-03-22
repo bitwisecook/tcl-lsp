@@ -457,6 +457,9 @@ def _build_signatures(
         case "f5-iapps":
             signatures = _registry_signatures_for_dialect("tcl8.6")
             signatures.update(_registry_signatures_for_dialect("f5-iapps"))
+        case "f5-tmsh":
+            signatures = _registry_signatures_for_dialect("tcl8.6")
+            signatures.update(_registry_signatures_for_dialect("f5-tmsh"))
         case "f5-bigip":
             signatures = _registry_signatures_for_dialect("tcl8.6")
             signatures.update(_registry_signatures_for_dialect("f5-bigip"))

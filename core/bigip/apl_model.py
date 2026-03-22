@@ -259,27 +259,6 @@ def parse_apl(source: str) -> AplModel:
         for field_obj in table.columns.values():
             model.all_fields[field_obj.qualified_name] = field_obj
 
-    # Also look for top-level fields (not inside a section) that use
-    # define'd types.  These appear like:  <define_name> <field_name>
-    # They are handled as if the define_name were a field-type keyword.
-    for dname, dtype in model.defines.items():
-        define_field_re = re.compile(
-            r"(?:^|(?<=[\s{;]))" + re.escape(dname) + r"\s+(\S+)",
-            re.MULTILINE,
-        )
-        for m in define_field_re.finditer(source):
-            fname = m.group(1)
-            if fname.startswith("{") or fname.startswith('"'):
-                continue
-            # Only match if this is inside a section block
-            # (simple heuristic: preceded by indentation)
-            line_start = source.rfind("\n", 0, m.start()) + 1
-            prefix_text = source[line_start : m.start()]
-            if not prefix_text or not prefix_text.strip() == "":
-                continue
-            # Find which section this is in by checking indentation context
-            # For now, just use the field name as-is (it'll be section-qualified later)
-
     return model
 
 
@@ -325,7 +304,7 @@ def resolve_apl_includes(
             log.debug("#include not found: %s", inc_path)
             continue
 
-        inc.resolved = True  # type: ignore[misc]  # frozen dataclass workaround
+        inc.resolved = True
         try:
             with open(inc_path, encoding="utf-8", errors="replace") as f:
                 inc_source = f.read()

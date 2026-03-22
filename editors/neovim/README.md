@@ -25,6 +25,7 @@ vim.filetype.add({
   extension = {
     tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl',
     irul = 'tcl', irule = 'tcl', iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl',
+    apl = 'tcl-apl', exp = 'tcl',
   },
 })
 
@@ -43,7 +44,7 @@ if not configs.tcl_lsp then
   configs.tcl_lsp = {
     default_config = {
       cmd = { 'uv', 'run', '--directory', '/path/to/tcl-lsp', '--no-dev', 'python', '-m', 'server' },
-      filetypes = { 'tcl' },
+      filetypes = { 'tcl', 'tcl-apl' },
       root_dir = lspconfig.util.root_pattern('.git'),
       single_file_support = true,
     },

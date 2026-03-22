@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.compiler.dataflow_graph import (
+    EdgeKind,
     dataflow_graph_to_dict,
     dataflow_graph_to_mermaid,
     extract_dataflow_graph,
@@ -49,7 +50,7 @@ class TestDataFlowGraphExtraction:
         source = "if {$cond} {set a 1} else {set a 2}\nset b $a"
         graph = extract_dataflow_graph(source)
         top = graph.functions[0]
-        phi_edges = [e for e in top.edges if e.edge_kind == "phi"]
+        phi_edges = [e for e in top.edges if e.edge_kind is EdgeKind.PHI]
         assert len(phi_edges) >= 2  # Both branches feed into phi
 
 
@@ -149,7 +150,8 @@ class TestDataFlowGraphSerialisation:
     def test_empty_source(self):
         graph = extract_dataflow_graph("")
         d = dataflow_graph_to_dict(graph)
-        assert d["summary"]["functionCount"] >= 0
+        assert d["summary"]["functionCount"] == 1
+        assert d["summary"]["totalDefs"] == 0
 
 
 class TestDataFlowGraphExplorer:

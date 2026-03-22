@@ -46,6 +46,7 @@ _SYNTAX_DIALECT_MAP = {
     "Tcl 9.0": "tcl9.0",
     "iRule": "f5-irules",
     "iApp": "f5-iapps",
+    "APL": "f5-iapps",
     "Synopsys EDA": "synopsys-eda-tcl",
     "Cadence EDA": "cadence-eda-tcl",
     "Xilinx EDA": "xilinx-eda-tcl",

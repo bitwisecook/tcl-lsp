@@ -29,14 +29,6 @@ def _build_proc(source: str, proc_name: str | None = None):
     return build_memory_ssa(ssa), ssa
 
 
-def _build_top(source: str):
-    """Helper: source → SSA for top-level → memory-SSA."""
-    mod = lower_to_ir(source)
-    cfg_mod = build_cfg(mod)
-    ssa = build_ssa(cfg_mod.top_level)
-    return build_memory_ssa(ssa), ssa
-
-
 class TestAliasDetection:
     def test_global_alias(self):
         source = "proc foo {} { global gvar\n set gvar 42 }"
