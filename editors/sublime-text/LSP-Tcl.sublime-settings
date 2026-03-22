@@ -3,7 +3,7 @@
     // See https://github.com/bitwisecook/tcl-lsp for documentation.
 
     "command": ["${python}", "${server_path}"],
-    "selector": "source.tcl | source.irule",
+    "selector": "source.tcl | source.irule | source.apl",
     "schemes": ["file", "buffer"],
 
     // Server settings — passed as workspace/didChangeConfiguration.
@@ -11,7 +11,7 @@
     "settings": {
         "tclLsp": {
             // Dialect: tcl8.4, tcl8.5, tcl8.6, tcl9.0, f5-irules, f5-iapps,
-            //          f5-bigip, synopsys-eda-tcl, cadence-eda-tcl,
+            //          f5-tmsh, f5-bigip, synopsys-eda-tcl, cadence-eda-tcl,
             //          xilinx-eda-tcl, intel-quartus-eda-tcl, mentor-eda-tcl,
             //          expect
             "dialect": "tcl8.6",
@@ -66,7 +66,18 @@
         // clock format sub-token types
         "clockPercent": "punctuation.definition.placeholder.clock.lsp",
         "clockSpec": "constant.other.placeholder.clock.lsp",
-        "clockModifier": "storage.modifier.clock.lsp"
+        "clockModifier": "storage.modifier.clock.lsp",
+        // APL (iApp Presentation Language) semantic tokens
+        "aplSection": "keyword.other.section.apl.lsp",
+        "aplFieldType": "storage.type.field.apl.lsp",
+        "aplFieldName": "entity.name.variable.field.apl.lsp",
+        "aplAttribute": "entity.other.attribute-name.apl.lsp",
+        "aplSectionName": "entity.name.section.apl.lsp",
+        "aplDefine": "keyword.other.define.apl.lsp",
+        "aplDefineName": "entity.name.type.define.apl.lsp",
+        "aplDirective": "keyword.control.directive.apl.lsp",
+        "aplOptional": "keyword.other.optional.apl.lsp",
+        "aplValidator": "constant.other.validator.apl.lsp"
     },
 
     // Diagnostics: highlight style for each severity level.

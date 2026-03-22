@@ -7,7 +7,7 @@ F5 iApp APL (Application Presentation Language) files.
 
 ## Surface
 
-lsp, vscode
+lsp, vscode, zed, jetbrains, neovim, helix, emacs, sublime-text
 
 ## How to use
 
@@ -73,7 +73,8 @@ directory.  Resolution is recursive with circular-include protection.
 ### tmsh:: commands
 
 30+ `tmsh::` namespace commands and 4 `script::` commands are registered in
-the `f5-iapps` dialect with hover documentation and arity validation.
+the `f5-iapps` and `f5-tmsh` dialects with hover documentation and arity
+validation.
 
 ## File-path anchors
 
@@ -87,6 +88,11 @@ the `f5-iapps` dialect with hover documentation and arity validation.
 - `lsp/workspace/scanner.py` — APL model caching, sibling file discovery
 - `editors/vscode/package.json` — `tcl-apl` language registration and colours
 - `editors/vscode/apl-language-configuration.json` — editor behaviour
+- `editors/zed/languages/apl/config.toml` — Zed APL language registration
+- `editors/jetbrains/src/main/resources/META-INF/plugin.xml` — JetBrains file type
+- `editors/neovim/tcl_lsp.lua` — Neovim filetype mapping
+- `editors/sublime-text/APL.sublime-syntax` — Sublime Text APL syntax
+- `editors/sublime-text/LSP-Tcl.sublime-settings` — Sublime APL semantic tokens
 
 ## Failure modes
 

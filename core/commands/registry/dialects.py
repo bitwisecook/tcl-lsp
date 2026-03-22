@@ -10,6 +10,7 @@ KNOWN_DIALECTS: frozenset[str] = frozenset(
         "tcl9.0",
         "f5-irules",
         "f5-iapps",
+        "f5-tmsh",
         "f5-bigip",
         "synopsys-eda-tcl",
         "cadence-eda-tcl",

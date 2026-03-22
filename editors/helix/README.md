@@ -17,7 +17,7 @@ args = ["run", "--directory", "/path/to/tcl-lsp", "--no-dev", "python", "-m", "s
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp"]
+file-types = ["tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "apl", "exp"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
