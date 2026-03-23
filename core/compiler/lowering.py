@@ -924,10 +924,10 @@ class _Lowerer:
                 body = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
 
                 # Extract priority from ``when EVENT priority N { body }``
-                priority = 500
+                base_priority = 500
                 if len(args) >= 4 and args[1] == "priority":
                     try:
-                        priority = int(args[2])
+                        base_priority = int(args[2])
                     except ValueError:
                         pass
 
@@ -943,7 +943,7 @@ class _Lowerer:
                     params=(),
                     range=cmd.range,
                     body=body,
-                    priority=priority,
+                    base_priority=base_priority,
                 )
                 return IRCall(
                     range=cmd.range, command=cmd_name, args=tuple(args), tokens=cmd.cmd_tokens

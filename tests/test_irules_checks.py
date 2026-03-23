@@ -1812,9 +1812,9 @@ class TestMultipleWhenHandlers:
         assert "::when::HTTP_REQUEST#2" in module.procedures
 
         # Priority is preserved
-        assert module.procedures["::when::HTTP_REQUEST"].priority == 500
-        assert module.procedures["::when::HTTP_REQUEST#1"].priority == 500
-        assert module.procedures["::when::HTTP_REQUEST#2"].priority == 100
+        assert module.procedures["::when::HTTP_REQUEST"].base_priority == 500
+        assert module.procedures["::when::HTTP_REQUEST#1"].base_priority == 500
+        assert module.procedures["::when::HTTP_REQUEST#2"].base_priority == 100
 
     def test_event_order_yields_all_handlers(self):
         """extract_event_order returns one entry per handler."""
@@ -1827,6 +1827,8 @@ class TestMultipleWhenHandlers:
         entries = extract_event_order(src)
         http_entries = [e for e in entries if e.event == "HTTP_REQUEST"]
         assert len(http_entries) == 2
-        # Sorted by priority: 100 before 200
-        assert http_entries[0].priority == 100
-        assert http_entries[1].priority == 200
+        # Sorted by base_priority: 100 before 200
+        assert http_entries[0].base_priority == 100
+        assert http_entries[0].priority_offset == 0
+        assert http_entries[1].base_priority == 200
+        assert http_entries[1].priority_offset == 0

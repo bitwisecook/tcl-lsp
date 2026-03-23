@@ -182,10 +182,11 @@ def _walk_body_commands(body_text: str, base_offset: int, base_line: int, base_c
 def _find_when_bodies(source: str):
     """Find ``when EVENT { body }`` blocks.
 
-    Yields ``(event_name, priority, body_text, body_token, event_token)``.
+    Yields ``(event_name, base_priority, body_text, body_token, event_token)``.
 
     Uses the Tcl lexer to reliably parse the source and find ``when`` commands.
-    Priority is extracted from ``when EVENT priority N { body }``; defaults to 500.
+    Base priority is extracted from ``when EVENT priority N { body }``; defaults
+    to 500.
     """
     lexer = TclLexer(source)
     argv: list[Token] = []
@@ -1476,7 +1477,8 @@ class EventOrderEntry:
     """One ``when EVENT`` block with its position in the firing order."""
 
     event: str
-    priority: int
+    base_priority: int
+    priority_offset: int  # 0 for first handler at this priority, +1 per tie
     multiplicity: str  # "once", "per-request", or "init"
     range: Range  # source range of the event token
 
@@ -1484,12 +1486,14 @@ class EventOrderEntry:
 def extract_event_order(source: str) -> list[EventOrderEntry]:
     """Return events found in *source* in canonical firing order.
 
-    Each entry carries the event name, its declared priority, its
-    multiplicity class, and the source range of the ``when EVENT`` token
-    so the explorer can navigate to it.
+    Each entry carries the event name, its declared base priority, the
+    priority offset (tie-breaker among handlers sharing the same event and
+    base priority, derived from file order), the multiplicity class, and
+    the source range of the ``when EVENT`` token so the explorer can
+    navigate to it.
 
     When the same event appears more than once, each handler gets its
-    own entry, ordered by priority (lowest first, then file order for
+    own entry, ordered by base priority (lowest first, then file order for
     equal priorities).
     """
     when_bodies = list(_find_when_bodies(source))
@@ -1511,11 +1515,19 @@ def extract_event_order(source: str) -> list[EventOrderEntry]:
     result: list[EventOrderEntry] = []
     for evt in ordered:
         mult = EVENT_REGISTRY.event_multiplicity(evt)
-        for priority, _idx, rng in per_event[evt]:
+        prev_pri: int | None = None
+        offset = 0
+        for base_pri, _idx, rng in per_event[evt]:
+            if base_pri == prev_pri:
+                offset += 1
+            else:
+                offset = 0
+                prev_pri = base_pri
             result.append(
                 EventOrderEntry(
                     event=evt,
-                    priority=priority,
+                    base_priority=base_pri,
+                    priority_offset=offset,
                     multiplicity=mult,
                     range=rng,
                 )
@@ -1531,7 +1543,7 @@ class RuleInitExport:
     """A variable or array set in a RULE_INIT block."""
 
     name: str  # e.g. "::my_var"
-    priority: int
+    base_priority: int
     range: Range
     is_array: bool = False
 
@@ -1589,7 +1601,7 @@ def extract_rule_init_vars(
                             exports.append(
                                 RuleInitExport(
                                     name=name,
-                                    priority=priority,
+                                    base_priority=priority,
                                     range=stmt.range,
                                     is_array=is_array,
                                 )
@@ -1610,7 +1622,7 @@ def extract_rule_init_vars(
                     exports.append(
                         RuleInitExport(
                             name=var_name,
-                            priority=priority,
+                            base_priority=priority,
                             range=range_from_token(var_tok),
                         )
                     )
@@ -1622,7 +1634,7 @@ def extract_rule_init_vars(
                         exports.append(
                             RuleInitExport(
                                 name=arr_name,
-                                priority=priority,
+                                base_priority=priority,
                                 range=range_from_token(arr_tok),
                                 is_array=True,
                             )

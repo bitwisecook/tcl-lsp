@@ -283,25 +283,25 @@ def extract_diagram_data(source: str) -> dict:
     event_names = frozenset(when_event_name(k) for k in event_procs)
     ordered = EVENT_REGISTRY.order_events(event_names)
 
-    # Group handlers per event, sorted by priority then file order.
+    # Group handlers per event, sorted by base priority then file order.
     from collections import defaultdict
 
     handlers_by_event: dict[str, list[IRProcedure]] = defaultdict(list)
     for proc in event_procs.values():
         handlers_by_event[when_event_name(proc.qualified_name)].append(proc)
     for handlers in handlers_by_event.values():
-        handlers.sort(key=lambda p: p.priority)
+        handlers.sort(key=lambda p: p.base_priority)
 
     # Walk each event handler.
     events: list[dict] = []
     for event_name in ordered:
         for proc in handlers_by_event.get(event_name, []):
             flow = _walk_script(proc.body, proc_names, depth=0)
-            priority: int | None = proc.priority if proc.priority != 500 else None
+            base_pri: int | None = proc.base_priority if proc.base_priority != 500 else None
             events.append(
                 {
                     "name": event_name,
-                    "priority": priority,
+                    "priority": base_pri,
                     "multiplicity": _multiplicity(event_name),
                     "flow": flow,
                 }

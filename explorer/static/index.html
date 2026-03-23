@@ -1249,7 +1249,7 @@ function buildMermaidDef(events) {
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     const id = 'evt' + i;
-    const priLabel = e.priority !== 500 ? ' p' + e.priority : '';
+    const priLabel = e.base_priority !== 500 ? ' p' + e.base_priority : '';
     const mLabel = multLabel[e.multiplicity] || '';
     lines.push(`  ${id}["${e.event}${priLabel}<br/><small>${mLabel}</small>"]`);
     if (i > 0) lines.push(`  evt${i-1} --> ${id}`);

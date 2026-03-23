@@ -254,7 +254,7 @@ class IRProcedure:
     params_raw: str = ""
     body_source: str | None = None  # None for synthetic procs (``when``)
     namespace_scoped: bool = False  # True when defined inside namespace eval
-    priority: int = 500  # BigIP handler priority (0–2**32-1, default 500)
+    base_priority: int = 500  # BigIP handler priority (0–2**32-1, default 500)
 
 
 @dataclass

@@ -37,6 +37,7 @@ Focused, high-churn compiler guidance lives in this folder.
 - [kcs-data-structure-reference.md](kcs-data-structure-reference.md) — pipeline types at each stage.
 - [kcs-connection-scope.md](kcs-connection-scope.md) — cross-event variable flow in iRules.
 - [kcs-dialects-events.md](kcs-dialects-events.md) — dialect filtering and event requirements.
+- [kcs-event-priority-model.md](kcs-event-priority-model.md) — base priority + offset model for event handlers.
 - [kcs-namespace-resolution.md](kcs-namespace-resolution.md) — qualified name handling.
 - [kcs-diagnostics-calculation.md](kcs-diagnostics-calculation.md) — two-phase diagnostic architecture.
 - [kcs-codegen-internals.md](kcs-codegen-internals.md) — LVT, linearisation, labels, and peephole optimisation.

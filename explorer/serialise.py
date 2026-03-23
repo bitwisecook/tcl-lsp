@@ -421,7 +421,8 @@ def _serialise_event_order(entries: list[EventOrderEntry]) -> list[dict]:
     return [
         {
             "event": e.event,
-            "priority": e.priority,
+            "base_priority": e.base_priority,
+            "priority_offset": e.priority_offset,
             "multiplicity": e.multiplicity,
             "range": range_dict(e.range),
         }
