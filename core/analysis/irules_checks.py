@@ -397,7 +397,6 @@ def _is_generic_static_name(
     return False
 
 
-
 # Note: IRULE4002 check_static_generic_name has been moved to
 # core/compiler/irules_flow.py (_find_generic_static_names) where it uses
 # the IR to detect variable definitions from all store types.

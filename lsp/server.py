@@ -13,13 +13,13 @@ from pygls.lsp.server import LanguageServer
 
 from core.analysis.analyser import analyse
 from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
-from core.common.user_config import load_user_config, get_generic_variable_patterns
 from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import configure_signatures, is_irules_dialect
 from core.common.lsp import to_lsp_location
 from core.common.source_map import SourceMap
+from core.common.user_config import get_generic_variable_patterns, load_user_config
 from core.compiler.optimiser import optimise_source
 from core.formatting import FormatterConfig
 from core.minifier import minify_tcl
