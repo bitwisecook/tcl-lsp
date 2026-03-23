@@ -78,7 +78,7 @@ def validate_iapp_presentation(
                 Diagnostic(
                     message=(
                         f"Presentation field '{qname}' is never referenced "
-                        f"in the implementation (expected ${apl_field.qualified_name.replace('.', '__')})"
+                        f"in the implementation (expected $::{apl_field.qualified_name.replace('.', '__')})"
                     ),
                     range=apl_field.range,
                     severity=Severity.HINT,

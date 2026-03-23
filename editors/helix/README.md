@@ -29,6 +29,9 @@ Pass workspace settings via the `config` key:
 
 ```toml
 [language-server.tcl-lsp.config.tclLsp]
+# Valid dialects: tcl8.4, tcl8.5, tcl8.6, tcl9.0, f5-irules, f5-iapps,
+# f5-bigip, f5-tmsh, synopsys-eda-tcl, cadence-eda-tcl, xilinx-eda-tcl,
+# intel-quartus-eda-tcl, mentor-eda-tcl, expect
 dialect = "tcl8.6"
 
 [language-server.tcl-lsp.config.tclLsp.formatting]

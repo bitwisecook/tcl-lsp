@@ -56,8 +56,14 @@ class TestAplTokeniser:
         tokens = tokenise_apl("define choice yesno_choice {")
         defines = [t for t in tokens if t.kind == AplTokenKind.DEFINE]
         assert len(defines) == 1
+        # "choice" should be highlighted as the base type
+        field_types = [t for t in tokens if t.kind == AplTokenKind.FIELD_TYPE]
+        assert any(t.char == 7 and t.length == 6 for t in field_types)  # "choice"
+        # "yesno_choice" should be highlighted as the define name
         names = [t for t in tokens if t.kind == AplTokenKind.DEFINE_NAME]
         assert len(names) == 1
+        assert names[0].char == 14
+        assert names[0].length == 12  # len("yesno_choice")
 
     def test_field_type_string(self):
         tokens = tokenise_apl('    string addr default "0.0.0.0" required')

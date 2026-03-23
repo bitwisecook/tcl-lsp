@@ -9,6 +9,7 @@ def find_brace_end(source: str, start: int) -> int:
     Handles braces inside double-quoted strings so that a ``"}"`` literal
     does not prematurely close the block.
     """
+    assert source[start] == "{", f"expected '{{' at position {start}, got {source[start]!r}"
     pos = start + 1
     depth = 1
     while pos < len(source) and depth > 0:

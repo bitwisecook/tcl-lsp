@@ -468,49 +468,6 @@ def _analyse_when_body(
     return warnings
 
 
-def _analyse_repeated_calls(
-    event: str,
-    body_text: str,
-    body_tok: Token,
-) -> list[IrulesFlowWarning]:
-    """Walk a ``when`` body and flag repeated expensive command invocations.
-
-    IRULE2102: when the same expensive command (e.g. ``HTTP::uri``) is called
-    more than once with identical arguments, suggest extracting to a variable.
-    """
-    # Track (cmd_name, args_key) → first occurrence token
-    seen: dict[str, Token] = {}
-    warnings: list[IrulesFlowWarning] = []
-
-    for cmd_name, cmd_tok, all_tokens in _walk_body_commands(
-        body_text,
-        base_offset=body_tok.start.offset + 1,
-        base_line=body_tok.start.line,
-        base_col=body_tok.start.character + 1,
-    ):
-        if not REGISTRY.is_cse_candidate(cmd_name):
-            continue
-        # Build a key from command name + args text
-        args_text = " ".join(t.text for t in all_tokens[1:])
-        call_key = f"{cmd_name} {args_text}"
-        if call_key in seen:
-            warnings.append(
-                IrulesFlowWarning(
-                    range=range_from_token(cmd_tok),
-                    code="IRULE2102",
-                    message=(
-                        f"'{cmd_name}' called multiple times with the same arguments. "
-                        "Consider storing the result in a local variable."
-                    ),
-                    respond_range=range_from_token(seen[call_key]),
-                )
-            )
-        else:
-            seen[call_key] = cmd_tok
-
-    return warnings
-
-
 # IRULE1005: *_DATA event without matching *::collect
 # IRULE1006: *::payload access without matching *::collect
 

@@ -96,7 +96,7 @@ _VALIDATOR_NAMES = frozenset(
 
 # Regex patterns
 _DIRECTIVE_RE = re.compile(r"(?:^|(?<=[\[{;]))\s*(#include|#inline)\b")
-_DEFINE_RE = re.compile(r"^\s*(define)\s+(\S+)")
+_DEFINE_RE = re.compile(r"^\s*(define)\s+(\S+)\s+(\S+)")
 _OPTIONAL_RE = re.compile(r"\b(optional)\s*\(")
 _SECTION_KW_RE = re.compile(r"(?:^|(?<=[\s{;]))(section|text|table|row)\s+(\S+)")
 _FIELD_TYPE_RE = re.compile(
@@ -136,11 +136,12 @@ def tokenise_apl(source: str) -> list[AplToken]:
         for m in _DIRECTIVE_RE.finditer(line):
             tokens.append(AplToken(line_no, m.start(1), len(m.group(1)), AplTokenKind.DIRECTIVE))
 
-        # define <name>
+        # define <type> <name>
         m = _DEFINE_RE.match(line)
         if m:
             tokens.append(AplToken(line_no, m.start(1), len(m.group(1)), AplTokenKind.DEFINE))
-            tokens.append(AplToken(line_no, m.start(2), len(m.group(2)), AplTokenKind.DEFINE_NAME))
+            tokens.append(AplToken(line_no, m.start(2), len(m.group(2)), AplTokenKind.FIELD_TYPE))
+            tokens.append(AplToken(line_no, m.start(3), len(m.group(3)), AplTokenKind.DEFINE_NAME))
 
         # optional ( ... )
         for m in _OPTIONAL_RE.finditer(line):
@@ -180,8 +181,6 @@ def tokenise_apl(source: str) -> list[AplToken]:
 
         # Attributes: default, display, required, validator
         for m in _ATTRIBUTE_RE.finditer(line):
-            # Avoid double-matching if the attribute was already captured
-            # as part of a field-type match
             tokens.append(AplToken(line_no, m.start(1), len(m.group(1)), AplTokenKind.ATTRIBUTE))
 
         # Validator values

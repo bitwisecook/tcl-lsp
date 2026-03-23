@@ -3,7 +3,7 @@ name = "Tcl"
 version = "1.2.0"
 schema_version = 1
 authors = ["tcl-lsp contributors"]
-description = "Tcl, iRules, and iApps language support via tcl-lsp"
+description = "Tcl, iRules, iApps, and TMSH language support via tcl-lsp"
 repository = "https://github.com/bitwisecook/tcl-lsp"
 
 [grammars.tcl]
@@ -12,7 +12,7 @@ rev = "8f11ac7206a54ed11210491cee1e0657e2962c47"
 
 [language_servers.tcl-lsp]
 name = "tcl-lsp"
-languages = ["Tcl", "iRules", "iApps", "APL", "Expect"]
+languages = ["Tcl", "iRules", "iApps", "APL", "TMSH", "Expect"]
 
 [context_servers.tcl-lsp-mcp]
 

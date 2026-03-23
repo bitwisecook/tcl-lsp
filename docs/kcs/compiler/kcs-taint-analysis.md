@@ -105,8 +105,8 @@ HTTP::respond 200 content "<h1>$lower</h1>"
 | T104 | SSRF (network address sink) |
 | T105 | Cross-interpreter code injection |
 | T106 | Double-encoding (informational) |
-| T200 | Reserved |
-| T201 | Reserved |
+| T200 | Reserved (migrated to IRULE1007 — collect without release) |
+| T201 | Reserved (migrated to IRULE1008 — release without collect) |
 | IRULE3001 | XSS in HTTP response body |
 | IRULE3002 | Header/cookie injection |
 | IRULE3003 | Log injection |

@@ -38,10 +38,6 @@ from ..common.ranges import range_from_token
 from ..parsing.tokens import Token
 from .semantic_model import CodeFix, Diagnostic, Range, Severity
 
-# Pseudo-events that mean "valid in any event"
-
-_ANY_EVENT_MARKERS = frozenset({"ANY_EVENT", "ANY_EVENTS"})
-
 # Derived from registry EventProps metadata — not hardcoded.
 _HOT_EVENTS: frozenset[str] = hot_events()
 

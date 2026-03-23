@@ -17,10 +17,13 @@ from ._text_utils import offset_to_line_char
 
 # Match $::name__name or ${::name__name} or ${::name__name(index)}
 _IAPP_VAR_RE = re.compile(
-    r"\$\{?::"  # $:: or ${::
+    r"\$\{::"  # ${:: braced form
     r"([a-zA-Z_][a-zA-Z0-9_]*(?:__[a-zA-Z0-9_]+)+)"  # name with __ separator
     r"(?:\([^)]*\))?"  # optional (index)
-    r"\}?"  # optional closing }
+    r"\}"  # closing }
+    r"|\$::"  # $:: unbraced form
+    r"([a-zA-Z_][a-zA-Z0-9_]*(?:__[a-zA-Z0-9_]+)+)"  # name with __ separator
+    r"(?:\([^)]*\))?"  # optional (index)
 )
 
 
@@ -41,7 +44,7 @@ def extract_iapp_var_refs(source: str) -> list[IappVarRef]:
     """
     refs: list[IappVarRef] = []
     for m in _IAPP_VAR_RE.finditer(source):
-        var_body = m.group(1)
+        var_body = m.group(1) or m.group(2)  # group 1 = braced, group 2 = unbraced
         apl_name = var_body.replace("__", ".")
         tcl_name = "::" + var_body
 

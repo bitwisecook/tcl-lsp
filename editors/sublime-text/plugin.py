@@ -29,6 +29,7 @@ DIALECTS = [
     ("f5-irules", "F5 iRules"),
     ("f5-iapps", "F5 iApps"),
     ("f5-bigip", "F5 BIG-IP"),
+    ("f5-tmsh", "F5 TMSH"),
     ("synopsys-eda-tcl", "Synopsys EDA"),
     ("cadence-eda-tcl", "Cadence EDA"),
     ("xilinx-eda-tcl", "Xilinx EDA"),
