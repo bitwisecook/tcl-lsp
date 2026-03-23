@@ -397,11 +397,6 @@ def _is_generic_static_name(
     return False
 
 
-# Note: IRULE4002 check_static_generic_name has been moved to
-# core/compiler/irules_flow.py (_find_generic_static_names) where it uses
-# the IR to detect variable definitions from all store types.
-
-
 # IRULE4003: Variable scoping across events
 
 _WHEN_BLOCK_RE = re.compile(r"\bwhen\s+([A-Z_][A-Z0-9_]*)\b")
@@ -771,7 +766,6 @@ _EVENT_CHECKS = [
     check_heavy_regex_in_hot_event,
     check_ungated_log,
     check_static_write_outside_rule_init,
-    # check_static_generic_name — moved to irules_flow.py (IR-based, IRULE4002)
     check_variable_scope_across_events,
     check_global_namespace_usage,
 ]
