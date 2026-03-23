@@ -524,12 +524,6 @@ DATA_EVENT_REQUIREMENTS: dict[str, tuple[tuple[str, ...], str]] = {
     "SERVERSSL_DATA": (("SSL",), "server"),
 }
 
-_COLLECT_RE = re.compile(r"\b(\w+)::collect\b")
-_RELEASE_RE = re.compile(r"\b(\w+)::release\b")
-_PAYLOAD_RE = re.compile(r"\b(\w+)::payload\b")
-_SIDE_SWITCH_RE = re.compile(r"\b(clientside|serverside)\s*\{", re.IGNORECASE)
-
-
 def _default_collect_side(event: str) -> str:
     """Infer the default side context for commands in *event*."""
     props = EVENT_REGISTRY.get_props(event)
@@ -551,89 +545,21 @@ def _default_collect_side(event: str) -> str:
     return "client"
 
 
-def _find_matching_brace(text: str, open_index: int) -> int | None:
-    """Return index of the brace matching text[open_index], or None."""
-    depth = 0
-    idx = open_index
-    while idx < len(text):
-        ch = text[idx]
-        escaped = idx > 0 and text[idx - 1] == "\\"
-        if ch == "{" and not escaped:
-            depth += 1
-        elif ch == "}" and not escaped:
-            depth -= 1
-            if depth == 0:
-                return idx
-        idx += 1
-    return None
-
-
-def _collect_side_spans(body_text: str) -> list[tuple[int, int, str]]:
-    """Return [(start, end, side)] spans for clientside/serverside blocks."""
-    spans: list[tuple[int, int, str]] = []
-    for match in _SIDE_SWITCH_RE.finditer(body_text):
-        side = "client" if match.group(1).lower() == "clientside" else "server"
-        open_brace = match.end() - 1
-        close_brace = _find_matching_brace(body_text, open_brace)
-        if close_brace is None:
-            continue
-        spans.append((open_brace + 1, close_brace, side))
-    return spans
-
-
-def _side_for_offset(offset: int, default_side: str, spans: list[tuple[int, int, str]]) -> str:
-    """Return effective side at *offset* using explicit side-switch spans."""
-    chosen: tuple[int, int, str] | None = None
-    for span in spans:
-        start, end, _side = span
-        if start <= offset < end:
-            if chosen is None or (end - start) < (chosen[1] - chosen[0]):
-                chosen = span
-    if chosen is not None:
-        return chosen[2]
-    return default_side
-
-
 def _iter_ir_commands(script: IRScript):
-    """Yield ``(command, range, stmt)`` for every IR command, recursing into bodies."""
-    for stmt in script.statements:
+    """Yield ``(command, range, stmt)`` for every IR command, recursing into bodies.
+
+    Built on :func:`_iter_all_ir_statements` — filters to command-like
+    statements only.  Note: clientside/serverside body lowering is handled
+    in ``_scan_ir_event``, not here, because this function doesn't carry
+    side context.
+    """
+    for stmt in _iter_all_ir_statements(script, lower_side_switches=False):
         if isinstance(stmt, (IRCall, IRBarrier)):
             yield stmt.command, stmt.range, stmt
         elif isinstance(stmt, IRAssignValue):
             parsed = parse_command_substitution(stmt.value)
             if parsed is not None:
                 yield parsed[0], stmt.range, stmt
-        # Recurse into structured bodies.
-        if isinstance(stmt, IRIf):
-            for clause in stmt.clauses:
-                yield from _iter_ir_commands(clause.body)
-            if stmt.else_body is not None:
-                yield from _iter_ir_commands(stmt.else_body)
-        elif isinstance(stmt, IRFor):
-            yield from _iter_ir_commands(stmt.init)
-            yield from _iter_ir_commands(stmt.body)
-            yield from _iter_ir_commands(stmt.next)
-        elif isinstance(stmt, IRSwitch):
-            for arm in stmt.arms:
-                if arm.body is not None:
-                    yield from _iter_ir_commands(arm.body)
-            if stmt.default_body is not None:
-                yield from _iter_ir_commands(stmt.default_body)
-        elif isinstance(stmt, IRWhile):
-            yield from _iter_ir_commands(stmt.body)
-        elif isinstance(stmt, IRForeach):
-            yield from _iter_ir_commands(stmt.body)
-        elif isinstance(stmt, IRCatch):
-            yield from _iter_ir_commands(stmt.body)
-        elif isinstance(stmt, IRTry):
-            yield from _iter_ir_commands(stmt.body)
-            for handler in stmt.handlers:
-                yield from _iter_ir_commands(handler.body)
-            if stmt.finally_body is not None:
-                yield from _iter_ir_commands(stmt.finally_body)
-        # Note: clientside/serverside body lowering is handled in
-        # _scan_ir_event, not here — because _iter_ir_commands doesn't
-        # carry side context.  _iter_all_ir_statements DOES lower them.
 
 
 def _classify_command(
@@ -685,30 +611,39 @@ def _scan_ir_event(
 ) -> None:
     """Walk an IR event body and record collect/release/payload calls."""
     default_side = _default_collect_side(event)
+    _scan_ir_body_with_side(
+        ir_body, default_side, collected, released,
+        collect_calls, release_calls, payload_calls,
+    )
+
+
+def _scan_ir_body_with_side(
+    ir_body: IRScript,
+    current_side: str,
+    collected: dict[str, set[str]],
+    released: dict[str, set[str]],
+    collect_calls: list[tuple[str, str, Range]],
+    release_calls: list[tuple[str, str, Range]],
+    payload_calls: list[tuple[str, str, Range]],
+) -> None:
+    """Classify commands in *ir_body*, recursing into nested side-switches."""
     for cmd, rng, ir_stmt in _iter_ir_commands(ir_body):
         # ``clientside { ... }`` / ``serverside { ... }`` — lower the body
-        # text to IR and recurse with the switched side context.
+        # and recurse with the switched side context.
         if cmd in ("clientside", "serverside"):
             inner_side = "client" if cmd == "clientside" else "server"
             if isinstance(ir_stmt, IRCall):
                 inner_ir = _lower_side_switch_body(ir_stmt)
                 if inner_ir is not None:
-                    for inner_cmd, inner_rng, _s in _iter_ir_commands(inner_ir):
-                        _classify_command(
-                            inner_cmd,
-                            inner_rng,
-                            inner_side,
-                            collected,
-                            released,
-                            collect_calls,
-                            release_calls,
-                            payload_calls,
-                        )
+                    _scan_ir_body_with_side(
+                        inner_ir, inner_side, collected, released,
+                        collect_calls, release_calls, payload_calls,
+                    )
             continue
         _classify_command(
             cmd,
             rng,
-            default_side,
+            current_side,
             collected,
             released,
             collect_calls,
@@ -1381,41 +1316,45 @@ def _find_generic_static_names(
     return warnings
 
 
-def _iter_all_ir_statements(script: IRScript):
-    """Yield every IR statement, recursing into structured bodies."""
+def _iter_all_ir_statements(script: IRScript, *, lower_side_switches: bool = True):
+    """Yield every IR statement, recursing into structured bodies.
+
+    When *lower_side_switches* is ``True`` (default), ``clientside``/
+    ``serverside`` body arguments are lowered to IR and recursed into.
+    """
     for stmt in script.statements:
         yield stmt
         if isinstance(stmt, IRIf):
             for clause in stmt.clauses:
-                yield from _iter_all_ir_statements(clause.body)
+                yield from _iter_all_ir_statements(clause.body, lower_side_switches=lower_side_switches)
             if stmt.else_body is not None:
-                yield from _iter_all_ir_statements(stmt.else_body)
+                yield from _iter_all_ir_statements(stmt.else_body, lower_side_switches=lower_side_switches)
         elif isinstance(stmt, IRFor):
-            yield from _iter_all_ir_statements(stmt.init)
-            yield from _iter_all_ir_statements(stmt.body)
-            yield from _iter_all_ir_statements(stmt.next)
+            yield from _iter_all_ir_statements(stmt.init, lower_side_switches=lower_side_switches)
+            yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
+            yield from _iter_all_ir_statements(stmt.next, lower_side_switches=lower_side_switches)
         elif isinstance(stmt, IRSwitch):
             for arm in stmt.arms:
                 if arm.body is not None:
-                    yield from _iter_all_ir_statements(arm.body)
+                    yield from _iter_all_ir_statements(arm.body, lower_side_switches=lower_side_switches)
             if stmt.default_body is not None:
-                yield from _iter_all_ir_statements(stmt.default_body)
+                yield from _iter_all_ir_statements(stmt.default_body, lower_side_switches=lower_side_switches)
         elif isinstance(stmt, IRWhile):
-            yield from _iter_all_ir_statements(stmt.body)
+            yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
         elif isinstance(stmt, IRForeach):
-            yield from _iter_all_ir_statements(stmt.body)
+            yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
         elif isinstance(stmt, IRCatch):
-            yield from _iter_all_ir_statements(stmt.body)
+            yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
         elif isinstance(stmt, IRTry):
-            yield from _iter_all_ir_statements(stmt.body)
+            yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
             for handler in stmt.handlers:
-                yield from _iter_all_ir_statements(handler.body)
+                yield from _iter_all_ir_statements(handler.body, lower_side_switches=lower_side_switches)
             if stmt.finally_body is not None:
-                yield from _iter_all_ir_statements(stmt.finally_body)
-        elif isinstance(stmt, IRCall) and stmt.command in ("clientside", "serverside"):
+                yield from _iter_all_ir_statements(stmt.finally_body, lower_side_switches=lower_side_switches)
+        elif lower_side_switches and isinstance(stmt, IRCall) and stmt.command in ("clientside", "serverside"):
             inner_ir = _lower_side_switch_body(stmt)
             if inner_ir is not None:
-                yield from _iter_all_ir_statements(inner_ir)
+                yield from _iter_all_ir_statements(inner_ir, lower_side_switches=lower_side_switches)
 
 
 def find_irules_flow_warnings(

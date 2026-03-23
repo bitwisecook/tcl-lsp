@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 
 from ..analysis.semantic_model import Range
 from ..parsing.tokens import SourcePosition
+from ._text_utils import find_brace_end, offset_to_line_char
 from .apl_parser import _FIELD_TYPE_KEYWORDS
 
 log = logging.getLogger(__name__)
@@ -117,48 +118,6 @@ _REQUIRED_RE = re.compile(r"\brequired\b")
 
 
 # --------------------------------------------------------------------------- #
-# Brace-balanced block extraction
-# --------------------------------------------------------------------------- #
-
-
-def _find_brace_end(source: str, start: int) -> int:
-    """Return offset past the closing ``}`` matching the ``{`` at *start*.
-
-    Handles braces inside double-quoted strings so that a ``"}"`` literal
-    does not prematurely close the block.
-    """
-    pos = start + 1
-    depth = 1
-    while pos < len(source) and depth > 0:
-        ch = source[pos]
-        if ch == '"':
-            # Skip entire quoted string (may contain braces)
-            pos += 1
-            while pos < len(source) and source[pos] != '"':
-                if source[pos] == "\\":
-                    pos += 1  # skip escaped char inside string
-                pos += 1
-            # Advance past closing quote
-            pos += 1
-            continue
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-        elif ch == "\\":
-            pos += 1  # skip escaped char
-        pos += 1
-    return pos
-
-
-def _offset_to_line_char(source: str, offset: int) -> tuple[int, int]:
-    """Convert a byte offset to (line, character) pair."""
-    line = source.count("\n", 0, offset)
-    line_start = source.rfind("\n", 0, offset) + 1
-    return (line, offset - line_start)
-
-
-# --------------------------------------------------------------------------- #
 # APL parsing
 # --------------------------------------------------------------------------- #
 
@@ -166,7 +125,6 @@ def _offset_to_line_char(source: str, offset: int) -> tuple[int, int]:
 def _parse_fields_in_block(
     block_source: str,
     prefix: str,
-    base_line: int,
     base_offset: int,
     source: str,
 ) -> dict[str, AplField]:
@@ -182,16 +140,15 @@ def _parse_fields_in_block(
         if fname.startswith("{") or fname.startswith('"'):
             continue
         qname = f"{prefix}.{fname}" if prefix else fname
-        is_req = bool(_REQUIRED_RE.search(m.group()))
         rest_of_line_start = m.end()
         rest_of_line_end = block_source.find("\n", rest_of_line_start)
         if rest_of_line_end == -1:
             rest_of_line_end = len(block_source)
         rest = block_source[rest_of_line_start:rest_of_line_end]
-        is_req = is_req or bool(_REQUIRED_RE.search(rest))
+        is_req = bool(_REQUIRED_RE.search(m.group())) or bool(_REQUIRED_RE.search(rest))
 
         abs_offset = base_offset + m.start(2)
-        line, char = _offset_to_line_char(source, abs_offset)
+        line, char = offset_to_line_char(source, abs_offset)
         fields[fname] = AplField(
             name=fname,
             qualified_name=qname,
@@ -227,12 +184,12 @@ def parse_apl(source: str) -> AplModel:
     for m in _SECTION_DECL_RE.finditer(source):
         sec_name = m.group(1)
         brace_pos = m.end() - 1
-        end_pos = _find_brace_end(source, brace_pos)
+        end_pos = find_brace_end(source, brace_pos)
         block = source[brace_pos + 1 : end_pos - 1]
         section_ranges.append((brace_pos, end_pos, sec_name))
 
         abs_offset = m.start(1)
-        line, char = _offset_to_line_char(source, abs_offset)
+        line, char = offset_to_line_char(source, abs_offset)
 
         section = AplSection(
             name=sec_name,
@@ -244,7 +201,7 @@ def parse_apl(source: str) -> AplModel:
                 ),
             ),
         )
-        section.fields = _parse_fields_in_block(block, sec_name, line, brace_pos + 1, source)
+        section.fields = _parse_fields_in_block(block, sec_name, brace_pos + 1, source)
         model.sections[sec_name] = section
         for field_obj in section.fields.values():
             model.all_fields[field_obj.qualified_name] = field_obj
@@ -253,7 +210,7 @@ def parse_apl(source: str) -> AplModel:
     for m in _TABLE_DECL_RE.finditer(source):
         tbl_name = m.group(1)
         brace_pos = m.end() - 1
-        end_pos = _find_brace_end(source, brace_pos)
+        end_pos = find_brace_end(source, brace_pos)
         block = source[brace_pos + 1 : end_pos - 1]
 
         # Determine parent section by checking if this table falls inside one
@@ -266,7 +223,7 @@ def parse_apl(source: str) -> AplModel:
         qualified_tbl = f"{parent_prefix}.{tbl_name}" if parent_prefix else tbl_name
 
         abs_offset = m.start(1)
-        line, char = _offset_to_line_char(source, abs_offset)
+        line, char = offset_to_line_char(source, abs_offset)
 
         table = AplTable(
             name=tbl_name,
@@ -278,7 +235,7 @@ def parse_apl(source: str) -> AplModel:
                 ),
             ),
         )
-        table.columns = _parse_fields_in_block(block, qualified_tbl, line, brace_pos + 1, source)
+        table.columns = _parse_fields_in_block(block, qualified_tbl, brace_pos + 1, source)
         model.tables[qualified_tbl] = table
         for field_obj in table.columns.values():
             model.all_fields[field_obj.qualified_name] = field_obj

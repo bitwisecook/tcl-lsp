@@ -46,6 +46,7 @@ def validate_iapp_presentation(
                 Diagnostic(
                     message=f'#include file not found: "{inc.path}"',
                     range=Range(
+                        # offset=0 is a placeholder; AplInclude only tracks line number
                         start=SourcePosition(line=inc.line, character=0, offset=0),
                         end=SourcePosition(line=inc.line, character=0, offset=0),
                     ),

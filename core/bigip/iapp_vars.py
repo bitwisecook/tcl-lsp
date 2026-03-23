@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from ..analysis.semantic_model import Range
 from ..parsing.tokens import SourcePosition
+from ._text_utils import offset_to_line_char
 
 # Match $::name__name or ${::name__name} or ${::name__name(index)}
 _IAPP_VAR_RE = re.compile(
@@ -21,10 +22,6 @@ _IAPP_VAR_RE = re.compile(
     r"(?:\([^)]*\))?"  # optional (index)
     r"\}?"  # optional closing }
 )
-
-# Match table row iteration variables: [tmsh::get_field_value $row <column>]
-# where column matches the table column names.
-_TABLE_FIELD_RE = re.compile(r"\btmsh::get_field_value\s+\S+\s+(\S+)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,9 +46,7 @@ def extract_iapp_var_refs(source: str) -> list[IappVarRef]:
         tcl_name = "::" + var_body
 
         # Compute position
-        line = source.count("\n", 0, m.start())
-        line_start = source.rfind("\n", 0, m.start()) + 1
-        char = m.start() - line_start
+        line, char = offset_to_line_char(source, m.start())
 
         refs.append(
             IappVarRef(
@@ -70,30 +65,3 @@ def extract_iapp_var_refs(source: str) -> list[IappVarRef]:
     return refs
 
 
-def extract_iapp_table_refs(source: str) -> list[IappVarRef]:
-    """Extract tmsh::get_field_value column references from Tcl source."""
-    refs: list[IappVarRef] = []
-    for m in _TABLE_FIELD_RE.finditer(source):
-        col_name = m.group(1).strip("\"'{}")
-        if not col_name or "__" in col_name:
-            continue
-
-        line = source.count("\n", 0, m.start(1))
-        line_start = source.rfind("\n", 0, m.start(1)) + 1
-        char = m.start(1) - line_start
-
-        refs.append(
-            IappVarRef(
-                tcl_name=col_name,
-                apl_name=col_name,
-                range=Range(
-                    start=SourcePosition(line=line, character=char, offset=m.start(1)),
-                    end=SourcePosition(
-                        line=line,
-                        character=char + len(m.group(1)),
-                        offset=m.end(1),
-                    ),
-                ),
-            )
-        )
-    return refs

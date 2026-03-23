@@ -95,7 +95,6 @@ _VALIDATOR_NAMES = frozenset(
 )
 
 # Regex patterns
-_COMMENT_RE = re.compile(r"(?:^|(?<=;))\s*#.*")
 _DIRECTIVE_RE = re.compile(r"(?:^|(?<=[\[{;]))\s*(#include|#inline)\b")
 _DEFINE_RE = re.compile(r"^\s*(define)\s+(\S+)")
 _OPTIONAL_RE = re.compile(r"\b(optional)\s*\(")

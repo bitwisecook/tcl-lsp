@@ -38,7 +38,7 @@ DataFlowNode
 DataFlowEdge
   from_name / from_version        # source SSA value
   to_block / to_statement_index   # destination site
-  edge_kind: str                  # "direct", "phi", "alias", "clobber"
+  edge_kind: EdgeKind              # EdgeKind.DIRECT, .PHI, .ALIAS, .CLOBBER
 
 AliasInfo
   local_name / local_kind         # e.g. "local_x" / "UPVAR"
