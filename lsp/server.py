@@ -12,6 +12,7 @@ from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
 from core.analysis.analyser import analyse
+from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
 from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -102,6 +103,14 @@ class FeatureConfig:
 
     # Style: maximum line length for W111.
     line_length: int = 120
+
+    # IRULE4002: regex patterns matching generic static:: / global variable
+    # bare names (after stripping the ``static::`` prefix).  Empty list
+    # disables the check.  Patterns are matched case-insensitively against
+    # the full bare name.
+    generic_variable_patterns: list[str] = field(default_factory=lambda: list(
+        DEFAULT_GENERIC_VARIABLE_PATTERNS
+    ))
 
     # True once the user explicitly sets ``tclLsp.dialect`` in settings.
     # When False, the server may auto-detect the dialect from the editor's
@@ -1706,6 +1715,7 @@ async def _publish_diagnostics(
             disabled_diagnostics=disabled_diags,
             disabled_optimisations=disabled_opts,
             uri=uri,
+            generic_variable_patterns=feature_config.generic_variable_patterns,
         )
         # Only store if the document hasn't been updated since we started.
         if _state_ref.version == _scheduled_version:

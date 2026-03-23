@@ -899,85 +899,96 @@ class TestIrule4002:
 
     def test_static_debug_in_rule_init(self):
         src = "when RULE_INIT {\n    set static::debug 0\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
-        assert "generic" in diags[0].message.lower()
-        assert "every irule" in diags[0].message.lower()
-        assert diags[0].severity is Severity.HINT
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+        assert "generic" in warnings[0].message.lower()
+        assert "every irule" in warnings[0].message.lower()
 
     def test_static_debug_in_http_request(self):
         """Should still fire (in addition to IRULE4001)."""
         src = "when HTTP_REQUEST {\n    set static::debug 1\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_prefixed_name_no_warning(self):
         """A properly prefixed name should not trigger."""
         src = "when RULE_INIT {\n    set static::myapp_debug 1\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 0
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 0
 
     def test_array_set_static_debug(self):
         src = "when RULE_INIT {\n    array set static::debug {on 1 off 0}\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_log_level(self):
         """log_level is a commonly reused generic name."""
         src = "when RULE_INIT {\n    set static::log_level 3\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
-        assert "static::log_level" in diags[0].message
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+        assert "static::log_level" in warnings[0].message
 
     def test_generic_timeout(self):
         src = "when RULE_INIT {\n    set static::timeout 5000\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_enabled(self):
         src = "when RULE_INIT {\n    set static::enabled 1\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_verbose(self):
         src = "when RULE_INIT {\n    set static::verbose 1\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_server(self):
         src = 'when RULE_INIT {\n    set static::server "10.0.0.1"\n}'
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_pool(self):
         src = 'when RULE_INIT {\n    set static::pool "my_pool"\n}'
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_counter(self):
         src = "when RULE_INIT {\n    set static::counter 0\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_non_generic_name_no_warning(self):
         """Application-prefixed names should not trigger."""
         src = "when RULE_INIT {\n    set static::myapp_log_level 3\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 0
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 0
 
     def test_case_insensitive(self):
         """Generic name detection is case-insensitive."""
         src = "when RULE_INIT {\n    set static::DEBUG 0\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_message_suggests_prefix(self):
         """Diagnostic message should suggest prefixing with app name."""
         src = "when RULE_INIT {\n    set static::debug 0\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
-        assert "prefix" in diags[0].message.lower()
-        assert "<app>" in diags[0].message
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+        assert "prefix" in warnings[0].message.lower()
+        assert "<app>" in warnings[0].message
+
+    def test_append_to_generic_static(self):
+        """append to a generic static:: should also trigger."""
+        src = "when RULE_INIT {\n    append static::data hello\n}"
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+
+    def test_incr_generic_static(self):
+        """incr on a generic static:: should also trigger."""
+        src = "when RULE_INIT {\n    incr static::counter\n}"
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
 
 # Event-aware completions

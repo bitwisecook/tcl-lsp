@@ -576,6 +576,7 @@ def get_deep_diagnostics(
     disabled_diagnostics: set[str] | None = None,
     disabled_optimisations: set[str] | None = None,
     uri: str | None = None,
+    generic_variable_patterns: list[str] | None = None,
 ) -> list[types.Diagnostic]:
     """Return deep diagnostics: optimiser, shimmer, taint, iRules flow, GVN.
 
@@ -669,7 +670,10 @@ def get_deep_diagnostics(
             if suppressed and _is_suppressed(w.code, w.range.start.line, suppressed):
                 continue
             diags.append(_taint_to_diagnostic(w))
-    for w in find_irules_flow_warnings(source, cu=cu):
+    for w in find_irules_flow_warnings(
+        source, cu=cu,
+        generic_variable_patterns=generic_variable_patterns,
+    ):
         if disabled_diagnostics and w.code in disabled_diagnostics:
             continue
         if suppressed and _is_suppressed(w.code, w.range.start.line, suppressed):

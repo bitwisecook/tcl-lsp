@@ -330,66 +330,71 @@ def check_static_write_outside_rule_init(
     ]
 
 
-# Generic ``static::`` variable names that are likely to collide across
-# iRules because they carry no application-specific prefix.  Names are
-# checked after stripping the ``static::`` prefix and lowering.
-_GENERIC_STATIC_NAMES: frozenset[str] = frozenset(
-    {
-        # Debug / logging
-        "debug",
-        "debug_level",
-        "debug_enabled",
-        "dbg",
-        "log_level",
-        "log_server",
-        "log_enabled",
-        "logging",
-        "verbose",
-        "trace",
-        # Configuration
-        "timeout",
-        "response_timeout",
-        "retry",
-        "retries",
-        "max_retries",
-        "config",
-        "enabled",
-        "disabled",
-        "active",
-        "mode",
-        "port",
-        "host",
-        "server",
-        "pool",
-        # Counters / limits
-        "count",
-        "counter",
-        "limit",
-        "max_connections",
-        "threshold",
-        "rate",
-        "interval",
-        # Generic state
-        "flag",
-        "level",
-        "status",
-        "state",
-        "version",
-        "name",
-        "value",
-        "data",
-        "result",
-        "test",
-        "init",
-        "default",
-    }
+# Default regex patterns for generic ``static::`` / global variable names
+# that are likely to collide across iRules.  Each pattern is matched
+# case-insensitively against the bare name (after stripping ``static::``).
+# Users can override these via ``tclLsp.genericVariablePatterns`` in
+# editor settings.
+DEFAULT_GENERIC_VARIABLE_PATTERNS: tuple[str, ...] = (
+    # Debug / logging
+    r"^debug(_level|_enabled)?$",
+    r"^dbg$",
+    r"^log_(level|server|enabled)$",
+    r"^logging$",
+    r"^verbose$",
+    r"^trace$",
+    # Configuration
+    r"^(response_)?timeout$",
+    r"^(max_)?retr(y|ies)$",
+    r"^config$",
+    r"^(enabled|disabled|active)$",
+    r"^mode$",
+    r"^(port|host|server|pool)$",
+    # Counters / limits
+    r"^count(er)?$",
+    r"^(limit|max_connections|threshold|rate|interval)$",
+    # Generic state
+    r"^(flag|level|status|state|version|name|value|data|result|test|init|default)$",
 )
 
+# Compiled patterns (lazily rebuilt when the user changes configuration).
+_compiled_generic_patterns: list[re.Pattern[str]] | None = None
+_raw_generic_patterns: tuple[str, ...] | None = None
 
-def _is_generic_static_name(var_name: str) -> bool:
+
+def _get_generic_patterns(
+    patterns: list[str] | None = None,
+) -> list[re.Pattern[str]]:
+    """Return compiled regex patterns for generic variable name detection.
+
+    Uses a module-level cache; recompiles when *patterns* changes.
+    """
+    global _compiled_generic_patterns, _raw_generic_patterns
+    if patterns is None:
+        patterns = list(DEFAULT_GENERIC_VARIABLE_PATTERNS)
+    key = tuple(patterns)
+    if _compiled_generic_patterns is not None and _raw_generic_patterns == key:
+        return _compiled_generic_patterns
+    _raw_generic_patterns = key
+    _compiled_generic_patterns = []
+    for pat in patterns:
+        try:
+            _compiled_generic_patterns.append(re.compile(pat, re.IGNORECASE))
+        except re.error:
+            pass  # skip invalid patterns from user config
+    return _compiled_generic_patterns
+
+
+def _is_generic_static_name(
+    var_name: str,
+    patterns: list[str] | None = None,
+) -> bool:
     """Return True if *var_name* (including ``static::`` prefix) is generic."""
     bare = var_name.removeprefix("static::").lower()
-    return bare in _GENERIC_STATIC_NAMES
+    for pat in _get_generic_patterns(patterns):
+        if pat.search(bare):
+            return True
+    return False
 
 
 def check_static_generic_name(
@@ -400,6 +405,7 @@ def check_static_generic_name(
     source: str,
     *,
     event: str,
+    generic_variable_patterns: list[str] | None = None,
 ) -> list[Diagnostic]:
     """IRULE4002: Hint when a ``static::`` variable has a generic name.
 
@@ -409,13 +415,16 @@ def check_static_generic_name(
     as log storms or misapplied configuration.  Prefixing the name with
     the application or rule name (e.g. ``static::myapp_debug``) avoids
     this problem.
+
+    *generic_variable_patterns* is a list of regex patterns (matched
+    case-insensitively against the bare name after stripping ``static::``).
     """
     if active_dialect() != "f5-irules":
         return []
     var_name = _static_var_from_set(cmd_name, args)
     if var_name is None:
         return []
-    if not _is_generic_static_name(var_name):
+    if not _is_generic_static_name(var_name, generic_variable_patterns):
         return []
     bare = var_name.removeprefix("static::")
     return [
@@ -802,7 +811,7 @@ _EVENT_CHECKS = [
     check_heavy_regex_in_hot_event,
     check_ungated_log,
     check_static_write_outside_rule_init,
-    check_static_generic_name,
+    # check_static_generic_name — moved to irules_flow.py (IR-based, IRULE4002)
     check_variable_scope_across_events,
     check_global_namespace_usage,
 ]
