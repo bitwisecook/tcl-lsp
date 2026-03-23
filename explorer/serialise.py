@@ -23,8 +23,6 @@ from core.compiler.irules_flow import EventOrderEntry, IrulesFlowWarning
 from core.compiler.optimiser import Optimisation
 from core.compiler.shimmer import ShimmerWarning, ThunkingWarning
 from core.compiler.taint import (
-    CollectWithoutReleaseWarning,
-    ReleaseWithoutCollectWarning,
     TaintWarning,
 )
 from core.compiler.types import TypeKind
@@ -392,7 +390,7 @@ def _serialise_gvn(warnings: list[RedundantComputation]) -> list[dict]:
 
 
 def _serialise_taint(
-    warnings: list[TaintWarning | CollectWithoutReleaseWarning | ReleaseWithoutCollectWarning],
+    warnings: list[TaintWarning],
 ) -> list[dict]:
     out = []
     for w in warnings:
@@ -404,8 +402,6 @@ def _serialise_taint(
         if isinstance(w, TaintWarning):
             d["variable"] = w.variable
             d["sinkCommand"] = w.sink_command
-        elif isinstance(w, (CollectWithoutReleaseWarning, ReleaseWithoutCollectWarning)):
-            d["command"] = w.command
         out.append(d)
     return out
 

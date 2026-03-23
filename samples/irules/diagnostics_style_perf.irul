@@ -108,14 +108,18 @@ when RULE_INIT priority 200 {
 
 
 # ---------------------------------------------------------------
-# T200 --*::collect without matching *::release
+# IRULE1007 — *::collect without matching *::release
 # ---------------------------------------------------------------
 # Forgetting to release collected data stalls the connection.
-# (T200 runs on the compiler IR; bare code triggers it cleanly.)
+# Side-aware: checks that a matching release exists on the same
+# connection side across all event handlers.
+
+when CLIENT_ACCEPTED priority 100 {
+    # BAD: collect without release — connection will stall
+    TCP::collect
+}
 
 when CLIENT_DATA priority 100 {
-    # BAD: collect without release --connection will stall
-    TCP::collect
     set data [TCP::payload]
-    # Missing: TCP::release
+    # Missing: release call — connection will stall
 }

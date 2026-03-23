@@ -23,8 +23,6 @@ from core.compiler.irules_flow import IrulesFlowWarning, find_irules_flow_warnin
 from core.compiler.optimiser import Optimisation, find_optimisations
 from core.compiler.shimmer import ShimmerWarning, ThunkingWarning, find_shimmer_warnings
 from core.compiler.taint import (
-    CollectWithoutReleaseWarning,
-    ReleaseWithoutCollectWarning,
     TaintWarning,
     find_taint_warnings,
 )
@@ -54,8 +52,6 @@ _TAINT_SEVERITY = {
     "T102": types.DiagnosticSeverity.Warning,
     "T103": types.DiagnosticSeverity.Warning,
     "T106": types.DiagnosticSeverity.Information,
-    "T200": types.DiagnosticSeverity.Error,
-    "T201": types.DiagnosticSeverity.Error,
     "IRULE3001": types.DiagnosticSeverity.Warning,
     "IRULE3002": types.DiagnosticSeverity.Warning,
     "IRULE3003": types.DiagnosticSeverity.Warning,
@@ -67,6 +63,8 @@ _TAINT_SEVERITY = {
 _IRULES_FLOW_SEVERITY = {
     "IRULE1005": types.DiagnosticSeverity.Warning,
     "IRULE1006": types.DiagnosticSeverity.Warning,
+    "IRULE1007": types.DiagnosticSeverity.Error,
+    "IRULE1008": types.DiagnosticSeverity.Error,
     "IRULE1201": types.DiagnosticSeverity.Warning,
     "IRULE1202": types.DiagnosticSeverity.Warning,
     # IRULE2102 retired — subsumed by O105 (GVN/CSE).
@@ -156,7 +154,7 @@ def _shimmer_to_diagnostic(
 
 
 def _taint_to_diagnostic(
-    w: TaintWarning | CollectWithoutReleaseWarning | ReleaseWithoutCollectWarning,
+    w: TaintWarning,
 ) -> types.Diagnostic:
     """Convert a taint warning to an LSP diagnostic."""
     return types.Diagnostic(

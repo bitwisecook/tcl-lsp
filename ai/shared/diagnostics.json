@@ -18,7 +18,7 @@
     {
       "key": "taint",
       "label": "Taint Analysis",
-      "codes": ["T100", "T101", "T102", "T200"]
+      "codes": ["T100", "T101", "T102"]
     },
     {
       "key": "thread_safety",
@@ -28,7 +28,7 @@
     {
       "key": "control_flow",
       "label": "Control Flow",
-      "codes": ["IRULE1201", "IRULE1202"]
+      "codes": ["IRULE1005", "IRULE1006", "IRULE1007", "IRULE1008", "IRULE1201", "IRULE1202"]
     },
     {
       "key": "performance",

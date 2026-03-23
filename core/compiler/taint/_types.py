@@ -24,26 +24,6 @@ class TaintWarning:
 
 
 @dataclass(frozen=True, slots=True)
-class CollectWithoutReleaseWarning:
-    """A ``*::collect`` call with no matching ``*::release``."""
-
-    range: Range
-    command: str
-    code: str  # T200
-    message: str
-
-
-@dataclass(frozen=True, slots=True)
-class ReleaseWithoutCollectWarning:
-    """A ``*::release`` call with no preceding ``*::collect``."""
-
-    range: Range
-    command: str
-    code: str  # T201
-    message: str
-
-
-@dataclass(frozen=True, slots=True)
 class _InterprocTaintResult:
     """Result of inter-procedural taint analysis."""
 

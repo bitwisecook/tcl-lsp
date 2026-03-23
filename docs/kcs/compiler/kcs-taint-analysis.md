@@ -105,8 +105,8 @@ HTTP::respond 200 content "<h1>$lower</h1>"
 | T104 | SSRF (network address sink) |
 | T105 | Cross-interpreter code injection |
 | T106 | Double-encoding (informational) |
-| T200 | Collect without release |
-| T201 | Release without collect |
+| ~~T200~~ | ~~Collect without release~~ — moved to `IRULE1007` in iRules flow analysis (side-aware) |
+| ~~T201~~ | ~~Release without collect~~ — moved to `IRULE1008` in iRules flow analysis (side-aware) |
 | IRULE3001 | XSS in HTTP response body |
 | IRULE3002 | Header/cookie injection |
 | IRULE3003 | Log injection |

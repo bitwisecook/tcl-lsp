@@ -43,7 +43,7 @@ It reuses the `CompilationUnit` from Phase 1:
 
 - **Optimiser** (`find_optimisations`): O100–O126
 - **Shimmer detector** (`find_shimmer_warnings`): S100–S102
-- **Taint engine** (`find_taint_warnings`): T100–T106, T200–T201, IRULE3001–3004
+- **Taint engine** (`find_taint_warnings`): T100–T106, IRULE3001–3004
 - **iRules flow checker** (`find_irules_flow_warnings`): IRULE1005–5004
 - **GVN/CSE** (`find_redundant_computations`): O105–O106
 

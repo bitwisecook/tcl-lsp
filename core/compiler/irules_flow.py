@@ -6,6 +6,10 @@ Walks the token stream of ``when`` bodies to detect:
   ``*::collect`` call elsewhere in the iRule — the event will never fire.
 - **IRULE1006** (WARNING): ``*::payload`` access without a matching
   ``*::collect`` call — the payload buffer will be empty.
+- **IRULE1007** (ERROR): ``*::collect`` without a matching ``*::release``
+  on the same connection side — collected data is never released.
+- **IRULE1008** (ERROR): ``*::release`` without a matching ``*::collect``
+  on the same connection side — nothing was collected.
 - **IRULE1201** (WARNING): HTTP command used after ``HTTP::respond`` or
   ``HTTP::redirect`` in the same sequential code path.
 - **IRULE1202** (WARNING): Multiple ``HTTP::respond``/``HTTP::redirect``
@@ -53,6 +57,7 @@ from .ir import (
     IRWhile,
 )
 from .lowering import lower_to_ir
+from .value_shapes import parse_command_substitution
 
 log = logging.getLogger(__name__)
 
@@ -495,6 +500,7 @@ DATA_EVENT_REQUIREMENTS: dict[str, tuple[tuple[str, ...], str]] = {
 }
 
 _COLLECT_RE = re.compile(r"\b(\w+)::collect\b")
+_RELEASE_RE = re.compile(r"\b(\w+)::release\b")
 _PAYLOAD_RE = re.compile(r"\b(\w+)::payload\b")
 _SIDE_SWITCH_RE = re.compile(r"\b(clientside|serverside)\s*\{", re.IGNORECASE)
 
@@ -563,10 +569,117 @@ def _side_for_offset(offset: int, default_side: str, spans: list[tuple[int, int,
     return default_side
 
 
+def _iter_ir_commands(script: IRScript):
+    """Yield ``(command, range)`` for every IR command, recursing into bodies."""
+    for stmt in script.statements:
+        if isinstance(stmt, (IRCall, IRBarrier)):
+            yield stmt.command, stmt.range
+        elif isinstance(stmt, IRAssignValue):
+            parsed = parse_command_substitution(stmt.value)
+            if parsed is not None:
+                yield parsed[0], stmt.range
+        # Recurse into structured bodies.
+        if isinstance(stmt, IRIf):
+            for clause in stmt.clauses:
+                yield from _iter_ir_commands(clause.body)
+            if stmt.else_body is not None:
+                yield from _iter_ir_commands(stmt.else_body)
+        elif isinstance(stmt, IRFor):
+            yield from _iter_ir_commands(stmt.init)
+            yield from _iter_ir_commands(stmt.body)
+            yield from _iter_ir_commands(stmt.next)
+        elif isinstance(stmt, IRSwitch):
+            for arm in stmt.arms:
+                if arm.body is not None:
+                    yield from _iter_ir_commands(arm.body)
+            if stmt.default_body is not None:
+                yield from _iter_ir_commands(stmt.default_body)
+        elif isinstance(stmt, IRWhile):
+            yield from _iter_ir_commands(stmt.body)
+        elif isinstance(stmt, IRForeach):
+            yield from _iter_ir_commands(stmt.body)
+        elif isinstance(stmt, IRCatch):
+            yield from _iter_ir_commands(stmt.body)
+        elif isinstance(stmt, IRTry):
+            yield from _iter_ir_commands(stmt.body)
+            for handler in stmt.handlers:
+                yield from _iter_ir_commands(handler.body)
+            if stmt.finally_body is not None:
+                yield from _iter_ir_commands(stmt.finally_body)
+
+
+def _classify_command(
+    cmd: str,
+    rng: Range,
+    side: str,
+    collected: dict[str, set[str]],
+    released: dict[str, set[str]],
+    collect_calls: list[tuple[str, str, Range]],
+    release_calls: list[tuple[str, str, Range]],
+    payload_calls: list[tuple[str, str, Range]],
+) -> None:
+    """Classify a command as collect, release, or payload and record it."""
+    if cmd.endswith("::collect"):
+        protocol = cmd[: -len("::collect")].upper()
+        collected.setdefault(protocol, set()).add(side)
+        collect_calls.append((protocol, side, rng))
+    elif cmd.endswith("::release"):
+        protocol = cmd[: -len("::release")].upper()
+        released.setdefault(protocol, set()).add(side)
+        release_calls.append((protocol, side, rng))
+    elif cmd.endswith("::payload"):
+        protocol = cmd[: -len("::payload")].upper()
+        payload_calls.append((protocol, side, rng))
+
+
+def _scan_ir_event(
+    event: str,
+    ir_body: IRScript,
+    collected: dict[str, set[str]],
+    released: dict[str, set[str]],
+    collect_calls: list[tuple[str, str, Range]],
+    release_calls: list[tuple[str, str, Range]],
+    payload_calls: list[tuple[str, str, Range]],
+) -> None:
+    """Walk an IR event body and record collect/release/payload calls."""
+    default_side = _default_collect_side(event)
+    for cmd, rng in _iter_ir_commands(ir_body):
+        # ``clientside { ... }`` / ``serverside { ... }`` are IR calls whose
+        # body arg may contain nested commands.  Parse the body arg with regex
+        # since it wasn't lowered into separate IR statements.
+        if cmd in ("clientside", "serverside"):
+            inner_side = "client" if cmd == "clientside" else "server"
+            # The first arg of the IRCall is the body text.
+            # Scan it for collect/release/payload commands.
+            for stmt in ir_body.statements:
+                if isinstance(stmt, IRCall) and stmt.command == cmd and stmt.args:
+                    body_text = stmt.args[0]
+                    for m in _COLLECT_RE.finditer(body_text):
+                        protocol = m.group(1).upper()
+                        collected.setdefault(protocol, set()).add(inner_side)
+                        collect_calls.append((protocol, inner_side, stmt.range))
+                    for m in _RELEASE_RE.finditer(body_text):
+                        protocol = m.group(1).upper()
+                        released.setdefault(protocol, set()).add(inner_side)
+                        release_calls.append((protocol, inner_side, stmt.range))
+                    for m in _PAYLOAD_RE.finditer(body_text):
+                        protocol = m.group(1).upper()
+                        payload_calls.append((protocol, inner_side, stmt.range))
+            continue
+        _classify_command(
+            cmd, rng, default_side,
+            collected, released, collect_calls, release_calls, payload_calls,
+        )
+
+
 def _find_collect_flow_warnings(
     when_bodies: list[tuple[str, int, str, Token, Token]],
+    cu: CompilationUnit | None = None,
 ) -> list[IrulesFlowWarning]:
-    """Find *_DATA events and *::payload access without matching *::collect.
+    """Find collect/release pairing and DATA-event issues.
+
+    Uses the IR from *cu* when available for precise command matching;
+    falls back to regex over raw text when the CU is unavailable.
 
     IRULE1005: A ``when CLIENT_DATA`` (etc.) handler exists but no
     ``*::collect`` for the corresponding protocol appears anywhere in the
@@ -574,25 +687,74 @@ def _find_collect_flow_warnings(
 
     IRULE1006: A ``*::payload`` call appears but no ``*::collect`` for
     that protocol exists in the iRule, so the payload buffer is empty.
-    """
-    # Scan all when bodies for ::collect calls and track which side context
-    # they execute under (client/server).  A collect on the wrong side does
-    # not satisfy CLIENT_DATA/SERVER_DATA requirements.
-    collected_protocol_sides: dict[str, set[str]] = {}
-    for event, _priority, body_text, _body_tok, _event_tok in when_bodies:
-        default_side = _default_collect_side(event)
-        side_spans = _collect_side_spans(body_text)
-        for m in _COLLECT_RE.finditer(body_text):
-            protocol = m.group(1).upper()
-            side = _side_for_offset(m.start(), default_side, side_spans)
-            collected_protocol_sides.setdefault(protocol, set()).add(side)
 
+    IRULE1007: A ``*::collect`` call has no matching ``*::release`` on the
+    same connection side — collected data is never released.
+
+    IRULE1008: A ``*::release`` call has no matching ``*::collect`` on the
+    same connection side — nothing was collected.
+    """
+    # ── Pass 1: scan all when bodies for collect/release/payload calls ──
+    collected_protocol_sides: dict[str, set[str]] = {}
+    released_protocol_sides: dict[str, set[str]] = {}
+    collect_calls: list[tuple[str, str, Range]] = []  # (protocol, side, range)
+    release_calls: list[tuple[str, str, Range]] = []
+    payload_calls: list[tuple[str, str, Range]] = []
+
+    for event, _priority, body_text, body_tok, _event_tok in when_bodies:
+        ir_proc = cu.ir_module.procedures.get(f"::when::{event}") if cu else None
+        if ir_proc is not None:
+            # IR-based scan — precise, ignores comments.
+            _scan_ir_event(
+                event, ir_proc.body,
+                collected_protocol_sides, released_protocol_sides,
+                collect_calls, release_calls, payload_calls,
+            )
+        else:
+            # Regex fallback over raw body text.
+            default_side = _default_collect_side(event)
+            side_spans = _collect_side_spans(body_text)
+            base_offset = body_tok.start.offset + 1
+            base_line = body_tok.start.line
+            base_col = body_tok.start.character + 1
+
+            for m in _COLLECT_RE.finditer(body_text):
+                protocol = m.group(1).upper()
+                side = _side_for_offset(m.start(), default_side, side_spans)
+                collected_protocol_sides.setdefault(protocol, set()).add(side)
+                start = position_from_relative(
+                    body_text, m.start(),
+                    base_line=base_line, base_col=base_col, base_offset=base_offset,
+                )
+                end = position_from_relative(
+                    body_text, m.end(),
+                    base_line=base_line, base_col=base_col, base_offset=base_offset,
+                )
+                collect_calls.append((protocol, side, Range(start=start, end=end)))
+
+            for m in _RELEASE_RE.finditer(body_text):
+                protocol = m.group(1).upper()
+                side = _side_for_offset(m.start(), default_side, side_spans)
+                released_protocol_sides.setdefault(protocol, set()).add(side)
+                start = position_from_relative(
+                    body_text, m.start(),
+                    base_line=base_line, base_col=base_col, base_offset=base_offset,
+                )
+                end = position_from_relative(
+                    body_text, m.end(),
+                    base_line=base_line, base_col=base_col, base_offset=base_offset,
+                )
+                release_calls.append((protocol, side, Range(start=start, end=end)))
+
+            for m in _PAYLOAD_RE.finditer(body_text):
+                protocol = m.group(1).upper()
+                side = _side_for_offset(m.start(), default_side, side_spans)
+                payload_calls.append((protocol, side, Range(start=start, end=end)))
+
+    # ── Pass 2: emit warnings ──────────────────────────────────────────
     warnings: list[IrulesFlowWarning] = []
 
-    for event, _priority, body_text, body_tok, event_tok in when_bodies:
-        default_side = _default_collect_side(event)
-        side_spans = _collect_side_spans(body_text)
-
+    for event, _priority, _body_text, _body_tok, event_tok in when_bodies:
         # IRULE1005: DATA event without matching collect
         required = DATA_EVENT_REQUIREMENTS.get(event)
         if required is not None:
@@ -613,39 +775,52 @@ def _find_collect_flow_warnings(
                     )
                 )
 
-        # IRULE1006: ::payload without matching collect
-        base_offset = body_tok.start.offset + 1  # +1 for opening brace
-        base_line = body_tok.start.line
-        base_col = body_tok.start.character + 1
-        for m in _PAYLOAD_RE.finditer(body_text):
-            protocol = m.group(1).upper()
-            payload_side = _side_for_offset(m.start(), default_side, side_spans)
-            if payload_side not in collected_protocol_sides.get(protocol, set()):
-                start = position_from_relative(
-                    body_text,
-                    m.start(),
-                    base_line=base_line,
-                    base_col=base_col,
-                    base_offset=base_offset,
+    # IRULE1006: payload without matching collect
+    for protocol, side, rng in payload_calls:
+        if side not in collected_protocol_sides.get(protocol, set()):
+            warnings.append(
+                IrulesFlowWarning(
+                    range=rng,
+                    code="IRULE1006",
+                    message=(
+                        f"'{protocol}::payload' without a "
+                        f"{side} {protocol}::collect call. "
+                        "The payload buffer will be empty."
+                    ),
                 )
-                end = position_from_relative(
-                    body_text,
-                    m.end(),
-                    base_line=base_line,
-                    base_col=base_col,
-                    base_offset=base_offset,
+            )
+
+    # IRULE1007: collect without matching release (side-aware)
+    for protocol, side, rng in collect_calls:
+        if side not in released_protocol_sides.get(protocol, set()):
+            cmd_name = f"{protocol}::collect"
+            warnings.append(
+                IrulesFlowWarning(
+                    range=rng,
+                    code="IRULE1007",
+                    message=(
+                        f"{cmd_name} without matching "
+                        f"{protocol}::release on the {side} side; "
+                        "collected data is never released"
+                    ),
                 )
-                warnings.append(
-                    IrulesFlowWarning(
-                        range=Range(start=start, end=end),
-                        code="IRULE1006",
-                        message=(
-                            f"'{protocol}::payload' without a "
-                            f"{payload_side} {protocol}::collect call. "
-                            "The payload buffer will be empty."
-                        ),
-                    )
+            )
+
+    # IRULE1008: release without matching collect (side-aware)
+    for protocol, side, rng in release_calls:
+        if side not in collected_protocol_sides.get(protocol, set()):
+            cmd_name = f"{protocol}::release"
+            warnings.append(
+                IrulesFlowWarning(
+                    range=rng,
+                    code="IRULE1008",
+                    message=(
+                        f"{cmd_name} without matching "
+                        f"{protocol}::collect on the {side} side; "
+                        "no data was collected"
+                    ),
                 )
+            )
 
     return warnings
 
@@ -1147,7 +1322,7 @@ def find_irules_flow_warnings(
         # Note: IRULE2102 (repeated expensive calls) has been subsumed by
         # the GVN/CSE pass (O105) which handles both standalone and embedded
         # command invocations with richer analysis.
-    warnings.extend(_find_collect_flow_warnings(when_bodies))
+    warnings.extend(_find_collect_flow_warnings(when_bodies, cu=cu))
     warnings.extend(_find_hoistable_constants(when_bodies))
     return warnings
 

@@ -573,7 +573,7 @@ flowchart LR
     CU["CompilationUnit"]
 
     CU --> OPT["<b>Optimiser</b><br/>O100–O125"]
-    CU --> TAINT["<b>Taint Analysis</b><br/>T100–T201, IRULE3xxx"]
+    CU --> TAINT["<b>Taint Analysis</b><br/>T100–T106, IRULE3xxx"]
     CU --> SHIM["<b>Shimmer Detection</b><br/>S100–S102"]
     CU --> GVN["<b>GVN / CSE</b><br/>O105, O106"]
     CU --> IFLOW["<b>iRules Flow</b><br/>IRULE1xxx–5xxx"]
@@ -670,7 +670,7 @@ flowchart TD
         direction TB
         OPT["Optimiser (O100–O125)"]
         SHIM["Shimmer (S100–S102)"]
-        TAINT["Taint (T100–T201)"]
+        TAINT["Taint (T100–T106)"]
         GVN["GVN/CSE (O105–O106)"]
         IFLOW["iRules flow"]
     end
@@ -733,7 +733,7 @@ consumer must treat it as opaque and conservative.
 | O100–O125 | Optimisation suggestions | Optimiser + GVN |
 | S100–S102 | Shimmer / type thunking | Shimmer detection |
 | T100–T106 | Taint / security | Taint analysis |
-| T200–T201 | Collect/release pairing | Taint analysis |
+| IRULE1007–IRULE1008 | Collect/release pairing (side-aware) | iRules flow analysis |
 | IRULE1xxx–5xxx | iRules-specific | iRules flow + taint |
 
 ## Key source files
@@ -760,7 +760,7 @@ consumer must treat it as opaque and conservative.
 | `core/compiler/interprocedural.py` | Call graph and procedure summaries |
 | `core/compiler/optimiser/` | Optimisation passes (O100–O125) |
 | `core/compiler/gvn.py` | Global value numbering / CSE / PRE / LICM (O105–O106) |
-| `core/compiler/taint/` | Taint analysis for untrusted I/O (T100–T201) |
+| `core/compiler/taint/` | Taint analysis for untrusted I/O (T100–T106) |
 | `core/compiler/shimmer.py` | Type representation issue detection (S100–S102) |
 | `core/compiler/irules_flow.py` | iRules control-flow checks |
 | `core/compiler/codegen.py` | Tcl VM bytecode assembly backend |

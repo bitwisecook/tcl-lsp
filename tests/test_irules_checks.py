@@ -534,6 +534,236 @@ class TestIrule1005:
         assert "HTTP_REQUEST_DATA" in warnings[0].message
 
 
+# IRULE1007: *::collect without matching *::release (side-aware)
+
+
+class TestIrule1007:
+    """IRULE1007: collect without matching release."""
+
+    def test_collect_without_release(self):
+        """HTTP::collect without HTTP::release anywhere → warning."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    set body [HTTP::payload]\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 1
+        assert "HTTP::collect" in warnings[0].message
+        assert "HTTP::release" in warnings[0].message
+
+    def test_collect_with_release_across_events(self):
+        """HTTP::collect in HTTP_REQUEST + HTTP::release in HTTP_REQUEST_DATA → no warning."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::payload\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_tcp_collect_with_release(self):
+        """TCP::collect + TCP::release across events → no warning."""
+        src = (
+            "when CLIENT_ACCEPTED {\n"
+            "    TCP::collect\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::release\n"
+            "    TCP::collect\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_ssl_collect_with_release(self):
+        """SSL::collect + SSL::release across events → no warning."""
+        src = (
+            "when CLIENTSSL_HANDSHAKE {\n"
+            "    SSL::collect\n"
+            "}\n"
+            "when CLIENTSSL_DATA {\n"
+            "    SSL::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_protocol_mismatch(self):
+        """HTTP::collect + TCP::release → IRULE1007 for HTTP."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 1
+        assert "HTTP::collect" in warnings[0].message
+
+    def test_multiple_protocols_all_paired(self):
+        """Multiple protocols with matching pairs → no warning."""
+        src = (
+            "when CLIENT_ACCEPTED {\n"
+            "    TCP::collect\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::release\n"
+            "}\n"
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_http_cookbook_no_warnings(self):
+        """The HTTP cookbook sample should produce no IRULE1007 warnings."""
+        from pathlib import Path
+
+        sample = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_http_collect.irul"
+        source = sample.read_text()
+        warnings = _flow_with_code(source, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_tcp_cookbook_no_warnings(self):
+        """The TCP cookbook sample should produce no IRULE1007 warnings."""
+        from pathlib import Path
+
+        sample = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_tcp_collect.irul"
+        source = sample.read_text()
+        warnings = _flow_with_code(source, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_message_mentions_side(self):
+        """Warning message should include the connection side."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 1
+        assert "client" in warnings[0].message
+
+    def test_server_side_collect_without_release(self):
+        """Server-side HTTP::collect without release → warning mentioning server."""
+        src = (
+            "when HTTP_RESPONSE {\n"
+            "    HTTP::collect 1024\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 1
+        assert "server" in warnings[0].message
+
+    def test_release_in_comment_not_counted(self):
+        """Release mentioned only in a comment should not suppress IRULE1007."""
+        src = (
+            "when CLIENT_ACCEPTED {\n"
+            "    TCP::collect\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    set data [TCP::payload]\n"
+            "    # TODO: add TCP::release here\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 1
+        assert "TCP::collect" in warnings[0].message
+
+
+# IRULE1008: *::release without matching *::collect (side-aware)
+
+
+class TestIrule1008:
+    """IRULE1008: release without matching collect."""
+
+    def test_release_without_collect(self):
+        """HTTP::release without HTTP::collect anywhere → warning."""
+        src = (
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 1
+        assert "HTTP::release" in warnings[0].message
+        assert "HTTP::collect" in warnings[0].message
+
+    def test_release_with_collect_across_events(self):
+        """HTTP::release with HTTP::collect in another event → no warning."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 0
+
+    def test_tcp_release_without_collect(self):
+        """TCP::release without TCP::collect → warning."""
+        src = (
+            "when CLIENT_DATA {\n"
+            "    TCP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 1
+        assert "TCP::release" in warnings[0].message
+
+    def test_protocol_mismatch(self):
+        """HTTP::collect + TCP::release → IRULE1008 for TCP."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 1
+        assert "TCP::release" in warnings[0].message
+
+    def test_message_mentions_side(self):
+        """Warning message should include the connection side."""
+        src = (
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 1
+        assert "client" in warnings[0].message
+
+    def test_server_side_release_without_collect(self):
+        """Server-side release without collect → warning mentioning server."""
+        src = (
+            "when HTTP_RESPONSE_DATA {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 1
+        assert "server" in warnings[0].message
+
+
 # IRULE1006: *::payload without matching *::collect
 
 

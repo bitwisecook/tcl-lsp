@@ -40,8 +40,6 @@ from core.compiler.irules_flow import IrulesFlowWarning
 from core.compiler.optimiser import Optimisation
 from core.compiler.shimmer import ShimmerWarning, ThunkingWarning
 from core.compiler.taint import (
-    CollectWithoutReleaseWarning,
-    ReleaseWithoutCollectWarning,
     TaintWarning,
 )
 from core.compiler.types import TypeKind
@@ -921,7 +919,7 @@ def print_gvn_warnings(
 
 
 def print_taint(
-    warnings: list[TaintWarning | CollectWithoutReleaseWarning | ReleaseWithoutCollectWarning],
+    warnings: list[TaintWarning],
     snapshots: list[FunctionSnapshot],
     *,
     line_index: LineIndex,
@@ -936,12 +934,7 @@ def print_taint(
         for w in warnings:
             span = line_index.format_range(w.range)
             colour = Ansi.RED
-            details = ""
-            if isinstance(w, TaintWarning):
-                details = f" ({w.variable} -> {w.sink_command})"
-            elif isinstance(w, (CollectWithoutReleaseWarning, ReleaseWithoutCollectWarning)):
-                details = f" ({w.command})"
-                colour = Ansi.YELLOW
+            details = f" ({w.variable} -> {w.sink_command})"
             print(
                 style(
                     f"    {w.code}: {w.message}{details} "

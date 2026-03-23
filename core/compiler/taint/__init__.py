@@ -10,15 +10,11 @@ from ._api import find_taint_warnings
 from ._lattice import ProcTaintSummary, TaintLattice, taint_join
 from ._propagation import taint_propagation
 from ._types import (
-    CollectWithoutReleaseWarning,
-    ReleaseWithoutCollectWarning,
     TaintWarning,
 )
 
 __all__ = [
-    "CollectWithoutReleaseWarning",
     "ProcTaintSummary",
-    "ReleaseWithoutCollectWarning",
     "TaintLattice",
     "TaintWarning",
     "find_taint_warnings",

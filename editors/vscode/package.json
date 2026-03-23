@@ -3334,11 +3334,17 @@
             "markdownDescription": "**T102:** Tainted data in option position without `--` terminator — option injection risk.",
             "order": 2
           },
-          "tclLsp.diagnostics.T200": {
+          "tclLsp.diagnostics.IRULE1007": {
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**T200:** `*::collect` without a matching `*::release` in the same scope.",
+            "markdownDescription": "**IRULE1007:** `*::collect` without a matching `*::release` on the same connection side.",
             "order": 3
+          },
+          "tclLsp.diagnostics.IRULE1008": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1008:** `*::release` without a matching `*::collect` on the same connection side.",
+            "order": 4
           }
         }
       },

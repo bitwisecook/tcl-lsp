@@ -27,8 +27,6 @@ from core.compiler.optimiser import Optimisation, apply_optimisations, find_opti
 from core.compiler.shimmer import ShimmerWarning, ThunkingWarning, find_shimmer_warnings
 from core.compiler.ssa import SSAFunction
 from core.compiler.taint import (
-    CollectWithoutReleaseWarning,
-    ReleaseWithoutCollectWarning,
     TaintWarning,
     find_taint_warnings,
 )
@@ -59,7 +57,7 @@ class CompilerExplorerResult:
     optimisations: list[Optimisation]
     shimmer_warnings: list[ShimmerWarning | ThunkingWarning]
     gvn_warnings: list[RedundantComputation]
-    taint_warnings: list[TaintWarning | CollectWithoutReleaseWarning | ReleaseWithoutCollectWarning]
+    taint_warnings: list[TaintWarning]
     irules_flow_warnings: list[IrulesFlowWarning]
     event_order: list[EventOrderEntry]
     dataflow_graph: DataFlowGraph | None

@@ -1,11 +1,9 @@
-"""Tests for taint analysis and collect/release pairing."""
+"""Tests for taint analysis."""
 
 from __future__ import annotations
 
 from core.commands.registry.taint_hints import TaintColour
 from core.compiler.taint import (
-    CollectWithoutReleaseWarning,
-    ReleaseWithoutCollectWarning,
     TaintLattice,
     TaintWarning,
     find_taint_warnings,
@@ -25,16 +23,6 @@ def _taint_warnings(source: str, code: str | None = None) -> list[TaintWarning]:
         for w in find_taint_warnings(source)
         if isinstance(w, TaintWarning) and (code is None or w.code == code)
     ]
-
-
-def _collect_warnings(source: str) -> list[CollectWithoutReleaseWarning]:
-    """Return T200 collect-without-release warnings."""
-    return [w for w in find_taint_warnings(source) if isinstance(w, CollectWithoutReleaseWarning)]
-
-
-def _release_warnings(source: str) -> list[ReleaseWithoutCollectWarning]:
-    """Return T201 release-without-collect warnings."""
-    return [w for w in find_taint_warnings(source) if isinstance(w, ReleaseWithoutCollectWarning)]
 
 
 # Lattice join
@@ -317,216 +305,6 @@ class TestDangerousSinks:
         assert len(ws) >= 1
 
 
-# Collect / release pairing (T200)
-
-
-class TestCollectRelease:
-    """collect without matching release should warn."""
-
-    def test_collect_without_release(self):
-        ws = _collect_warnings("HTTP::collect")
-        assert len(ws) == 1
-        assert ws[0].command == "HTTP::collect"
-
-    def test_collect_with_release(self):
-        assert _codes("HTTP::collect\nHTTP::release") == []
-
-    def test_tcp_collect_without_release(self):
-        ws = _collect_warnings("TCP::collect")
-        assert len(ws) == 1
-        assert ws[0].command == "TCP::collect"
-
-    def test_tcp_collect_with_release(self):
-        assert _codes("TCP::collect\nTCP::release") == []
-
-    def test_protocol_mismatch(self):
-        # HTTP::collect needs HTTP::release, not TCP::release
-        ws = _collect_warnings("HTTP::collect\nTCP::release")
-        assert len(ws) >= 1
-        assert ws[0].command == "HTTP::collect"
-
-    def test_ssl_collect_without_release(self):
-        ws = _collect_warnings("SSL::collect\nSSL::release")
-        assert len(ws) == 0
-
-    def test_multiple_protocols(self):
-        source = "HTTP::collect\nTCP::collect\nHTTP::release"
-        ws = _collect_warnings(source)
-        # TCP::collect has no release
-        assert len(ws) == 1
-        assert ws[0].command == "TCP::collect"
-
-
-# Release without collect (T201)
-
-
-class TestReleaseWithoutCollect:
-    """release without matching collect should warn."""
-
-    def test_release_without_collect(self):
-        ws = _release_warnings("HTTP::release")
-        assert len(ws) == 1
-        assert ws[0].command == "HTTP::release"
-        assert ws[0].code == "T201"
-
-    def test_release_with_collect(self):
-        assert _release_warnings("HTTP::collect\nHTTP::release") == []
-
-    def test_tcp_release_without_collect(self):
-        ws = _release_warnings("TCP::release")
-        assert len(ws) == 1
-        assert ws[0].command == "TCP::release"
-
-    def test_protocol_mismatch(self):
-        # TCP::release needs TCP::collect, not HTTP::collect
-        ws = _release_warnings("HTTP::collect\nTCP::release")
-        assert len(ws) == 1
-        assert ws[0].command == "TCP::release"
-
-    def test_multiple_protocols(self):
-        source = "HTTP::release\nTCP::release\nTCP::collect"
-        ws = _release_warnings(source)
-        # HTTP::release has no collect
-        assert len(ws) == 1
-        assert ws[0].command == "HTTP::release"
-
-    def test_release_warning_message(self):
-        ws = _release_warnings("HTTP::release")
-        assert len(ws) == 1
-        assert "HTTP::release" in ws[0].message
-        assert "HTTP::collect" in ws[0].message
-
-
-# Cross-event collect/release pairing
-
-
-class TestCrossEventCollectRelease:
-    """Collect in one event, release in another should not warn."""
-
-    def test_http_collect_in_request_release_in_request_data(self):
-        """HTTP::collect in HTTP_REQUEST + HTTP::release in HTTP_REQUEST_DATA → no warning."""
-        source = (
-            "when HTTP_REQUEST priority 500 {\n"
-            "    HTTP::collect 1024\n"
-            "}\n"
-            "when HTTP_REQUEST_DATA priority 500 {\n"
-            "    set body [HTTP::payload]\n"
-            "    HTTP::release\n"
-            "}"
-        )
-        assert _collect_warnings(source) == []
-        assert _release_warnings(source) == []
-
-    def test_tcp_collect_in_accepted_release_in_data(self):
-        """TCP::collect in CLIENT_ACCEPTED + TCP::release in CLIENT_DATA → no warning."""
-        source = (
-            "when CLIENT_ACCEPTED priority 500 {\n"
-            "    TCP::collect\n"
-            "}\n"
-            "when CLIENT_DATA priority 500 {\n"
-            "    TCP::release\n"
-            "    TCP::collect\n"
-            "}"
-        )
-        assert _collect_warnings(source) == []
-        assert _release_warnings(source) == []
-
-    def test_ssl_collect_in_handshake_release_in_data(self):
-        """SSL::collect in CLIENTSSL_HANDSHAKE + SSL::release in CLIENTSSL_DATA → no warning."""
-        source = (
-            "when CLIENTSSL_HANDSHAKE priority 500 {\n"
-            "    SSL::collect\n"
-            "}\n"
-            "when CLIENTSSL_DATA priority 500 {\n"
-            "    SSL::release\n"
-            "}"
-        )
-        assert _collect_warnings(source) == []
-        assert _release_warnings(source) == []
-
-    def test_collect_without_release_across_events_still_warns(self):
-        """HTTP::collect with no HTTP::release anywhere → T200."""
-        source = (
-            "when HTTP_REQUEST priority 500 {\n"
-            "    HTTP::collect 1024\n"
-            "}\n"
-            "when HTTP_REQUEST_DATA priority 500 {\n"
-            "    set body [HTTP::payload]\n"
-            "}"
-        )
-        ws = _collect_warnings(source)
-        assert len(ws) == 1
-        assert ws[0].command == "HTTP::collect"
-
-    def test_release_without_collect_across_events_still_warns(self):
-        """HTTP::release with no HTTP::collect anywhere → T201."""
-        source = (
-            "when HTTP_REQUEST priority 500 {\n"
-            "    log local0. \"request\"\n"
-            "}\n"
-            "when HTTP_REQUEST_DATA priority 500 {\n"
-            "    HTTP::release\n"
-            "}"
-        )
-        ws = _release_warnings(source)
-        assert len(ws) == 1
-        assert ws[0].command == "HTTP::release"
-
-    def test_cross_protocol_still_warns(self):
-        """HTTP::collect + TCP::release → T200 for HTTP, T201 for TCP."""
-        source = (
-            "when HTTP_REQUEST priority 500 {\n"
-            "    HTTP::collect 1024\n"
-            "}\n"
-            "when CLIENT_DATA priority 500 {\n"
-            "    TCP::release\n"
-            "}"
-        )
-        ws_collect = _collect_warnings(source)
-        ws_release = _release_warnings(source)
-        assert len(ws_collect) == 1
-        assert ws_collect[0].command == "HTTP::collect"
-        assert len(ws_release) == 1
-        assert ws_release[0].command == "TCP::release"
-
-    def test_multiple_protocols_across_events(self):
-        """Multiple protocols across events — only unpaired ones warn."""
-        source = (
-            "when CLIENT_ACCEPTED priority 500 {\n"
-            "    TCP::collect\n"
-            "}\n"
-            "when CLIENT_DATA priority 500 {\n"
-            "    TCP::release\n"
-            "}\n"
-            "when HTTP_REQUEST priority 500 {\n"
-            "    HTTP::collect 1024\n"
-            "}\n"
-            "when HTTP_REQUEST_DATA priority 500 {\n"
-            "    HTTP::release\n"
-            "}"
-        )
-        assert _collect_warnings(source) == []
-        assert _release_warnings(source) == []
-
-    def test_http_cookbook_no_false_positives(self):
-        """The HTTP cookbook sample should produce no T200/T201 warnings."""
-        from pathlib import Path
-
-        sample = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_http_collect.irul"
-        source = sample.read_text()
-        assert _collect_warnings(source) == []
-        assert _release_warnings(source) == []
-
-    def test_tcp_cookbook_no_false_positives(self):
-        """The TCP cookbook sample should produce no T200/T201 warnings."""
-        from pathlib import Path
-
-        sample = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_tcp_collect.irul"
-        source = sample.read_text()
-        assert _collect_warnings(source) == []
-        assert _release_warnings(source) == []
-
-
 # Warning message content
 
 
@@ -536,12 +314,6 @@ class TestWarningMessages:
         assert len(ws) >= 1
         assert "eval" in ws[0].message
         assert "$x" in ws[0].message or "x" in ws[0].message
-
-    def test_collect_warning_message(self):
-        ws = _collect_warnings("HTTP::collect")
-        assert len(ws) == 1
-        assert "HTTP::collect" in ws[0].message
-        assert "HTTP::release" in ws[0].message
 
 
 # Output sinks (T101)

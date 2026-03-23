@@ -578,9 +578,9 @@ set pat [HTTP::uri]
 regexp $pat $string          ;# ✗ tainted pattern without '--' terminator
 regexp -- $pat $string       ;# ✓ safe: '--' prevents option injection
 
-# T200 — collect without release:
+# IRULE1007 — collect without release (side-aware):
 when HTTP_REQUEST {
-    HTTP::collect 1048576    ;# ✗ missing matching HTTP::release
+    HTTP::collect 1048576    ;# ✗ missing matching HTTP::release on client side
 }
 ```
 
@@ -1389,9 +1389,6 @@ properties shared by all paths survive -- this suppresses false positives.
 | T104 | Warning | Tainted data in network address argument (SSRF risk) | |
 | T105 | Warning | Tainted data in `interp eval` script argument (cross-interpreter injection) | |
 | T106 | Info | Double-encoding -- value already carries encoding colour | Remove redundant encoder |
-| T200 | Error | `*::collect` without a matching `*::release` in the same scope | |
-| T201 | Error | `*::release` without a preceding `*::collect` in the same scope | |
-
 ### iRules codes
 
 These diagnostics fire only in the `f5-irules` dialect.
@@ -1406,6 +1403,8 @@ These diagnostics fire only in the `f5-irules` dialect.
 | IRULE1004 | Hint | `when` block missing explicit `priority` | |
 | IRULE1005 | Warning | `*_DATA` event handler without matching `*::collect` call | Bootstrap `collect` |
 | IRULE1006 | Warning | `*::payload` access without matching `*::collect` call | Bootstrap `collect` |
+| IRULE1007 | Error | `*::collect` without matching `*::release` on the same connection side | |
+| IRULE1008 | Error | `*::release` without matching `*::collect` on the same connection side | |
 | IRULE1201 | Warning | HTTP command used after `HTTP::respond`/`HTTP::redirect` | |
 | IRULE1202 | Warning | Multiple `HTTP::respond`/`HTTP::redirect` on different branches | |
 
@@ -1642,7 +1641,7 @@ tcl-lsp/
       optimiser.py        Source rewrite passes (O100–O125)
       gvn.py              GVN/CSE/PRE/LICM redundant computation detection (O105–O106)
       interprocedural.py  Call graph, function purity/side-effect summaries
-      taint.py            Data taint analysis (T100–T201, IRULE3xxx)
+      taint.py            Data taint analysis (T100–T106, IRULE3xxx)
       shimmer.py          Tcl object representation analysis (S100–S102)
       irules_flow.py      iRules control-flow checks (IRULE1xxx/4004/5xxx)
       codegen.py          Tcl VM bytecode assembly backend

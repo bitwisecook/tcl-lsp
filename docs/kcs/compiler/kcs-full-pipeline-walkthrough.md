@@ -76,7 +76,7 @@ Phase 7: Specialised passes
     ├── Taint engine (taint/)
     │   TaintLattice per SSA value, TaintColour flags, source/sink matching,
     │   interprocedural taint propagation
-    │   T100–T106, T200–T201, IRULE3001–3004
+    │   T100–T106, IRULE3001–3004
     │
     ├── Shimmer detector (shimmer.py)
     │   S100–S102: type coercion warnings
