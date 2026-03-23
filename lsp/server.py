@@ -1559,7 +1559,7 @@ def _update_workspace_index(uri: str, source: str, state: object) -> None:
             )
         from core.compiler.irules_flow import extract_rule_init_vars
 
-        exports = extract_rule_init_vars(source)
+        exports = extract_rule_init_vars(source, cu=state.compilation_unit)
         workspace_index.update_rule_init_vars(uri, exports)
     _load_packages_if_needed(state.analysis)
 

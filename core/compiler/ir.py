@@ -51,6 +51,7 @@ class IRAssignValue:
     name: str
     value: str
     value_needs_backsubst: bool = False
+    tokens: CommandTokens | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -430,17 +430,49 @@ class _CFGBuilder:
     def _upvar_defs_from_text(self, text: str) -> list[str]:
         """Extract caller-side variable names invalidated by upvar procs in *text*.
 
-        Scans command substitutions like ``[step 1]`` in the text.  If
-        ``step`` is a known upvar proc, its literal targets and resolved
-        param targets are returned.
+        Uses TclLexer to find command substitutions (``[step 1]``) in the
+        text.  If the command is a known upvar proc, its literal targets and
+        resolved param targets are returned.
+
+        Using TclLexer (instead of a regex) correctly handles nested brackets,
+        namespace-qualified command names, and quoted arguments.
         """
         if not self._upvar_procs or "[" not in text:
             return []
         defs: list[str] = []
-        import re
-
-        for m in re.finditer(r"\[(\w+)([^\[\]]*)\]", text):
-            cmd = m.group(1)
+        lexer = TclLexer(text)
+        while True:
+            tok = lexer.get_token()
+            if tok is None:
+                break
+            if tok.type is not TokenType.CMD:
+                continue
+            # tok.text is the inner text of [...]; lex it for words.
+            inner = TclLexer(tok.text)
+            words: list[str] = []
+            parts: list[str] = []
+            prev_sep = True
+            while True:
+                t = inner.get_token()
+                if t is None:
+                    break
+                if t.type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
+                    if parts:
+                        words.append("".join(parts))
+                        parts = []
+                    prev_sep = True
+                    continue
+                sigil = "$" if t.type is TokenType.VAR else ""
+                if prev_sep:
+                    parts = [sigil + t.text]
+                else:
+                    parts.append(sigil + t.text)
+                prev_sep = False
+            if parts:
+                words.append("".join(parts))
+            if not words:
+                continue
+            cmd = words[0]
             info = self._upvar_procs.get(cmd)
             if info is None:
                 continue
@@ -448,7 +480,7 @@ class _CFGBuilder:
                 if name not in defs:
                     defs.append(name)
             if info.param_targets:
-                raw_args = m.group(2).split()
+                raw_args = words[1:]
                 params = self._proc_params.get(cmd, ())
                 for pt in info.param_targets:
                     if pt in params:

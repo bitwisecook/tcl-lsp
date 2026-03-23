@@ -101,6 +101,27 @@ class TestInterproceduralSummaries:
         assert dyn.has_barrier is True
         assert dyn.pure is False
 
+    def test_upvar_global_write_detected_via_cfg(self):
+        """A caller of a proc that upvars a global should have writes_global=True."""
+        source = textwrap.dedent("""\
+            proc set_global {} {
+                upvar #0 ::myapp_flag local
+                set local 1
+            }
+            proc caller {} {
+                set_global
+            }
+        """)
+        summaries = analyse_interprocedural_source(source).procedures
+        # set_global itself is impure (upvar is a barrier).
+        sg = summaries["::set_global"]
+        assert sg.pure is False
+        # The CFG augments the call to set_global with defs=("::myapp_flag",)
+        # so the caller should detect the global write.
+        caller = summaries["::caller"]
+        assert caller.writes_global is True
+        assert caller.pure is False
+
     def test_variadic_arity_and_static_folding(self):
         source = textwrap.dedent("""\
             proc const {} { return 7 }

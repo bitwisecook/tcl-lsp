@@ -608,6 +608,19 @@ def _summarise_proc_local(
     )
     _scan_local_facts(proc.body, caller_qname=qname, known_procs=known, facts=facts)
 
+    # Second pass: the CFG builder augments IRCall.defs with caller-side
+    # variable names from upvar procs.  Check these for global writes that
+    # the raw-IR walk above cannot see.
+    if not facts.writes_global:
+        for block in cfg.blocks.values():
+            for stmt in block.statements:
+                if isinstance(stmt, IRCall) and stmt.defs:
+                    if any(d.startswith("::") for d in stmt.defs):
+                        facts.writes_global = True
+                        break
+            if facts.writes_global:
+                break
+
     param_deps = _compute_param_dependencies(ssa, proc.params)
     return_infos = _collect_return_infos(
         cfg,

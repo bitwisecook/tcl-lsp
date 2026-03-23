@@ -1501,12 +1501,58 @@ def _is_cross_rule_var(name: str) -> bool:
     return name.startswith("::") or name.startswith("static::")
 
 
-def extract_rule_init_vars(source: str) -> list[RuleInitExport]:
-    """Extract global and static variables set in ``when RULE_INIT`` blocks."""
+def extract_rule_init_vars(
+    source: str,
+    *,
+    cu: CompilationUnit | None = None,
+) -> list[RuleInitExport]:
+    """Extract global and static variables set in ``when RULE_INIT`` blocks.
+
+    When *cu* is available, walks the IR (including upvar-augmented defs from
+    the CFG) instead of scanning tokens.  Falls back to the token walk when
+    the compilation unit is not available.
+    """
     exports: list[RuleInitExport] = []
     for event, priority, body_text, body_tok, _event_tok in _find_when_bodies(source):
         if event != "RULE_INIT":
             continue
+
+        # --- IR-based path (preferred) ---
+        fu = cu.procedures.get("::when::RULE_INIT") if cu else None
+        if fu is not None:
+            seen: set[str] = set()
+            for block in fu.cfg.blocks.values():
+                for stmt in block.statements:
+                    names: list[str] = []
+                    is_array = False
+                    if isinstance(stmt, (IRAssignConst, IRAssignValue)):
+                        names.append(stmt.name)
+                    elif isinstance(stmt, IRIncr):
+                        names.append(stmt.name)
+                    elif isinstance(stmt, IRCall):
+                        if stmt.command == "array" and stmt.args and stmt.args[0] == "set":
+                            # array set <name> <list> — name is in args[1]
+                            if len(stmt.args) >= 2:
+                                names.append(stmt.args[1])
+                                is_array = True
+                        if stmt.defs:
+                            names.extend(stmt.defs)
+                    for name in names:
+                        if name in seen:
+                            continue
+                        if _is_cross_rule_var(name):
+                            seen.add(name)
+                            exports.append(
+                                RuleInitExport(
+                                    name=name,
+                                    priority=priority,
+                                    range=stmt.range,
+                                    is_array=is_array,
+                                )
+                            )
+            continue
+
+        # --- Fallback: token walk ---
         for cmd_name, _cmd_tok, all_tokens in _walk_body_commands(
             body_text,
             base_offset=body_tok.start.offset + 1,

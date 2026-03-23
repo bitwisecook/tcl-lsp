@@ -68,6 +68,7 @@ def lower_set(lowerer: object, cmd: _Command) -> object | None:
         name=name,
         value=value,
         value_needs_backsubst=value_needs_backsubst,
+        tokens=cmd.cmd_tokens,
     )
 
 
