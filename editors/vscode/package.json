@@ -3345,6 +3345,12 @@
             "default": true,
             "markdownDescription": "**IRULE1008:** `*::release` without a matching `*::collect` on the same connection side.",
             "order": 4
+          },
+          "tclLsp.diagnostics.genericVariablePatterns": {
+            "type": "array",
+            "items": { "type": "string" },
+            "markdownDescription": "Regex patterns for generic `static::` variable names (IRULE4002). Each pattern is matched case-insensitively against the bare name after stripping `static::`. Also configurable via `~/.config/tcl-lsp/config.ini`.",
+            "order": 5
           }
         }
       },

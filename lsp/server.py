@@ -13,6 +13,7 @@ from pygls.lsp.server import LanguageServer
 
 from core.analysis.analyser import analyse
 from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
+from core.common.user_config import load_user_config, get_generic_variable_patterns
 from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -108,9 +109,9 @@ class FeatureConfig:
     # bare names (after stripping the ``static::`` prefix).  Empty list
     # disables the check.  Patterns are matched case-insensitively against
     # the full bare name.
-    generic_variable_patterns: list[str] = field(default_factory=lambda: list(
-        DEFAULT_GENERIC_VARIABLE_PATTERNS
-    ))
+    generic_variable_patterns: list[str] = field(
+        default_factory=lambda: list(DEFAULT_GENERIC_VARIABLE_PATTERNS)
+    )
 
     # True once the user explicitly sets ``tclLsp.dialect`` in settings.
     # When False, the server may auto-detect the dialect from the editor's
@@ -2085,6 +2086,12 @@ def on_initialized(params: types.InitializedParams) -> None:
     """After client initialization, scan workspace for Tcl files."""
     from core.common.dialect import active_dialect
 
+    # Load user config from ~/.config/tcl-lsp/config.ini.
+    user_config = load_user_config()
+    user_patterns = get_generic_variable_patterns(user_config)
+    if user_patterns is not None:
+        feature_config.generic_variable_patterns = user_patterns
+
     log.info(
         "Server initialized (version=%s, dialect=%s)",
         _version,
@@ -2451,6 +2458,17 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
         if new_disabled_opts != feature_config.disabled_optimisations:
             feature_config.disabled_optimisations = new_disabled_opts
             changed = True
+
+    # Generic variable patterns  (tclLsp.diagnostics.genericVariablePatterns)
+    if isinstance(diagnostics_section, dict):
+        patterns = diagnostics_section.get("genericVariablePatterns")
+        if patterns is None:
+            patterns = diagnostics_section.get("generic_variable_patterns")
+        if isinstance(patterns, list):
+            new_patterns = [str(p) for p in patterns if isinstance(p, str)]
+            if new_patterns != feature_config.generic_variable_patterns:
+                feature_config.generic_variable_patterns = new_patterns
+                changed = True
 
     return changed
 

@@ -671,7 +671,8 @@ def get_deep_diagnostics(
                 continue
             diags.append(_taint_to_diagnostic(w))
     for w in find_irules_flow_warnings(
-        source, cu=cu,
+        source,
+        cu=cu,
         generic_variable_patterns=generic_variable_patterns,
     ):
         if disabled_diagnostics and w.code in disabled_diagnostics:

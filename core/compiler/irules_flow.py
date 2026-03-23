@@ -1348,7 +1348,8 @@ def find_irules_flow_warnings(
     warnings.extend(_find_hoistable_constants(when_bodies, cu=cu))
     warnings.extend(
         _find_generic_static_names(
-            when_bodies, cu=cu,
+            when_bodies,
+            cu=cu,
             generic_variable_patterns=generic_variable_patterns,
         )
     )

@@ -397,49 +397,10 @@ def _is_generic_static_name(
     return False
 
 
-def check_static_generic_name(
-    cmd_name: str,
-    args: list[str],
-    arg_tokens: list[Token],
-    all_tokens: list[Token],
-    source: str,
-    *,
-    event: str,
-    generic_variable_patterns: list[str] | None = None,
-) -> list[Diagnostic]:
-    """IRULE4002: Hint when a ``static::`` variable has a generic name.
 
-    ``static::`` variables are shared across **every** iRule on the BIG-IP
-    system.  A name like ``static::debug`` will silently collide with any
-    other iRule that uses the same name, causing unexpected behaviour such
-    as log storms or misapplied configuration.  Prefixing the name with
-    the application or rule name (e.g. ``static::myapp_debug``) avoids
-    this problem.
-
-    *generic_variable_patterns* is a list of regex patterns (matched
-    case-insensitively against the bare name after stripping ``static::``).
-    """
-    if active_dialect() != "f5-irules":
-        return []
-    var_name = _static_var_from_set(cmd_name, args)
-    if var_name is None:
-        return []
-    if not _is_generic_static_name(var_name, generic_variable_patterns):
-        return []
-    bare = var_name.removeprefix("static::")
-    return [
-        Diagnostic(
-            range=range_from_token(all_tokens[0]),
-            message=(
-                f"'{var_name}' is a generic name that will collide with other "
-                f"iRules. static:: variables are shared across every iRule on "
-                f"the BIG-IP system — prefix with the application or rule name "
-                f"(e.g. 'static::<app>_{bare}')."
-            ),
-            severity=Severity.HINT,
-            code="IRULE4002",
-        )
-    ]
+# Note: IRULE4002 check_static_generic_name has been moved to
+# core/compiler/irules_flow.py (_find_generic_static_names) where it uses
+# the IR to detect variable definitions from all store types.
 
 
 # IRULE4003: Variable scoping across events
