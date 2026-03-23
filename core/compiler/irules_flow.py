@@ -595,14 +595,14 @@ def _side_for_offset(offset: int, default_side: str, spans: list[tuple[int, int,
 
 
 def _iter_ir_commands(script: IRScript):
-    """Yield ``(command, range)`` for every IR command, recursing into bodies."""
+    """Yield ``(command, range, stmt)`` for every IR command, recursing into bodies."""
     for stmt in script.statements:
         if isinstance(stmt, (IRCall, IRBarrier)):
-            yield stmt.command, stmt.range
+            yield stmt.command, stmt.range, stmt
         elif isinstance(stmt, IRAssignValue):
             parsed = parse_command_substitution(stmt.value)
             if parsed is not None:
-                yield parsed[0], stmt.range
+                yield parsed[0], stmt.range, stmt
         # Recurse into structured bodies.
         if isinstance(stmt, IRIf):
             for clause in stmt.clauses:
@@ -685,26 +685,25 @@ def _scan_ir_event(
 ) -> None:
     """Walk an IR event body and record collect/release/payload calls."""
     default_side = _default_collect_side(event)
-    for cmd, rng in _iter_ir_commands(ir_body):
+    for cmd, rng, ir_stmt in _iter_ir_commands(ir_body):
         # ``clientside { ... }`` / ``serverside { ... }`` — lower the body
         # text to IR and recurse with the switched side context.
         if cmd in ("clientside", "serverside"):
             inner_side = "client" if cmd == "clientside" else "server"
-            for s in ir_body.statements:
-                if isinstance(s, IRCall) and s.command == cmd:
-                    inner_ir = _lower_side_switch_body(s)
-                    if inner_ir is not None:
-                        for inner_cmd, inner_rng in _iter_ir_commands(inner_ir):
-                            _classify_command(
-                                inner_cmd,
-                                inner_rng,
-                                inner_side,
-                                collected,
-                                released,
-                                collect_calls,
-                                release_calls,
-                                payload_calls,
-                            )
+            if isinstance(ir_stmt, IRCall):
+                inner_ir = _lower_side_switch_body(ir_stmt)
+                if inner_ir is not None:
+                    for inner_cmd, inner_rng, _s in _iter_ir_commands(inner_ir):
+                        _classify_command(
+                            inner_cmd,
+                            inner_rng,
+                            inner_side,
+                            collected,
+                            released,
+                            collect_calls,
+                            release_calls,
+                            payload_calls,
+                        )
             continue
         _classify_command(
             cmd,

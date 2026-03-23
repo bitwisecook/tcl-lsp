@@ -419,6 +419,21 @@ class TestIrule1005:
         warnings = _flow_with_code(src, "IRULE1005")
         assert len(warnings) == 0
 
+    def test_clientside_collect_nested_in_if(self):
+        """clientside { TCP::collect } inside an if block should still be found."""
+        src = (
+            "when SERVER_CONNECTED {\n"
+            "    if {[IP::addr [IP::client_addr] equals 10.0.0.0/8]} {\n"
+            "        clientside { TCP::collect }\n"
+            "    }\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::payload\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 0
+
     def test_http_request_data_without_collect(self):
         """HTTP_REQUEST_DATA without HTTP::collect → warning."""
         src = "when HTTP_REQUEST_DATA {\n    HTTP::payload\n}"
