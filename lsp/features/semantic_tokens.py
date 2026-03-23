@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 
 from core.analysis.semantic_model import AnalysisResult
+from core.bigip.apl_parser import AplTokenKind, tokenise_apl
 from core.bigip.iapp_extract import find_embedded_iapp_sections
 from core.bigip.irules_refs import extract_irules_object_references
 from core.bigip.rule_extract import find_embedded_rules
@@ -88,6 +89,17 @@ SEMANTIC_TOKEN_TYPES = [
     "clockPercent",  # 40 – the % introducer
     "clockSpec",  # 41 – specifier letter (Y m d H M S …)
     "clockModifier",  # 42 – locale modifier (E O)
+    # APL (iApp presentation language) token types
+    "aplSection",  # 43 – section/text/table/row keywords
+    "aplFieldType",  # 44 – field type keywords (string, choice, …)
+    "aplAttribute",  # 45 – attributes (default, display, required, validator)
+    "aplSectionName",  # 46 – name following section/text/table/row
+    "aplFieldName",  # 47 – name following a field-type keyword
+    "aplDefine",  # 48 – define keyword
+    "aplDefineName",  # 49 – name after define
+    "aplDirective",  # 50 – #include, #inline
+    "aplOptional",  # 51 – optional keyword
+    "aplValidator",  # 52 – validator value (IpAddress, PortNumber, …)
 ]
 
 SEMANTIC_TOKEN_MODIFIERS = [
@@ -616,6 +628,144 @@ def _collect_bigip_embedded_irules_object_tokens(
                 length=(end.character - start.character + 1),
                 type_name="object",
             )
+
+
+# Map APL token kinds to semantic token type names.
+_APL_KIND_TO_TYPE: dict[AplTokenKind, str] = {
+    AplTokenKind.COMMENT: "comment",
+    AplTokenKind.DIRECTIVE: "aplDirective",
+    AplTokenKind.SECTION_KW: "aplSection",
+    AplTokenKind.FIELD_TYPE: "aplFieldType",
+    AplTokenKind.DEFINE: "aplDefine",
+    AplTokenKind.DEFINE_NAME: "aplDefineName",
+    AplTokenKind.OPTIONAL: "aplOptional",
+    AplTokenKind.ATTRIBUTE: "aplAttribute",
+    AplTokenKind.SECTION_NAME: "aplSectionName",
+    AplTokenKind.FIELD_NAME: "aplFieldName",
+    AplTokenKind.VARIABLE: "variable",
+    AplTokenKind.STRING: "string",
+    AplTokenKind.NUMBER: "number",
+    AplTokenKind.OPERATOR: "operator",
+    AplTokenKind.ESCAPE: "escape",
+    AplTokenKind.VALIDATOR_VALUE: "aplValidator",
+}
+
+
+def _find_apl_embedded_tcl(source: str) -> list[tuple[int, int, int, str]]:
+    """Find ``[...]`` embedded Tcl regions in APL source.
+
+    Returns a list of ``(start_line, start_char, end_offset, body)`` tuples
+    for each top-level bracket expression found outside comments and strings.
+
+    Handles multi-line ``[...]`` expressions that span across lines.
+    """
+    regions: list[tuple[int, int, int, str]] = []
+    lines = source.split("\n")
+
+    # Build a line-offset table for converting absolute offsets
+    line_offsets: list[int] = []
+    off = 0
+    for ln in lines:
+        line_offsets.append(off)
+        off += len(ln) + 1
+
+    # Scan character-by-character through the entire source
+    pos = 0
+    length = len(source)
+    in_comment = False
+    in_string = False
+
+    while pos < length:
+        ch = source[pos]
+
+        # Track newlines — check if new line is a comment
+        if ch == "\n":
+            in_comment = False
+            pos += 1
+            # Check if next line is a comment
+            if pos < length:
+                rest = source[pos:].lstrip(" \t")
+                if (
+                    rest.startswith("#")
+                    and not rest.startswith("#include")
+                    and not rest.startswith("#inline")
+                ):
+                    in_comment = True
+            continue
+
+        if in_comment:
+            pos += 1
+            continue
+
+        # Handle escapes
+        if ch == "\\" and pos + 1 < length:
+            pos += 2
+            continue
+
+        # Handle strings
+        if ch == '"':
+            in_string = not in_string
+            pos += 1
+            continue
+
+        if ch == "[" and not in_string:
+            # Find matching ] (may span multiple lines)
+            depth = 1
+            start_pos = pos
+            pos += 1
+            while pos < length and depth > 0:
+                c = source[pos]
+                if c == "\\":
+                    pos += 1  # skip escaped char
+                elif c == "[":
+                    depth += 1
+                elif c == "]":
+                    depth -= 1
+                pos += 1
+            if depth == 0:
+                body = source[start_pos + 1 : pos - 1]
+                if body.strip():
+                    # Determine start line and column from absolute offset
+                    start_line = source.count("\n", 0, start_pos)
+                    start_col = start_pos - line_offsets[start_line] + 1  # +1 past '['
+                    regions.append((start_line, start_col, pos, body))
+            continue
+
+        pos += 1
+
+    return regions
+
+
+def _collect_apl_tokens(
+    tokens: list[tuple[int, int, int, int, int]],
+    source: str,
+) -> None:
+    """Collect APL-specific semantic tokens from presentation source."""
+    seen: set[tuple[int, int, int, int, int]] = set()
+    for apl_tok in tokenise_apl(source):
+        type_name = _APL_KIND_TO_TYPE.get(apl_tok.kind)
+        if type_name is None:
+            continue
+        _append_bigip_token(
+            tokens,
+            seen,
+            line=apl_tok.line,
+            char=apl_tok.char,
+            length=apl_tok.length,
+            type_name=type_name,
+        )
+
+    # Embedded Tcl inside [...] brackets (e.g. [tmsh::create ...])
+    for region_line, region_char, _end_offset, body in _find_apl_embedded_tcl(source):
+        body_token = Token(
+            type=TokenType.STR,
+            text=body,
+            start=SourcePosition(line=region_line, character=region_char, offset=0),
+            end=SourcePosition(
+                line=region_line, character=region_char + len(body), offset=len(body)
+            ),
+        )
+        _collect_tokens(tokens, body, body_token=body_token)
 
 
 def _collect_embedded_tcl_tokens(
@@ -2680,6 +2830,7 @@ def semantic_tokens_full(
     *,
     is_bigip_conf: bool = False,
     is_irules: bool = False,
+    is_apl: bool = False,
     chunk_token_cache: list[list[tuple[int, int, int, int, int]] | None] | None = None,
     chunk_line_ranges: list[tuple[int, int, int, int]] | None = None,
 ) -> list[int]:
@@ -2736,6 +2887,8 @@ def semantic_tokens_full(
         raw_tokens.extend(base_tokens)
     if is_irules:
         _collect_irules_object_tokens(raw_tokens, source)
+    if is_apl:
+        _collect_apl_tokens(raw_tokens, source)
 
     # Sort by position (line, then character) for correct delta encoding
     raw_tokens.sort(key=lambda t: (t[0], t[1]))

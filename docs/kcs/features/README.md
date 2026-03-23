@@ -52,6 +52,7 @@ Every file must follow this structure so the help parser can extract metadata:
 - [kcs-feature-inlay-hints.md](kcs-feature-inlay-hints.md)
 - [kcs-feature-call-hierarchy.md](kcs-feature-call-hierarchy.md)
 - [kcs-feature-semantic-tokens.md](kcs-feature-semantic-tokens.md)
+- [kcs-feature-apl-language.md](kcs-feature-apl-language.md)
 - [kcs-feature-selection-range.md](kcs-feature-selection-range.md)
 - [kcs-feature-document-links.md](kcs-feature-document-links.md)
 

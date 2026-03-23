@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from .core_analyses import FunctionAnalysis, LatticeKind
@@ -29,16 +29,16 @@ if TYPE_CHECKING:
 class EdgeKind(Enum):
     """Classification of a data-flow edge."""
 
-    DIRECT = auto()
+    DIRECT = "direct"
     """Direct def→use within the same or dominated block."""
 
-    PHI = auto()
+    PHI = "phi"
     """Flow through a phi node (conditional merge)."""
 
-    ALIAS = auto()
+    ALIAS = "alias"
     """Flow through an aliased binding (upvar/global/variable)."""
 
-    CLOBBER = auto()
+    CLOBBER = "clobber"
     """Value may be invalidated by a barrier/eval."""
 
 
@@ -65,7 +65,7 @@ class DataFlowEdge:
     from_version: int
     to_block: str
     to_statement_index: int
-    edge_kind: str  # "direct", "phi", "alias", "clobber"
+    edge_kind: EdgeKind
     to_name: str = ""  # For phi edges: the phi variable
     to_version: int = -1  # For phi edges: the phi's version
 
@@ -176,7 +176,7 @@ def extract_function_dataflow(
                         from_version=version,
                         to_block=use.block,
                         to_statement_index=-1,
-                        edge_kind="phi",
+                        edge_kind=EdgeKind.PHI,
                         to_name=use.variable,
                         to_version=use.phi_version,
                     )
@@ -188,7 +188,7 @@ def extract_function_dataflow(
                         from_version=version,
                         to_block=use.block,
                         to_statement_index=use.statement_index,
-                        edge_kind="direct",
+                        edge_kind=EdgeKind.DIRECT,
                     )
                 )
 
@@ -292,7 +292,7 @@ def dataflow_graph_to_dict(graph: DataFlowGraph) -> dict:
                         "fromVersion": e.from_version,
                         "toBlock": e.to_block,
                         "toStatementIndex": e.to_statement_index,
-                        "edgeKind": e.edge_kind,
+                        "edgeKind": e.edge_kind.value,
                         "toName": e.to_name,
                         "toVersion": e.to_version,
                     }
@@ -359,7 +359,7 @@ def dataflow_graph_to_mermaid(graph: DataFlowGraph) -> str:
         # Edges — only emit edges whose destination node exists.
         for edge in func.edges:
             src = f"{func_id}_{_sanitise_mermaid_id(edge.from_name)}_{edge.from_version}"
-            if edge.edge_kind == "phi" and edge.to_name:
+            if edge.edge_kind is EdgeKind.PHI and edge.to_name:
                 dst = f"{func_id}_{_sanitise_mermaid_id(edge.to_name)}_{edge.to_version}"
                 if dst in defined_nids:
                     lines.append(f"    {src} -.->|phi| {dst}")

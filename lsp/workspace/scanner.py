@@ -17,6 +17,7 @@ from urllib.parse import quote, unquote, urlparse
 
 from core.analysis.analyser import analyse
 from core.analysis.semantic_model import AnalysisResult, ProcDef
+from core.bigip.apl_model import AplModel, resolve_apl_includes
 from core.bigip.model import BigipConfig
 from core.bigip.parser import parse_bigip_conf
 from core.compiler.irules_flow import RuleInitExport
@@ -24,7 +25,19 @@ from core.compiler.irules_flow import RuleInitExport
 log = logging.getLogger(__name__)
 
 TCL_EXTENSIONS = frozenset(
-    {".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl", ".exp"}
+    {
+        ".tcl",
+        ".tk",
+        ".itcl",
+        ".tm",
+        ".irul",
+        ".irule",
+        ".iapp",
+        ".iappimpl",
+        ".impl",
+        ".exp",
+        ".apl",
+    }
 )
 
 _IRULES_EXTENSIONS = frozenset({".irul", ".irule"})
@@ -39,6 +52,9 @@ _BIGIP_CONF_NAMES = frozenset(
         "bigip_user.conf",
     }
 )
+
+# APL presentation file names (matched by basename, no extension).
+_APL_NAMES = frozenset({"presentation"})
 
 
 @dataclass
@@ -60,6 +76,7 @@ class BackgroundScanner:
         self._library_paths: list[str] = []
         self._workspace_roots: list[str] = []
         self._bigip_configs: dict[str, BigipConfig] = {}  # uri -> BigipConfig
+        self._apl_models: dict[str, AplModel] = {}  # uri -> AplModel
 
     def configure(
         self,
@@ -94,6 +111,10 @@ class BackgroundScanner:
                     if fname_lower in _BIGIP_CONF_NAMES:
                         full_path = os.path.join(root, fname)
                         self._parse_bigip_file(full_path)
+                        continue
+                    # APL presentation files (extensionless)
+                    if fname_lower in _APL_NAMES:
+                        result.append((os.path.join(root, fname), ".apl"))
                         continue
                     ext = os.path.splitext(fname)[1].lower()
                     if ext not in TCL_EXTENSIONS:
@@ -231,6 +252,58 @@ class BackgroundScanner:
     def remove_bigip_config(self, uri: str) -> None:
         self._bigip_configs.pop(uri, None)
 
+    # --- APL model caching ---
+
+    @property
+    def apl_models(self) -> dict[str, AplModel]:
+        """Return uri -> AplModel for all cached APL presentation files."""
+        return dict(self._apl_models)
+
+    def parse_apl_source(
+        self, uri: str, source: str, base_dir: str | None = None
+    ) -> AplModel | None:
+        """Parse an APL presentation source and cache the result."""
+        try:
+            model = resolve_apl_includes(source, base_dir)
+            self._apl_models[uri] = model
+            return model
+        except Exception:
+            log.debug("Scanner: failed to parse APL %s", uri, exc_info=True)
+            return None
+
+    def remove_apl_model(self, uri: str) -> None:
+        self._apl_models.pop(uri, None)
+
+    def find_sibling_apl(self, uri: str) -> AplModel | None:
+        """Find a cached APL model from the same directory as *uri*."""
+        # Extract directory from the URI
+        if "/" in uri:
+            dir_part = uri.rsplit("/", 1)[0]
+        else:
+            return None
+        for apl_uri, model in self._apl_models.items():
+            if "/" in apl_uri and apl_uri.rsplit("/", 1)[0] == dir_part:
+                return model
+        return None
+
+    def find_sibling_impl_source(self, uri: str) -> str | None:
+        """Find a cached iApp implementation source from the same directory.
+
+        Returns the URI of the sibling implementation file, or None.
+        """
+        if "/" in uri:
+            dir_part = uri.rsplit("/", 1)[0]
+        else:
+            return None
+        for cached_uri, sr in self._cached.items():
+            if "/" not in cached_uri:
+                continue
+            if cached_uri.rsplit("/", 1)[0] != dir_part:
+                continue
+            if sr.dialect_hint == "f5-iapps":
+                return cached_uri
+        return None
+
     def _parse_bigip_file(self, full_path: str) -> BigipConfig | None:
         """Parse a BIG-IP configuration file and cache the result."""
         uri = path_to_uri(full_path)
@@ -296,6 +369,8 @@ def _dialect_from_ext(ext: str) -> str | None:
     if ext in _IRULES_EXTENSIONS:
         return "f5-irules"
     if ext in (".iapp", ".iappimpl", ".impl"):
+        return "f5-iapps"
+    if ext == ".apl":
         return "f5-iapps"
     if ext == ".exp":
         return "expect"

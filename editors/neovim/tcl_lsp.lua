@@ -10,15 +10,15 @@ return {
   -- Alternative: use the standalone zipapp (no uv required):
   -- cmd = { 'python3', '/path/to/tcl-lsp-server.pyz' },
 
-  filetypes = { 'tcl' },
+  filetypes = { 'tcl', 'tcl-apl' },
   root_markers = { '.git' },
   single_file_support = true,
 
   settings = {
     tclLsp = {
       dialect = 'tcl8.6',       -- tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | f5-irules | f5-iapps
-                                -- f5-bigip | synopsys-eda-tcl | cadence-eda-tcl | xilinx-eda-tcl
-                                -- intel-quartus-eda-tcl | mentor-eda-tcl | expect
+                                -- f5-tmsh | f5-bigip | synopsys-eda-tcl | cadence-eda-tcl
+                                -- xilinx-eda-tcl | intel-quartus-eda-tcl | mentor-eda-tcl | expect
       extraCommands = {},
       libraryPaths = {},
 

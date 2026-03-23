@@ -57,6 +57,9 @@ Pass settings via eglot workspace configuration:
 
 ```elisp
 (setq-default eglot-workspace-configuration
-              '(:tclLsp (:dialect "tcl8.6"   ;; tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | f5-irules | f5-iapps | f5-bigip | synopsys-eda-tcl | cadence-eda-tcl | xilinx-eda-tcl | intel-quartus-eda-tcl | mentor-eda-tcl | expect
+              '(:tclLsp (:dialect "tcl8.6"   ;; tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | f5-irules | f5-iapps | f5-tmsh | f5-bigip | synopsys-eda-tcl | cadence-eda-tcl | xilinx-eda-tcl | intel-quartus-eda-tcl | mentor-eda-tcl | expect
                          :formatting (:indentSize 4 :maxLineLength 120))))
+
+;; Register .apl files for tcl-mode so eglot activates
+(add-to-list 'auto-mode-alist '("\\.apl\\'" . tcl-mode))
 ```
