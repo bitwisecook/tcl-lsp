@@ -327,7 +327,7 @@ test-opt: $(UV_STAMP) ## Run optimiser coverage tests (not part of standard CI)
 
 test-fuzz: $(UV_STAMP) ## Run differential fuzz tests (FUZZ_ITERATIONS=N to control size)
 	@echo "==> Running differential fuzz tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_fuzz_differential.py -v
+	cd $(ROOT) && $(UV) run --extra dev pytest fuzzing/tests/test_fuzz_differential.py -v
 
 fuzz: $(UV_STAMP) ## Run a standalone fuzz campaign (N=iterations, SEED=base_seed)
 	@echo "==> Running fuzz campaign ($(or $(N),1000) iterations)"
