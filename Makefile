@@ -216,7 +216,7 @@ format: format-py format-ts ## Format Python and TypeScript code
 
 test-py: $(UV_STAMP) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
 	@echo "==> Running Python tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py --ignore=tests/fuzz/
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
 
 test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files through our VM)
 	@echo "==> Running VM tcltest tests"
@@ -331,11 +331,11 @@ test-fuzz: $(UV_STAMP) ## Run differential fuzz tests (FUZZ_ITERATIONS=N to cont
 
 fuzz: $(UV_STAMP) ## Run a standalone fuzz campaign (N=iterations, SEED=base_seed)
 	@echo "==> Running fuzz campaign ($(or $(N),1000) iterations)"
-	cd $(ROOT) && $(UV) run --extra dev python -m tests.fuzz -n $(or $(N),1000) $(if $(SEED),--seed $(SEED)) -v
+	cd $(ROOT) && $(UV) run --extra dev python -m fuzzing -n $(or $(N),1000) $(if $(SEED),--seed $(SEED)) -v
 
 fuzz-cov: $(UV_STAMP) ## Coverage-guided fuzz campaign (N=iterations, SEED=base_seed)
 	@echo "==> Running coverage-guided fuzz campaign ($(or $(N),500) iterations)"
-	cd $(ROOT) && $(UV) run --extra dev python -m tests.fuzz -n $(or $(N),500) $(if $(SEED),--seed $(SEED)) --coverage-guided -v
+	cd $(ROOT) && $(UV) run --extra dev python -m fuzzing -n $(or $(N),500) $(if $(SEED),--seed $(SEED)) --coverage-guided -v
 
 _smoke-zipapp-ai: $(BUILD_INFO)
 	@echo "==> Smoke-testing AI zipapp"

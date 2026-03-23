@@ -1,4 +1,4 @@
-"""Allow ``python -m tests.fuzz`` to run a fuzz campaign."""
+"""Allow ``python -m fuzzing`` to run a fuzz campaign."""
 
 from .runner import main
 

@@ -1,6 +1,6 @@
 """Fuzz campaign runner.
 
-Can be used standalone (``python -m tests.fuzz.runner``) or from pytest.
+Can be used standalone (``python -m fuzzing.runner``) or from pytest.
 Saves failing cases to a corpus directory for regression testing.
 """
 
