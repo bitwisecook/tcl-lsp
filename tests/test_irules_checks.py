@@ -1747,3 +1747,86 @@ class TestIrule6001:
         diags = _diag_with_code(src, "IRULE6001")
         assert len(diags) == 1
         assert "CMP" in diags[0].message
+
+
+# Multiple ``when`` handlers for the same event
+
+
+class TestMultipleWhenHandlers:
+    """Diagnostics must analyse every handler, not just the last one."""
+
+    def test_collect_in_first_handler_seen(self):
+        """HTTP::collect in the first HTTP_REQUEST handler should suppress IRULE1005."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect\n"
+            "}\n"
+            "when HTTP_REQUEST {\n"
+            '    log local0. "second handler"\n'
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    set payload [HTTP::payload]\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 0
+
+    def test_collect_without_release_in_first_handler(self):
+        """HTTP::collect without release in first handler → IRULE1007."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect\n"
+            "}\n"
+            "when HTTP_REQUEST {\n"
+            '    log local0. "second handler"\n'
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) >= 1
+
+    def test_release_in_second_handler_clears_warning(self):
+        """HTTP::release in a later handler should clear IRULE1007."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_lowering_numbers_duplicate_events(self):
+        """Lowering creates separate IR procedures for duplicate when blocks."""
+        from core.compiler.lowering import lower_to_ir
+
+        src = (
+            "when HTTP_REQUEST {\n    set x 1\n}\n"
+            "when HTTP_REQUEST {\n    set y 2\n}\n"
+            "when HTTP_REQUEST priority 100 {\n    set z 3\n}"
+        )
+        module = lower_to_ir(src)
+        assert "::when::HTTP_REQUEST" in module.procedures
+        assert "::when::HTTP_REQUEST#1" in module.procedures
+        assert "::when::HTTP_REQUEST#2" in module.procedures
+
+        # Priority is preserved
+        assert module.procedures["::when::HTTP_REQUEST"].priority == 500
+        assert module.procedures["::when::HTTP_REQUEST#1"].priority == 500
+        assert module.procedures["::when::HTTP_REQUEST#2"].priority == 100
+
+    def test_event_order_yields_all_handlers(self):
+        """extract_event_order returns one entry per handler."""
+        from core.compiler.irules_flow import extract_event_order
+
+        src = (
+            "when HTTP_REQUEST priority 200 { set x 1 }\n"
+            "when HTTP_REQUEST priority 100 { set y 2 }\n"
+        )
+        entries = extract_event_order(src)
+        http_entries = [e for e in entries if e.event == "HTTP_REQUEST"]
+        assert len(http_entries) == 2
+        # Sorted by priority: 100 before 200
+        assert http_entries[0].priority == 100
+        assert http_entries[1].priority == 200

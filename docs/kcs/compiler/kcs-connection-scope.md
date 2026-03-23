@@ -32,6 +32,10 @@ For each event, walk SSA blocks and record:
 - `uses_before_def`: variables read at version 0 (no preceding assignment)
 - `unsets`: variables explicitly unset
 
+When an iRule defines multiple `when` blocks for the same event (possibly
+with different priorities), each handler's summary is merged — defs, uses,
+and unsets are unioned — producing a single combined summary per event name.
+
 `CLIENT_ACCEPTED`: defs=`{conn_start, count}`, uses_before_def=`{}`
 `HTTP_REQUEST`: defs=`{count}`, uses_before_def=`{count, conn_start}`
 

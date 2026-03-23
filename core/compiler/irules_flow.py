@@ -63,6 +63,28 @@ from .value_shapes import parse_command_substitution
 
 log = logging.getLogger(__name__)
 
+
+def _when_qualified(event: str, occurrence: int) -> str:
+    """Build the ``::when::`` qualified name for the *occurrence*-th handler."""
+    return f"::when::{event}" if occurrence == 0 else f"::when::{event}#{occurrence}"
+
+
+def _when_qualified_names(
+    when_bodies: list[tuple[str, int, str, Token, Token]],
+) -> list[str]:
+    """Return the ``::when::`` qualified name for each entry in *when_bodies*.
+
+    Entries for the same event are numbered to match lowering order.
+    """
+    counts: dict[str, int] = {}
+    result: list[str] = []
+    for event, *_ in when_bodies:
+        n = counts.get(event, 0)
+        counts[event] = n + 1
+        result.append(_when_qualified(event, n))
+    return result
+
+
 # Registry-backed command sets (cached on first use)
 
 _COMMITS_RESPONSE: frozenset[str] | None = None
@@ -724,8 +746,11 @@ def _find_collect_flow_warnings(
     release_calls: list[tuple[str, str, Range]] = []
     payload_calls: list[tuple[str, str, Range]] = []
 
-    for event, _priority, body_text, body_tok, _event_tok in when_bodies:
-        ir_proc = cu.ir_module.procedures.get(f"::when::{event}") if cu else None
+    qnames = _when_qualified_names(when_bodies)
+    for (event, _priority, body_text, body_tok, _event_tok), qname in zip(
+        when_bodies, qnames, strict=True
+    ):
+        ir_proc = cu.ir_module.procedures.get(qname) if cu else None
         ir_body: IRScript | None = ir_proc.body if ir_proc is not None else None
         if ir_body is None:
             # CU unavailable — lower the body text to IR ourselves.
@@ -1179,8 +1204,11 @@ def _find_hoistable_constants(
     """
     file_events = frozenset(event for event, *_ in when_bodies)
     warnings: list[IrulesFlowWarning] = []
+    qnames = _when_qualified_names(when_bodies)
 
-    for event, _priority, body_text, body_tok, _event_tok in when_bodies:
+    for (event, _priority, body_text, body_tok, _event_tok), qname in zip(
+        when_bodies, qnames, strict=True
+    ):
         if not EVENT_REGISTRY.is_per_request(event):
             continue
 
@@ -1200,7 +1228,7 @@ def _find_hoistable_constants(
             continue
 
         # Get IR body for this event.
-        ir_proc = cu.ir_module.procedures.get(f"::when::{event}") if cu else None
+        ir_proc = cu.ir_module.procedures.get(qname) if cu else None
         ir_body: IRScript | None = ir_proc.body if ir_proc is not None else None
         if ir_body is None:
             try:
@@ -1309,9 +1337,12 @@ def _find_generic_static_names(
             )
         )
 
-    for event, _priority, body_text, _body_tok, _event_tok in when_bodies:
+    qnames = _when_qualified_names(when_bodies)
+    for (event, _priority, body_text, _body_tok, _event_tok), qname in zip(
+        when_bodies, qnames, strict=True
+    ):
         # Prefer the CFG (has upvar-augmented defs) over raw IR.
-        fu = cu.procedures.get(f"::when::{event}") if cu else None
+        fu = cu.procedures.get(qname) if cu else None
         if fu is not None:
             # Walk CFG blocks — statements here have upvar-resolved defs.
             for block in fu.cfg.blocks.values():
@@ -1333,7 +1364,7 @@ def _find_generic_static_names(
                                         _check_var(var_name, inner_stmt.range)
         else:
             # Fallback to raw IR.
-            ir_proc = cu.ir_module.procedures.get(f"::when::{event}") if cu else None
+            ir_proc = cu.ir_module.procedures.get(qname) if cu else None
             ir_body = ir_proc.body if ir_proc is not None else None
             if ir_body is None:
                 try:
@@ -1407,11 +1438,14 @@ def find_irules_flow_warnings(
 
     warnings: list[IrulesFlowWarning] = []
     when_bodies = list(_find_when_bodies(source))
-    for event, _priority, body_text, body_tok, _event_tok in when_bodies:
+    qnames = _when_qualified_names(when_bodies)
+    for (event, _priority, body_text, body_tok, _event_tok), qname in zip(
+        when_bodies, qnames, strict=True
+    ):
         warnings.extend(_analyse_when_body(event, body_text, body_tok))
         when_ir_body: IRScript | None = None
         if cu is not None:
-            ir_proc = cu.ir_module.procedures.get(f"::when::{event}")
+            ir_proc = cu.ir_module.procedures.get(qname)
             if ir_proc is not None:
                 when_ir_body = ir_proc.body
         warnings.extend(
@@ -1422,9 +1456,6 @@ def find_irules_flow_warnings(
                 ir_body=when_ir_body,
             )
         )
-        # Note: IRULE2102 (repeated expensive calls) has been subsumed by
-        # the GVN/CSE pass (O105) which handles both standalone and embedded
-        # command invocations with richer analysis.
     warnings.extend(_find_collect_flow_warnings(when_bodies, cu=cu))
     warnings.extend(_find_hoistable_constants(when_bodies, cu=cu))
     warnings.extend(
@@ -1456,30 +1487,39 @@ def extract_event_order(source: str) -> list[EventOrderEntry]:
     Each entry carries the event name, its declared priority, its
     multiplicity class, and the source range of the ``when EVENT`` token
     so the explorer can navigate to it.
+
+    When the same event appears more than once, each handler gets its
+    own entry, ordered by priority (lowest first, then file order for
+    equal priorities).
     """
     when_bodies = list(_find_when_bodies(source))
     if not when_bodies:
         return []
 
-    # Collect info per event (first occurrence wins for range/priority)
-    seen: dict[str, tuple[int, Range]] = {}
-    for event, priority, _body, _body_tok, event_tok in when_bodies:
-        if event not in seen:
-            seen[event] = (priority, range_from_token(event_tok))
+    # Collect all handlers per event, preserving file order.
+    from collections import defaultdict
 
-    ordered = EVENT_REGISTRY.order_events(frozenset(seen))
+    per_event: dict[str, list[tuple[int, int, Range]]] = defaultdict(list)
+    for idx, (event, priority, _body, _body_tok, event_tok) in enumerate(when_bodies):
+        per_event[event].append((priority, idx, range_from_token(event_tok)))
+
+    # Sort each event's handlers: lowest priority first, file order breaks ties.
+    for handlers in per_event.values():
+        handlers.sort(key=lambda t: (t[0], t[1]))
+
+    ordered = EVENT_REGISTRY.order_events(frozenset(per_event))
     result: list[EventOrderEntry] = []
     for evt in ordered:
-        priority, rng = seen[evt]
         mult = EVENT_REGISTRY.event_multiplicity(evt)
-        result.append(
-            EventOrderEntry(
-                event=evt,
-                priority=priority,
-                multiplicity=mult,
-                range=rng,
+        for priority, _idx, rng in per_event[evt]:
+            result.append(
+                EventOrderEntry(
+                    event=evt,
+                    priority=priority,
+                    multiplicity=mult,
+                    range=rng,
+                )
             )
-        )
     return result
 
 
@@ -1513,12 +1553,16 @@ def extract_rule_init_vars(
     the compilation unit is not available.
     """
     exports: list[RuleInitExport] = []
-    for event, priority, body_text, body_tok, _event_tok in _find_when_bodies(source):
+    when_bodies = list(_find_when_bodies(source))
+    qnames = _when_qualified_names(when_bodies)
+    for (event, priority, body_text, body_tok, _event_tok), qname in zip(
+        when_bodies, qnames, strict=True
+    ):
         if event != "RULE_INIT":
             continue
 
         # --- IR-based path (preferred) ---
-        fu = cu.procedures.get("::when::RULE_INIT") if cu else None
+        fu = cu.procedures.get(qname) if cu else None
         if fu is not None:
             seen: set[str] = set()
             for block in fu.cfg.blocks.values():

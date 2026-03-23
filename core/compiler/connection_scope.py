@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from .ir import IRCall
+from .ir import IRCall, when_event_name
 
 if TYPE_CHECKING:
     from .compilation_unit import FunctionUnit
@@ -107,8 +107,17 @@ def build_connection_scope(
     """
     summaries: dict[str, EventVarSummary] = {}
     for qname, fu in when_procedures.items():
-        event = qname.removeprefix("::when::")
-        summaries[event] = _extract_event_summary(event, fu)
+        event = when_event_name(qname)
+        summary = _extract_event_summary(event, fu)
+        if event in summaries:
+            prev = summaries[event]
+            summary = EventVarSummary(
+                event=event,
+                defs=prev.defs | summary.defs,
+                uses_before_def=prev.uses_before_def | summary.uses_before_def,
+                unsets=prev.unsets | summary.unsets,
+            )
+        summaries[event] = summary
 
     # Build cross-event sets with event-ordering awareness.
     cross_defs: set[str] = set()

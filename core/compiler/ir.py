@@ -254,6 +254,7 @@ class IRProcedure:
     params_raw: str = ""
     body_source: str | None = None  # None for synthetic procs (``when``)
     namespace_scoped: bool = False  # True when defined inside namespace eval
+    priority: int = 500  # BigIP handler priority (0–2**32-1, default 500)
 
 
 @dataclass
@@ -261,6 +262,17 @@ class IRModule:
     top_level: IRScript = field(default_factory=IRScript)
     procedures: dict[str, IRProcedure] = field(default_factory=dict)
     redefined_procedures: set[str] = field(default_factory=set)
+
+
+def when_event_name(qualified_name: str) -> str:
+    """Extract the event name from a ``::when::`` qualified name.
+
+    Handles both ``::when::HTTP_REQUEST`` and indexed forms like
+    ``::when::HTTP_REQUEST#1``.
+    """
+    bare = qualified_name.removeprefix("::when::")
+    idx = bare.find("#")
+    return bare[:idx] if idx >= 0 else bare
 
 
 IRStatement = (
