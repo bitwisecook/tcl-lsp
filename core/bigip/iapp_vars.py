@@ -63,5 +63,3 @@ def extract_iapp_var_refs(source: str) -> list[IappVarRef]:
             )
         )
     return refs
-
-
