@@ -667,8 +667,14 @@ def _scan_ir_event(
                         payload_calls.append((protocol, inner_side, stmt.range))
             continue
         _classify_command(
-            cmd, rng, default_side,
-            collected, released, collect_calls, release_calls, payload_calls,
+            cmd,
+            rng,
+            default_side,
+            collected,
+            released,
+            collect_calls,
+            release_calls,
+            payload_calls,
         )
 
 
@@ -706,9 +712,13 @@ def _find_collect_flow_warnings(
         if ir_proc is not None:
             # IR-based scan — precise, ignores comments.
             _scan_ir_event(
-                event, ir_proc.body,
-                collected_protocol_sides, released_protocol_sides,
-                collect_calls, release_calls, payload_calls,
+                event,
+                ir_proc.body,
+                collected_protocol_sides,
+                released_protocol_sides,
+                collect_calls,
+                release_calls,
+                payload_calls,
             )
         else:
             # Regex fallback over raw body text.
@@ -723,12 +733,18 @@ def _find_collect_flow_warnings(
                 side = _side_for_offset(m.start(), default_side, side_spans)
                 collected_protocol_sides.setdefault(protocol, set()).add(side)
                 start = position_from_relative(
-                    body_text, m.start(),
-                    base_line=base_line, base_col=base_col, base_offset=base_offset,
+                    body_text,
+                    m.start(),
+                    base_line=base_line,
+                    base_col=base_col,
+                    base_offset=base_offset,
                 )
                 end = position_from_relative(
-                    body_text, m.end(),
-                    base_line=base_line, base_col=base_col, base_offset=base_offset,
+                    body_text,
+                    m.end(),
+                    base_line=base_line,
+                    base_col=base_col,
+                    base_offset=base_offset,
                 )
                 collect_calls.append((protocol, side, Range(start=start, end=end)))
 
@@ -737,12 +753,18 @@ def _find_collect_flow_warnings(
                 side = _side_for_offset(m.start(), default_side, side_spans)
                 released_protocol_sides.setdefault(protocol, set()).add(side)
                 start = position_from_relative(
-                    body_text, m.start(),
-                    base_line=base_line, base_col=base_col, base_offset=base_offset,
+                    body_text,
+                    m.start(),
+                    base_line=base_line,
+                    base_col=base_col,
+                    base_offset=base_offset,
                 )
                 end = position_from_relative(
-                    body_text, m.end(),
-                    base_line=base_line, base_col=base_col, base_offset=base_offset,
+                    body_text,
+                    m.end(),
+                    base_line=base_line,
+                    base_col=base_col,
+                    base_offset=base_offset,
                 )
                 release_calls.append((protocol, side, Range(start=start, end=end)))
 

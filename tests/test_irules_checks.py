@@ -498,7 +498,12 @@ class TestIrule1005:
         """The HTTP cookbook sample should not fire IRULE1005."""
         from pathlib import Path
 
-        sample = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_http_collect.irul"
+        sample = (
+            Path(__file__).resolve().parent.parent
+            / "samples"
+            / "irules"
+            / "cookbook_http_collect.irul"
+        )
         source = sample.read_text()
         warnings = _flow_with_code(source, "IRULE1005")
         assert len(warnings) == 0
@@ -633,7 +638,12 @@ class TestIrule1007:
         """The HTTP cookbook sample should produce no IRULE1007 warnings."""
         from pathlib import Path
 
-        sample = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_http_collect.irul"
+        sample = (
+            Path(__file__).resolve().parent.parent
+            / "samples"
+            / "irules"
+            / "cookbook_http_collect.irul"
+        )
         source = sample.read_text()
         warnings = _flow_with_code(source, "IRULE1007")
         assert len(warnings) == 0
@@ -642,29 +652,26 @@ class TestIrule1007:
         """The TCP cookbook sample should produce no IRULE1007 warnings."""
         from pathlib import Path
 
-        sample = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_tcp_collect.irul"
+        sample = (
+            Path(__file__).resolve().parent.parent
+            / "samples"
+            / "irules"
+            / "cookbook_tcp_collect.irul"
+        )
         source = sample.read_text()
         warnings = _flow_with_code(source, "IRULE1007")
         assert len(warnings) == 0
 
     def test_message_mentions_side(self):
         """Warning message should include the connection side."""
-        src = (
-            "when HTTP_REQUEST {\n"
-            "    HTTP::collect 1024\n"
-            "}"
-        )
+        src = "when HTTP_REQUEST {\n    HTTP::collect 1024\n}"
         warnings = _flow_with_code(src, "IRULE1007")
         assert len(warnings) == 1
         assert "client" in warnings[0].message
 
     def test_server_side_collect_without_release(self):
         """Server-side HTTP::collect without release → warning mentioning server."""
-        src = (
-            "when HTTP_RESPONSE {\n"
-            "    HTTP::collect 1024\n"
-            "}"
-        )
+        src = "when HTTP_RESPONSE {\n    HTTP::collect 1024\n}"
         warnings = _flow_with_code(src, "IRULE1007")
         assert len(warnings) == 1
         assert "server" in warnings[0].message
@@ -693,11 +700,7 @@ class TestIrule1008:
 
     def test_release_without_collect(self):
         """HTTP::release without HTTP::collect anywhere → warning."""
-        src = (
-            "when HTTP_REQUEST_DATA {\n"
-            "    HTTP::release\n"
-            "}"
-        )
+        src = "when HTTP_REQUEST_DATA {\n    HTTP::release\n}"
         warnings = _flow_with_code(src, "IRULE1008")
         assert len(warnings) == 1
         assert "HTTP::release" in warnings[0].message
@@ -718,11 +721,7 @@ class TestIrule1008:
 
     def test_tcp_release_without_collect(self):
         """TCP::release without TCP::collect → warning."""
-        src = (
-            "when CLIENT_DATA {\n"
-            "    TCP::release\n"
-            "}"
-        )
+        src = "when CLIENT_DATA {\n    TCP::release\n}"
         warnings = _flow_with_code(src, "IRULE1008")
         assert len(warnings) == 1
         assert "TCP::release" in warnings[0].message
@@ -743,22 +742,14 @@ class TestIrule1008:
 
     def test_message_mentions_side(self):
         """Warning message should include the connection side."""
-        src = (
-            "when HTTP_REQUEST_DATA {\n"
-            "    HTTP::release\n"
-            "}"
-        )
+        src = "when HTTP_REQUEST_DATA {\n    HTTP::release\n}"
         warnings = _flow_with_code(src, "IRULE1008")
         assert len(warnings) == 1
         assert "client" in warnings[0].message
 
     def test_server_side_release_without_collect(self):
         """Server-side release without collect → warning mentioning server."""
-        src = (
-            "when HTTP_RESPONSE_DATA {\n"
-            "    HTTP::release\n"
-            "}"
-        )
+        src = "when HTTP_RESPONSE_DATA {\n    HTTP::release\n}"
         warnings = _flow_with_code(src, "IRULE1008")
         assert len(warnings) == 1
         assert "server" in warnings[0].message
