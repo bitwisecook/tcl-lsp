@@ -34,7 +34,7 @@ from ..compiler.cfg import CFGBranch, CFGFunction
 from ..compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
 from ..compiler.compiler_checks import run_compiler_checks
 from ..compiler.core_analyses import FunctionAnalysis
-from ..compiler.ir import IRAssignConst, IRAssignValue, IRCall, IRProcedure, IRStatement
+from ..compiler.ir import IRAssignConst, IRAssignValue, IRCall, IRProcedure, IRStatement, when_event_name
 from ..parsing.argv import widen_argv_tokens_to_word_spans
 from ..parsing.command_segmenter import SegmentedCommand, UnclosedDelimiter
 from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
@@ -1844,6 +1844,11 @@ class Analyser:
             ir_proc = ir_module.procedures.get(qname)
             if ir_proc is not None:
                 self._emit_unused_param_diagnostics(ir_proc, fu.analysis)
+            # IRULE4005: racy static:: cross-event flow
+            if conn is not None and qname.startswith("::when::") and conn.racy_static_defs:
+                event = when_event_name(qname)
+                if event != "RULE_INIT":
+                    self._emit_racy_static_diagnostics(fu, conn.racy_static_defs)
 
     def _emit_cfg_ssa_diagnostics_for_function(
         self,
@@ -2093,6 +2098,35 @@ class Analyser:
                     code="W214",
                 )
             )
+
+    def _emit_racy_static_diagnostics(
+        self,
+        fu: "FunctionUnit",
+        racy_vars: frozenset[str],
+    ) -> None:
+        """IRULE4005: static:: variable written outside RULE_INIT and used cross-event."""
+        for block in fu.ssa.blocks.values():
+            for stmt in block.statements:
+                ir_stmt = stmt.statement
+                # Skip unset — not a real write
+                if isinstance(ir_stmt, IRCall) and ir_stmt.command == "unset":
+                    continue
+                for name in stmt.defs:
+                    if name in racy_vars:
+                        self.result.diagnostics.append(
+                            Diagnostic(
+                                range=ir_stmt.range,
+                                message=(
+                                    f"Potential race: '{name}' is written outside "
+                                    f"RULE_INIT and read in another event. "
+                                    f"static:: variables are shared across all "
+                                    f"connections; concurrent writes can produce "
+                                    f"unpredictable results."
+                                ),
+                                severity=Severity.WARNING,
+                                code="IRULE4005",
+                            )
+                        )
 
     def _dedupe_diagnostics(self) -> None:
         """Drop exact duplicate diagnostics emitted by multiple passes."""

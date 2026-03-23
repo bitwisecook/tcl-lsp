@@ -1663,11 +1663,10 @@ class TestCrossEventScope:
         hdr_diags = [d for d in diags if "hdr_len" in d.message]
         assert len(hdr_diags) == 1
 
-    def test_static_var_set_outside_rule_init_still_warns_w211(self):
-        """static:: set in HTTP_REQUEST and read in HTTP_RESPONSE → W211.
+    def test_static_var_set_outside_rule_init_no_w211(self):
+        """static:: set in HTTP_REQUEST and read in HTTP_RESPONSE → no W211.
 
-        Cross-event suppression for static:: is restricted to RULE_INIT;
-        writes in other events race across connections (IRULE4001).
+        The variable IS used cross-event; it's just racy (IRULE4005).
         """
         src = (
             "when HTTP_REQUEST priority 500 {\n"
@@ -1679,7 +1678,35 @@ class TestCrossEventScope:
         )
         diags = self._diags_with_cu(src, "W211")
         token_diags = [d for d in diags if "token" in d.message]
-        assert len(token_diags) >= 1
+        assert len(token_diags) == 0
+
+    def test_static_var_set_outside_rule_init_fires_irule4005(self):
+        """static:: set in HTTP_REQUEST and read in HTTP_RESPONSE → IRULE4005."""
+        src = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    set static::token [HTTP::header Authorization]\n"
+            "}\n"
+            "when HTTP_RESPONSE priority 500 {\n"
+            "    log local0. $static::token\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "IRULE4005")
+        token_diags = [d for d in diags if "token" in d.message]
+        assert len(token_diags) == 1
+        assert "race" in token_diags[0].message.lower()
+
+    def test_static_var_in_rule_init_no_irule4005(self):
+        """static:: set in RULE_INIT and used cross-event → no IRULE4005."""
+        src = (
+            "when RULE_INIT priority 500 {\n"
+            "    set static::hdr_len 8\n"
+            "}\n"
+            "when SERVER_CONNECTED priority 500 {\n"
+            "    TCP::collect $static::hdr_len\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "IRULE4005")
+        assert len(diags) == 0
 
     def test_unset_static_var_not_treated_as_def(self):
         """unset static::x in RULE_INIT should not suppress W211 for reads."""

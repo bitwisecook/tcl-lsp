@@ -44,6 +44,8 @@ class ConnectionScope:
     """Variables defined in one event AND used-before-def in a different event."""
     cross_event_imports: frozenset[str]
     """Variables used-before-def in one event AND defined in a different event."""
+    racy_static_defs: frozenset[str]
+    """``static::`` vars defined in a non-RULE_INIT event and used cross-event."""
 
 
 def _extract_event_summary(
@@ -127,6 +129,7 @@ def build_connection_scope(
     # Build cross-event sets with event-ordering awareness.
     cross_defs: set[str] = set()
     cross_imports: set[str] = set()
+    racy_statics: set[str] = set()
 
     events = list(summaries.keys())
     for i, ev_a in enumerate(events):
@@ -139,18 +142,18 @@ def build_connection_scope(
             # Variables defined in A and used-before-def in B
             shared = sum_a.defs & sum_b.uses_before_def
             for var in shared:
-                # static:: cross-event flow is only valid from RULE_INIT;
-                # writes in other events race across connections (IRULE4001).
-                if var.startswith("static::") and ev_a != "RULE_INIT":
-                    continue
                 note = EVENT_REGISTRY.variable_scope_note(ev_a, ev_b)
                 if note is None:
                     # No scoping concern → the cross-event flow is valid
                     cross_defs.add(var)
                     cross_imports.add(var)
+                    # static:: cross-event flow from non-RULE_INIT is racy
+                    if var.startswith("static::") and ev_a != "RULE_INIT":
+                        racy_statics.add(var)
 
     return ConnectionScope(
         summaries=summaries,
         cross_event_defs=frozenset(cross_defs),
         cross_event_imports=frozenset(cross_imports),
+        racy_static_defs=frozenset(racy_statics),
     )
