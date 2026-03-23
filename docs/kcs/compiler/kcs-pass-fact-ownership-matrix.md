@@ -31,7 +31,7 @@ Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. 
 | `core/compiler/interprocedural.py` | proc summaries (purity, call graph, constant return, parameter sensitivity) | optimiser (O103), interproc taint propagation | `analyse_interprocedural_ir()` |
 | `core/compiler/optimiser/` | optimisation findings (`O100`–`O125`) | diagnostics aggregation, code-action surfaces | `find_optimisations()` |
 | `core/compiler/gvn.py` | redundancy findings (`O105`, `O106`) | diagnostics aggregation, optimisation hint ranking | `find_redundant_computations()` |
-| `core/compiler/taint/` | taint findings (`T100`–`T201`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings()` |
+| `core/compiler/taint/` | taint findings (`T100`–`T106`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings()` |
 | `core/compiler/shimmer.py` | shimmer findings (`S100`–`S102`) | diagnostics aggregation, performance guidance | `find_shimmer_warnings()` |
 | `core/compiler/irules_flow.py` | iRules flow findings (`IRULE1xxx`–`IRULE5xxx`) | diagnostics aggregation for iRules dialect | `find_irules_flow_warnings()` |
 | `lsp/features/diagnostics.py` | final LSP diagnostic projection, suppression policy application | LSP publish pipeline, async tiering scheduler | `get_diagnostics()` |

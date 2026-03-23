@@ -5,7 +5,7 @@ How to triage, fix, test, and close differential-fuzzer findings.
 ## Where findings live
 
 ```
-tests/fuzz/findings/
+fuzzing/findings/
   seed_<TIMESTAMP>.json   ← mismatch metadata
   seed_<TIMESTAMP>.tcl    ← Tcl script that triggered the mismatch
 ```

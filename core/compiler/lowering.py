@@ -199,6 +199,7 @@ class _Lowerer:
     def __init__(self) -> None:
         self.module = IRModule()
         self._in_namespace_eval = False
+        self._when_counts: dict[str, int] = {}  # event -> occurrence count
 
     def lower(self, source: str) -> IRModule:
         self.module.top_level = self._lower_script(source, namespace="::")
@@ -921,13 +922,28 @@ class _Lowerer:
                 body_idx = len(args) - 1
                 body_tok = arg_tokens[body_idx]
                 body = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
-                qualified = f"::when::{event_name}"
+
+                # Extract priority from ``when EVENT priority N { body }``
+                base_priority = 500
+                if len(args) >= 4 and args[1] == "priority":
+                    try:
+                        base_priority = int(args[2])
+                    except ValueError:
+                        pass
+
+                # Number duplicate handlers: first is ::when::EVENT,
+                # subsequent are ::when::EVENT#1, ::when::EVENT#2, …
+                n = self._when_counts.get(event_name, 0)
+                self._when_counts[event_name] = n + 1
+                qualified = f"::when::{event_name}" if n == 0 else f"::when::{event_name}#{n}"
+
                 self.module.procedures[qualified] = IRProcedure(
                     name=event_name,
                     qualified_name=qualified,
                     params=(),
                     range=cmd.range,
                     body=body,
+                    base_priority=base_priority,
                 )
                 return IRCall(
                     range=cmd.range, command=cmd_name, args=tuple(args), tokens=cmd.cmd_tokens

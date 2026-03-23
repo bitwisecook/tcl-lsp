@@ -714,6 +714,7 @@ textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
       <option value="f5-iapps">F5 iapps</option>
       <option value="f5-bigip">F5 BIG-IP</option>
       <option value="f5-irules">F5 irules</option>
+      <option value="f5-tmsh">F5 TMSH</option>
       <option value="tcl8.4">Tcl 8.4</option>
       <option value="tcl8.5">Tcl 8.5</option>
       <option value="tcl8.6" selected>Tcl 8.6</option>
@@ -1249,7 +1250,7 @@ function buildMermaidDef(events) {
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     const id = 'evt' + i;
-    const priLabel = e.priority !== 500 ? ' p' + e.priority : '';
+    const priLabel = e.base_priority !== 500 ? ' p' + e.base_priority : '';
     const mLabel = multLabel[e.multiplicity] || '';
     lines.push(`  ${id}["${e.event}${priLabel}<br/><small>${mLabel}</small>"]`);
     if (i > 0) lines.push(`  evt${i-1} --> ${id}`);

@@ -21,12 +21,12 @@ The differential fuzzer generates random Tcl scripts and runs them through multi
 
 ## File-path anchors
 
-- `tests/fuzz/tcl_gen.py` — generator and corruption strategies (`corrupt_script`, `_corrupt_*`)
-- `tests/fuzz/harness.py` — `FuzzResult.bad_input`, `run_differential(bad_input=…)`, oracle logic
-- `tests/fuzz/coverage_guide.py` — `mutate_script(bad_input_pct=…)`, coverage-guided loop
-- `tests/fuzz/runner.py` — `CampaignStats.bad_inputs`, bad-input detection heuristic, `--bad-input-pct` CLI flag
-- `tests/fuzz/corpus/` — hand-written seed corpus (always valid)
-- `tests/fuzz/findings/` — saved failing scripts
+- `fuzzing/tcl_gen.py` — generator and corruption strategies (`corrupt_script`, `_corrupt_*`)
+- `fuzzing/harness.py` — `FuzzResult.bad_input`, `run_differential(bad_input=…)`, oracle logic
+- `fuzzing/coverage_guide.py` — `mutate_script(bad_input_pct=…)`, coverage-guided loop
+- `fuzzing/runner.py` — `CampaignStats.bad_inputs`, bad-input detection heuristic, `--bad-input-pct` CLI flag
+- `fuzzing/corpus/` — hand-written seed corpus (always valid)
+- `fuzzing/findings/` — saved failing scripts
 
 ## Failure modes
 

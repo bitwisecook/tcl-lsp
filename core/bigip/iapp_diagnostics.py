@@ -46,6 +46,7 @@ def validate_iapp_presentation(
                 Diagnostic(
                     message=f'#include file not found: "{inc.path}"',
                     range=Range(
+                        # offset=0 is a placeholder; AplInclude only tracks line number
                         start=SourcePosition(line=inc.line, character=0, offset=0),
                         end=SourcePosition(line=inc.line, character=0, offset=0),
                     ),
@@ -77,7 +78,7 @@ def validate_iapp_presentation(
                 Diagnostic(
                     message=(
                         f"Presentation field '{qname}' is never referenced "
-                        f"in the implementation (expected ${apl_field.qualified_name.replace('.', '__')})"
+                        f"in the implementation (expected $::{apl_field.qualified_name.replace('.', '__')})"
                     ),
                     range=apl_field.range,
                     severity=Severity.HINT,

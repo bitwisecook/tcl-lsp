@@ -10,7 +10,7 @@ allowed-tools: Bash, Read, Write, Edit
 
 # Fuzz Findings Management
 
-Manages the differential-fuzzer findings in `tests/fuzz/findings/`.
+Manages the differential-fuzzer findings in `fuzzing/findings/`.
 Each finding is a JSON file recording mismatches between backends
 (vm, vm_opt, tclsh) with an optional `.tcl` script that triggered it.
 

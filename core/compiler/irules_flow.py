@@ -6,6 +6,10 @@ Walks the token stream of ``when`` bodies to detect:
   ``*::collect`` call elsewhere in the iRule — the event will never fire.
 - **IRULE1006** (WARNING): ``*::payload`` access without a matching
   ``*::collect`` call — the payload buffer will be empty.
+- **IRULE1007** (ERROR): ``*::collect`` without a matching ``*::release``
+  on the same connection side — collected data is never released.
+- **IRULE1008** (ERROR): ``*::release`` without a matching ``*::collect``
+  on the same connection side — nothing was collected.
 - **IRULE1201** (WARNING): HTTP command used after ``HTTP::respond`` or
   ``HTTP::redirect`` in the same sequential code path.
 - **IRULE1202** (WARNING): Multiple ``HTTP::respond``/``HTTP::redirect``
@@ -28,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 
 from ..analysis.semantic_model import CodeFix, Range
@@ -39,6 +44,7 @@ from ..parsing.lexer import TclLexer
 from ..parsing.tokens import SourcePosition, Token, TokenType
 from .compilation_unit import CompilationUnit, ensure_compilation_unit
 from .ir import (
+    IRAssignConst,
     IRAssignValue,
     IRBarrier,
     IRCall,
@@ -46,6 +52,7 @@ from .ir import (
     IRFor,
     IRForeach,
     IRIf,
+    IRIncr,
     IRReturn,
     IRScript,
     IRSwitch,
@@ -53,8 +60,31 @@ from .ir import (
     IRWhile,
 )
 from .lowering import lower_to_ir
+from .value_shapes import parse_command_substitution
 
 log = logging.getLogger(__name__)
+
+
+def _when_qualified(event: str, occurrence: int) -> str:
+    """Build the ``::when::`` qualified name for the *occurrence*-th handler."""
+    return f"::when::{event}" if occurrence == 0 else f"::when::{event}#{occurrence}"
+
+
+def _when_qualified_names(
+    when_bodies: list[tuple[str, int, str, Token, Token]],
+) -> list[str]:
+    """Return the ``::when::`` qualified name for each entry in *when_bodies*.
+
+    Entries for the same event are numbered to match lowering order.
+    """
+    counts: dict[str, int] = {}
+    result: list[str] = []
+    for event, *_ in when_bodies:
+        n = counts.get(event, 0)
+        counts[event] = n + 1
+        result.append(_when_qualified(event, n))
+    return result
+
 
 # Registry-backed command sets (cached on first use)
 
@@ -153,10 +183,11 @@ def _walk_body_commands(body_text: str, base_offset: int, base_line: int, base_c
 def _find_when_bodies(source: str):
     """Find ``when EVENT { body }`` blocks.
 
-    Yields ``(event_name, priority, body_text, body_token, event_token)``.
+    Yields ``(event_name, base_priority, body_text, body_token, event_token)``.
 
     Uses the Tcl lexer to reliably parse the source and find ``when`` commands.
-    Priority is extracted from ``when EVENT priority N { body }``; defaults to 500.
+    Base priority is extracted from ``when EVENT priority N { body }``; defaults
+    to 500.
     """
     lexer = TclLexer(source)
     argv: list[Token] = []
@@ -437,49 +468,6 @@ def _analyse_when_body(
     return warnings
 
 
-def _analyse_repeated_calls(
-    event: str,
-    body_text: str,
-    body_tok: Token,
-) -> list[IrulesFlowWarning]:
-    """Walk a ``when`` body and flag repeated expensive command invocations.
-
-    IRULE2102: when the same expensive command (e.g. ``HTTP::uri``) is called
-    more than once with identical arguments, suggest extracting to a variable.
-    """
-    # Track (cmd_name, args_key) → first occurrence token
-    seen: dict[str, Token] = {}
-    warnings: list[IrulesFlowWarning] = []
-
-    for cmd_name, cmd_tok, all_tokens in _walk_body_commands(
-        body_text,
-        base_offset=body_tok.start.offset + 1,
-        base_line=body_tok.start.line,
-        base_col=body_tok.start.character + 1,
-    ):
-        if not REGISTRY.is_cse_candidate(cmd_name):
-            continue
-        # Build a key from command name + args text
-        args_text = " ".join(t.text for t in all_tokens[1:])
-        call_key = f"{cmd_name} {args_text}"
-        if call_key in seen:
-            warnings.append(
-                IrulesFlowWarning(
-                    range=range_from_token(cmd_tok),
-                    code="IRULE2102",
-                    message=(
-                        f"'{cmd_name}' called multiple times with the same arguments. "
-                        "Consider storing the result in a local variable."
-                    ),
-                    respond_range=range_from_token(seen[call_key]),
-                )
-            )
-        else:
-            seen[call_key] = cmd_tok
-
-    return warnings
-
-
 # IRULE1005: *_DATA event without matching *::collect
 # IRULE1006: *::payload access without matching *::collect
 
@@ -493,10 +481,6 @@ DATA_EVENT_REQUIREMENTS: dict[str, tuple[tuple[str, ...], str]] = {
     "CLIENTSSL_DATA": (("SSL",), "client"),
     "SERVERSSL_DATA": (("SSL",), "server"),
 }
-
-_COLLECT_RE = re.compile(r"\b(\w+)::collect\b")
-_PAYLOAD_RE = re.compile(r"\b(\w+)::payload\b")
-_SIDE_SWITCH_RE = re.compile(r"\b(clientside|serverside)\s*\{", re.IGNORECASE)
 
 
 def _default_collect_side(event: str) -> str:
@@ -520,53 +504,131 @@ def _default_collect_side(event: str) -> str:
     return "client"
 
 
-def _find_matching_brace(text: str, open_index: int) -> int | None:
-    """Return index of the brace matching text[open_index], or None."""
-    depth = 0
-    idx = open_index
-    while idx < len(text):
-        ch = text[idx]
-        escaped = idx > 0 and text[idx - 1] == "\\"
-        if ch == "{" and not escaped:
-            depth += 1
-        elif ch == "}" and not escaped:
-            depth -= 1
-            if depth == 0:
-                return idx
-        idx += 1
-    return None
+def _iter_ir_commands(script: IRScript):
+    """Yield ``(command, range, stmt)`` for every IR command, recursing into bodies.
+
+    Built on :func:`_iter_all_ir_statements` — filters to command-like
+    statements only.  Note: clientside/serverside body lowering is handled
+    in ``_scan_ir_event``, not here, because this function doesn't carry
+    side context.
+    """
+    for stmt in _iter_all_ir_statements(script, lower_side_switches=False):
+        if isinstance(stmt, (IRCall, IRBarrier)):
+            yield stmt.command, stmt.range, stmt
+        elif isinstance(stmt, IRAssignValue):
+            parsed = parse_command_substitution(stmt.value)
+            if parsed is not None:
+                yield parsed[0], stmt.range, stmt
 
 
-def _collect_side_spans(body_text: str) -> list[tuple[int, int, str]]:
-    """Return [(start, end, side)] spans for clientside/serverside blocks."""
-    spans: list[tuple[int, int, str]] = []
-    for match in _SIDE_SWITCH_RE.finditer(body_text):
-        side = "client" if match.group(1).lower() == "clientside" else "server"
-        open_brace = match.end() - 1
-        close_brace = _find_matching_brace(body_text, open_brace)
-        if close_brace is None:
+def _classify_command(
+    cmd: str,
+    rng: Range,
+    side: str,
+    collected: dict[str, set[str]],
+    released: dict[str, set[str]],
+    collect_calls: list[tuple[str, str, Range]],
+    release_calls: list[tuple[str, str, Range]],
+    payload_calls: list[tuple[str, str, Range]],
+) -> None:
+    """Classify a command as collect, release, or payload and record it."""
+    if cmd.endswith("::collect"):
+        protocol = cmd[: -len("::collect")].upper()
+        collected.setdefault(protocol, set()).add(side)
+        collect_calls.append((protocol, side, rng))
+    elif cmd.endswith("::release"):
+        protocol = cmd[: -len("::release")].upper()
+        released.setdefault(protocol, set()).add(side)
+        release_calls.append((protocol, side, rng))
+    elif cmd.endswith("::payload"):
+        protocol = cmd[: -len("::payload")].upper()
+        payload_calls.append((protocol, side, rng))
+
+
+def _lower_side_switch_body(stmt: IRCall) -> IRScript | None:
+    """Lower a ``clientside``/``serverside`` body arg to IR.
+
+    Returns ``None`` if the body cannot be lowered (e.g. syntax errors).
+    """
+    if not stmt.args:
+        return None
+    body_text = stmt.args[0]
+    try:
+        return lower_to_ir(body_text).top_level
+    except Exception:
+        return None
+
+
+def _scan_ir_event(
+    event: str,
+    ir_body: IRScript,
+    collected: dict[str, set[str]],
+    released: dict[str, set[str]],
+    collect_calls: list[tuple[str, str, Range]],
+    release_calls: list[tuple[str, str, Range]],
+    payload_calls: list[tuple[str, str, Range]],
+) -> None:
+    """Walk an IR event body and record collect/release/payload calls."""
+    default_side = _default_collect_side(event)
+    _scan_ir_body_with_side(
+        ir_body,
+        default_side,
+        collected,
+        released,
+        collect_calls,
+        release_calls,
+        payload_calls,
+    )
+
+
+def _scan_ir_body_with_side(
+    ir_body: IRScript,
+    current_side: str,
+    collected: dict[str, set[str]],
+    released: dict[str, set[str]],
+    collect_calls: list[tuple[str, str, Range]],
+    release_calls: list[tuple[str, str, Range]],
+    payload_calls: list[tuple[str, str, Range]],
+) -> None:
+    """Classify commands in *ir_body*, recursing into nested side-switches."""
+    for cmd, rng, ir_stmt in _iter_ir_commands(ir_body):
+        # ``clientside { ... }`` / ``serverside { ... }`` — lower the body
+        # and recurse with the switched side context.
+        if cmd in ("clientside", "serverside"):
+            inner_side = "client" if cmd == "clientside" else "server"
+            if isinstance(ir_stmt, IRCall):
+                inner_ir = _lower_side_switch_body(ir_stmt)
+                if inner_ir is not None:
+                    _scan_ir_body_with_side(
+                        inner_ir,
+                        inner_side,
+                        collected,
+                        released,
+                        collect_calls,
+                        release_calls,
+                        payload_calls,
+                    )
             continue
-        spans.append((open_brace + 1, close_brace, side))
-    return spans
-
-
-def _side_for_offset(offset: int, default_side: str, spans: list[tuple[int, int, str]]) -> str:
-    """Return effective side at *offset* using explicit side-switch spans."""
-    chosen: tuple[int, int, str] | None = None
-    for span in spans:
-        start, end, _side = span
-        if start <= offset < end:
-            if chosen is None or (end - start) < (chosen[1] - chosen[0]):
-                chosen = span
-    if chosen is not None:
-        return chosen[2]
-    return default_side
+        _classify_command(
+            cmd,
+            rng,
+            current_side,
+            collected,
+            released,
+            collect_calls,
+            release_calls,
+            payload_calls,
+        )
 
 
 def _find_collect_flow_warnings(
     when_bodies: list[tuple[str, int, str, Token, Token]],
+    cu: CompilationUnit | None = None,
 ) -> list[IrulesFlowWarning]:
-    """Find *_DATA events and *::payload access without matching *::collect.
+    """Find collect/release pairing and DATA-event issues.
+
+    Uses the IR from *cu* when available for precise command matching;
+    falls back to regex over raw text when the CU is unavailable.
 
     IRULE1005: A ``when CLIENT_DATA`` (etc.) handler exists but no
     ``*::collect`` for the corresponding protocol appears anywhere in the
@@ -574,25 +636,47 @@ def _find_collect_flow_warnings(
 
     IRULE1006: A ``*::payload`` call appears but no ``*::collect`` for
     that protocol exists in the iRule, so the payload buffer is empty.
-    """
-    # Scan all when bodies for ::collect calls and track which side context
-    # they execute under (client/server).  A collect on the wrong side does
-    # not satisfy CLIENT_DATA/SERVER_DATA requirements.
-    collected_protocol_sides: dict[str, set[str]] = {}
-    for event, _priority, body_text, _body_tok, _event_tok in when_bodies:
-        default_side = _default_collect_side(event)
-        side_spans = _collect_side_spans(body_text)
-        for m in _COLLECT_RE.finditer(body_text):
-            protocol = m.group(1).upper()
-            side = _side_for_offset(m.start(), default_side, side_spans)
-            collected_protocol_sides.setdefault(protocol, set()).add(side)
 
+    IRULE1007: A ``*::collect`` call has no matching ``*::release`` on the
+    same connection side — collected data is never released.
+
+    IRULE1008: A ``*::release`` call has no matching ``*::collect`` on the
+    same connection side — nothing was collected.
+    """
+    # ── Pass 1: scan all when bodies for collect/release/payload calls ──
+    collected_protocol_sides: dict[str, set[str]] = {}
+    released_protocol_sides: dict[str, set[str]] = {}
+    collect_calls: list[tuple[str, str, Range]] = []  # (protocol, side, range)
+    release_calls: list[tuple[str, str, Range]] = []
+    payload_calls: list[tuple[str, str, Range]] = []
+
+    qnames = _when_qualified_names(when_bodies)
+    for (event, _priority, body_text, body_tok, _event_tok), qname in zip(
+        when_bodies, qnames, strict=True
+    ):
+        ir_proc = cu.ir_module.procedures.get(qname) if cu else None
+        ir_body: IRScript | None = ir_proc.body if ir_proc is not None else None
+        if ir_body is None:
+            # CU unavailable — lower the body text to IR ourselves.
+            try:
+                ir_body = lower_to_ir(body_text).top_level
+            except Exception:
+                log.debug("collect_flow: IR lowering failed for %s, skipping", event)
+                continue
+        _scan_ir_event(
+            event,
+            ir_body,
+            collected_protocol_sides,
+            released_protocol_sides,
+            collect_calls,
+            release_calls,
+            payload_calls,
+        )
+
+    # ── Pass 2: emit warnings ──────────────────────────────────────────
     warnings: list[IrulesFlowWarning] = []
 
-    for event, _priority, body_text, body_tok, event_tok in when_bodies:
-        default_side = _default_collect_side(event)
-        side_spans = _collect_side_spans(body_text)
-
+    for event, _priority, _body_text, _body_tok, event_tok in when_bodies:
         # IRULE1005: DATA event without matching collect
         required = DATA_EVENT_REQUIREMENTS.get(event)
         if required is not None:
@@ -613,39 +697,52 @@ def _find_collect_flow_warnings(
                     )
                 )
 
-        # IRULE1006: ::payload without matching collect
-        base_offset = body_tok.start.offset + 1  # +1 for opening brace
-        base_line = body_tok.start.line
-        base_col = body_tok.start.character + 1
-        for m in _PAYLOAD_RE.finditer(body_text):
-            protocol = m.group(1).upper()
-            payload_side = _side_for_offset(m.start(), default_side, side_spans)
-            if payload_side not in collected_protocol_sides.get(protocol, set()):
-                start = position_from_relative(
-                    body_text,
-                    m.start(),
-                    base_line=base_line,
-                    base_col=base_col,
-                    base_offset=base_offset,
+    # IRULE1006: payload without matching collect
+    for protocol, side, rng in payload_calls:
+        if side not in collected_protocol_sides.get(protocol, set()):
+            warnings.append(
+                IrulesFlowWarning(
+                    range=rng,
+                    code="IRULE1006",
+                    message=(
+                        f"'{protocol}::payload' without a "
+                        f"{side} {protocol}::collect call. "
+                        "The payload buffer will be empty."
+                    ),
                 )
-                end = position_from_relative(
-                    body_text,
-                    m.end(),
-                    base_line=base_line,
-                    base_col=base_col,
-                    base_offset=base_offset,
+            )
+
+    # IRULE1007: collect without matching release (side-aware)
+    for protocol, side, rng in collect_calls:
+        if side not in released_protocol_sides.get(protocol, set()):
+            cmd_name = f"{protocol}::collect"
+            warnings.append(
+                IrulesFlowWarning(
+                    range=rng,
+                    code="IRULE1007",
+                    message=(
+                        f"{cmd_name} without matching "
+                        f"{protocol}::release on the {side} side; "
+                        "collected data is never released"
+                    ),
                 )
-                warnings.append(
-                    IrulesFlowWarning(
-                        range=Range(start=start, end=end),
-                        code="IRULE1006",
-                        message=(
-                            f"'{protocol}::payload' without a "
-                            f"{payload_side} {protocol}::collect call. "
-                            "The payload buffer will be empty."
-                        ),
-                    )
+            )
+
+    # IRULE1008: release without matching collect (side-aware)
+    for protocol, side, rng in release_calls:
+        if side not in collected_protocol_sides.get(protocol, set()):
+            cmd_name = f"{protocol}::release"
+            warnings.append(
+                IrulesFlowWarning(
+                    range=rng,
+                    code="IRULE1008",
+                    message=(
+                        f"{cmd_name} without matching "
+                        f"{protocol}::collect on the {side} side; "
+                        "no data was collected"
+                    ),
                 )
+            )
 
     return warnings
 
@@ -937,73 +1034,90 @@ def _cmd_available_at_event(cmd_name: str, target_event: str) -> bool:
     return EVENT_REGISTRY.event_satisfies(target_props, requires, event_name=target_event)
 
 
-def _value_hoistable_to(
-    word_types: list[TokenType],
-    word_texts: list[str],
+def _ir_value_hoistable_to(
+    stmt: IRAssignConst | IRAssignValue | IRIncr | IRCall,
     target_event: str,
 ) -> bool:
-    """Return True if the value word tokens can run in *target_event*.
+    """Return True if the IR statement's value can run in *target_event*.
 
-    Checks that all runtime dependencies (command substitutions) are
-    available at the target event.  Variable references always fail.
+    ``IRAssignConst`` is always hoistable (pure literal).
+    ``IRIncr`` with a literal amount is always hoistable.
+    ``IRAssignValue`` is hoistable when its value contains no variable
+    references and all command substitutions are available at the target.
+    ``IRCall`` is hoistable when the command itself and all its args are
+    available at the target (no variable refs, commands are reachable).
     """
-    # Any direct variable reference → not hoistable.
-    if any(t is TokenType.VAR for t in word_types):
+    if isinstance(stmt, IRAssignConst):
+        return True
+
+    if isinstance(stmt, IRIncr):
+        # incr with a literal amount — always hoistable.
+        return True
+
+    if isinstance(stmt, IRCall):
+        # Check the command itself is available at the target.
+        if not _cmd_available_at_event(stmt.command, target_event):
+            return False
+        # Check all args for variable refs and command availability.
+        for arg in stmt.args:
+            if "$" in arg:
+                return False
+            for m in _NS_CMD_RE.finditer(arg):
+                if not _cmd_available_at_event(m.group(1), target_event):
+                    return False
+        return True
+
+    # IRAssignValue
+    value = stmt.value
+    # Variable reference → not hoistable.
+    if "$" in value:
         return False
 
     # No command substitutions → pure literal → always hoistable.
-    cmd_indices = [i for i, t in enumerate(word_types) if t is TokenType.CMD]
-    if not cmd_indices:
+    if "[" not in value:
         return True
 
-    # Check each command substitution token.
-    for idx in cmd_indices:
-        cmd_text = word_texts[idx]
-
-        # Variable reference inside command → can't determine availability.
-        if "$" in cmd_text:
+    # Check all namespace::subcommand references in the value.
+    for m in _NS_CMD_RE.finditer(value):
+        ns_cmd = m.group(1)
+        if not _cmd_available_at_event(ns_cmd, target_event):
             return False
 
-        # Check outer command (first word of the substitution).
-        outer_cmd = cmd_text.split(None, 1)[0] if cmd_text.strip() else ""
-        if outer_cmd and REGISTRY.get(outer_cmd) is None:
+    # Check the outer command if parseable.
+    parsed = parse_command_substitution(value)
+    if parsed is not None:
+        outer_cmd = parsed[0]
+        if REGISTRY.get(outer_cmd) is None:
             return False  # unknown command → conservative
-
-        if outer_cmd and not _cmd_available_at_event(outer_cmd, target_event):
+        if not _cmd_available_at_event(outer_cmd, target_event):
             return False
-
-        # Check all namespace::subcommand references in full text
-        # (catches nested [HTTP::uri] inside [string tolower [HTTP::uri]]).
-        for m in _NS_CMD_RE.finditer(cmd_text):
-            ns_cmd = m.group(1)
-            if not _cmd_available_at_event(ns_cmd, target_event):
-                return False
 
     return True
 
 
 def _find_hoistable_constants(
     when_bodies: list[tuple[str, int, str, Token, Token]],
+    cu: CompilationUnit | None = None,
 ) -> list[IrulesFlowWarning]:
     """IRULE4004: constant set in per-request event hoistable to per-connection.
 
-    Scans top-level ``set var value`` commands in PER_REQUEST events.
-    A set is hoistable when the value is a pure literal or all its command
-    substitutions are available at the target once-per-connection event.
+    Walks the IR for top-level ``set var value`` statements (``IRAssignConst``
+    and ``IRAssignValue``) in PER_REQUEST events.  A set is hoistable when
+    the value is a pure literal or all its command substitutions are
+    available at the target once-per-connection event.
     """
     file_events = frozenset(event for event, *_ in when_bodies)
     warnings: list[IrulesFlowWarning] = []
+    qnames = _when_qualified_names(when_bodies)
 
-    for event, _priority, body_text, body_tok, _event_tok in when_bodies:
+    for (event, _priority, body_text, body_tok, _event_tok), qname in zip(
+        when_bodies, qnames, strict=True
+    ):
         if not EVENT_REGISTRY.is_per_request(event):
             continue
 
         # Build a list of candidate target events (earliest-first) where
-        # per-request set statements could be hoisted.  We want the highest
-        # (earliest) event in the chain where the value's commands are still
-        # available, so candidates are ordered from earliest to latest.
-        # Use flow-chain compatibility to avoid suggesting events from
-        # incompatible profile stacks (e.g. ACCESS events for DNS contexts).
+        # per-request set statements could be hoisted.
         compatible = EVENT_REGISTRY.compatible_connection_predecessors(event)
         candidates: list[tuple[str, bool]] = []  # (event_name, already_in_file)
         for pred in EVENT_REGISTRY.events_before(event, file_events):
@@ -1016,104 +1130,225 @@ def _find_hoistable_constants(
                     candidates.append((pred, False))
         if not candidates:
             continue
-        # Candidates available; scan body below to refine per-statement.
 
-        # Scan top-level commands in the body.
-        base_offset = body_tok.start.offset + 1
-        base_line = body_tok.start.line
-        base_col = body_tok.start.character + 1
+        # Get IR body for this event.
+        ir_proc = cu.ir_module.procedures.get(qname) if cu else None
+        ir_body: IRScript | None = ir_proc.body if ir_proc is not None else None
+        if ir_body is None:
+            try:
+                ir_body = lower_to_ir(body_text).top_level
+            except Exception:
+                log.debug("hoistable_constants: IR lowering failed for %s, skipping", event)
+                continue
 
-        lexer = TclLexer(body_text, base_offset=base_offset, base_line=base_line, base_col=base_col)
-        argv: list[Token] = []
-        argv_texts: list[str] = []
-        word_types: list[list[TokenType]] = []
-        word_texts: list[list[str]] = []
-        prev_type = TokenType.EOL
+        # Walk only top-level statements (not inside if/for/etc).
+        for stmt in ir_body.statements:
+            # Determine variable name(s) and display text for each store type.
+            var_name: str | None = None
+            display: str | None = None
+            if isinstance(stmt, (IRAssignConst, IRAssignValue)):
+                var_name = stmt.name
+                display = f"set {stmt.name} {stmt.value}"
+            elif isinstance(stmt, IRIncr):
+                var_name = stmt.name
+                amt = f" {stmt.amount}" if stmt.amount else ""
+                display = f"incr {stmt.name}{amt}"
+            elif isinstance(stmt, IRCall) and stmt.defs:
+                # Commands like binary scan, regexp, scan that define variables.
+                # Only flag if the command itself + all args are hoistable.
+                var_name = stmt.defs[0]  # first defined var for display
+                display = f"{stmt.command} ..."
 
-        def _flush():
-            if (
-                len(argv) == 3
-                and argv_texts[0] == "set"
-                and not argv_texts[1].startswith("static::")
-            ):
-                val_types = word_types[2]
-                val_texts = word_texts[2]
-                # Try each candidate event (earliest first) and pick
-                # the highest one where the value's commands are available.
-                best_event = None
-                best_exists = False
-                for cand, cand_exists in candidates:
-                    if _value_hoistable_to(val_types, val_texts, cand):
-                        best_event = cand
-                        best_exists = cand_exists
-                        break
-                if best_event is not None:
-                    val_display = argv_texts[2]
-                    if len(val_display) > 40:
-                        val_display = val_display[:37] + "..."
-                    suffix = (
-                        "(once per connection)."
-                        if best_exists
-                        else "(once per connection; event not yet in this iRule)."
+            if var_name is None or display is None:
+                continue
+            # Skip static:: variables — they're already scoped.
+            if var_name.startswith("static::"):
+                continue
+
+            # Try each candidate event (earliest first).
+            hoistable_stmt: IRAssignConst | IRAssignValue | IRIncr | IRCall = stmt  # type: ignore[assignment]
+            best_event = None
+            best_exists = False
+            for cand, cand_exists in candidates:
+                if _ir_value_hoistable_to(hoistable_stmt, cand):
+                    best_event = cand
+                    best_exists = cand_exists
+                    break
+            if best_event is not None:
+                if len(display) > 50:
+                    display = display[:47] + "..."
+                suffix = (
+                    "(once per connection)."
+                    if best_exists
+                    else "(once per connection; event not yet in this iRule)."
+                )
+                warnings.append(
+                    IrulesFlowWarning(
+                        range=stmt.range,
+                        code="IRULE4004",
+                        message=(
+                            f"'{display}' in "
+                            f"{event} (per-request) could be hoisted to "
+                            f"{best_event} {suffix}"
+                        ),
                     )
-                    warnings.append(
-                        IrulesFlowWarning(
-                            range=range_from_token(argv[0]),
-                            code="IRULE4004",
-                            message=(
-                                f"'set {argv_texts[1]} {val_display}' in "
-                                f"{event} (per-request) could be hoisted to "
-                                f"{best_event} {suffix}"
-                            ),
-                        )
-                    )
-            argv.clear()
-            argv_texts.clear()
-            word_types.clear()
-            word_texts.clear()
-
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
-            match tok.type:
-                case TokenType.COMMENT | TokenType.SEP:
-                    prev_type = tok.type
-                    continue
-                case TokenType.EOL:
-                    _flush()
-                    prev_type = tok.type
-                    continue
-                case _:
-                    text = tok.text
-
-            if prev_type in (TokenType.SEP, TokenType.EOL):
-                # Start of a new word.
-                argv.append(tok)
-                argv_texts.append(text)
-                word_types.append([tok.type])
-                word_texts.append([text])
-            else:
-                if argv_texts:
-                    argv_texts[-1] += text
-                    word_types[-1].append(tok.type)
-                    word_texts[-1].append(text)
-                else:
-                    argv.append(tok)
-                    argv_texts.append(text)
-                    word_types.append([tok.type])
-                    word_texts.append([text])
-            prev_type = tok.type
-
-        _flush()
+                )
 
     return warnings
+
+
+def _find_generic_static_names(
+    when_bodies: list[tuple[str, int, str, Token, Token]],
+    cu: CompilationUnit | None = None,
+    generic_variable_patterns: list[str] | None = None,
+) -> list[IrulesFlowWarning]:
+    """IRULE4002: generic ``static::`` variable name that will collide.
+
+    Walks the CFG (or IR if CFG unavailable) for every statement that
+    defines a ``static::`` variable and checks the bare name against
+    configurable regex patterns.
+
+    Using the CFG rather than the raw IR ensures that upvar-augmented
+    ``defs`` are visible — e.g. a proc that does
+    ``upvar 1 static::debug local`` will have ``static::debug`` added to
+    the call's ``defs`` by the CFG builder.
+    """
+    from ..analysis.irules_checks import _is_generic_static_name
+
+    warnings: list[IrulesFlowWarning] = []
+    seen: set[str] = set()  # deduplicate across events
+
+    def _check_var(var_name: str, rng: Range) -> None:
+        if not var_name.startswith("static::"):
+            return
+        if var_name in seen:
+            return
+        if not _is_generic_static_name(var_name, generic_variable_patterns):
+            return
+        seen.add(var_name)
+        bare = var_name.removeprefix("static::")
+        warnings.append(
+            IrulesFlowWarning(
+                range=rng,
+                code="IRULE4002",
+                message=(
+                    f"'{var_name}' is a generic name that will collide "
+                    f"with other iRules. static:: variables are shared "
+                    f"across every iRule on the BIG-IP system — prefix "
+                    f"with the application or rule name "
+                    f"(e.g. 'static::<app>_{bare}')."
+                ),
+            )
+        )
+
+    qnames = _when_qualified_names(when_bodies)
+    for (event, _priority, body_text, _body_tok, _event_tok), qname in zip(
+        when_bodies, qnames, strict=True
+    ):
+        # Prefer the CFG (has upvar-augmented defs) over raw IR.
+        fu = cu.procedures.get(qname) if cu else None
+        if fu is not None:
+            # Walk CFG blocks — statements here have upvar-resolved defs.
+            for block in fu.cfg.blocks.values():
+                for stmt in block.statements:
+                    if isinstance(stmt, (IRAssignConst, IRAssignValue, IRIncr)):
+                        _check_var(stmt.name, stmt.range)
+                    elif isinstance(stmt, IRCall) and stmt.defs:
+                        for var_name in stmt.defs:
+                            _check_var(var_name, stmt.range)
+                    # Descend into clientside/serverside body args.
+                    if isinstance(stmt, IRCall) and stmt.command in ("clientside", "serverside"):
+                        inner_ir = _lower_side_switch_body(stmt)
+                        if inner_ir is not None:
+                            for inner_stmt in _iter_all_ir_statements(inner_ir):
+                                if isinstance(inner_stmt, (IRAssignConst, IRAssignValue, IRIncr)):
+                                    _check_var(inner_stmt.name, inner_stmt.range)
+                                elif isinstance(inner_stmt, IRCall) and inner_stmt.defs:
+                                    for var_name in inner_stmt.defs:
+                                        _check_var(var_name, inner_stmt.range)
+        else:
+            # Fallback to raw IR.
+            ir_proc = cu.ir_module.procedures.get(qname) if cu else None
+            ir_body = ir_proc.body if ir_proc is not None else None
+            if ir_body is None:
+                try:
+                    ir_body = lower_to_ir(body_text).top_level
+                except Exception:
+                    continue
+            for stmt in _iter_all_ir_statements(ir_body):
+                if isinstance(stmt, (IRAssignConst, IRAssignValue, IRIncr)):
+                    _check_var(stmt.name, stmt.range)
+                elif isinstance(stmt, IRCall) and stmt.defs:
+                    for var_name in stmt.defs:
+                        _check_var(var_name, stmt.range)
+
+    return warnings
+
+
+def _iter_all_ir_statements(script: IRScript, *, lower_side_switches: bool = True):
+    """Yield every IR statement, recursing into structured bodies.
+
+    When *lower_side_switches* is ``True`` (default), ``clientside``/
+    ``serverside`` body arguments are lowered to IR and recursed into.
+    """
+    for stmt in script.statements:
+        yield stmt
+        if isinstance(stmt, IRIf):
+            for clause in stmt.clauses:
+                yield from _iter_all_ir_statements(
+                    clause.body, lower_side_switches=lower_side_switches
+                )
+            if stmt.else_body is not None:
+                yield from _iter_all_ir_statements(
+                    stmt.else_body, lower_side_switches=lower_side_switches
+                )
+        elif isinstance(stmt, IRFor):
+            yield from _iter_all_ir_statements(stmt.init, lower_side_switches=lower_side_switches)
+            yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
+            yield from _iter_all_ir_statements(stmt.next, lower_side_switches=lower_side_switches)
+        elif isinstance(stmt, IRSwitch):
+            for arm in stmt.arms:
+                if arm.body is not None:
+                    yield from _iter_all_ir_statements(
+                        arm.body, lower_side_switches=lower_side_switches
+                    )
+            if stmt.default_body is not None:
+                yield from _iter_all_ir_statements(
+                    stmt.default_body, lower_side_switches=lower_side_switches
+                )
+        elif isinstance(stmt, IRWhile):
+            yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
+        elif isinstance(stmt, IRForeach):
+            yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
+        elif isinstance(stmt, IRCatch):
+            yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
+        elif isinstance(stmt, IRTry):
+            yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
+            for handler in stmt.handlers:
+                yield from _iter_all_ir_statements(
+                    handler.body, lower_side_switches=lower_side_switches
+                )
+            if stmt.finally_body is not None:
+                yield from _iter_all_ir_statements(
+                    stmt.finally_body, lower_side_switches=lower_side_switches
+                )
+        elif (
+            lower_side_switches
+            and isinstance(stmt, IRCall)
+            and stmt.command in ("clientside", "serverside")
+        ):
+            inner_ir = _lower_side_switch_body(stmt)
+            if inner_ir is not None:
+                yield from _iter_all_ir_statements(
+                    inner_ir, lower_side_switches=lower_side_switches
+                )
 
 
 def find_irules_flow_warnings(
     source: str,
     *,
     cu: CompilationUnit | None = None,
+    generic_variable_patterns: list[str] | None = None,
 ) -> list[IrulesFlowWarning]:
     """Find all iRules flow and performance warnings in source."""
     if active_dialect() != "f5-irules":
@@ -1129,11 +1364,14 @@ def find_irules_flow_warnings(
 
     warnings: list[IrulesFlowWarning] = []
     when_bodies = list(_find_when_bodies(source))
-    for event, _priority, body_text, body_tok, _event_tok in when_bodies:
+    qnames = _when_qualified_names(when_bodies)
+    for (event, _priority, body_text, body_tok, _event_tok), qname in zip(
+        when_bodies, qnames, strict=True
+    ):
         warnings.extend(_analyse_when_body(event, body_text, body_tok))
         when_ir_body: IRScript | None = None
         if cu is not None:
-            ir_proc = cu.ir_module.procedures.get(f"::when::{event}")
+            ir_proc = cu.ir_module.procedures.get(qname)
             if ir_proc is not None:
                 when_ir_body = ir_proc.body
         warnings.extend(
@@ -1144,11 +1382,15 @@ def find_irules_flow_warnings(
                 ir_body=when_ir_body,
             )
         )
-        # Note: IRULE2102 (repeated expensive calls) has been subsumed by
-        # the GVN/CSE pass (O105) which handles both standalone and embedded
-        # command invocations with richer analysis.
-    warnings.extend(_find_collect_flow_warnings(when_bodies))
-    warnings.extend(_find_hoistable_constants(when_bodies))
+    warnings.extend(_find_collect_flow_warnings(when_bodies, cu=cu))
+    warnings.extend(_find_hoistable_constants(when_bodies, cu=cu))
+    warnings.extend(
+        _find_generic_static_names(
+            when_bodies,
+            cu=cu,
+            generic_variable_patterns=generic_variable_patterns,
+        )
+    )
     return warnings
 
 
@@ -1160,7 +1402,8 @@ class EventOrderEntry:
     """One ``when EVENT`` block with its position in the firing order."""
 
     event: str
-    priority: int
+    base_priority: int
+    priority_offset: int  # 0 for first handler at this priority, +1 per tie
     multiplicity: str  # "once", "per-request", or "init"
     range: Range  # source range of the event token
 
@@ -1168,33 +1411,50 @@ class EventOrderEntry:
 def extract_event_order(source: str) -> list[EventOrderEntry]:
     """Return events found in *source* in canonical firing order.
 
-    Each entry carries the event name, its declared priority, its
-    multiplicity class, and the source range of the ``when EVENT`` token
-    so the explorer can navigate to it.
+    Each entry carries the event name, its declared base priority, the
+    priority offset (tie-breaker among handlers sharing the same event and
+    base priority, derived from file order), the multiplicity class, and
+    the source range of the ``when EVENT`` token so the explorer can
+    navigate to it.
+
+    When the same event appears more than once, each handler gets its
+    own entry, ordered by base priority (lowest first, then file order for
+    equal priorities).
     """
     when_bodies = list(_find_when_bodies(source))
     if not when_bodies:
         return []
 
-    # Collect info per event (first occurrence wins for range/priority)
-    seen: dict[str, tuple[int, Range]] = {}
-    for event, priority, _body, _body_tok, event_tok in when_bodies:
-        if event not in seen:
-            seen[event] = (priority, range_from_token(event_tok))
+    # Collect all handlers per event, preserving file order.
+    per_event: dict[str, list[tuple[int, int, Range]]] = defaultdict(list)
+    for idx, (event, priority, _body, _body_tok, event_tok) in enumerate(when_bodies):
+        per_event[event].append((priority, idx, range_from_token(event_tok)))
 
-    ordered = EVENT_REGISTRY.order_events(frozenset(seen))
+    # Sort each event's handlers: lowest priority first, file order breaks ties.
+    for handlers in per_event.values():
+        handlers.sort(key=lambda t: (t[0], t[1]))
+
+    ordered = EVENT_REGISTRY.order_events(frozenset(per_event))
     result: list[EventOrderEntry] = []
     for evt in ordered:
-        priority, rng = seen[evt]
         mult = EVENT_REGISTRY.event_multiplicity(evt)
-        result.append(
-            EventOrderEntry(
-                event=evt,
-                priority=priority,
-                multiplicity=mult,
-                range=rng,
+        prev_pri: int | None = None
+        offset = 0
+        for base_pri, _idx, rng in per_event[evt]:
+            if base_pri == prev_pri:
+                offset += 1
+            else:
+                offset = 0
+                prev_pri = base_pri
+            result.append(
+                EventOrderEntry(
+                    event=evt,
+                    base_priority=base_pri,
+                    priority_offset=offset,
+                    multiplicity=mult,
+                    range=rng,
+                )
             )
-        )
     return result
 
 
@@ -1206,7 +1466,7 @@ class RuleInitExport:
     """A variable or array set in a RULE_INIT block."""
 
     name: str  # e.g. "::my_var"
-    priority: int
+    base_priority: int
     range: Range
     is_array: bool = False
 
@@ -1216,12 +1476,62 @@ def _is_cross_rule_var(name: str) -> bool:
     return name.startswith("::") or name.startswith("static::")
 
 
-def extract_rule_init_vars(source: str) -> list[RuleInitExport]:
-    """Extract global and static variables set in ``when RULE_INIT`` blocks."""
+def extract_rule_init_vars(
+    source: str,
+    *,
+    cu: CompilationUnit | None = None,
+) -> list[RuleInitExport]:
+    """Extract global and static variables set in ``when RULE_INIT`` blocks.
+
+    When *cu* is available, walks the IR (including upvar-augmented defs from
+    the CFG) instead of scanning tokens.  Falls back to the token walk when
+    the compilation unit is not available.
+    """
     exports: list[RuleInitExport] = []
-    for event, priority, body_text, body_tok, _event_tok in _find_when_bodies(source):
+    when_bodies = list(_find_when_bodies(source))
+    qnames = _when_qualified_names(when_bodies)
+    for (event, priority, body_text, body_tok, _event_tok), qname in zip(
+        when_bodies, qnames, strict=True
+    ):
         if event != "RULE_INIT":
             continue
+
+        # --- IR-based path (preferred) ---
+        fu = cu.procedures.get(qname) if cu else None
+        if fu is not None:
+            seen: set[str] = set()
+            for block in fu.cfg.blocks.values():
+                for stmt in block.statements:
+                    names: list[str] = []
+                    is_array = False
+                    if isinstance(stmt, (IRAssignConst, IRAssignValue)):
+                        names.append(stmt.name)
+                    elif isinstance(stmt, IRIncr):
+                        names.append(stmt.name)
+                    elif isinstance(stmt, IRCall):
+                        if stmt.command == "array" and stmt.args and stmt.args[0] == "set":
+                            # array set <name> <list> — name is in args[1]
+                            if len(stmt.args) >= 2:
+                                names.append(stmt.args[1])
+                                is_array = True
+                        if stmt.defs:
+                            names.extend(stmt.defs)
+                    for name in names:
+                        if name in seen:
+                            continue
+                        if _is_cross_rule_var(name):
+                            seen.add(name)
+                            exports.append(
+                                RuleInitExport(
+                                    name=name,
+                                    base_priority=priority,
+                                    range=stmt.range,
+                                    is_array=is_array,
+                                )
+                            )
+            continue
+
+        # --- Fallback: token walk ---
         for cmd_name, _cmd_tok, all_tokens in _walk_body_commands(
             body_text,
             base_offset=body_tok.start.offset + 1,
@@ -1235,7 +1545,7 @@ def extract_rule_init_vars(source: str) -> list[RuleInitExport]:
                     exports.append(
                         RuleInitExport(
                             name=var_name,
-                            priority=priority,
+                            base_priority=priority,
                             range=range_from_token(var_tok),
                         )
                     )
@@ -1247,7 +1557,7 @@ def extract_rule_init_vars(source: str) -> list[RuleInitExport]:
                         exports.append(
                             RuleInitExport(
                                 name=arr_name,
-                                priority=priority,
+                                base_priority=priority,
                                 range=range_from_token(arr_tok),
                                 is_array=True,
                             )

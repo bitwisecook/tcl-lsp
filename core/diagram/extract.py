@@ -21,7 +21,6 @@ from ..compiler.ir import (
     IRFor,
     IRForeach,
     IRIf,
-    IRModule,
     IRProcedure,
     IRReturn,
     IRScript,
@@ -29,6 +28,7 @@ from ..compiler.ir import (
     IRSwitch,
     IRTry,
     IRWhile,
+    when_event_name,
 )
 from ..compiler.lowering import lower_to_ir
 
@@ -256,25 +256,6 @@ def _walk_script(
     return nodes
 
 
-# Priority extraction
-
-
-def _extract_priority(ir_module: IRModule, event_name: str) -> int | None:
-    """Extract priority from the top-level ``when EVENT priority N { ... }`` call."""
-    for stmt in ir_module.top_level.statements:
-        if not isinstance(stmt, IRCall) or stmt.command != "when":
-            continue
-        if not stmt.args or stmt.args[0] != event_name:
-            continue
-        # args pattern: (event_name, "priority", "500", body_text)
-        if len(stmt.args) >= 3 and stmt.args[1] == "priority":
-            try:
-                return int(stmt.args[2])
-            except (ValueError, IndexError):
-                pass
-    return None
-
-
 # Public API
 
 
@@ -298,27 +279,37 @@ def extract_diagram_data(source: str) -> dict:
     # Build set of user-defined procedure names for call detection.
     proc_names = frozenset(proc.name for proc in regular_procs.values())
 
-    # Order events by canonical firing order.
-    event_names = frozenset(proc.name for proc in event_procs.values())
+    # Order events by canonical firing order, then by priority within each.
+    event_names = frozenset(when_event_name(k) for k in event_procs)
     ordered = EVENT_REGISTRY.order_events(event_names)
+
+    # Group handlers per event, sorted by base priority then file order.
+    from collections import defaultdict
+
+    handlers_by_event: dict[str, list[IRProcedure]] = defaultdict(list)
+    for proc in event_procs.values():
+        handlers_by_event[when_event_name(proc.qualified_name)].append(proc)
+    for handlers in handlers_by_event.values():
+        handlers.sort(key=lambda p: p.base_priority)
 
     # Walk each event handler.
     events: list[dict] = []
-    for event_name in ordered[:_MAX_EVENTS]:
-        qualified = f"::when::{event_name}"
-        proc = event_procs.get(qualified)
-        if proc is None:
-            continue
-        flow = _walk_script(proc.body, proc_names, depth=0)
-        priority = _extract_priority(ir_module, event_name)
-        events.append(
-            {
-                "name": event_name,
-                "priority": priority,
-                "multiplicity": _multiplicity(event_name),
-                "flow": flow,
-            }
-        )
+    for event_name in ordered:
+        for proc in handlers_by_event.get(event_name, []):
+            flow = _walk_script(proc.body, proc_names, depth=0)
+            base_pri: int | None = proc.base_priority if proc.base_priority != 500 else None
+            events.append(
+                {
+                    "name": event_name,
+                    "priority": base_pri,
+                    "multiplicity": _multiplicity(event_name),
+                    "flow": flow,
+                }
+            )
+            if len(events) >= _MAX_EVENTS:
+                break
+        if len(events) >= _MAX_EVENTS:
+            break
 
     # Walk regular procedures.
     procedures: list[dict] = []

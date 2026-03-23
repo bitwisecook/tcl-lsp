@@ -1,11 +1,9 @@
-"""Tests for taint analysis and collect/release pairing."""
+"""Tests for taint analysis."""
 
 from __future__ import annotations
 
 from core.commands.registry.taint_hints import TaintColour
 from core.compiler.taint import (
-    CollectWithoutReleaseWarning,
-    ReleaseWithoutCollectWarning,
     TaintLattice,
     TaintWarning,
     find_taint_warnings,
@@ -25,16 +23,6 @@ def _taint_warnings(source: str, code: str | None = None) -> list[TaintWarning]:
         for w in find_taint_warnings(source)
         if isinstance(w, TaintWarning) and (code is None or w.code == code)
     ]
-
-
-def _collect_warnings(source: str) -> list[CollectWithoutReleaseWarning]:
-    """Return T200 collect-without-release warnings."""
-    return [w for w in find_taint_warnings(source) if isinstance(w, CollectWithoutReleaseWarning)]
-
-
-def _release_warnings(source: str) -> list[ReleaseWithoutCollectWarning]:
-    """Return T201 release-without-collect warnings."""
-    return [w for w in find_taint_warnings(source) if isinstance(w, ReleaseWithoutCollectWarning)]
 
 
 # Lattice join
@@ -317,86 +305,6 @@ class TestDangerousSinks:
         assert len(ws) >= 1
 
 
-# Collect / release pairing (T200)
-
-
-class TestCollectRelease:
-    """collect without matching release should warn."""
-
-    def test_collect_without_release(self):
-        ws = _collect_warnings("HTTP::collect")
-        assert len(ws) == 1
-        assert ws[0].command == "HTTP::collect"
-
-    def test_collect_with_release(self):
-        assert _codes("HTTP::collect\nHTTP::release") == []
-
-    def test_tcp_collect_without_release(self):
-        ws = _collect_warnings("TCP::collect")
-        assert len(ws) == 1
-        assert ws[0].command == "TCP::collect"
-
-    def test_tcp_collect_with_release(self):
-        assert _codes("TCP::collect\nTCP::release") == []
-
-    def test_protocol_mismatch(self):
-        # HTTP::collect needs HTTP::release, not TCP::release
-        ws = _collect_warnings("HTTP::collect\nTCP::release")
-        assert len(ws) >= 1
-        assert ws[0].command == "HTTP::collect"
-
-    def test_ssl_collect_without_release(self):
-        ws = _collect_warnings("SSL::collect\nSSL::release")
-        assert len(ws) == 0
-
-    def test_multiple_protocols(self):
-        source = "HTTP::collect\nTCP::collect\nHTTP::release"
-        ws = _collect_warnings(source)
-        # TCP::collect has no release
-        assert len(ws) == 1
-        assert ws[0].command == "TCP::collect"
-
-
-# Release without collect (T201)
-
-
-class TestReleaseWithoutCollect:
-    """release without matching collect should warn."""
-
-    def test_release_without_collect(self):
-        ws = _release_warnings("HTTP::release")
-        assert len(ws) == 1
-        assert ws[0].command == "HTTP::release"
-        assert ws[0].code == "T201"
-
-    def test_release_with_collect(self):
-        assert _release_warnings("HTTP::collect\nHTTP::release") == []
-
-    def test_tcp_release_without_collect(self):
-        ws = _release_warnings("TCP::release")
-        assert len(ws) == 1
-        assert ws[0].command == "TCP::release"
-
-    def test_protocol_mismatch(self):
-        # TCP::release needs TCP::collect, not HTTP::collect
-        ws = _release_warnings("HTTP::collect\nTCP::release")
-        assert len(ws) == 1
-        assert ws[0].command == "TCP::release"
-
-    def test_multiple_protocols(self):
-        source = "HTTP::release\nTCP::release\nTCP::collect"
-        ws = _release_warnings(source)
-        # HTTP::release has no collect
-        assert len(ws) == 1
-        assert ws[0].command == "HTTP::release"
-
-    def test_release_warning_message(self):
-        ws = _release_warnings("HTTP::release")
-        assert len(ws) == 1
-        assert "HTTP::release" in ws[0].message
-        assert "HTTP::collect" in ws[0].message
-
-
 # Warning message content
 
 
@@ -406,12 +314,6 @@ class TestWarningMessages:
         assert len(ws) >= 1
         assert "eval" in ws[0].message
         assert "$x" in ws[0].message or "x" in ws[0].message
-
-    def test_collect_warning_message(self):
-        ws = _collect_warnings("HTTP::collect")
-        assert len(ws) == 1
-        assert "HTTP::collect" in ws[0].message
-        assert "HTTP::release" in ws[0].message
 
 
 # Output sinks (T101)

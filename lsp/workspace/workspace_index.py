@@ -39,7 +39,7 @@ class RuleInitVarDef:
 
     name: str  # e.g. "::my_var"
     source_uri: str
-    priority: int  # RULE_INIT priority (default 500)
+    base_priority: int  # RULE_INIT base priority (default 500)
     definition_range: Range
     is_array: bool = False
 
@@ -167,7 +167,7 @@ class WorkspaceIndex:
                 entry = RuleInitVarDef(
                     name=exp.name,
                     source_uri=uri,
-                    priority=exp.priority,
+                    base_priority=exp.base_priority,
                     definition_range=exp.range,
                     is_array=exp.is_array,
                 )

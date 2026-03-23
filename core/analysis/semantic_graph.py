@@ -412,8 +412,6 @@ def build_dataflow_graph(
     """
     from core.compiler.compilation_unit import ensure_compilation_unit
     from core.compiler.taint import (
-        CollectWithoutReleaseWarning,
-        ReleaseWithoutCollectWarning,
         TaintWarning,
         find_taint_warnings,
     )
@@ -446,10 +444,6 @@ def build_dataflow_graph(
         if isinstance(w, TaintWarning):
             entry["variable"] = w.variable
             entry["sink_command"] = w.sink_command
-        elif isinstance(w, CollectWithoutReleaseWarning):
-            entry["command"] = w.command
-        elif isinstance(w, ReleaseWithoutCollectWarning):
-            entry["command"] = w.command
         taint_warnings.append(entry)
 
     # Tainted variables per scope

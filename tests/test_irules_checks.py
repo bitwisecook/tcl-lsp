@@ -419,6 +419,21 @@ class TestIrule1005:
         warnings = _flow_with_code(src, "IRULE1005")
         assert len(warnings) == 0
 
+    def test_clientside_collect_nested_in_if(self):
+        """clientside { TCP::collect } inside an if block should still be found."""
+        src = (
+            "when SERVER_CONNECTED {\n"
+            "    if {[IP::addr [IP::client_addr] equals 10.0.0.0/8]} {\n"
+            "        clientside { TCP::collect }\n"
+            "    }\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::payload\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 0
+
     def test_http_request_data_without_collect(self):
         """HTTP_REQUEST_DATA without HTTP::collect → warning."""
         src = "when HTTP_REQUEST_DATA {\n    HTTP::payload\n}"
@@ -473,6 +488,286 @@ class TestIrule1005:
         )
         warnings = _flow_with_code(src, "IRULE1005")
         assert len(warnings) == 2
+
+    def test_http_response_data_without_collect(self):
+        """HTTP_RESPONSE_DATA without HTTP::collect → warning."""
+        src = "when HTTP_RESPONSE_DATA {\n    HTTP::payload\n}"
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 1
+        assert "HTTP_RESPONSE_DATA" in warnings[0].message
+
+    def test_http_response_data_with_collect(self):
+        """HTTP_RESPONSE_DATA with HTTP::collect in HTTP_RESPONSE → no warning."""
+        src = (
+            "when HTTP_RESPONSE {\n"
+            "    HTTP::collect 1048576\n"
+            "}\n"
+            "when HTTP_RESPONSE_DATA {\n"
+            "    HTTP::payload\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 0
+
+    def test_http_cookbook_no_irule1005(self):
+        """The HTTP cookbook sample should not fire IRULE1005."""
+        from pathlib import Path
+
+        sample = (
+            Path(__file__).resolve().parent.parent
+            / "samples"
+            / "irules"
+            / "cookbook_http_collect.irul"
+        )
+        source = sample.read_text()
+        warnings = _flow_with_code(source, "IRULE1005")
+        assert len(warnings) == 0
+
+    def test_ssl_data_with_collect_no_warning(self):
+        """CLIENTSSL_DATA with SSL::collect in CLIENTSSL_HANDSHAKE → no warning."""
+        src = (
+            "when CLIENTSSL_HANDSHAKE {\n"
+            "    SSL::collect\n"
+            "}\n"
+            "when CLIENTSSL_DATA {\n"
+            "    SSL::payload\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 0
+
+    def test_multiple_data_events_partial_collect(self):
+        """Only the DATA event without a matching collect should warn."""
+        src = (
+            "when CLIENT_ACCEPTED {\n"
+            "    TCP::collect\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::payload\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::payload\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 1
+        assert "HTTP_REQUEST_DATA" in warnings[0].message
+
+
+# IRULE1007: *::collect without matching *::release (side-aware)
+
+
+class TestIrule1007:
+    """IRULE1007: collect without matching release."""
+
+    def test_collect_without_release(self):
+        """HTTP::collect without HTTP::release anywhere → warning."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    set body [HTTP::payload]\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 1
+        assert "HTTP::collect" in warnings[0].message
+        assert "HTTP::release" in warnings[0].message
+
+    def test_collect_with_release_across_events(self):
+        """HTTP::collect in HTTP_REQUEST + HTTP::release in HTTP_REQUEST_DATA → no warning."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::payload\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_tcp_collect_with_release(self):
+        """TCP::collect + TCP::release across events → no warning."""
+        src = (
+            "when CLIENT_ACCEPTED {\n"
+            "    TCP::collect\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::release\n"
+            "    TCP::collect\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_ssl_collect_with_release(self):
+        """SSL::collect + SSL::release across events → no warning."""
+        src = (
+            "when CLIENTSSL_HANDSHAKE {\n"
+            "    SSL::collect\n"
+            "}\n"
+            "when CLIENTSSL_DATA {\n"
+            "    SSL::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_protocol_mismatch(self):
+        """HTTP::collect + TCP::release → IRULE1007 for HTTP."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 1
+        assert "HTTP::collect" in warnings[0].message
+
+    def test_multiple_protocols_all_paired(self):
+        """Multiple protocols with matching pairs → no warning."""
+        src = (
+            "when CLIENT_ACCEPTED {\n"
+            "    TCP::collect\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::release\n"
+            "}\n"
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_http_cookbook_no_warnings(self):
+        """The HTTP cookbook sample should produce no IRULE1007 warnings."""
+        from pathlib import Path
+
+        sample = (
+            Path(__file__).resolve().parent.parent
+            / "samples"
+            / "irules"
+            / "cookbook_http_collect.irul"
+        )
+        source = sample.read_text()
+        warnings = _flow_with_code(source, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_tcp_cookbook_no_warnings(self):
+        """The TCP cookbook sample should produce no IRULE1007 warnings."""
+        from pathlib import Path
+
+        sample = (
+            Path(__file__).resolve().parent.parent
+            / "samples"
+            / "irules"
+            / "cookbook_tcp_collect.irul"
+        )
+        source = sample.read_text()
+        warnings = _flow_with_code(source, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_message_mentions_side(self):
+        """Warning message should include the connection side."""
+        src = "when HTTP_REQUEST {\n    HTTP::collect 1024\n}"
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 1
+        assert "client" in warnings[0].message
+
+    def test_server_side_collect_without_release(self):
+        """Server-side HTTP::collect without release → warning mentioning server."""
+        src = "when HTTP_RESPONSE {\n    HTTP::collect 1024\n}"
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 1
+        assert "server" in warnings[0].message
+
+    def test_release_in_comment_not_counted(self):
+        """Release mentioned only in a comment should not suppress IRULE1007."""
+        src = (
+            "when CLIENT_ACCEPTED {\n"
+            "    TCP::collect\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    set data [TCP::payload]\n"
+            "    # TODO: add TCP::release here\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 1
+        assert "TCP::collect" in warnings[0].message
+
+
+# IRULE1008: *::release without matching *::collect (side-aware)
+
+
+class TestIrule1008:
+    """IRULE1008: release without matching collect."""
+
+    def test_release_without_collect(self):
+        """HTTP::release without HTTP::collect anywhere → warning."""
+        src = "when HTTP_REQUEST_DATA {\n    HTTP::release\n}"
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 1
+        assert "HTTP::release" in warnings[0].message
+        assert "HTTP::collect" in warnings[0].message
+
+    def test_release_with_collect_across_events(self):
+        """HTTP::release with HTTP::collect in another event → no warning."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 0
+
+    def test_tcp_release_without_collect(self):
+        """TCP::release without TCP::collect → warning."""
+        src = "when CLIENT_DATA {\n    TCP::release\n}"
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 1
+        assert "TCP::release" in warnings[0].message
+
+    def test_protocol_mismatch(self):
+        """HTTP::collect + TCP::release → IRULE1008 for TCP."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 1
+        assert "TCP::release" in warnings[0].message
+
+    def test_message_mentions_side(self):
+        """Warning message should include the connection side."""
+        src = "when HTTP_REQUEST_DATA {\n    HTTP::release\n}"
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 1
+        assert "client" in warnings[0].message
+
+    def test_server_side_release_without_collect(self):
+        """Server-side release without collect → warning mentioning server."""
+        src = "when HTTP_RESPONSE_DATA {\n    HTTP::release\n}"
+        warnings = _flow_with_code(src, "IRULE1008")
+        assert len(warnings) == 1
+        assert "server" in warnings[0].message
 
 
 # IRULE1006: *::payload without matching *::collect
@@ -619,85 +914,117 @@ class TestIrule4002:
 
     def test_static_debug_in_rule_init(self):
         src = "when RULE_INIT {\n    set static::debug 0\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
-        assert "generic" in diags[0].message.lower()
-        assert "every irule" in diags[0].message.lower()
-        assert diags[0].severity is Severity.HINT
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+        assert "generic" in warnings[0].message.lower()
+        assert "every irule" in warnings[0].message.lower()
 
     def test_static_debug_in_http_request(self):
         """Should still fire (in addition to IRULE4001)."""
         src = "when HTTP_REQUEST {\n    set static::debug 1\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_prefixed_name_no_warning(self):
         """A properly prefixed name should not trigger."""
         src = "when RULE_INIT {\n    set static::myapp_debug 1\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 0
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 0
 
     def test_array_set_static_debug(self):
         src = "when RULE_INIT {\n    array set static::debug {on 1 off 0}\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_log_level(self):
         """log_level is a commonly reused generic name."""
         src = "when RULE_INIT {\n    set static::log_level 3\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
-        assert "static::log_level" in diags[0].message
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+        assert "static::log_level" in warnings[0].message
 
     def test_generic_timeout(self):
         src = "when RULE_INIT {\n    set static::timeout 5000\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_enabled(self):
         src = "when RULE_INIT {\n    set static::enabled 1\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_verbose(self):
         src = "when RULE_INIT {\n    set static::verbose 1\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_server(self):
         src = 'when RULE_INIT {\n    set static::server "10.0.0.1"\n}'
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_pool(self):
         src = 'when RULE_INIT {\n    set static::pool "my_pool"\n}'
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_generic_counter(self):
         src = "when RULE_INIT {\n    set static::counter 0\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_non_generic_name_no_warning(self):
         """Application-prefixed names should not trigger."""
         src = "when RULE_INIT {\n    set static::myapp_log_level 3\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 0
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 0
 
     def test_case_insensitive(self):
         """Generic name detection is case-insensitive."""
         src = "when RULE_INIT {\n    set static::DEBUG 0\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
 
     def test_message_suggests_prefix(self):
         """Diagnostic message should suggest prefixing with app name."""
         src = "when RULE_INIT {\n    set static::debug 0\n}"
-        diags = _diag_with_code(src, "IRULE4002")
-        assert len(diags) == 1
-        assert "prefix" in diags[0].message.lower()
-        assert "<app>" in diags[0].message
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+        assert "prefix" in warnings[0].message.lower()
+        assert "<app>" in warnings[0].message
+
+    def test_append_to_generic_static(self):
+        """append to a generic static:: should also trigger."""
+        src = "when RULE_INIT {\n    append static::data hello\n}"
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+
+    def test_incr_generic_static(self):
+        """incr on a generic static:: should also trigger."""
+        src = "when RULE_INIT {\n    incr static::counter\n}"
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+
+    def test_generic_inside_clientside(self):
+        """static:: defined inside clientside block should trigger."""
+        src = "when SERVER_CONNECTED {\n    clientside {\n        set static::debug 1\n    }\n}"
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+        assert "static::debug" in warnings[0].message
+
+    def test_upvar_alias_to_generic_static(self):
+        """Proc calling upvar on generic static:: should trigger via CFG defs."""
+        src = (
+            "proc set_debug {} {\n"
+            "    upvar 1 static::debug local\n"
+            "    set local 1\n"
+            "}\n"
+            "when RULE_INIT {\n"
+            "    set_debug\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert any("static::debug" in w.message for w in warnings)
 
 
 # Event-aware completions
@@ -1435,3 +1762,88 @@ class TestIrule6001:
         diags = _diag_with_code(src, "IRULE6001")
         assert len(diags) == 1
         assert "CMP" in diags[0].message
+
+
+# Multiple ``when`` handlers for the same event
+
+
+class TestMultipleWhenHandlers:
+    """Diagnostics must analyse every handler, not just the last one."""
+
+    def test_collect_in_first_handler_seen(self):
+        """HTTP::collect in the first HTTP_REQUEST handler should suppress IRULE1005."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect\n"
+            "}\n"
+            "when HTTP_REQUEST {\n"
+            '    log local0. "second handler"\n'
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    set payload [HTTP::payload]\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 0
+
+    def test_collect_without_release_in_first_handler(self):
+        """HTTP::collect without release in first handler → IRULE1007."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect\n"
+            "}\n"
+            "when HTTP_REQUEST {\n"
+            '    log local0. "second handler"\n'
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) >= 1
+
+    def test_release_in_second_handler_clears_warning(self):
+        """HTTP::release in a later handler should clear IRULE1007."""
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    HTTP::collect\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1007")
+        assert len(warnings) == 0
+
+    def test_lowering_numbers_duplicate_events(self):
+        """Lowering creates separate IR procedures for duplicate when blocks."""
+        from core.compiler.lowering import lower_to_ir
+
+        src = (
+            "when HTTP_REQUEST {\n    set x 1\n}\n"
+            "when HTTP_REQUEST {\n    set y 2\n}\n"
+            "when HTTP_REQUEST priority 100 {\n    set z 3\n}"
+        )
+        module = lower_to_ir(src)
+        assert "::when::HTTP_REQUEST" in module.procedures
+        assert "::when::HTTP_REQUEST#1" in module.procedures
+        assert "::when::HTTP_REQUEST#2" in module.procedures
+
+        # Priority is preserved
+        assert module.procedures["::when::HTTP_REQUEST"].base_priority == 500
+        assert module.procedures["::when::HTTP_REQUEST#1"].base_priority == 500
+        assert module.procedures["::when::HTTP_REQUEST#2"].base_priority == 100
+
+    def test_event_order_yields_all_handlers(self):
+        """extract_event_order returns one entry per handler."""
+        from core.compiler.irules_flow import extract_event_order
+
+        src = (
+            "when HTTP_REQUEST priority 200 { set x 1 }\n"
+            "when HTTP_REQUEST priority 100 { set y 2 }\n"
+        )
+        entries = extract_event_order(src)
+        http_entries = [e for e in entries if e.event == "HTTP_REQUEST"]
+        assert len(http_entries) == 2
+        # Sorted by base_priority: 100 before 200
+        assert http_entries[0].base_priority == 100
+        assert http_entries[0].priority_offset == 0
+        assert http_entries[1].base_priority == 200
+        assert http_entries[1].priority_offset == 0

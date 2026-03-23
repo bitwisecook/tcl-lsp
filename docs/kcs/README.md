@@ -62,6 +62,7 @@ This folder contains small, searchable Knowledge-Centered Service (KCS) notes.
 - [compiler/kcs-expression-parsing.md](compiler/kcs-expression-parsing.md) — Pratt parser, braced vs unbraced expressions.
 - [compiler/kcs-cfg-construction.md](compiler/kcs-cfg-construction.md) — basic block decomposition patterns.
 - [compiler/kcs-ssa-construction.md](compiler/kcs-ssa-construction.md) — version numbering and phi placement.
+- [compiler/kcs-event-priority-model.md](compiler/kcs-event-priority-model.md) — base priority + offset model for event handlers.
 - [compiler/kcs-ir-types-lowering.md](compiler/kcs-ir-types-lowering.md) — IR node selection rules.
 - [compiler/kcs-lowering-dispatch.md](compiler/kcs-lowering-dispatch.md) — arg_roles and command classification.
 - [compiler/kcs-full-pipeline-walkthrough.md](compiler/kcs-full-pipeline-walkthrough.md) — end-to-end source to bytecode walkthrough.

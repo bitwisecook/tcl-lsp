@@ -20,7 +20,7 @@ flowchart LR
     SP --> CG["8. Codegen<br/>FunctionAsm"]
 
     SP --- OPT["Optimiser<br/>O100–O126"]
-    SP --- TAINT["Taint<br/>T100–T201"]
+    SP --- TAINT["Taint<br/>T100–T106"]
     SP --- SHIM["Shimmer<br/>S100–S102"]
     SP --- INTERP["Interprocedural<br/>ProcSummary"]
 ```

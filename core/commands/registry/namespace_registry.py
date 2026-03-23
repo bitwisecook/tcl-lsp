@@ -309,10 +309,6 @@ class NamespaceRegistry:
             combined=combined,
         )
 
-    # Backward-compatible aliases
-    # These exist only during migration. Once all consumers are migrated
-    # to NamespaceRegistry, old EventRegistry method names map here.
-
     def non_flow_events(self) -> frozenset[str]:
         """Return all event names that are non-flow (K14320).
 

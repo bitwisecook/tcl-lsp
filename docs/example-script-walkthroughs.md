@@ -3654,8 +3654,8 @@ CompilationUnit (shared)
     │     → T104: SSRF (network address sink)
     │     → T105: Cross-interpreter code injection
     │     → T106: Double-encoding (informational)
-    │     → T200: Collect without release
-    │     → T201: Release without collect
+    │     → IRULE1007: Collect without release (side-aware, in iRules flow analysis)
+    │     → IRULE1008: Release without collect (side-aware, in iRules flow analysis)
     │     → IRULE3001: XSS in HTTP response body
     │     → IRULE3002: Header/cookie injection
     │     → IRULE3003: Log injection

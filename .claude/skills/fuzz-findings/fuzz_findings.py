@@ -10,7 +10,7 @@ import json
 import sys
 from pathlib import Path
 
-FINDINGS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "tests" / "fuzz" / "findings"
+FINDINGS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fuzzing" / "findings"
 
 
 def _load_findings() -> list[dict]:
@@ -226,7 +226,7 @@ def cmd_verify(args: list[str]) -> None:
     Runs each finding's .tcl file through both vm and vm_opt backends.
     Reports which findings still timeout/crash vs now pass.
     """
-    from tests.fuzz.harness import _run_vm
+    from fuzzing.harness import _run_vm
 
     show = "unfixed"
     category = None
@@ -338,7 +338,7 @@ def cmd_batch_mark(args: list[str]) -> None:
     Runs verification on unfixed findings in the category and marks
     those that no longer timeout/crash as fixed.
     """
-    from tests.fuzz.harness import _run_vm
+    from fuzzing.harness import _run_vm
 
     category = None
     fix_desc = None
@@ -402,7 +402,7 @@ def cmd_run(args: list[str]) -> None:
         print("Usage: run SEED [--timeout SECS] [--optimise]", file=sys.stderr)
         sys.exit(1)
 
-    from tests.fuzz.harness import _run_vm
+    from fuzzing.harness import _run_vm
 
     seed = args[0]
     timeout = 5.0

@@ -177,7 +177,7 @@ class TestLeanHover:
         # Synopsis and summary present
         assert "set varName" in text
         assert "Read or write" in text
-        # Snippet detail NOT present (moved to signature help)
+        # Snippet detail is in signature help, not hover
         assert "With one argument" not in text
 
     def test_socket_hover_omits_snippet(self):

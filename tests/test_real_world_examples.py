@@ -54,7 +54,7 @@ def _diag_codes(source: str, *, optimiser_enabled: bool) -> set[str]:
                 "IRULE3101",
                 "T100",
                 "T102",
-                "T200",
+                "IRULE1007",
             },
         ),
         (
@@ -67,7 +67,7 @@ def _diag_codes(source: str, *, optimiser_enabled: bool) -> set[str]:
                 "IRULE4001",
                 "IRULE4002",
                 "IRULE5001",
-                "T200",
+                "IRULE1007",
             },
         ),
         (

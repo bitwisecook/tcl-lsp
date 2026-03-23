@@ -2,9 +2,9 @@
 
 Run with::
 
-    uv run pytest tests/test_fuzz_differential.py -v
-    uv run pytest tests/test_fuzz_differential.py -v -k campaign  # full campaign
-    uv run pytest tests/test_fuzz_differential.py -v -k regression  # saved findings only
+    uv run pytest fuzzing/tests/test_fuzz_differential.py -v
+    uv run pytest fuzzing/tests/test_fuzz_differential.py -v -k campaign  # full campaign
+    uv run pytest fuzzing/tests/test_fuzz_differential.py -v -k regression  # saved findings only
 
 The ``FUZZ_ITERATIONS`` environment variable controls campaign size
 (default: 200 in CI, override with e.g. ``FUZZ_ITERATIONS=5000``).
@@ -20,17 +20,17 @@ from pathlib import Path
 
 import pytest
 
-from tests.fuzz.harness import format_finding, run_differential
-from tests.fuzz.runner import run_campaign
-from tests.fuzz.tcl_gen import GenConfig, TclGenerator
+from fuzzing.harness import format_finding, run_differential
+from fuzzing.runner import run_campaign
+from fuzzing.tcl_gen import GenConfig, TclGenerator
 
 pytestmark = pytest.mark.slow
 
 # Configuration
 
 _DEFAULT_ITERATIONS = 200
-_FINDINGS_DIR = Path(__file__).parent / "fuzz" / "findings"
-_CORPUS_DIR = Path(__file__).parent / "fuzz" / "corpus"
+_FINDINGS_DIR = Path(__file__).resolve().parent.parent / "findings"
+_CORPUS_DIR = Path(__file__).resolve().parent.parent / "corpus"
 
 
 def _iterations() -> int:

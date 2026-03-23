@@ -78,14 +78,21 @@ regexp -- $h test
 
 
 # ---------------------------------------------------------------
-# T200 — *::collect without matching *::release
+# IRULE1007 — *::collect without matching *::release
 # ---------------------------------------------------------------
 # Forgetting to release collected data stalls the connection.
+# The diagnostic is side-aware: it checks client and server sides
+# independently across all event handlers in the iRule.
 
-# BAD: collect without release
-TCP::collect
-set data [TCP::payload]
-# missing TCP::release
+when CLIENT_ACCEPTED priority 500 {
+    # BAD: collect without release — connection will stall
+    TCP::collect
+}
+
+when CLIENT_DATA priority 500 {
+    set data [TCP::payload]
+    # missing release call — connection will stall
+}
 
 
 # ---------------------------------------------------------------

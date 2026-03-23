@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from ._text_utils import find_brace_end
+
 
 @dataclass(frozen=True, slots=True)
 class EmbeddedSection:
@@ -28,29 +30,13 @@ _SECTION_RE = re.compile(
 )
 
 
-def _brace_match(source: str, brace_pos: int) -> int:
-    """Return the offset past the closing ``}`` that matches the ``{`` at *brace_pos*."""
-    pos = brace_pos + 1
-    depth = 1
-    while pos < len(source) and depth > 0:
-        ch = source[pos]
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-        elif ch == "\\":
-            pos += 1  # skip escaped char
-        pos += 1
-    return pos
-
-
 def find_embedded_iapp_sections(source: str) -> list[EmbeddedSection]:
     """Find ``implementation`` and ``presentation`` bodies in iApp templates."""
     sections: list[EmbeddedSection] = []
     for m in _SECTION_RE.finditer(source):
         kind = m.group(1)
         brace_pos = m.end() - 1  # position of '{'
-        end_pos = _brace_match(source, brace_pos)
+        end_pos = find_brace_end(source, brace_pos)
         body = source[brace_pos + 1 : end_pos - 1]
         # Only include sections that actually contain Tcl code.
         if body.strip():

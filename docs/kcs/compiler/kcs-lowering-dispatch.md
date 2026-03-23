@@ -27,7 +27,7 @@ _lower_command(cmd)
     │
     ├─ match cmd_name:
     │   ├─ "proc"     → extract params, lower body, register IRProcedure
-    │   ├─ "when"     → lower iRules event handler body
+    │   ├─ "when"     → lower iRules event handler body (indexed: ::when::EVENT#N)
     │   ├─ "if"       → _lower_if() → IRIf with IRIfClause list
     │   ├─ "for"      → _lower_for() → IRFor (init, cond, step, body)
     │   ├─ "while"    → _lower_while() → IRWhile (cond, body)

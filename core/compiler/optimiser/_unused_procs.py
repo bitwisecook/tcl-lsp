@@ -10,6 +10,7 @@ excluded.
 from __future__ import annotations
 
 from ...common.dialect import active_dialect
+from ..ir import when_event_name
 from ._types import Optimisation, PassContext
 
 
@@ -73,7 +74,7 @@ def optimise_unused_procs(ctx: PassContext) -> None:
     for qname in ir_module.procedures:
         if qname.startswith("::when::"):
             event_procs.add(qname)
-            event_names.add(qname.removeprefix("::when::"))
+            event_names.add(when_event_name(qname))
         else:
             user_procs.add(qname)
 

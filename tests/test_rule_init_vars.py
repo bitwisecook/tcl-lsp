@@ -79,7 +79,7 @@ class TestExtractRuleInitVars:
         exports = extract_rule_init_vars(source)
         assert len(exports) == 1
         assert exports[0].name == "::shared_var"
-        assert exports[0].priority == 500
+        assert exports[0].base_priority == 500
         assert exports[0].is_array is False
 
     def test_set_global_var_with_priority(self):
@@ -87,7 +87,7 @@ class TestExtractRuleInitVars:
         exports = extract_rule_init_vars(source)
         assert len(exports) == 1
         assert exports[0].name == "::shared_var"
-        assert exports[0].priority == 100
+        assert exports[0].base_priority == 100
 
     def test_array_set_global(self):
         source = "when RULE_INIT { array set ::config { key1 val1 key2 val2 } }"
@@ -137,6 +137,37 @@ class TestExtractRuleInitVars:
         exports = extract_rule_init_vars(source)
         assert len(exports) == 0
 
+    def test_ir_path_with_cu(self):
+        """When cu is provided, use the IR/CFG path."""
+        from core.commands.registry.runtime import configure_signatures
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        configure_signatures(dialect="f5-irules")
+        source = 'when RULE_INIT {\n    set ::shared "x"\n    set local "y"\n}'
+        cu = ensure_compilation_unit(source)
+        exports = extract_rule_init_vars(source, cu=cu)
+        assert len(exports) == 1
+        assert exports[0].name == "::shared"
+
+    def test_ir_path_upvar_global_in_rule_init(self):
+        """IR path should detect upvar-created global writes via CFG defs."""
+        from core.commands.registry.runtime import configure_signatures
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        configure_signatures(dialect="f5-irules")
+        source = (
+            "proc init_global {} {\n"
+            "    upvar #0 ::myapp_setting local\n"
+            "    set local 1\n"
+            "}\n"
+            "when RULE_INIT {\n"
+            "    init_global\n"
+            "}"
+        )
+        cu = ensure_compilation_unit(source)
+        exports = extract_rule_init_vars(source, cu=cu)
+        assert any(e.name == "::myapp_setting" for e in exports)
+
 
 # WorkspaceIndex RULE_INIT var storage
 
@@ -155,7 +186,7 @@ class TestWorkspaceIndexRuleInitVars:
             start=SourcePosition(0, 0, 0),
             end=SourcePosition(0, 0, len(name)),
         )
-        return RuleInitExport(name=name, priority=priority, range=r, is_array=is_array)
+        return RuleInitExport(name=name, base_priority=priority, range=r, is_array=is_array)
 
     def test_update_and_find(self):
         idx = WorkspaceIndex()
@@ -297,7 +328,7 @@ class TestScannerRuleInitVars:
             exports = ri_vars[uri]
             assert len(exports) == 1
             assert exports[0].name == "::shared"
-            assert exports[0].priority == 100
+            assert exports[0].base_priority == 100
 
     def test_scanner_no_rule_init_for_tcl_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -397,7 +428,7 @@ class TestExtractStaticVars:
         exports = extract_rule_init_vars(source)
         assert len(exports) == 1
         assert exports[0].name == "static::debug"
-        assert exports[0].priority == 100
+        assert exports[0].base_priority == 100
 
     def test_array_set_static(self):
         source = "when RULE_INIT { array set static::config { key1 val1 key2 val2 } }"
@@ -444,7 +475,7 @@ class TestWorkspaceIndexStaticVars:
             start=SourcePosition(0, 0, 0),
             end=SourcePosition(0, 0, len(name)),
         )
-        return RuleInitExport(name=name, priority=priority, range=r, is_array=is_array)
+        return RuleInitExport(name=name, base_priority=priority, range=r, is_array=is_array)
 
     def test_static_var_stored_and_found(self):
         idx = WorkspaceIndex()
