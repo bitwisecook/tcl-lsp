@@ -990,6 +990,33 @@ class TestIrule4002:
         warnings = _flow_with_code(src, "IRULE4002")
         assert len(warnings) == 1
 
+    def test_generic_inside_clientside(self):
+        """static:: defined inside clientside block should trigger."""
+        src = (
+            "when SERVER_CONNECTED {\n"
+            "    clientside {\n"
+            "        set static::debug 1\n"
+            "    }\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert len(warnings) == 1
+        assert "static::debug" in warnings[0].message
+
+    def test_upvar_alias_to_generic_static(self):
+        """Proc calling upvar on generic static:: should trigger via CFG defs."""
+        src = (
+            "proc set_debug {} {\n"
+            "    upvar 1 static::debug local\n"
+            "    set local 1\n"
+            "}\n"
+            "when RULE_INIT {\n"
+            "    set_debug\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE4002")
+        assert any("static::debug" in w.message for w in warnings)
+
 
 # Event-aware completions
 

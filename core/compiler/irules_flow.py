@@ -608,6 +608,9 @@ def _iter_ir_commands(script: IRScript):
                 yield from _iter_ir_commands(handler.body)
             if stmt.finally_body is not None:
                 yield from _iter_ir_commands(stmt.finally_body)
+        # Note: clientside/serverside body lowering is handled in
+        # _scan_ir_event, not here — because _iter_ir_commands doesn't
+        # carry side context.  _iter_all_ir_statements DOES lower them.
 
 
 def _classify_command(
@@ -634,6 +637,20 @@ def _classify_command(
         payload_calls.append((protocol, side, rng))
 
 
+def _lower_side_switch_body(stmt: IRCall) -> IRScript | None:
+    """Lower a ``clientside``/``serverside`` body arg to IR.
+
+    Returns ``None`` if the body cannot be lowered (e.g. syntax errors).
+    """
+    if not stmt.args:
+        return None
+    body_text = stmt.args[0]
+    try:
+        return lower_to_ir(body_text).top_level
+    except Exception:
+        return None
+
+
 def _scan_ir_event(
     event: str,
     ir_body: IRScript,
@@ -646,27 +663,25 @@ def _scan_ir_event(
     """Walk an IR event body and record collect/release/payload calls."""
     default_side = _default_collect_side(event)
     for cmd, rng in _iter_ir_commands(ir_body):
-        # ``clientside { ... }`` / ``serverside { ... }`` are IR calls whose
-        # body arg may contain nested commands.  Parse the body arg with regex
-        # since it wasn't lowered into separate IR statements.
+        # ``clientside { ... }`` / ``serverside { ... }`` — lower the body
+        # text to IR and recurse with the switched side context.
         if cmd in ("clientside", "serverside"):
             inner_side = "client" if cmd == "clientside" else "server"
-            # The first arg of the IRCall is the body text.
-            # Scan it for collect/release/payload commands.
-            for stmt in ir_body.statements:
-                if isinstance(stmt, IRCall) and stmt.command == cmd and stmt.args:
-                    body_text = stmt.args[0]
-                    for m in _COLLECT_RE.finditer(body_text):
-                        protocol = m.group(1).upper()
-                        collected.setdefault(protocol, set()).add(inner_side)
-                        collect_calls.append((protocol, inner_side, stmt.range))
-                    for m in _RELEASE_RE.finditer(body_text):
-                        protocol = m.group(1).upper()
-                        released.setdefault(protocol, set()).add(inner_side)
-                        release_calls.append((protocol, inner_side, stmt.range))
-                    for m in _PAYLOAD_RE.finditer(body_text):
-                        protocol = m.group(1).upper()
-                        payload_calls.append((protocol, inner_side, stmt.range))
+            for s in ir_body.statements:
+                if isinstance(s, IRCall) and s.command == cmd:
+                    inner_ir = _lower_side_switch_body(s)
+                    if inner_ir is not None:
+                        for inner_cmd, inner_rng in _iter_ir_commands(inner_ir):
+                            _classify_command(
+                                inner_cmd,
+                                inner_rng,
+                                inner_side,
+                                collected,
+                                released,
+                                collect_calls,
+                                release_calls,
+                                payload_calls,
+                            )
             continue
         _classify_command(
             cmd,
@@ -1091,18 +1106,39 @@ def _cmd_available_at_event(cmd_name: str, target_event: str) -> bool:
 
 
 def _ir_value_hoistable_to(
-    stmt: IRAssignConst | IRAssignValue,
+    stmt: IRAssignConst | IRAssignValue | IRIncr | IRCall,
     target_event: str,
 ) -> bool:
-    """Return True if the IR assignment's value can run in *target_event*.
+    """Return True if the IR statement's value can run in *target_event*.
 
     ``IRAssignConst`` is always hoistable (pure literal).
+    ``IRIncr`` with a literal amount is always hoistable.
     ``IRAssignValue`` is hoistable when its value contains no variable
     references and all command substitutions are available at the target.
+    ``IRCall`` is hoistable when the command itself and all its args are
+    available at the target (no variable refs, commands are reachable).
     """
     if isinstance(stmt, IRAssignConst):
         return True
 
+    if isinstance(stmt, IRIncr):
+        # incr with a literal amount — always hoistable.
+        return True
+
+    if isinstance(stmt, IRCall):
+        # Check the command itself is available at the target.
+        if not _cmd_available_at_event(stmt.command, target_event):
+            return False
+        # Check all args for variable refs and command availability.
+        for arg in stmt.args:
+            if "$" in arg:
+                return False
+            for m in _NS_CMD_RE.finditer(arg):
+                if not _cmd_available_at_event(m.group(1), target_event):
+                    return False
+        return True
+
+    # IRAssignValue
     value = stmt.value
     # Variable reference → not hoistable.
     if "$" in value:
@@ -1175,10 +1211,26 @@ def _find_hoistable_constants(
 
         # Walk only top-level statements (not inside if/for/etc).
         for stmt in ir_body.statements:
-            if not isinstance(stmt, (IRAssignConst, IRAssignValue)):
+            # Determine variable name(s) and display text for each store type.
+            var_name: str | None = None
+            display: str | None = None
+            if isinstance(stmt, (IRAssignConst, IRAssignValue)):
+                var_name = stmt.name
+                display = f"set {stmt.name} {stmt.value}"
+            elif isinstance(stmt, IRIncr):
+                var_name = stmt.name
+                amt = f" {stmt.amount}" if stmt.amount else ""
+                display = f"incr {stmt.name}{amt}"
+            elif isinstance(stmt, IRCall) and stmt.defs:
+                # Commands like binary scan, regexp, scan that define variables.
+                # Only flag if the command itself + all args are hoistable.
+                var_name = stmt.defs[0]  # first defined var for display
+                display = f"{stmt.command} ..."
+
+            if var_name is None:
                 continue
             # Skip static:: variables — they're already scoped.
-            if stmt.name.startswith("static::"):
+            if var_name.startswith("static::"):
                 continue
 
             # Try each candidate event (earliest first).
@@ -1190,9 +1242,8 @@ def _find_hoistable_constants(
                     best_exists = cand_exists
                     break
             if best_event is not None:
-                val_display = stmt.value if isinstance(stmt, IRAssignConst) else stmt.value
-                if len(val_display) > 40:
-                    val_display = val_display[:37] + "..."
+                if len(display) > 50:
+                    display = display[:47] + "..."
                 suffix = (
                     "(once per connection)."
                     if best_exists
@@ -1203,7 +1254,7 @@ def _find_hoistable_constants(
                         range=stmt.range,
                         code="IRULE4004",
                         message=(
-                            f"'set {stmt.name} {val_display}' in "
+                            f"'{display}' in "
                             f"{event} (per-request) could be hoisted to "
                             f"{best_event} {suffix}"
                         ),
@@ -1220,55 +1271,83 @@ def _find_generic_static_names(
 ) -> list[IrulesFlowWarning]:
     """IRULE4002: generic ``static::`` variable name that will collide.
 
-    Walks the IR for every statement that defines a ``static::`` variable
-    (``set``, ``array set``, ``append``, ``incr``, ``binary scan``, etc.)
-    and checks the bare name against configurable regex patterns.
+    Walks the CFG (or IR if CFG unavailable) for every statement that
+    defines a ``static::`` variable and checks the bare name against
+    configurable regex patterns.
+
+    Using the CFG rather than the raw IR ensures that upvar-augmented
+    ``defs`` are visible — e.g. a proc that does
+    ``upvar 1 static::debug local`` will have ``static::debug`` added to
+    the call's ``defs`` by the CFG builder.
     """
     from ..analysis.irules_checks import _is_generic_static_name
 
     warnings: list[IrulesFlowWarning] = []
     seen: set[str] = set()  # deduplicate across events
 
+    def _check_var(var_name: str, rng: Range) -> None:
+        if not var_name.startswith("static::"):
+            return
+        if var_name in seen:
+            return
+        if not _is_generic_static_name(var_name, generic_variable_patterns):
+            return
+        seen.add(var_name)
+        bare = var_name.removeprefix("static::")
+        warnings.append(
+            IrulesFlowWarning(
+                range=rng,
+                code="IRULE4002",
+                message=(
+                    f"'{var_name}' is a generic name that will collide "
+                    f"with other iRules. static:: variables are shared "
+                    f"across every iRule on the BIG-IP system — prefix "
+                    f"with the application or rule name "
+                    f"(e.g. 'static::<app>_{bare}')."
+                ),
+            )
+        )
+
     for event, _priority, body_text, _body_tok, _event_tok in when_bodies:
-        ir_proc = cu.ir_module.procedures.get(f"::when::{event}") if cu else None
-        ir_body: IRScript | None = ir_proc.body if ir_proc is not None else None
-        if ir_body is None:
-            try:
-                ir_body = lower_to_ir(body_text).top_level
-            except Exception:
-                continue
-
-        for stmt in _iter_all_ir_statements(ir_body):
-            var_names: list[str] = []
-            rng: Range = stmt.range
-
-            if isinstance(stmt, (IRAssignConst, IRAssignValue, IRIncr)):
-                var_names.append(stmt.name)
-            elif isinstance(stmt, IRCall) and stmt.defs:
-                var_names.extend(stmt.defs)
-
-            for var_name in var_names:
-                if not var_name.startswith("static::"):
+        # Prefer the CFG (has upvar-augmented defs) over raw IR.
+        fu = cu.procedures.get(f"::when::{event}") if cu else None
+        if fu is not None:
+            # Walk CFG blocks — statements here have upvar-resolved defs.
+            for block in fu.cfg.blocks.values():
+                for stmt in block.statements:
+                    if isinstance(stmt, (IRAssignConst, IRAssignValue, IRIncr)):
+                        _check_var(stmt.name, stmt.range)
+                    elif isinstance(stmt, IRCall) and stmt.defs:
+                        for var_name in stmt.defs:
+                            _check_var(var_name, stmt.range)
+                    # Descend into clientside/serverside body args.
+                    if (
+                        isinstance(stmt, IRCall)
+                        and stmt.command in ("clientside", "serverside")
+                    ):
+                        inner_ir = _lower_side_switch_body(stmt)
+                        if inner_ir is not None:
+                            for inner_stmt in _iter_all_ir_statements(inner_ir):
+                                if isinstance(inner_stmt, (IRAssignConst, IRAssignValue, IRIncr)):
+                                    _check_var(inner_stmt.name, inner_stmt.range)
+                                elif isinstance(inner_stmt, IRCall) and inner_stmt.defs:
+                                    for var_name in inner_stmt.defs:
+                                        _check_var(var_name, inner_stmt.range)
+        else:
+            # Fallback to raw IR.
+            ir_proc = cu.ir_module.procedures.get(f"::when::{event}") if cu else None
+            ir_body = ir_proc.body if ir_proc is not None else None
+            if ir_body is None:
+                try:
+                    ir_body = lower_to_ir(body_text).top_level
+                except Exception:
                     continue
-                if var_name in seen:
-                    continue
-                if not _is_generic_static_name(var_name, generic_variable_patterns):
-                    continue
-                seen.add(var_name)
-                bare = var_name.removeprefix("static::")
-                warnings.append(
-                    IrulesFlowWarning(
-                        range=rng,
-                        code="IRULE4002",
-                        message=(
-                            f"'{var_name}' is a generic name that will collide "
-                            f"with other iRules. static:: variables are shared "
-                            f"across every iRule on the BIG-IP system — prefix "
-                            f"with the application or rule name "
-                            f"(e.g. 'static::<app>_{bare}')."
-                        ),
-                    )
-                )
+            for stmt in _iter_all_ir_statements(ir_body):
+                if isinstance(stmt, (IRAssignConst, IRAssignValue, IRIncr)):
+                    _check_var(stmt.name, stmt.range)
+                elif isinstance(stmt, IRCall) and stmt.defs:
+                    for var_name in stmt.defs:
+                        _check_var(var_name, stmt.range)
 
     return warnings
 
@@ -1304,6 +1383,13 @@ def _iter_all_ir_statements(script: IRScript):
                 yield from _iter_all_ir_statements(handler.body)
             if stmt.finally_body is not None:
                 yield from _iter_all_ir_statements(stmt.finally_body)
+        elif (
+            isinstance(stmt, IRCall)
+            and stmt.command in ("clientside", "serverside")
+        ):
+            inner_ir = _lower_side_switch_body(stmt)
+            if inner_ir is not None:
+                yield from _iter_all_ir_statements(inner_ir)
 
 
 def find_irules_flow_warnings(
