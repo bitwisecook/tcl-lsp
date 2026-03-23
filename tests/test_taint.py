@@ -397,6 +397,136 @@ class TestReleaseWithoutCollect:
         assert "HTTP::collect" in ws[0].message
 
 
+# Cross-event collect/release pairing
+
+
+class TestCrossEventCollectRelease:
+    """Collect in one event, release in another should not warn."""
+
+    def test_http_collect_in_request_release_in_request_data(self):
+        """HTTP::collect in HTTP_REQUEST + HTTP::release in HTTP_REQUEST_DATA → no warning."""
+        source = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA priority 500 {\n"
+            "    set body [HTTP::payload]\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        assert _collect_warnings(source) == []
+        assert _release_warnings(source) == []
+
+    def test_tcp_collect_in_accepted_release_in_data(self):
+        """TCP::collect in CLIENT_ACCEPTED + TCP::release in CLIENT_DATA → no warning."""
+        source = (
+            "when CLIENT_ACCEPTED priority 500 {\n"
+            "    TCP::collect\n"
+            "}\n"
+            "when CLIENT_DATA priority 500 {\n"
+            "    TCP::release\n"
+            "    TCP::collect\n"
+            "}"
+        )
+        assert _collect_warnings(source) == []
+        assert _release_warnings(source) == []
+
+    def test_ssl_collect_in_handshake_release_in_data(self):
+        """SSL::collect in CLIENTSSL_HANDSHAKE + SSL::release in CLIENTSSL_DATA → no warning."""
+        source = (
+            "when CLIENTSSL_HANDSHAKE priority 500 {\n"
+            "    SSL::collect\n"
+            "}\n"
+            "when CLIENTSSL_DATA priority 500 {\n"
+            "    SSL::release\n"
+            "}"
+        )
+        assert _collect_warnings(source) == []
+        assert _release_warnings(source) == []
+
+    def test_collect_without_release_across_events_still_warns(self):
+        """HTTP::collect with no HTTP::release anywhere → T200."""
+        source = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA priority 500 {\n"
+            "    set body [HTTP::payload]\n"
+            "}"
+        )
+        ws = _collect_warnings(source)
+        assert len(ws) == 1
+        assert ws[0].command == "HTTP::collect"
+
+    def test_release_without_collect_across_events_still_warns(self):
+        """HTTP::release with no HTTP::collect anywhere → T201."""
+        source = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    log local0. \"request\"\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA priority 500 {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        ws = _release_warnings(source)
+        assert len(ws) == 1
+        assert ws[0].command == "HTTP::release"
+
+    def test_cross_protocol_still_warns(self):
+        """HTTP::collect + TCP::release → T200 for HTTP, T201 for TCP."""
+        source = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when CLIENT_DATA priority 500 {\n"
+            "    TCP::release\n"
+            "}"
+        )
+        ws_collect = _collect_warnings(source)
+        ws_release = _release_warnings(source)
+        assert len(ws_collect) == 1
+        assert ws_collect[0].command == "HTTP::collect"
+        assert len(ws_release) == 1
+        assert ws_release[0].command == "TCP::release"
+
+    def test_multiple_protocols_across_events(self):
+        """Multiple protocols across events — only unpaired ones warn."""
+        source = (
+            "when CLIENT_ACCEPTED priority 500 {\n"
+            "    TCP::collect\n"
+            "}\n"
+            "when CLIENT_DATA priority 500 {\n"
+            "    TCP::release\n"
+            "}\n"
+            "when HTTP_REQUEST priority 500 {\n"
+            "    HTTP::collect 1024\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA priority 500 {\n"
+            "    HTTP::release\n"
+            "}"
+        )
+        assert _collect_warnings(source) == []
+        assert _release_warnings(source) == []
+
+    def test_http_cookbook_no_false_positives(self):
+        """The HTTP cookbook sample should produce no T200/T201 warnings."""
+        from pathlib import Path
+
+        sample = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_http_collect.irul"
+        source = sample.read_text()
+        assert _collect_warnings(source) == []
+        assert _release_warnings(source) == []
+
+    def test_tcp_cookbook_no_false_positives(self):
+        """The TCP cookbook sample should produce no T200/T201 warnings."""
+        from pathlib import Path
+
+        sample = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_tcp_collect.irul"
+        source = sample.read_text()
+        assert _collect_warnings(source) == []
+        assert _release_warnings(source) == []
+
+
 # Warning message content
 
 

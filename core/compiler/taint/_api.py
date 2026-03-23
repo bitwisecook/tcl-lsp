@@ -82,11 +82,13 @@ def find_taint_warnings(
             )
         )
 
-    # Collect/release is a syntactic check over the IR.
-    all_warnings.extend(_find_collect_without_release(cu.ir_module.top_level))
-    all_warnings.extend(_find_release_without_collect(cu.ir_module.top_level))
-    for proc in cu.ir_module.procedures.values():
-        all_warnings.extend(_find_collect_without_release(proc.body))
-        all_warnings.extend(_find_release_without_collect(proc.body))
+    # Collect/release is a syntactic check over the IR.  Aggregate all
+    # scripts (top-level + every procedure/event-handler body) so that
+    # pairs spanning different ``when`` blocks are matched correctly.
+    all_scripts = [cu.ir_module.top_level] + [
+        proc.body for proc in cu.ir_module.procedures.values()
+    ]
+    all_warnings.extend(_find_collect_without_release(all_scripts))
+    all_warnings.extend(_find_release_without_collect(all_scripts))
 
     return all_warnings

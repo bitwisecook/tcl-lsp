@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from ...analysis.semantic_model import Range
 from ..ir import (
     IRAssignValue,
@@ -53,39 +55,56 @@ def _iter_ir_statements(script: IRScript):
                 yield from _iter_ir_statements(stmt.finally_body)
 
 
-def _find_collect_without_release(
-    ir_script: IRScript,
-) -> list[CollectWithoutReleaseWarning]:
-    """Find ``*::collect`` calls with no matching ``*::release``."""
-    collects: list[tuple[str, Range]] = []  # (protocol, range)
-    releases: set[str] = set()  # protocol prefixes seen
+def _extract_commands(
+    scripts: Iterable[IRScript],
+) -> tuple[list[tuple[str, Range]], list[tuple[str, Range]]]:
+    """Extract ``(protocol, range)`` pairs for all collect and release calls."""
+    collects: list[tuple[str, Range]] = []
+    releases: list[tuple[str, Range]] = []
 
-    for stmt in _iter_ir_statements(ir_script):
-        cmd: str | None = None
-        rng: Range | None = None
+    for script in scripts:
+        for stmt in _iter_ir_statements(script):
+            cmd: str | None = None
+            rng: Range | None = None
 
-        if isinstance(stmt, (IRCall, IRBarrier)):
-            cmd = stmt.command
-            rng = stmt.range
-        elif isinstance(stmt, IRAssignValue):
-            parsed = parse_command_substitution(stmt.value)
-            if parsed is not None:
-                cmd = parsed[0]
+            if isinstance(stmt, (IRCall, IRBarrier)):
+                cmd = stmt.command
                 rng = stmt.range
+            elif isinstance(stmt, IRAssignValue):
+                parsed = parse_command_substitution(stmt.value)
+                if parsed is not None:
+                    cmd = parsed[0]
+                    rng = stmt.range
 
-        if cmd is None or rng is None:
-            continue
+            if cmd is None or rng is None:
+                continue
 
-        if cmd.endswith("::collect"):
-            protocol = cmd[: -len("::collect")]
-            collects.append((protocol, rng))
-        elif cmd.endswith("::release"):
-            protocol = cmd[: -len("::release")]
-            releases.add(protocol)
+            if cmd.endswith("::collect"):
+                protocol = cmd[: -len("::collect")]
+                collects.append((protocol, rng))
+            elif cmd.endswith("::release"):
+                protocol = cmd[: -len("::release")]
+                releases.append((protocol, rng))
+
+    return collects, releases
+
+
+def _find_collect_without_release(
+    scripts: Iterable[IRScript],
+) -> list[CollectWithoutReleaseWarning]:
+    """Find ``*::collect`` calls with no matching ``*::release``.
+
+    *scripts* should be **all** IR bodies in the compilation unit so that
+    collect/release pairs that span different event handlers (e.g.
+    ``HTTP::collect`` in ``HTTP_REQUEST`` and ``HTTP::release`` in
+    ``HTTP_REQUEST_DATA``) are matched correctly.
+    """
+    collects, releases = _extract_commands(scripts)
+    release_protocols = {protocol for protocol, _rng in releases}
 
     warnings: list[CollectWithoutReleaseWarning] = []
     for protocol, rng in collects:
-        if protocol not in releases:
+        if protocol not in release_protocols:
             cmd_name = f"{protocol}::collect"
             warnings.append(
                 CollectWithoutReleaseWarning(
@@ -102,38 +121,20 @@ def _find_collect_without_release(
 
 
 def _find_release_without_collect(
-    ir_script: IRScript,
+    scripts: Iterable[IRScript],
 ) -> list[ReleaseWithoutCollectWarning]:
-    """Find ``*::release`` calls with no matching ``*::collect``."""
-    releases: list[tuple[str, Range]] = []  # (protocol, range)
-    collects: set[str] = set()  # protocol prefixes seen
+    """Find ``*::release`` calls with no matching ``*::collect``.
 
-    for stmt in _iter_ir_statements(ir_script):
-        cmd: str | None = None
-        rng: Range | None = None
-
-        if isinstance(stmt, (IRCall, IRBarrier)):
-            cmd = stmt.command
-            rng = stmt.range
-        elif isinstance(stmt, IRAssignValue):
-            parsed = parse_command_substitution(stmt.value)
-            if parsed is not None:
-                cmd = parsed[0]
-                rng = stmt.range
-
-        if cmd is None or rng is None:
-            continue
-
-        if cmd.endswith("::release"):
-            protocol = cmd[: -len("::release")]
-            releases.append((protocol, rng))
-        elif cmd.endswith("::collect"):
-            protocol = cmd[: -len("::collect")]
-            collects.add(protocol)
+    *scripts* should be **all** IR bodies in the compilation unit so that
+    collect/release pairs that span different event handlers are matched
+    correctly.
+    """
+    collects, releases = _extract_commands(scripts)
+    collect_protocols = {protocol for protocol, _rng in collects}
 
     warnings: list[ReleaseWithoutCollectWarning] = []
     for protocol, rng in releases:
-        if protocol not in collects:
+        if protocol not in collect_protocols:
             cmd_name = f"{protocol}::release"
             warnings.append(
                 ReleaseWithoutCollectWarning(

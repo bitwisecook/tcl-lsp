@@ -474,6 +474,65 @@ class TestIrule1005:
         warnings = _flow_with_code(src, "IRULE1005")
         assert len(warnings) == 2
 
+    def test_http_response_data_without_collect(self):
+        """HTTP_RESPONSE_DATA without HTTP::collect → warning."""
+        src = "when HTTP_RESPONSE_DATA {\n    HTTP::payload\n}"
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 1
+        assert "HTTP_RESPONSE_DATA" in warnings[0].message
+
+    def test_http_response_data_with_collect(self):
+        """HTTP_RESPONSE_DATA with HTTP::collect in HTTP_RESPONSE → no warning."""
+        src = (
+            "when HTTP_RESPONSE {\n"
+            "    HTTP::collect 1048576\n"
+            "}\n"
+            "when HTTP_RESPONSE_DATA {\n"
+            "    HTTP::payload\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 0
+
+    def test_http_cookbook_no_irule1005(self):
+        """The HTTP cookbook sample should not fire IRULE1005."""
+        from pathlib import Path
+
+        sample = Path(__file__).resolve().parent.parent / "samples" / "irules" / "cookbook_http_collect.irul"
+        source = sample.read_text()
+        warnings = _flow_with_code(source, "IRULE1005")
+        assert len(warnings) == 0
+
+    def test_ssl_data_with_collect_no_warning(self):
+        """CLIENTSSL_DATA with SSL::collect in CLIENTSSL_HANDSHAKE → no warning."""
+        src = (
+            "when CLIENTSSL_HANDSHAKE {\n"
+            "    SSL::collect\n"
+            "}\n"
+            "when CLIENTSSL_DATA {\n"
+            "    SSL::payload\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 0
+
+    def test_multiple_data_events_partial_collect(self):
+        """Only the DATA event without a matching collect should warn."""
+        src = (
+            "when CLIENT_ACCEPTED {\n"
+            "    TCP::collect\n"
+            "}\n"
+            "when CLIENT_DATA {\n"
+            "    TCP::payload\n"
+            "}\n"
+            "when HTTP_REQUEST_DATA {\n"
+            "    HTTP::payload\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1005")
+        assert len(warnings) == 1
+        assert "HTTP_REQUEST_DATA" in warnings[0].message
+
 
 # IRULE1006: *::payload without matching *::collect
 
