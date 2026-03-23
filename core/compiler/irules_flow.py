@@ -1227,17 +1227,18 @@ def _find_hoistable_constants(
                 var_name = stmt.defs[0]  # first defined var for display
                 display = f"{stmt.command} ..."
 
-            if var_name is None:
+            if var_name is None or display is None:
                 continue
             # Skip static:: variables — they're already scoped.
             if var_name.startswith("static::"):
                 continue
 
             # Try each candidate event (earliest first).
+            hoistable_stmt: IRAssignConst | IRAssignValue | IRIncr | IRCall = stmt  # type: ignore[assignment]
             best_event = None
             best_exists = False
             for cand, cand_exists in candidates:
-                if _ir_value_hoistable_to(stmt, cand):
+                if _ir_value_hoistable_to(hoistable_stmt, cand):
                     best_event = cand
                     best_exists = cand_exists
                     break
@@ -1321,10 +1322,7 @@ def _find_generic_static_names(
                         for var_name in stmt.defs:
                             _check_var(var_name, stmt.range)
                     # Descend into clientside/serverside body args.
-                    if (
-                        isinstance(stmt, IRCall)
-                        and stmt.command in ("clientside", "serverside")
-                    ):
+                    if isinstance(stmt, IRCall) and stmt.command in ("clientside", "serverside"):
                         inner_ir = _lower_side_switch_body(stmt)
                         if inner_ir is not None:
                             for inner_stmt in _iter_all_ir_statements(inner_ir):
@@ -1383,10 +1381,7 @@ def _iter_all_ir_statements(script: IRScript):
                 yield from _iter_all_ir_statements(handler.body)
             if stmt.finally_body is not None:
                 yield from _iter_all_ir_statements(stmt.finally_body)
-        elif (
-            isinstance(stmt, IRCall)
-            and stmt.command in ("clientside", "serverside")
-        ):
+        elif isinstance(stmt, IRCall) and stmt.command in ("clientside", "serverside"):
             inner_ir = _lower_side_switch_body(stmt)
             if inner_ir is not None:
                 yield from _iter_all_ir_statements(inner_ir)

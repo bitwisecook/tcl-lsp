@@ -992,13 +992,7 @@ class TestIrule4002:
 
     def test_generic_inside_clientside(self):
         """static:: defined inside clientside block should trigger."""
-        src = (
-            "when SERVER_CONNECTED {\n"
-            "    clientside {\n"
-            "        set static::debug 1\n"
-            "    }\n"
-            "}"
-        )
+        src = "when SERVER_CONNECTED {\n    clientside {\n        set static::debug 1\n    }\n}"
         warnings = _flow_with_code(src, "IRULE4002")
         assert len(warnings) == 1
         assert "static::debug" in warnings[0].message
