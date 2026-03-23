@@ -57,16 +57,21 @@ def _extract_event_summary(
 
     for block in fu.ssa.blocks.values():
         for stmt in block.statements:
+            ir_stmt = stmt.statement
+            is_unset = isinstance(ir_stmt, IRCall) and ir_stmt.command == "unset"
             for name in stmt.defs:
                 if name.startswith("::"):
                     continue
-                defs.add(name)
+                # For static:: vars, only count real assignments (not unset)
+                if name.startswith("static::") and is_unset:
+                    pass
+                else:
+                    defs.add(name)
             for name, ver in stmt.uses.items():
                 if ver == 0 and not name.startswith("::"):
                     uses_v0.add(name)
             # Track unsets
-            ir_stmt = stmt.statement
-            if isinstance(ir_stmt, IRCall) and ir_stmt.command == "unset":
+            if is_unset:
                 for name in ir_stmt.defs:
                     if not name.startswith("::"):
                         unsets.add(name)
@@ -134,6 +139,10 @@ def build_connection_scope(
             # Variables defined in A and used-before-def in B
             shared = sum_a.defs & sum_b.uses_before_def
             for var in shared:
+                # static:: cross-event flow is only valid from RULE_INIT;
+                # writes in other events race across connections (IRULE4001).
+                if var.startswith("static::") and ev_a != "RULE_INIT":
+                    continue
                 note = EVENT_REGISTRY.variable_scope_note(ev_a, ev_b)
                 if note is None:
                     # No scoping concern → the cross-event flow is valid

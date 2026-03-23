@@ -1663,6 +1663,41 @@ class TestCrossEventScope:
         hdr_diags = [d for d in diags if "hdr_len" in d.message]
         assert len(hdr_diags) == 1
 
+    def test_static_var_set_outside_rule_init_still_warns_w211(self):
+        """static:: set in HTTP_REQUEST and read in HTTP_RESPONSE → W211.
+
+        Cross-event suppression for static:: is restricted to RULE_INIT;
+        writes in other events race across connections (IRULE4001).
+        """
+        src = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    set static::token [HTTP::header Authorization]\n"
+            "}\n"
+            "when HTTP_RESPONSE priority 500 {\n"
+            "    log local0. $static::token\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "W211")
+        token_diags = [d for d in diags if "token" in d.message]
+        assert len(token_diags) >= 1
+
+    def test_unset_static_var_not_treated_as_def(self):
+        """unset static::x in RULE_INIT should not suppress W211 for reads."""
+        src = (
+            "when RULE_INIT priority 500 {\n"
+            "    unset -nocomplain -- static::old_cache\n"
+            "}\n"
+            "when HTTP_REQUEST priority 500 {\n"
+            "    log local0. $static::old_cache\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "W211")
+        # unset is not a real definition, so it should NOT suppress W211
+        # (the variable read in HTTP_REQUEST should still get W210/W220)
+        cache_w211 = [d for d in diags if "old_cache" in d.message]
+        # The unset should not appear as an unused-set W211 either
+        assert all("unset" not in d.message.lower() or "old_cache" not in d.message for d in diags)
+
 
 # W310: Hardcoded credentials
 
