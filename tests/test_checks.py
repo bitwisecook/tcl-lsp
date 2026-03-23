@@ -1635,6 +1635,20 @@ class TestCrossEventScope:
         cleared_diags = [d for d in diags if "ans_cleared" in d.message]
         assert len(cleared_diags) == 0
 
+    def test_static_var_cross_event_no_false_w211(self):
+        """static:: set in RULE_INIT and used in another event → no W211."""
+        src = (
+            "when RULE_INIT priority 500 {\n"
+            "    set static::hdr_len 8\n"
+            "}\n"
+            "when SERVER_CONNECTED priority 500 {\n"
+            "    TCP::collect $static::hdr_len\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "W211")
+        hdr_diags = [d for d in diags if "hdr_len" in d.message]
+        assert len(hdr_diags) == 0
+
 
 # W310: Hardcoded credentials
 
