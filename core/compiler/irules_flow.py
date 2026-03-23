@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 
 from ..analysis.semantic_model import CodeFix, Range
@@ -524,6 +525,7 @@ DATA_EVENT_REQUIREMENTS: dict[str, tuple[tuple[str, ...], str]] = {
     "SERVERSSL_DATA": (("SSL",), "server"),
 }
 
+
 def _default_collect_side(event: str) -> str:
     """Infer the default side context for commands in *event*."""
     props = EVENT_REGISTRY.get_props(event)
@@ -612,8 +614,13 @@ def _scan_ir_event(
     """Walk an IR event body and record collect/release/payload calls."""
     default_side = _default_collect_side(event)
     _scan_ir_body_with_side(
-        ir_body, default_side, collected, released,
-        collect_calls, release_calls, payload_calls,
+        ir_body,
+        default_side,
+        collected,
+        released,
+        collect_calls,
+        release_calls,
+        payload_calls,
     )
 
 
@@ -636,8 +643,13 @@ def _scan_ir_body_with_side(
                 inner_ir = _lower_side_switch_body(ir_stmt)
                 if inner_ir is not None:
                     _scan_ir_body_with_side(
-                        inner_ir, inner_side, collected, released,
-                        collect_calls, release_calls, payload_calls,
+                        inner_ir,
+                        inner_side,
+                        collected,
+                        released,
+                        collect_calls,
+                        release_calls,
+                        payload_calls,
                     )
             continue
         _classify_command(
@@ -1326,9 +1338,13 @@ def _iter_all_ir_statements(script: IRScript, *, lower_side_switches: bool = Tru
         yield stmt
         if isinstance(stmt, IRIf):
             for clause in stmt.clauses:
-                yield from _iter_all_ir_statements(clause.body, lower_side_switches=lower_side_switches)
+                yield from _iter_all_ir_statements(
+                    clause.body, lower_side_switches=lower_side_switches
+                )
             if stmt.else_body is not None:
-                yield from _iter_all_ir_statements(stmt.else_body, lower_side_switches=lower_side_switches)
+                yield from _iter_all_ir_statements(
+                    stmt.else_body, lower_side_switches=lower_side_switches
+                )
         elif isinstance(stmt, IRFor):
             yield from _iter_all_ir_statements(stmt.init, lower_side_switches=lower_side_switches)
             yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
@@ -1336,9 +1352,13 @@ def _iter_all_ir_statements(script: IRScript, *, lower_side_switches: bool = Tru
         elif isinstance(stmt, IRSwitch):
             for arm in stmt.arms:
                 if arm.body is not None:
-                    yield from _iter_all_ir_statements(arm.body, lower_side_switches=lower_side_switches)
+                    yield from _iter_all_ir_statements(
+                        arm.body, lower_side_switches=lower_side_switches
+                    )
             if stmt.default_body is not None:
-                yield from _iter_all_ir_statements(stmt.default_body, lower_side_switches=lower_side_switches)
+                yield from _iter_all_ir_statements(
+                    stmt.default_body, lower_side_switches=lower_side_switches
+                )
         elif isinstance(stmt, IRWhile):
             yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
         elif isinstance(stmt, IRForeach):
@@ -1348,13 +1368,23 @@ def _iter_all_ir_statements(script: IRScript, *, lower_side_switches: bool = Tru
         elif isinstance(stmt, IRTry):
             yield from _iter_all_ir_statements(stmt.body, lower_side_switches=lower_side_switches)
             for handler in stmt.handlers:
-                yield from _iter_all_ir_statements(handler.body, lower_side_switches=lower_side_switches)
+                yield from _iter_all_ir_statements(
+                    handler.body, lower_side_switches=lower_side_switches
+                )
             if stmt.finally_body is not None:
-                yield from _iter_all_ir_statements(stmt.finally_body, lower_side_switches=lower_side_switches)
-        elif lower_side_switches and isinstance(stmt, IRCall) and stmt.command in ("clientside", "serverside"):
+                yield from _iter_all_ir_statements(
+                    stmt.finally_body, lower_side_switches=lower_side_switches
+                )
+        elif (
+            lower_side_switches
+            and isinstance(stmt, IRCall)
+            and stmt.command in ("clientside", "serverside")
+        ):
             inner_ir = _lower_side_switch_body(stmt)
             if inner_ir is not None:
-                yield from _iter_all_ir_statements(inner_ir, lower_side_switches=lower_side_switches)
+                yield from _iter_all_ir_statements(
+                    inner_ir, lower_side_switches=lower_side_switches
+                )
 
 
 def find_irules_flow_warnings(
@@ -1439,8 +1469,6 @@ def extract_event_order(source: str) -> list[EventOrderEntry]:
         return []
 
     # Collect all handlers per event, preserving file order.
-    from collections import defaultdict
-
     per_event: dict[str, list[tuple[int, int, Range]]] = defaultdict(list)
     for idx, (event, priority, _body, _body_tok, event_tok) in enumerate(when_bodies):
         per_event[event].append((priority, idx, range_from_token(event_tok)))
