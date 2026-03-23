@@ -70,7 +70,7 @@ def _extract_event_summary(
                 if ver == 0 and not name.startswith("::"):
                     uses_v0.add(name)
             # Track unsets
-            if is_unset:
+            if isinstance(ir_stmt, IRCall) and ir_stmt.command == "unset":
                 for name in ir_stmt.defs:
                     if not name.startswith("::"):
                         unsets.add(name)

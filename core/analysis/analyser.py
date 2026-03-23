@@ -31,10 +31,17 @@ from ..common.naming import (
 )
 from ..common.ranges import position_from_relative, range_from_token
 from ..compiler.cfg import CFGBranch, CFGFunction
-from ..compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
+from ..compiler.compilation_unit import CompilationUnit, FunctionUnit, ensure_compilation_unit
 from ..compiler.compiler_checks import run_compiler_checks
 from ..compiler.core_analyses import FunctionAnalysis
-from ..compiler.ir import IRAssignConst, IRAssignValue, IRCall, IRProcedure, IRStatement, when_event_name
+from ..compiler.ir import (
+    IRAssignConst,
+    IRAssignValue,
+    IRCall,
+    IRProcedure,
+    IRStatement,
+    when_event_name,
+)
 from ..parsing.argv import widen_argv_tokens_to_word_spans
 from ..parsing.command_segmenter import SegmentedCommand, UnclosedDelimiter
 from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
