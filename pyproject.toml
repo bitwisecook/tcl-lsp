@@ -1,6 +1,6 @@
 [project]
 name = "tcl-lsp"
-version = "1.2.0"
+version = "1.2.1"
 description = "A Tcl Language Server Protocol implementation"
 requires-python = ">=3.10"
 dependencies = [
