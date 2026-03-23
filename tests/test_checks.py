@@ -1810,7 +1810,7 @@ class TestCrossEventScope:
         """static:: set inside if branch in non-RULE_INIT → still IRULE4005."""
         src = (
             "when HTTP_REQUEST priority 500 {\n"
-            "    if {[HTTP::uri] eq \"/debug\"} {\n"
+            '    if {[HTTP::uri] eq "/debug"} {\n'
             "        set static::debug_mode 1\n"
             "    }\n"
             "}\n"
