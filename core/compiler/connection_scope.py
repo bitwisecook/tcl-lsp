@@ -64,10 +64,7 @@ def _extract_event_summary(
             for name in stmt.defs:
                 if name.startswith("::"):
                     continue
-                # For static:: vars, only count real assignments (not unset)
-                if name.startswith("static::") and is_unset:
-                    pass
-                else:
+                if not (name.startswith("static::") and is_unset):
                     defs.add(name)
             for name, ver in stmt.uses.items():
                 if ver == 0 and not name.startswith("::"):

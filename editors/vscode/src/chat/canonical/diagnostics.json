@@ -23,7 +23,7 @@
     {
       "key": "thread_safety",
       "label": "Thread Safety",
-      "codes": ["IRULE4001", "IRULE4002", "IRULE4004"]
+      "codes": ["IRULE4001", "IRULE4002", "IRULE4004", "IRULE4005"]
     },
     {
       "key": "control_flow",

@@ -2119,8 +2119,9 @@ class Analyser:
                                 message=(
                                     f"Potential race: '{name}' is written outside "
                                     f"RULE_INIT and read in another event. "
-                                    f"static:: variables are shared across all "
-                                    f"connections; concurrent writes can produce "
+                                    f"static:: variables persist across all "
+                                    f"connections on the same virtual server; "
+                                    f"concurrent writes can produce "
                                     f"unpredictable results."
                                 ),
                                 severity=Severity.WARNING,

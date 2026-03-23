@@ -1709,21 +1709,118 @@ class TestCrossEventScope:
         assert len(diags) == 0
 
     def test_unset_static_var_not_treated_as_def(self):
-        """unset static::x in RULE_INIT should not suppress W211 for reads."""
+        """unset static::x in RULE_INIT must not count as a cross-event definition.
+
+        The unset should not suppress W211 for a real set in another event,
+        and should not itself appear as an unused-set W211.
+        """
         src = (
             "when RULE_INIT priority 500 {\n"
             "    unset -nocomplain -- static::old_cache\n"
             "}\n"
             "when HTTP_REQUEST priority 500 {\n"
-            "    log local0. $static::old_cache\n"
+            "    set static::old_cache [HTTP::uri]\n"
             "}"
         )
-        diags = self._diags_with_cu(src, "W211")
-        # unset is not a real definition, so it should NOT suppress W211
-        # (the variable read in HTTP_REQUEST should still get W210/W220)
-        cache_w211 = [d for d in diags if "old_cache" in d.message]
-        # The unset should not appear as an unused-set W211 either
-        assert all("unset" not in d.message.lower() or "old_cache" not in d.message for d in diags)
+        # The set in HTTP_REQUEST is unused — unset in RULE_INIT must not
+        # suppress W211 (unset is not a real definition for cross-event flow)
+        w211_diags = self._diags_with_cu(src, "W211")
+        cache_w211 = [d for d in w211_diags if "old_cache" in d.message]
+        assert len(cache_w211) == 1
+
+    def test_append_static_var_racy_irule4005(self):
+        """append to static:: outside RULE_INIT and read cross-event → IRULE4005."""
+        src = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    append static::log_buf [HTTP::uri]\n"
+            "}\n"
+            "when HTTP_RESPONSE priority 500 {\n"
+            "    log local0. $static::log_buf\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "IRULE4005")
+        buf_diags = [d for d in diags if "log_buf" in d.message]
+        assert len(buf_diags) == 1
+
+    def test_lappend_static_var_racy_irule4005(self):
+        """lappend to static:: outside RULE_INIT and read cross-event → IRULE4005."""
+        src = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    lappend static::uri_list [HTTP::uri]\n"
+            "}\n"
+            "when HTTP_RESPONSE priority 500 {\n"
+            "    log local0. $static::uri_list\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "IRULE4005")
+        list_diags = [d for d in diags if "uri_list" in d.message]
+        assert len(list_diags) == 1
+
+    def test_incr_static_var_racy_irule4005(self):
+        """incr of static:: outside RULE_INIT and read cross-event → IRULE4005."""
+        src = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    incr static::req_count\n"
+            "}\n"
+            "when HTTP_RESPONSE priority 500 {\n"
+            "    log local0. $static::req_count\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "IRULE4005")
+        count_diags = [d for d in diags if "req_count" in d.message]
+        assert len(count_diags) == 1
+
+    def test_array_set_static_var_racy_irule4005(self):
+        """array set of static:: outside RULE_INIT and read cross-event → IRULE4005."""
+        src = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    array set static::config {timeout 30}\n"
+            "}\n"
+            "when HTTP_RESPONSE priority 500 {\n"
+            "    log local0. $static::config(timeout)\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "IRULE4005")
+        config_diags = [d for d in diags if "config" in d.message]
+        assert len(config_diags) == 1
+
+    def test_multiple_racy_writers_across_events(self):
+        """static::x written in both CLIENT_ACCEPTED and HTTP_REQUEST → IRULE4005 on both.
+
+        CLIENT_ACCEPTED fires before HTTP_REQUEST/HTTP_RESPONSE, so
+        cross-event flow from CLIENT_ACCEPTED to those events is valid.
+        Both writers should get IRULE4005.
+        """
+        src = (
+            "when CLIENT_ACCEPTED priority 500 {\n"
+            "    set static::counter 1\n"
+            "}\n"
+            "when HTTP_REQUEST priority 500 {\n"
+            "    set static::counter 2\n"
+            "}\n"
+            "when HTTP_RESPONSE priority 500 {\n"
+            "    log local0. $static::counter\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "IRULE4005")
+        counter_diags = [d for d in diags if "counter" in d.message]
+        assert len(counter_diags) == 2
+
+    def test_conditional_write_static_var_racy_irule4005(self):
+        """static:: set inside if branch in non-RULE_INIT → still IRULE4005."""
+        src = (
+            "when HTTP_REQUEST priority 500 {\n"
+            "    if {[HTTP::uri] eq \"/debug\"} {\n"
+            "        set static::debug_mode 1\n"
+            "    }\n"
+            "}\n"
+            "when HTTP_RESPONSE priority 500 {\n"
+            "    log local0. $static::debug_mode\n"
+            "}"
+        )
+        diags = self._diags_with_cu(src, "IRULE4005")
+        debug_diags = [d for d in diags if "debug_mode" in d.message]
+        assert len(debug_diags) == 1
 
 
 # W310: Hardcoded credentials
