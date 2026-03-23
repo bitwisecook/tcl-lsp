@@ -3472,11 +3472,17 @@
             "markdownDescription": "**IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
             "order": 16
           },
+          "tclLsp.diagnostics.IRULE4005": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
+            "order": 17
+          },
           "tclLsp.diagnostics.IRULE5001": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5001:** Ungated `log` in a high-frequency event.",
-            "order": 17
+            "order": 18
           },
           "tclLsp.diagnostics.IRULE5002": {
             "type": "boolean",

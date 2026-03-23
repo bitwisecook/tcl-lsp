@@ -2316,6 +2316,7 @@ _ALL_DIAGNOSTIC_CODES = frozenset(
         "IRULE4002",
         "IRULE4003",
         "IRULE4004",
+        "IRULE4005",
         "IRULE5001",
         "IRULE5002",
         "IRULE5004",

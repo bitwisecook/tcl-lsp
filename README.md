@@ -1436,6 +1436,7 @@ These diagnostics fire only in the `f5-irules` dialect.
 | IRULE4002 | Hint | Generic `static::` variable name — collision likely across iRules |
 | IRULE4003 | Hint | Variable scoping concern across events |
 | IRULE4004 | Info | Constant `set` in per-request event could be hoisted to per-connection |
+| IRULE4005 | Warning | Potential race — `static::` variable written outside `RULE_INIT` and read in another event |
 
 #### Performance & control flow
 

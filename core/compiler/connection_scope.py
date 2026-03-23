@@ -44,6 +44,8 @@ class ConnectionScope:
     """Variables defined in one event AND used-before-def in a different event."""
     cross_event_imports: frozenset[str]
     """Variables used-before-def in one event AND defined in a different event."""
+    racy_static_defs: frozenset[str]
+    """``static::`` vars defined in a non-RULE_INIT event and used cross-event."""
 
 
 def _extract_event_summary(
@@ -57,18 +59,20 @@ def _extract_event_summary(
 
     for block in fu.ssa.blocks.values():
         for stmt in block.statements:
+            ir_stmt = stmt.statement
+            is_unset = isinstance(ir_stmt, IRCall) and ir_stmt.command == "unset"
             for name in stmt.defs:
-                if name.startswith("::") or name.startswith("static::"):
+                if name.startswith("::"):
                     continue
-                defs.add(name)
+                if not (name.startswith("static::") and is_unset):
+                    defs.add(name)
             for name, ver in stmt.uses.items():
-                if ver == 0 and not name.startswith("::") and not name.startswith("static::"):
+                if ver == 0 and not name.startswith("::"):
                     uses_v0.add(name)
             # Track unsets
-            ir_stmt = stmt.statement
             if isinstance(ir_stmt, IRCall) and ir_stmt.command == "unset":
                 for name in ir_stmt.defs:
-                    if not name.startswith("::") and not name.startswith("static::"):
+                    if not name.startswith("::"):
                         unsets.add(name)
 
     # Also check branch conditions for version-0 uses
@@ -82,7 +86,7 @@ def _extract_event_summary(
         term = cfg_block.terminator
         if isinstance(term, CFGBranch):
             for name in vars_in_expr_node(term.condition):
-                if name.startswith("::") or name.startswith("static::"):
+                if name.startswith("::"):
                     continue
                 ver = ssa_block.exit_versions.get(name, 0)
                 if ver == 0:
@@ -122,6 +126,7 @@ def build_connection_scope(
     # Build cross-event sets with event-ordering awareness.
     cross_defs: set[str] = set()
     cross_imports: set[str] = set()
+    racy_statics: set[str] = set()
 
     events = list(summaries.keys())
     for i, ev_a in enumerate(events):
@@ -139,9 +144,13 @@ def build_connection_scope(
                     # No scoping concern → the cross-event flow is valid
                     cross_defs.add(var)
                     cross_imports.add(var)
+                    # static:: cross-event flow from non-RULE_INIT is racy
+                    if var.startswith("static::") and ev_a != "RULE_INIT":
+                        racy_statics.add(var)
 
     return ConnectionScope(
         summaries=summaries,
         cross_event_defs=frozenset(cross_defs),
         cross_event_imports=frozenset(cross_imports),
+        racy_static_defs=frozenset(racy_statics),
     )

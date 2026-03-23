@@ -19,6 +19,10 @@ This folder contains small, searchable Knowledge-Centered Service (KCS) notes.
 - [kcs-shimmer-reference-behaviour.md](kcs-shimmer-reference-behaviour.md) — practical shimmer expectations and current validation strategy.
 - [kcs-project-layout-contracts.md](kcs-project-layout-contracts.md) — repository layout ownership and dependency direction contracts.
 
+## Diagnostics
+
+- [kcs-irule4005-racy-static-cross-event.md](kcs-irule4005-racy-static-cross-event.md) — IRULE4005: racy `static::` cross-event flow from non-RULE_INIT events.
+
 ## Fuzzing and test generation
 
 - [kcs-differential-fuzzing-contracts.md](kcs-differential-fuzzing-contracts.md) — differential fuzzing oracle, bad-input corruption, and coverage-guided mutation contracts.
