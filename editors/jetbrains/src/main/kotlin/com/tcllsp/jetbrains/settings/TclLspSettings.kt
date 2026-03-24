@@ -340,9 +340,11 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W308" to diagnosticW308,
                 "W309" to diagnosticW309,
                 // @generated:diagnostic-map:end
-                "genericVariablePatterns" to diagnosticsGenericVariablePatterns
-                    .split("\n").filter { it.isNotBlank() },
-            ),
+            ).let { map ->
+                val patterns = diagnosticsGenericVariablePatterns
+                    .split("\n").filter { it.isNotBlank() }
+                if (patterns.isNotEmpty()) map + ("genericVariablePatterns" to patterns) else map
+            },
             "style" to mapOf(
                 "lineLength" to styleLineLength,
             ),
