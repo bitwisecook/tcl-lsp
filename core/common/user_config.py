@@ -86,6 +86,7 @@ def load_user_config() -> configparser.ConfigParser:
     does not exist, returns an empty configuration.
     """
     config = configparser.ConfigParser()
+    config.optionxform = str  # type: ignore[assignment]  # preserve camelCase keys
     path = _config_path()
     if path.is_file():
         try:
@@ -115,15 +116,13 @@ def get_generic_variable_patterns(
 
 
 def _parse_comma_list(raw: str) -> list[str]:
-    """Split a comma-or-whitespace-separated string into stripped tokens."""
-    # Support both "O109, O126" and multi-line lists.
-    items: list[str] = []
-    for line in raw.splitlines():
-        for token in line.split(","):
-            token = token.strip()
-            if token:
-                items.append(token)
-    return items
+    """Split a comma-or-whitespace-separated string into stripped tokens.
+
+    Supports ``"O109, O126"``, ``"W111 T100"``, and multi-line lists.
+    """
+    # Normalise commas to spaces, then split on any whitespace.
+    tokens = raw.replace(",", " ").split()
+    return [token.strip() for token in tokens if token.strip()]
 
 
 def _parse_bool(value: str) -> bool | None:

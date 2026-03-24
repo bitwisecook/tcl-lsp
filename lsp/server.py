@@ -2265,8 +2265,9 @@ def _export_config() -> dict:
     for code in _ALL_DIAGNOSTIC_CODES:
         if code in feature_config.disabled_diagnostics:
             diag[code] = False
-    if feature_config.generic_variable_patterns:
-        diag["genericVariablePatterns"] = list(feature_config.generic_variable_patterns)
+    current_patterns = list(feature_config.generic_variable_patterns)
+    if current_patterns and current_patterns != list(DEFAULT_GENERIC_VARIABLE_PATTERNS):
+        diag["genericVariablePatterns"] = current_patterns
     if diag:
         settings["diagnostics"] = diag
 
@@ -2292,8 +2293,15 @@ def _export_config() -> dict:
     # Style
     settings["style"] = {"lineLength": feature_config.line_length}
 
+    # Build defaults so only non-default values are written.
+    default_cfg = FeatureConfig()
+    default_features: dict[str, object] = {
+        json_key: getattr(default_cfg, attr) for json_key, attr in _FEATURE_TOGGLE_KEYS.items()
+    }
+    defaults: dict[str, object] = {"features": default_features}
+
     try:
-        path = save_settings_to_config(settings, only_non_default=True)
+        path = save_settings_to_config(settings, only_non_default=True, defaults=defaults)
         server.window_show_message(
             types.ShowMessageParams(
                 type=types.MessageType.Info,
