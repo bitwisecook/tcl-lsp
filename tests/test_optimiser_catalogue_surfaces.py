@@ -47,14 +47,10 @@ def _extract_skill_codes(rel_path: str) -> list[str]:
 
 
 def test_lsp_server_allowlist_matches_catalogue() -> None:
-    text = _read("lsp/server.py")
-    match = re.search(
-        r"_ALL_OPTIMISATION_CODES\s*=\s*frozenset\(\s*\{(.*?)\}\s*\)",
-        text,
-        flags=re.DOTALL,
-    )
-    assert match is not None, "lsp/server.py: missing _ALL_OPTIMISATION_CODES"
-    codes = re.findall(r'"(O\d{3})"', match.group(1))
+    """server._ALL_OPTIMISATION_CODES is loaded from the central manifest."""
+    import lsp.server as server_module
+
+    codes = sorted(server_module._ALL_OPTIMISATION_CODES)
     _assert_complete_unique(codes, context="lsp/server.py _ALL_OPTIMISATION_CODES")
 
 

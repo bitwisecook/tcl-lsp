@@ -148,41 +148,42 @@ def test_internal_codes_are_real():
 
 
 # ---------------------------------------------------------------------------
-# 2. Manifest vs LSP server frozensets
+# 2. LSP server loads codes from manifest (drift impossible by construction)
 # ---------------------------------------------------------------------------
 
 
-def test_server_diagnostic_codes_match_manifest():
-    text = _read("lsp/server.py")
-    match = re.search(
-        r"_ALL_DIAGNOSTIC_CODES\s*=\s*frozenset\(\s*\{(.*?)\}\s*\)",
-        text,
-        flags=re.DOTALL,
+def test_server_loads_codes_from_manifest():
+    """The server imports _ALL_DIAGNOSTIC_CODES and _ALL_OPTIMISATION_CODES
+    from the manifest via manifest_diagnostic_codes() / manifest_optimisation_codes().
+    Verify the import wiring is correct at runtime."""
+    import lsp.server as server_module
+
+    manifest_diag = _manifest_diagnostic_codes()
+    manifest_opt = _manifest_optimisation_codes()
+    assert server_module._ALL_DIAGNOSTIC_CODES == manifest_diag, (
+        "server._ALL_DIAGNOSTIC_CODES does not match manifest — "
+        "check that server.py imports from manifest_diagnostic_codes()"
     )
-    assert match is not None, "lsp/server.py: missing _ALL_DIAGNOSTIC_CODES"
-    server_codes = set(re.findall(r'"([A-Z][A-Z0-9]+)"', match.group(1)))
-    manifest_codes = _manifest_diagnostic_codes()
-    assert server_codes == manifest_codes, (
-        f"_ALL_DIAGNOSTIC_CODES drift:\n"
-        f"  In server but not manifest: {sorted(server_codes - manifest_codes)}\n"
-        f"  In manifest but not server: {sorted(manifest_codes - server_codes)}"
+    assert server_module._ALL_OPTIMISATION_CODES == manifest_opt, (
+        "server._ALL_OPTIMISATION_CODES does not match manifest — "
+        "check that server.py imports from manifest_optimisation_codes()"
     )
 
 
-def test_server_optimisation_codes_match_manifest():
+def test_server_imports_manifest_loaders():
+    """Verify server.py uses manifest_diagnostic_codes / manifest_optimisation_codes
+    rather than maintaining its own hardcoded frozenset."""
     text = _read("lsp/server.py")
-    match = re.search(
-        r"_ALL_OPTIMISATION_CODES\s*=\s*frozenset\(\s*\{(.*?)\}\s*\)",
-        text,
-        flags=re.DOTALL,
+    assert "manifest_diagnostic_codes" in text, (
+        "server.py must import manifest_diagnostic_codes from user_config"
     )
-    assert match is not None, "lsp/server.py: missing _ALL_OPTIMISATION_CODES"
-    server_codes = set(re.findall(r'"(O\d{3})"', match.group(1)))
-    manifest_codes = _manifest_optimisation_codes()
-    assert server_codes == manifest_codes, (
-        f"_ALL_OPTIMISATION_CODES drift:\n"
-        f"  In server but not manifest: {sorted(server_codes - manifest_codes)}\n"
-        f"  In manifest but not server: {sorted(manifest_codes - server_codes)}"
+    assert "manifest_optimisation_codes" in text, (
+        "server.py must import manifest_optimisation_codes from user_config"
+    )
+    # Must NOT contain a hardcoded frozenset literal for these
+    assert "_ALL_DIAGNOSTIC_CODES = frozenset({" not in text.replace(" ", ""), (
+        "server.py still has a hardcoded _ALL_DIAGNOSTIC_CODES frozenset — "
+        "it must load from the manifest instead"
     )
 
 
