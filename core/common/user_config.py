@@ -59,41 +59,11 @@ Example ``config.ini``::
 from __future__ import annotations
 
 import configparser
-import json
 import logging
 import os
 from pathlib import Path
 
 log = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Diagnostic manifest — single source of truth for all user-configurable
-# diagnostic and optimisation codes.  Loaded once at import time.
-# ---------------------------------------------------------------------------
-
-_MANIFEST_PATH = Path(__file__).resolve().parent / "diagnostic_manifest.json"
-_MANIFEST: dict | None = None
-
-
-def _load_manifest() -> dict:
-    global _MANIFEST
-    if _MANIFEST is None:
-        try:
-            _MANIFEST = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError) as exc:
-            log.error("Failed to load diagnostic manifest from %s: %s", _MANIFEST_PATH, exc)
-            raise
-    return _MANIFEST
-
-
-def manifest_diagnostic_codes() -> frozenset[str]:
-    """Return all user-configurable diagnostic codes from the manifest."""
-    return frozenset(d["code"] for d in _load_manifest()["diagnostics"])
-
-
-def manifest_optimisation_codes() -> frozenset[str]:
-    """Return all user-configurable optimisation codes from the manifest."""
-    return frozenset(o["code"] for o in _load_manifest()["optimisations"])
 
 
 def _config_dir() -> Path:

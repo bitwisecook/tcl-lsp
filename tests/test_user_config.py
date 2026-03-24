@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.common.user_config import (
     get_all_settings,
     get_generic_variable_patterns,
+    load_user_config,
     save_settings_to_config,
 )
 
@@ -179,3 +180,56 @@ class TestGetGenericVariablePatterns:
         )
         result = get_generic_variable_patterns(config)
         assert result == ["^foo$", "^bar$"]
+
+
+class TestXDGConfigHome:
+    """Tests for $XDG_CONFIG_HOME override."""
+
+    def test_xdg_config_home_override(self, tmp_path, monkeypatch):
+        """load_user_config() reads from $XDG_CONFIG_HOME/tcl-lsp/config.ini."""
+        config_dir = tmp_path / "tcl-lsp"
+        config_dir.mkdir()
+        ini = config_dir / "config.ini"
+        ini.write_text("[diagnostics]\ndisabled = W111\n", encoding="utf-8")
+
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        config = load_user_config()
+        result = get_all_settings(config)
+        assert result["diagnostics"]["W111"] is False
+
+
+class TestSaveSettingsRoundtrip:
+    """Additional roundtrip tests for save_settings_to_config()."""
+
+    def test_roundtrip_disabled_diagnostics(self, tmp_path, monkeypatch):
+        """Disabled diagnostics survive a save/load roundtrip."""
+        monkeypatch.setattr(
+            "core.common.user_config._config_path",
+            lambda: tmp_path / "config.ini",
+        )
+
+        settings = {"diagnostics": {"W100": False, "E002": False}}
+        save_settings_to_config(settings, only_non_default=False)
+
+        config = load_user_config()
+        result = get_all_settings(config)
+        assert result["diagnostics"]["W100"] is False
+        assert result["diagnostics"]["E002"] is False
+
+    def test_save_only_non_default_with_defaults_dict(self, tmp_path, monkeypatch):
+        """When defaults are provided, only differing values are written."""
+        monkeypatch.setattr(
+            "core.common.user_config._config_path",
+            lambda: tmp_path / "config.ini",
+        )
+
+        defaults = {"features": {"hover": True, "completion": True}}
+        settings = {"features": {"hover": True, "completion": False}}
+        save_settings_to_config(settings, only_non_default=True, defaults=defaults)
+
+        config = load_user_config()
+        result = get_all_settings(config)
+        # hover matches default, should not be written
+        assert "hover" not in result.get("features", {})
+        # completion differs, should be written
+        assert result["features"]["completion"] is False

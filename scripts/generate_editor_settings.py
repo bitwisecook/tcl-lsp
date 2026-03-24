@@ -86,7 +86,6 @@ if str(ROOT) not in sys.path:
 
 import core.common.codes_all  # noqa: F401, E402
 from core.common.codes import (  # noqa: E402
-    SECTION_KEYS,
     SECTIONS,
     codes_by_section,
     diagnostics_sorted,
@@ -303,6 +302,7 @@ def _build_vscode_diagnostic_sections() -> list[dict]:
             props["tclLsp.diagnostics.genericVariablePatterns"] = {
                 "type": "array",
                 "items": {"type": "string"},
+                "default": [],
                 "markdownDescription": (
                     "Regex patterns for generic `static::` variable names (IRULE4002). "
                     "Each pattern is matched case-insensitively against the bare name "
@@ -323,7 +323,7 @@ def _build_vscode_diagnostic_sections() -> list[dict]:
     return result
 
 
-def _build_vscode_optimiser_section() -> dict:
+def _build_vscode_optimiser_section(*, order: int) -> dict:
     """Build VS Code configuration section dict for optimiser."""
     opts = optimisations_sorted()
     props: dict[str, dict] = {
@@ -343,7 +343,7 @@ def _build_vscode_optimiser_section() -> dict:
         }
     return {
         "title": "Optimiser",
-        "order": 14,
+        "order": order,
         "properties": props,
     }
 
@@ -373,7 +373,8 @@ def generate_vscode_package_json(*, dry_run: bool = False) -> tuple[Path, str]:
 
     # Build new generated sections
     new_diag_sections = _build_vscode_diagnostic_sections()
-    new_opt_section = _build_vscode_optimiser_section()
+    next_order = max(s["order"] for s in new_diag_sections) + 1 if new_diag_sections else 7
+    new_opt_section = _build_vscode_optimiser_section(order=next_order)
     new_generated = new_diag_sections + [new_opt_section]
 
     # Reconstruct: before-generated + new-generated + after-generated
@@ -446,40 +447,6 @@ def render_all(*, dry_run: bool = False) -> list[tuple[Path, str]]:
         generate_vscode_package_json(dry_run=dry_run),
         generate_readme_tables(dry_run=dry_run),
     ]
-
-
-# ---------------------------------------------------------------------------
-# Backwards-compatible API (used by existing tests during migration)
-# ---------------------------------------------------------------------------
-
-
-def _load_manifest() -> dict:
-    """Load manifest from registry (backwards compat for existing tests)."""
-    diags = diagnostics_sorted()
-    opts = optimisations_sorted()
-    return {
-        "diagnostics": [
-            {
-                "code": d.code,
-                "category": d.section,
-                "description": d.description,
-                "default": d.default,
-            }
-            for d in diags
-        ],
-        "optimisations": [
-            {
-                "code": o.code,
-                "description": o.description,
-                "default": o.default,
-            }
-            for o in opts
-        ],
-    }
-
-
-# Keep old names importable during migration
-_KNOWN_CATEGORIES = frozenset(SECTION_KEYS)
 
 
 # ---------------------------------------------------------------------------

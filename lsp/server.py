@@ -11,19 +11,19 @@ from dataclasses import dataclass, field
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
+import core.common.codes_all  # noqa: F401  # trigger all code registrations
 from core.analysis.analyser import analyse
 from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
 from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import configure_signatures, is_irules_dialect
+from core.common.codes import diagnostic_codes, optimisation_codes
 from core.common.lsp import to_lsp_location
 from core.common.source_map import SourceMap
 from core.common.user_config import (
     get_all_settings,
     load_user_config,
-    manifest_diagnostic_codes,
-    manifest_optimisation_codes,
     save_settings_to_config,
 )
 from core.compiler.optimiser import optimise_source
@@ -2366,10 +2366,9 @@ def did_change_watched_files(
 
 # Configuration
 
-# Loaded from the central manifest — single source of truth.
-# See core/common/diagnostic_manifest.json.
-_ALL_DIAGNOSTIC_CODES = manifest_diagnostic_codes()
-_ALL_OPTIMISATION_CODES = manifest_optimisation_codes()
+# Loaded from the self-registering code registry (core.common.codes).
+_ALL_DIAGNOSTIC_CODES = diagnostic_codes()
+_ALL_OPTIMISATION_CODES = optimisation_codes()
 
 _FEATURE_TOGGLE_KEYS = {
     "hover": "hover_enabled",
@@ -2507,7 +2506,10 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             new_patterns = [str(p) for p in patterns if isinstance(p, str)]
             if not new_patterns:
                 new_patterns = None  # treat empty list as "use defaults"
-            if new_patterns is not None and new_patterns != feature_config.generic_variable_patterns:
+            if (
+                new_patterns is not None
+                and new_patterns != feature_config.generic_variable_patterns
+            ):
                 feature_config.generic_variable_patterns = new_patterns
                 changed = True
 

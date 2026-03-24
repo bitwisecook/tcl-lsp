@@ -481,13 +481,13 @@ check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 	echo "Generated catalogs are up to date." || \
 	(rm -rf "$$TMPDIR" && echo "ERROR: Generated catalogs are stale — run 'make generate'" >&2 && exit 1)
 
-# Generated editor settings from diagnostic manifest
+# Generated editor settings from code registry
 
-gen-editor-settings: $(UV_STAMP) ## Regenerate editor diagnostic/optimiser settings from manifest
-	@echo "==> Generating editor settings from diagnostic manifest"
+gen-editor-settings: $(UV_STAMP) ## Regenerate editor diagnostic/optimiser settings from code registry
+	@echo "==> Generating editor settings from code registry"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_editor_settings.py
 
-check-editor-settings: $(UV_STAMP) ## Verify editor settings match diagnostic manifest
+check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
 	@echo "==> Checking editor settings are up to date"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_editor_settings.py --check
 

@@ -3764,6 +3764,7 @@
             "items": {
               "type": "string"
             },
+            "default": [],
             "markdownDescription": "Regex patterns for generic `static::` variable names (IRULE4002). Each pattern is matched case-insensitively against the bare name after stripping `static::`. Also configurable via `~/.config/tcl-lsp/config.ini`.",
             "order": 28
           }
@@ -3771,7 +3772,7 @@
       },
       {
         "title": "Optimiser",
-        "order": 14,
+        "order": 15,
         "properties": {
           "tclLsp.optimiser.enabled": {
             "type": "boolean",

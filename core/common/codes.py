@@ -131,6 +131,13 @@ def opt(
 ) -> Callable[[_F], _F]:
     """Register an optimisation code.  Use as ``@opt(...)`` decorator or bare call."""
     if code in _registry:
+        existing = _registry[code]
+        if existing.description == description and existing.default == default:
+
+            def _identity_dup(fn: _F) -> _F:
+                return fn
+
+            return _identity_dup
         raise ValueError(f"Duplicate optimisation code: {code}")
     _registry[code] = CodeInfo(
         code=code,
