@@ -23,33 +23,36 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "core" / "common" / "diagnostic_manifest.json"
 
 # ---------------------------------------------------------------------------
-# VS Code section grouping
+# Canonical section definitions — single source of truth for both VS Code
+# and JetBrains section ordering, category mapping, and panel names.
 # ---------------------------------------------------------------------------
 
-CATEGORY_TO_VSCODE_SECTION = {
-    "error": "Diagnostics — Errors",
-    "warning": "Diagnostics — Style & Best Practice",
-    "variable": "Diagnostics — Variables",
-    "security": "Diagnostics — Security",
-    "hint": "Diagnostics — Hints",
-    "shimmer": "Diagnostics — Shimmer",
-    "taint": "Diagnostics — Taint",
-    "irules": "Diagnostics — iRules",
-    "irules_security": "Diagnostics — iRules",
-    "irules_variable": "Diagnostics — iRules",
-}
+_SECTIONS = [
+    # (category, vscode_title, jb_title, jb_panel_var, vscode_order)
+    ("error", "Diagnostics — Errors", "Diagnostics — Errors", "diagErrorPanel", 7),
+    (
+        "warning",
+        "Diagnostics — Style & Best Practice",
+        "Diagnostics — Warnings",
+        "diagWarnPanel",
+        8,
+    ),
+    ("variable", "Diagnostics — Variables", "Diagnostics — Variables", "diagVarPanel", 9),
+    ("security", "Diagnostics — Security", "Diagnostics — Security", "diagSecPanel", 10),
+    ("hint", "Diagnostics — Hints", "Diagnostics — Hints", "diagHintPanel", 10),
+    ("shimmer", "Diagnostics — Shimmer", "Diagnostics — Shimmer", "diagShimmerPanel", 11),
+    ("taint", "Diagnostics — Taint", "Diagnostics — Taint", "diagTaintPanel", 12),
+    ("irules", "Diagnostics — iRules", "Diagnostics — iRules", "diagIRulePanel", 13),
+    ("irules_security", "Diagnostics — iRules", "Diagnostics — iRules", "diagIRulePanel", 13),
+    ("irules_variable", "Diagnostics — iRules", "Diagnostics — iRules", "diagIRulePanel", 13),
+]
 
-VSCODE_SECTION_ORDER = {
-    "Diagnostics — Errors": 7,
-    "Diagnostics — Style & Best Practice": 8,
-    "Diagnostics — Variables": 9,
-    "Diagnostics — Security": 10,
-    "Diagnostics — Hints": 10,
-    "Diagnostics — Shimmer": 11,
-    "Diagnostics — Taint": 12,
-    "Diagnostics — iRules": 13,
-    "Optimiser": 14,
-}
+# Derived structures — all built from _SECTIONS.
+_KNOWN_CATEGORIES = frozenset(s[0] for s in _SECTIONS)
+CATEGORY_TO_VSCODE_SECTION = {s[0]: s[1] for s in _SECTIONS}
+VSCODE_SECTION_ORDER: dict[str, int] = {s[1]: s[4] for s in _SECTIONS}
+VSCODE_SECTION_ORDER["Optimiser"] = 14  # not a diagnostic category
+_VSCODE_SECTION_LIST = list(dict.fromkeys(s[1] for s in _SECTIONS))
 
 # Sections that are generated (will be replaced)
 _GENERATED_TITLES = frozenset(VSCODE_SECTION_ORDER.keys())
@@ -59,12 +62,17 @@ def _load_manifest() -> dict:
     return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
 
-def _short_label(code: str, description: str) -> str:
+def _short_label(code: str, description: str, *, escape_kotlin: bool = False) -> str:
     """Generate a short checkbox label."""
     desc = description.split("—")[0].split("–")[0].strip().rstrip(".")
+    # Strip backtick-delimited code spans (Markdown formatting).
+    desc = re.sub(r"`([^`]*)`", r"\1", desc)
     if len(desc) > 55:
         desc = desc[:52] + "..."
-    return f"{code}: {desc}"
+    label = f"{code}: {desc}"
+    if escape_kotlin:
+        label = label.replace("\\", "\\\\").replace('"', '\\"')
+    return label
 
 
 # ---------------------------------------------------------------------------
@@ -97,27 +105,27 @@ def _replace_between_markers(
 # ---------------------------------------------------------------------------
 
 
+def _validate_categories(diagnostics: list[dict]) -> None:
+    """Fail loudly if any diagnostic has an unmapped category."""
+    unknown = {d["category"] for d in diagnostics} - _KNOWN_CATEGORIES
+    if unknown:
+        print(f"ERROR: Unknown categories in manifest: {sorted(unknown)}", file=sys.stderr)
+        print("Update _SECTIONS in scripts/generate_editor_settings.py.", file=sys.stderr)
+        sys.exit(1)
+
+
 def _build_vscode_diagnostic_sections(diagnostics: list[dict]) -> list[dict]:
     """Build VS Code configuration section dicts for diagnostics."""
+    _validate_categories(diagnostics)
+
     # Group by section
     sections: dict[str, list[dict]] = {}
     for d in diagnostics:
-        section = CATEGORY_TO_VSCODE_SECTION.get(d["category"], "Diagnostics — Other")
+        section = CATEGORY_TO_VSCODE_SECTION[d["category"]]
         sections.setdefault(section, []).append(d)
 
-    section_order = [
-        "Diagnostics — Errors",
-        "Diagnostics — Style & Best Practice",
-        "Diagnostics — Variables",
-        "Diagnostics — Security",
-        "Diagnostics — Hints",
-        "Diagnostics — Shimmer",
-        "Diagnostics — Taint",
-        "Diagnostics — iRules",
-    ]
-
     result = []
-    for title in section_order:
+    for title in _VSCODE_SECTION_LIST:
         diags = sections.get(title, [])
         if not diags:
             continue
@@ -328,18 +336,10 @@ def generate_jetbrains_settings(manifest: dict, *, dry_run: bool = False) -> str
 # JetBrains TclLspSettingsPanel.kt generation
 # ---------------------------------------------------------------------------
 
-_JB_PANEL_SECTIONS = [
-    ("error", "Diagnostics — Errors"),
-    ("warning", "Diagnostics — Warnings"),
-    ("variable", "Diagnostics — Variables"),
-    ("security", "Diagnostics — Security"),
-    ("hint", "Diagnostics — Hints"),
-    ("shimmer", "Diagnostics — Shimmer"),
-    ("taint", "Diagnostics — Taint"),
-    ("irules", "Diagnostics — iRules"),
-    ("irules_security", "Diagnostics — iRules"),
-    ("irules_variable", "Diagnostics — iRules"),
-]
+# JetBrains structures — derived from _SECTIONS.
+_JB_PANEL_SECTIONS = [(s[0], s[2]) for s in _SECTIONS]
+_JB_SECTION_ORDER = list(dict.fromkeys(s[2] for s in _SECTIONS))
+_PANEL_NAMES = {s[2]: s[3] for s in _SECTIONS}
 
 
 def _group_diags(diagnostics: list[dict]) -> dict[str, list[dict]]:
@@ -352,39 +352,16 @@ def _group_diags(diagnostics: list[dict]) -> dict[str, list[dict]]:
     return groups
 
 
-_SECTION_ORDER = [
-    "Diagnostics — Errors",
-    "Diagnostics — Warnings",
-    "Diagnostics — Variables",
-    "Diagnostics — Security",
-    "Diagnostics — Hints",
-    "Diagnostics — Shimmer",
-    "Diagnostics — Taint",
-    "Diagnostics — iRules",
-]
-
-_PANEL_NAMES = {
-    "Diagnostics — Errors": "diagErrorPanel",
-    "Diagnostics — Warnings": "diagWarnPanel",
-    "Diagnostics — Variables": "diagVarPanel",
-    "Diagnostics — Security": "diagSecPanel",
-    "Diagnostics — Hints": "diagHintPanel",
-    "Diagnostics — Shimmer": "diagShimmerPanel",
-    "Diagnostics — Taint": "diagTaintPanel",
-    "Diagnostics — iRules": "diagIRulePanel",
-}
-
-
 def _gen_panel_diag_checkboxes(diagnostics: list[dict]) -> str:
     groups = _group_diags(diagnostics)
     lines = []
-    for title in _SECTION_ORDER:
+    for title in _JB_SECTION_ORDER:
         diags = groups.get(title, [])
         if not diags:
             continue
         lines.append(f"    // {title}")
         for d in diags:
-            label = _short_label(d["code"], d["description"])
+            label = _short_label(d["code"], d["description"], escape_kotlin=True)
             lines.append(f'    private val diag{d["code"]} = JBCheckBox("{label}")')
         lines.append("")
     return "\n".join(lines)
@@ -393,14 +370,15 @@ def _gen_panel_diag_checkboxes(diagnostics: list[dict]) -> str:
 def _gen_panel_opt_checkboxes(optimisations: list[dict]) -> str:
     lines = ['    private val optEnabled = JBCheckBox("Enable optimiser suggestions")']
     for o in optimisations:
-        lines.append(f'    private val opt{o["code"]} = JBCheckBox("{o["code"]}")')
+        label = _short_label(o["code"], o["description"], escape_kotlin=True)
+        lines.append(f'    private val opt{o["code"]} = JBCheckBox("{label}")')
     return "\n".join(lines) + "\n"
 
 
 def _gen_panel_diag_ui(diagnostics: list[dict]) -> str:
     groups = _group_diags(diagnostics)
     lines = []
-    for title in _SECTION_ORDER:
+    for title in _JB_SECTION_ORDER:
         diags = groups.get(title, [])
         if not diags:
             continue

@@ -72,42 +72,42 @@ class TclLspSettingsPanel {
     private val diagW002 = JBCheckBox("W002: Command is disabled in active dialect profile")
     private val diagW100 = JBCheckBox("W100: Unbraced expression argument")
     private val diagW104 = JBCheckBox("W104: String concatenation for list building")
-    private val diagW105 = JBCheckBox("W105: Unbraced code block or missing `variable` declaratio...")
-    private val diagW106 = JBCheckBox("W106: Dangerous unbraced `switch` body")
+    private val diagW105 = JBCheckBox("W105: Unbraced code block or missing variable declaration ...")
+    private val diagW106 = JBCheckBox("W106: Dangerous unbraced switch body")
     private val diagW108 = JBCheckBox("W108: Non-ASCII characters in token content")
-    private val diagW110 = JBCheckBox("W110: Use `eq`/`ne` instead of `==`/`!=` for string compar...")
-    private val diagW111 = JBCheckBox("W111: Line exceeds maximum length (see `tclLsp.style.lineL...")
+    private val diagW110 = JBCheckBox("W110: Use eq/ne instead of ==/!= for string comparison")
+    private val diagW111 = JBCheckBox("W111: Line exceeds maximum length (see tclLsp.style.lineLe...")
     private val diagW112 = JBCheckBox("W112: Trailing whitespace")
     private val diagW113 = JBCheckBox("W113: Procedure shadows built-in command")
-    private val diagW114 = JBCheckBox("W114: Redundant nested `[expr]`")
+    private val diagW114 = JBCheckBox("W114: Redundant nested [expr]")
     private val diagW115 = JBCheckBox("W115: Backslash-newline in comment silently swallows the n...")
-    private val diagW120 = JBCheckBox("W120: Command used without a corresponding `package require`")
+    private val diagW120 = JBCheckBox("W120: Command used without a corresponding package require")
     private val diagW121 = JBCheckBox("W121: Subnet mask has non-contiguous bits")
     private val diagW122 = JBCheckBox("W122: Mistyped IPv4 address (octet > 255 or leading zero)")
-    private val diagW200 = JBCheckBox("W200: `exec` result not captured or binary format modifier...")
+    private val diagW200 = JBCheckBox("W200: exec result not captured or binary format modifier r...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
 
     // Diagnostics — Variables
     private val diagW210 = JBCheckBox("W210: Variable read before set")
     private val diagW211 = JBCheckBox("W211: Variable set but never used")
-    private val diagW212 = JBCheckBox("W212: Variable substitution where name expected (`set $x`,...")
+    private val diagW212 = JBCheckBox("W212: Variable substitution where name expected (set $x, i...")
     private val diagW213 = JBCheckBox("W213: Variable may not exist")
     private val diagW214 = JBCheckBox("W214: Unused proc parameter")
     private val diagW220 = JBCheckBox("W220: Dead store")
 
     // Diagnostics — Security
-    private val diagW101 = JBCheckBox("W101: `eval` with string concatenation")
-    private val diagW102 = JBCheckBox("W102: `subst` on variable input")
-    private val diagW103 = JBCheckBox("W103: `open` with pipeline `|`")
-    private val diagW300 = JBCheckBox("W300: `source` with variable argument")
-    private val diagW301 = JBCheckBox("W301: `uplevel` with string-built script")
-    private val diagW302 = JBCheckBox("W302: `catch` without result variable")
+    private val diagW101 = JBCheckBox("W101: eval with string concatenation")
+    private val diagW102 = JBCheckBox("W102: subst on variable input")
+    private val diagW103 = JBCheckBox("W103: open with pipeline |")
+    private val diagW300 = JBCheckBox("W300: source with variable argument")
+    private val diagW301 = JBCheckBox("W301: uplevel with string-built script")
+    private val diagW302 = JBCheckBox("W302: catch without result variable")
     private val diagW303 = JBCheckBox("W303: Regexp vulnerable to catastrophic backtracking (ReDoS)")
-    private val diagW304 = JBCheckBox("W304: Missing option terminator `--` on option-bearing com...")
+    private val diagW304 = JBCheckBox("W304: Missing option terminator -- on option-bearing commands")
     private val diagW306 = JBCheckBox("W306: Substitution in literal-expected argument position")
     private val diagW307 = JBCheckBox("W307: Non-literal command name")
-    private val diagW308 = JBCheckBox("W308: `subst` without `-nocommands`")
-    private val diagW309 = JBCheckBox("W309: `eval`/`uplevel` with `subst`")
+    private val diagW308 = JBCheckBox("W308: subst without -nocommands")
+    private val diagW309 = JBCheckBox("W309: eval/uplevel with subst")
 
     // Diagnostics — Hints
     private val diagH300 = JBCheckBox("H300: Possible paste error")
@@ -119,38 +119,38 @@ class TclLspSettingsPanel {
 
     // Diagnostics — Taint
     private val diagT100 = JBCheckBox("T100: Tainted data flows into a dangerous code-execution s...")
-    private val diagT101 = JBCheckBox("T101: Tainted data flows into an output command (`puts`)")
-    private val diagT102 = JBCheckBox("T102: Tainted data in option position without `--` terminator")
+    private val diagT101 = JBCheckBox("T101: Tainted data flows into an output command (puts)")
+    private val diagT102 = JBCheckBox("T102: Tainted data in option position without -- terminator")
 
     // Diagnostics — iRules
     private val diagIRULE1001 = JBCheckBox("IRULE1001: Command invalid or ineffective in this iRules event")
     private val diagIRULE1002 = JBCheckBox("IRULE1002: Unknown iRules event name")
     private val diagIRULE1003 = JBCheckBox("IRULE1003: Deprecated iRules event")
-    private val diagIRULE1004 = JBCheckBox("IRULE1004: `when` block missing explicit `priority`")
-    private val diagIRULE1005 = JBCheckBox("IRULE1005: Data event without a matching `*::collect` call")
-    private val diagIRULE1006 = JBCheckBox("IRULE1006: `*::payload` without a matching `*::collect` call")
-    private val diagIRULE1007 = JBCheckBox("IRULE1007: `*::collect` without a matching `*::release` on the ...")
-    private val diagIRULE1008 = JBCheckBox("IRULE1008: `*::release` without a matching `*::collect` on the ...")
-    private val diagIRULE1201 = JBCheckBox("IRULE1201: HTTP command used after `HTTP::respond`/`HTTP::redir...")
-    private val diagIRULE1202 = JBCheckBox("IRULE1202: Multiple `HTTP::respond`/`HTTP::redirect` on differe...")
-    private val diagIRULE2001 = JBCheckBox("IRULE2001: Deprecated `matchclass`")
+    private val diagIRULE1004 = JBCheckBox("IRULE1004: when block missing explicit priority")
+    private val diagIRULE1005 = JBCheckBox("IRULE1005: Data event without a matching *::collect call")
+    private val diagIRULE1006 = JBCheckBox("IRULE1006: *::payload without a matching *::collect call")
+    private val diagIRULE1007 = JBCheckBox("IRULE1007: *::collect without a matching *::release on the same...")
+    private val diagIRULE1008 = JBCheckBox("IRULE1008: *::release without a matching *::collect on the same...")
+    private val diagIRULE1201 = JBCheckBox("IRULE1201: HTTP command used after HTTP::respond/HTTP::redirect")
+    private val diagIRULE1202 = JBCheckBox("IRULE1202: Multiple HTTP::respond/HTTP::redirect on different b...")
+    private val diagIRULE2001 = JBCheckBox("IRULE2001: Deprecated matchclass")
     private val diagIRULE2002 = JBCheckBox("IRULE2002: Deprecated iRules command")
     private val diagIRULE2003 = JBCheckBox("IRULE2003: Unsafe iRules command")
-    private val diagIRULE2101 = JBCheckBox("IRULE2101: Heavy `regexp` in a high-frequency event")
+    private val diagIRULE2101 = JBCheckBox("IRULE2101: Heavy regexp in a high-frequency event")
     private val diagIRULE3001 = JBCheckBox("IRULE3001: Tainted data in HTTP response body")
     private val diagIRULE3002 = JBCheckBox("IRULE3002: Tainted data in HTTP header or cookie value")
-    private val diagIRULE3003 = JBCheckBox("IRULE3003: Tainted data in `log` command")
-    private val diagIRULE3101 = JBCheckBox("IRULE3101: `HTTP::uri`/`HTTP::path` set to value not provably s...")
-    private val diagIRULE3102 = JBCheckBox("IRULE3102: `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used w...")
-    private val diagIRULE4001 = JBCheckBox("IRULE4001: Write to `static::` variable outside `RULE_INIT`")
-    private val diagIRULE4002 = JBCheckBox("IRULE4002: Generic `static::` variable name")
+    private val diagIRULE3003 = JBCheckBox("IRULE3003: Tainted data in log command")
+    private val diagIRULE3101 = JBCheckBox("IRULE3101: HTTP::uri/HTTP::path set to value not provably start...")
+    private val diagIRULE3102 = JBCheckBox("IRULE3102: HTTP::path/HTTP::uri/HTTP::query getter used without...")
+    private val diagIRULE4001 = JBCheckBox("IRULE4001: Write to static:: variable outside RULE_INIT")
+    private val diagIRULE4002 = JBCheckBox("IRULE4002: Generic static:: variable name")
     private val diagIRULE4003 = JBCheckBox("IRULE4003: Variable scoping concern across events")
-    private val diagIRULE4004 = JBCheckBox("IRULE4004: Constant `set` in per-request event could be hoisted...")
+    private val diagIRULE4004 = JBCheckBox("IRULE4004: Constant set in per-request event could be hoisted t...")
     private val diagIRULE4005 = JBCheckBox("IRULE4005: Potential race")
-    private val diagIRULE5001 = JBCheckBox("IRULE5001: Ungated `log` in a high-frequency event")
-    private val diagIRULE5002 = JBCheckBox("IRULE5002: `drop`/`reject`/`discard` without `event disable all...")
-    private val diagIRULE5004 = JBCheckBox("IRULE5004: `DNS::return` without `return`")
-    private val diagIRULE5005 = JBCheckBox("IRULE5005: Direct proc invocation without `call`")
+    private val diagIRULE5001 = JBCheckBox("IRULE5001: Ungated log in a high-frequency event")
+    private val diagIRULE5002 = JBCheckBox("IRULE5002: drop/reject/discard without event disable all or return")
+    private val diagIRULE5004 = JBCheckBox("IRULE5004: DNS::return without return")
+    private val diagIRULE5005 = JBCheckBox("IRULE5005: Direct proc invocation without call")
     // @generated:diag-checkboxes:end
 
     // XC Diagnostics
@@ -161,33 +161,33 @@ class TclLspSettingsPanel {
 
     // @generated:opt-checkboxes:begin
     private val optEnabled = JBCheckBox("Enable optimiser suggestions")
-    private val optO100 = JBCheckBox("O100")
-    private val optO101 = JBCheckBox("O101")
-    private val optO102 = JBCheckBox("O102")
-    private val optO103 = JBCheckBox("O103")
-    private val optO104 = JBCheckBox("O104")
-    private val optO105 = JBCheckBox("O105")
-    private val optO106 = JBCheckBox("O106")
-    private val optO107 = JBCheckBox("O107")
-    private val optO108 = JBCheckBox("O108")
-    private val optO109 = JBCheckBox("O109")
-    private val optO110 = JBCheckBox("O110")
-    private val optO111 = JBCheckBox("O111")
-    private val optO112 = JBCheckBox("O112")
-    private val optO113 = JBCheckBox("O113")
-    private val optO114 = JBCheckBox("O114")
-    private val optO115 = JBCheckBox("O115")
-    private val optO116 = JBCheckBox("O116")
-    private val optO117 = JBCheckBox("O117")
-    private val optO118 = JBCheckBox("O118")
-    private val optO119 = JBCheckBox("O119")
-    private val optO120 = JBCheckBox("O120")
-    private val optO121 = JBCheckBox("O121")
-    private val optO122 = JBCheckBox("O122")
-    private val optO123 = JBCheckBox("O123")
-    private val optO124 = JBCheckBox("O124")
-    private val optO125 = JBCheckBox("O125")
-    private val optO126 = JBCheckBox("O126")
+    private val optO100 = JBCheckBox("O100: Propagate constant variables into expressions and co...")
+    private val optO101 = JBCheckBox("O101: Fold constant integer expressions")
+    private val optO102 = JBCheckBox("O102: Fold constant [expr {...}] command substitutions")
+    private val optO103 = JBCheckBox("O103: Fold static procedure calls using interprocedural su...")
+    private val optO104 = JBCheckBox("O104: Fold static string build chains into a single assign...")
+    private val optO105 = JBCheckBox("O105: Propagate constants into variable references and det...")
+    private val optO106 = JBCheckBox("O106: Hoist loop-invariant computations")
+    private val optO107 = JBCheckBox("O107: Eliminate unreachable dead code")
+    private val optO108 = JBCheckBox("O108: Eliminate transitively dead code")
+    private val optO109 = JBCheckBox("O109: Eliminate dead stores")
+    private val optO110 = JBCheckBox("O110: Canonicalise expressions (InstCombine)")
+    private val optO111 = JBCheckBox("O111: Brace expression performance hints (paired with W100)")
+    private val optO112 = JBCheckBox("O112: Eliminate constant-condition compound statements")
+    private val optO113 = JBCheckBox("O113: Strength-reduce expressions (x**2 → x*x, x%8 → x&7)")
+    private val optO114 = JBCheckBox("O114: Recognise incr idiom (set x [expr {$x + N}] → incr x N)")
+    private val optO115 = JBCheckBox("O115: Remove redundant nested [expr {...}] in expression c...")
+    private val optO116 = JBCheckBox("O116: Fold constant [list a b c] to literal value")
+    private val optO117 = JBCheckBox("O117: Simplify [string length $s] == 0 → $s eq \"\"")
+    private val optO118 = JBCheckBox("O118: Fold constant [lindex {a b c} 1] to element")
+    private val optO119 = JBCheckBox("O119: Pack consecutive set literals into lassign/foreach")
+    private val optO120 = JBCheckBox("O120: Prefer eq/ne over ==/!= for string comparisons")
+    private val optO121 = JBCheckBox("O121: Rewrite self-recursive tail calls to tailcall")
+    private val optO122 = JBCheckBox("O122: Convert fully tail-recursive proc to iterative while...")
+    private val optO123 = JBCheckBox("O123: Detect non-tail recursion eligible for accumulator i...")
+    private val optO124 = JBCheckBox("O124: Comment out unused procs in iRules (not called from ...")
+    private val optO125 = JBCheckBox("O125: Sink side-effect-free assignments into the deepest d...")
+    private val optO126 = JBCheckBox("O126: Remove unused variable assignments")
     // @generated:opt-checkboxes:end
 
     // Shimmer
@@ -195,6 +195,16 @@ class TclLspSettingsPanel {
 
     // Runtime Validation
     private val runtimeValidation = JBCheckBox("Enable runtime validation on save")
+    private val rtAdapter = JComboBox(arrayOf("auto", "tclsh", "expect"))
+    private val rtTclshPath = JBTextField(30)
+    private val rtTimeoutMs = JSpinner(SpinnerNumberModel(5000, 500, 120000, 500))
+
+    // AI
+    private val aiEnabled = JBCheckBox("Enable AI features")
+    private val aiExtraPrompts = JBTextField(30)
+
+    // Diagnostic patterns
+    private val genericPatternsField = JBTextField(30)
 
     val root: JComponent
 
@@ -348,6 +358,22 @@ class TclLspSettingsPanel {
         // Runtime Validation
         builder.addComponent(TitledSeparator("Runtime Validation"))
         builder.addComponent(runtimeValidation)
+        builder.addLabeledComponent(JBLabel("Adapter mode:"), rtAdapter)
+        builder.addTooltip("auto: detect from dialect.  tclsh: use tclsh.  expect: use Expect.")
+        builder.addLabeledComponent(JBLabel("tclsh path:"), rtTclshPath)
+        builder.addTooltip("Path to tclsh interpreter. Leave empty for auto-discovery.")
+        builder.addLabeledComponent(JBLabel("Timeout (ms):"), rtTimeoutMs)
+
+        // AI
+        builder.addComponent(TitledSeparator("AI"))
+        builder.addComponent(aiEnabled)
+        builder.addLabeledComponent(JBLabel("Extra prompts (JSON):"), aiExtraPrompts)
+        builder.addTooltip("JSON array of prompt objects for AI-assisted features.")
+
+        // Diagnostic patterns
+        builder.addComponent(TitledSeparator("Diagnostic Patterns"))
+        builder.addLabeledComponent(JBLabel("Generic variable patterns:"), genericPatternsField)
+        builder.addTooltip("Newline-separated regex patterns for IRULE4002 generic variable detection.")
 
         builder.addComponentFillVertically(JPanel(), 0)
 
@@ -518,7 +544,15 @@ class TclLspSettingsPanel {
             // Shimmer
             shimmerEnabled.isSelected != s.shimmerEnabled ||
             // Runtime validation
-            runtimeValidation.isSelected != s.runtimeValidationEnabled
+            runtimeValidation.isSelected != s.runtimeValidationEnabled ||
+            rtAdapter.selectedItem != s.runtimeValidationAdapter ||
+            rtTclshPath.text != s.runtimeValidationTclshPath ||
+            (rtTimeoutMs.value as Int) != s.runtimeValidationTimeoutMs ||
+            // AI
+            aiEnabled.isSelected != s.aiEnabled ||
+            aiExtraPrompts.text != s.aiExtraPrompts ||
+            // Diagnostic patterns
+            genericPatternsField.text != s.diagnosticsGenericVariablePatterns
     }
 
     fun apply() {
@@ -682,6 +716,12 @@ class TclLspSettingsPanel {
 
         s.shimmerEnabled = shimmerEnabled.isSelected
         s.runtimeValidationEnabled = runtimeValidation.isSelected
+        s.runtimeValidationAdapter = rtAdapter.selectedItem as String
+        s.runtimeValidationTclshPath = rtTclshPath.text
+        s.runtimeValidationTimeoutMs = rtTimeoutMs.value as Int
+        s.aiEnabled = aiEnabled.isSelected
+        s.aiExtraPrompts = aiExtraPrompts.text
+        s.diagnosticsGenericVariablePatterns = genericPatternsField.text
     }
 
     fun reset() {
@@ -845,5 +885,11 @@ class TclLspSettingsPanel {
 
         shimmerEnabled.isSelected = s.shimmerEnabled
         runtimeValidation.isSelected = s.runtimeValidationEnabled
+        rtAdapter.selectedItem = s.runtimeValidationAdapter
+        rtTclshPath.text = s.runtimeValidationTclshPath
+        rtTimeoutMs.value = s.runtimeValidationTimeoutMs
+        aiEnabled.isSelected = s.aiEnabled
+        aiExtraPrompts.text = s.aiExtraPrompts
+        genericPatternsField.text = s.diagnosticsGenericVariablePatterns
     }
 }

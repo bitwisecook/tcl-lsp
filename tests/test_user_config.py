@@ -132,6 +132,36 @@ class TestSaveSettings:
         assert "W111" in reloaded.get("diagnostics", "disabled")
 
 
+class TestInvalidInputs:
+    """Negative tests for robustness against bad config values."""
+
+    def test_invalid_bool_ignored(self):
+        config = _config_from_string("[shimmer]\nenabled = banana\n")
+        result = get_all_settings(config)
+        assert "shimmer" not in result  # invalid bool produces no section
+
+    def test_unrecognised_diagnostic_codes_do_not_crash(self):
+        config = _config_from_string("[diagnostics]\ndisabled = FAKE999, W111\n")
+        result = get_all_settings(config)
+        assert result["diagnostics"]["FAKE999"] is False  # stored; validated by server
+        assert result["diagnostics"]["W111"] is False
+
+    def test_empty_patterns(self):
+        config = _config_from_string("[diagnostics]\ngeneric_variable_patterns =\n")
+        result = get_all_settings(config)
+        assert "diagnostics" not in result  # no patterns, no disabled = empty
+
+    def test_non_integer_line_length_ignored(self):
+        config = _config_from_string("[style]\nline_length = abc\n")
+        result = get_all_settings(config)
+        assert "style" not in result
+
+    def test_invalid_optimiser_bool_ignored(self):
+        config = _config_from_string("[optimiser]\nenabled = maybe\n")
+        result = get_all_settings(config)
+        assert "optimiser" not in result
+
+
 class TestGetGenericVariablePatterns:
     """Tests for get_generic_variable_patterns()."""
 

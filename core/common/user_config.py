@@ -78,7 +78,11 @@ _MANIFEST: dict | None = None
 def _load_manifest() -> dict:
     global _MANIFEST
     if _MANIFEST is None:
-        _MANIFEST = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
+        try:
+            _MANIFEST = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
+            log.error("Failed to load diagnostic manifest from %s: %s", _MANIFEST_PATH, exc)
+            raise
     return _MANIFEST
 
 
@@ -187,14 +191,10 @@ def get_all_settings(
             raw = config.get("diagnostics", "disabled", fallback="")
             for code in _parse_comma_list(raw):
                 diag[code] = False
-        # ``generic_variable_patterns`` is handled separately by the
-        # existing ``get_generic_variable_patterns`` helper — we include
-        # it here too so ``_apply_feature_settings`` can pick it up.
-        if config.has_option("diagnostics", "generic_variable_patterns"):
-            raw = config.get("diagnostics", "generic_variable_patterns", fallback="")
-            patterns = [line.strip() for line in raw.splitlines() if line.strip()]
-            if patterns:
-                diag["genericVariablePatterns"] = patterns
+        # Delegate to ``get_generic_variable_patterns`` (single implementation).
+        patterns = get_generic_variable_patterns(config)
+        if patterns is not None:
+            diag["genericVariablePatterns"] = patterns
         if diag:
             result["diagnostics"] = diag
 
@@ -322,7 +322,7 @@ def save_settings_to_config(
     if isinstance(opt, dict):
         items: list[tuple[str, str]] = []
         enabled = opt.get("enabled")
-        if isinstance(enabled, bool) and (not only_non_default or enabled is not True):
+        if isinstance(enabled, bool) and _differs("optimiser", "enabled", enabled):
             items.append(("enabled", str(enabled).lower()))
         disabled_opts = [k for k, v in opt.items() if k != "enabled" and v is False]
         if disabled_opts:
@@ -336,7 +336,7 @@ def save_settings_to_config(
     shim = settings.get("shimmer")
     if isinstance(shim, dict):
         enabled = shim.get("enabled")
-        if isinstance(enabled, bool) and (not only_non_default or enabled is not True):
+        if isinstance(enabled, bool) and _differs("shimmer", "enabled", enabled):
             config.add_section("shimmer")
             config.set("shimmer", "enabled", str(enabled).lower())
 
@@ -344,7 +344,7 @@ def save_settings_to_config(
     xc = settings.get("xcDiagnostics")
     if isinstance(xc, dict):
         enabled = xc.get("enabled")
-        if isinstance(enabled, bool) and (not only_non_default or enabled is not False):
+        if isinstance(enabled, bool) and _differs("xcDiagnostics", "enabled", enabled):
             config.add_section("xcDiagnostics")
             config.set("xcDiagnostics", "enabled", str(enabled).lower())
 
@@ -372,7 +372,7 @@ def save_settings_to_config(
     sty = settings.get("style")
     if isinstance(sty, dict):
         ll = sty.get("lineLength")
-        if isinstance(ll, int) and (not only_non_default or ll != 120):
+        if isinstance(ll, int) and _differs("style", "lineLength", ll):
             config.add_section("style")
             config.set("style", "line_length", str(ll))
 

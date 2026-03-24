@@ -63,3 +63,11 @@ Pass settings via eglot workspace configuration:
 ;; Register .apl files for tcl-mode so eglot activates
 (add-to-list 'auto-mode-alist '("\\.apl\\'" . tcl-mode))
 ```
+
+## Configurable Settings
+
+tcl-lsp supports per-diagnostic, optimiser, shimmer, and XC diagnostic
+toggles. These can be configured via `~/.config/tcl-lsp/config.ini` (XDG
+config), which works across all editors. See
+[docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for the
+full reference.

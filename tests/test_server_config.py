@@ -145,3 +145,21 @@ class TestApplyFeatureSettings:
         """When settings match defaults, changed should be False."""
         changed, _ = self._with_fresh_config({"optimiser": {"enabled": True}})
         assert not changed
+
+    def test_wrong_type_bool_ignored(self):
+        """String where bool expected should not crash."""
+        changed, cfg = self._with_fresh_config({"shimmer": {"enabled": "yes"}})
+        assert not changed
+        assert cfg.shimmer_enabled is True  # default preserved
+
+    def test_unrecognised_codes_ignored(self):
+        """Codes not in the manifest are silently stored but don't crash."""
+        changed, cfg = self._with_fresh_config({"diagnostics": {"FAKE999": False}})
+        # FAKE999 is not in _ALL_DIAGNOSTIC_CODES, so it should not appear
+        assert "FAKE999" not in cfg.disabled_diagnostics
+
+    def test_wrong_type_line_length_ignored(self):
+        """String where int expected should not crash."""
+        changed, cfg = self._with_fresh_config({"style": {"lineLength": "eighty"}})
+        assert not changed
+        assert cfg.line_length == 120  # default
