@@ -3360,7 +3360,7 @@
           "tclLsp.diagnostics.W114": {
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W114:** Redundant nested `[expr]` — already in expression context.",
+            "markdownDescription": "**W114:** Redundant nested `[expr {...}]` — already in expression context.",
             "order": 11
           },
           "tclLsp.diagnostics.W115": {
@@ -3675,88 +3675,88 @@
             "markdownDescription": "**IRULE2101:** Heavy `regexp` in a high-frequency event — consider `string match` or data-group.",
             "order": 13
           },
-          "tclLsp.diagnostics.IRULE3001": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE3001:** Tainted data in HTTP response body.",
-            "order": 14
-          },
-          "tclLsp.diagnostics.IRULE3002": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE3002:** Tainted data in HTTP header or cookie value.",
-            "order": 15
-          },
-          "tclLsp.diagnostics.IRULE3003": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE3003:** Tainted data in `log` command — log injection risk.",
-            "order": 16
-          },
-          "tclLsp.diagnostics.IRULE3101": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
-            "order": 17
-          },
-          "tclLsp.diagnostics.IRULE3102": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
-            "order": 18
-          },
-          "tclLsp.diagnostics.IRULE4001": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
-            "order": 19
-          },
-          "tclLsp.diagnostics.IRULE4002": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
-            "order": 20
-          },
-          "tclLsp.diagnostics.IRULE4003": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE4003:** Variable scoping concern across events.",
-            "order": 21
-          },
-          "tclLsp.diagnostics.IRULE4004": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
-            "order": 22
-          },
-          "tclLsp.diagnostics.IRULE4005": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
-            "order": 23
-          },
           "tclLsp.diagnostics.IRULE5001": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5001:** Ungated `log` in a high-frequency event.",
-            "order": 24
+            "order": 14
           },
           "tclLsp.diagnostics.IRULE5002": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5002:** `drop`/`reject`/`discard` without `event disable all` or `return`.",
-            "order": 25
+            "order": 15
           },
           "tclLsp.diagnostics.IRULE5004": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5004:** `DNS::return` without `return`.",
-            "order": 26
+            "order": 16
           },
           "tclLsp.diagnostics.IRULE5005": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5005:** Direct proc invocation without `call` — use `call proc_name`.",
+            "order": 17
+          },
+          "tclLsp.diagnostics.IRULE3001": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3001:** Tainted data in HTTP response body.",
+            "order": 18
+          },
+          "tclLsp.diagnostics.IRULE3002": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3002:** Tainted data in HTTP header or cookie value.",
+            "order": 19
+          },
+          "tclLsp.diagnostics.IRULE3003": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3003:** Tainted data in `log` command — log injection risk.",
+            "order": 20
+          },
+          "tclLsp.diagnostics.IRULE3101": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
+            "order": 21
+          },
+          "tclLsp.diagnostics.IRULE3102": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
+            "order": 22
+          },
+          "tclLsp.diagnostics.IRULE4001": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
+            "order": 23
+          },
+          "tclLsp.diagnostics.IRULE4002": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
+            "order": 24
+          },
+          "tclLsp.diagnostics.IRULE4003": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE4003:** Variable scoping concern across events.",
+            "order": 25
+          },
+          "tclLsp.diagnostics.IRULE4004": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
+            "order": 26
+          },
+          "tclLsp.diagnostics.IRULE4005": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
             "order": 27
           },
           "tclLsp.diagnostics.genericVariablePatterns": {
