@@ -2505,7 +2505,9 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             patterns = diagnostics_section.get("generic_variable_patterns")
         if isinstance(patterns, list):
             new_patterns = [str(p) for p in patterns if isinstance(p, str)]
-            if new_patterns != feature_config.generic_variable_patterns:
+            if not new_patterns:
+                new_patterns = None  # treat empty list as "use defaults"
+            if new_patterns is not None and new_patterns != feature_config.generic_variable_patterns:
                 feature_config.generic_variable_patterns = new_patterns
                 changed = True
 
