@@ -186,6 +186,18 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     // Runtime Validation
 
     var runtimeValidationEnabled: Boolean = false
+    var runtimeValidationAdapter: String = "auto"
+    var runtimeValidationTclshPath: String = ""
+    var runtimeValidationTimeoutMs: Int = 5000
+
+    // AI
+
+    var aiEnabled: Boolean = false
+    var aiExtraPrompts: String = ""  // JSON array stored as string
+
+    // Diagnostic patterns
+
+    var diagnosticsGenericVariablePatterns: String = ""  // newline-separated regexes
 
     override fun getState(): TclLspSettings = this
 
@@ -328,6 +340,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W308" to diagnosticW308,
                 "W309" to diagnosticW309,
                 // @generated:diagnostic-map:end
+                "genericVariablePatterns" to diagnosticsGenericVariablePatterns
+                    .split("\n").filter { it.isNotBlank() },
             ),
             "style" to mapOf(
                 "lineLength" to styleLineLength,
@@ -372,6 +386,13 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             ),
             "runtimeValidation" to mapOf(
                 "enabled" to runtimeValidationEnabled,
+                "adapter" to runtimeValidationAdapter,
+                "tclshPath" to runtimeValidationTclshPath,
+                "timeoutMs" to runtimeValidationTimeoutMs,
+            ),
+            "ai" to mapOf(
+                "enabled" to aiEnabled,
+                "extraPrompts" to aiExtraPrompts,
             ),
         )
     }

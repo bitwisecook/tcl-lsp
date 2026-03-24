@@ -91,3 +91,11 @@ Settings are sent under the `tclLsp` namespace. Key options:
 | `formatting.maxLineLength` | integer | `120` | Maximum line length |
 
 See the top-level README for the full list of formatting, diagnostic, and optimiser settings.
+
+## Configurable Settings
+
+tcl-lsp supports per-diagnostic, optimiser, shimmer, and XC diagnostic
+toggles. These can be configured via `~/.config/tcl-lsp/config.ini` (XDG
+config), which works across all editors. See
+[docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for the
+full reference.

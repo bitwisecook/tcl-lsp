@@ -5,10 +5,15 @@ Ensures optimisation codes are unique and complete across:
 - editor settings surfaces (VS Code, JetBrains)
 - AI prompts and skills
 - AI/MCP optimise tools (runtime-driven, no per-code filtering)
+
+VS Code is validated via ``json.loads`` (structured parsing, no regex).
+JetBrains is validated via generator staleness checks in
+``test_diagnostic_manifest.py`` — no per-code regex here.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -55,36 +60,53 @@ def test_lsp_server_allowlist_matches_catalogue() -> None:
 
 
 def test_vscode_settings_match_catalogue() -> None:
-    text = _read("editors/vscode/package.json")
-    codes = re.findall(r'"tclLsp\.optimiser\.(O\d{3})"\s*:', text)
+    """VS Code package.json optimiser codes parsed from JSON structure."""
+    data = json.loads(_read("editors/vscode/package.json"))
+    prefix = "tclLsp.optimiser."
+    codes = []
+    for group in data["contributes"]["configuration"]:
+        for key in group.get("properties", {}):
+            if key.startswith(prefix):
+                code = key[len(prefix) :]
+                if code and code[0].isupper():
+                    codes.append(code)
     _assert_complete_unique(codes, context="editors/vscode/package.json")
 
 
 def test_jetbrains_settings_match_catalogue() -> None:
-    settings_text = _read(
+    """JetBrains settings match manifest via generator staleness check."""
+    from scripts.generate_editor_settings import (
+        generate_jetbrains_panel,
+        generate_jetbrains_settings,
+    )
+
+    manifest = json.loads(
+        (ROOT / "core" / "common" / "diagnostic_manifest.json").read_text(encoding="utf-8")
+    )
+
+    # Verify settings file matches generator output
+    settings_path = (
         "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt"
     )
-    panel_text = _read(
+    actual_settings = _read(settings_path)
+    expected_settings = generate_jetbrains_settings(manifest, dry_run=True)
+    assert actual_settings == expected_settings, (
+        "TclLspSettings.kt is stale — run 'make gen-editor-settings'"
+    )
+
+    # Verify panel file matches generator output
+    panel_path = (
         "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettingsPanel.kt"
     )
-
-    declared_codes = re.findall(r"var optimiser(O\d{3}): Boolean", settings_text)
-    _assert_complete_unique(
-        declared_codes,
-        context="JetBrains settings declarations",
+    actual_panel = _read(panel_path)
+    expected_panel = generate_jetbrains_panel(manifest, dry_run=True)
+    assert actual_panel == expected_panel, (
+        "TclLspSettingsPanel.kt is stale — run 'make gen-editor-settings'"
     )
 
-    map_codes = re.findall(r'"(O\d{3})"\s+to\s+optimiserO\d{3}', settings_text)
-    _assert_complete_unique(
-        map_codes,
-        context="JetBrains settings payload map",
-    )
-
-    checkbox_codes = re.findall(r'JBCheckBox\("(O\d{3})"\)', panel_text)
-    _assert_complete_unique(
-        checkbox_codes,
-        context="JetBrains settings UI checkboxes",
-    )
+    # Verify the manifest itself has all expected optimiser codes
+    manifest_codes = sorted(o["code"] for o in manifest["optimisations"])
+    _assert_complete_unique(manifest_codes, context="diagnostic_manifest.json optimisations")
 
 
 def test_ai_prompts_match_catalogue() -> None:

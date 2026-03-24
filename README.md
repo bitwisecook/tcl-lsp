@@ -1943,11 +1943,11 @@ Settings can be stored in an INI file at
 if `$XDG_CONFIG_HOME` is set). This is useful for editor-agnostic defaults
 that apply across all workspaces.
 
-**Precedence** (highest wins):
+**Precedence** (applied in order — later entries override earlier):
 
-1. Editor settings (VS Code `settings.json`, Neovim `lspconfig`, etc.)
+1. Built-in defaults
 2. XDG config file
-3. Built-in defaults
+3. Editor settings (VS Code `settings.json`, Neovim `lspconfig`, etc.)
 
 The file uses INI format with section names matching the `tclLsp.*`
 namespace:

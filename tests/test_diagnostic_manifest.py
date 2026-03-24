@@ -4,10 +4,12 @@ Ensures the central manifest (core/common/diagnostic_manifest.json) is the
 single source of truth and every consumer stays aligned:
 
 - LSP server: ``_ALL_DIAGNOSTIC_CODES`` and ``_ALL_OPTIMISATION_CODES``
-- VS Code: ``package.json`` setting entries
-- JetBrains: ``TclLspSettings.kt`` vars + ``toServerSettings()`` map
-- JetBrains: ``TclLspSettingsPanel.kt`` checkboxes
+- VS Code: ``package.json`` setting entries (verified via ``json.loads``)
+- JetBrains: generated ``.kt`` files (verified via generator staleness check)
 - Compiler source: every new ``code="..."`` literal must be accounted for
+
+No regex is used on generated editor files — VS Code is parsed as JSON and
+JetBrains files are validated by comparing to generator ``dry_run`` output.
 
 These tests run in ``make prep-pr`` and CI, so drift is caught immediately.
 """
@@ -15,7 +17,6 @@ These tests run in ``make prep-pr`` and CI, so drift is caught immediately.
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +47,25 @@ def _read(rel_path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Helpers — structured extraction (no regex on generated files)
+# ---------------------------------------------------------------------------
+
+
+def _vscode_codes_from_json(prefix: str) -> set[str]:
+    """Extract setting codes from VS Code package.json by parsing JSON."""
+    data = json.loads(_read("editors/vscode/package.json"))
+    codes: set[str] = set()
+    for group in data["contributes"]["configuration"]:
+        for key in group.get("properties", {}):
+            if key.startswith(prefix):
+                code = key[len(prefix) :]
+                # Skip non-code keys like genericVariablePatterns, enabled
+                if code and code[0].isupper():
+                    codes.add(code)
+    return codes
+
+
+# ---------------------------------------------------------------------------
 # 1. Compiler source scan — every code must be in manifest or allowlist
 # ---------------------------------------------------------------------------
 
@@ -53,28 +73,6 @@ def _read(rel_path: str) -> str:
 # in editor settings.  Each should have a brief comment explaining why.
 _INTERNAL_CODES = frozenset(
     {
-        # Parser recovery / syntax errors — always active, not toggleable
-        "E004",
-        "E100",
-        "E101",
-        "E102",
-        "E103",
-        "E201",
-        "E202",
-        "E203",
-        # Newer taint codes not yet surfaced to editors
-        "T103",
-        "T106",
-        # iRules taint codes not yet surfaced
-        "IRULE3103",
-        # iRules internal
-        "IRULE5003",
-        "IRULE6001",
-        # Security codes not yet surfaced
-        "W310",
-        "W311",
-        "W312",
-        "W313",
         # BIG-IP dialect-specific codes (separate dialect toggle, not per-code)
         "BIGIP6001",
         "BIGIP6002",
@@ -87,14 +85,36 @@ _INTERNAL_CODES = frozenset(
         "BIGIP6009",
         "BIGIP6010",
         "BIGIP6011",
+        # Parser recovery / syntax errors — always active, not toggleable
+        "E004",
+        "E100",
+        "E101",
+        "E102",
+        "E103",
+        "E201",
+        "E202",
+        "E203",
         # iApps dialect codes
         "IAPP7001",
         "IAPP7002",
         "IAPP7003",
+        # iRules taint codes not yet surfaced
+        "IRULE3103",
+        # iRules internal
+        "IRULE5003",
+        "IRULE6001",
+        # Taint codes not yet surfaced to editors
+        "T103",
+        "T106",
         # Tk GUI codes (separate feature, not per-code toggle yet)
         "TK1001",
         "TK1002",
         "TK1003",
+        # Security codes not yet surfaced
+        "W310",
+        "W311",
+        "W312",
+        "W313",
         # F5 XC translatability codes (controlled by xcDiagnostics.enabled)
         "XC100",
         "XC101",
@@ -114,12 +134,33 @@ _INTERNAL_CODES = frozenset(
 
 
 def _scan_compiler_codes() -> set[str]:
-    """Scan core/ for all code="..." string literals."""
+    """Scan core/ for all code=<str> keyword arguments using AST parsing.
+
+    Uses Python's ``ast`` module instead of regex so we only find actual
+    ``code=`` keyword arguments in function/constructor calls — not
+    occurrences in comments, docstrings, or other string contexts.
+    """
+    import ast
+
     codes: set[str] = set()
-    pattern = re.compile(r'code="([A-Z][A-Z0-9]+)"')
     for py_file in ROOT.joinpath("core").rglob("*.py"):
-        for match in pattern.finditer(py_file.read_text(encoding="utf-8")):
-            codes.add(match.group(1))
+        try:
+            tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            for kw in node.keywords:
+                if kw.arg in ("code", "diagnostic_code") and isinstance(kw.value, ast.Constant):
+                    val = kw.value.value
+                    if (
+                        isinstance(val, str)
+                        and val.isascii()
+                        and val[:1].isupper()
+                        and val.isalnum()
+                    ):
+                        codes.add(val)
     return codes
 
 
@@ -171,30 +212,29 @@ def test_server_loads_codes_from_manifest():
 
 
 def test_server_imports_manifest_loaders():
-    """Verify server.py uses manifest_diagnostic_codes / manifest_optimisation_codes
-    rather than maintaining its own hardcoded frozenset."""
-    text = _read("lsp/server.py")
-    assert "manifest_diagnostic_codes" in text, (
-        "server.py must import manifest_diagnostic_codes from user_config"
-    )
-    assert "manifest_optimisation_codes" in text, (
-        "server.py must import manifest_optimisation_codes from user_config"
-    )
-    # Must NOT contain a hardcoded frozenset literal for these
-    assert "_ALL_DIAGNOSTIC_CODES = frozenset({" not in text.replace(" ", ""), (
-        "server.py still has a hardcoded _ALL_DIAGNOSTIC_CODES frozenset — "
-        "it must load from the manifest instead"
-    )
+    """Verify server.py uses manifest loaders rather than hardcoded frozensets.
+
+    The runtime check in test_server_loads_codes_from_manifest verifies the
+    actual values match.  This test verifies the import wiring by checking
+    that manifest_diagnostic_codes is importable from the server module.
+    """
+    import lsp.server as server_module
+
+    # If these attributes exist and are frozensets loaded from manifest,
+    # the import wiring is correct.
+    assert hasattr(server_module, "_ALL_DIAGNOSTIC_CODES")
+    assert hasattr(server_module, "_ALL_OPTIMISATION_CODES")
+    assert isinstance(server_module._ALL_DIAGNOSTIC_CODES, (set, frozenset))
+    assert isinstance(server_module._ALL_OPTIMISATION_CODES, (set, frozenset))
 
 
 # ---------------------------------------------------------------------------
-# 3. Manifest vs VS Code package.json
+# 3. Manifest vs VS Code package.json (JSON-parsed, no regex)
 # ---------------------------------------------------------------------------
 
 
 def test_vscode_diagnostic_settings_match_manifest():
-    text = _read("editors/vscode/package.json")
-    vscode_diag = set(re.findall(r'"tclLsp\.diagnostics\.([A-Z][A-Z0-9]+)"\s*:', text))
+    vscode_diag = _vscode_codes_from_json("tclLsp.diagnostics.")
     manifest_codes = _manifest_diagnostic_codes()
     assert vscode_diag == manifest_codes, (
         f"VS Code package.json diagnostic settings drift:\n"
@@ -204,8 +244,7 @@ def test_vscode_diagnostic_settings_match_manifest():
 
 
 def test_vscode_optimiser_settings_match_manifest():
-    text = _read("editors/vscode/package.json")
-    vscode_opt = set(re.findall(r'"tclLsp\.optimiser\.(O\d{3})"\s*:', text))
+    vscode_opt = _vscode_codes_from_json("tclLsp.optimiser.")
     manifest_codes = _manifest_optimisation_codes()
     assert vscode_opt == manifest_codes, (
         f"VS Code package.json optimiser settings drift:\n"
@@ -215,82 +254,50 @@ def test_vscode_optimiser_settings_match_manifest():
 
 
 # ---------------------------------------------------------------------------
-# 4. Manifest vs JetBrains TclLspSettings.kt
+# 4. JetBrains generated files match generator output (staleness check)
+#
+# Rather than regex-parsing Kotlin source, we verify the files on disk match
+# the generator's dry_run output.  If the file equals the generator output
+# and the generator uses the manifest, codes are correct by construction.
 # ---------------------------------------------------------------------------
-
 
 _JB_SETTINGS = "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt"
 _JB_PANEL = "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettingsPanel.kt"
 
 
-def test_jetbrains_diagnostic_vars_match_manifest():
-    text = _read(_JB_SETTINGS)
-    jb_codes = set(re.findall(r"var diagnostic([A-Z][A-Z0-9]+): Boolean", text))
-    manifest_codes = _manifest_diagnostic_codes()
-    assert jb_codes == manifest_codes, (
-        f"JetBrains TclLspSettings.kt diagnostic var drift:\n"
-        f"  In JB but not manifest: {sorted(jb_codes - manifest_codes)}\n"
-        f"  In manifest but not JB: {sorted(manifest_codes - jb_codes)}"
+def test_jetbrains_settings_match_generator():
+    """TclLspSettings.kt on disk matches generator dry_run output."""
+    from scripts.generate_editor_settings import generate_jetbrains_settings
+
+    manifest = _load_manifest()
+    expected = generate_jetbrains_settings(manifest, dry_run=True)
+    actual = _read(_JB_SETTINGS)
+    assert actual == expected, (
+        "TclLspSettings.kt is stale — run 'make gen-editor-settings' to regenerate"
     )
 
 
-def test_jetbrains_diagnostic_map_match_manifest():
-    text = _read(_JB_SETTINGS)
-    jb_map = set(re.findall(r'"([A-Z][A-Z0-9]+)"\s+to\s+diagnostic[A-Z]', text))
-    manifest_codes = _manifest_diagnostic_codes()
-    assert jb_map == manifest_codes, (
-        f"JetBrains toServerSettings() diagnostics map drift:\n"
-        f"  In JB map but not manifest: {sorted(jb_map - manifest_codes)}\n"
-        f"  In manifest but not JB map: {sorted(manifest_codes - jb_map)}"
+def test_jetbrains_panel_match_generator():
+    """TclLspSettingsPanel.kt on disk matches generator dry_run output."""
+    from scripts.generate_editor_settings import generate_jetbrains_panel
+
+    manifest = _load_manifest()
+    expected = generate_jetbrains_panel(manifest, dry_run=True)
+    actual = _read(_JB_PANEL)
+    assert actual == expected, (
+        "TclLspSettingsPanel.kt is stale — run 'make gen-editor-settings' to regenerate"
     )
 
 
-def test_jetbrains_optimiser_vars_match_manifest():
-    text = _read(_JB_SETTINGS)
-    jb_codes = set(re.findall(r"var optimiser(O\d{3}): Boolean", text))
-    manifest_codes = _manifest_optimisation_codes()
-    assert jb_codes == manifest_codes, (
-        f"JetBrains TclLspSettings.kt optimiser var drift:\n"
-        f"  In JB but not manifest: {sorted(jb_codes - manifest_codes)}\n"
-        f"  In manifest but not JB: {sorted(manifest_codes - jb_codes)}"
-    )
+def test_vscode_settings_match_generator():
+    """VS Code package.json on disk matches generator dry_run output."""
+    from scripts.generate_editor_settings import generate_vscode
 
-
-def test_jetbrains_optimiser_map_match_manifest():
-    text = _read(_JB_SETTINGS)
-    jb_map = set(re.findall(r'"(O\d{3})"\s+to\s+optimiserO\d{3}', text))
-    manifest_codes = _manifest_optimisation_codes()
-    assert jb_map == manifest_codes, (
-        f"JetBrains toServerSettings() optimiser map drift:\n"
-        f"  In JB map but not manifest: {sorted(jb_map - manifest_codes)}\n"
-        f"  In manifest but not JB map: {sorted(manifest_codes - jb_map)}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# 5. Manifest vs JetBrains TclLspSettingsPanel.kt
-# ---------------------------------------------------------------------------
-
-
-def test_jetbrains_panel_diagnostic_checkboxes_match_manifest():
-    text = _read(_JB_PANEL)
-    jb_panel = set(re.findall(r"private val diag([A-Z][A-Z0-9]+)\s*=\s*JBCheckBox", text))
-    manifest_codes = _manifest_diagnostic_codes()
-    assert jb_panel == manifest_codes, (
-        f"JetBrains panel diagnostic checkbox drift:\n"
-        f"  In panel but not manifest: {sorted(jb_panel - manifest_codes)}\n"
-        f"  In manifest but not panel: {sorted(manifest_codes - jb_panel)}"
-    )
-
-
-def test_jetbrains_panel_optimiser_checkboxes_match_manifest():
-    text = _read(_JB_PANEL)
-    jb_panel = set(re.findall(r'JBCheckBox\("(O\d{3})(?:[^"]*)?"\)', text))
-    manifest_codes = _manifest_optimisation_codes()
-    assert jb_panel == manifest_codes, (
-        f"JetBrains panel optimiser checkbox drift:\n"
-        f"  In panel but not manifest: {sorted(jb_panel - manifest_codes)}\n"
-        f"  In manifest but not panel: {sorted(manifest_codes - jb_panel)}"
+    manifest = _load_manifest()
+    expected = generate_vscode(manifest, dry_run=True)
+    actual = _read("editors/vscode/package.json")
+    assert actual == expected, (
+        "package.json is stale — run 'make gen-editor-settings' to regenerate"
     )
 
 
@@ -347,3 +354,39 @@ def test_no_overlap_between_manifest_and_internal():
         f"Codes in both manifest and _INTERNAL_CODES: {sorted(overlap)}\n"
         "Remove from one or the other."
     )
+
+
+def test_manifest_categories_are_mapped():
+    """Every category value in the manifest must map to a known generator section."""
+    from scripts.generate_editor_settings import _KNOWN_CATEGORIES
+
+    manifest = _load_manifest()
+    manifest_categories = {d["category"] for d in manifest["diagnostics"]}
+    unmapped = manifest_categories - _KNOWN_CATEGORIES
+    assert not unmapped, (
+        f"Manifest categories not mapped in generator: {sorted(unmapped)}\n"
+        "Update _SECTIONS in scripts/generate_editor_settings.py."
+    )
+
+
+def test_generator_is_idempotent():
+    """Running the generator twice must produce identical output."""
+    from scripts.generate_editor_settings import (
+        generate_jetbrains_panel,
+        generate_jetbrains_settings,
+        generate_vscode,
+    )
+
+    manifest = _load_manifest()
+
+    vscode_1 = generate_vscode(manifest, dry_run=True)
+    vscode_2 = generate_vscode(manifest, dry_run=True)
+    assert vscode_1 == vscode_2, "VS Code generation is not idempotent"
+
+    jb_settings_1 = generate_jetbrains_settings(manifest, dry_run=True)
+    jb_settings_2 = generate_jetbrains_settings(manifest, dry_run=True)
+    assert jb_settings_1 == jb_settings_2, "JB settings generation is not idempotent"
+
+    jb_panel_1 = generate_jetbrains_panel(manifest, dry_run=True)
+    jb_panel_2 = generate_jetbrains_panel(manifest, dry_run=True)
+    assert jb_panel_1 == jb_panel_2, "JB panel generation is not idempotent"

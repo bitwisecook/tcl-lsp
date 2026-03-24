@@ -21,7 +21,6 @@ from core.common.lsp import to_lsp_location
 from core.common.source_map import SourceMap
 from core.common.user_config import (
     get_all_settings,
-    get_generic_variable_patterns,
     load_user_config,
     manifest_diagnostic_codes,
     manifest_optimisation_codes,
@@ -2137,12 +2136,9 @@ def on_initialized(params: types.InitializedParams) -> None:
 
     # Load user config from ~/.config/tcl-lsp/config.ini.
     user_config = load_user_config()
-    user_patterns = get_generic_variable_patterns(user_config)
-    if user_patterns is not None:
-        feature_config.generic_variable_patterns = user_patterns
 
-    # Apply all other XDG settings as baseline defaults.  Editor settings
-    # received later via ``didChangeConfiguration`` will override these.
+    # Apply XDG settings as baseline defaults.  Editor settings received
+    # later via ``didChangeConfiguration`` will override these.
     xdg_settings = get_all_settings(user_config)
     if xdg_settings:
         formatting = xdg_settings.get("formatting")
@@ -2300,7 +2296,13 @@ def _export_config() -> dict:
     default_features: dict[str, object] = {
         json_key: getattr(default_cfg, attr) for json_key, attr in _FEATURE_TOGGLE_KEYS.items()
     }
-    defaults: dict[str, object] = {"features": default_features}
+    defaults: dict[str, object] = {
+        "features": default_features,
+        "optimiser": {"enabled": default_cfg.optimiser_enabled},
+        "shimmer": {"enabled": default_cfg.shimmer_enabled},
+        "xcDiagnostics": {"enabled": default_cfg.xc_diagnostics_enabled},
+        "style": {"lineLength": default_cfg.line_length},
+    }
 
     try:
         path = save_settings_to_config(settings, only_non_default=True, defaults=defaults)
@@ -2433,6 +2435,18 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             feature_config.disabled_diagnostics = new_disabled
             changed = True
 
+        # Warn about unrecognised codes.
+        _DIAG_NON_CODE_KEYS = {"genericVariablePatterns", "generic_variable_patterns"}
+        unknown_diag = {
+            k
+            for k, v in diagnostics_section.items()
+            if v is False and k not in _ALL_DIAGNOSTIC_CODES and k not in _DIAG_NON_CODE_KEYS
+        }
+        if unknown_diag:
+            log.warning(
+                "Unrecognised diagnostic codes in settings (ignored): %s", sorted(unknown_diag)
+            )
+
     # Style settings  (tclLsp.style.lineLength)
     style_section = tcl_settings.get("style")
     if isinstance(style_section, dict):
@@ -2474,6 +2488,16 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             feature_config.disabled_optimisations = new_disabled_opts
             changed = True
 
+        unknown_opt = {
+            k
+            for k, v in optimiser_section.items()
+            if v is False and k not in _ALL_OPTIMISATION_CODES and k != "enabled"
+        }
+        if unknown_opt:
+            log.warning(
+                "Unrecognised optimisation codes in settings (ignored): %s", sorted(unknown_opt)
+            )
+
     # Generic variable patterns  (tclLsp.diagnostics.genericVariablePatterns)
     if isinstance(diagnostics_section, dict):
         patterns = diagnostics_section.get("genericVariablePatterns")
@@ -2499,7 +2523,11 @@ def _apply_all_settings(tcl_settings: dict) -> None:
 
     formatting = tcl_settings.get("formatting")
     if isinstance(formatting, dict) and formatting:
-        formatter_config = FormatterConfig.from_dict(_normalise_formatter_settings(formatting))
+        # Merge onto the current config so partial editor settings don't
+        # clobber XDG baseline values for keys the editor didn't send.
+        current = formatter_config.to_dict()
+        current.update(_normalise_formatter_settings(formatting))
+        formatter_config = FormatterConfig.from_dict(current)
 
     extra_commands_setting = tcl_settings.get("extraCommands")
     if extra_commands_setting is None:

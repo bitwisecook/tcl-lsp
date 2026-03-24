@@ -193,3 +193,11 @@ To publish to the Zed extension registry:
 2. Fork [zed-industries/extensions](https://github.com/zed-industries/extensions).
 3. Add the repo as a submodule and update `extensions.toml`.
 4. Submit a PR.
+
+## Configurable Settings
+
+tcl-lsp supports per-diagnostic, optimiser, shimmer, and XC diagnostic
+toggles. These can be configured via `~/.config/tcl-lsp/config.ini` (XDG
+config), which works across all editors. See
+[docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for the
+full reference.
