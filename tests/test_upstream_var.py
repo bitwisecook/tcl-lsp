@@ -491,6 +491,33 @@ class TestForeachInCollectionW210:
         x_diags = [d for d in diags if "'x'" in d.message]
         assert len(x_diags) >= 1
 
+    def test_arity_too_many_args(self):
+        """foreach_in_collection with too many args should emit E003."""
+        self._setup_dialect()
+        source = textwrap.dedent("""\
+            foreach_in_collection item $col extra_arg {
+                puts $item
+            }
+        """)
+        diags = _diag_with_code(source, "E003")
+        assert len(diags) >= 1
+
+    def test_not_treated_as_loop_without_dialect(self):
+        """Without EDA dialect, foreach_in_collection is not a loop command."""
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="tcl8.6")
+        source = textwrap.dedent("""\
+            foreach_in_collection item $collection {
+                puts $item
+            }
+        """)
+        # Should not be treated as a loop — item is not defined as a loop var
+        diags = _diag_with_code(source, "W210")
+        item_diags = [d for d in diags if "item" in d.message]
+        # In default tcl8.6 this is an unknown command, not a foreach loop
+        assert len(item_diags) >= 1
+
 
 # W211: Unused variable
 
