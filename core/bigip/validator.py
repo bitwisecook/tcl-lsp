@@ -26,9 +26,25 @@ import ipaddress
 import re
 
 from ..analysis.semantic_model import Diagnostic, Range, Severity
+from ..common.codes import diag
 from ..common.source_map import SourceMap
 from ..parsing.tokens import SourcePosition
 from .model import BigipConfig, BigipRule, ProfileType
+
+# BIG-IP config validation codes (all internal — controlled by dialect toggle)
+diag("BIGIP6001", "BIG-IP config validation — missing field.", section="error", internal=True)
+diag("BIGIP6002", "BIG-IP config validation — invalid value.", section="error", internal=True)
+diag("BIGIP6003", "BIG-IP config validation — deprecated syntax.", section="error", internal=True)
+diag("BIGIP6004", "BIG-IP config validation — unknown property.", section="error", internal=True)
+diag("BIGIP6005", "BIG-IP config validation — type mismatch.", section="error", internal=True)
+diag("BIGIP6006", "BIG-IP config validation — missing reference.", section="error", internal=True)
+diag("BIGIP6007", "BIG-IP config validation — duplicate entry.", section="error", internal=True)
+diag("BIGIP6008", "BIG-IP config validation — invalid range.", section="error", internal=True)
+diag("BIGIP6009", "BIG-IP config validation — unsupported feature.", section="error", internal=True)
+diag("BIGIP6010", "BIG-IP config validation — security concern.", section="error", internal=True)
+diag(
+    "BIGIP6011", "BIG-IP config validation — compatibility warning.", section="error", internal=True
+)
 
 # iRule source scanning helpers
 

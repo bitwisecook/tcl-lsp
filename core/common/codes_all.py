@@ -1,19 +1,43 @@
-"""Import all code definition modules to populate the registry.
+"""Import all modules that register diagnostic and optimisation codes.
 
-Importing this module guarantees all diagnostic and optimisation codes
-are registered and queryable via :mod:`core.common.codes`.
+Importing this module guarantees all codes are registered and queryable
+via :mod:`core.common.codes`.  Each module registers its codes via
+``@diag(...)`` / ``@opt(...)`` decorators at import time.
 """
 
-from core.common import (  # noqa: F401
-    codes_bigip,
-    codes_error,
-    codes_hint,
-    codes_iapp,
-    codes_irules,
-    codes_optimiser,
-    codes_shimmer,
-    codes_taint,
-    codes_tk,
-    codes_warning,
-    codes_xc,
-)
+# Analysis checks  # noqa: F401, E402
+import core.analysis.analyser  # noqa: F401
+import core.analysis.checks._domain  # noqa: F401
+import core.analysis.checks._security  # noqa: F401
+import core.analysis.checks._style  # noqa: F401
+import core.analysis.checks._syntax  # noqa: F401
+import core.analysis.irules_checks  # noqa: F401
+
+# Domain-specific
+import core.bigip.iapp_diagnostics  # noqa: F401
+import core.bigip.validator  # noqa: F401
+
+# Compiler checks
+import core.compiler.compiler_checks  # noqa: F401
+import core.compiler.gvn  # noqa: F401
+import core.compiler.irules_flow  # noqa: F401
+
+# Optimiser passes
+import core.compiler.optimiser._branch_folding  # noqa: F401
+import core.compiler.optimiser._code_sinking  # noqa: F401
+import core.compiler.optimiser._elimination  # noqa: F401
+import core.compiler.optimiser._pattern_recognition  # noqa: F401
+import core.compiler.optimiser._propagation  # noqa: F401
+import core.compiler.optimiser._structure_elimination  # noqa: F401
+import core.compiler.optimiser._tail_call  # noqa: F401
+import core.compiler.optimiser._unused_procs  # noqa: F401
+import core.compiler.shimmer  # noqa: F401
+
+# Taint analysis
+import core.compiler.taint._sinks  # noqa: F401
+import core.compiler.taint._uri_split  # noqa: F401
+import core.tk.diagnostics  # noqa: F401
+import core.xc.translator  # noqa: F401
+
+# LSP features (W111, W112, W115, W120)
+import lsp.features.diagnostics  # noqa: F401

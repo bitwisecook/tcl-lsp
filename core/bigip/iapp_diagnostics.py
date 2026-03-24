@@ -17,9 +17,15 @@ Diagnostic codes
 from __future__ import annotations
 
 from ..analysis.semantic_model import Diagnostic, Range, Severity
+from ..common.codes import diag
 from ..parsing.tokens import SourcePosition
 from .apl_model import AplModel
 from .iapp_vars import IappVarRef
+
+# iApps template validation codes (all internal)
+diag("IAPP7001", "iApps template validation — missing section.", section="error", internal=True)
+diag("IAPP7002", "iApps template validation — invalid reference.", section="error", internal=True)
+diag("IAPP7003", "iApps template validation — deprecated syntax.", section="error", internal=True)
 
 
 def validate_iapp_presentation(

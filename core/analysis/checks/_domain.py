@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from ...commands.registry import REGISTRY
-from ...common.codes import diag
 from ...commands.registry.models import DialectStatus, FormKind
 from ...commands.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
     normalized_flag_commands,
 )
+from ...common.codes import diag
 from ...common.dialect import active_dialect
 from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
@@ -195,7 +195,11 @@ def check_unknown_irules_event(
 # W307: Non-literal command name
 
 
-@diag("W307", "Non-literal command name — variable or command substitution as command.", section="security")
+@diag(
+    "W307",
+    "Non-literal command name — variable or command substitution as command.",
+    section="security",
+)
 def check_non_literal_command(
     cmd_name: str,
     args: list[str],

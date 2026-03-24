@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from ..analysis.semantic_model import CodeFix, Range
 from ..commands.registry import REGISTRY
 from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from ..common.codes import diag
 from ..common.dialect import active_dialect
 from ..common.ranges import position_from_relative, range_from_token
 from ..parsing.lexer import TclLexer
@@ -63,6 +64,46 @@ from .lowering import lower_to_ir
 from .value_shapes import parse_command_substitution
 
 log = logging.getLogger(__name__)
+
+# iRules flow diagnostic codes
+diag("IRULE1005", "Data event without a matching `*::collect` call.", section="irules")
+diag("IRULE1006", "`*::payload` without a matching `*::collect` call.", section="irules")
+diag(
+    "IRULE1007",
+    "`*::collect` without a matching `*::release` on the same connection side.",
+    section="irules",
+)
+diag(
+    "IRULE1008",
+    "`*::release` without a matching `*::collect` on the same connection side.",
+    section="irules",
+)
+diag(
+    "IRULE1201",
+    "HTTP command used after `HTTP::respond`/`HTTP::redirect`.",
+    section="irules",
+)
+diag(
+    "IRULE1202",
+    "Multiple `HTTP::respond`/`HTTP::redirect` on different branches.",
+    section="irules",
+)
+diag(
+    "IRULE4002",
+    "Generic `static::` variable name — collision likely across iRules.",
+    section="irules_variable",
+)
+diag(
+    "IRULE4004",
+    "Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
+    section="irules_variable",
+)
+diag(
+    "IRULE5002",
+    "`drop`/`reject`/`discard` without `event disable all` or `return`.",
+    section="irules",
+)
+diag("IRULE5004", "`DNS::return` without `return`.", section="irules")
 
 
 def _when_qualified(event: str, occurrence: int) -> str:

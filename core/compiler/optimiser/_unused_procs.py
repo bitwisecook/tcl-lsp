@@ -9,6 +9,7 @@ excluded.
 
 from __future__ import annotations
 
+from ...common.codes import opt
 from ...common.dialect import active_dialect
 from ..ir import when_event_name
 from ._types import Optimisation, PassContext
@@ -57,6 +58,7 @@ def _comment_out(text: str, proc_name: str) -> str:
     )
 
 
+@opt("O124", "Comment out unused procs in iRules (not called from any event).")
 def optimise_unused_procs(ctx: PassContext) -> None:
     """O124: comment out procs not called from any event handler."""
     if active_dialect() != "f5-irules":

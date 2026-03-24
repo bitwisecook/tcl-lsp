@@ -25,6 +25,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from ...commands.registry import REGISTRY
+from ...common.codes import diag
 from ...common.dialect import active_dialect
 from ...common.naming import normalise_var_name as _normalise_var_name
 from ..cfg import CFGBranch, CFGFunction
@@ -40,6 +41,19 @@ from ..ir import IRAssignExpr, IRAssignValue, IRCall, IRStatement
 from ..ssa import SSAFunction, SSAPhi, SSAStatement, SSAValueKey
 from ..value_shapes import is_pure_var_ref, parse_command_substitution
 from ._types import TaintWarning
+
+# iRules URI split diagnostic codes
+diag(
+    "IRULE3101",
+    "`HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
+    section="irules_security",
+)
+diag(
+    "IRULE3103",
+    "iRules taint flow — URI split injection.",
+    section="irules_security",
+    internal=True,
+)
 
 # Maximum depth for backward SSA tracing (prevents infinite loops on
 # pathological phi chains).

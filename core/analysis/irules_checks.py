@@ -573,6 +573,7 @@ def check_deprecated_event(
 # IRULE1004: when block missing explicit priority
 
 
+@diag("IRULE1004", "`when` block missing explicit `priority`.", section="irules")
 def check_when_missing_priority(
     cmd_name: str,
     args: list[str],
@@ -655,6 +656,7 @@ def _implicit_global_var_from_command(
     return None
 
 
+@diag("IRULE6001", "iRules global variable usage.", section="irules", internal=True)
 def check_global_namespace_usage(
     cmd_name: str,
     args: list[str],

@@ -5,11 +5,11 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
-from ...common.codes import diag
 from ...commands.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
 )
+from ...common.codes import diag
 from ...common.dialect import active_dialect
 from ...common.ranges import position_from_relative, range_from_token, range_from_tokens
 from ...compiler.expr_ast import (
@@ -47,7 +47,11 @@ from ._helpers import (
 # W100: Unbraced expr
 
 
-@diag("W100", "Unbraced expression argument — prevents byte-compilation and risks double substitution.", section="warning")
+@diag(
+    "W100",
+    "Unbraced expression argument — prevents byte-compilation and risks double substitution.",
+    section="warning",
+)
 def check_unbraced_expr(
     cmd_name: str,
     args: list[str],
@@ -158,7 +162,11 @@ def check_unbraced_expr(
 # W308: subst without -nocommands
 
 
-@diag("W308", "`subst` without `-nocommands` — risk of unintended command execution.", section="security")
+@diag(
+    "W308",
+    "`subst` without `-nocommands` — risk of unintended command execution.",
+    section="security",
+)
 def check_subst_nocommands(
     cmd_name: str,
     args: list[str],
@@ -220,7 +228,11 @@ def check_subst_nocommands(
 # W105: Unbraced code block
 
 
-@diag("W105", "Unbraced code block or missing `variable` declaration in `namespace eval`.", section="warning")
+@diag(
+    "W105",
+    "Unbraced code block or missing `variable` declaration in `namespace eval`.",
+    section="warning",
+)
 def check_unbraced_body(
     cmd_name: str,
     args: list[str],
@@ -457,7 +469,11 @@ def check_namespace_var_declaration(
 # W200: exec result not captured
 
 
-@diag("W200", "`exec` result not captured or binary format modifier requires newer Tcl.", section="warning")
+@diag(
+    "W200",
+    "`exec` result not captured or binary format modifier requires newer Tcl.",
+    section="warning",
+)
 def check_exec_not_captured(
     cmd_name: str,
     args: list[str],
@@ -918,7 +934,11 @@ _NAME_ARG_INDICES: dict[str, _NameResolver] = {
 }
 
 
-@diag("W212", "Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).", section="variable")
+@diag(
+    "W212",
+    "Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).",
+    section="variable",
+)
 def check_name_vs_value(
     cmd_name: str,
     args: list[str],

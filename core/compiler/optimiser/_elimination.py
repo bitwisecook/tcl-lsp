@@ -27,7 +27,10 @@ from ._types import Optimisation, PassContext
 opt("O107", "Eliminate unreachable dead code.")
 opt("O108", "Eliminate transitively dead code.")
 opt("O109", "Eliminate dead stores.")
-opt("O126", "Remove unused variable assignments — eliminate `set` statements for variables that are never read.")
+opt(
+    "O126",
+    "Remove unused variable assignments — eliminate `set` statements for variables that are never read.",
+)
 
 
 def _is_adce_removable_statement(

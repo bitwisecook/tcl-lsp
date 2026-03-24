@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...common.codes import opt
 from ...common.naming import (
     normalise_var_name as _normalise_var_name,
 )
@@ -22,6 +23,8 @@ from ._helpers import (
     _is_plain_literal,
 )
 from ._types import Optimisation, PassContext
+
+opt("O112", "Eliminate constant-condition compound statements.")
 
 
 def optimise_structure_elimination(

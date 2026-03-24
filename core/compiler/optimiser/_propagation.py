@@ -46,7 +46,10 @@ from ._types import Optimisation, PassContext
 # --- O-code registrations for codes primarily emitted from this module ---
 opt("O102", "Fold constant `[expr {...}]` command substitutions.")
 opt("O103", "Fold static procedure calls using interprocedural summaries.")
-opt("O105", "Propagate constants into variable references and detect redundant computations (GVN/CSE).")
+opt(
+    "O105",
+    "Propagate constants into variable references and detect redundant computations (GVN/CSE).",
+)
 opt("O110", "Canonicalise expressions (InstCombine).")
 opt("O111", "Brace expression performance hints (paired with W100).")
 opt("O113", "Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`).")

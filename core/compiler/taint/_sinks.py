@@ -13,6 +13,7 @@ from ...commands.registry.runtime import (
     taint_sink_safe_colours,
 )
 from ...commands.registry.taint_hints import TaintColour
+from ...common.codes import diag
 from ...common.dialect import active_dialect
 from ...common.naming import normalise_var_name as _normalise_var_name
 from ...parsing.lexer import TclLexer
@@ -35,6 +36,30 @@ from ._lattice import (
 )
 from ._propagation import _COLOUR_LABELS
 from ._types import TaintWarning
+
+# iRules taint sink diagnostic codes
+diag("IRULE3001", "Tainted data in HTTP response body.", section="irules_security")
+diag("IRULE3002", "Tainted data in HTTP header or cookie value.", section="irules_security")
+diag(
+    "IRULE3003",
+    "Tainted data in `log` command — log injection risk.",
+    section="irules_security",
+)
+
+# Taint diagnostic codes (T-series) — co-registered with codes_taint.py
+diag(
+    "T100",
+    "Tainted data flows into a dangerous code-execution sink (`eval`, `expr`, `exec`, `uplevel`, `subst`).",
+    section="taint",
+)
+diag("T101", "Tainted data flows into an output command (`puts`).", section="taint")
+diag(
+    "T102",
+    "Tainted data in option position without `--` terminator — option injection risk.",
+    section="taint",
+)
+diag("T103", "Taint propagation through variable.", section="taint", internal=True)
+diag("T106", "Taint propagation through command return.", section="taint", internal=True)
 
 # Diagnostic messages
 

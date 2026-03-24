@@ -42,6 +42,7 @@ from typing import TypeAlias
 from ..analysis.semantic_model import Range
 from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import loop_list_header_commands
+from ..common.codes import opt
 from ..common.dialect import active_dialect
 from ..common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
@@ -64,6 +65,7 @@ from .ssa import BlockName, SSAFunction, SSAVersion
 from .var_refs import VarReferenceScanner, VarScanOptions
 
 log = logging.getLogger(__name__)
+
 _CONTROL_FLOW_COMMANDS = REGISTRY.control_flow_commands()
 _VAR_REF_SCANNER = VarReferenceScanner(
     VarScanOptions(
@@ -774,6 +776,7 @@ def _loop_defined_variables(
     return frozenset(defs)
 
 
+@opt("O106", "Hoist loop-invariant computations.")
 def _find_loop_invariants(
     cfg: CFGFunction,
     ssa: SSAFunction,
