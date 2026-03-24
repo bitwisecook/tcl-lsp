@@ -306,9 +306,7 @@ def resolve_apl_includes(
     return model
 
 
-# --------------------------------------------------------------------------- #
 # Tcl variable mapping
-# --------------------------------------------------------------------------- #
 
 
 def tcl_var_to_apl_name(tcl_var: str) -> str | None:
