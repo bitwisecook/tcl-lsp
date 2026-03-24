@@ -110,7 +110,7 @@ def _short_label(code: str, description: str, *, escape_kotlin: bool = False) ->
         desc = desc[:52] + "..."
     label = f"{code}: {desc}"
     if escape_kotlin:
-        label = label.replace("\\", "\\\\").replace('"', '\\"')
+        label = label.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
     return label
 
 
