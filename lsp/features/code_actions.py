@@ -783,7 +783,7 @@ def _ip_conversion_actions(
         suffix = word[word.index("/") :]
 
     if info.version == 4:
-        mapped = ipv4_to_ipv6_mapped(info.address)  # type: ignore[arg-type]
+        mapped = ipv4_to_ipv6_mapped(info.address)  # type: ignore[arg-type, invalid-argument-type]
         new_text = mapped + suffix
         actions.append(
             types.CodeAction(

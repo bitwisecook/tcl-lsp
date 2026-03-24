@@ -420,7 +420,7 @@ class _SubprocessBackend:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        ready_line = await self._process.stdout.readline()  # type: ignore[union-attr]
+        ready_line = await self._process.stdout.readline()  # type: ignore[union-attr, unresolved-attribute]
         ready = json.loads(ready_line)
         if ready.get("status") != "ready":
             msg = f"Unexpected ready signal: {ready}"
@@ -450,7 +450,7 @@ class _SubprocessBackend:
 
         resp_line = await self._process.stdout.readline()
         if not resp_line:
-            stderr_data = await self._process.stderr.read()  # type: ignore[union-attr]
+            stderr_data = await self._process.stderr.read()  # type: ignore[union-attr, unresolved-attribute]
             msg_text = f"Tcl process closed unexpectedly: {stderr_data.decode()}"
             raise RuntimeError(msg_text)
 

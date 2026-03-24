@@ -47,7 +47,7 @@ def load_help_db() -> sqlite3.Connection:
 
     if _has_deserialize():
         _conn = sqlite3.connect(":memory:")
-        _conn.deserialize(db_bytes)  # type: ignore[attr-defined]  # Python 3.12+
+        _conn.deserialize(db_bytes)  # type: ignore[attr-defined, unresolved-attribute]  # Python 3.12+
     else:
         # Fallback: write to a temp file and open read-only
         fd, path = tempfile.mkstemp(suffix=".db", prefix="kcs_help_")

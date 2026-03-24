@@ -51,7 +51,7 @@ def _make_publish_fn() -> Any:
 
 def _codes(diags: list[types.Diagnostic]) -> list[str]:
     """Extract codes from a list of diagnostics."""
-    return [d.code for d in diags if d.code]  # type: ignore[misc]
+    return [d.code for d in diags if d.code]  # type: ignore[misc, invalid-return-type]
 
 
 async def _wait_for(predicate: Any, *, timeout: float = 5.0, interval: float = 0.05) -> None:

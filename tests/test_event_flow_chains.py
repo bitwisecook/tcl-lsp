@@ -285,7 +285,7 @@ class TestEventIndex:
     def test_known_event(self):
         idx = event_index("CLIENT_ACCEPTED")
         assert idx is not None
-        assert idx > event_index("RULE_INIT")  # type: ignore[operator]
+        assert idx > event_index("RULE_INIT")  # type: ignore[operator, unsupported-operator]
 
     def test_unknown_event(self):
         assert event_index("TOTALLY_FAKE_EVENT") is None

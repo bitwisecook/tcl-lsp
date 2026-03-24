@@ -1182,7 +1182,7 @@ PER_REQUEST: frozenset[str] = frozenset(
 
 def _s(event: str, phase: str, **kw: object) -> FlowStep:
     """Shorthand for FlowStep construction."""
-    return FlowStep(event=event, phase=phase, **kw)  # type: ignore[arg-type]
+    return FlowStep(event=event, phase=phase, **kw)  # type: ignore[arg-type, invalid-argument-type]
 
 
 # fmt: off

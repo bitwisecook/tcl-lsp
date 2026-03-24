@@ -66,7 +66,7 @@ class TestSideEffect:
     def test_frozen(self) -> None:
         e = SideEffect(target=SideEffectTarget.VARIABLE, reads=True)
         with pytest.raises(AttributeError):
-            e.reads = False  # type: ignore[misc]
+            e.reads = False  # type: ignore[misc, invalid-assignment]
 
 
 class TestCommandSideEffects:

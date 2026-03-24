@@ -1207,7 +1207,7 @@ def _find_hoistable_constants(
                 continue
 
             # Try each candidate event (earliest first).
-            hoistable_stmt: IRAssignConst | IRAssignValue | IRIncr | IRCall = stmt  # type: ignore[assignment]
+            hoistable_stmt: IRAssignConst | IRAssignValue | IRIncr | IRCall = stmt  # type: ignore[assignment, invalid-assignment]
             best_event = None
             best_exists = False
             for cand, cand_exists in candidates:

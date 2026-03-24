@@ -86,7 +86,7 @@ def load_user_config() -> configparser.ConfigParser:
     does not exist, returns an empty configuration.
     """
     config = configparser.ConfigParser()
-    config.optionxform = str  # type: ignore[assignment]  # preserve camelCase keys
+    config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve camelCase keys
     path = _config_path()
     if path.is_file():
         try:
@@ -258,7 +258,7 @@ def save_settings_to_config(
     Returns the path that was written.
     """
     config = configparser.ConfigParser()
-    config.optionxform = str  # type: ignore[assignment]  # preserve case
+    config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve case
 
     if defaults is None:
         defaults = {}

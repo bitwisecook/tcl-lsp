@@ -531,7 +531,7 @@ def _storage_type_for_command(command: str, args: tuple[str, ...]) -> StorageTyp
 
     st = storage_type_commands().get(command)
     if st is not None:
-        return st  # type: ignore[return-value]
+        return st  # type: ignore[return-value, invalid-return-type]
     return StorageType.SCALAR
 
 
