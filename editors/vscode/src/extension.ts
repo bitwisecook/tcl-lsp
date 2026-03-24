@@ -540,6 +540,7 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(
     commands.registerCommand("tclLsp.restartServer", restartServer),
     commands.registerCommand("tclLsp.selectDialect", selectDialect),
+    commands.registerCommand("tclLsp.exportConfig", exportConfig),
     commands.registerCommand("tclLsp.optimiseDocument", optimiseDocument),
     commands.registerCommand("tclLsp.showOptimisations", showOptimisations),
     commands.registerCommand("tclLsp.fixAllSafeIssues", fixAllSafeIssues),
@@ -649,6 +650,21 @@ async function restartServer(): Promise<void> {
     await client.stop();
     await client.start();
     window.showInformationMessage("Tcl Language Server restarted.");
+  }
+}
+
+async function exportConfig(): Promise<void> {
+  if (!client) {
+    return;
+  }
+  const result = (await client.sendRequest("workspace/executeCommand", {
+    command: "tcl-lsp.exportConfig",
+    arguments: [],
+  })) as { success: boolean; path?: string; error?: string } | null;
+  if (result?.success) {
+    window.showInformationMessage(`Settings exported to ${result.path}`);
+  } else {
+    window.showErrorMessage(`Failed to export settings: ${result?.error ?? "unknown error"}`);
   }
 }
 

@@ -1921,7 +1921,67 @@ Optimiser toggles are available through `tclLsp.optimiser.*`:
 | `O124` | `true` | Enable unused iRule proc commenting |
 | `O125` | `true` | Enable code sinking into decision blocks |
 
-Example:
+### Diagnostic settings
+
+All diagnostic codes can be toggled individually via
+`tclLsp.diagnostics.<CODE>: true/false`. The main series are:
+
+| Series | Codes | Area |
+|--------|-------|------|
+| **E** | E100–E999 | Errors |
+| **W** | W100–W299 | General warnings |
+| **W** | W300–W309 | Security warnings |
+| **S** | S100–S102 | Shimmer detection |
+| **T** | T100–T102 | Taint analysis |
+| **H** | H100+ | Hints |
+| **IRULE** | IRULE1001–IRULE5005 | iRules-specific diagnostics |
+
+### XDG Configuration File
+
+Settings can be stored in an INI file at
+`~/.config/tcl-lsp/config.ini` (or `$XDG_CONFIG_HOME/tcl-lsp/config.ini`
+if `$XDG_CONFIG_HOME` is set). This is useful for editor-agnostic defaults
+that apply across all workspaces.
+
+**Precedence** (highest wins):
+
+1. Editor settings (VS Code `settings.json`, Neovim `lspconfig`, etc.)
+2. XDG config file
+3. Built-in defaults
+
+The file uses INI format with section names matching the `tclLsp.*`
+namespace:
+
+```ini
+[diagnostics]
+disabled = W111, T100
+
+[optimiser]
+disabled = O109
+
+[shimmer]
+enabled = true
+
+[features]
+inlayHints = false
+
+[formatting]
+indent_size = 2
+```
+
+See [`docs/kcs/kcs-xdg-config.md`](docs/kcs/kcs-xdg-config.md) for the
+full reference.
+
+### Export Settings
+
+In **VS Code**, run the command **"Tcl: Export Settings to XDG Config"**
+from the command palette. For other editors, send the
+`tcl-lsp.exportConfig` request via `workspace/executeCommand`.
+
+Only non-default values are written, keeping the generated config file
+minimal.
+
+### Example
 
 ```json
 {

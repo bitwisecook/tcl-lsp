@@ -94,6 +94,64 @@ class TclLspSettingsPanel {
     private val diagW308 = JBCheckBox("W308: subst without -nocommands")
     private val diagW309 = JBCheckBox("W309: eval/uplevel with subst")
 
+    // Diagnostics — Additional Warnings
+    private val diagW101 = JBCheckBox("W101: Deprecated command")
+    private val diagW102 = JBCheckBox("W102: Suspicious return value")
+    private val diagW103 = JBCheckBox("W103: Implicit return")
+    private val diagW220 = JBCheckBox("W220: Unreachable code")
+
+    // Diagnostics — Security
+    private val diagW300 = JBCheckBox("W300: Dangerous unquoted eval")
+    private val diagW301 = JBCheckBox("W301: User input in expr")
+    private val diagW303 = JBCheckBox("W303: Command injection risk")
+    private val diagW306 = JBCheckBox("W306: Unsafe file operation")
+
+    // Diagnostics — Hints
+    private val diagH300 = JBCheckBox("H300: Security best practice")
+
+    // Diagnostics — Shimmer
+    private val diagS100 = JBCheckBox("S100: Type instability")
+    private val diagS101 = JBCheckBox("S101: Repeated shimmer")
+    private val diagS102 = JBCheckBox("S102: Shimmer in loop")
+
+    // Diagnostics — Taint
+    private val diagT100 = JBCheckBox("T100: Tainted data flow")
+    private val diagT101 = JBCheckBox("T101: Tainted sink")
+    private val diagT102 = JBCheckBox("T102: Unsanitised input")
+
+    // Diagnostics — iRules
+    private val diagIRULE1001 = JBCheckBox("IRULE1001: Unknown event")
+    private val diagIRULE1002 = JBCheckBox("IRULE1002: Unknown command")
+    private val diagIRULE1003 = JBCheckBox("IRULE1003: Deprecated iRule command")
+    private val diagIRULE1004 = JBCheckBox("IRULE1004: Invalid event context")
+    private val diagIRULE1005 = JBCheckBox("IRULE1005: Data event without collect")
+    private val diagIRULE1006 = JBCheckBox("IRULE1006: Payload without collect")
+    private val diagIRULE1007 = JBCheckBox("IRULE1007: Collect in wrong event")
+    private val diagIRULE1008 = JBCheckBox("IRULE1008: Release without collect")
+    private val diagIRULE1201 = JBCheckBox("IRULE1201: Pool reference")
+    private val diagIRULE1202 = JBCheckBox("IRULE1202: Data group reference")
+    private val diagIRULE2001 = JBCheckBox("IRULE2001: Memory concern")
+    private val diagIRULE2002 = JBCheckBox("IRULE2002: CPU concern")
+    private val diagIRULE2003 = JBCheckBox("IRULE2003: Timing concern")
+    private val diagIRULE2101 = JBCheckBox("IRULE2101: CMP affinity")
+    private val diagIRULE3001 = JBCheckBox("IRULE3001: Complexity warning")
+    private val diagIRULE3002 = JBCheckBox("IRULE3002: Maintainability")
+    private val diagIRULE3003 = JBCheckBox("IRULE3003: Style warning")
+    private val diagIRULE3101 = JBCheckBox("IRULE3101: Naming convention")
+    private val diagIRULE3102 = JBCheckBox("IRULE3102: Structure warning")
+    private val diagIRULE4001 = JBCheckBox("IRULE4001: Cross-event variable")
+    private val diagIRULE4002 = JBCheckBox("IRULE4002: Generic variable name")
+    private val diagIRULE4003 = JBCheckBox("IRULE4003: Static variable scope")
+    private val diagIRULE4004 = JBCheckBox("IRULE4004: Connection scope issue")
+    private val diagIRULE4005 = JBCheckBox("IRULE4005: Racy static cross-event")
+    private val diagIRULE5001 = JBCheckBox("IRULE5001: XC compatibility")
+    private val diagIRULE5002 = JBCheckBox("IRULE5002: XC unsupported command")
+    private val diagIRULE5004 = JBCheckBox("IRULE5004: XC unsupported feature")
+    private val diagIRULE5005 = JBCheckBox("IRULE5005: XC migration hint")
+
+    // XC Diagnostics
+    private val xcDiagnosticsEnabled = JBCheckBox("Enable XC translatability diagnostics")
+
     // Style
     private val styleLineLength = JSpinner(SpinnerNumberModel(120, 40, 500, 10))
 
@@ -200,12 +258,49 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostics — Warnings"))
         val diagWarnPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagW001, diagW002, diagW100, diagW104, diagW105, diagW106,
-            diagW108, diagW110, diagW111, diagW112, diagW113, diagW114,
-            diagW115, diagW120, diagW121, diagW122, diagW200, diagW201, diagW210, diagW211, diagW212,
-            diagW213, diagW214, diagW302, diagW304, diagW307, diagW308, diagW309,
+            diagW001, diagW002, diagW100, diagW101, diagW102, diagW103,
+            diagW104, diagW105, diagW106, diagW108, diagW110, diagW111,
+            diagW112, diagW113, diagW114, diagW115, diagW120, diagW121,
+            diagW122, diagW200, diagW201, diagW210, diagW211, diagW212,
+            diagW213, diagW214, diagW220,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
+
+        builder.addComponent(TitledSeparator("Diagnostics — Security"))
+        val diagSecPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
+        listOf(
+            diagW300, diagW301, diagW302, diagW303, diagW304, diagW306,
+            diagW307, diagW308, diagW309,
+        ).forEach { diagSecPanel.add(it) }
+        builder.addComponent(diagSecPanel)
+
+        builder.addComponent(TitledSeparator("Diagnostics — Hints"))
+        val diagHintPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
+        listOf(diagH300).forEach { diagHintPanel.add(it) }
+        builder.addComponent(diagHintPanel)
+
+        builder.addComponent(TitledSeparator("Diagnostics — Shimmer"))
+        val diagShimmerPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
+        listOf(diagS100, diagS101, diagS102).forEach { diagShimmerPanel.add(it) }
+        builder.addComponent(diagShimmerPanel)
+
+        builder.addComponent(TitledSeparator("Diagnostics — Taint"))
+        val diagTaintPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
+        listOf(diagT100, diagT101, diagT102).forEach { diagTaintPanel.add(it) }
+        builder.addComponent(diagTaintPanel)
+
+        builder.addComponent(TitledSeparator("Diagnostics — iRules"))
+        val diagIRulePanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
+        listOf(
+            diagIRULE1001, diagIRULE1002, diagIRULE1003, diagIRULE1004,
+            diagIRULE1005, diagIRULE1006, diagIRULE1007, diagIRULE1008,
+            diagIRULE1201, diagIRULE1202,
+            diagIRULE2001, diagIRULE2002, diagIRULE2003, diagIRULE2101,
+            diagIRULE3001, diagIRULE3002, diagIRULE3003, diagIRULE3101, diagIRULE3102,
+            diagIRULE4001, diagIRULE4002, diagIRULE4003, diagIRULE4004, diagIRULE4005,
+            diagIRULE5001, diagIRULE5002, diagIRULE5004, diagIRULE5005,
+        ).forEach { diagIRulePanel.add(it) }
+        builder.addComponent(diagIRulePanel)
 
         // Style section
         builder.addComponent(TitledSeparator("Style"))
@@ -226,6 +321,10 @@ class TclLspSettingsPanel {
         // Shimmer section
         builder.addComponent(TitledSeparator("Shimmer"))
         builder.addComponent(shimmerEnabled)
+
+        // XC Diagnostics
+        builder.addComponent(TitledSeparator("XC Diagnostics"))
+        builder.addComponent(xcDiagnosticsEnabled)
 
         // Runtime Validation
         builder.addComponent(TitledSeparator("Runtime Validation"))
@@ -319,6 +418,57 @@ class TclLspSettingsPanel {
             diagW307.isSelected != s.diagnosticW307 ||
             diagW308.isSelected != s.diagnosticW308 ||
             diagW309.isSelected != s.diagnosticW309 ||
+            // Additional warnings
+            diagW101.isSelected != s.diagnosticW101 ||
+            diagW102.isSelected != s.diagnosticW102 ||
+            diagW103.isSelected != s.diagnosticW103 ||
+            diagW220.isSelected != s.diagnosticW220 ||
+            // Security
+            diagW300.isSelected != s.diagnosticW300 ||
+            diagW301.isSelected != s.diagnosticW301 ||
+            diagW303.isSelected != s.diagnosticW303 ||
+            diagW306.isSelected != s.diagnosticW306 ||
+            // Hints
+            diagH300.isSelected != s.diagnosticH300 ||
+            // Shimmer diagnostics
+            diagS100.isSelected != s.diagnosticS100 ||
+            diagS101.isSelected != s.diagnosticS101 ||
+            diagS102.isSelected != s.diagnosticS102 ||
+            // Taint
+            diagT100.isSelected != s.diagnosticT100 ||
+            diagT101.isSelected != s.diagnosticT101 ||
+            diagT102.isSelected != s.diagnosticT102 ||
+            // iRules
+            diagIRULE1001.isSelected != s.diagnosticIRULE1001 ||
+            diagIRULE1002.isSelected != s.diagnosticIRULE1002 ||
+            diagIRULE1003.isSelected != s.diagnosticIRULE1003 ||
+            diagIRULE1004.isSelected != s.diagnosticIRULE1004 ||
+            diagIRULE1005.isSelected != s.diagnosticIRULE1005 ||
+            diagIRULE1006.isSelected != s.diagnosticIRULE1006 ||
+            diagIRULE1007.isSelected != s.diagnosticIRULE1007 ||
+            diagIRULE1008.isSelected != s.diagnosticIRULE1008 ||
+            diagIRULE1201.isSelected != s.diagnosticIRULE1201 ||
+            diagIRULE1202.isSelected != s.diagnosticIRULE1202 ||
+            diagIRULE2001.isSelected != s.diagnosticIRULE2001 ||
+            diagIRULE2002.isSelected != s.diagnosticIRULE2002 ||
+            diagIRULE2003.isSelected != s.diagnosticIRULE2003 ||
+            diagIRULE2101.isSelected != s.diagnosticIRULE2101 ||
+            diagIRULE3001.isSelected != s.diagnosticIRULE3001 ||
+            diagIRULE3002.isSelected != s.diagnosticIRULE3002 ||
+            diagIRULE3003.isSelected != s.diagnosticIRULE3003 ||
+            diagIRULE3101.isSelected != s.diagnosticIRULE3101 ||
+            diagIRULE3102.isSelected != s.diagnosticIRULE3102 ||
+            diagIRULE4001.isSelected != s.diagnosticIRULE4001 ||
+            diagIRULE4002.isSelected != s.diagnosticIRULE4002 ||
+            diagIRULE4003.isSelected != s.diagnosticIRULE4003 ||
+            diagIRULE4004.isSelected != s.diagnosticIRULE4004 ||
+            diagIRULE4005.isSelected != s.diagnosticIRULE4005 ||
+            diagIRULE5001.isSelected != s.diagnosticIRULE5001 ||
+            diagIRULE5002.isSelected != s.diagnosticIRULE5002 ||
+            diagIRULE5004.isSelected != s.diagnosticIRULE5004 ||
+            diagIRULE5005.isSelected != s.diagnosticIRULE5005 ||
+            // XC Diagnostics
+            xcDiagnosticsEnabled.isSelected != s.xcDiagnosticsEnabled ||
             // Style
             (styleLineLength.value as Int) != s.styleLineLength ||
             // Optimiser
@@ -435,6 +585,50 @@ class TclLspSettingsPanel {
         s.diagnosticW307 = diagW307.isSelected
         s.diagnosticW308 = diagW308.isSelected
         s.diagnosticW309 = diagW309.isSelected
+        s.diagnosticW101 = diagW101.isSelected
+        s.diagnosticW102 = diagW102.isSelected
+        s.diagnosticW103 = diagW103.isSelected
+        s.diagnosticW220 = diagW220.isSelected
+        s.diagnosticW300 = diagW300.isSelected
+        s.diagnosticW301 = diagW301.isSelected
+        s.diagnosticW303 = diagW303.isSelected
+        s.diagnosticW306 = diagW306.isSelected
+        s.diagnosticH300 = diagH300.isSelected
+        s.diagnosticS100 = diagS100.isSelected
+        s.diagnosticS101 = diagS101.isSelected
+        s.diagnosticS102 = diagS102.isSelected
+        s.diagnosticT100 = diagT100.isSelected
+        s.diagnosticT101 = diagT101.isSelected
+        s.diagnosticT102 = diagT102.isSelected
+        s.diagnosticIRULE1001 = diagIRULE1001.isSelected
+        s.diagnosticIRULE1002 = diagIRULE1002.isSelected
+        s.diagnosticIRULE1003 = diagIRULE1003.isSelected
+        s.diagnosticIRULE1004 = diagIRULE1004.isSelected
+        s.diagnosticIRULE1005 = diagIRULE1005.isSelected
+        s.diagnosticIRULE1006 = diagIRULE1006.isSelected
+        s.diagnosticIRULE1007 = diagIRULE1007.isSelected
+        s.diagnosticIRULE1008 = diagIRULE1008.isSelected
+        s.diagnosticIRULE1201 = diagIRULE1201.isSelected
+        s.diagnosticIRULE1202 = diagIRULE1202.isSelected
+        s.diagnosticIRULE2001 = diagIRULE2001.isSelected
+        s.diagnosticIRULE2002 = diagIRULE2002.isSelected
+        s.diagnosticIRULE2003 = diagIRULE2003.isSelected
+        s.diagnosticIRULE2101 = diagIRULE2101.isSelected
+        s.diagnosticIRULE3001 = diagIRULE3001.isSelected
+        s.diagnosticIRULE3002 = diagIRULE3002.isSelected
+        s.diagnosticIRULE3003 = diagIRULE3003.isSelected
+        s.diagnosticIRULE3101 = diagIRULE3101.isSelected
+        s.diagnosticIRULE3102 = diagIRULE3102.isSelected
+        s.diagnosticIRULE4001 = diagIRULE4001.isSelected
+        s.diagnosticIRULE4002 = diagIRULE4002.isSelected
+        s.diagnosticIRULE4003 = diagIRULE4003.isSelected
+        s.diagnosticIRULE4004 = diagIRULE4004.isSelected
+        s.diagnosticIRULE4005 = diagIRULE4005.isSelected
+        s.diagnosticIRULE5001 = diagIRULE5001.isSelected
+        s.diagnosticIRULE5002 = diagIRULE5002.isSelected
+        s.diagnosticIRULE5004 = diagIRULE5004.isSelected
+        s.diagnosticIRULE5005 = diagIRULE5005.isSelected
+        s.xcDiagnosticsEnabled = xcDiagnosticsEnabled.isSelected
 
         s.styleLineLength = styleLineLength.value as Int
 
@@ -550,6 +744,50 @@ class TclLspSettingsPanel {
         diagW307.isSelected = s.diagnosticW307
         diagW308.isSelected = s.diagnosticW308
         diagW309.isSelected = s.diagnosticW309
+        diagW101.isSelected = s.diagnosticW101
+        diagW102.isSelected = s.diagnosticW102
+        diagW103.isSelected = s.diagnosticW103
+        diagW220.isSelected = s.diagnosticW220
+        diagW300.isSelected = s.diagnosticW300
+        diagW301.isSelected = s.diagnosticW301
+        diagW303.isSelected = s.diagnosticW303
+        diagW306.isSelected = s.diagnosticW306
+        diagH300.isSelected = s.diagnosticH300
+        diagS100.isSelected = s.diagnosticS100
+        diagS101.isSelected = s.diagnosticS101
+        diagS102.isSelected = s.diagnosticS102
+        diagT100.isSelected = s.diagnosticT100
+        diagT101.isSelected = s.diagnosticT101
+        diagT102.isSelected = s.diagnosticT102
+        diagIRULE1001.isSelected = s.diagnosticIRULE1001
+        diagIRULE1002.isSelected = s.diagnosticIRULE1002
+        diagIRULE1003.isSelected = s.diagnosticIRULE1003
+        diagIRULE1004.isSelected = s.diagnosticIRULE1004
+        diagIRULE1005.isSelected = s.diagnosticIRULE1005
+        diagIRULE1006.isSelected = s.diagnosticIRULE1006
+        diagIRULE1007.isSelected = s.diagnosticIRULE1007
+        diagIRULE1008.isSelected = s.diagnosticIRULE1008
+        diagIRULE1201.isSelected = s.diagnosticIRULE1201
+        diagIRULE1202.isSelected = s.diagnosticIRULE1202
+        diagIRULE2001.isSelected = s.diagnosticIRULE2001
+        diagIRULE2002.isSelected = s.diagnosticIRULE2002
+        diagIRULE2003.isSelected = s.diagnosticIRULE2003
+        diagIRULE2101.isSelected = s.diagnosticIRULE2101
+        diagIRULE3001.isSelected = s.diagnosticIRULE3001
+        diagIRULE3002.isSelected = s.diagnosticIRULE3002
+        diagIRULE3003.isSelected = s.diagnosticIRULE3003
+        diagIRULE3101.isSelected = s.diagnosticIRULE3101
+        diagIRULE3102.isSelected = s.diagnosticIRULE3102
+        diagIRULE4001.isSelected = s.diagnosticIRULE4001
+        diagIRULE4002.isSelected = s.diagnosticIRULE4002
+        diagIRULE4003.isSelected = s.diagnosticIRULE4003
+        diagIRULE4004.isSelected = s.diagnosticIRULE4004
+        diagIRULE4005.isSelected = s.diagnosticIRULE4005
+        diagIRULE5001.isSelected = s.diagnosticIRULE5001
+        diagIRULE5002.isSelected = s.diagnosticIRULE5002
+        diagIRULE5004.isSelected = s.diagnosticIRULE5004
+        diagIRULE5005.isSelected = s.diagnosticIRULE5005
+        xcDiagnosticsEnabled.isSelected = s.xcDiagnosticsEnabled
 
         styleLineLength.value = s.styleLineLength
 

@@ -270,6 +270,11 @@
         "category": "Tcl"
       },
       {
+        "command": "tclLsp.exportConfig",
+        "title": "Export Settings to XDG Config",
+        "category": "Tcl"
+      },
+      {
         "command": "tclLsp.optimiseDocument",
         "title": "Apply All Optimisations",
         "category": "Tcl"
@@ -3381,6 +3386,18 @@
             "default": true,
             "markdownDescription": "**IRULE1004:** `when` block missing explicit `priority`.",
             "order": 3
+          },
+          "tclLsp.diagnostics.IRULE1005": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1005:** Data event without a matching `*::collect` call.",
+            "order": 4
+          },
+          "tclLsp.diagnostics.IRULE1006": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1006:** `*::payload` without a matching `*::collect` call.",
+            "order": 5
           },
           "tclLsp.diagnostics.IRULE1201": {
             "type": "boolean",
