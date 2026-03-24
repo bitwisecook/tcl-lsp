@@ -9,6 +9,7 @@ from ...commands.registry.runtime import (
     arg_indices_for_role,
     normalized_flag_commands,
 )
+from ...common.codes import diag
 from ...common.dialect import active_dialect
 from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
@@ -22,6 +23,7 @@ from ._helpers import (
 # W002: Disabled command in active dialect
 
 
+@diag("W002", "Command is disabled in active dialect profile.", section="warning")
 def check_disabled_command(
     cmd_name: str,
     args: list[str],
@@ -53,6 +55,7 @@ def check_disabled_command(
 # IRULE2002: Deprecated iRules command
 
 
+@diag("IRULE2002", "Deprecated iRules command.", section="irules")
 def check_deprecated_irules_command(
     cmd_name: str,
     args: list[str],
@@ -81,6 +84,7 @@ def check_deprecated_irules_command(
 # IRULE2003: Unsafe iRules command
 
 
+@diag("IRULE2003", "Unsafe iRules command.", section="irules")
 def check_unsafe_irules_command(
     cmd_name: str,
     args: list[str],
@@ -109,6 +113,11 @@ def check_unsafe_irules_command(
 _NORMALIZABLE_HTTP_COMMANDS = normalized_flag_commands()
 
 
+@diag(
+    "IRULE3102",
+    "`HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
+    section="irules_security",
+)
 def check_irules_unnormalized_http_getter(
     cmd_name: str,
     args: list[str],
@@ -147,6 +156,7 @@ def check_irules_unnormalized_http_getter(
 # IRULE1002: Unknown iRules event
 
 
+@diag("IRULE1002", "Unknown iRules event name.", section="irules")
 def check_unknown_irules_event(
     cmd_name: str,
     args: list[str],
@@ -185,6 +195,11 @@ def check_unknown_irules_event(
 # W307: Non-literal command name
 
 
+@diag(
+    "W307",
+    "Non-literal command name — variable or command substitution as command.",
+    section="security",
+)
 def check_non_literal_command(
     cmd_name: str,
     args: list[str],
@@ -209,6 +224,7 @@ def check_non_literal_command(
 # W306: Literal-expected position contains substitution
 
 
+@diag("W306", "Substitution in literal-expected argument position.", section="security")
 def check_literal_expected(
     cmd_name: str,
     args: list[str],

@@ -155,9 +155,7 @@ _HTML_HIGHLIGHT_STYLES: dict[str, str] = {
     "expand": "color:#b7791f;",
 }
 
-# ---------------------------------------------------------------------------
 # CLI configuration (INI file + flag cascade)
-# ---------------------------------------------------------------------------
 
 _ALL_DIAGNOSTIC_CODES = frozenset(
     {
@@ -2172,9 +2170,7 @@ def _run_help(args: argparse.Namespace) -> int:
     return 1
 
 
-# ---------------------------------------------------------------------------
 # Verb catalogue — drives both the brief and full help output.
-# ---------------------------------------------------------------------------
 
 _VERB_CATALOGUE: list[tuple[str, str, str]] = [
     # (name, aliases, description)

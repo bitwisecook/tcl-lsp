@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from dataclasses import replace as _dc_replace
 
 from ..commands.registry import REGISTRY
+from ..common.codes import diag
 from ..compiler.expr_ast import (
     BinOp,
     ExprBinary,
@@ -73,6 +74,21 @@ from .xc_model import (
 )
 
 _MAX_DEPTH = 10
+
+# XC translation diagnostic codes (all internal)
+diag("XC100", "Translatable — origin pool.", section="irules", internal=True)
+diag("XC101", "Translatable — HTTP redirect.", section="irules", internal=True)
+diag("XC102", "Translatable — HTTP response.", section="irules", internal=True)
+diag("XC103", "Translatable — header manipulation.", section="irules", internal=True)
+diag("XC105", "Translatable — cookie manipulation.", section="irules", internal=True)
+diag("XC106", "Translatable — URI rewrite.", section="irules", internal=True)
+diag("XC107", "Translatable — logging.", section="irules", internal=True)
+diag("XC200", "Partial — requires manual review.", section="irules", internal=True)
+diag("XC201", "Partial — complex conditional logic.", section="irules", internal=True)
+diag("XC203", "Partial — data group lookup.", section="irules", internal=True)
+diag("XC250", "Partial — persistence.", section="irules", internal=True)
+diag("XC300", "Untranslatable — no XC equivalent.", section="irules", internal=True)
+diag("XC301", "Untranslatable — complex feature.", section="irules", internal=True)
 
 _HTTP_PATH_COMMANDS = ("HTTP::path", "HTTP::uri")
 _EQUALITY_OPS = (BinOp.STR_EQ, BinOp.EQ, BinOp.STR_EQUALS)

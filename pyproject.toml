@@ -15,7 +15,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
     "ruff>=0.11",
-    "ty",
+    "ty>=0.0.24,<0.0.25",
     "wasmtime>=20.0",
     "flask>=3.0",
 ]
@@ -69,5 +69,5 @@ output = "tmp/coverage/python/coverage.xml"
 
 [dependency-groups]
 dev = [
-    "ty",
+    "ty>=0.0.24,<0.0.25",
 ]

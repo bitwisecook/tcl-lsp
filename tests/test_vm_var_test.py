@@ -318,7 +318,9 @@ def _check_results(
     - Unexpected passes (in known set but passed) -> test fails
       (forces cleanup of the known-failure set when bugs are fixed)
     """
-    failed_set = set(results["failed_tests"])  # type: ignore[arg-type]
+    failed_tests = results["failed_tests"]
+    assert isinstance(failed_tests, list)
+    failed_set = set(failed_tests)
     total = results["Total"]
     passed = results["Passed"]
     skipped = results["Skipped"]

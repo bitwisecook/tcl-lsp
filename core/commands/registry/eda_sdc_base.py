@@ -49,7 +49,7 @@ def _sdc(
 def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
     """Return all shared SDC command specs."""
     return (
-        # --- Clock constraints ---
+        # Clock constraints
         _sdc(
             "create_clock",
             "Create a clock object.",
@@ -87,7 +87,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             "Specify that clock latency should be propagated.",
             "set_propagated_clock object_list",
         ),
-        # --- I/O delay constraints ---
+        # I/O delay constraints
         _sdc(
             "set_input_delay",
             "Set input delay on ports.",
@@ -113,7 +113,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             "Set the driving cell for input ports.",
             "set_driving_cell ?-lib_cell cell_name? ?-library lib? ?-pin pin_name? ?-from_pin from_pin_name? ?-no_design_rule? ?-dont_scale? ?-input_transition_rise rise? ?-input_transition_fall fall? port_list",
         ),
-        # --- Timing exceptions ---
+        # Timing exceptions
         _sdc(
             "set_false_path",
             "Define a false timing path.",
@@ -134,7 +134,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             "Set minimum delay constraint on a path.",
             "set_min_delay ?-from from_list? ?-through through_list? ?-to to_list? ?-rise | -fall? delay_value",
         ),
-        # --- Design rule constraints ---
+        # Design rule constraints
         _sdc("set_max_area", "Set maximum area constraint.", "set_max_area area_value", Arity(1)),
         _sdc(
             "set_max_fanout",
@@ -151,7 +151,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             "Set maximum capacitance constraint.",
             "set_max_capacitance cap_value object_list",
         ),
-        # --- Object access commands ---
+        # Object access commands
         _sdc(
             "get_cells",
             "Get cell objects matching a pattern.",
@@ -192,7 +192,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             "Get library pin objects matching a pattern.",
             "get_lib_pins ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?",
         ),
-        # --- Collection shortcuts ---
+        # Collection shortcuts
         _sdc("all_inputs", "Return all input ports.", "all_inputs"),
         _sdc("all_outputs", "Return all output ports.", "all_outputs"),
         _sdc(
@@ -211,7 +211,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             "Return all fanin of a pin/port.",
             "all_fanin ?-to objects? ?-flat? ?-startpoints_only? ?-only_cells?",
         ),
-        # --- Collection utilities ---
+        # Collection utilities
         CommandSpec(
             name="foreach_in_collection",
             dialects=_SDC_DIALECTS,
@@ -251,7 +251,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             "filter_collection collection filter_expr",
             Arity(2, 2),
         ),
-        # --- Analysis & reporting ---
+        # Analysis & reporting
         _sdc(
             "report_timing",
             "Report timing paths.",
@@ -275,7 +275,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             "Check for unconstrained paths and issues.",
             "check_timing ?-verbose? ?-override_defaults list?",
         ),
-        # --- Misc SDC ---
+        # Misc SDC
         _sdc("current_design", "Get or set the current design.", "current_design ?design_name?"),
         _sdc(
             "link_design",

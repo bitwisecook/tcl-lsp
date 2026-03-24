@@ -15,6 +15,7 @@ from core.analysis.semantic_model import (
     Severity,
 )
 from core.commands.registry import REGISTRY
+from core.common.codes import diag
 from core.common.dialect import active_dialect
 from core.common.lsp import to_lsp_range
 from core.compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
@@ -206,6 +207,7 @@ def _brace_expr_perf_hint(d: Diagnostic) -> types.Diagnostic:
 # Source-level style checks (W111, W112)
 
 
+@diag("W111", "Line exceeds maximum length (see `tclLsp.style.lineLength`).", section="warning")
 def _check_line_length(
     source: str, max_length: int, *, lines: list[str] | None = None
 ) -> list[Diagnostic]:
@@ -234,6 +236,7 @@ def _check_line_length(
     return diagnostics
 
 
+@diag("W112", "Trailing whitespace.", section="warning")
 def _check_trailing_whitespace(source: str, *, lines: list[str] | None = None) -> list[Diagnostic]:
     """W112: Flag trailing whitespace with an auto-fix to remove it."""
     if lines is None:
@@ -282,6 +285,7 @@ def _check_trailing_whitespace(source: str, *, lines: list[str] | None = None) -
     return diagnostics
 
 
+@diag("W115", "Backslash-newline in comment silently swallows the next line.", section="warning")
 def _check_comment_continuation(source: str, *, lines: list[str] | None = None) -> list[Diagnostic]:
     """W115: Flag backslash-newline continuation in comments.
 
@@ -417,6 +421,7 @@ def compute_style_diagnostics_for_range(
 # W120: command without package require
 
 
+@diag("W120", "Command used without a corresponding `package require`.", section="warning")
 def _check_missing_package_require(
     result: AnalysisResult,
     suppressed: dict[int, frozenset[str]],

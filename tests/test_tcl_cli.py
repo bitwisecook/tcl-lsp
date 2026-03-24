@@ -697,9 +697,7 @@ def test_command_info_help_supports_help_flag(capsys):
     assert "--dialect" in captured.out
 
 
-# ---------------------------------------------------------------------------
 # Config file loading
-# ---------------------------------------------------------------------------
 
 
 def test_config_file_loading(tmp_path, monkeypatch, capsys):
@@ -738,9 +736,7 @@ def test_config_file_project_local(tmp_path, monkeypatch, capsys):
     assert "  set x 1" in out
 
 
-# ---------------------------------------------------------------------------
 # Formatter CLI flags
-# ---------------------------------------------------------------------------
 
 
 def test_format_indent_size_flag(capsys):
@@ -769,9 +765,7 @@ def test_format_indent_style_tabs(capsys):
     assert "\tset x 1" in out
 
 
-# ---------------------------------------------------------------------------
 # Diagnostic --disable / --enable
-# ---------------------------------------------------------------------------
 
 
 def test_diag_disable_suppresses_code(tmp_path, capsys):
@@ -786,9 +780,7 @@ def test_diag_disable_suppresses_code(tmp_path, capsys):
     assert "W100" not in out2
 
 
-# ---------------------------------------------------------------------------
 # Optimisation --disable and summary block
-# ---------------------------------------------------------------------------
 
 
 def test_opt_disable_suppresses_code(tmp_path, capsys):
@@ -824,9 +816,7 @@ def test_opt_summary_on_stderr_for_file_output(tmp_path, capsys):
     assert "rewrites=" in err
 
 
-# ---------------------------------------------------------------------------
 # Two-tier help
-# ---------------------------------------------------------------------------
 
 
 def test_brief_help(capsys):
@@ -850,9 +840,7 @@ def test_help_all(capsys):
     assert "highlight" in captured.out
 
 
-# ---------------------------------------------------------------------------
 # Highlight recovery=False (bodies not misclassified)
-# ---------------------------------------------------------------------------
 
 
 def test_highlight_bodies_not_tagged_as_strings(capsys):

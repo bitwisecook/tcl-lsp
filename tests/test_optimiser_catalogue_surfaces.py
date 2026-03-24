@@ -1,19 +1,27 @@
 """Cross-surface optimiser catalogue consistency checks.
 
 Ensures optimisation codes are unique and complete across:
+- Registry: all O-codes registered via ``opt()``
 - LSP/server settings allowlist
-- editor settings surfaces (VS Code, JetBrains)
+- Editor settings surfaces (VS Code, JetBrains — via generated file staleness)
 - AI prompts and skills
-- AI/MCP optimise tools (runtime-driven, no per-code filtering)
+
+VS Code is validated via ``json.loads`` (structured parsing, no regex).
+JetBrains and TypeScript are validated via generator staleness checks in
+``test_diagnostic_manifest.py`` — no per-code parsing here.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
+import core.common.codes_all  # noqa: F401
+from core.common.codes import optimisation_codes
+
 ROOT = Path(__file__).resolve().parents[1]
-ALL_OPT_CODES = {f"O{i:03d}" for i in range(100, 127)}
+ALL_OPT_CODES = optimisation_codes()
 
 
 def _read(rel_path: str) -> str:
@@ -47,48 +55,35 @@ def _extract_skill_codes(rel_path: str) -> list[str]:
 
 
 def test_lsp_server_allowlist_matches_catalogue() -> None:
-    text = _read("lsp/server.py")
-    match = re.search(
-        r"_ALL_OPTIMISATION_CODES\s*=\s*frozenset\(\s*\{(.*?)\}\s*\)",
-        text,
-        flags=re.DOTALL,
-    )
-    assert match is not None, "lsp/server.py: missing _ALL_OPTIMISATION_CODES"
-    codes = re.findall(r'"(O\d{3})"', match.group(1))
+    """server._ALL_OPTIMISATION_CODES matches the registry."""
+    import lsp.server as server_module
+
+    codes = sorted(server_module._ALL_OPTIMISATION_CODES)
     _assert_complete_unique(codes, context="lsp/server.py _ALL_OPTIMISATION_CODES")
 
 
 def test_vscode_settings_match_catalogue() -> None:
-    text = _read("editors/vscode/package.json")
-    codes = re.findall(r'"tclLsp\.optimiser\.(O\d{3})"\s*:', text)
+    """VS Code package.json optimiser codes parsed from JSON structure."""
+    data = json.loads(_read("editors/vscode/package.json"))
+    prefix = "tclLsp.optimiser."
+    codes = []
+    for group in data["contributes"]["configuration"]:
+        for key in group.get("properties", {}):
+            if key.startswith(prefix):
+                code = key[len(prefix) :]
+                if code and code[0].isupper():
+                    codes.append(code)
     _assert_complete_unique(codes, context="editors/vscode/package.json")
 
 
-def test_jetbrains_settings_match_catalogue() -> None:
-    settings_text = _read(
-        "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt"
-    )
-    panel_text = _read(
-        "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettingsPanel.kt"
-    )
+def test_jetbrains_generated_catalog_is_fresh() -> None:
+    """JetBrains DiagnosticCatalog.kt matches generator dry_run output."""
+    from scripts.generate_editor_settings import generate_jetbrains_catalog
 
-    declared_codes = re.findall(r"var optimiser(O\d{3}): Boolean", settings_text)
-    _assert_complete_unique(
-        declared_codes,
-        context="JetBrains settings declarations",
-    )
-
-    map_codes = re.findall(r'"(O\d{3})"\s+to\s+optimiserO\d{3}', settings_text)
-    _assert_complete_unique(
-        map_codes,
-        context="JetBrains settings payload map",
-    )
-
-    checkbox_codes = re.findall(r'JBCheckBox\("(O\d{3})"\)', panel_text)
-    _assert_complete_unique(
-        checkbox_codes,
-        context="JetBrains settings UI checkboxes",
-    )
+    path, expected = generate_jetbrains_catalog(dry_run=True)
+    assert path.exists(), f"Missing generated file: {path}"
+    actual = path.read_text(encoding="utf-8")
+    assert actual == expected, "DiagnosticCatalog.kt is stale — run 'make gen-editor-settings'"
 
 
 def test_ai_prompts_match_catalogue() -> None:

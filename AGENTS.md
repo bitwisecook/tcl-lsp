@@ -113,6 +113,10 @@ incomplete and must not be merged.
 - Use **UK spelling** in identifiers and comments (`normalise`, `optimiser`, `analyse`).
 - Keep names explicit; avoid ambiguous single-letter variables outside tiny loops.
 - Prefer `match/case` for enum/token dispatch with 3+ branches.
+- **Comments** must be plain, minimal, and only present when they illuminate
+  something the code itself does not convey. Do not use banner-style comments
+  (`# -----------`, `# --- Text ---`, `# -- [section] ------`). Use a plain
+  `# Text` comment instead. Never add standalone dash-separator lines.
 - See `CONTRIBUTING.md` for the full style guide.
 
 ## KCS documentation

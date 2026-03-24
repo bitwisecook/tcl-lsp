@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from ..analysis.semantic_model import Range
 from ..commands.registry.runtime import TYPE_HINTS
 from ..commands.registry.type_hints import CommandTypeHint, SubcommandTypeHint
+from ..common.codes import diag
 from ..common.naming import normalise_var_name as _normalise_var_name
 from ..parsing.tokens import SourcePosition
 from .cfg import CFGBranch, CFGFunction, CFGGoto
@@ -188,6 +189,16 @@ def _check_command_substitution_intent(
     )
 
 
+@diag(
+    "S100",
+    "Single shimmer outside a loop — object internal representation changed.",
+    section="shimmer",
+)
+@diag(
+    "S101",
+    "Shimmer inside a loop body — per-iteration representation conversion cost.",
+    section="shimmer",
+)
 def _check_args_for_shimmer(
     command: str,
     args: tuple[str, ...],
@@ -552,6 +563,7 @@ def _find_phi_shimmers(
     return warnings
 
 
+@diag("S102", "Variable oscillates between two types across loop iterations.", section="shimmer")
 def _find_thunking(
     cfg: CFGFunction,
     ssa: SSAFunction,

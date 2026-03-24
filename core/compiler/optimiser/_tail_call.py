@@ -14,6 +14,7 @@ import re
 from dataclasses import dataclass
 
 from ...analysis.semantic_model import Range
+from ...common.codes import opt
 from ...common.naming import normalise_qualified_name as _normalise_qualified_name
 from ...parsing.lexer import TclLexer
 from ...parsing.tokens import TokenType
@@ -110,9 +111,7 @@ class _TailCallSite:
     kind: str  # "return_subst" | "bare_call"
 
 
-# ---------------------------------------------------------------------------
 # Entry point
-# ---------------------------------------------------------------------------
 
 
 def optimise_tail_calls(ctx: PassContext) -> None:
@@ -144,9 +143,7 @@ def optimise_tail_calls(ctx: PassContext) -> None:
         _detect_accumulator_candidate(ctx, proc, self_names, short_name, sites, ctx.source)
 
 
-# ---------------------------------------------------------------------------
 # Name resolution
-# ---------------------------------------------------------------------------
 
 
 def _self_name_variants(qname: str) -> frozenset[str]:
@@ -162,9 +159,7 @@ def _self_name_variants(qname: str) -> frozenset[str]:
     return frozenset(names)
 
 
-# ---------------------------------------------------------------------------
 # Tail-call site collection
-# ---------------------------------------------------------------------------
 
 
 def _collect_tail_call_sites(
@@ -239,9 +234,7 @@ def _return_command_subst_text(source: str, stmt_range: Range) -> str | None:
     return argv_texts[1].strip()
 
 
-# ---------------------------------------------------------------------------
 # Self-call counting (all positions, not just tail)
-# ---------------------------------------------------------------------------
 
 
 def _count_all_self_calls(
@@ -397,11 +390,10 @@ def _count_condition_self_calls(
     return count
 
 
-# ---------------------------------------------------------------------------
 # O121: tailcall suggestion
-# ---------------------------------------------------------------------------
 
 
+@opt("O121", "Rewrite self-recursive tail calls to `tailcall`.")
 def _emit_o121(ctx: PassContext, site: _TailCallSite, short_name: str) -> None:
     """Emit O121 for a tail-position self-call."""
     if site.kind == "return_subst":
@@ -439,11 +431,10 @@ def _self_name_variants_from_short(short_name: str) -> frozenset[str]:
     return frozenset({short_name})
 
 
-# ---------------------------------------------------------------------------
 # O122: recursion-to-loop conversion
-# ---------------------------------------------------------------------------
 
 
+@opt("O122", "Convert fully tail-recursive proc to iterative `while` loop.")
 def _suggest_loop_conversion(
     ctx: PassContext,
     proc,
@@ -518,11 +509,10 @@ def _make_reassignment(params: tuple[str, ...], args: tuple[str, ...]) -> str:
     return f"lassign [list {arg_list}] {param_list}"
 
 
-# ---------------------------------------------------------------------------
 # O123: accumulator-eligible non-tail recursion detection
-# ---------------------------------------------------------------------------
 
 
+@opt("O123", "Detect non-tail recursion eligible for accumulator introduction (hint only).")
 def _detect_accumulator_candidate(
     ctx: PassContext,
     proc,

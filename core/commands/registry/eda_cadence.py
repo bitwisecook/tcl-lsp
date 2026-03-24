@@ -36,7 +36,7 @@ def _cad(
 def cadence_command_specs() -> tuple[CommandSpec, ...]:
     """Return Cadence-specific command specs."""
     return (
-        # --- Genus (synthesis) ---
+        # Genus (synthesis)
         _cad(
             "read_hdl",
             "Read HDL source files (Verilog/SystemVerilog/VHDL).",
@@ -73,7 +73,7 @@ def cadence_command_specs() -> tuple[CommandSpec, ...]:
             "Write a Conformal LEC do file.",
             "write_do_lec ?-revised_design design? ?-logicEquivalence? > file",
         ),
-        # --- Database access (Stylus Common UI) ---
+        # Database access (Stylus Common UI)
         _cad("set_db", "Set a database attribute value.", "set_db object_or_attr value", Arity(2)),
         _cad(
             "get_db",
@@ -82,7 +82,7 @@ def cadence_command_specs() -> tuple[CommandSpec, ...]:
         ),
         _cad("report_dp", "Report datapath resources.", "report_dp ?-all?"),
         _cad("report_gates", "Report gate-level statistics.", "report_gates ?-power?"),
-        # --- Design checks (Genus/Innovus common) ---
+        # Design checks (Genus/Innovus common)
         _cad("report_qor", "Report quality-of-results summary.", "report_qor ?-summary?"),
         _cad("check_design", "Check the design for issues.", "check_design ?-all? ?-type type?"),
         _cad(
@@ -90,7 +90,7 @@ def cadence_command_specs() -> tuple[CommandSpec, ...]:
             "Verify timing intent completeness.",
             "check_timing_intent ?-verbose?",
         ),
-        # --- Innovus (place & route) ---
+        # Innovus (place & route)
         _cad("init_design", "Initialize the design for implementation.", "init_design"),
         _cad("read_netlist", "Read a gate-level netlist.", "read_netlist file_name", Arity(1, 1)),
         _cad(
@@ -168,7 +168,7 @@ def cadence_command_specs() -> tuple[CommandSpec, ...]:
             "create_route_rule -name name ?-widths list? ?-spacings list?",
             Arity(1),
         ),
-        # --- Verification ---
+        # Verification
         _cad(
             "verify_connectivity",
             "Verify design connectivity.",
@@ -176,7 +176,7 @@ def cadence_command_specs() -> tuple[CommandSpec, ...]:
         ),
         _cad("verify_geometry", "Verify design geometry (DRC).", "verify_geometry ?-error n?"),
         _cad("verify_drc", "Run design rule checking.", "verify_drc ?-limit n?"),
-        # --- Timing (Tempus / Innovus) ---
+        # Timing (Tempus / Innovus)
         _cad(
             "time_design",
             "Perform timing analysis.",
@@ -198,7 +198,7 @@ def cadence_command_specs() -> tuple[CommandSpec, ...]:
             "Report timing analysis coverage.",
             "report_analysis_coverage",
         ),
-        # --- Output ---
+        # Output
         _cad("write_def", "Write a DEF file.", "write_def ?-version version? file_name"),
         _cad(
             "write_netlist",
@@ -213,7 +213,7 @@ def cadence_command_specs() -> tuple[CommandSpec, ...]:
         _cad(
             "stream_out", "Stream out a GDSII file (legacy).", "stream_out file_name ?-mapFile map?"
         ),
-        # --- Xcelium (simulation) ---
+        # Xcelium (simulation)
         _cad(
             "xrun",
             "Run Xcelium compilation and simulation in a single step.",
@@ -229,7 +229,7 @@ def cadence_command_specs() -> tuple[CommandSpec, ...]:
             "Run Xcelium simulation on an elaborated snapshot.",
             "xsim ?-R? ?-input cmd_file? snapshot_name",
         ),
-        # --- Legacy database access ---
+        # Legacy database access
         _cad(
             "dbGet",
             "Get a design database object attribute (legacy).",
@@ -250,7 +250,7 @@ def cadence_command_specs() -> tuple[CommandSpec, ...]:
             "Access shape data from the design database (legacy).",
             "dbShape ?-shape type? ?-net net_name?",
         ),
-        # --- Power ---
+        # Power
         _cad("report_area", "Report design area.", "report_area ?-physical? ?-verbose?"),
         _cad(
             "report_power",

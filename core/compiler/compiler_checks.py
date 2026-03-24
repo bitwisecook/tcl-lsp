@@ -23,6 +23,7 @@ from ..commands.registry.runtime import (
     arg_indices_for_role,
     iter_body_arguments,
 )
+from ..common.codes import diag
 from ..common.dialect import active_dialect
 from ..common.ranges import position_from_relative, range_from_token
 from ..parsing.argv import widen_argv_tokens_to_word_spans
@@ -47,6 +48,10 @@ from .ir import (
 from .lowering import lower_to_ir
 
 log = logging.getLogger(__name__)
+
+# Module-level registrations for codes emitted from nested/inline code.
+diag("E004", "Invalid argument count.", section="error", internal=True)
+diag("W302", "`catch` without result variable — errors are silently swallowed.", section="security")
 
 
 def _edit_distance(a: str, b: str) -> int:
@@ -552,6 +557,8 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
     return diagnostics
 
 
+@diag("E001", "Missing subcommand — e.g. bare `string` without a subcommand.", section="error")
+@diag("W001", "Unknown subcommand.", section="warning")
 def _check_arity(
     cmd_name: str,
     args: list[str],
@@ -597,6 +604,8 @@ def _check_arity(
     _check_simple_arity(cmd_name, args, sig, diag_range, diagnostics)
 
 
+@diag("E002", "Too few arguments for command.", section="error")
+@diag("E003", "Too many arguments for command.", section="error")
 def _check_simple_arity(
     display_name: str,
     args: list[str],

@@ -309,7 +309,7 @@ coverage-ext: compile $(NPM_STAMP) ## Run VS Code extension tests with coverage 
 	@echo "VS Code extension coverage report: $(COV_DIR)/vscode/index.html"
 
 # Phase targets for parallel prep-pr execution
-_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts
+_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings
 _prep-pr-tests: test-py test-opt
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
@@ -480,6 +480,16 @@ check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 	rm -rf "$$TMPDIR" && \
 	echo "Generated catalogs are up to date." || \
 	(rm -rf "$$TMPDIR" && echo "ERROR: Generated catalogs are stale — run 'make generate'" >&2 && exit 1)
+
+# Generated editor settings from code registry
+
+gen-editor-settings: $(UV_STAMP) ## Regenerate editor diagnostic/optimiser settings from code registry
+	@echo "==> Generating editor settings from code registry"
+	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_editor_settings.py
+
+check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
+	@echo "==> Checking editor settings are up to date"
+	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_editor_settings.py --check
 
 # Compiler Explorer (WASM GUI)
 

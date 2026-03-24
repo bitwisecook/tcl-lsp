@@ -252,7 +252,7 @@ class BackgroundScanner:
     def remove_bigip_config(self, uri: str) -> None:
         self._bigip_configs.pop(uri, None)
 
-    # --- APL model caching ---
+    # APL model caching
 
     @property
     def apl_models(self) -> dict[str, AplModel]:

@@ -1253,7 +1253,7 @@ def _annotate_path(
     cmd = path["action"]["command"]
     conditions = path["conditions"]
 
-    # --- Priority ---
+    # Priority
     if cmd in _SECURITY_ACTIONS:
         path["priority"] = "high"
     elif cmd in _ROUTING_ACTIONS:
@@ -1277,7 +1277,7 @@ def _annotate_path(
             if path["priority"] == "low":
                 path["priority"] = "normal"
 
-    # --- Taint warnings relevant to the action command ---
+    # Taint warnings relevant to the action command
     relevant_taints = []
     for tw in taint_warnings:
         sink = tw.get("sink_command", "")
@@ -1289,7 +1289,7 @@ def _annotate_path(
                 path["priority"] = "high"
     path["taint_warnings"] = relevant_taints
 
-    # --- Generate questions for the agentic loop ---
+    # Generate questions for the agentic loop
     path["questions"] = _generate_path_questions(path)
 
 

@@ -289,9 +289,7 @@ def _try_fold_call_args(
         fold_map[content] = folded
 
 
-# ---------------------------------------------------------------------------
 # Dead-set elimination
-# ---------------------------------------------------------------------------
 
 # Matches `set varname value` as a full command (with possible leading whitespace).
 # Handles braced {…} and quoted "…" values that may contain semicolons.
@@ -365,9 +363,7 @@ def _eliminate_dead_sets(source: str, folded_vars: set[str]) -> tuple[str, int]:
     return source, removals
 
 
-# ---------------------------------------------------------------------------
 # Pure command evaluation
-# ---------------------------------------------------------------------------
 
 # Supported pure commands that we can evaluate at compile time.
 _PURE_STRING_SUBCMDS = frozenset(
@@ -610,9 +606,7 @@ def _parse_var_ref(text: str, pos: int) -> tuple[int, str | None]:
     return end, text[start:end]
 
 
-# ---------------------------------------------------------------------------
 # Pure command evaluators
-# ---------------------------------------------------------------------------
 
 
 def _eval_string_subcmd(subcmd: str, args: list[str]) -> str | None:
@@ -773,9 +767,7 @@ def _tcl_list_element(value: str) -> str:
     return "".join(out)
 
 
-# ---------------------------------------------------------------------------
 # String folding core
-# ---------------------------------------------------------------------------
 
 
 def _fold_string_via_sccp(
@@ -884,9 +876,7 @@ def _find_cmd_end(content: str, start: int) -> int | None:
     return pos - 1  # Position of the closing ].
 
 
-# ---------------------------------------------------------------------------
 # Interprocedural constant lookup
-# ---------------------------------------------------------------------------
 
 
 def _interproc_var_constant(
@@ -910,9 +900,7 @@ def _interproc_var_constant(
     return None
 
 
-# ---------------------------------------------------------------------------
 # Taint gating
-# ---------------------------------------------------------------------------
 
 
 def _has_unsafe_tainted_inputs(
@@ -954,9 +942,7 @@ def _has_unsafe_tainted_inputs(
     return False
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _braces_balanced(text: str) -> bool:

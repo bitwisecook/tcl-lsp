@@ -6,6 +6,7 @@ import re
 
 from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import canonical_list_commands
+from ...common.codes import diag
 from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import Diagnostic, Severity
@@ -19,6 +20,7 @@ from ._helpers import (
 # W101: eval with string concatenation
 
 
+@diag("W101", "`eval` with string concatenation — code injection risk.", section="security")
 def check_eval_string_concat(
     cmd_name: str,
     args: list[str],
@@ -75,6 +77,7 @@ def check_eval_string_concat(
 # W102: subst on variable input
 
 
+@diag("W102", "`subst` on variable input — code injection risk.", section="security")
 def check_subst_injection(
     cmd_name: str,
     args: list[str],
@@ -139,6 +142,7 @@ def check_subst_injection(
 # W309: eval/uplevel with subst -- double substitution
 
 
+@diag("W309", "`eval`/`uplevel` with `subst` — double substitution risk.", section="security")
 def check_eval_subst_double_decode(
     cmd_name: str,
     args: list[str],
@@ -227,6 +231,7 @@ def _is_list_command_token(tok: Token) -> bool:
 # W301: uplevel with string-built script
 
 
+@diag("W301", "`uplevel` with string-built script — injection risk.", section="security")
 def check_uplevel_injection(
     cmd_name: str,
     args: list[str],
@@ -306,6 +311,7 @@ def check_uplevel_injection(
 # W103: open with pipeline (|) from variable
 
 
+@diag("W103", "`open` with pipeline `|` — command injection risk.", section="security")
 def check_open_pipeline(
     cmd_name: str,
     args: list[str],
@@ -380,6 +386,7 @@ def check_open_pipeline(
 # W300: source with variable argument
 
 
+@diag("W300", "`source` with variable argument — code execution risk.", section="security")
 def check_source_variable(
     cmd_name: str,
     args: list[str],
@@ -442,6 +449,7 @@ _REDOS_PATTERN = re.compile(
 )
 
 
+@diag("W303", "Regexp vulnerable to catastrophic backtracking (ReDoS).", section="security")
 def check_redos(
     cmd_name: str,
     args: list[str],
@@ -497,6 +505,7 @@ def _is_literal_value(tok: Token, text: str) -> bool:
     )
 
 
+@diag("W310", "Hardcoded credentials in source.", section="security", internal=True)
 def check_hardcoded_credentials(
     cmd_name: str,
     args: list[str],
@@ -568,6 +577,7 @@ def check_hardcoded_credentials(
 # W312: interp eval / interp invokehidden injection
 
 
+@diag("W312", "`interp eval` injection risk.", section="security", internal=True)
 def check_interp_eval_injection(
     cmd_name: str,
     args: list[str],
@@ -657,6 +667,7 @@ def check_interp_eval_injection(
 # W313: Destructive file operations with tainted path
 
 
+@diag("W313", "Encoding mismatch.", section="security", internal=True)
 def check_destructive_file_ops(
     cmd_name: str,
     args: list[str],

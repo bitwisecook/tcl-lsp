@@ -35,6 +35,10 @@ This folder contains small, searchable Knowledge-Centered Service (KCS) notes.
 - [kcs-screenshot-sample-authoring.md](kcs-screenshot-sample-authoring.md) — conventions for screenshot sample files and cursor marker comments.
 - [kcs-irule-test-framework.md](kcs-irule-test-framework.md) — iRule Event Orchestrator: TMM simulation, command mocks, assertion DSL, Python bridge.
 
+## Configuration
+
+- [kcs-xdg-config.md](kcs-xdg-config.md) — XDG config file reference (`~/.config/tcl-lsp/config.ini`): sections, keys, precedence, and export command.
+
 ## Compiler architecture decomposition
 
 - [compiler/README.md](compiler/README.md) — compiler-specific KCS landing page.

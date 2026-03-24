@@ -26,9 +26,7 @@ from enum import Enum, auto
 from .ir import IRBarrier, IRCall, IRStatement
 from .ssa import BlockName, SSAFunction
 
-# ---------------------------------------------------------------------------
 # Memory location model
-# ---------------------------------------------------------------------------
 
 
 class MemoryLocationKind(Enum):
@@ -96,9 +94,7 @@ class AliasSet:
         return frozenset(loc.name for loc in self.locations)
 
 
-# ---------------------------------------------------------------------------
 # Memory-SSA versions
-# ---------------------------------------------------------------------------
 
 
 class MemoryOpKind(Enum):
@@ -180,9 +176,7 @@ class MemorySSAFunction:
         return self._count_clobbers
 
 
-# ---------------------------------------------------------------------------
 # Alias detection
-# ---------------------------------------------------------------------------
 
 
 def _detect_upvar(stmt: IRStatement) -> list[tuple[str, str]]:

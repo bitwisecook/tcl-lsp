@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from core.common.codes import opt
+
 from ...commands.registry.runtime import ArgRole, arg_indices_for_role
 from ...common.dialect import active_dialect
 from ...common.naming import (
@@ -40,6 +42,21 @@ from ._helpers import (
     _resolve_summary_proc_name,
 )
 from ._types import Optimisation, PassContext
+
+# O-code registrations for codes primarily emitted from this module
+opt("O102", "Fold constant `[expr {...}]` command substitutions.")
+opt("O103", "Fold static procedure calls using interprocedural summaries.")
+opt(
+    "O105",
+    "Propagate constants into variable references and detect redundant computations (GVN/CSE).",
+)
+opt("O110", "Canonicalise expressions (InstCombine).")
+opt("O111", "Brace expression performance hints (paired with W100).")
+opt("O113", "Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`).")
+opt("O116", "Fold constant `[list a b c]` to literal value.")
+opt("O117", 'Simplify `[string length $s] == 0` → `$s eq ""`.')
+opt("O118", "Fold constant `[lindex {a b c} 1]` to element.")
+opt("O120", "Prefer `eq`/`ne` over `==`/`!=` for string comparisons.")
 
 
 def optimise_expression_args(

@@ -231,7 +231,7 @@ class _ExpressionsMixin:
         normal terminator emission).
         """
 
-        term = blk.terminator  # type: ignore[attr-defined]
+        term = blk.terminator  # type: ignore[attr-defined, unresolved-attribute]
         if not isinstance(term, CFGBranch):
             return False
 

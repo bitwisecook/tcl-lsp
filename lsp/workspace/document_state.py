@@ -226,7 +226,7 @@ class DocumentState:
                 and i < len(self._chunk_caches)
                 and self._chunk_caches[i] is not None
             ):
-                self._chunk_caches[i].semantic_tokens_abs = tokens  # type: ignore[union-attr]
+                self._chunk_caches[i].semantic_tokens_abs = tokens  # type: ignore[union-attr, invalid-assignment]
 
     def get_deep_diag_proc_key(self) -> frozenset[tuple[str, int]]:
         """Compute the identity key for deep diagnostic caching.

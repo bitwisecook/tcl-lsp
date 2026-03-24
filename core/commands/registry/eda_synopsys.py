@@ -36,7 +36,7 @@ def _syn(
 def synopsys_command_specs() -> tuple[CommandSpec, ...]:
     """Return Synopsys-specific command specs."""
     return (
-        # --- Design entry ---
+        # Design entry
         _syn(
             "analyze",
             "Analyze HDL source files for syntax and semantic errors.",
@@ -60,7 +60,7 @@ def synopsys_command_specs() -> tuple[CommandSpec, ...]:
         _syn("read_ddc", "Read a Synopsys DDC database.", "read_ddc file_name", Arity(1, 1)),
         _syn("read_db", "Read a .db technology library.", "read_db file_name", Arity(1, 1)),
         _syn("read_sdc", "Read SDC constraint file.", "read_sdc ?-echo? file_name", Arity(1)),
-        # --- Design navigation ---
+        # Design navigation
         _syn("link", "Link the current design to library cells.", "link ?-force?"),
         _syn(
             "uniquify",
@@ -82,7 +82,7 @@ def synopsys_command_specs() -> tuple[CommandSpec, ...]:
             "Navigate into a hierarchical instance.",
             "current_instance ?instance_name?",
         ),
-        # --- Compilation ---
+        # Compilation
         _syn(
             "compile",
             "Compile (synthesize) the current design.",
@@ -98,7 +98,7 @@ def synopsys_command_specs() -> tuple[CommandSpec, ...]:
             "Perform incremental netlist optimization.",
             "optimize_netlist -area",
         ),
-        # --- Writing output ---
+        # Writing output
         _syn(
             "write",
             "Write design data to a file.",
@@ -114,7 +114,7 @@ def synopsys_command_specs() -> tuple[CommandSpec, ...]:
             "Write design to file in specified format.",
             "write_file ?-format format? ?-hierarchy? ?-output file?",
         ),
-        # --- Variables & environment ---
+        # Variables & environment
         _syn(
             "set_app_var",
             "Set a Synopsys application variable.",
@@ -127,7 +127,7 @@ def synopsys_command_specs() -> tuple[CommandSpec, ...]:
             "Configure multi-core and host settings.",
             "set_host_options ?-max_cores n?",
         ),
-        # --- Reporting ---
+        # Reporting
         _syn(
             "report_cell",
             "Report cell-level information.",
@@ -152,7 +152,7 @@ def synopsys_command_specs() -> tuple[CommandSpec, ...]:
             "Report clock gating statistics.",
             "report_clock_gating ?-nosplit? ?-verbose?",
         ),
-        # --- Design checks ---
+        # Design checks
         _syn(
             "check_design",
             "Check the design for consistency problems.",
@@ -163,28 +163,28 @@ def synopsys_command_specs() -> tuple[CommandSpec, ...]:
             "Check libraries for consistency issues.",
             "check_library ?library_list?",
         ),
-        # --- Clock gating ---
+        # Clock gating
         _syn(
             "set_clock_gating_style",
             "Specify clock gating implementation style.",
             "set_clock_gating_style ?-sequential_cell cell_type? ?-positive_edge_logic gate_type? ?-negative_edge_logic gate_type? ?-control_point before|after? ?-control_signal scan_enable? ?-minimum_bitwidth n? ?-max_fanout n?",
         ),
         _syn("insert_clock_gating", "Insert clock gating logic.", "insert_clock_gating ?-global?"),
-        # --- DFT (Design For Test) ---
+        # DFT (Design For Test)
         _syn(
             "set_scan_configuration",
             "Configure scan chain parameters.",
             "set_scan_configuration ?-chain_count n? ?-clock_mixing mix_type? ?-style style?",
         ),
         _syn("insert_dft", "Insert DFT structures (scan chains).", "insert_dft"),
-        # --- Operating conditions ---
+        # Operating conditions
         _syn(
             "set_operating_conditions",
             "Set operating conditions for timing.",
             "set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?",
         ),
         _syn("set_technology", "Set the target technology.", "set_technology ?technology?"),
-        # --- Netlist editing (ECO) ---
+        # Netlist editing (ECO)
         _syn(
             "create_port",
             "Create a new port in the design.",
@@ -232,7 +232,7 @@ def synopsys_command_specs() -> tuple[CommandSpec, ...]:
             "Characterize a subdesign for context-dependent optimization.",
             "characterize ?-constraints? instance_list",
         ),
-        # --- Physical (ICC2) ---
+        # Physical (ICC2)
         _syn(
             "read_def",
             "Read a DEF file.",
@@ -270,7 +270,7 @@ def synopsys_command_specs() -> tuple[CommandSpec, ...]:
         ),
         _syn("report_congestion", "Report routing congestion.", "report_congestion ?-nosplit?"),
         _syn("report_design", "Report design summary.", "report_design ?-nosplit? ?-verbose?"),
-        # --- PrimeTime ---
+        # PrimeTime
         _syn("update_timing", "Update timing in the design.", "update_timing ?-full?"),
         _syn(
             "report_analysis_coverage",
@@ -292,7 +292,7 @@ def synopsys_command_specs() -> tuple[CommandSpec, ...]:
             "Report delay calculation details.",
             "report_delay_calculation ?-from from_pin? ?-to to_pin?",
         ),
-        # --- Formality ---
+        # Formality
         _syn(
             "set_reference_design",
             "Set the reference design for formal verification.",

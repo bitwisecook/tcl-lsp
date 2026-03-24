@@ -42,9 +42,7 @@ if TYPE_CHECKING:
     pass
 
 
-# ---------------------------------------------------------------------------
 # Enums
-# ---------------------------------------------------------------------------
 
 
 class StorageType(Enum):
@@ -69,7 +67,7 @@ class StorageType(Enum):
 class StorageScope(Enum):
     """Where the data resides at runtime."""
 
-    # --- Tcl-universal scopes ---
+    # Tcl-universal scopes
 
     PROC_LOCAL = auto()
     """Local variable inside the current procedure."""
@@ -83,7 +81,7 @@ class StorageScope(Enum):
     UPVAR = auto()
     """Aliased from a caller's frame via ``upvar``/``uplevel``."""
 
-    # --- F5 iRules-specific scopes ---
+    # F5 iRules-specific scopes
 
     EVENT = auto()
     """iRules event-scoped state (stable within a single event handler).
@@ -119,7 +117,7 @@ class StorageScope(Enum):
     DATA_GROUP = auto()
     """F5 data group / class (read-only at runtime, ``class`` command)."""
 
-    # --- External I/O scopes ---
+    # External I/O scopes
 
     FILE_SYSTEM = auto()
     """File on disk (``open``/``puts``/``read``/``close``)."""
@@ -160,12 +158,12 @@ class SideEffectTarget(Enum):
     and :class:`ConnectionSide` for the full picture.
     """
 
-    # --- Variable mutation ---
+    # Variable mutation
 
     VARIABLE = auto()
     """Tcl variable read or write (``set``, ``incr``, ``append``, etc.)."""
 
-    # --- F5 iRules data stores ---
+    # F5 iRules data stores
 
     SESSION_TABLE = auto()
     """Session table entry (``table set/add/lookup/delete``)."""
@@ -176,7 +174,7 @@ class SideEffectTarget(Enum):
     DATA_GROUP = auto()
     """Data group / class lookup (``class match/search/lookup``)."""
 
-    # --- HTTP state ---
+    # HTTP state
 
     HTTP_HEADER = auto()
     """HTTP header read/write (``HTTP::header``)."""
@@ -199,7 +197,7 @@ class SideEffectTarget(Enum):
     HTTP2_STATE = auto()
     """HTTP/2 protocol state (``HTTP2::enable``, ``HTTP2::disable``, ``HTTP2::stream``, etc.)."""
 
-    # --- Response lifecycle ---
+    # Response lifecycle
 
     RESPONSE_COMMIT = auto()
     """Commits or sends an HTTP response (``HTTP::respond``, ``HTTP::redirect``)."""
@@ -207,7 +205,7 @@ class SideEffectTarget(Enum):
     CONNECTION_CONTROL = auto()
     """Connection-level action: drop, reject, discard, forward."""
 
-    # --- Transport / TLS ---
+    # Transport / TLS
 
     TCP_STATE = auto()
     """TCP connection state (``TCP::close``, ``TCP::collect``, etc.)."""
@@ -218,7 +216,7 @@ class SideEffectTarget(Enum):
     UDP_STATE = auto()
     """UDP datagram state."""
 
-    # --- Load balancing ---
+    # Load balancing
 
     POOL_SELECTION = auto()
     """Pool or pool member selection (``pool``, ``LB::select``)."""
@@ -229,7 +227,7 @@ class SideEffectTarget(Enum):
     SNAT_SELECTION = auto()
     """SNAT address selection (``snat``, ``snatpool``)."""
 
-    # --- External I/O ---
+    # External I/O
 
     FILE_IO = auto()
     """File system read/write (``open``, ``puts``, ``read``, ``close``)."""
@@ -243,12 +241,12 @@ class SideEffectTarget(Enum):
     STREAM_PROFILE = auto()
     """Content rewriting via stream profile (``STREAM::``, ``REWRITE::``, ``COMPRESS::``).."""
 
-    # --- DNS ---
+    # DNS
 
     DNS_STATE = auto()
     """DNS message state (``DNS::header``, ``DNS::answer``, ``DNS::question``, etc.)."""
 
-    # --- Classification / DoS ---
+    # Classification / DoS
 
     CLASSIFICATION_STATE = auto()
     """Traffic classification state (``CLASSIFY::``, ``CLASSIFICATION::``).."""
@@ -256,7 +254,7 @@ class SideEffectTarget(Enum):
     DOSL7_STATE = auto()
     """Layer 7 DoS protection state (``DOSL7::``).."""
 
-    # --- Flow / connection management ---
+    # Flow / connection management
 
     FLOW_STATE = auto()
     """Flow object state (``FLOW::create_related``, ``FLOW::idle_timeout``, etc.)."""
@@ -264,7 +262,7 @@ class SideEffectTarget(Enum):
     LSN_STATE = auto()
     """Large Scale NAT state (``LSN::address``, ``LSN::persistence``, etc.)."""
 
-    # --- Application protocols ---
+    # Application protocols
 
     FTP_STATE = auto()
     """FTP protocol state (``FTP::enable``, ``FTP::port``, etc.)."""
@@ -275,12 +273,12 @@ class SideEffectTarget(Enum):
     MESSAGE_STATE = auto()
     """Message routing state (``MESSAGE::field``, ``MR::message``, etc.)."""
 
-    # --- Statistics ---
+    # Statistics
 
     ISTATS = auto()
     """Internal statistics counters (``ISTATS::set``, ``ISTATS::incr``, etc.)."""
 
-    # --- F5 security / policy ---
+    # F5 security / policy
 
     APM_STATE = auto()
     """Access Policy Manager state (``ACCESS::session``, ``ACCESS::policy``, etc.)."""
@@ -288,12 +286,12 @@ class SideEffectTarget(Enum):
     ASM_STATE = auto()
     """Application Security Manager state (``ASM::enable``, ``ASM::disable``, etc.)."""
 
-    # --- F5 configuration (iApps) ---
+    # F5 configuration (iApps)
 
     BIGIP_CONFIG = auto()
     """BIG-IP configuration change (iApps ``iapp::conf``, ``tmsh::`` commands, ``PROFILE::`` reads)."""
 
-    # --- Interpreter state ---
+    # Interpreter state
 
     PROC_DEFINITION = auto()
     """Defines or removes a procedure (``proc``, ``rename``)."""
@@ -304,15 +302,13 @@ class SideEffectTarget(Enum):
     INTERP_STATE = auto()
     """Interpreter-level state (``interp``, ``package``, ``load``)."""
 
-    # --- Catch-all ---
+    # Catch-all
 
     UNKNOWN = auto()
     """Target cannot be determined statically."""
 
 
-# ---------------------------------------------------------------------------
 # Coarse effect regions (legacy bridge for GVN / interprocedural)
-# ---------------------------------------------------------------------------
 
 
 class EffectRegion(IntFlag):
@@ -356,9 +352,7 @@ def _target_to_region(target: SideEffectTarget, scope: StorageScope) -> EffectRe
             return EffectRegion.UNKNOWN_STATE
 
 
-# ---------------------------------------------------------------------------
 # Dataclasses
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
@@ -508,9 +502,7 @@ class CommandSideEffects:
         return reads, writes
 
 
-# ---------------------------------------------------------------------------
 # Classification
-# ---------------------------------------------------------------------------
 
 # Pure results cached for reuse.
 _PURE = CommandSideEffects(pure=True, deterministic=True)
@@ -539,7 +531,7 @@ def _storage_type_for_command(command: str, args: tuple[str, ...]) -> StorageTyp
 
     st = storage_type_commands().get(command)
     if st is not None:
-        return st  # type: ignore[return-value]
+        return st  # type: ignore[return-value, invalid-return-type]
     return StorageType.SCALAR
 
 
@@ -582,7 +574,7 @@ def classify_side_effects(
     Returns:
         A :class:`CommandSideEffects` instance describing all side effects.
     """
-    # --- Interprocedural summary shortcut ---
+    # Interprocedural summary shortcut
     if callee_summary is not None:
         reads = EffectRegion(int(getattr(callee_summary, "effect_reads", 0)))
         writes = EffectRegion(int(getattr(callee_summary, "effect_writes", 0)))
@@ -641,7 +633,7 @@ def classify_side_effects(
     lookup_dialect = "f5-irules" if dialect == "irules" else dialect
     spec = REGISTRY.get(command, lookup_dialect) or REGISTRY.get_any(command)
 
-    # --- Dynamic barriers are unknowable ---
+    # Dynamic barriers are unknowable
     if REGISTRY.is_dynamic_barrier(command):
         return CommandSideEffects(
             effects=(SideEffect(target=SideEffectTarget.UNKNOWN, reads=True, writes=True),),
@@ -649,24 +641,24 @@ def classify_side_effects(
             dialect=dialect,
         )
 
-    # --- Resolve subcommand ---
+    # Resolve subcommand
     effective_sub = subcommand or (args[0] if args else None)
     sub_spec = None
     if spec is not None and effective_sub is not None:
         sub_spec = spec.subcommands.get(effective_sub)
 
-    # --- Look up registry hints ---
+    # Look up registry hints
     # Hints provide *target* and *connection_side* (the "what" and "where").
     # Heuristics below provide *runtime shape*: key, scope, storage_type,
     # pure flag, arity-dependent read/write.  The two are complementary.
     hints = REGISTRY.side_effect_hints(command, effective_sub, dialect)
     _hint = hints[0] if hints else None
 
-    # --- Special-case: expr is pure when braced (the common/recommended case) ---
+    # Special-case: expr is pure when braced (the common/recommended case)
     if command == "expr":
         return CommandSideEffects(pure=True, deterministic=True, dialect=dialect)
 
-    # --- Form-aware resolution ---
+    # Form-aware resolution
     # When a command or subcommand has structured forms (getter/setter),
     # resolve the matching form by arity and use its purity/mutator/hints.
     resolved_form = None
@@ -685,7 +677,7 @@ def classify_side_effects(
         _hint = resolved_form.side_effect_hints[0]
         hints = resolved_form.side_effect_hints
 
-    # --- Check purity first ---
+    # Check purity first
     is_pure = REGISTRY.is_pure(command)
     if not is_pure and sub_spec is not None:
         is_pure = sub_spec.pure
@@ -739,7 +731,7 @@ def classify_side_effects(
             )
         return CommandSideEffects(pure=True, deterministic=True, dialect=dialect)
 
-    # --- Variable-assigning commands ---
+    # Variable-assigning commands
     if spec is not None and spec.assigns_variable_at is not None:
         idx = spec.assigns_variable_at
         if idx < len(args):
@@ -783,14 +775,14 @@ def classify_side_effects(
             dialect=dialect,
         )
 
-    # --- Protocol namespace commands (HTTP::, SSL::, TCP::, etc.) ---
+    # Protocol namespace commands (HTTP::, SSL::, TCP::, etc.)
     protocol_ns = _extract_protocol_namespace(command)
     if protocol_ns:
         return _classify_protocol_ns_command(
             command, args, effective_sub, sub_spec, protocol_ns, dialect, _hint
         )
 
-    # --- Procedure definition ---
+    # Procedure definition
     if spec is not None and spec.defines_procedure:
         return CommandSideEffects(
             effects=(
@@ -804,20 +796,18 @@ def classify_side_effects(
             dialect=dialect,
         )
 
-    # --- Hints-first: use structured registry hints when available ---
+    # Hints-first: use structured registry hints when available
     if hints:
         return CommandSideEffects(effects=hints, dialect=dialect)
 
-    # --- Fallback: conservative unknown ---
+    # Fallback: conservative unknown
     return CommandSideEffects(
         effects=(SideEffect(target=SideEffectTarget.UNKNOWN, reads=True, writes=True),),
         dialect=dialect,
     )
 
 
-# ---------------------------------------------------------------------------
 # Protocol namespace helper
-# ---------------------------------------------------------------------------
 
 
 def _classify_protocol_ns_command(

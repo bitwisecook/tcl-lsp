@@ -18,6 +18,7 @@ from ..analysis.semantic_model import (
     Severity,
 )
 from ..commands.registry import REGISTRY
+from ..common.codes import diag
 from .common import (
     GEOMETRY_COMMANDS as _GEOMETRY_COMMANDS,
 )
@@ -30,6 +31,10 @@ from .common import (
 from .common import (
     parent_widget_path as _parent_path,
 )
+
+diag("TK1001", "Tk widget command validation.", section="warning", internal=True)
+diag("TK1002", "Tk geometry manager validation.", section="warning", internal=True)
+diag("TK1003", "Tk event binding validation.", section="warning", internal=True)
 
 
 def check_tk_diagnostics(

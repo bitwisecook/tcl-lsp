@@ -188,7 +188,9 @@ def _check_results(
     test_file: str,
 ) -> None:
     """Assert that failures are exactly the known set."""
-    failed_set = set(results["failed_tests"])  # type: ignore[arg-type]
+    failed_tests = results["failed_tests"]
+    assert isinstance(failed_tests, list)
+    failed_set = set(failed_tests)
     total = results["Total"]
     passed = results["Passed"]
     skipped = results["Skipped"]

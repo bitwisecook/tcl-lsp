@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...common.codes import opt
 from ..cfg import CFGBranch
 from ..expr_ast import BinOp, ExprBinary, vars_in_expr_node
 from ._expr_simplify import (
@@ -19,6 +20,10 @@ from ._helpers import (
 )
 from ._propagation import _substitute_expr_proc_calls
 from ._types import Optimisation, PassContext
+
+opt("O100", "Propagate constant variables into expressions and command arguments.")
+opt("O101", "Fold constant integer expressions.")
+opt("O115", "Remove redundant nested `[expr {...}]` in expression context.")
 
 
 def optimise_branch_proc_calls(

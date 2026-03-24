@@ -27,9 +27,7 @@ from .apl_parser import _FIELD_TYPE_KEYWORDS
 
 log = logging.getLogger(__name__)
 
-# --------------------------------------------------------------------------- #
 # Data model
-# --------------------------------------------------------------------------- #
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,9 +94,7 @@ class AplModel:
         return result
 
 
-# --------------------------------------------------------------------------- #
 # Regex patterns for structural parsing
-# --------------------------------------------------------------------------- #
 
 # section <name> {
 _SECTION_DECL_RE = re.compile(r"^\s*section\s+(\S+)\s*\{", re.MULTILINE)
@@ -117,9 +113,7 @@ _INCLUDE_RE = re.compile(r'^\s*#include\s+"([^"]+)"', re.MULTILINE)
 _REQUIRED_RE = re.compile(r"\brequired\b")
 
 
-# --------------------------------------------------------------------------- #
 # APL parsing
-# --------------------------------------------------------------------------- #
 
 
 def _parse_fields_in_block(
@@ -243,9 +237,7 @@ def parse_apl(source: str) -> AplModel:
     return model
 
 
-# --------------------------------------------------------------------------- #
 # #include resolution
-# --------------------------------------------------------------------------- #
 
 
 def resolve_apl_includes(
@@ -314,9 +306,7 @@ def resolve_apl_includes(
     return model
 
 
-# --------------------------------------------------------------------------- #
 # Tcl variable mapping
-# --------------------------------------------------------------------------- #
 
 
 def tcl_var_to_apl_name(tcl_var: str) -> str | None:

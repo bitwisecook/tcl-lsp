@@ -30,7 +30,7 @@ def _default_ctx(**overrides) -> SnippetContext:
         partial="",
     )
     defaults.update(overrides)
-    return SnippetContext(**defaults)  # type: ignore[arg-type]
+    return SnippetContext(**defaults)  # type: ignore[arg-type, invalid-argument-type]
 
 
 def _labels(items: list[types.CompletionItem]) -> list[str]:

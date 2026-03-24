@@ -22,6 +22,7 @@ from ..commands.registry.runtime import (
     iter_body_arguments,
 )
 from ..commands.registry.signatures import Arity
+from ..common.codes import diag
 from ..common.dialect import active_dialect
 from ..common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
@@ -66,6 +67,40 @@ from .semantic_model import (
 )
 
 log = logging.getLogger(__name__)
+
+# Module-level registrations for codes emitted from class methods.
+diag("E200", "Shimmer parse error — internal representation cannot be determined.", section="error")
+diag("E101", "Syntax error — unclosed bracket.", section="error", internal=True)
+diag("E103", "Syntax error — unexpected token.", section="error", internal=True)
+diag(
+    "H300",
+    "Possible paste error — repeated assignment to same variable with same value.",
+    section="hint",
+)
+diag("W113", "Procedure shadows built-in command.", section="warning")
+diag("W210", "Variable read before set.", section="variable")
+diag("W211", "Variable set but never used.", section="variable")
+diag(
+    "W213",
+    "Variable may not exist — use `unset -nocomplain` to suppress the error.",
+    section="variable",
+)
+diag(
+    "W214",
+    "Unused proc parameter — argument is declared but never read in the procedure body.",
+    section="variable",
+)
+diag("W220", "Dead store — variable set but overwritten before use.", section="variable")
+diag(
+    "IRULE4005",
+    "Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
+    section="irules_variable",
+)
+diag(
+    "IRULE5005",
+    "Direct proc invocation without `call` — use `call proc_name`.",
+    section="irules",
+)
 
 # Short names: d = Diagnostic, m = regex Match, r = Range,
 # s = Scope, t = Token, p = ParamDef.

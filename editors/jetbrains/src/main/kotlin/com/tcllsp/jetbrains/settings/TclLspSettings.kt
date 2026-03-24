@@ -62,18 +62,52 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var formattingLineEnding: String = "lf"
     var formattingEnsureFinalNewline: Boolean = true
 
-    // Diagnostics — Errors
-
+    // @generated:diagnostic-vars:begin
     var diagnosticE001: Boolean = true
     var diagnosticE002: Boolean = true
     var diagnosticE003: Boolean = true
     var diagnosticE200: Boolean = true
-
-    // Diagnostics — Warnings
-
+    var diagnosticH300: Boolean = true
+    var diagnosticIRULE1001: Boolean = true
+    var diagnosticIRULE1002: Boolean = true
+    var diagnosticIRULE1003: Boolean = true
+    var diagnosticIRULE1004: Boolean = true
+    var diagnosticIRULE1005: Boolean = true
+    var diagnosticIRULE1006: Boolean = true
+    var diagnosticIRULE1007: Boolean = true
+    var diagnosticIRULE1008: Boolean = true
+    var diagnosticIRULE1201: Boolean = true
+    var diagnosticIRULE1202: Boolean = true
+    var diagnosticIRULE2001: Boolean = true
+    var diagnosticIRULE2002: Boolean = true
+    var diagnosticIRULE2003: Boolean = true
+    var diagnosticIRULE2101: Boolean = true
+    var diagnosticIRULE3001: Boolean = true
+    var diagnosticIRULE3002: Boolean = true
+    var diagnosticIRULE3003: Boolean = true
+    var diagnosticIRULE3101: Boolean = true
+    var diagnosticIRULE3102: Boolean = true
+    var diagnosticIRULE4001: Boolean = true
+    var diagnosticIRULE4002: Boolean = true
+    var diagnosticIRULE4003: Boolean = true
+    var diagnosticIRULE4004: Boolean = true
+    var diagnosticIRULE4005: Boolean = true
+    var diagnosticIRULE5001: Boolean = true
+    var diagnosticIRULE5002: Boolean = true
+    var diagnosticIRULE5004: Boolean = true
+    var diagnosticIRULE5005: Boolean = true
+    var diagnosticS100: Boolean = true
+    var diagnosticS101: Boolean = true
+    var diagnosticS102: Boolean = true
+    var diagnosticT100: Boolean = true
+    var diagnosticT101: Boolean = true
+    var diagnosticT102: Boolean = true
     var diagnosticW001: Boolean = true
     var diagnosticW002: Boolean = true
     var diagnosticW100: Boolean = true
+    var diagnosticW101: Boolean = true
+    var diagnosticW102: Boolean = true
+    var diagnosticW103: Boolean = true
     var diagnosticW104: Boolean = true
     var diagnosticW105: Boolean = true
     var diagnosticW106: Boolean = true
@@ -94,18 +128,23 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW212: Boolean = true
     var diagnosticW213: Boolean = true
     var diagnosticW214: Boolean = true
+    var diagnosticW220: Boolean = true
+    var diagnosticW300: Boolean = true
+    var diagnosticW301: Boolean = true
     var diagnosticW302: Boolean = true
+    var diagnosticW303: Boolean = true
     var diagnosticW304: Boolean = true
+    var diagnosticW306: Boolean = true
     var diagnosticW307: Boolean = true
     var diagnosticW308: Boolean = true
     var diagnosticW309: Boolean = true
+    // @generated:diagnostic-vars:end
 
     // Style
 
     var styleLineLength: Int = 120
 
-    // Optimiser
-
+    // @generated:optimiser-vars:begin
     var optimiserEnabled: Boolean = true
     var optimiserO100: Boolean = true
     var optimiserO101: Boolean = true
@@ -134,14 +173,31 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var optimiserO124: Boolean = true
     var optimiserO125: Boolean = true
     var optimiserO126: Boolean = true
+    // @generated:optimiser-vars:end
 
     // Shimmer
 
     var shimmerEnabled: Boolean = true
 
+    // XC Diagnostics
+
+    var xcDiagnosticsEnabled: Boolean = false
+
     // Runtime Validation
 
     var runtimeValidationEnabled: Boolean = false
+    var runtimeValidationAdapter: String = "auto"
+    var runtimeValidationTclshPath: String = ""
+    var runtimeValidationTimeoutMs: Int = 5000
+
+    // AI
+
+    var aiEnabled: Boolean = false
+    var aiExtraPrompts: String = ""  // JSON array stored as string
+
+    // Diagnostic patterns
+
+    var diagnosticsGenericVariablePatterns: String = ""  // newline-separated regexes
 
     override fun getState(): TclLspSettings = this
 
@@ -207,13 +263,52 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "ensureFinalNewline" to formattingEnsureFinalNewline,
             ),
             "diagnostics" to mapOf(
+                // @generated:diagnostic-map:begin
                 "E001" to diagnosticE001,
                 "E002" to diagnosticE002,
                 "E003" to diagnosticE003,
                 "E200" to diagnosticE200,
+                "H300" to diagnosticH300,
+                "IRULE1001" to diagnosticIRULE1001,
+                "IRULE1002" to diagnosticIRULE1002,
+                "IRULE1003" to diagnosticIRULE1003,
+                "IRULE1004" to diagnosticIRULE1004,
+                "IRULE1005" to diagnosticIRULE1005,
+                "IRULE1006" to diagnosticIRULE1006,
+                "IRULE1007" to diagnosticIRULE1007,
+                "IRULE1008" to diagnosticIRULE1008,
+                "IRULE1201" to diagnosticIRULE1201,
+                "IRULE1202" to diagnosticIRULE1202,
+                "IRULE2001" to diagnosticIRULE2001,
+                "IRULE2002" to diagnosticIRULE2002,
+                "IRULE2003" to diagnosticIRULE2003,
+                "IRULE2101" to diagnosticIRULE2101,
+                "IRULE3001" to diagnosticIRULE3001,
+                "IRULE3002" to diagnosticIRULE3002,
+                "IRULE3003" to diagnosticIRULE3003,
+                "IRULE3101" to diagnosticIRULE3101,
+                "IRULE3102" to diagnosticIRULE3102,
+                "IRULE4001" to diagnosticIRULE4001,
+                "IRULE4002" to diagnosticIRULE4002,
+                "IRULE4003" to diagnosticIRULE4003,
+                "IRULE4004" to diagnosticIRULE4004,
+                "IRULE4005" to diagnosticIRULE4005,
+                "IRULE5001" to diagnosticIRULE5001,
+                "IRULE5002" to diagnosticIRULE5002,
+                "IRULE5004" to diagnosticIRULE5004,
+                "IRULE5005" to diagnosticIRULE5005,
+                "S100" to diagnosticS100,
+                "S101" to diagnosticS101,
+                "S102" to diagnosticS102,
+                "T100" to diagnosticT100,
+                "T101" to diagnosticT101,
+                "T102" to diagnosticT102,
                 "W001" to diagnosticW001,
                 "W002" to diagnosticW002,
                 "W100" to diagnosticW100,
+                "W101" to diagnosticW101,
+                "W102" to diagnosticW102,
+                "W103" to diagnosticW103,
                 "W104" to diagnosticW104,
                 "W105" to diagnosticW105,
                 "W106" to diagnosticW106,
@@ -234,16 +329,27 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W212" to diagnosticW212,
                 "W213" to diagnosticW213,
                 "W214" to diagnosticW214,
+                "W220" to diagnosticW220,
+                "W300" to diagnosticW300,
+                "W301" to diagnosticW301,
                 "W302" to diagnosticW302,
+                "W303" to diagnosticW303,
                 "W304" to diagnosticW304,
+                "W306" to diagnosticW306,
                 "W307" to diagnosticW307,
                 "W308" to diagnosticW308,
                 "W309" to diagnosticW309,
-            ),
+                // @generated:diagnostic-map:end
+            ).let { map ->
+                val patterns = diagnosticsGenericVariablePatterns
+                    .split("\n").filter { it.isNotBlank() }
+                if (patterns.isNotEmpty()) map + ("genericVariablePatterns" to patterns) else map
+            },
             "style" to mapOf(
                 "lineLength" to styleLineLength,
             ),
             "optimiser" to mapOf(
+                // @generated:optimiser-map:begin
                 "enabled" to optimiserEnabled,
                 "O100" to optimiserO100,
                 "O101" to optimiserO101,
@@ -272,12 +378,23 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "O124" to optimiserO124,
                 "O125" to optimiserO125,
                 "O126" to optimiserO126,
+                // @generated:optimiser-map:end
             ),
             "shimmer" to mapOf(
                 "enabled" to shimmerEnabled,
             ),
+            "xcDiagnostics" to mapOf(
+                "enabled" to xcDiagnosticsEnabled,
+            ),
             "runtimeValidation" to mapOf(
                 "enabled" to runtimeValidationEnabled,
+                "adapter" to runtimeValidationAdapter,
+                "tclshPath" to runtimeValidationTclshPath,
+                "timeoutMs" to runtimeValidationTimeoutMs,
+            ),
+            "ai" to mapOf(
+                "enabled" to aiEnabled,
+                "extraPrompts" to aiExtraPrompts,
             ),
         )
     }

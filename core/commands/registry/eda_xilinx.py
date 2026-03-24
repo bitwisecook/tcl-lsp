@@ -36,7 +36,7 @@ def _xil(
 def xilinx_command_specs() -> tuple[CommandSpec, ...]:
     """Return Xilinx/AMD Vivado-specific command specs."""
     return (
-        # --- Project management ---
+        # Project management
         _xil(
             "create_project",
             "Create a new Vivado project.",
@@ -75,7 +75,7 @@ def xilinx_command_specs() -> tuple[CommandSpec, ...]:
             "get_property property_name object",
             Arity(2, 2),
         ),
-        # --- Source file management ---
+        # Source file management
         _xil(
             "read_verilog",
             "Add Verilog source files to the project.",
@@ -99,7 +99,7 @@ def xilinx_command_specs() -> tuple[CommandSpec, ...]:
             Arity(1),
         ),
         _xil("read_edif", "Read an EDIF netlist file.", "read_edif file_name", Arity(1, 1)),
-        # --- Design flow ---
+        # Design flow
         _xil(
             "synth_design",
             "Run synthesis.",
@@ -143,7 +143,7 @@ def xilinx_command_specs() -> tuple[CommandSpec, ...]:
             "open_checkpoint file_name",
             Arity(1, 1),
         ),
-        # --- IP management ---
+        # IP management
         _xil(
             "create_ip",
             "Create an IP core instance.",
@@ -174,7 +174,7 @@ def xilinx_command_specs() -> tuple[CommandSpec, ...]:
             "Configure the IP cache settings.",
             "config_ip_cache ?-import_from_project? ?-clear_output_repo? ?-cache_location dir?",
         ),
-        # --- Reports ---
+        # Reports
         _xil(
             "report_timing",
             "Report timing paths.",
@@ -226,7 +226,7 @@ def xilinx_command_specs() -> tuple[CommandSpec, ...]:
             "Report design analysis metrics.",
             "report_design_analysis ?-timing? ?-logic_level_distribution? ?-file file? ?-name name?",
         ),
-        # --- Block design (IPI) ---
+        # Block design (IPI)
         _xil(
             "create_bd_design",
             "Create a block design.",
@@ -274,7 +274,7 @@ def xilinx_command_specs() -> tuple[CommandSpec, ...]:
             "apply_bd_automation -rule rule_name ?-config config?",
         ),
         _xil("validate_bd_design", "Validate the block design.", "validate_bd_design ?-force?"),
-        # --- Hardware manager ---
+        # Hardware manager
         _xil("open_hw_manager", "Open the hardware manager.", "open_hw_manager"),
         _xil(
             "connect_hw_server",
@@ -286,7 +286,7 @@ def xilinx_command_specs() -> tuple[CommandSpec, ...]:
         ),
         _xil("program_hw_devices", "Program FPGA devices.", "program_hw_devices ?device_list?"),
         _xil("close_hw_manager", "Close the hardware manager.", "close_hw_manager"),
-        # --- Run management ---
+        # Run management
         _xil(
             "launch_runs",
             "Launch synthesis or implementation runs.",
@@ -312,14 +312,14 @@ def xilinx_command_specs() -> tuple[CommandSpec, ...]:
             "create_run -flow flow ?-strategy strategy? ?-constrset constrset? ?-parent_run parent? run_name",
             Arity(1),
         ),
-        # --- Simulation ---
+        # Simulation
         _xil(
             "launch_simulation",
             "Launch a simulation.",
             "launch_simulation ?-mode mode? ?-scripts_only? ?-simset simset?",
         ),
         _xil("close_sim", "Close the current simulation.", "close_sim ?-force?"),
-        # --- IP Packager ---
+        # IP Packager
         _xil(
             "ipx::package_project",
             "Package a project as an IP core.",
