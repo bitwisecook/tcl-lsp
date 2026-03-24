@@ -153,7 +153,7 @@ def get_all_settings(
 
     result: dict[str, object] = {}
 
-    # -- [diagnostics] -------------------------------------------------------
+    # [diagnostics]
     if config.has_section("diagnostics"):
         diag: dict[str, object] = {}
         # ``disabled`` key: comma-separated codes → set each to False.
@@ -168,7 +168,7 @@ def get_all_settings(
         if diag:
             result["diagnostics"] = diag
 
-    # -- [optimiser] ---------------------------------------------------------
+    # [optimiser]
     if config.has_section("optimiser"):
         opt: dict[str, object] = {}
         if config.has_option("optimiser", "enabled"):
@@ -182,7 +182,7 @@ def get_all_settings(
         if opt:
             result["optimiser"] = opt
 
-    # -- [shimmer] -----------------------------------------------------------
+    # [shimmer]
     if config.has_section("shimmer"):
         shim: dict[str, object] = {}
         if config.has_option("shimmer", "enabled"):
@@ -192,7 +192,7 @@ def get_all_settings(
         if shim:
             result["shimmer"] = shim
 
-    # -- [xcDiagnostics] -----------------------------------------------------
+    # [xcDiagnostics]
     if config.has_section("xcDiagnostics"):
         xc: dict[str, object] = {}
         if config.has_option("xcDiagnostics", "enabled"):
@@ -202,7 +202,7 @@ def get_all_settings(
         if xc:
             result["xcDiagnostics"] = xc
 
-    # -- [features] ----------------------------------------------------------
+    # [features]
     if config.has_section("features"):
         feat: dict[str, object] = {}
         for key in config.options("features"):
@@ -213,7 +213,7 @@ def get_all_settings(
         if feat:
             result["features"] = feat
 
-    # -- [formatting] --------------------------------------------------------
+    # [formatting]
     if config.has_section("formatting"):
         fmt: dict[str, object] = {}
         for key in config.options("formatting"):
@@ -230,7 +230,7 @@ def get_all_settings(
         if fmt:
             result["formatting"] = fmt
 
-    # -- [style] -------------------------------------------------------------
+    # [style]
     if config.has_section("style"):
         sty: dict[str, object] = {}
         if config.has_option("style", "line_length"):
@@ -271,7 +271,7 @@ def save_settings_to_config(
             return True
         return default_section.get(key) != value
 
-    # -- diagnostics ---------------------------------------------------------
+    # diagnostics
     diag = settings.get("diagnostics")
     if isinstance(diag, dict):
         disabled_codes = [k for k, v in diag.items() if v is False]
@@ -287,7 +287,7 @@ def save_settings_to_config(
                 "\n    " + "\n    ".join(patterns),
             )
 
-    # -- optimiser -----------------------------------------------------------
+    # optimiser
     opt = settings.get("optimiser")
     if isinstance(opt, dict):
         items: list[tuple[str, str]] = []
@@ -302,7 +302,7 @@ def save_settings_to_config(
             for k, v in items:
                 config.set("optimiser", k, v)
 
-    # -- shimmer -------------------------------------------------------------
+    # shimmer
     shim = settings.get("shimmer")
     if isinstance(shim, dict):
         enabled = shim.get("enabled")
@@ -310,7 +310,7 @@ def save_settings_to_config(
             config.add_section("shimmer")
             config.set("shimmer", "enabled", str(enabled).lower())
 
-    # -- xcDiagnostics -------------------------------------------------------
+    # xcDiagnostics
     xc = settings.get("xcDiagnostics")
     if isinstance(xc, dict):
         enabled = xc.get("enabled")
@@ -318,7 +318,7 @@ def save_settings_to_config(
             config.add_section("xcDiagnostics")
             config.set("xcDiagnostics", "enabled", str(enabled).lower())
 
-    # -- features ------------------------------------------------------------
+    # features
     feat = settings.get("features")
     if isinstance(feat, dict):
         feat_items = [
@@ -329,7 +329,7 @@ def save_settings_to_config(
             for k, v in sorted(feat_items):
                 config.set("features", k, str(v).lower())
 
-    # -- formatting ----------------------------------------------------------
+    # formatting
     fmt = settings.get("formatting")
     if isinstance(fmt, dict):
         fmt_items = [(k, v) for k, v in fmt.items() if _differs("formatting", k, v)]
@@ -338,7 +338,7 @@ def save_settings_to_config(
             for k, v in sorted(fmt_items):
                 config.set("formatting", k, str(v) if not isinstance(v, bool) else str(v).lower())
 
-    # -- style ---------------------------------------------------------------
+    # style
     sty = settings.get("style")
     if isinstance(sty, dict):
         ll = sty.get("lineLength")

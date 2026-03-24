@@ -26,9 +26,7 @@ import jinja2
 ROOT = Path(__file__).resolve().parents[1]
 
 
-# ---------------------------------------------------------------------------
 # Optional formatter integration
-# ---------------------------------------------------------------------------
 
 
 def _format_typescript(content: str) -> str:
@@ -76,9 +74,7 @@ def _format_kotlin(content: str) -> str:
     return content
 
 
-# ---------------------------------------------------------------------------
 # Import registry (triggers all code registrations)
-# ---------------------------------------------------------------------------
 
 # Ensure core/ is importable
 if str(ROOT) not in sys.path:
@@ -92,9 +88,7 @@ from core.common.codes import (  # noqa: E402
     optimisations_sorted,
 )
 
-# ---------------------------------------------------------------------------
 # Jinja2 environment
-# ---------------------------------------------------------------------------
 
 
 def _jinja_env(template_dir: Path) -> jinja2.Environment:
@@ -120,9 +114,7 @@ def _short_label(code: str, description: str, *, escape_kotlin: bool = False) ->
     return label
 
 
-# ---------------------------------------------------------------------------
 # Generate Kotlin catalog
-# ---------------------------------------------------------------------------
 
 _JB_CATALOG_PATH = (
     ROOT
@@ -187,9 +179,7 @@ def generate_jetbrains_catalog(*, dry_run: bool = False) -> tuple[Path, str]:
     return _JB_CATALOG_PATH, content
 
 
-# ---------------------------------------------------------------------------
 # Generate TypeScript catalog
-# ---------------------------------------------------------------------------
 
 _TS_CATALOG_PATH = ROOT / "editors" / "vscode" / "src" / "generated" / "diagnosticCatalog.ts"
 
@@ -238,9 +228,7 @@ def generate_vscode_catalog(*, dry_run: bool = False) -> tuple[Path, str]:
     return _TS_CATALOG_PATH, content
 
 
-# ---------------------------------------------------------------------------
 # Generate VS Code package.json configuration sections
-# ---------------------------------------------------------------------------
 
 
 def _build_vscode_diagnostic_sections() -> list[dict]:
@@ -394,9 +382,7 @@ def generate_vscode_package_json(*, dry_run: bool = False) -> tuple[Path, str]:
     return path, result
 
 
-# ---------------------------------------------------------------------------
 # Generate README tables
-# ---------------------------------------------------------------------------
 
 _TABLES_PATH = ROOT / "docs" / "generated" / "diagnostic_tables.md"
 
@@ -434,9 +420,7 @@ def generate_readme_tables(*, dry_run: bool = False) -> tuple[Path, str]:
     return _TABLES_PATH, content
 
 
-# ---------------------------------------------------------------------------
 # Render all — used by tests and --check mode
-# ---------------------------------------------------------------------------
 
 
 def render_all(*, dry_run: bool = False) -> list[tuple[Path, str]]:
@@ -449,9 +433,7 @@ def render_all(*, dry_run: bool = False) -> list[tuple[Path, str]]:
     ]
 
 
-# ---------------------------------------------------------------------------
 # CLI
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:
