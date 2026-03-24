@@ -425,6 +425,73 @@ class TestReadBeforeSet:
         assert len(diags) >= 2
 
 
+# W210: foreach_in_collection loop variable
+
+
+class TestForeachInCollectionW210:
+    """W210 must not fire on the loop variable defined by foreach_in_collection."""
+
+    @staticmethod
+    def _setup_dialect():
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="synopsys-eda-tcl")
+
+    def test_loop_var_no_w210(self):
+        """Basic foreach_in_collection — loop var used in body → no W210."""
+        self._setup_dialect()
+        source = textwrap.dedent("""\
+            foreach_in_collection item $collection {
+                puts $item
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        item_diags = [d for d in diags if "item" in d.message]
+        assert len(item_diags) == 0
+
+    def test_issue_23_regression(self):
+        """Exact snippet from issue #23 — no W210 on 'shape'."""
+        self._setup_dialect()
+        source = textwrap.dedent("""\
+            foreach_in_collection shape $shapes {
+                set layer [get_attr $shape layer_name]
+                if {[lsearch $except_list $layer] == -1} {
+                    append_to_collection to_delete_shapes $shape
+                } else {
+                    echo Keeping shape of layer $layer
+                }
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        shape_diags = [d for d in diags if "'shape'" in d.message]
+        assert len(shape_diags) == 0
+
+    def test_genuine_undefined_var_still_warns(self):
+        """An undefined variable inside the body should still trigger W210."""
+        self._setup_dialect()
+        source = textwrap.dedent("""\
+            foreach_in_collection item $collection {
+                puts $undefined_var
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        undef_diags = [d for d in diags if "undefined_var" in d.message]
+        assert len(undef_diags) >= 1
+
+    def test_var_read_before_loop_warns(self):
+        """A variable read before foreach_in_collection that sets it should warn."""
+        self._setup_dialect()
+        source = textwrap.dedent("""\
+            puts $x
+            foreach_in_collection item $collection {
+                set x 1
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        x_diags = [d for d in diags if "'x'" in d.message]
+        assert len(x_diags) >= 1
+
+
 # W211: Unused variable
 
 

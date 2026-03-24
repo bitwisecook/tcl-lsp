@@ -975,7 +975,7 @@ class _Lowerer:
             case "while":
                 return self._lower_while(cmd, namespace=namespace)
 
-            case "foreach":
+            case "foreach" | "foreach_in_collection":
                 return self._lower_foreach(cmd, namespace=namespace)
 
             case "lmap":

@@ -1331,7 +1331,7 @@ class Analyser:
         arg_tokens: list[Token],
         scope: Scope,
     ) -> bool:
-        if cmd_name != "foreach" or len(args) < 3:
+        if cmd_name not in ("foreach", "foreach_in_collection") or len(args) < 3:
             return False
 
         tok = arg_tokens[0] if arg_tokens else None
