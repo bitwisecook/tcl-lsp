@@ -19,7 +19,12 @@ from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVEN
 from core.commands.registry.runtime import configure_signatures, is_irules_dialect
 from core.common.lsp import to_lsp_location
 from core.common.source_map import SourceMap
-from core.common.user_config import get_generic_variable_patterns, load_user_config
+from core.common.user_config import (
+    get_all_settings,
+    get_generic_variable_patterns,
+    load_user_config,
+    save_settings_to_config,
+)
 from core.compiler.optimiser import optimise_source
 from core.formatting import FormatterConfig
 from core.minifier import minify_tcl
@@ -342,8 +347,40 @@ def _normalise_formatter_settings(raw: dict) -> dict:
     return normalised
 
 
+# Keys that appear directly inside the ``tclLsp`` configuration namespace.
+# Used both for flat-key routing and for detecting unwrapped payloads from
+# clients that strip the ``tclLsp`` prefix (e.g. JetBrains, vscode-languageclient v10).
+_KNOWN_TCL_LSP_SECTIONS = frozenset(
+    {
+        "formatting",
+        "diagnostics",
+        "optimiser",
+        "shimmer",
+        "features",
+        "style",
+        "xcDiagnostics",
+        "runtimeValidation",
+        "ai",
+    }
+)
+_KNOWN_TCL_LSP_TOPLEVEL = frozenset(
+    {
+        "dialect",
+        "extraCommands",
+        "libraryPaths",
+    }
+)
+
+
 def _extract_tcl_lsp_settings(settings: dict) -> dict:
-    """Extract extension/server settings from multiple client payload shapes."""
+    """Extract extension/server settings from multiple client payload shapes.
+
+    Handles three payload formats:
+    1. Nested:   ``{"tclLsp": {"optimiser": {"O109": false}}}``
+    2. Flat:     ``{"tclLsp.optimiser.O109": false}``
+    3. Unwrapped (no ``tclLsp`` prefix — e.g. JetBrains pull-model response):
+       ``{"optimiser": {"O109": false}, "dialect": "tcl8.6"}``
+    """
     extracted: dict[str, object] = {}
 
     nested = settings.get("tclLsp")
@@ -360,7 +397,7 @@ def _extract_tcl_lsp_settings(settings: dict) -> dict:
 
         # Route dotted subkeys into nested dicts for known sections.
         section_handled = False
-        for section in ("formatting", "diagnostics", "optimiser", "shimmer", "features", "style"):
+        for section in _KNOWN_TCL_LSP_SECTIONS:
             prefix = section + "."
             if subkey.startswith(prefix):
                 section_key = subkey[len(prefix) :]
@@ -373,6 +410,16 @@ def _extract_tcl_lsp_settings(settings: dict) -> dict:
                 break
         if not section_handled:
             extracted[subkey] = value
+
+    # Fallback: detect unwrapped payloads from clients that already stripped
+    # the ``tclLsp`` prefix (e.g. workspace/configuration pull responses or
+    # JetBrains didChangeConfiguration notifications).
+    if not extracted:
+        if any(
+            isinstance(k, str) and k in _KNOWN_TCL_LSP_SECTIONS | _KNOWN_TCL_LSP_TOPLEVEL
+            for k in settings
+        ):
+            extracted.update(settings)
 
     return extracted
 
@@ -2092,6 +2139,16 @@ def on_initialized(params: types.InitializedParams) -> None:
     if user_patterns is not None:
         feature_config.generic_variable_patterns = user_patterns
 
+    # Apply all other XDG settings as baseline defaults.  Editor settings
+    # received later via ``didChangeConfiguration`` will override these.
+    xdg_settings = get_all_settings(user_config)
+    if xdg_settings:
+        formatting = xdg_settings.get("formatting")
+        if isinstance(formatting, dict) and formatting:
+            global formatter_config
+            formatter_config = FormatterConfig.from_dict(_normalise_formatter_settings(formatting))
+        _apply_feature_settings(xdg_settings)
+
     log.info(
         "Server initialized (version=%s, dialect=%s)",
         _version,
@@ -2121,12 +2178,18 @@ def on_initialized(params: types.InitializedParams) -> None:
     background_scanner.configure(workspace_roots=roots)
     threading.Thread(target=_run_background_scan, daemon=True).start()
 
+    # Proactively pull editor settings so that clients using the pull model
+    # (vscode-languageclient v10, JetBrains) have their settings applied
+    # immediately rather than waiting for a configuration change event.
+    _pull_and_apply_configuration()
+
 
 # ---------------------------------------------------------------------------
 # Custom commands (workspace/executeCommand)
 # ---------------------------------------------------------------------------
 
 _DIALECT_COMMAND = "tcl-lsp.setDialect"
+_EXPORT_CONFIG_COMMAND = "tcl-lsp.exportConfig"
 _DIALECT_LABELS = {
     "tcl8.4": "Tcl 8.4",
     "tcl8.5": "Tcl 8.5",
@@ -2140,7 +2203,7 @@ _DIALECT_LABELS = {
 
 @server.feature(
     types.WORKSPACE_EXECUTE_COMMAND,
-    types.ExecuteCommandOptions(commands=[_DIALECT_COMMAND]),
+    types.ExecuteCommandOptions(commands=[_DIALECT_COMMAND, _EXPORT_CONFIG_COMMAND]),
 )
 def on_execute_command(
     params: types.ExecuteCommandParams,
@@ -2153,6 +2216,8 @@ def on_execute_command(
         else:
             dialect = ""
         return _switch_dialect(dialect)
+    if params.command == _EXPORT_CONFIG_COMMAND:
+        return _export_config()
     return None
 
 
@@ -2187,6 +2252,58 @@ def _switch_dialect(dialect: str) -> dict:
             )
 
     return {"success": True, "dialect": current}
+
+
+def _export_config() -> dict:
+    """Export the current effective settings to the XDG config file."""
+
+    # Build the current effective settings dict.
+    settings: dict[str, object] = {}
+
+    # Diagnostics — collect disabled codes.
+    diag: dict[str, object] = {}
+    for code in _ALL_DIAGNOSTIC_CODES:
+        if code in feature_config.disabled_diagnostics:
+            diag[code] = False
+    if feature_config.generic_variable_patterns:
+        diag["genericVariablePatterns"] = list(feature_config.generic_variable_patterns)
+    if diag:
+        settings["diagnostics"] = diag
+
+    # Optimiser
+    opt: dict[str, object] = {"enabled": feature_config.optimiser_enabled}
+    for code in _ALL_OPTIMISATION_CODES:
+        if code in feature_config.disabled_optimisations:
+            opt[code] = False
+    settings["optimiser"] = opt
+
+    # Shimmer
+    settings["shimmer"] = {"enabled": feature_config.shimmer_enabled}
+
+    # XC Diagnostics
+    settings["xcDiagnostics"] = {"enabled": feature_config.xc_diagnostics_enabled}
+
+    # Features
+    feat: dict[str, object] = {}
+    for json_key, attr in _FEATURE_TOGGLE_KEYS.items():
+        feat[json_key] = getattr(feature_config, attr)
+    settings["features"] = feat
+
+    # Style
+    settings["style"] = {"lineLength": feature_config.line_length}
+
+    try:
+        path = save_settings_to_config(settings, only_non_default=True)
+        server.window_show_message(
+            types.ShowMessageParams(
+                type=types.MessageType.Info,
+                message=f"Settings exported to {path}",
+            )
+        )
+        return {"success": True, "path": path}
+    except Exception as exc:
+        log.error("Failed to export config", exc_info=True)
+        return {"success": False, "error": str(exc)}
 
 
 @server.feature(types.SHUTDOWN)
@@ -2474,11 +2591,14 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     return changed
 
 
-@server.feature(types.WORKSPACE_DID_CHANGE_CONFIGURATION)
-def did_change_configuration(params: types.DidChangeConfigurationParams) -> None:
+def _apply_all_settings(tcl_settings: dict) -> None:
+    """Apply a full set of extracted ``tclLsp`` settings.
+
+    This is the shared implementation used by both the push-model
+    ``workspace/didChangeConfiguration`` handler and the pull-model
+    ``workspace/configuration`` callback.
+    """
     global formatter_config
-    settings = params.settings or {}
-    tcl_settings = _extract_tcl_lsp_settings(settings)
 
     formatting = tcl_settings.get("formatting")
     if isinstance(formatting, dict) and formatting:
@@ -2533,3 +2653,41 @@ def did_change_configuration(params: types.DidChangeConfigurationParams) -> None
             state.version,
             force_reanalyse=signatures_changed,
         )
+
+
+def _pull_and_apply_configuration() -> None:
+    """Pull configuration from the client via ``workspace/configuration``.
+
+    Used as a fallback when ``didChangeConfiguration`` arrives with null
+    settings (pull-model clients such as vscode-languageclient v10 and
+    JetBrains).  Also called proactively from ``on_initialized`` to pick
+    up initial editor settings.
+    """
+    params = types.ConfigurationParams(items=[types.ConfigurationItem(section="tclLsp")])
+
+    def _on_result(result: list[object] | None) -> None:  # type: ignore[type-arg]
+        if not result:
+            return
+        item = result[0]
+        if not isinstance(item, dict):
+            return
+        # The response is already unwrapped (section was "tclLsp"), so it
+        # matches the format _extract_tcl_lsp_settings would produce.
+        _apply_all_settings(item)
+
+    try:
+        server.workspace_configuration(params, callback=_on_result)
+    except Exception:
+        log.debug("workspace/configuration pull failed", exc_info=True)
+
+
+@server.feature(types.WORKSPACE_DID_CHANGE_CONFIGURATION)
+def did_change_configuration(params: types.DidChangeConfigurationParams) -> None:
+    settings = params.settings
+    if not settings:
+        # Pull-model: client sent a bare notification; fetch the actual values.
+        _pull_and_apply_configuration()
+        return
+
+    tcl_settings = _extract_tcl_lsp_settings(settings)
+    _apply_all_settings(tcl_settings)
