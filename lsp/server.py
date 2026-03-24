@@ -23,6 +23,8 @@ from core.common.user_config import (
     get_all_settings,
     get_generic_variable_patterns,
     load_user_config,
+    manifest_diagnostic_codes,
+    manifest_optimisation_codes,
     save_settings_to_config,
 )
 from core.compiler.optimiser import optimise_source
@@ -2362,123 +2364,10 @@ def did_change_watched_files(
 
 # Configuration
 
-_ALL_DIAGNOSTIC_CODES = frozenset(
-    {
-        # Errors
-        "E001",
-        "E002",
-        "E003",
-        "E200",
-        # Style & best practice
-        "W001",
-        "W002",
-        "W100",
-        "W101",
-        "W102",
-        "W103",
-        "W104",
-        "W105",
-        "W106",
-        "W108",
-        "W110",
-        "W111",
-        "W112",
-        "W113",
-        "W114",
-        "W115",
-        "W120",
-        "W121",
-        "W122",
-        "W200",
-        "W201",
-        # Variables
-        "H300",
-        "W210",
-        "W211",
-        "W212",
-        "W213",
-        "W214",
-        "W220",
-        # Security
-        "W300",
-        "W301",
-        "W302",
-        "W303",
-        "W304",
-        "W306",
-        "W307",
-        "W308",
-        "W309",
-        # Shimmer
-        "S100",
-        "S101",
-        "S102",
-        # Taint
-        "T100",
-        "T101",
-        "T102",
-        # iRules
-        "IRULE1001",
-        "IRULE1002",
-        "IRULE1003",
-        "IRULE1004",
-        "IRULE1005",
-        "IRULE1006",
-        "IRULE1007",
-        "IRULE1008",
-        "IRULE1201",
-        "IRULE1202",
-        "IRULE2001",
-        "IRULE2002",
-        "IRULE2003",
-        "IRULE3001",
-        "IRULE3002",
-        "IRULE3003",
-        "IRULE3101",
-        "IRULE3102",
-        "IRULE2101",
-        "IRULE4001",
-        "IRULE4002",
-        "IRULE4003",
-        "IRULE4004",
-        "IRULE4005",
-        "IRULE5001",
-        "IRULE5002",
-        "IRULE5004",
-        "IRULE5005",
-    }
-)
-_ALL_OPTIMISATION_CODES = frozenset(
-    {
-        "O100",
-        "O101",
-        "O102",
-        "O103",
-        "O104",
-        "O105",
-        "O106",
-        "O107",
-        "O108",
-        "O109",
-        "O110",
-        "O111",
-        "O112",
-        "O113",
-        "O114",
-        "O115",
-        "O116",
-        "O117",
-        "O118",
-        "O119",
-        "O120",
-        "O121",
-        "O122",
-        "O123",
-        "O124",
-        "O125",
-        "O126",
-    }
-)
+# Loaded from the central manifest — single source of truth.
+# See core/common/diagnostic_manifest.json.
+_ALL_DIAGNOSTIC_CODES = manifest_diagnostic_codes()
+_ALL_OPTIMISATION_CODES = manifest_optimisation_codes()
 
 _FEATURE_TOGGLE_KEYS = {
     "hover": "hover_enabled",
