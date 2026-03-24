@@ -370,7 +370,7 @@ def test_kotlin_catalog_compiles():
 
     with tempfile.TemporaryDirectory() as tmp:
         result = subprocess.run(
-            ["kotlinc", "-no-stdlib", str(kt_path), "-d", tmp],
+            ["kotlinc", str(kt_path), "-d", tmp],
             capture_output=True,
             text=True,
             timeout=120,
