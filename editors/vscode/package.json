@@ -1449,146 +1449,386 @@
       {
         "language": "tcl-synopsys",
         "scopes": {
-          "operator": ["keyword.operator.format.tcl"],
-          "regexp": ["string.regexp.tcl"],
-          "escape": ["constant.character.escape.tcl"],
-          "number": ["constant.numeric.tcl"],
-          "event": ["entity.name.tag.event.tcl"],
-          "namespace": ["entity.name.namespace.tcl"],
-          "decorator": ["entity.other.attribute-name.option.tcl"],
-          "regexpGroup": ["keyword.operator.regexp.group.tcl"],
-          "regexpCharClass": ["constant.other.regexp.charclass.tcl"],
-          "regexpQuantifier": ["keyword.operator.regexp.quantifier.tcl"],
-          "regexpAnchor": ["keyword.operator.regexp.anchor.tcl"],
-          "regexpEscape": ["constant.character.escape.regexp.tcl"],
-          "regexpBackref": ["constant.other.regexp.backref.tcl"],
-          "regexpAlternation": ["keyword.operator.regexp.alternation.tcl"],
-          "binarySpec": ["keyword.operator.binary.specifier.tcl"],
-          "binaryCount": ["constant.numeric.binary.count.tcl"],
-          "binaryFlag": ["keyword.operator.binary.flag.tcl"],
-          "formatPercent": ["keyword.operator.format.percent.tcl"],
-          "formatSpec": ["keyword.operator.format.specifier.tcl"],
-          "formatFlag": ["keyword.operator.format.flag.tcl"],
-          "formatWidth": ["constant.numeric.format.width.tcl"],
-          "clockPercent": ["keyword.operator.clock.percent.tcl"],
-          "clockSpec": ["keyword.operator.clock.specifier.tcl"],
-          "clockModifier": ["keyword.operator.clock.modifier.tcl"]
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
         }
       },
       {
         "language": "tcl-cadence",
         "scopes": {
-          "operator": ["keyword.operator.format.tcl"],
-          "regexp": ["string.regexp.tcl"],
-          "escape": ["constant.character.escape.tcl"],
-          "number": ["constant.numeric.tcl"],
-          "event": ["entity.name.tag.event.tcl"],
-          "namespace": ["entity.name.namespace.tcl"],
-          "decorator": ["entity.other.attribute-name.option.tcl"],
-          "regexpGroup": ["keyword.operator.regexp.group.tcl"],
-          "regexpCharClass": ["constant.other.regexp.charclass.tcl"],
-          "regexpQuantifier": ["keyword.operator.regexp.quantifier.tcl"],
-          "regexpAnchor": ["keyword.operator.regexp.anchor.tcl"],
-          "regexpEscape": ["constant.character.escape.regexp.tcl"],
-          "regexpBackref": ["constant.other.regexp.backref.tcl"],
-          "regexpAlternation": ["keyword.operator.regexp.alternation.tcl"],
-          "binarySpec": ["keyword.operator.binary.specifier.tcl"],
-          "binaryCount": ["constant.numeric.binary.count.tcl"],
-          "binaryFlag": ["keyword.operator.binary.flag.tcl"],
-          "formatPercent": ["keyword.operator.format.percent.tcl"],
-          "formatSpec": ["keyword.operator.format.specifier.tcl"],
-          "formatFlag": ["keyword.operator.format.flag.tcl"],
-          "formatWidth": ["constant.numeric.format.width.tcl"],
-          "clockPercent": ["keyword.operator.clock.percent.tcl"],
-          "clockSpec": ["keyword.operator.clock.specifier.tcl"],
-          "clockModifier": ["keyword.operator.clock.modifier.tcl"]
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
         }
       },
       {
         "language": "tcl-xilinx",
         "scopes": {
-          "operator": ["keyword.operator.format.tcl"],
-          "regexp": ["string.regexp.tcl"],
-          "escape": ["constant.character.escape.tcl"],
-          "number": ["constant.numeric.tcl"],
-          "event": ["entity.name.tag.event.tcl"],
-          "namespace": ["entity.name.namespace.tcl"],
-          "decorator": ["entity.other.attribute-name.option.tcl"],
-          "regexpGroup": ["keyword.operator.regexp.group.tcl"],
-          "regexpCharClass": ["constant.other.regexp.charclass.tcl"],
-          "regexpQuantifier": ["keyword.operator.regexp.quantifier.tcl"],
-          "regexpAnchor": ["keyword.operator.regexp.anchor.tcl"],
-          "regexpEscape": ["constant.character.escape.regexp.tcl"],
-          "regexpBackref": ["constant.other.regexp.backref.tcl"],
-          "regexpAlternation": ["keyword.operator.regexp.alternation.tcl"],
-          "binarySpec": ["keyword.operator.binary.specifier.tcl"],
-          "binaryCount": ["constant.numeric.binary.count.tcl"],
-          "binaryFlag": ["keyword.operator.binary.flag.tcl"],
-          "formatPercent": ["keyword.operator.format.percent.tcl"],
-          "formatSpec": ["keyword.operator.format.specifier.tcl"],
-          "formatFlag": ["keyword.operator.format.flag.tcl"],
-          "formatWidth": ["constant.numeric.format.width.tcl"],
-          "clockPercent": ["keyword.operator.clock.percent.tcl"],
-          "clockSpec": ["keyword.operator.clock.specifier.tcl"],
-          "clockModifier": ["keyword.operator.clock.modifier.tcl"]
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
         }
       },
       {
         "language": "tcl-quartus",
         "scopes": {
-          "operator": ["keyword.operator.format.tcl"],
-          "regexp": ["string.regexp.tcl"],
-          "escape": ["constant.character.escape.tcl"],
-          "number": ["constant.numeric.tcl"],
-          "event": ["entity.name.tag.event.tcl"],
-          "namespace": ["entity.name.namespace.tcl"],
-          "decorator": ["entity.other.attribute-name.option.tcl"],
-          "regexpGroup": ["keyword.operator.regexp.group.tcl"],
-          "regexpCharClass": ["constant.other.regexp.charclass.tcl"],
-          "regexpQuantifier": ["keyword.operator.regexp.quantifier.tcl"],
-          "regexpAnchor": ["keyword.operator.regexp.anchor.tcl"],
-          "regexpEscape": ["constant.character.escape.regexp.tcl"],
-          "regexpBackref": ["constant.other.regexp.backref.tcl"],
-          "regexpAlternation": ["keyword.operator.regexp.alternation.tcl"],
-          "binarySpec": ["keyword.operator.binary.specifier.tcl"],
-          "binaryCount": ["constant.numeric.binary.count.tcl"],
-          "binaryFlag": ["keyword.operator.binary.flag.tcl"],
-          "formatPercent": ["keyword.operator.format.percent.tcl"],
-          "formatSpec": ["keyword.operator.format.specifier.tcl"],
-          "formatFlag": ["keyword.operator.format.flag.tcl"],
-          "formatWidth": ["constant.numeric.format.width.tcl"],
-          "clockPercent": ["keyword.operator.clock.percent.tcl"],
-          "clockSpec": ["keyword.operator.clock.specifier.tcl"],
-          "clockModifier": ["keyword.operator.clock.modifier.tcl"]
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
         }
       },
       {
         "language": "tcl-mentor",
         "scopes": {
-          "operator": ["keyword.operator.format.tcl"],
-          "regexp": ["string.regexp.tcl"],
-          "escape": ["constant.character.escape.tcl"],
-          "number": ["constant.numeric.tcl"],
-          "event": ["entity.name.tag.event.tcl"],
-          "namespace": ["entity.name.namespace.tcl"],
-          "decorator": ["entity.other.attribute-name.option.tcl"],
-          "regexpGroup": ["keyword.operator.regexp.group.tcl"],
-          "regexpCharClass": ["constant.other.regexp.charclass.tcl"],
-          "regexpQuantifier": ["keyword.operator.regexp.quantifier.tcl"],
-          "regexpAnchor": ["keyword.operator.regexp.anchor.tcl"],
-          "regexpEscape": ["constant.character.escape.regexp.tcl"],
-          "regexpBackref": ["constant.other.regexp.backref.tcl"],
-          "regexpAlternation": ["keyword.operator.regexp.alternation.tcl"],
-          "binarySpec": ["keyword.operator.binary.specifier.tcl"],
-          "binaryCount": ["constant.numeric.binary.count.tcl"],
-          "binaryFlag": ["keyword.operator.binary.flag.tcl"],
-          "formatPercent": ["keyword.operator.format.percent.tcl"],
-          "formatSpec": ["keyword.operator.format.specifier.tcl"],
-          "formatFlag": ["keyword.operator.format.flag.tcl"],
-          "formatWidth": ["constant.numeric.format.width.tcl"],
-          "clockPercent": ["keyword.operator.clock.percent.tcl"],
-          "clockSpec": ["keyword.operator.clock.specifier.tcl"],
-          "clockModifier": ["keyword.operator.clock.modifier.tcl"]
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
         }
       },
       {
@@ -3133,61 +3373,31 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W120:** Command used without a corresponding `package require`.",
-            "order": 12
+            "order": 13
           },
           "tclLsp.diagnostics.W121": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W121:** Subnet mask has non-contiguous bits.",
-            "order": 12
+            "order": 14
           },
           "tclLsp.diagnostics.W122": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W122:** Mistyped IPv4 address (octet > 255 or leading zero).",
-            "order": 12
+            "order": 15
           },
           "tclLsp.diagnostics.W200": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 12
+            "order": 16
           },
           "tclLsp.diagnostics.W201": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
-            "order": 13
-          },
-          "tclLsp.diagnostics.W302": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**W302:** `catch` without result variable — errors are silently swallowed.",
-            "order": 14
-          },
-          "tclLsp.diagnostics.W304": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**W304:** Missing option terminator `--` on option-bearing commands.",
-            "order": 15
-          },
-          "tclLsp.diagnostics.W307": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**W307:** Non-literal command name — variable or command substitution as command.",
-            "order": 16
-          },
-          "tclLsp.diagnostics.W308": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**W308:** `subst` without `-nocommands` — risk of unintended command execution.",
             "order": 17
-          },
-          "tclLsp.diagnostics.W309": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**W309:** `eval`/`uplevel` with `subst` — double substitution risk.",
-            "order": 14
           }
         }
       },
@@ -3229,13 +3439,7 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W220:** Dead store — variable set but overwritten before use.",
-            "order": 3
-          },
-          "tclLsp.diagnostics.H300": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**H300:** Possible paste error — repeated assignment to same variable with same value.",
-            "order": 3
+            "order": 5
           }
         }
       },
@@ -3273,17 +3477,59 @@
             "markdownDescription": "**W301:** `uplevel` with string-built script — injection risk.",
             "order": 4
           },
+          "tclLsp.diagnostics.W302": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W302:** `catch` without result variable — errors are silently swallowed.",
+            "order": 5
+          },
           "tclLsp.diagnostics.W303": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W303:** Regexp vulnerable to catastrophic backtracking (ReDoS).",
-            "order": 5
+            "order": 6
+          },
+          "tclLsp.diagnostics.W304": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W304:** Missing option terminator `--` on option-bearing commands.",
+            "order": 7
           },
           "tclLsp.diagnostics.W306": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W306:** Substitution in literal-expected argument position.",
-            "order": 6
+            "order": 8
+          },
+          "tclLsp.diagnostics.W307": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W307:** Non-literal command name — variable or command substitution as command.",
+            "order": 9
+          },
+          "tclLsp.diagnostics.W308": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W308:** `subst` without `-nocommands` — risk of unintended command execution.",
+            "order": 10
+          },
+          "tclLsp.diagnostics.W309": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W309:** `eval`/`uplevel` with `subst` — double substitution risk.",
+            "order": 11
+          }
+        }
+      },
+      {
+        "title": "Diagnostics — Hints",
+        "order": 10,
+        "properties": {
+          "tclLsp.diagnostics.H300": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**H300:** Possible paste error — repeated assignment to same variable with same value.",
+            "order": 0
           }
         }
       },
@@ -3338,24 +3584,6 @@
             "default": true,
             "markdownDescription": "**T102:** Tainted data in option position without `--` terminator — option injection risk.",
             "order": 2
-          },
-          "tclLsp.diagnostics.IRULE1007": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE1007:** `*::collect` without a matching `*::release` on the same connection side.",
-            "order": 3
-          },
-          "tclLsp.diagnostics.IRULE1008": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**IRULE1008:** `*::release` without a matching `*::collect` on the same connection side.",
-            "order": 4
-          },
-          "tclLsp.diagnostics.genericVariablePatterns": {
-            "type": "array",
-            "items": { "type": "string" },
-            "markdownDescription": "Regex patterns for generic `static::` variable names (IRULE4002). Each pattern is matched case-insensitively against the bare name after stripping `static::`. Also configurable via `~/.config/tcl-lsp/config.ini`.",
-            "order": 5
           }
         }
       },
@@ -3399,125 +3627,145 @@
             "markdownDescription": "**IRULE1006:** `*::payload` without a matching `*::collect` call.",
             "order": 5
           },
+          "tclLsp.diagnostics.IRULE1007": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1007:** `*::collect` without a matching `*::release` on the same connection side.",
+            "order": 6
+          },
+          "tclLsp.diagnostics.IRULE1008": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1008:** `*::release` without a matching `*::collect` on the same connection side.",
+            "order": 7
+          },
           "tclLsp.diagnostics.IRULE1201": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1201:** HTTP command used after `HTTP::respond`/`HTTP::redirect`.",
-            "order": 2
+            "order": 8
           },
           "tclLsp.diagnostics.IRULE1202": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1202:** Multiple `HTTP::respond`/`HTTP::redirect` on different branches.",
-            "order": 3
+            "order": 9
           },
           "tclLsp.diagnostics.IRULE2001": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2001:** Deprecated `matchclass` — use `class match` instead.",
-            "order": 4
+            "order": 10
           },
           "tclLsp.diagnostics.IRULE2002": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2002:** Deprecated iRules command.",
-            "order": 5
+            "order": 11
           },
           "tclLsp.diagnostics.IRULE2003": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2003:** Unsafe iRules command.",
-            "order": 6
+            "order": 12
           },
           "tclLsp.diagnostics.IRULE2101": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2101:** Heavy `regexp` in a high-frequency event — consider `string match` or data-group.",
-            "order": 7
+            "order": 13
           },
           "tclLsp.diagnostics.IRULE3001": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3001:** Tainted data in HTTP response body.",
-            "order": 8
+            "order": 14
           },
           "tclLsp.diagnostics.IRULE3002": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3002:** Tainted data in HTTP header or cookie value.",
-            "order": 9
+            "order": 15
           },
           "tclLsp.diagnostics.IRULE3003": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3003:** Tainted data in `log` command — log injection risk.",
-            "order": 10
+            "order": 16
           },
           "tclLsp.diagnostics.IRULE3101": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
-            "order": 11
+            "order": 17
           },
           "tclLsp.diagnostics.IRULE3102": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
-            "order": 12
+            "order": 18
           },
           "tclLsp.diagnostics.IRULE4001": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
-            "order": 13
+            "order": 19
           },
           "tclLsp.diagnostics.IRULE4002": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
-            "order": 14
+            "order": 20
           },
           "tclLsp.diagnostics.IRULE4003": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4003:** Variable scoping concern across events.",
-            "order": 15
+            "order": 21
           },
           "tclLsp.diagnostics.IRULE4004": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
-            "order": 16
+            "order": 22
           },
           "tclLsp.diagnostics.IRULE4005": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
-            "order": 17
+            "order": 23
           },
           "tclLsp.diagnostics.IRULE5001": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5001:** Ungated `log` in a high-frequency event.",
-            "order": 18
+            "order": 24
           },
           "tclLsp.diagnostics.IRULE5002": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5002:** `drop`/`reject`/`discard` without `event disable all` or `return`.",
-            "order": 18
+            "order": 25
           },
           "tclLsp.diagnostics.IRULE5004": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5004:** `DNS::return` without `return`.",
-            "order": 19
+            "order": 26
           },
           "tclLsp.diagnostics.IRULE5005": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5005:** Direct proc invocation without `call` — use `call proc_name`.",
-            "order": 20
+            "order": 27
+          },
+          "tclLsp.diagnostics.genericVariablePatterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "markdownDescription": "Regex patterns for generic `static::` variable names (IRULE4002). Each pattern is matched case-insensitively against the bare name after stripping `static::`. Also configurable via `~/.config/tcl-lsp/config.ini`.",
+            "order": 28
           }
         }
       },
@@ -3823,7 +4071,9 @@
   "taskDefinitions": [
     {
       "type": "irule-test",
-      "required": ["testFile"],
+      "required": [
+        "testFile"
+      ],
       "properties": {
         "testFile": {
           "type": "string",
