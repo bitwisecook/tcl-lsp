@@ -7,7 +7,7 @@ EDA vendor tools.  Each vendor dialect inherits these.
 from __future__ import annotations
 
 from .models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from .signatures import Arity
+from .signatures import ArgRole, Arity
 
 _SOURCE = "Synopsys Design Constraints (SDC) 2.1 specification"
 
@@ -212,11 +212,26 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             "all_fanin ?-to objects? ?-flat? ?-startpoints_only? ?-only_cells?",
         ),
         # --- Collection utilities ---
-        _sdc(
-            "foreach_in_collection",
-            "Iterate over objects in a collection.",
-            "foreach_in_collection var collection body",
-            Arity(3, 3),
+        CommandSpec(
+            name="foreach_in_collection",
+            dialects=_SDC_DIALECTS,
+            is_control_flow=True,
+            never_inline_body=True,
+            has_loop_body=True,
+            loop_list_header=True,
+            arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.BODY},
+            hover=HoverSnippet(
+                summary="Iterate over objects in a collection.",
+                synopsis=("foreach_in_collection var collection body",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="foreach_in_collection var collection body",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(3, 3)),
         ),
         _sdc(
             "get_object_name",

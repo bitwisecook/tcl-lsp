@@ -978,6 +978,20 @@ class _Lowerer:
             case "foreach":
                 return self._lower_foreach(cmd, namespace=namespace)
 
+            case "foreach_in_collection" if REGISTRY.get(cmd_name, _active_dialect()) is not None:
+                # Only lower as a loop when enabled in the active dialect.
+                # Enforce exact arity so incorrect arg counts produce
+                # IRBarrier and get caught by generic arity checks (E002/E003).
+                if len(args) != 3:
+                    return IRBarrier(
+                        range=cmd.range,
+                        reason="invalid foreach_in_collection arity",
+                        command=cmd_name,
+                        args=tuple(args),
+                        tokens=cmd.cmd_tokens,
+                    )
+                return self._lower_foreach(cmd, namespace=namespace)
+
             case "lmap":
                 return self._lower_foreach(cmd, namespace=namespace, is_lmap=True)
 

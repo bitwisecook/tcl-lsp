@@ -1331,7 +1331,13 @@ class Analyser:
         arg_tokens: list[Token],
         scope: Scope,
     ) -> bool:
-        if cmd_name != "foreach" or len(args) < 3:
+        if cmd_name == "foreach_in_collection":
+            # Only treat as a loop when enabled in the active dialect.
+            if REGISTRY.get(cmd_name, active_dialect()) is None:
+                return False
+        elif cmd_name != "foreach":
+            return False
+        if len(args) < 3:
             return False
 
         tok = arg_tokens[0] if arg_tokens else None
