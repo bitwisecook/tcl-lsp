@@ -5,19 +5,34 @@ Each diagnostic or optimisation code is registered at import time via
 for all code metadata — descriptions, sections, defaults — and is queried
 by the build script, tests, and the LSP server.
 
-Usage in check modules::
+Use as a decorator on the function or class that implements the check::
 
     from core.common.codes import diag
-    W100 = diag("W100", "Unbraced expr body", section="warning")
 
-``diag()`` returns the code string (``"W100"``), so call sites are
-unchanged: ``Diagnostic(..., code=W100, ...)``.
+    @diag("W100", "Unbraced expr body", section="warning")
+    def check_unbraced_expr(cmd_name, args, ...):
+        ...
+
+Multiple codes can be stacked on a single function::
+
+    @diag("E002", "Too few arguments for command.", section="error")
+    @diag("E003", "Too many arguments for command.", section="error")
+    def _check_arg_count(...):
+        ...
+
+For codes without a single home function, a bare call registers the code::
+
+    diag("S100", "Single shimmer outside a loop.", section="shimmer")
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import TypeVar
+
+_F = TypeVar("_F", bound=Callable)
 
 
 class CodeKind(Enum):
@@ -69,13 +84,26 @@ def diag(
     section: str,
     default: bool = True,
     internal: bool = False,
-) -> str:
-    """Register a diagnostic code and return its string value.
+) -> Callable[[_F], _F]:
+    """Register a diagnostic code.  Use as ``@diag(...)`` decorator or bare call.
 
     Raises :class:`ValueError` if the code is already registered or the
     section is not in :data:`SECTIONS`.
     """
     if code in _registry:
+        existing = _registry[code]
+        if (
+            existing.description == description
+            and existing.section == section
+            and existing.default == default
+            and existing.internal == internal
+        ):
+            # Idempotent re-registration (e.g. decorator on implementation
+            # function when the code was already registered in codes_*.py).
+            def _identity_dup(fn: _F) -> _F:
+                return fn
+
+            return _identity_dup
         raise ValueError(f"Duplicate diagnostic code: {code}")
     if section not in SECTION_KEYS:
         raise ValueError(
@@ -90,7 +118,11 @@ def diag(
         default=default,
         internal=internal,
     )
-    return code
+
+    def _identity(fn: _F) -> _F:
+        return fn
+
+    return _identity
 
 
 def opt(
@@ -98,9 +130,15 @@ def opt(
     description: str,
     *,
     default: bool = True,
-) -> str:
-    """Register an optimisation code and return its string value."""
+) -> Callable[[_F], _F]:
+    """Register an optimisation code.  Use as ``@opt(...)`` decorator or bare call."""
     if code in _registry:
+        existing = _registry[code]
+        if existing.description == description and existing.default == default:
+            def _identity_dup(fn: _F) -> _F:
+                return fn
+
+            return _identity_dup
         raise ValueError(f"Duplicate optimisation code: {code}")
     _registry[code] = CodeInfo(
         code=code,
@@ -108,7 +146,11 @@ def opt(
         kind=CodeKind.OPTIMISATION,
         default=default,
     )
-    return code
+
+    def _identity(fn: _F) -> _F:
+        return fn
+
+    return _identity
 
 
 # ---------------------------------------------------------------------------

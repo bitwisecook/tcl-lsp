@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
+from ...common.codes import diag
 from ...commands.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
@@ -46,6 +47,7 @@ from ._helpers import (
 # W100: Unbraced expr
 
 
+@diag("W100", "Unbraced expression argument — prevents byte-compilation and risks double substitution.", section="warning")
 def check_unbraced_expr(
     cmd_name: str,
     args: list[str],
@@ -156,6 +158,7 @@ def check_unbraced_expr(
 # W308: subst without -nocommands
 
 
+@diag("W308", "`subst` without `-nocommands` — risk of unintended command execution.", section="security")
 def check_subst_nocommands(
     cmd_name: str,
     args: list[str],
@@ -217,6 +220,7 @@ def check_subst_nocommands(
 # W105: Unbraced code block
 
 
+@diag("W105", "Unbraced code block or missing `variable` declaration in `namespace eval`.", section="warning")
 def check_unbraced_body(
     cmd_name: str,
     args: list[str],
@@ -287,6 +291,7 @@ def check_unbraced_body(
 # W106: Dangerous unbraced switch body
 
 
+@diag("W106", "Dangerous unbraced `switch` body — risks double substitution.", section="warning")
 def check_unbraced_switch_body(
     cmd_name: str,
     args: list[str],
@@ -390,6 +395,7 @@ def check_unbraced_switch_body(
 # W104: String concatenation to build list (append vs lappend)
 
 
+@diag("W104", "String concatenation for list building — use `lappend` instead.", section="warning")
 def check_string_list_confusion(
     cmd_name: str,
     args: list[str],
@@ -451,6 +457,7 @@ def check_namespace_var_declaration(
 # W200: exec result not captured
 
 
+@diag("W200", "`exec` result not captured or binary format modifier requires newer Tcl.", section="warning")
 def check_exec_not_captured(
     cmd_name: str,
     args: list[str],
@@ -475,6 +482,7 @@ def check_exec_not_captured(
 _PATH_CONCAT_RE = re.compile(r"[/\\]")
 
 
+@diag("W201", "Manual path concatenation — use `file join` instead.", section="warning")
 def check_path_concatenation(
     cmd_name: str,
     args: list[str],
@@ -532,6 +540,7 @@ def check_path_concatenation(
 # W304: Missing option terminator (--) on option-bearing commands
 
 
+@diag("W304", "Missing option terminator `--` on option-bearing commands.", section="security")
 def check_missing_option_terminator(
     cmd_name: str,
     args: list[str],
@@ -727,6 +736,7 @@ def _count_eq_ne_ops(node: ExprNode) -> int:
             return 0
 
 
+@diag("W110", "Use `eq`/`ne` instead of `==`/`!=` for string comparison.", section="warning")
 def check_string_compare_in_expr(
     cmd_name: str,
     args: list[str],
@@ -908,6 +918,7 @@ _NAME_ARG_INDICES: dict[str, _NameResolver] = {
 }
 
 
+@diag("W212", "Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).", section="variable")
 def check_name_vs_value(
     cmd_name: str,
     args: list[str],
@@ -1077,6 +1088,7 @@ _AUTO_FIX_MAP: dict[str, str] = {
 }
 
 
+@diag("W108", "Non-ASCII characters in token content.", section="warning")
 def check_non_ascii(
     cmd_name: str,
     args: list[str],
@@ -1182,6 +1194,7 @@ _LOOP_NE_ZERO_RE = re.compile(
 _INCR_DECREMENT_RE = re.compile(r"\bincr\s+(\w+)\s+(-\d+)\b")
 
 
+@diag("IRULE5003", "iRules internal control flow.", section="irules", internal=True)
 def check_loop_bound_inequality(
     cmd_name: str,
     args: list[str],
@@ -1227,6 +1240,7 @@ def check_loop_bound_inequality(
 _NESTED_EXPR_RE = re.compile(r"\[\s*expr\s")
 
 
+@diag("W114", "Redundant nested `[expr {...}]` — already in expression context.", section="warning")
 def check_redundant_expr(
     cmd_name: str,
     args: list[str],
@@ -1278,6 +1292,7 @@ def check_redundant_expr(
 # W311: Unsafe channel encoding mismatch
 
 
+@diag("W311", "Destructive file operation.", section="security", internal=True)
 def check_encoding_mismatch(
     cmd_name: str,
     args: list[str],
@@ -1408,6 +1423,7 @@ def _nearest_valid_mask(a: int, b: int, c: int, d: int) -> str | None:
     )
 
 
+@diag("W121", "Subnet mask has non-contiguous bits.", section="warning")
 def check_invalid_subnet_mask(
     cmd_name: str,
     args: list[str],
@@ -1486,6 +1502,7 @@ _DOTTED_QUAD_LOOSE_RE = re.compile(
 )
 
 
+@diag("W122", "Mistyped IPv4 address (octet > 255 or leading zero).", section="warning")
 def check_mistyped_ipv4(
     cmd_name: str,
     args: list[str],

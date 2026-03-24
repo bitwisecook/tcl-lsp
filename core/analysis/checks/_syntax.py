@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...common.codes import diag
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 from ._helpers import (
@@ -12,6 +13,7 @@ from ._helpers import (
 # E100: Unmatched close bracket ']'
 
 
+@diag("E100", "Syntax error — unclosed brace.", section="error", internal=True)
 def check_unmatched_close_bracket(
     cmd_name: str,
     args: list[str],
@@ -100,6 +102,7 @@ def check_unmatched_close_bracket(
 # E102: Unmatched close brace '}'
 
 
+@diag("E102", "Syntax error — unclosed quote.", section="error", internal=True)
 def check_unmatched_close_brace(
     cmd_name: str,
     args: list[str],
