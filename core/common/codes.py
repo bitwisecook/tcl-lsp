@@ -37,62 +37,27 @@ class CodeInfo:
     internal: bool = False
 
 
-# Ordered list of valid diagnostic sections.  Controls output ordering in
-# all generated files and validates that every registered code belongs to
-# a known section.  Add new sections here when a new category is needed.
-SECTIONS: list[str] = [
-    "error",
-    "warning",
-    "variable",
-    "security",
-    "hint",
-    "shimmer",
-    "taint",
-    "irules",
-    "irules_security",
-    "irules_variable",
+# Ordered list of valid diagnostic sections with display titles.  Controls
+# output ordering in all generated files and validates that every registered
+# code belongs to a known section.  Add new sections here when a new category
+# is needed.  Multiple sections may share a title (they merge into one group
+# in editor UIs).
+SECTIONS: list[tuple[str, str]] = [
+    ("error", "Diagnostics — Errors"),
+    ("warning", "Diagnostics — Style & Best Practice"),
+    ("variable", "Diagnostics — Variables"),
+    ("security", "Diagnostics — Security"),
+    ("hint", "Diagnostics — Hints"),
+    ("shimmer", "Diagnostics — Shimmer"),
+    ("taint", "Diagnostics — Taint"),
+    ("irules", "Diagnostics — iRules"),
+    ("irules_security", "Diagnostics — iRules"),
+    ("irules_variable", "Diagnostics — iRules"),
 ]
 
-# Section display titles per editor surface.
-SECTION_TITLES_VSCODE: dict[str, str] = {
-    "error": "Diagnostics — Errors",
-    "warning": "Diagnostics — Style & Best Practice",
-    "variable": "Diagnostics — Variables",
-    "security": "Diagnostics — Security",
-    "hint": "Diagnostics — Hints",
-    "shimmer": "Diagnostics — Shimmer",
-    "taint": "Diagnostics — Taint",
-    "irules": "Diagnostics — iRules",
-    "irules_security": "Diagnostics — iRules",
-    "irules_variable": "Diagnostics — iRules",
-}
-
-SECTION_TITLES_JB: dict[str, str] = {
-    "error": "Diagnostics — Errors",
-    "warning": "Diagnostics — Warnings",
-    "variable": "Diagnostics — Variables",
-    "security": "Diagnostics — Security",
-    "hint": "Diagnostics — Hints",
-    "shimmer": "Diagnostics — Shimmer",
-    "taint": "Diagnostics — Taint",
-    "irules": "Diagnostics — iRules",
-    "irules_security": "Diagnostics — iRules",
-    "irules_variable": "Diagnostics — iRules",
-}
-
-# VS Code section ordering (the "order" field in contributes.configuration).
-SECTION_ORDER_VSCODE: dict[str, int] = {
-    "error": 7,
-    "warning": 8,
-    "variable": 9,
-    "security": 10,
-    "hint": 10,
-    "shimmer": 11,
-    "taint": 12,
-    "irules": 13,
-    "irules_security": 13,
-    "irules_variable": 13,
-}
+# Derived helpers for fast lookup.
+SECTION_KEYS: list[str] = [key for key, _ in SECTIONS]
+SECTION_TITLES: dict[str, str] = dict(SECTIONS)
 
 _registry: dict[str, CodeInfo] = {}
 
@@ -112,7 +77,7 @@ def diag(
     """
     if code in _registry:
         raise ValueError(f"Duplicate diagnostic code: {code}")
-    if section not in SECTIONS:
+    if section not in SECTION_KEYS:
         raise ValueError(
             f"Unknown section {section!r} for code {code}. "
             f"Add it to SECTIONS in core/common/codes.py."
@@ -175,7 +140,7 @@ def internal_codes() -> frozenset[str]:
 
 def diagnostics_sorted() -> list[CodeInfo]:
     """User-configurable diagnostics sorted by code, grouped by section order."""
-    section_idx = {s: i for i, s in enumerate(SECTIONS)}
+    section_idx = {s: i for i, s in enumerate(SECTION_KEYS)}
     return sorted(
         (
             info
@@ -196,7 +161,7 @@ def optimisations_sorted() -> list[CodeInfo]:
 
 def codes_by_section() -> dict[str, list[CodeInfo]]:
     """User-configurable diagnostics grouped by section, in section order."""
-    groups: dict[str, list[CodeInfo]] = {s: [] for s in SECTIONS}
+    groups: dict[str, list[CodeInfo]] = {s: [] for s in SECTION_KEYS}
     for info in _registry.values():
         if info.kind is CodeKind.DIAGNOSTIC and not info.internal:
             groups.setdefault(info.section, []).append(info)

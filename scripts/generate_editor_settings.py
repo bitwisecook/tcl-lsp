@@ -86,9 +86,7 @@ if str(ROOT) not in sys.path:
 
 import core.common.codes_all  # noqa: F401, E402
 from core.common.codes import (  # noqa: E402
-    SECTION_ORDER_VSCODE,
-    SECTION_TITLES_JB,
-    SECTION_TITLES_VSCODE,
+    SECTION_KEYS,
     SECTIONS,
     codes_by_section,
     diagnostics_sorted,
@@ -148,24 +146,16 @@ def generate_jetbrains_catalog(*, dry_run: bool = False) -> tuple[Path, str]:
     diags = diagnostics_sorted()
     opts = optimisations_sorted()
 
-    # Deduplicate section titles for JB (irules/irules_security/irules_variable
+    # Deduplicate section titles (irules/irules_security/irules_variable
     # all map to the same title)
     seen_titles: set[str] = set()
     section_titles = []
-    for s in SECTIONS:
-        title = SECTION_TITLES_JB.get(s, "")
-        if title and title not in seen_titles:
-            section_titles.append((s, title))
-            seen_titles.add(title)
-
-    # Deduplicate section order for JB panel display
-    seen_sections: set[str] = set()
     section_order = []
-    for s in SECTIONS:
-        title = SECTION_TITLES_JB.get(s, "")
-        if title and title not in seen_sections:
-            section_order.append(s)
-            seen_sections.add(title)
+    for key, title in SECTIONS:
+        if title not in seen_titles:
+            section_titles.append((key, title))
+            section_order.append(key)
+            seen_titles.add(title)
 
     env = _jinja_env(_JB_CATALOG_PATH.parent)
     template = env.get_template("DiagnosticCatalog.kt.j2")
@@ -210,16 +200,13 @@ def generate_vscode_catalog(*, dry_run: bool = False) -> tuple[Path, str]:
     diags = diagnostics_sorted()
     opts = optimisations_sorted()
 
-    section_titles_vscode = [
-        (s, SECTION_TITLES_VSCODE[s]) for s in SECTIONS if s in SECTION_TITLES_VSCODE
-    ]
-    # Deduplicate (irules_* all map to same title)
+    # Deduplicate section titles (irules_* all map to same title)
     seen: set[str] = set()
     deduped = []
-    for s, t in section_titles_vscode:
-        if t not in seen:
-            deduped.append((s, t))
-            seen.add(t)
+    for key, title in SECTIONS:
+        if title not in seen:
+            deduped.append((key, title))
+            seen.add(title)
 
     env = _jinja_env(_TS_CATALOG_PATH.parent)
     template = env.get_template("diagnosticCatalog.ts.j2")
@@ -261,23 +248,23 @@ def _build_vscode_diagnostic_sections() -> list[dict]:
     """Build VS Code contributes.configuration section dicts for diagnostics."""
     sections_data = codes_by_section()
 
-    # Group by VS Code title (multiple sections can share a title)
-    title_groups: dict[str, list] = {}
-    for section in SECTIONS:
-        title = SECTION_TITLES_VSCODE.get(section, "")
-        if not title:
-            continue
-        for info in sections_data.get(section, []):
-            title_groups.setdefault(title, []).append(info)
+    # Group by title (multiple sections can share a title) and track
+    # the VS Code "order" field — derived from position in SECTIONS.
+    # First non-diagnostic section starts at order 7 (matching existing layout).
+    _VSCODE_ORDER_BASE = 7
 
-    # Build VS Code section order (unique titles in SECTIONS order)
+    title_groups: dict[str, list] = {}
+    title_order: dict[str, int] = {}
     seen: set[str] = set()
-    ordered_titles = []
-    for s in SECTIONS:
-        t = SECTION_TITLES_VSCODE.get(s, "")
-        if t and t not in seen:
-            ordered_titles.append(t)
-            seen.add(t)
+    for idx, (key, title) in enumerate(SECTIONS):
+        for info in sections_data.get(key, []):
+            title_groups.setdefault(title, []).append(info)
+        if title not in seen:
+            title_order[title] = _VSCODE_ORDER_BASE + idx
+            seen.add(title)
+
+    # Ordered unique titles (preserves SECTIONS list order)
+    ordered_titles = list(dict.fromkeys(title for _, title in SECTIONS))
 
     result = []
     for title in ordered_titles:
@@ -325,17 +312,10 @@ def _build_vscode_diagnostic_sections() -> list[dict]:
                 "order": len(diags),
             }
 
-        # Determine VS Code section order from the first section that maps to this title
-        vscode_order = 7  # default
-        for s in SECTIONS:
-            if SECTION_TITLES_VSCODE.get(s) == title:
-                vscode_order = SECTION_ORDER_VSCODE.get(s, 7)
-                break
-
         result.append(
             {
                 "title": title,
-                "order": vscode_order,
+                "order": title_order[title],
                 "properties": props,
             }
         )
@@ -369,7 +349,7 @@ def _build_vscode_optimiser_section() -> dict:
 
 
 # Titles that are generated (will be replaced in package.json)
-_GENERATED_TITLES = frozenset(list(dict.fromkeys(SECTION_TITLES_VSCODE.values())) + ["Optimiser"])
+_GENERATED_TITLES = frozenset(list(dict.fromkeys(title for _, title in SECTIONS)) + ["Optimiser"])
 
 
 def generate_vscode_package_json(*, dry_run: bool = False) -> tuple[Path, str]:
@@ -499,7 +479,7 @@ def _load_manifest() -> dict:
 
 
 # Keep old names importable during migration
-_KNOWN_CATEGORIES = frozenset(SECTIONS)
+_KNOWN_CATEGORIES = frozenset(SECTION_KEYS)
 
 
 # ---------------------------------------------------------------------------

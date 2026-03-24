@@ -3523,7 +3523,7 @@
       },
       {
         "title": "Diagnostics — Hints",
-        "order": 10,
+        "order": 11,
         "properties": {
           "tclLsp.diagnostics.H300": {
             "type": "boolean",
@@ -3535,7 +3535,7 @@
       },
       {
         "title": "Diagnostics — Shimmer",
-        "order": 11,
+        "order": 12,
         "properties": {
           "tclLsp.shimmer.enabled": {
             "type": "boolean",
@@ -3565,7 +3565,7 @@
       },
       {
         "title": "Diagnostics — Taint",
-        "order": 12,
+        "order": 13,
         "properties": {
           "tclLsp.diagnostics.T100": {
             "type": "boolean",
@@ -3589,7 +3589,7 @@
       },
       {
         "title": "Diagnostics — iRules",
-        "order": 13,
+        "order": 14,
         "properties": {
           "tclLsp.diagnostics.IRULE1001": {
             "type": "boolean",

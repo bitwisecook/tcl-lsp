@@ -126,7 +126,7 @@ object DiagnosticCatalog {
 
     val sectionTitles: Map<String, String> = mapOf(
         "error" to "Diagnostics — Errors",
-        "warning" to "Diagnostics — Warnings",
+        "warning" to "Diagnostics — Style & Best Practice",
         "variable" to "Diagnostics — Variables",
         "security" to "Diagnostics — Security",
         "hint" to "Diagnostics — Hints",

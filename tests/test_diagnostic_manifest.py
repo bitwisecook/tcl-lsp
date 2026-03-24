@@ -29,7 +29,7 @@ import pytest
 
 import core.common.codes_all  # noqa: F401
 from core.common.codes import (
-    SECTIONS,
+    SECTION_KEYS,
     all_codes,
     diagnostic_codes,
     internal_codes,
@@ -242,12 +242,12 @@ def test_registry_codes_are_sorted_within_sections():
 
 
 def test_registry_sections_are_valid():
-    """Every code's section is in the SECTIONS list."""
+    """Every code's section is in the SECTION_KEYS list."""
     from core.common.codes import _registry
 
     for code, info in _registry.items():
         if hasattr(info, "section") and info.section:
-            assert info.section in SECTIONS, f"Code {code} has unknown section {info.section!r}"
+            assert info.section in SECTION_KEYS, f"Code {code} has unknown section {info.section!r}"
 
 
 def test_no_overlap_between_public_and_internal():
