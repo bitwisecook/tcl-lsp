@@ -94,12 +94,10 @@ def diag(
         existing = _registry[code]
         if (
             existing.description == description
-            and existing.section == section
             and existing.default == default
             and existing.internal == internal
         ):
-            # Idempotent re-registration (e.g. decorator on implementation
-            # function when the code was already registered in codes_*.py).
+
             def _identity_dup(fn: _F) -> _F:
                 return fn
 
@@ -133,12 +131,6 @@ def opt(
 ) -> Callable[[_F], _F]:
     """Register an optimisation code.  Use as ``@opt(...)`` decorator or bare call."""
     if code in _registry:
-        existing = _registry[code]
-        if existing.description == description and existing.default == default:
-            def _identity_dup(fn: _F) -> _F:
-                return fn
-
-            return _identity_dup
         raise ValueError(f"Duplicate optimisation code: {code}")
     _registry[code] = CodeInfo(
         code=code,

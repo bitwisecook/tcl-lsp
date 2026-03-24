@@ -14,6 +14,7 @@ import re
 from dataclasses import dataclass
 
 from ...analysis.semantic_model import Range
+from ...common.codes import opt
 from ...common.naming import normalise_qualified_name as _normalise_qualified_name
 from ...parsing.lexer import TclLexer
 from ...parsing.tokens import TokenType
@@ -402,6 +403,7 @@ def _count_condition_self_calls(
 # ---------------------------------------------------------------------------
 
 
+@opt("O121", "Rewrite self-recursive tail calls to `tailcall`.")
 def _emit_o121(ctx: PassContext, site: _TailCallSite, short_name: str) -> None:
     """Emit O121 for a tail-position self-call."""
     if site.kind == "return_subst":
@@ -444,6 +446,7 @@ def _self_name_variants_from_short(short_name: str) -> frozenset[str]:
 # ---------------------------------------------------------------------------
 
 
+@opt("O122", "Convert fully tail-recursive proc to iterative `while` loop.")
 def _suggest_loop_conversion(
     ctx: PassContext,
     proc,
@@ -523,6 +526,7 @@ def _make_reassignment(params: tuple[str, ...], args: tuple[str, ...]) -> str:
 # ---------------------------------------------------------------------------
 
 
+@opt("O123", "Detect non-tail recursion eligible for accumulator introduction (hint only).")
 def _detect_accumulator_candidate(
     ctx: PassContext,
     proc,

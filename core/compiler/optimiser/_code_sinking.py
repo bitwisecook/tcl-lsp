@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 
 from ...analysis.semantic_model import Range
+from ...common.codes import opt
 from ...common.naming import normalise_var_name as _normalise_var_name
 from ..expr_ast import vars_in_expr_node
 from ..ir import (
@@ -462,6 +463,10 @@ def _body_insertion_replacement(
 # ---------------------------------------------------------------------------
 
 
+@opt(
+    "O125",
+    "Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) that uses them.",
+)
 def _emit_sinking_opts(
     ctx: PassContext,
     source: str,

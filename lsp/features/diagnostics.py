@@ -7,7 +7,6 @@ import logging
 from lsprotocol import types
 
 from core.analysis.analyser import analyse
-from core.common.codes import diag
 from core.analysis.semantic_model import (
     AnalysisResult,
     CodeFix,
@@ -16,6 +15,7 @@ from core.analysis.semantic_model import (
     Severity,
 )
 from core.commands.registry import REGISTRY
+from core.common.codes import diag
 from core.common.dialect import active_dialect
 from core.common.lsp import to_lsp_range
 from core.compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
