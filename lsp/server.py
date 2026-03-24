@@ -133,11 +133,9 @@ except ImportError:
 server = LanguageServer("tcl-lsp", f"v{_version}")
 
 
-# ---------------------------------------------------------------------------
 # Logging bridge: forward Python log records to the LSP client as
 # ``window/logMessage`` so they appear in Zed's language-server log panel
 # and VS Code's Output → Tcl LSP channel.
-# ---------------------------------------------------------------------------
 
 
 class _LspLogHandler(logging.Handler):
@@ -244,10 +242,8 @@ def _quiet_handle_cancel(msg_id: str | int) -> None:
 server.protocol._handle_cancel_notification = _quiet_handle_cancel  # type: ignore[invalid-assignment]
 
 
-# ---------------------------------------------------------------------------
 # Request / notification logging — wrap pygls dispatch so every incoming
 # message is logged to the client channel.
-# ---------------------------------------------------------------------------
 
 _orig_handle_request = server.protocol._handle_request
 _orig_handle_notification = server.protocol._handle_notification
@@ -2182,9 +2178,7 @@ def on_initialized(params: types.InitializedParams) -> None:
     _pull_and_apply_configuration()
 
 
-# ---------------------------------------------------------------------------
 # Custom commands (workspace/executeCommand)
-# ---------------------------------------------------------------------------
 
 _DIALECT_COMMAND = "tcl-lsp.setDialect"
 _EXPORT_CONFIG_COMMAND = "tcl-lsp.exportConfig"

@@ -45,7 +45,7 @@ def validate_iapp_presentation(
     """
     diagnostics: list[Diagnostic] = []
 
-    # --- IAPP7003: #include not found ---
+    # IAPP7003: #include not found
     for inc in apl_model.includes:
         if not inc.resolved:
             diagnostics.append(
@@ -74,7 +74,7 @@ def validate_iapp_presentation(
     # in the implementation file.  We intentionally skip it here to avoid
     # duplicate diagnostics.
 
-    # --- IAPP7002: unused presentation field ---
+    # IAPP7002: unused presentation field
     for qname, apl_field in apl_model.all_fields.items():
         if qname not in referenced_apl_names:
             # Only report for non-message fields (messages are display-only)

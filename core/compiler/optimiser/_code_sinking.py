@@ -37,9 +37,7 @@ from ..ir import (
 from ._helpers import _full_command_range
 from ._types import Optimisation, PassContext
 
-# ---------------------------------------------------------------------------
 # Sinkability check
-# ---------------------------------------------------------------------------
 
 
 def _is_sinkable(stmt) -> bool:
@@ -53,9 +51,7 @@ def _is_sinkable(stmt) -> bool:
     return False
 
 
-# ---------------------------------------------------------------------------
 # Variable reference detection
-# ---------------------------------------------------------------------------
 
 
 def _text_references_var(text: str, var_name: str) -> bool:
@@ -268,9 +264,7 @@ def _used_in_remaining_stmts(
     return False
 
 
-# ---------------------------------------------------------------------------
 # Decision-block helpers
-# ---------------------------------------------------------------------------
 
 
 def _decision_body_info(stmt) -> list[tuple[IRScript, Range]] | None:
@@ -305,9 +299,7 @@ def _decision_condition_uses_var(stmt, var_name: str) -> bool:
     return False
 
 
-# ---------------------------------------------------------------------------
 # Deepest-target search
-# ---------------------------------------------------------------------------
 
 
 def _find_deepest_sink_targets(
@@ -413,9 +405,7 @@ def _try_deeper_sink(source: str, stmt, var_name: str) -> list[Range]:
     return []
 
 
-# ---------------------------------------------------------------------------
 # Body-insertion helpers
-# ---------------------------------------------------------------------------
 
 
 def _detect_body_indent(source: str, body_range: Range) -> str:
@@ -458,9 +448,7 @@ def _body_insertion_replacement(
     return "{\n" + indent + stmt_text + "\n" + indent
 
 
-# ---------------------------------------------------------------------------
 # Optimisation emission
-# ---------------------------------------------------------------------------
 
 
 @opt(
@@ -511,9 +499,7 @@ def _emit_sinking_opts(
         )
 
 
-# ---------------------------------------------------------------------------
 # Main walk
-# ---------------------------------------------------------------------------
 
 
 def optimise_code_sinking(

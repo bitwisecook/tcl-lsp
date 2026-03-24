@@ -36,7 +36,7 @@ def _mtr(
 def mentor_command_specs() -> tuple[CommandSpec, ...]:
     """Return Mentor/Siemens-specific command specs."""
     return (
-        # --- Compilation ---
+        # Compilation
         _mtr(
             "vlib",
             "Create a design library directory.",
@@ -69,7 +69,7 @@ def mentor_command_specs() -> tuple[CommandSpec, ...]:
             "Delete a compiled library or design unit.",
             "vdel ?-lib library? ?-all? ?design_unit?",
         ),
-        # --- Simulation control ---
+        # Simulation control
         _mtr(
             "vsim",
             "Load and start simulation.",
@@ -95,7 +95,7 @@ def mentor_command_specs() -> tuple[CommandSpec, ...]:
         _mtr(
             "change", "Change the value of a VHDL signal or variable.", "change signal_name value"
         ),
-        # --- Waveform window ---
+        # Waveform window
         _mtr(
             "add_wave",
             "Add signals to the wave window (add wave).",
@@ -113,7 +113,7 @@ def mentor_command_specs() -> tuple[CommandSpec, ...]:
             "Create virtual signals or regions.",
             "virtual ?-install | -env env? ?signal | function? ?-name name?",
         ),
-        # --- Breakpoints & flow control ---
+        # Breakpoints & flow control
         _mtr("bp", "Set a breakpoint.", "bp ?file_name? ?line_number? ?-cond condition?"),
         _mtr("bd", "Delete breakpoints.", "bd ?breakpoint_id | -all?"),
         _mtr("bc", "Clear (disable) breakpoints.", "bc ?breakpoint_id | -all?"),
@@ -131,7 +131,7 @@ def mentor_command_specs() -> tuple[CommandSpec, ...]:
             "Control transcript file output.",
             "transcript ?on | off | file file_name?",
         ),
-        # --- Signal operations ---
+        # Signal operations
         _mtr(
             "find",
             "Find signals matching a pattern.",
@@ -145,7 +145,7 @@ def mentor_command_specs() -> tuple[CommandSpec, ...]:
         ),
         _mtr("drivers", "Find drivers of a signal.", "drivers signal_name", Arity(1, 1)),
         _mtr("readers", "Find readers of a signal.", "readers signal_name", Arity(1, 1)),
-        # --- Signal spy / force ---
+        # Signal spy / force
         _mtr(
             "signal_force",
             "Force a signal value using SignalSpy.",
@@ -164,7 +164,7 @@ def mentor_command_specs() -> tuple[CommandSpec, ...]:
             "init_signal_driver src_signal dst_signal ?-default default_value? ?-delay delay?",
             Arity(2),
         ),
-        # --- Coverage ---
+        # Coverage
         _mtr(
             "coverage",
             "Configure or report code coverage.",
@@ -176,7 +176,7 @@ def mentor_command_specs() -> tuple[CommandSpec, ...]:
             "vcover ?merge | report | attr? ?-input file_list? ?-output file? ?-detail? ?-verbose?",
         ),
         _mtr("toggle", "Report toggle coverage statistics.", "toggle ?signal_name? ?-report?"),
-        # --- Questa advanced ---
+        # Questa advanced
         _mtr(
             "qverilog",
             "Questa one-step Verilog compile and simulate.",
@@ -193,7 +193,7 @@ def mentor_command_specs() -> tuple[CommandSpec, ...]:
             "qrun ?-f file? ?-clean? ?-sv? ?-optimize? ?-top top? file_list",
         ),
         _mtr("qwave", "Questa waveform viewer command.", "qwave ?subcommand? ?args ...?"),
-        # --- Questa Formal ---
+        # Questa Formal
         _mtr(
             "formal_compile",
             "Compile design for formal verification.",
@@ -209,7 +209,7 @@ def mentor_command_specs() -> tuple[CommandSpec, ...]:
             "Analyze formal verification results.",
             "formal_analyze ?-property prop_list?",
         ),
-        # --- Calibre (physical verification) ---
+        # Calibre (physical verification)
         _mtr(
             "calibre",
             "Run Calibre physical verification.",

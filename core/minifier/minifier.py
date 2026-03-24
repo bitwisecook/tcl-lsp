@@ -541,7 +541,7 @@ def _compact_names(source: str) -> tuple[str, SymbolMap]:
 
     builtin_names = set(REGISTRY.command_names())
 
-    # --- Variable renaming (per-proc scope) ---
+    # Variable renaming (per-proc scope)
 
     def _process_scope(scope: Scope, scope_label: str) -> None:
         if scope.kind == "proc" and scope_label not in barrier_scopes:
@@ -603,7 +603,7 @@ def _compact_names(source: str) -> tuple[str, SymbolMap]:
 
     _process_scope(analysis.global_scope, "::")
 
-    # --- Proc renaming ---
+    # Proc renaming
 
     proc_name_gen = _name_generator()
     proc_map: dict[str, str] = {}
@@ -644,13 +644,13 @@ def _compact_names(source: str) -> tuple[str, SymbolMap]:
     if proc_map:
         symbol_map.procs = proc_map
 
-    # --- Array member compaction ---
+    # Array member compaction
 
     array_member_map = _compact_array_members(source, barrier_scopes, analysis, edits)
     if array_member_map:
         symbol_map.array_members = array_member_map
 
-    # --- Apply edits ---
+    # Apply edits
 
     result = _apply_edits(source, edits)
     return result, symbol_map
@@ -842,9 +842,7 @@ def _compact_array_members(
     return result_map
 
 
-# ---------------------------------------------------------------------------
 # Phase 2.8: Ensemble subcommand abbreviation
-# ---------------------------------------------------------------------------
 
 # Minimum unambiguous prefixes for Tcl 8.6 ensemble subcommands.
 # Only used when the dialect guarantees a fixed ensemble (e.g. F5 iRules).
@@ -1225,9 +1223,7 @@ def _alias_repeated_arguments(
     return result, aliases
 
 
-# ---------------------------------------------------------------------------
 # Phase 2.7 — String-literal substring aliasing
-# ---------------------------------------------------------------------------
 
 
 def _collect_string_literals(
@@ -1633,7 +1629,7 @@ def _minify_body(source: str, *, dialect: str | None = None) -> str:
     if not commands:
         return ""
 
-    # --- Render each arg to its string form. ---
+    # Render each arg to its string form.
     rendered_commands: list[list[str]] = []
     for cmd_args in commands:
         cmd_name = _token_text(cmd_args[0]) if cmd_args else ""
@@ -1658,7 +1654,7 @@ def _minify_body(source: str, *, dialect: str | None = None) -> str:
 
         rendered_commands.append(arg_strs)
 
-    # --- Template deduplication (subst aliasing). ---
+    # Template deduplication (subst aliasing).
     # Find quoted args with dynamic content that repeat identically.
     # Replace with [subst $alias] and prepend set alias {content}.
     template_map, rendered_commands = _dedup_templates(rendered_commands)

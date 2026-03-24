@@ -43,9 +43,7 @@ def _read(rel_path: str) -> str:
     return (ROOT / rel_path).read_text(encoding="utf-8")
 
 
-# ---------------------------------------------------------------------------
 # Helpers — structured extraction (no regex on generated files)
-# ---------------------------------------------------------------------------
 
 
 def _vscode_codes_from_json(prefix: str) -> set[str]:
@@ -62,9 +60,7 @@ def _vscode_codes_from_json(prefix: str) -> set[str]:
     return codes
 
 
-# ---------------------------------------------------------------------------
 # 1. Compiler source scan — every code must be in the registry
-# ---------------------------------------------------------------------------
 
 
 def _scan_compiler_codes() -> set[str]:
@@ -120,9 +116,7 @@ def test_internal_codes_are_real():
     )
 
 
-# ---------------------------------------------------------------------------
 # 2. LSP server loads codes from registry
-# ---------------------------------------------------------------------------
 
 
 def test_server_diagnostic_codes_match_registry():
@@ -143,9 +137,7 @@ def test_server_optimisation_codes_match_registry():
     )
 
 
-# ---------------------------------------------------------------------------
 # 3. VS Code package.json matches registry (JSON-parsed, no regex)
-# ---------------------------------------------------------------------------
 
 
 def test_vscode_diagnostic_settings_match_registry():
@@ -166,9 +158,7 @@ def test_vscode_optimiser_settings_match_registry():
     )
 
 
-# ---------------------------------------------------------------------------
 # 4. All generated files match generator dry_run output (staleness checks)
-# ---------------------------------------------------------------------------
 
 
 def test_all_generated_files_are_fresh():
@@ -189,9 +179,7 @@ def test_all_generated_files_are_fresh():
     )
 
 
-# ---------------------------------------------------------------------------
 # 5. Registry internal consistency
-# ---------------------------------------------------------------------------
 
 
 def test_registry_no_duplicate_codes():
@@ -271,9 +259,7 @@ def test_generator_is_idempotent():
         assert content1 == content2, f"Generation not idempotent for {path1}"
 
 
-# ---------------------------------------------------------------------------
 # 7. Native language toolchain validation (skipped if toolchain not present)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.skipif(not shutil.which("tsc"), reason="tsc not found")

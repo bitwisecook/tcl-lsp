@@ -25,7 +25,7 @@ from ..token_helpers import parse_decimal_int as _parse_decimal_int
 from ..types import TclType, TypeKind, TypeLattice
 from ._helpers import _parse_string_length_arg
 
-# --- Constants ---
+# Constants
 
 _BIN_PRECEDENCE: dict[BinOp, int] = {
     BinOp.OR: 4,
@@ -123,7 +123,7 @@ _REGEX_META_RE = re.compile(r"[.*+?\[\](){}|\\]")
 _GLOB_META_RE = re.compile(r"[*?\[\]]")
 _BOOLEAN_WORDS = frozenset(("true", "false", "yes", "no", "on", "off"))
 
-# --- Helper functions ---
+# Helper functions
 
 
 def _try_fold_expr(expr: str) -> str | None:

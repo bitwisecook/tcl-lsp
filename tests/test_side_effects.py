@@ -14,9 +14,7 @@ from core.compiler.side_effects import (
     classify_side_effects,
 )
 
-# ---------------------------------------------------------------------------
 # Enum smoke tests
-# ---------------------------------------------------------------------------
 
 
 class TestEnums:
@@ -49,9 +47,7 @@ class TestEnums:
         assert all(t in SideEffectTarget for t in io_targets)
 
 
-# ---------------------------------------------------------------------------
 # Dataclass tests
-# ---------------------------------------------------------------------------
 
 
 class TestSideEffect:
@@ -134,9 +130,7 @@ class TestCommandSideEffects:
         assert server[0] is e1
 
 
-# ---------------------------------------------------------------------------
 # classify_side_effects tests
-# ---------------------------------------------------------------------------
 
 
 class TestClassifyPureCommands:
@@ -373,9 +367,7 @@ class TestDialectSpecificHints:
         assert writes is EffectRegion.NONE
 
 
-# ---------------------------------------------------------------------------
 # Conformance test matrix — key command families have non-UNKNOWN targets
-# ---------------------------------------------------------------------------
 
 
 class TestConformanceHintTargets:

@@ -36,7 +36,7 @@ def _qrt(
 def quartus_command_specs() -> tuple[CommandSpec, ...]:
     """Return Intel Quartus-specific command specs."""
     return (
-        # --- Project management (::quartus::project) ---
+        # Project management (::quartus::project)
         _qrt(
             "project_new",
             "Create a new Quartus project.",
@@ -60,7 +60,7 @@ def quartus_command_specs() -> tuple[CommandSpec, ...]:
             "project_exists project_name",
             Arity(1, 1),
         ),
-        # --- Assignments (::quartus::project) ---
+        # Assignments (::quartus::project)
         _qrt(
             "set_global_assignment",
             "Set a global project assignment.",
@@ -114,7 +114,7 @@ def quartus_command_specs() -> tuple[CommandSpec, ...]:
             "Get an I/O assignment value.",
             "get_io_assignment -name name -to pin_name",
         ),
-        # --- Flow execution (::quartus::flow) ---
+        # Flow execution (::quartus::flow)
         _qrt(
             "execute_flow",
             "Execute a Quartus compilation flow.",
@@ -125,11 +125,11 @@ def quartus_command_specs() -> tuple[CommandSpec, ...]:
             "Execute a specific Quartus module.",
             "execute_module -tool tool_name ?-args arg_list?",
         ),
-        # --- Package management ---
+        # Package management
         _qrt(
             "load_package", "Load a Quartus Tcl package.", "load_package package_name", Arity(1, 1)
         ),
-        # --- Device information (::quartus::device) ---
+        # Device information (::quartus::device)
         _qrt(
             "get_part_list",
             "Get a list of available FPGA parts.",
@@ -140,7 +140,7 @@ def quartus_command_specs() -> tuple[CommandSpec, ...]:
             "Get information about a specific FPGA part.",
             "get_part_info -family | -speed_grade | -package | -pin_count | -available_pin_count part_name",
         ),
-        # --- Report access (::quartus::report) ---
+        # Report access (::quartus::report)
         _qrt(
             "load_report", "Load a compilation report into memory.", "load_report ?revision_name?"
         ),
@@ -171,7 +171,7 @@ def quartus_command_specs() -> tuple[CommandSpec, ...]:
             "Get the number of columns in a report panel.",
             "get_number_of_columns -name panel_name",
         ),
-        # --- Timing analysis (::quartus::sta) ---
+        # Timing analysis (::quartus::sta)
         _qrt(
             "create_timing_netlist",
             "Create a timing netlist for analysis.",
@@ -217,7 +217,7 @@ def quartus_command_specs() -> tuple[CommandSpec, ...]:
             "report_datasheet ?-file file? ?-panel_name name?",
         ),
         _qrt("check_timing", "Check for timing analysis issues.", "check_timing ?-file file?"),
-        # --- SDC extensions (::quartus::sdc) ---
+        # SDC extensions (::quartus::sdc)
         _qrt(
             "derive_clocks",
             "Automatically derive clocks from the design.",
@@ -228,7 +228,7 @@ def quartus_command_specs() -> tuple[CommandSpec, ...]:
             "Automatically derive PLL output clocks.",
             "derive_pll_clocks ?-create_base_clocks? ?-use_net_name?",
         ),
-        # --- JTAG (::quartus::jtag) ---
+        # JTAG (::quartus::jtag)
         _qrt(
             "open_device",
             "Open a device on the JTAG chain.",
@@ -241,7 +241,7 @@ def quartus_command_specs() -> tuple[CommandSpec, ...]:
             "device_lock ?-timeout seconds?",
         ),
         _qrt("device_unlock", "Unlock a previously locked JTAG device.", "device_unlock"),
-        # --- Names/nodes (::quartus::names) ---
+        # Names/nodes (::quartus::names)
         _qrt(
             "get_names",
             "Get signal names from the design.",
@@ -252,7 +252,7 @@ def quartus_command_specs() -> tuple[CommandSpec, ...]:
             "Get detailed information about a named signal.",
             "get_name_info -info info_type name_id",
         ),
-        # --- ECO (::quartus::eco) ---
+        # ECO (::quartus::eco)
         _qrt(
             "make_connection",
             "Make a connection in an ECO change.",

@@ -1537,7 +1537,7 @@ def extract_rule_init_vars(
         if event != "RULE_INIT":
             continue
 
-        # --- IR-based path (preferred) ---
+        # IR-based path (preferred)
         fu = cu.procedures.get(qname) if cu else None
         if fu is not None:
             seen: set[str] = set()
@@ -1572,7 +1572,7 @@ def extract_rule_init_vars(
                             )
             continue
 
-        # --- Fallback: token walk ---
+        # Fallback: token walk
         for cmd_name, _cmd_tok, all_tokens in _walk_body_commands(
             body_text,
             base_offset=body_tok.start.offset + 1,

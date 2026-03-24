@@ -206,7 +206,7 @@ class TestDialectProfiles:
         labels = {item.label for item in get_completions("", 0, 0)}
         assert "json::json2dict" not in labels
 
-    # --- Expect dialect -------------------------------------------------
+    # Expect dialect
 
     def test_expect_profile_adds_expect_commands(self):
         configure_signatures(dialect="expect")

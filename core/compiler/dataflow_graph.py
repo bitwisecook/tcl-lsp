@@ -261,9 +261,7 @@ def extract_dataflow_graph(
     return DataFlowGraph(functions=functions)
 
 
-# ---------------------------------------------------------------------------
 # Serialisation helpers
-# ---------------------------------------------------------------------------
 
 
 def dataflow_graph_to_dict(graph: DataFlowGraph) -> dict:

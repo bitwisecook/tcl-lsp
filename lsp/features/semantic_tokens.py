@@ -787,7 +787,7 @@ def _collect_embedded_tcl_tokens(
     source_map = SourceMap(source)
     body_ranges: list[tuple[int, int]] = []
 
-    # --- Embedded iRules (ltm rule / gtm rule) ---
+    # Embedded iRules (ltm rule / gtm rule)
     for rule in find_embedded_rules(source):
         body_start = source_map.offset_to_position(rule.body_start_offset - 1)
         body_end = source_map.offset_to_position(
@@ -810,7 +810,7 @@ def _collect_embedded_tcl_tokens(
         )
         _collect_tokens(tokens, rule.body, body_token=body_token, regex_positions=regex_positions)
 
-    # --- Embedded iApp sections (implementation / presentation) ---
+    # Embedded iApp sections (implementation / presentation)
     for section in find_embedded_iapp_sections(source):
         sec_start = source_map.offset_to_position(section.body_start_offset - 1)
         sec_end = source_map.offset_to_position(

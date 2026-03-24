@@ -43,7 +43,7 @@ from ._helpers import (
 )
 from ._types import Optimisation, PassContext
 
-# --- O-code registrations for codes primarily emitted from this module ---
+# O-code registrations for codes primarily emitted from this module
 opt("O102", "Fold constant `[expr {...}]` command substitutions.")
 opt("O103", "Fold static procedure calls using interprocedural summaries.")
 opt(

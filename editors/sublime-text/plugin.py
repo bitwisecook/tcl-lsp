@@ -64,9 +64,7 @@ _view_last_syntax = {}  # type: dict
 _HAS_LSP = False
 
 
-# ---------------------------------------------------------------------------
 # Utility helpers
-# ---------------------------------------------------------------------------
 
 def _package_dir():
     # type: () -> str
@@ -178,10 +176,8 @@ def _check_view_dialect(view):
         _set_dialect(dialect)
 
 
-# ---------------------------------------------------------------------------
 # LSP AbstractPlugin — defined at module level so LSP can introspect it.
 # Guarded by try/except so the plugin loads even without the LSP package.
-# ---------------------------------------------------------------------------
 
 try:
     from LSP.plugin import AbstractPlugin  # type: ignore[import-not-found]
@@ -259,9 +255,7 @@ except ImportError:
     TclLsp = None  # type: ignore[assignment,misc]
 
 
-# ---------------------------------------------------------------------------
 # Lifecycle
-# ---------------------------------------------------------------------------
 
 def _check_package_name():
     # type: () -> None
@@ -357,9 +351,7 @@ def _suggest_lsp_install():
     )
 
 
-# ---------------------------------------------------------------------------
 # Commands
-# ---------------------------------------------------------------------------
 
 class TclSelectDialectCommand(sublime_plugin.WindowCommand):
     """Quick panel to choose the Tcl dialect for the LSP server."""
@@ -516,10 +508,8 @@ class TclUnminifyErrorCommand(sublime_plugin.WindowCommand):
         return _HAS_LSP
 
 
-# ---------------------------------------------------------------------------
 # Dialect sync — automatically update the LSP dialect when the user
 # selects a dialect-specific syntax from View > Syntax.
-# ---------------------------------------------------------------------------
 
 class TclDialectSyncListener(sublime_plugin.EventListener):
     """Sync LSP dialect when the user switches to a dialect syntax."""
@@ -548,9 +538,7 @@ class TclDialectSyncListener(sublime_plugin.EventListener):
         )
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 def _is_tcl_view(view):
     # type: (sublime.View) -> bool
