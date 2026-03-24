@@ -16,8 +16,9 @@ from core.common.user_config import (
 
 
 def _config_from_string(text: str) -> configparser.ConfigParser:
-    """Build a ConfigParser from an INI string."""
+    """Build a ConfigParser from an INI string (case-preserving, like load_user_config)."""
     config = configparser.ConfigParser()
+    config.optionxform = str  # type: ignore[assignment]  # preserve camelCase
     config.read_string(text)
     return config
 
@@ -65,6 +66,16 @@ class TestGetAllSettings:
         result = get_all_settings(config)
         assert result["features"]["hover"] is False
         assert result["features"]["completion"] is True
+
+    def test_features_camelcase_preserved(self):
+        """camelCase feature keys like semanticTokens must survive config parsing."""
+        config = _config_from_string(
+            "[features]\nsemanticTokens = false\ninlayHints = false\ncodeActions = true\n"
+        )
+        result = get_all_settings(config)
+        assert result["features"]["semanticTokens"] is False
+        assert result["features"]["inlayHints"] is False
+        assert result["features"]["codeActions"] is True
 
     def test_formatting(self):
         config = _config_from_string("[formatting]\nindent_size = 2\nindent_style = tabs\n")

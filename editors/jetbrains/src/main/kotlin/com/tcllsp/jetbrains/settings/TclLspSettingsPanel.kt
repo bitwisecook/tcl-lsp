@@ -95,19 +95,19 @@ class TclLspSettingsPanel {
     private val diagW309 = JBCheckBox("W309: eval/uplevel with subst")
 
     // Diagnostics — Additional Warnings
-    private val diagW101 = JBCheckBox("W101: Deprecated command")
-    private val diagW102 = JBCheckBox("W102: Suspicious return value")
-    private val diagW103 = JBCheckBox("W103: Implicit return")
-    private val diagW220 = JBCheckBox("W220: Unreachable code")
+    private val diagW101 = JBCheckBox("W101: eval with string concat — injection risk")
+    private val diagW102 = JBCheckBox("W102: subst on variable input — injection risk")
+    private val diagW103 = JBCheckBox("W103: open with pipeline — injection risk")
+    private val diagW220 = JBCheckBox("W220: Dead store — set but overwritten")
 
     // Diagnostics — Security
-    private val diagW300 = JBCheckBox("W300: Dangerous unquoted eval")
-    private val diagW301 = JBCheckBox("W301: User input in expr")
-    private val diagW303 = JBCheckBox("W303: Command injection risk")
-    private val diagW306 = JBCheckBox("W306: Unsafe file operation")
+    private val diagW300 = JBCheckBox("W300: source with variable arg — execution risk")
+    private val diagW301 = JBCheckBox("W301: uplevel with string-built script — injection risk")
+    private val diagW303 = JBCheckBox("W303: Regexp vulnerable to ReDoS")
+    private val diagW306 = JBCheckBox("W306: Substitution in literal-expected position")
 
     // Diagnostics — Hints
-    private val diagH300 = JBCheckBox("H300: Security best practice")
+    private val diagH300 = JBCheckBox("H300: Possible paste error — repeated assignment")
 
     // Diagnostics — Shimmer
     private val diagS100 = JBCheckBox("S100: Type instability")
