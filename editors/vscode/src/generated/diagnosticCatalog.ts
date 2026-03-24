@@ -18,7 +18,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "E001",
     section: "error",
-    description: "Missing subcommand \u2014 e.g. bare `string` without a subcommand.",
+    description: "Missing subcommand — e.g. bare `string` without a subcommand.",
     defaultEnabled: true,
   },
   {
@@ -36,7 +36,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "E200",
     section: "error",
-    description: "Shimmer parse error \u2014 internal representation cannot be determined.",
+    description: "Shimmer parse error — internal representation cannot be determined.",
     defaultEnabled: true,
   },
   {
@@ -55,13 +55,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W100",
     section: "warning",
     description:
-      "Unbraced expression argument \u2014 prevents byte-compilation and risks double substitution.",
+      "Unbraced expression argument — prevents byte-compilation and risks double substitution.",
     defaultEnabled: true,
   },
   {
     code: "W104",
     section: "warning",
-    description: "String concatenation for list building \u2014 use `lappend` instead.",
+    description: "String concatenation for list building — use `lappend` instead.",
     defaultEnabled: true,
   },
   {
@@ -73,7 +73,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "W106",
     section: "warning",
-    description: "Dangerous unbraced `switch` body \u2014 risks double substitution.",
+    description: "Dangerous unbraced `switch` body — risks double substitution.",
     defaultEnabled: true,
   },
   {
@@ -109,7 +109,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "W114",
     section: "warning",
-    description: "Redundant nested `[expr {...}]` \u2014 already in expression context.",
+    description: "Redundant nested `[expr {...}]` — already in expression context.",
     defaultEnabled: true,
   },
   {
@@ -133,7 +133,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "W122",
     section: "warning",
-    description: "Mistyped IPv4 address (octet \u003e 255 or leading zero).",
+    description: "Mistyped IPv4 address (octet > 255 or leading zero).",
     defaultEnabled: true,
   },
   {
@@ -145,7 +145,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "W201",
     section: "warning",
-    description: "Manual path concatenation \u2014 use `file join` instead.",
+    description: "Manual path concatenation — use `file join` instead.",
     defaultEnabled: true,
   },
   {
@@ -170,56 +170,56 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "W213",
     section: "variable",
-    description: "Variable may not exist \u2014 use `unset -nocomplain` to suppress the error.",
+    description: "Variable may not exist — use `unset -nocomplain` to suppress the error.",
     defaultEnabled: true,
   },
   {
     code: "W214",
     section: "variable",
     description:
-      "Unused proc parameter \u2014 argument is declared but never read in the procedure body.",
+      "Unused proc parameter — argument is declared but never read in the procedure body.",
     defaultEnabled: true,
   },
   {
     code: "W220",
     section: "variable",
-    description: "Dead store \u2014 variable set but overwritten before use.",
+    description: "Dead store — variable set but overwritten before use.",
     defaultEnabled: true,
   },
   {
     code: "W101",
     section: "security",
-    description: "`eval` with string concatenation \u2014 code injection risk.",
+    description: "`eval` with string concatenation — code injection risk.",
     defaultEnabled: true,
   },
   {
     code: "W102",
     section: "security",
-    description: "`subst` on variable input \u2014 code injection risk.",
+    description: "`subst` on variable input — code injection risk.",
     defaultEnabled: true,
   },
   {
     code: "W103",
     section: "security",
-    description: "`open` with pipeline `|` \u2014 command injection risk.",
+    description: "`open` with pipeline `|` — command injection risk.",
     defaultEnabled: true,
   },
   {
     code: "W300",
     section: "security",
-    description: "`source` with variable argument \u2014 code execution risk.",
+    description: "`source` with variable argument — code execution risk.",
     defaultEnabled: true,
   },
   {
     code: "W301",
     section: "security",
-    description: "`uplevel` with string-built script \u2014 injection risk.",
+    description: "`uplevel` with string-built script — injection risk.",
     defaultEnabled: true,
   },
   {
     code: "W302",
     section: "security",
-    description: "`catch` without result variable \u2014 errors are silently swallowed.",
+    description: "`catch` without result variable — errors are silently swallowed.",
     defaultEnabled: true,
   },
   {
@@ -243,38 +243,37 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "W307",
     section: "security",
-    description: "Non-literal command name \u2014 variable or command substitution as command.",
+    description: "Non-literal command name — variable or command substitution as command.",
     defaultEnabled: true,
   },
   {
     code: "W308",
     section: "security",
-    description: "`subst` without `-nocommands` \u2014 risk of unintended command execution.",
+    description: "`subst` without `-nocommands` — risk of unintended command execution.",
     defaultEnabled: true,
   },
   {
     code: "W309",
     section: "security",
-    description: "`eval`/`uplevel` with `subst` \u2014 double substitution risk.",
+    description: "`eval`/`uplevel` with `subst` — double substitution risk.",
     defaultEnabled: true,
   },
   {
     code: "H300",
     section: "hint",
-    description:
-      "Possible paste error \u2014 repeated assignment to same variable with same value.",
+    description: "Possible paste error — repeated assignment to same variable with same value.",
     defaultEnabled: true,
   },
   {
     code: "S100",
     section: "shimmer",
-    description: "Single shimmer outside a loop \u2014 object internal representation changed.",
+    description: "Single shimmer outside a loop — object internal representation changed.",
     defaultEnabled: true,
   },
   {
     code: "S101",
     section: "shimmer",
-    description: "Shimmer inside a loop body \u2014 per-iteration representation conversion cost.",
+    description: "Shimmer inside a loop body — per-iteration representation conversion cost.",
     defaultEnabled: true,
   },
   {
@@ -299,8 +298,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "T102",
     section: "taint",
-    description:
-      "Tainted data in option position without `--` terminator \u2014 option injection risk.",
+    description: "Tainted data in option position without `--` terminator — option injection risk.",
     defaultEnabled: true,
   },
   {
@@ -366,7 +364,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "IRULE2001",
     section: "irules",
-    description: "Deprecated `matchclass` \u2014 use `class match` instead.",
+    description: "Deprecated `matchclass` — use `class match` instead.",
     defaultEnabled: true,
   },
   {
@@ -385,7 +383,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "IRULE2101",
     section: "irules",
     description:
-      "Heavy `regexp` in a high-frequency event \u2014 consider `string match` or data-group.",
+      "Heavy `regexp` in a high-frequency event — consider `string match` or data-group.",
     defaultEnabled: true,
   },
   {
@@ -409,7 +407,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "IRULE5005",
     section: "irules",
-    description: "Direct proc invocation without `call` \u2014 use `call proc_name`.",
+    description: "Direct proc invocation without `call` — use `call proc_name`.",
     defaultEnabled: true,
   },
   {
@@ -427,7 +425,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "IRULE3003",
     section: "irules_security",
-    description: "Tainted data in `log` command \u2014 log injection risk.",
+    description: "Tainted data in `log` command — log injection risk.",
     defaultEnabled: true,
   },
   {
@@ -451,7 +449,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "IRULE4002",
     section: "irules_variable",
-    description: "Generic `static::` variable name \u2014 collision likely across iRules.",
+    description: "Generic `static::` variable name — collision likely across iRules.",
     defaultEnabled: true,
   },
   {
@@ -471,7 +469,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "IRULE4005",
     section: "irules_variable",
     description:
-      "Potential race \u2014 `static::` variable written outside `RULE_INIT` and read in another event.",
+      "Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
     defaultEnabled: true,
   },
 ];
@@ -545,12 +543,12 @@ export const OPTIMISATIONS: OptimisationDef[] = [
   },
   {
     code: "O113",
-    description: "Strength-reduce expressions (`x**2` \u2192 `x*x`, `x%8` \u2192 `x\u00267`).",
+    description: "Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`).",
     defaultEnabled: true,
   },
   {
     code: "O114",
-    description: "Recognise `incr` idiom (`set x [expr {$x + N}]` \u2192 `incr x N`).",
+    description: "Recognise `incr` idiom (`set x [expr {$x + N}]` → `incr x N`).",
     defaultEnabled: true,
   },
   {
@@ -565,7 +563,7 @@ export const OPTIMISATIONS: OptimisationDef[] = [
   },
   {
     code: "O117",
-    description: 'Simplify `[string length $s] == 0` \u2192 `$s eq ""`.',
+    description: 'Simplify `[string length $s] == 0` → `$s eq ""`.',
     defaultEnabled: true,
   },
   {
@@ -612,7 +610,7 @@ export const OPTIMISATIONS: OptimisationDef[] = [
   {
     code: "O126",
     description:
-      "Remove unused variable assignments \u2014 eliminate `set` statements for variables that are never read.",
+      "Remove unused variable assignments — eliminate `set` statements for variables that are never read.",
     defaultEnabled: true,
   },
 ];

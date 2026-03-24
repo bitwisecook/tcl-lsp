@@ -16,8 +16,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -26,52 +24,27 @@ import jinja2
 ROOT = Path(__file__).resolve().parents[1]
 
 
-# Optional formatter integration
+# TypeScript formatting helpers (match prettier output without requiring it)
+
+_TS_PRINT_WIDTH = 100
 
 
-def _format_typescript(content: str) -> str:
-    """Run prettier on TypeScript content if available."""
-    vscode_dir = ROOT / "editors" / "vscode"
-    prettier = vscode_dir / "node_modules" / ".bin" / "prettier"
-    if not prettier.exists():
-        prettier_path = shutil.which("prettier")
-        if not prettier_path:
-            return content
-        prettier = Path(prettier_path)
-    try:
-        result = subprocess.run(
-            [str(prettier), "--parser", "typescript"],
-            input=content,
-            capture_output=True,
-            text=True,
-            cwd=str(vscode_dir),
-            timeout=30,
-        )
-        if result.returncode == 0:
-            return result.stdout
-    except (subprocess.TimeoutExpired, OSError):
-        pass
-    return content
+def _ts_string_literal(value: str) -> str:
+    """Format a string literal using the same quoting rules as prettier."""
+    if '"' in value:
+        escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+        return f"'{escaped}'"
+    return json.dumps(value, ensure_ascii=False)
 
 
-def _format_kotlin(content: str) -> str:
-    """Run ktfmt on Kotlin content if available."""
-    ktfmt = shutil.which("ktfmt")
-    if not ktfmt:
-        return content
-    try:
-        result = subprocess.run(
-            [ktfmt, "--kotlinlang-style", "-"],
-            input=content,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0:
-            return result.stdout
-    except (subprocess.TimeoutExpired, OSError):
-        pass
-    return content
+def _ts_description_field(value: str, *, indent: int = 4) -> str:
+    """Format a TS description field, wrapping like prettier if too long."""
+    literal = _ts_string_literal(value)
+    prefix = " " * indent
+    one_line = f"{prefix}description: {literal},"
+    if len(one_line) <= _TS_PRINT_WIDTH:
+        return one_line
+    return f"{prefix}description:\n{prefix}  {literal},"
 
 
 # Import registry (triggers all code registrations)
@@ -171,7 +144,6 @@ def generate_jetbrains_catalog(*, dry_run: bool = False) -> tuple[Path, str]:
         section_titles=section_titles,
         section_order=section_order,
     )
-    content = _format_kotlin(content)
 
     if not dry_run:
         _JB_CATALOG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -204,7 +176,7 @@ def generate_vscode_catalog(*, dry_run: bool = False) -> tuple[Path, str]:
             {
                 "code": d.code,
                 "section": d.section,
-                "description": d.description,
+                "description_line": _ts_description_field(d.description),
                 "default": d.default,
             }
             for d in diags
@@ -212,7 +184,7 @@ def generate_vscode_catalog(*, dry_run: bool = False) -> tuple[Path, str]:
         optimisations=[
             {
                 "code": o.code,
-                "description": o.description,
+                "description_line": _ts_description_field(o.description),
                 "default": o.default,
             }
             for o in opts
@@ -220,7 +192,6 @@ def generate_vscode_catalog(*, dry_run: bool = False) -> tuple[Path, str]:
         section_titles_vscode=deduped,
         section_order=[s for s, _ in deduped],
     )
-    content = _format_typescript(content)
 
     if not dry_run:
         _TS_CATALOG_PATH.parent.mkdir(parents=True, exist_ok=True)

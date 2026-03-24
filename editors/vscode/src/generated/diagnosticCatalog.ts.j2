@@ -19,7 +19,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "{{ d.code }}",
     section: "{{ d.section }}",
-    description: {{ d.description | tojson }},
+{{ d.description_line }}
     defaultEnabled: {{ d.default | lower }},
   },
 {% endfor %}
@@ -29,7 +29,7 @@ export const OPTIMISATIONS: OptimisationDef[] = [
 {% for o in optimisations %}
   {
     code: "{{ o.code }}",
-    description: {{ o.description | tojson }},
+{{ o.description_line }}
     defaultEnabled: {{ o.default | lower }},
   },
 {% endfor %}
@@ -37,7 +37,7 @@ export const OPTIMISATIONS: OptimisationDef[] = [
 
 export const SECTION_TITLES: Record<string, string> = {
 {% for section, title in section_titles_vscode %}
-  {{ section | tojson }}: {{ title | tojson }},
+  {{ section }}: {{ title | tojson }},
 {% endfor %}
 };
 
