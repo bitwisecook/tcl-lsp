@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 
 from ..analysis.checks import run_all_checks
+from ..common.codes import diag
 from ..analysis.semantic_model import Diagnostic, Range, Severity
 from ..commands.registry import REGISTRY
 from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -47,6 +48,10 @@ from .ir import (
 from .lowering import lower_to_ir
 
 log = logging.getLogger(__name__)
+
+# Module-level registrations for codes emitted from nested/inline code.
+diag("E004", "Invalid argument count.", section="error", internal=True)
+diag("W302", "`catch` without result variable — errors are silently swallowed.", section="security")
 
 
 def _edit_distance(a: str, b: str) -> int:
@@ -552,6 +557,8 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
     return diagnostics
 
 
+@diag("E001", "Missing subcommand — e.g. bare `string` without a subcommand.", section="error")
+@diag("W001", "Unknown subcommand.", section="warning")
 def _check_arity(
     cmd_name: str,
     args: list[str],
@@ -597,6 +604,8 @@ def _check_arity(
     _check_simple_arity(cmd_name, args, sig, diag_range, diagnostics)
 
 
+@diag("E002", "Too few arguments for command.", section="error")
+@diag("E003", "Too many arguments for command.", section="error")
 def _check_simple_arity(
     display_name: str,
     args: list[str],

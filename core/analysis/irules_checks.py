@@ -33,6 +33,7 @@ from ..commands.registry.namespace_data import (
 from ..commands.registry.namespace_models import EventRequires
 from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from ..commands.registry.runtime import variable_writing_commands
+from ..common.codes import diag
 from ..common.dialect import active_dialect
 from ..common.ranges import range_from_token
 from ..parsing.tokens import Token
@@ -51,6 +52,7 @@ def _valid_events_for_command(cmd_name: str, dialect: str) -> list[str]:
 # IRULE1001: Command invalid/ineffective in this event
 
 
+@diag("IRULE1001", "Command invalid or ineffective in this iRules event.", section="irules")
 def check_command_event_validity(
     cmd_name: str,
     args: list[str],
@@ -158,6 +160,7 @@ def check_command_event_validity(
 # IRULE2001: Deprecated matchclass → class match
 
 
+@diag("IRULE2001", "Deprecated `matchclass` — use `class match` instead.", section="irules")
 def check_matchclass(
     cmd_name: str,
     args: list[str],
@@ -209,6 +212,11 @@ def check_matchclass(
 # IRULE2101: Heavy regex in hot event
 
 
+@diag(
+    "IRULE2101",
+    "Heavy `regexp` in a high-frequency event — consider `string match` or data-group.",
+    section="irules",
+)
 def check_heavy_regex_in_hot_event(
     cmd_name: str,
     args: list[str],
@@ -241,6 +249,7 @@ def check_heavy_regex_in_hot_event(
 # IRULE5001: Ungated log in hot event
 
 
+@diag("IRULE5001", "Ungated `log` in a high-frequency event.", section="irules")
 def check_ungated_log(
     cmd_name: str,
     args: list[str],
@@ -295,6 +304,11 @@ def _static_var_from_set(
     return None
 
 
+@diag(
+    "IRULE4001",
+    "Write to `static::` variable outside `RULE_INIT`.",
+    section="irules_variable",
+)
 def check_static_write_outside_rule_init(
     cmd_name: str,
     args: list[str],
@@ -455,6 +469,7 @@ def _var_referenced_in(var_name: str, body: str) -> bool:
     return bool(re.search(rf"\${escaped}(?!\w)|\$\{{{escaped}\}}", body))
 
 
+@diag("IRULE4003", "Variable scoping concern across events.", section="irules_variable")
 def check_variable_scope_across_events(
     cmd_name: str,
     args: list[str],
@@ -525,6 +540,7 @@ def check_variable_scope_across_events(
 _DEPRECATED_EVENTS: frozenset[str] = deprecated_events()
 
 
+@diag("IRULE1003", "Deprecated iRules event.", section="irules")
 def check_deprecated_event(
     cmd_name: str,
     args: list[str],

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from core.common.codes import opt
+
 from ...common.naming import (
     normalise_var_name as _normalise_var_name,
 )
@@ -20,6 +22,12 @@ from ..ir import (
 from ._expr_simplify import _expr_has_command_subst
 from ._pattern_recognition import _statement_delete_rewrite_range, _statement_rewrite_context
 from ._types import Optimisation, PassContext
+
+# --- O-code registrations for codes primarily emitted from this module ---
+opt("O107", "Eliminate unreachable dead code.")
+opt("O108", "Eliminate transitively dead code.")
+opt("O109", "Eliminate dead stores.")
+opt("O126", "Remove unused variable assignments — eliminate `set` statements for variables that are never read.")
 
 
 def _is_adce_removable_statement(

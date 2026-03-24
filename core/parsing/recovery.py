@@ -32,10 +32,16 @@ import logging
 from dataclasses import dataclass
 
 from ..analysis.semantic_model import CodeFix, Diagnostic, Range, Severity
+from ..common.codes import diag
 from ..common.ranges import position_from_relative
 from ..parsing.command_segmenter import SegmentedCommand, segment_commands
 from ..parsing.tokens import SourcePosition, Token, TokenType
 from .known_commands import known_command_names
+
+# Module-level registrations for codes emitted from multiple detector functions.
+diag("E201", "Parser recovery — unclosed brace.", section="error", internal=True)
+diag("E202", "Parser recovery — unclosed bracket.", section="error", internal=True)
+diag("E203", "Parser recovery — unclosed quote.", section="error", internal=True)
 
 # Mapping from lexer warning messages to diagnostic codes.
 _WARNING_CODE_MAP: dict[str, str] = {

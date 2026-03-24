@@ -65,7 +65,21 @@ from .semantic_model import (
     VarDef,
 )
 
+from ..common.codes import diag
+
 log = logging.getLogger(__name__)
+
+# Module-level registrations for codes emitted from class methods.
+diag("E200", "Shimmer parse error — internal representation cannot be determined.", section="error")
+diag("E101", "Syntax error — unclosed bracket.", section="error", internal=True)
+diag("E103", "Syntax error — unexpected token.", section="error", internal=True)
+diag("H300", "Possible paste error — repeated assignment to same variable with same value.", section="hint")
+diag("W113", "Procedure shadows built-in command.", section="warning")
+diag("W210", "Variable read before set.", section="variable")
+diag("W211", "Variable set but never used.", section="variable")
+diag("W213", "Variable may not exist — use `unset -nocomplain` to suppress the error.", section="variable")
+diag("W214", "Unused proc parameter — argument is declared but never read in the procedure body.", section="variable")
+diag("W220", "Dead store — variable set but overwritten before use.", section="variable")
 
 # Short names: d = Diagnostic, m = regex Match, r = Range,
 # s = Scope, t = Token, p = ParamDef.
