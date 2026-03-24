@@ -1,0 +1,15 @@
+### Diagnostic Codes
+
+| Code | Section | Description | Default |
+|------|---------|-------------|---------|
+{% for d in diagnostics %}
+| {{ d.code }} | {{ d.section }} | {{ d.description }} | {{ "✓" if d.default else "✗" }} |
+{% endfor %}
+
+### Optimisation Codes
+
+| Code | Description | Default |
+|------|-------------|---------|
+{% for o in optimisations %}
+| {{ o.code }} | {{ o.description }} | {{ "✓" if o.default else "✗" }} |
+{% endfor %}

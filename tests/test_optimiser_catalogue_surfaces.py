@@ -1,14 +1,14 @@
 """Cross-surface optimiser catalogue consistency checks.
 
 Ensures optimisation codes are unique and complete across:
+- Registry: all O-codes registered via ``opt()``
 - LSP/server settings allowlist
-- editor settings surfaces (VS Code, JetBrains)
+- Editor settings surfaces (VS Code, JetBrains — via generated file staleness)
 - AI prompts and skills
-- AI/MCP optimise tools (runtime-driven, no per-code filtering)
 
 VS Code is validated via ``json.loads`` (structured parsing, no regex).
-JetBrains is validated via generator staleness checks in
-``test_diagnostic_manifest.py`` — no per-code regex here.
+JetBrains and TypeScript are validated via generator staleness checks in
+``test_diagnostic_manifest.py`` — no per-code parsing here.
 """
 
 from __future__ import annotations
@@ -17,8 +17,11 @@ import json
 import re
 from pathlib import Path
 
+import core.common.codes_all  # noqa: F401
+from core.common.codes import optimisation_codes
+
 ROOT = Path(__file__).resolve().parents[1]
-ALL_OPT_CODES = {f"O{i:03d}" for i in range(100, 127)}
+ALL_OPT_CODES = optimisation_codes()
 
 
 def _read(rel_path: str) -> str:
@@ -52,7 +55,7 @@ def _extract_skill_codes(rel_path: str) -> list[str]:
 
 
 def test_lsp_server_allowlist_matches_catalogue() -> None:
-    """server._ALL_OPTIMISATION_CODES is loaded from the central manifest."""
+    """server._ALL_OPTIMISATION_CODES matches the registry."""
     import lsp.server as server_module
 
     codes = sorted(server_module._ALL_OPTIMISATION_CODES)
@@ -73,40 +76,14 @@ def test_vscode_settings_match_catalogue() -> None:
     _assert_complete_unique(codes, context="editors/vscode/package.json")
 
 
-def test_jetbrains_settings_match_catalogue() -> None:
-    """JetBrains settings match manifest via generator staleness check."""
-    from scripts.generate_editor_settings import (
-        generate_jetbrains_panel,
-        generate_jetbrains_settings,
-    )
+def test_jetbrains_generated_catalog_is_fresh() -> None:
+    """JetBrains DiagnosticCatalog.kt matches generator dry_run output."""
+    from scripts.generate_editor_settings import generate_jetbrains_catalog
 
-    manifest = json.loads(
-        (ROOT / "core" / "common" / "diagnostic_manifest.json").read_text(encoding="utf-8")
-    )
-
-    # Verify settings file matches generator output
-    settings_path = (
-        "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt"
-    )
-    actual_settings = _read(settings_path)
-    expected_settings = generate_jetbrains_settings(manifest, dry_run=True)
-    assert actual_settings == expected_settings, (
-        "TclLspSettings.kt is stale — run 'make gen-editor-settings'"
-    )
-
-    # Verify panel file matches generator output
-    panel_path = (
-        "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettingsPanel.kt"
-    )
-    actual_panel = _read(panel_path)
-    expected_panel = generate_jetbrains_panel(manifest, dry_run=True)
-    assert actual_panel == expected_panel, (
-        "TclLspSettingsPanel.kt is stale — run 'make gen-editor-settings'"
-    )
-
-    # Verify the manifest itself has all expected optimiser codes
-    manifest_codes = sorted(o["code"] for o in manifest["optimisations"])
-    _assert_complete_unique(manifest_codes, context="diagnostic_manifest.json optimisations")
+    path, expected = generate_jetbrains_catalog(dry_run=True)
+    assert path.exists(), f"Missing generated file: {path}"
+    actual = path.read_text(encoding="utf-8")
+    assert actual == expected, "DiagnosticCatalog.kt is stale — run 'make gen-editor-settings'"
 
 
 def test_ai_prompts_match_catalogue() -> None:

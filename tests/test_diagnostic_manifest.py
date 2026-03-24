@@ -1,15 +1,18 @@
-"""Cross-surface diagnostic and optimisation manifest consistency checks.
+"""Cross-surface diagnostic and optimisation consistency checks.
 
-Ensures the central manifest (core/common/diagnostic_manifest.json) is the
+Ensures the self-registering code registry (``core.common.codes``) is the
 single source of truth and every consumer stays aligned:
 
+- Registry: all codes register via ``diag()``/``opt()`` at import time
 - LSP server: ``_ALL_DIAGNOSTIC_CODES`` and ``_ALL_OPTIMISATION_CODES``
 - VS Code: ``package.json`` setting entries (verified via ``json.loads``)
-- JetBrains: generated ``.kt`` files (verified via generator staleness check)
-- Compiler source: every new ``code="..."`` literal must be accounted for
+- JetBrains: generated ``DiagnosticCatalog.kt`` (staleness check)
+- TypeScript: generated ``diagnosticCatalog.ts`` (staleness check)
+- README: generated ``diagnostic_tables.md`` (staleness check)
+- Compiler source: every ``code="..."`` literal must be in the registry
 
 No regex is used on generated editor files — VS Code is parsed as JSON and
-JetBrains files are validated by comparing to generator ``dry_run`` output.
+all generated files are validated by comparing to generator ``dry_run`` output.
 
 These tests run in ``make prep-pr`` and CI, so drift is caught immediately.
 """
@@ -17,29 +20,23 @@ These tests run in ``make prep-pr`` and CI, so drift is caught immediately.
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
+import pytest
+
+import core.common.codes_all  # noqa: F401
+from core.common.codes import (
+    SECTIONS,
+    all_codes,
+    diagnostic_codes,
+    internal_codes,
+    optimisation_codes,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
-
-# ---------------------------------------------------------------------------
-# Load manifest
-# ---------------------------------------------------------------------------
-
-_MANIFEST_PATH = ROOT / "core" / "common" / "diagnostic_manifest.json"
-
-
-def _load_manifest() -> dict:
-    return json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
-
-
-def _manifest_diagnostic_codes() -> set[str]:
-    manifest = _load_manifest()
-    return {d["code"] for d in manifest["diagnostics"]}
-
-
-def _manifest_optimisation_codes() -> set[str]:
-    manifest = _load_manifest()
-    return {o["code"] for o in manifest["optimisations"]}
 
 
 def _read(rel_path: str) -> str:
@@ -66,71 +63,8 @@ def _vscode_codes_from_json(prefix: str) -> set[str]:
 
 
 # ---------------------------------------------------------------------------
-# 1. Compiler source scan — every code must be in manifest or allowlist
+# 1. Compiler source scan — every code must be in the registry
 # ---------------------------------------------------------------------------
-
-# Codes emitted by the compiler that are intentionally NOT user-configurable
-# in editor settings.  Each should have a brief comment explaining why.
-_INTERNAL_CODES = frozenset(
-    {
-        # BIG-IP dialect-specific codes (separate dialect toggle, not per-code)
-        "BIGIP6001",
-        "BIGIP6002",
-        "BIGIP6003",
-        "BIGIP6004",
-        "BIGIP6005",
-        "BIGIP6006",
-        "BIGIP6007",
-        "BIGIP6008",
-        "BIGIP6009",
-        "BIGIP6010",
-        "BIGIP6011",
-        # Parser recovery / syntax errors — always active, not toggleable
-        "E004",
-        "E100",
-        "E101",
-        "E102",
-        "E103",
-        "E201",
-        "E202",
-        "E203",
-        # iApps dialect codes
-        "IAPP7001",
-        "IAPP7002",
-        "IAPP7003",
-        # iRules taint codes not yet surfaced
-        "IRULE3103",
-        # iRules internal
-        "IRULE5003",
-        "IRULE6001",
-        # Taint codes not yet surfaced to editors
-        "T103",
-        "T106",
-        # Tk GUI codes (separate feature, not per-code toggle yet)
-        "TK1001",
-        "TK1002",
-        "TK1003",
-        # Security codes not yet surfaced
-        "W310",
-        "W311",
-        "W312",
-        "W313",
-        # F5 XC translatability codes (controlled by xcDiagnostics.enabled)
-        "XC100",
-        "XC101",
-        "XC102",
-        "XC103",
-        "XC105",
-        "XC106",
-        "XC107",
-        "XC200",
-        "XC201",
-        "XC203",
-        "XC250",
-        "XC300",
-        "XC301",
-    }
-)
 
 
 def _scan_compiler_codes() -> set[str]:
@@ -164,229 +98,295 @@ def _scan_compiler_codes() -> set[str]:
     return codes
 
 
-def test_manifest_covers_compiler_codes():
-    """Every diagnostic code emitted by the compiler must be in the manifest
-    or in the explicit internal-codes allowlist."""
+def test_registry_covers_compiler_codes():
+    """Every diagnostic code emitted by the compiler must be in the registry."""
     compiler_codes = _scan_compiler_codes()
-    manifest_codes = _manifest_diagnostic_codes() | _manifest_optimisation_codes()
-    uncovered = compiler_codes - manifest_codes - _INTERNAL_CODES
+    registry_codes = set(all_codes())
+    uncovered = compiler_codes - registry_codes
     assert not uncovered, (
-        f"Compiler emits codes not in manifest or _INTERNAL_CODES: {sorted(uncovered)}\n"
-        "Add them to core/common/diagnostic_manifest.json or to _INTERNAL_CODES "
-        "in tests/test_diagnostic_manifest.py if they are intentionally internal."
+        f"Compiler emits codes not in registry: {sorted(uncovered)}\n"
+        "Register them via diag() or opt() in core/common/codes_*.py."
     )
 
 
 def test_internal_codes_are_real():
-    """Every code in the _INTERNAL_CODES allowlist must actually appear in
+    """Every internal code in the registry must actually appear in
     the compiler source.  This catches stale entries."""
     compiler_codes = _scan_compiler_codes()
-    stale = _INTERNAL_CODES - compiler_codes
+    stale = internal_codes() - compiler_codes
     assert not stale, (
-        f"_INTERNAL_CODES contains codes not found in compiler source: {sorted(stale)}\n"
-        "Remove stale entries from _INTERNAL_CODES in tests/test_diagnostic_manifest.py."
+        f"Internal codes not found in compiler source: {sorted(stale)}\n"
+        "Remove stale entries from core/common/codes_*.py."
     )
 
 
 # ---------------------------------------------------------------------------
-# 2. LSP server loads codes from manifest (drift impossible by construction)
+# 2. LSP server loads codes from registry
 # ---------------------------------------------------------------------------
 
 
-def test_server_loads_codes_from_manifest():
-    """The server imports _ALL_DIAGNOSTIC_CODES and _ALL_OPTIMISATION_CODES
-    from the manifest via manifest_diagnostic_codes() / manifest_optimisation_codes().
-    Verify the import wiring is correct at runtime."""
+def test_server_diagnostic_codes_match_registry():
+    """The server's _ALL_DIAGNOSTIC_CODES matches the registry."""
     import lsp.server as server_module
 
-    manifest_diag = _manifest_diagnostic_codes()
-    manifest_opt = _manifest_optimisation_codes()
-    assert server_module._ALL_DIAGNOSTIC_CODES == manifest_diag, (
-        "server._ALL_DIAGNOSTIC_CODES does not match manifest — "
-        "check that server.py imports from manifest_diagnostic_codes()"
-    )
-    assert server_module._ALL_OPTIMISATION_CODES == manifest_opt, (
-        "server._ALL_OPTIMISATION_CODES does not match manifest — "
-        "check that server.py imports from manifest_optimisation_codes()"
+    assert server_module._ALL_DIAGNOSTIC_CODES == diagnostic_codes(), (
+        "server._ALL_DIAGNOSTIC_CODES does not match registry"
     )
 
 
-def test_server_imports_manifest_loaders():
-    """Verify server.py uses manifest loaders rather than hardcoded frozensets.
-
-    The runtime check in test_server_loads_codes_from_manifest verifies the
-    actual values match.  This test verifies the import wiring by checking
-    that manifest_diagnostic_codes is importable from the server module.
-    """
+def test_server_optimisation_codes_match_registry():
+    """The server's _ALL_OPTIMISATION_CODES matches the registry."""
     import lsp.server as server_module
 
-    # If these attributes exist and are frozensets loaded from manifest,
-    # the import wiring is correct.
-    assert hasattr(server_module, "_ALL_DIAGNOSTIC_CODES")
-    assert hasattr(server_module, "_ALL_OPTIMISATION_CODES")
-    assert isinstance(server_module._ALL_DIAGNOSTIC_CODES, (set, frozenset))
-    assert isinstance(server_module._ALL_OPTIMISATION_CODES, (set, frozenset))
+    assert server_module._ALL_OPTIMISATION_CODES == optimisation_codes(), (
+        "server._ALL_OPTIMISATION_CODES does not match registry"
+    )
 
 
 # ---------------------------------------------------------------------------
-# 3. Manifest vs VS Code package.json (JSON-parsed, no regex)
+# 3. VS Code package.json matches registry (JSON-parsed, no regex)
 # ---------------------------------------------------------------------------
 
 
-def test_vscode_diagnostic_settings_match_manifest():
+def test_vscode_diagnostic_settings_match_registry():
     vscode_diag = _vscode_codes_from_json("tclLsp.diagnostics.")
-    manifest_codes = _manifest_diagnostic_codes()
-    assert vscode_diag == manifest_codes, (
+    assert vscode_diag == diagnostic_codes(), (
         f"VS Code package.json diagnostic settings drift:\n"
-        f"  In VS Code but not manifest: {sorted(vscode_diag - manifest_codes)}\n"
-        f"  In manifest but not VS Code: {sorted(manifest_codes - vscode_diag)}"
+        f"  In VS Code but not registry: {sorted(vscode_diag - diagnostic_codes())}\n"
+        f"  In registry but not VS Code: {sorted(diagnostic_codes() - vscode_diag)}"
     )
 
 
-def test_vscode_optimiser_settings_match_manifest():
+def test_vscode_optimiser_settings_match_registry():
     vscode_opt = _vscode_codes_from_json("tclLsp.optimiser.")
-    manifest_codes = _manifest_optimisation_codes()
-    assert vscode_opt == manifest_codes, (
+    assert vscode_opt == optimisation_codes(), (
         f"VS Code package.json optimiser settings drift:\n"
-        f"  In VS Code but not manifest: {sorted(vscode_opt - manifest_codes)}\n"
-        f"  In manifest but not VS Code: {sorted(manifest_codes - vscode_opt)}"
+        f"  In VS Code but not registry: {sorted(vscode_opt - optimisation_codes())}\n"
+        f"  In registry but not VS Code: {sorted(optimisation_codes() - vscode_opt)}"
     )
 
 
 # ---------------------------------------------------------------------------
-# 4. JetBrains generated files match generator output (staleness check)
-#
-# Rather than regex-parsing Kotlin source, we verify the files on disk match
-# the generator's dry_run output.  If the file equals the generator output
-# and the generator uses the manifest, codes are correct by construction.
+# 4. All generated files match generator dry_run output (staleness checks)
 # ---------------------------------------------------------------------------
 
-_JB_SETTINGS = "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt"
-_JB_PANEL = "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettingsPanel.kt"
 
+def test_all_generated_files_are_fresh():
+    """Every generated file on disk matches the generator's dry_run output."""
+    from scripts.generate_editor_settings import render_all
 
-def test_jetbrains_settings_match_generator():
-    """TclLspSettings.kt on disk matches generator dry_run output."""
-    from scripts.generate_editor_settings import generate_jetbrains_settings
-
-    manifest = _load_manifest()
-    expected = generate_jetbrains_settings(manifest, dry_run=True)
-    actual = _read(_JB_SETTINGS)
-    assert actual == expected, (
-        "TclLspSettings.kt is stale — run 'make gen-editor-settings' to regenerate"
-    )
-
-
-def test_jetbrains_panel_match_generator():
-    """TclLspSettingsPanel.kt on disk matches generator dry_run output."""
-    from scripts.generate_editor_settings import generate_jetbrains_panel
-
-    manifest = _load_manifest()
-    expected = generate_jetbrains_panel(manifest, dry_run=True)
-    actual = _read(_JB_PANEL)
-    assert actual == expected, (
-        "TclLspSettingsPanel.kt is stale — run 'make gen-editor-settings' to regenerate"
-    )
-
-
-def test_vscode_settings_match_generator():
-    """VS Code package.json on disk matches generator dry_run output."""
-    from scripts.generate_editor_settings import generate_vscode
-
-    manifest = _load_manifest()
-    expected = generate_vscode(manifest, dry_run=True)
-    actual = _read("editors/vscode/package.json")
-    assert actual == expected, (
-        "package.json is stale — run 'make gen-editor-settings' to regenerate"
+    stale = []
+    for path, expected in render_all(dry_run=True):
+        if not path.exists():
+            stale.append(f"{path.relative_to(ROOT)} (missing)")
+            continue
+        actual = path.read_text(encoding="utf-8")
+        if actual != expected:
+            stale.append(str(path.relative_to(ROOT)))
+    assert not stale, (
+        f"Generated files are stale: {', '.join(stale)}\n"
+        "Run 'make gen-editor-settings' to regenerate."
     )
 
 
 # ---------------------------------------------------------------------------
-# 6. Manifest internal consistency
+# 5. Registry internal consistency
 # ---------------------------------------------------------------------------
 
 
-def test_manifest_no_duplicate_codes():
-    manifest = _load_manifest()
-    diag_codes = [d["code"] for d in manifest["diagnostics"]]
-    opt_codes = [o["code"] for o in manifest["optimisations"]]
-    all_codes = diag_codes + opt_codes
-    assert len(all_codes) == len(set(all_codes)), (
-        f"Manifest has duplicate codes: {sorted(c for c in all_codes if all_codes.count(c) > 1)}"
+def test_registry_no_duplicate_codes():
+    """Registry rejects duplicates at registration time, but verify the
+    final sets are also consistent."""
+    diag = diagnostic_codes()
+    opt = optimisation_codes()
+    internal = internal_codes()
+    # No overlap between public diagnostics and optimisations
+    overlap = diag & opt
+    assert not overlap, f"Codes in both diagnostics and optimisations: {sorted(overlap)}"
+    # Internal codes should not appear in public sets
+    assert not (diag & internal), (
+        f"Codes in both diagnostics and internal: {sorted(diag & internal)}"
+    )
+    assert not (opt & internal), (
+        f"Codes in both optimisations and internal: {sorted(opt & internal)}"
     )
 
 
-def test_manifest_diagnostics_are_sorted():
-    manifest = _load_manifest()
-    codes = [d["code"] for d in manifest["diagnostics"]]
-    assert codes == sorted(codes), (
-        f"Manifest diagnostics must be sorted by code.\nExpected order: {sorted(codes)}"
+def test_registry_codes_are_sorted_within_sections():
+    """Registry diagnostics are sorted by code within each section."""
+    from core.common.codes import diagnostics_sorted, optimisations_sorted
+
+    # Diagnostics: sorted within each section, sections in SECTIONS order
+    current_section = None
+    section_codes: list[str] = []
+    for d in diagnostics_sorted():
+        if d.section != current_section:
+            if section_codes:
+                assert section_codes == sorted(section_codes), (
+                    f"Section {current_section!r} not sorted: {section_codes}"
+                )
+            current_section = d.section
+            section_codes = [d.code]
+        else:
+            section_codes.append(d.code)
+    if section_codes:
+        assert section_codes == sorted(section_codes), (
+            f"Section {current_section!r} not sorted: {section_codes}"
+        )
+
+    # Optimisations: globally sorted (single group)
+    opt_codes = [o.code for o in optimisations_sorted()]
+    assert opt_codes == sorted(opt_codes), (
+        f"Registry optimisations not sorted.\nExpected: {sorted(opt_codes)}"
     )
 
 
-def test_manifest_optimisations_are_sorted():
-    manifest = _load_manifest()
-    codes = [o["code"] for o in manifest["optimisations"]]
-    assert codes == sorted(codes), (
-        f"Manifest optimisations must be sorted by code.\nExpected order: {sorted(codes)}"
-    )
+def test_registry_sections_are_valid():
+    """Every code's section is in the SECTIONS list."""
+    from core.common.codes import _registry
+
+    for code, info in _registry.items():
+        if hasattr(info, "section") and info.section:
+            assert info.section in SECTIONS, f"Code {code} has unknown section {info.section!r}"
 
 
-def test_manifest_entries_have_required_fields():
-    manifest = _load_manifest()
-    for d in manifest["diagnostics"]:
-        assert "code" in d, f"Diagnostic missing 'code': {d}"
-        assert "category" in d, f"Diagnostic {d['code']} missing 'category'"
-        assert "description" in d, f"Diagnostic {d['code']} missing 'description'"
-        assert "default" in d, f"Diagnostic {d['code']} missing 'default'"
-    for o in manifest["optimisations"]:
-        assert "code" in o, f"Optimisation missing 'code': {o}"
-        assert "description" in o, f"Optimisation {o['code']} missing 'description'"
-        assert "default" in o, f"Optimisation {o['code']} missing 'default'"
-
-
-def test_no_overlap_between_manifest_and_internal():
-    """Manifest and _INTERNAL_CODES must be disjoint — a code is either
-    user-configurable or internal, never both."""
-    manifest_codes = _manifest_diagnostic_codes() | _manifest_optimisation_codes()
-    overlap = manifest_codes & _INTERNAL_CODES
+def test_no_overlap_between_public_and_internal():
+    """Public codes and internal codes must be disjoint."""
+    public = diagnostic_codes() | optimisation_codes()
+    overlap = public & internal_codes()
     assert not overlap, (
-        f"Codes in both manifest and _INTERNAL_CODES: {sorted(overlap)}\n"
-        "Remove from one or the other."
-    )
-
-
-def test_manifest_categories_are_mapped():
-    """Every category value in the manifest must map to a known generator section."""
-    from scripts.generate_editor_settings import _KNOWN_CATEGORIES
-
-    manifest = _load_manifest()
-    manifest_categories = {d["category"] for d in manifest["diagnostics"]}
-    unmapped = manifest_categories - _KNOWN_CATEGORIES
-    assert not unmapped, (
-        f"Manifest categories not mapped in generator: {sorted(unmapped)}\n"
-        "Update _SECTIONS in scripts/generate_editor_settings.py."
+        f"Codes in both public and internal: {sorted(overlap)}\n"
+        "A code should be either user-configurable or internal, not both."
     )
 
 
 def test_generator_is_idempotent():
     """Running the generator twice must produce identical output."""
-    from scripts.generate_editor_settings import (
-        generate_jetbrains_panel,
-        generate_jetbrains_settings,
-        generate_vscode,
+    from scripts.generate_editor_settings import render_all
+
+    results_1 = render_all(dry_run=True)
+    results_2 = render_all(dry_run=True)
+    for (path1, content1), (path2, content2) in zip(results_1, results_2):
+        assert path1 == path2
+        assert content1 == content2, f"Generation not idempotent for {path1}"
+
+
+# ---------------------------------------------------------------------------
+# 7. Native language toolchain validation (skipped if toolchain not present)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not shutil.which("tsc"), reason="tsc not found")
+def test_typescript_catalog_compiles():
+    """Generated diagnosticCatalog.ts compiles with tsc (if available)."""
+    ts_path = ROOT / "editors" / "vscode" / "src" / "generated" / "diagnosticCatalog.ts"
+    assert ts_path.exists(), f"Missing {ts_path}"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        result = subprocess.run(
+            [
+                "tsc",
+                "--noEmit",
+                "--strict",
+                "--target",
+                "ES2020",
+                "--moduleResolution",
+                "node",
+                str(ts_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=tmp,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"tsc failed on diagnosticCatalog.ts:\n{result.stderr}"
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="node not found")
+def test_typescript_catalog_importable_by_node():
+    """Generated diagnosticCatalog.ts can be transpiled and loaded by Node."""
+    ts_path = ROOT / "editors" / "vscode" / "src" / "generated" / "diagnosticCatalog.ts"
+    assert ts_path.exists(), f"Missing {ts_path}"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        # Transpile to JS
+        result = subprocess.run(
+            [
+                "tsc",
+                "--outDir",
+                tmp,
+                "--target",
+                "ES2020",
+                "--module",
+                "commonjs",
+                "--moduleResolution",
+                "node",
+                str(ts_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"tsc transpile failed:\n{result.stderr}"
+
+        js_file = tmp_path / "diagnosticCatalog.js"
+        assert js_file.exists(), "Transpiled JS file not found"
+
+        # Validate via Node: import and check arrays are non-empty
+        check_script = tmp_path / "check.js"
+        check_script.write_text(
+            'const c = require("./diagnosticCatalog.js");\n'
+            "if (!Array.isArray(c.DIAGNOSTICS) || c.DIAGNOSTICS.length === 0) {\n"
+            "  process.exit(1);\n"
+            "}\n"
+            "if (!Array.isArray(c.OPTIMISATIONS) || c.OPTIMISATIONS.length === 0) {\n"
+            "  process.exit(1);\n"
+            "}\n"
+            f"if (c.DIAGNOSTICS.length !== {len(diagnostic_codes())}) {{\n"
+            '  console.error("DIAGNOSTICS count mismatch:", c.DIAGNOSTICS.length);\n'
+            "  process.exit(1);\n"
+            "}\n"
+            f"if (c.OPTIMISATIONS.length !== {len(optimisation_codes())}) {{\n"
+            '  console.error("OPTIMISATIONS count mismatch:", c.OPTIMISATIONS.length);\n'
+            "  process.exit(1);\n"
+            "}\n"
+            'console.log("OK:", c.DIAGNOSTICS.length, "diagnostics,",\n'
+            '  c.OPTIMISATIONS.length, "optimisations");\n',
+        )
+        result = subprocess.run(
+            ["node", str(check_script)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0, f"Node validation failed:\n{result.stderr}\n{result.stdout}"
+
+
+@pytest.mark.skipif(not shutil.which("kotlinc"), reason="kotlinc not found")
+def test_kotlin_catalog_compiles():
+    """Generated DiagnosticCatalog.kt compiles with kotlinc (if available)."""
+    kt_path = (
+        ROOT
+        / "editors"
+        / "jetbrains"
+        / "src"
+        / "main"
+        / "kotlin"
+        / "com"
+        / "tcllsp"
+        / "jetbrains"
+        / "settings"
+        / "generated"
+        / "DiagnosticCatalog.kt"
     )
+    assert kt_path.exists(), f"Missing {kt_path}"
 
-    manifest = _load_manifest()
-
-    vscode_1 = generate_vscode(manifest, dry_run=True)
-    vscode_2 = generate_vscode(manifest, dry_run=True)
-    assert vscode_1 == vscode_2, "VS Code generation is not idempotent"
-
-    jb_settings_1 = generate_jetbrains_settings(manifest, dry_run=True)
-    jb_settings_2 = generate_jetbrains_settings(manifest, dry_run=True)
-    assert jb_settings_1 == jb_settings_2, "JB settings generation is not idempotent"
-
-    jb_panel_1 = generate_jetbrains_panel(manifest, dry_run=True)
-    jb_panel_2 = generate_jetbrains_panel(manifest, dry_run=True)
-    assert jb_panel_1 == jb_panel_2, "JB panel generation is not idempotent"
+    with tempfile.TemporaryDirectory() as tmp:
+        result = subprocess.run(
+            ["kotlinc", "-no-stdlib", str(kt_path), "-d", tmp],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert result.returncode == 0, f"kotlinc failed on DiagnosticCatalog.kt:\n{result.stderr}"
