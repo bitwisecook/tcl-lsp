@@ -126,6 +126,20 @@ incomplete and must not be merged.
 - For compiler internals and pass/fact contracts, use: `docs/kcs/compiler/README.md`.
 - When changing behaviour in covered areas, update the relevant KCS note in the same change.
 
+## Editor settings codegen
+
+Whenever a diagnostic or optimisation is added, removed, or changed (code,
+severity, message, or section), you **must** regenerate the editor settings
+catalogues:
+
+```
+make gen-editor-settings
+```
+
+This updates the generated diagnostic tables in VS Code, Neovim, Zed, Emacs,
+Helix, Sublime, and JetBrains editor integrations. Commit the regenerated files
+alongside the diagnostic/optimisation change — CI will fail if they are stale.
+
 ## Command registry
 
 Command metadata lives on `CommandSpec` in `core/commands/registry/models.py`,
