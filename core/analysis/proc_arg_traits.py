@@ -33,6 +33,9 @@ from .semantic_model import ProcArgTrait
 _SIMPLE_VAR_RE = re.compile(r"^\$(?:\{([A-Za-z_][\w:]*)\}|([A-Za-z_][\w:]*))\Z")
 
 # Variable-writing commands: maps command -> arg index of var name (0-based).
+# Variable-writing commands matched by first word only.
+# "dict set" etc. are handled via the registry's ArgRole.VAR_NAME on
+# subcommand specs, not here (cmd_name from the segmenter is just "dict").
 _VAR_WRITE_COMMANDS: dict[str, int] = {
     "set": 0,
     "incr": 0,
@@ -43,13 +46,6 @@ _VAR_WRITE_COMMANDS: dict[str, int] = {
     "gets": 1,
     "global": 0,
     "variable": 0,
-    "dict set": 0,
-    "dict unset": 0,
-    "dict incr": 0,
-    "dict append": 0,
-    "dict lappend": 0,
-    "dict update": 0,
-    "dict with": 0,
 }
 
 
@@ -197,6 +193,16 @@ def _scan_commands(
             if alias_target is not None:
                 traits[alias_target].add(ProcArgTrait.VAR_WRITE)
 
+        # foreach/lmap loop variables are written to — upgrade aliases.
+        if cmd_name in ("foreach", "lmap") and len(cmd_args) >= 3:
+            remaining = cmd_args[:-1]
+            i = 0
+            while i < len(remaining):
+                alias_target = upvar_aliases.get(remaining[i])
+                if alias_target is not None:
+                    traits[alias_target].add(ProcArgTrait.VAR_WRITE)
+                i += 2
+
 
 def infer_param_traits(
     params: tuple[str, ...],
@@ -316,7 +322,12 @@ def _handle_upvar(
     traits: dict[str, set[ProcArgTrait]],
     upvar_aliases: dict[str, str],
 ) -> None:
-    """Process upvar to detect variable aliasing and mutation patterns."""
+    """Process upvar to detect variable aliasing and mutation patterns.
+
+    Marks the source param as VAR_READ initially.  If a write through
+    the alias is later observed (``set local ...``), the alias tracking
+    in ``_scan_commands`` upgrades it to VAR_WRITE.
+    """
     start = 0
     if args and (args[0].isdigit() or args[0].startswith("#")):
         start = 1
@@ -331,7 +342,8 @@ def _handle_upvar(
         my_vn = _extract_var_name(my_var)
 
         if other_vn and other_vn in param_set:
-            traits[other_vn].add(ProcArgTrait.VAR_WRITE)
+            # Start as VAR_READ; upgraded to VAR_WRITE if alias is written.
+            traits[other_vn].add(ProcArgTrait.VAR_READ)
             upvar_aliases[my_var] = other_vn
 
         if my_vn and my_vn in param_set:

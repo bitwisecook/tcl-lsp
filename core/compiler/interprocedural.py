@@ -10,6 +10,7 @@ Conservative summaries are built per lowered proc to describe:
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 
@@ -52,6 +53,8 @@ from .side_effects import EffectRegion, classify_side_effects
 from .ssa import SSAFunction, SSAValueKey, build_ssa
 from .static_loops import evaluate_expr_with_constants as _evaluate_expr
 from .var_refs import VarReferenceScanner, VarScanOptions
+
+log = logging.getLogger(__name__)
 
 _SIMPLE_VAR_WORD_RE = re.compile(r"\$(?:\{[A-Za-z_][A-Za-z0-9_:]*\}|[A-Za-z_][A-Za-z0-9_:]*)\Z")
 _VAR_REF_SCANNER = VarReferenceScanner(
@@ -778,7 +781,7 @@ def analyse_interprocedural_ir(
             try:
                 traits = infer_param_traits(local.params, proc.body_source)
             except Exception:
-                pass  # best-effort
+                log.debug("trait inference failed for %s", qname, exc_info=True)
 
         summaries[qname] = ProcSummary(
             qualified_name=qname,

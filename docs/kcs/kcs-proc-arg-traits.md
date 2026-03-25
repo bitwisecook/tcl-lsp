@@ -14,7 +14,7 @@ flow.
 | `EVAL` | Argument is eval'd as a script | `eval $script`, `uplevel 1 $body` |
 | `BODY` | Argument is used as a loop/control body | `foreach item $list $body` |
 | `VAR_WRITE` | Argument names a variable the proc writes | `upvar 1 $varName local; set local 42` |
-| `VAR_READ` | Argument names a variable the proc reads | `upvar 1 $varName local; return $local` |
+| `VAR_READ` | Argument names a variable the proc reads via upvar without writing | `upvar 1 $varName local; return $local` |
 | `EXPR` | Argument is evaluated as an expression | `if {$cond} {...}` |
 | `LOOP_LIST` | Argument is used as the list in foreach/lmap | `foreach item $collection {...}` |
 

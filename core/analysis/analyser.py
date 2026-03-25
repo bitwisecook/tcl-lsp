@@ -502,7 +502,8 @@ class Analyser:
         builtin_commands = set(REGISTRY.command_names(dialect))
 
         for stub in self.result.stub_commands:
-            if stub.name in builtin_commands:
+            normalised_stub = stub.name.lstrip(":")
+            if normalised_stub in builtin_commands:
                 self.result.diagnostics.append(
                     Diagnostic(
                         range=stub.range,
@@ -541,6 +542,19 @@ class Analyser:
         """
         if body_token is not None:
             self._body_depth += 1
+        try:
+            self._analyse_body_inner(source, scope, body_token)
+        finally:
+            if body_token is not None:
+                self._body_depth -= 1
+
+    def _analyse_body_inner(
+        self,
+        source: str,
+        scope: Scope,
+        body_token: Token | None = None,
+    ) -> None:
+        """Inner implementation of _analyse_body, separated for try/finally."""
         commands, recovery_diags = segment_with_recovery(source, body_token)
         self.result.diagnostics.extend(recovery_diags)
         cmd_idx = 0
@@ -613,8 +627,6 @@ class Analyser:
                     self._analyse_body(tok.text, scope, body_token=tok)
             self._process_command(cmd.argv, cmd.texts, cmd.all_tokens, scope, source)
             cmd_idx += 1 + consumed
-        if body_token is not None:
-            self._body_depth -= 1
 
     def _recover_stray_close_bracket(
         self,
@@ -1201,7 +1213,7 @@ class Analyser:
                 )
             )
 
-        # IRULE1007: event-context command used at top level outside a when block.
+        # IRULE5007: event-context command used at top level outside a when block.
         if (
             self._body_depth == 0
             and self._current_event is None
@@ -1631,13 +1643,15 @@ class Analyser:
         body_range = range_from_token(arg_tokens[2]) if len(arg_tokens) > 2 else name_range
 
         # W113: warn when proc name shadows a built-in command.
-        if self._builtin_names is None:
-            dialect = active_dialect()
+        dialect = active_dialect()
+        if self._builtin_names is None or self._builtin_dialect != dialect:
             self._builtin_names = frozenset(REGISTRY.command_names(dialect))
             self._builtin_dialect = dialect
-        shadow_name = proc_name if proc_name in self._builtin_names else None
-        if shadow_name is None and qualified in self._builtin_names:
-            shadow_name = qualified
+        normalised_proc = proc_name.lstrip(":")
+        normalised_qual = qualified.lstrip(":")
+        shadow_name = normalised_proc if normalised_proc in self._builtin_names else None
+        if shadow_name is None and normalised_qual in self._builtin_names:
+            shadow_name = normalised_qual
         if shadow_name is not None:
             dialect_label = f" ({self._builtin_dialect})" if self._builtin_dialect else ""
             self.result.diagnostics.append(

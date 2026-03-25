@@ -44,8 +44,8 @@ proc set_default {varName defaultValue} {
     }
 }
 
-# VAR_READ trait: argument names a variable the proc reads
-# The proc takes a variable name but only reads it.
+# VAR_READ trait: argument names a variable the proc reads via upvar
+# but never writes through the alias — only reads.
 proc is_positive {varName} {
     upvar 1 $varName var
     return [expr {$var > 0}]

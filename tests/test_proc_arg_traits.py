@@ -63,6 +63,13 @@ class TestVarWriteTrait:
         traits = infer_param_traits(("varName",), body)
         assert ProcArgTrait.VAR_WRITE in traits["varName"]
 
+    def test_upvar_read_only(self):
+        """upvar without writing through the alias gives VAR_READ, not VAR_WRITE."""
+        body = "upvar 1 $varName local\nreturn $local"
+        traits = infer_param_traits(("varName",), body)
+        assert ProcArgTrait.VAR_READ in traits["varName"]
+        assert ProcArgTrait.VAR_WRITE not in traits["varName"]
+
 
 class TestLoopListTrait:
     def test_foreach_list(self):

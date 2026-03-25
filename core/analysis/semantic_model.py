@@ -209,9 +209,7 @@ class StubArgDef:
     """A parameter in a stub command definition."""
 
     name: str
-    role: str = (
-        "value"  # "body", "expr", "var_name", "var_read", "name", "pattern", "channel", "value"
-    )
+    role: str = "value"  # "body", "expr", "var", "var_read", "name", "pattern", "channel", "value"
     optional: bool = False
 
 
