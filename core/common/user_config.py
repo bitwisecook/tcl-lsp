@@ -40,7 +40,7 @@ Example ``config.ini``::
     rename = true
     signatureHelp = true
     workspaceSymbols = true
-    inlayHints = true
+    inlayHints = false
     callHierarchy = true
     documentLinks = true
     selectionRange = true

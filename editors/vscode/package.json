@@ -3039,7 +3039,7 @@
           },
           "tclLsp.features.inlayHints": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "description": "Enable inlay hints (inferred types shown inline next to variables).",
             "order": 13
           },
