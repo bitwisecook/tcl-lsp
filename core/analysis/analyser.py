@@ -76,6 +76,12 @@ from .stub_comments import scan_source_for_stubs
 
 log = logging.getLogger(__name__)
 
+# iRules commands that are only valid at the top level of an iRule script.
+# ``timing`` and ``priority`` also appear as keyword arguments to ``when``
+# (e.g. ``when HTTP_REQUEST timing enable { ... }``), but as standalone
+# *commands* they must be top-level.
+_IRULES_TOP_LEVEL_ONLY = frozenset({"proc", "when", "timing", "priority"})
+
 # Module-level registrations for codes emitted from class methods.
 diag("E200", "Shimmer parse error — internal representation cannot be determined.", section="error")
 diag("E101", "Syntax error — unclosed bracket.", section="error", internal=True)
@@ -86,6 +92,7 @@ diag(
     section="hint",
 )
 diag("W113", "Procedure shadows built-in command.", section="warning")
+diag("W118", "Top-level-only command used inside a nested body.", section="warning")
 diag("W116", "Stub command shadows built-in command.", section="warning")
 diag("W117", "Stub expression definition shadows built-in function or operator.", section="warning")
 diag("W210", "Variable read before set.", section="variable")
@@ -240,6 +247,8 @@ class Analyser:
         self._builtin_dialect: str | None = None
         # Track conditional nesting depth for package require confidence.
         self._conditional_depth: int = 0
+        # Track body nesting depth for top-level-only command detection.
+        self._body_depth: int = 0
 
     def snapshot(self) -> AnalyserSnapshot:
         """Capture the analyser state for later restoration.
@@ -527,6 +536,8 @@ class Analyser:
         When *body_token* is provided, the lexer is created with base offsets
         so that all positions in the sub-parse map back to the original source.
         """
+        if body_token is not None:
+            self._body_depth += 1
         commands, recovery_diags = segment_with_recovery(source, body_token)
         self.result.diagnostics.extend(recovery_diags)
         cmd_idx = 0
@@ -599,6 +610,8 @@ class Analyser:
                     self._analyse_body(tok.text, scope, body_token=tok)
             self._process_command(cmd.argv, cmd.texts, cmd.all_tokens, scope, source)
             cmd_idx += 1 + consumed
+        if body_token is not None:
+            self._body_depth -= 1
 
     def _recover_stray_close_bracket(
         self,
@@ -1167,6 +1180,21 @@ class Analyser:
                     resolved_qualified_name=(
                         call_target_proc.qualified_name if call_target_proc else None
                     ),
+                )
+            )
+
+        # W118: top-level-only commands used inside a nested body (iRules).
+        if (
+            self._body_depth > 0
+            and active_dialect() == "f5-irules"
+            and cmd_name in _IRULES_TOP_LEVEL_ONLY
+        ):
+            self.result.diagnostics.append(
+                Diagnostic(
+                    range=range_from_token(argv[0]),
+                    message=f"'{cmd_name}' is only valid at the top level of an iRule.",
+                    severity=Severity.WARNING,
+                    code="W118",
                 )
             )
 

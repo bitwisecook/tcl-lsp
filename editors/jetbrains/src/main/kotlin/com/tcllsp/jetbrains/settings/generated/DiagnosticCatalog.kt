@@ -36,6 +36,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W115", "warning", "W115: Backslash-newline in comment silently swallows the n...", true),
         DiagnosticDef("W116", "warning", "W116: Stub command shadows built-in command", true),
         DiagnosticDef("W117", "warning", "W117: Stub expression definition shadows built-in function...", true),
+        DiagnosticDef("W118", "warning", "W118: Top-level-only command used inside a nested body", true),
         DiagnosticDef("W120", "warning", "W120: Command used without a corresponding package require", true),
         DiagnosticDef("W121", "warning", "W121: Subnet mask has non-contiguous bits", true),
         DiagnosticDef("W122", "warning", "W122: Mistyped IPv4 address (octet > 255 or leading zero)", true),

@@ -131,6 +131,12 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W118",
+    section: "warning",
+    description: "Top-level-only command used inside a nested body.",
+    defaultEnabled: true,
+  },
+  {
     code: "W120",
     section: "warning",
     description: "Command used without a corresponding `package require`.",
