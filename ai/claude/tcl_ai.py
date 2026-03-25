@@ -2163,9 +2163,8 @@ examples:
 def cmd_proc_docs(source: str, file_path: str) -> None:
     """Extract structured documentation from all procs."""
     _configure_dialect_from_path(file_path)
-    from core.analysis.analyser import analyse
-
     from ai.shared.docstring_ops import collect_proc_docs
+    from core.analysis.analyser import analyse
 
     result = analyse(source)
     print(json.dumps({"procs": collect_proc_docs(result)}, indent=2))
@@ -2194,10 +2193,9 @@ def cmd_generate_docstring(
 def cmd_update_docstrings(source: str, file_path: str, style: str, decoration: bool) -> None:
     """Add docstring stubs to all undocumented procs."""
     _configure_dialect_from_path(file_path)
+    from ai.shared.docstring_ops import insert_docstring_stubs
     from core.analysis.analyser import analyse
     from core.formatting.docstring import resolve_tag_style
-
-    from ai.shared.docstring_ops import insert_docstring_stubs
 
     result = analyse(source)
     modified, _count = insert_docstring_stubs(

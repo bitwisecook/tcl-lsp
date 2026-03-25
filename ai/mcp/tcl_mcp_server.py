@@ -1473,9 +1473,8 @@ def _tool_generate_docstring(
     required=["source"],
 )
 def _tool_read_proc_docs(source: str) -> str:
-    from core.analysis.analyser import analyse
-
     from ai.shared.docstring_ops import collect_proc_docs
+    from core.analysis.analyser import analyse
 
     result = analyse(source)
     return json.dumps({"procs": collect_proc_docs(result)}, indent=2)
@@ -1503,18 +1502,15 @@ def _tool_update_docstrings(
     style: str = "doxygen",
     decoration: str = "false",
 ) -> str:
+    from ai.shared.docstring_ops import insert_docstring_stubs
     from core.analysis.analyser import analyse
     from core.formatting.docstring import resolve_tag_style
-
-    from ai.shared.docstring_ops import insert_docstring_stubs
 
     tag = resolve_tag_style(style)
     dec = decoration.lower() in ("true", "1", "yes")
     result = analyse(source)
 
-    modified, documented = insert_docstring_stubs(
-        source, result, tag_style=tag, decoration=dec
-    )
+    modified, documented = insert_docstring_stubs(source, result, tag_style=tag, decoration=dec)
     return json.dumps(
         {
             "source": modified,

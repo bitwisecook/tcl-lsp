@@ -14,7 +14,6 @@ from core.commands.registry.runtime import (
 )
 from core.common.dialect import active_dialect
 from core.formatting.config import FormatterConfig, IndentStyle
-
 from core.formatting.docstring import format_docstring
 
 from .irules_context import find_enclosing_when_event

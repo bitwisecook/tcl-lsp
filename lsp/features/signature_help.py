@@ -11,7 +11,6 @@ from core.commands.registry import REGISTRY
 from core.commands.registry.models import CommandSpec
 from core.commands.registry.runtime import SIGNATURES, SubcommandSig
 from core.common.dialect import active_dialect
-
 from core.formatting.docstring import format_docstring
 
 from .symbol_resolution import find_command_context_details_at_position
