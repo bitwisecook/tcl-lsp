@@ -26,6 +26,7 @@ import re
 
 from ..commands.registry import REGISTRY
 from ..commands.registry.signatures import ArgRole
+from ..parsing.lexer import TclParseError
 from .semantic_model import ProcArgTrait
 
 # Simple $varName reference pattern.
@@ -87,7 +88,7 @@ def _extract_commands(source: str) -> list[tuple[str, list[str]]]:
     commands: list[tuple[str, list[str]]] = []
     try:
         segments = segment_commands(source)
-    except Exception:  # noqa: BLE001 — graceful degradation on malformed input
+    except TclParseError:
         return commands
 
     for seg in segments:
@@ -272,7 +273,7 @@ def _scan_deep(
 
     try:
         segments = segment_commands(source)
-    except Exception:  # noqa: BLE001 — graceful degradation on malformed input
+    except TclParseError:
         return
 
     for seg in segments:
