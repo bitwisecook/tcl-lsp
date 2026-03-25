@@ -8,6 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from lsprotocol.types import TextEdit
+
 from core.commands.registry.runtime import configure_signatures
 from lsp.features.completion import get_completions
 
@@ -247,6 +249,7 @@ class TestCompletionDocumentation:
         assert "-nocase" in by_label
         item = by_label["-nocase"]
         assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
         # The edit should replace from the '-' (col 6) to the cursor (col 9)
         assert item.text_edit.range.start.character == 6
         assert item.text_edit.range.end.character == 9
@@ -260,6 +263,7 @@ class TestCompletionDocumentation:
         assert "-nocase" in by_label
         item = by_label["-nocase"]
         assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
         assert item.text_edit.range.start.character == 7
         assert item.text_edit.range.end.character == 9
         assert item.text_edit.new_text == "-nocase"
@@ -272,6 +276,7 @@ class TestCompletionDocumentation:
         assert "-nocase" in by_label
         item = by_label["-nocase"]
         assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
         assert item.text_edit.range.start.character == 6
         assert item.text_edit.range.end.character == 10
         assert item.text_edit.new_text == "-nocase"
@@ -284,6 +289,7 @@ class TestCompletionDocumentation:
         assert "-nocase" in by_label
         item = by_label["-nocase"]
         assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
         assert item.text_edit.range.start.character == 7
         assert item.text_edit.range.end.character == 8
         assert item.text_edit.new_text == "-nocase"

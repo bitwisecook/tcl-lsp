@@ -261,7 +261,9 @@ class TestCombinedGetDiagnostics:
         # contain an O109 entry.
         o105 = [d for d in diags if d.code == "O105"]
         if o105:
-            group_edits = o105[0].data.get("groupEdits", [])
+            data = o105[0].data
+            assert data is not None
+            group_edits = data.get("groupEdits", [])
             ge_codes = [ge["code"] for ge in group_edits]
             assert "O109" not in ge_codes
 
@@ -272,6 +274,7 @@ class TestCombinedGetDiagnostics:
         diags = get_diagnostics(source, uri="file:///test.tcl")
         grouped = [d for d in diags if d.data and d.data.get("groupEdits")]
         for d in grouped:
+            assert d.data is not None
             for ge in d.data["groupEdits"]:
                 # endCharacter should equal the diagnostic range's exclusive
                 # end, not the inclusive token end.  Verify that the source
