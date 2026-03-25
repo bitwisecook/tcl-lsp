@@ -1245,7 +1245,7 @@ def _generate_docstring_action(
 
     Offered when the cursor is on a proc definition that has no docstring.
     """
-    from core.formatting.docstring import generate_stub
+    from core.formatting.docstring import generate_stub_for_proc
 
     cursor_line = range_.start.line
     for proc_def in analysis.all_procs.values():
@@ -1255,10 +1255,7 @@ def _generate_docstring_action(
         if proc_def.doc:
             return None  # already has a docstring
 
-        param_names = [p.name for p in proc_def.params]
-        param_defaults = {p.name: p.default_value for p in proc_def.params if p.has_default}
-        stub = generate_stub(proc_def.name, param_names, param_defaults)
-        stub_text = stub + "\n"
+        stub_text = generate_stub_for_proc(proc_def) + "\n"
 
         insert_pos = types.Position(line=proc_line, character=0)
         return types.CodeAction(
@@ -1266,7 +1263,7 @@ def _generate_docstring_action(
             kind=types.CodeActionKind.Source,
             edit=types.WorkspaceEdit(
                 changes={
-                    "": [
+                    "__current__": [
                         types.TextEdit(
                             range=types.Range(start=insert_pos, end=insert_pos), new_text=stub_text
                         )

@@ -45,18 +45,6 @@ from .symbol_resolution import (
 log = logging.getLogger(__name__)
 
 
-def _format_docstring(doc: str) -> str:
-    """Format a proc docstring for hover display.
-
-    Delegates to the shared ``core.formatting.docstring`` module which
-    parses ``@param``, ``@return``/``@returns``, and ``@brief`` tags
-    and renders them as readable markdown.
-    """
-    from core.formatting.docstring import format_docstring
-
-    return format_docstring(doc)
-
-
 def _proc_hover_text(proc_def: ProcDef) -> str:
     """Format hover text for a proc definition."""
     params = []
@@ -69,7 +57,9 @@ def _proc_hover_text(proc_def: ProcDef) -> str:
     sig = f"proc {proc_def.qualified_name} {{{' '.join(params)}}} {{...}}"
     parts = [f"```tcl\n{sig}\n```"]
     if proc_def.doc:
-        parts.append(_format_docstring(proc_def.doc))
+        from core.formatting.docstring import format_docstring
+
+        parts.append(format_docstring(proc_def.doc))
     return "\n\n".join(parts)
 
 

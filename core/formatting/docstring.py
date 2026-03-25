@@ -8,8 +8,12 @@ formatter, LSP features (hover, completion, signature help), and AI tools.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from .config import DocstringTagStyle
+
+if TYPE_CHECKING:
+    from core.analysis.semantic_model import ProcDef
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +101,9 @@ def parse_docstring(text: str) -> DocstringInfo:
             brief = stripped[7:].strip()
 
         else:
+            # Skip decoration-only lines (dots, dashes, hashes, etc.)
+            if stripped and all(ch in _DECORATION_CHARS for ch in stripped):
+                continue
             description_lines.append(stripped)
 
     desc = "\n".join(description_lines).strip()
@@ -186,7 +193,7 @@ def render_comment_block(
         if info.returns:
             lines.append(f"{indent}# @return {info.returns}")
     else:
-        # Plain style: brief + description as prose, params as list
+        # Plain style (also used for NONE — leave tags as-is falls through here).
         if info.brief:
             lines.append(f"{indent}# {info.brief}")
         if info.description:
@@ -283,3 +290,41 @@ def extract_body_docstring(body: str) -> str:
         else:
             break
     return "\n".join(lines)
+
+
+def resolve_tag_style(style: str) -> DocstringTagStyle:
+    """Resolve a tag-style string to the corresponding enum value.
+
+    Case-insensitive.  Unrecognised values default to ``DOXYGEN``.
+    """
+    if style.lower() == "plain":
+        return DocstringTagStyle.PLAIN
+    return DocstringTagStyle.DOXYGEN
+
+
+def generate_stub_for_proc(
+    proc_def: ProcDef,
+    *,
+    tag_style: DocstringTagStyle = DocstringTagStyle.DOXYGEN,
+    decoration: bool = False,
+    decoration_char: str = ".",
+    decoration_width: int = 70,
+    indent: str = "",
+) -> str:
+    """Generate a docstring stub from a ``ProcDef``.
+
+    Convenience wrapper around ``generate_stub`` that extracts parameter
+    names and defaults from the proc definition automatically.
+    """
+    param_names = [p.name for p in proc_def.params]
+    param_defaults = {p.name: p.default_value for p in proc_def.params if p.has_default}
+    return generate_stub(
+        proc_def.name,
+        param_names,
+        param_defaults,
+        tag_style=tag_style,
+        decoration=decoration,
+        decoration_char=decoration_char,
+        decoration_width=decoration_width,
+        indent=indent,
+    )

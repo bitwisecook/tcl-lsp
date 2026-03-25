@@ -61,6 +61,11 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var formattingMaxConsecutiveBlankLines: Int = 2
     var formattingLineEnding: String = "lf"
     var formattingEnsureFinalNewline: Boolean = true
+    var formattingDocstringStyle: String = "none"
+    var formattingDocstringTagStyle: String = "doxygen"
+    var formattingDocstringDecoration: Boolean = false
+    var formattingDocstringDecorationChar: String = "."
+    var formattingDocstringDecorationWidth: Int = 70
 
     // @generated:diagnostic-vars:begin
     var diagnosticE001: Boolean = true
@@ -265,6 +270,11 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "maxConsecutiveBlankLines" to formattingMaxConsecutiveBlankLines,
                 "lineEnding" to formattingLineEnding,
                 "ensureFinalNewline" to formattingEnsureFinalNewline,
+                "docstringStyle" to formattingDocstringStyle,
+                "docstringTagStyle" to formattingDocstringTagStyle,
+                "docstringDecoration" to formattingDocstringDecoration,
+                "docstringDecorationChar" to formattingDocstringDecorationChar,
+                "docstringDecorationWidth" to formattingDocstringDecorationWidth,
             ),
             "diagnostics" to mapOf(
                 // @generated:diagnostic-map:begin

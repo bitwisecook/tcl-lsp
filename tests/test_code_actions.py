@@ -962,3 +962,45 @@ class TestIPConversionCodeActions:
         actions = get_code_actions(source, cursor, _NO_DIAG_CONTEXT)
         ra = _refactor_actions(actions)
         assert len(ra) == 0
+
+
+class TestGenerateDocstringAction:
+    def setup_method(self):
+        configure_signatures(dialect="tcl8.6")
+
+    def test_offered_for_undocumented_proc(self):
+        source = "proc greet {name} { puts $name }\n"
+        cursor = types.Range(
+            start=types.Position(line=0, character=0),
+            end=types.Position(line=0, character=0),
+        )
+        actions = get_code_actions(source, cursor, _NO_DIAG_CONTEXT)
+        sa = _source_actions(actions)
+        doc_actions = [a for a in sa if "docstring" in a.title.lower()]
+        assert len(doc_actions) == 1
+        assert "'greet'" in doc_actions[0].title
+
+    def test_not_offered_for_documented_proc(self):
+        source = "# Already documented\nproc greet {name} { puts $name }\n"
+        cursor = types.Range(
+            start=types.Position(line=1, character=0),
+            end=types.Position(line=1, character=0),
+        )
+        actions = get_code_actions(source, cursor, _NO_DIAG_CONTEXT)
+        sa = _source_actions(actions)
+        doc_actions = [a for a in sa if "docstring" in a.title.lower()]
+        assert len(doc_actions) == 0
+
+    def test_generated_edit_contains_param_tags(self):
+        source = "proc add {a b} { expr {$a + $b} }\n"
+        cursor = types.Range(
+            start=types.Position(line=0, character=0),
+            end=types.Position(line=0, character=0),
+        )
+        actions = get_code_actions(source, cursor, _NO_DIAG_CONTEXT)
+        sa = _source_actions(actions)
+        doc_actions = [a for a in sa if "docstring" in a.title.lower()]
+        assert len(doc_actions) == 1
+        snippets = _action_snippets(doc_actions)
+        assert any("@param a" in s for s in snippets)
+        assert any("@param b" in s for s in snippets)

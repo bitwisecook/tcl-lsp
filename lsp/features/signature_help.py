@@ -12,7 +12,8 @@ from core.commands.registry.models import CommandSpec
 from core.commands.registry.runtime import SIGNATURES, SubcommandSig
 from core.common.dialect import active_dialect
 
-from .hover import _format_docstring
+from core.formatting.docstring import format_docstring
+
 from .symbol_resolution import find_command_context_details_at_position
 
 
@@ -67,7 +68,7 @@ def _proc_signature_help(
         documentation=(
             types.MarkupContent(
                 kind=types.MarkupKind.Markdown,
-                value=_format_docstring(proc_def.doc),
+                value=format_docstring(proc_def.doc),
             )
             if proc_def.doc
             else None
