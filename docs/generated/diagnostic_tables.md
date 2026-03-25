@@ -19,6 +19,8 @@
 | W113 | warning | Procedure shadows built-in command. | ✓ |
 | W114 | warning | Redundant nested `[expr {...}]` — already in expression context. | ✓ |
 | W115 | warning | Backslash-newline in comment silently swallows the next line. | ✓ |
+| W116 | warning | Stub command shadows built-in command. | ✓ |
+| W117 | warning | Stub expression definition shadows built-in function or operator. | ✓ |
 | W120 | warning | Command used without a corresponding `package require`. | ✓ |
 | W121 | warning | Subnet mask has non-contiguous bits. | ✓ |
 | W122 | warning | Mistyped IPv4 address (octet > 255 or leading zero). | ✓ |
@@ -67,6 +69,8 @@
 | IRULE5002 | irules | `drop`/`reject`/`discard` without `event disable all` or `return`. | ✓ |
 | IRULE5004 | irules | `DNS::return` without `return`. | ✓ |
 | IRULE5005 | irules | Direct proc invocation without `call` — use `call proc_name`. | ✓ |
+| IRULE5006 | irules | Top-level-only command used inside a nested body. | ✓ |
+| IRULE5007 | irules | Event-context command used at top level outside a `when` block. | ✓ |
 | IRULE3001 | irules_security | Tainted data in HTTP response body. | ✓ |
 | IRULE3002 | irules_security | Tainted data in HTTP header or cookie value. | ✓ |
 | IRULE3003 | irules_security | Tainted data in `log` command — log injection risk. | ✓ |

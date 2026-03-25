@@ -4,6 +4,8 @@
 Imports the compiler's code registry and generates:
 
 - ``editors/jetbrains/.../generated/DiagnosticCatalog.kt``  (Kotlin data)
+- ``editors/jetbrains/.../TclLspSettings.kt``  (@generated blocks)
+- ``editors/jetbrains/.../TclLspSettingsPanel.kt``  (@generated blocks)
 - ``editors/vscode/src/generated/diagnosticCatalog.ts``     (TypeScript data)
 - ``editors/vscode/package.json``  (VS Code configuration sections)
 - ``docs/generated/diagnostic_tables.md``  (README-includable tables)
@@ -103,6 +105,253 @@ _JB_CATALOG_PATH = (
     / "generated"
     / "DiagnosticCatalog.kt"
 )
+
+
+def _code_to_kt_var(code: str) -> str:
+    """Convert a diagnostic code like 'IRULE5006' to a Kotlin variable name like 'diagnosticIRULE5006'."""
+    return f"diagnostic{code}"
+
+
+def _code_to_kt_checkbox(code: str) -> str:
+    """Convert a diagnostic code to a Kotlin checkbox field name like 'diagIRULE5006'."""
+    return f"diag{code}"
+
+
+def _opt_to_kt_var(code: str) -> str:
+    """Convert an optimiser code like 'O100' to a Kotlin variable name like 'optimiserO100'."""
+    return f"optimiser{code}"
+
+
+def _opt_to_kt_checkbox(code: str) -> str:
+    """Convert an optimiser code to a Kotlin checkbox field name like 'optO100'."""
+    return f"opt{code}"
+
+
+def _replace_generated_block(content: str, marker: str, replacement: str) -> str:
+    """Replace content between ``// @generated:<marker>:begin`` and ``// @generated:<marker>:end``.
+
+    Preserves the indentation of the begin marker line.
+    """
+    begin_tag = f"// @generated:{marker}:begin"
+    end_tag = f"// @generated:{marker}:end"
+
+    begin_idx = content.find(begin_tag)
+    end_idx = content.find(end_tag)
+    if begin_idx == -1 or end_idx == -1:
+        return content
+
+    # Find the indentation of the begin marker
+    line_start = content.rfind("\n", 0, begin_idx)
+    indent = content[line_start + 1 : begin_idx]
+
+    before = content[: begin_idx + len(begin_tag)]
+    after = content[end_idx:]
+
+    return before + "\n" + replacement + indent + after
+
+
+def _generate_diag_section_groups() -> list[tuple[str, list]]:
+    """Group diagnostics by their deduplicated section title."""
+    diags = diagnostics_sorted()
+    # Deduplicate section titles
+    seen: set[str] = set()
+    title_for_section: dict[str, str] = {}
+    ordered_titles: list[str] = []
+    for key, title in SECTIONS:
+        title_for_section[key] = title
+        if title not in seen:
+            ordered_titles.append(title)
+            seen.add(title)
+
+    # Group diagnostics by title
+    groups: dict[str, list] = {}
+    for d in diags:
+        title = title_for_section.get(d.section, d.section)
+        groups.setdefault(title, []).append(d)
+
+    return [(title, groups.get(title, [])) for title in ordered_titles if groups.get(title)]
+
+
+_JB_SETTINGS_PATH = (
+    ROOT
+    / "editors"
+    / "jetbrains"
+    / "src"
+    / "main"
+    / "kotlin"
+    / "com"
+    / "tcllsp"
+    / "jetbrains"
+    / "settings"
+    / "TclLspSettings.kt"
+)
+
+_JB_PANEL_PATH = _JB_SETTINGS_PATH.parent / "TclLspSettingsPanel.kt"
+
+
+def generate_jetbrains_settings(*, dry_run: bool = False) -> tuple[Path, str]:
+    """Regenerate @generated blocks in TclLspSettings.kt."""
+    content = _JB_SETTINGS_PATH.read_text(encoding="utf-8")
+    diags = diagnostics_sorted()
+    opts = optimisations_sorted()
+
+    # diagnostic-vars block
+    vars_lines = []
+    for d in diags:
+        default = "true" if d.default else "false"
+        vars_lines.append(f"    var {_code_to_kt_var(d.code)}: Boolean = {default}\n")
+    content = _replace_generated_block(content, "diagnostic-vars", "".join(vars_lines))
+
+    # diagnostic-map block
+    map_lines = []
+    for d in diags:
+        map_lines.append(f'                "{d.code}" to {_code_to_kt_var(d.code)},\n')
+    content = _replace_generated_block(content, "diagnostic-map", "".join(map_lines))
+
+    # optimiser-vars block
+    opt_var_lines = ["    var optimiserEnabled: Boolean = true\n"]
+    for o in opts:
+        default = "true" if o.default else "false"
+        opt_var_lines.append(f"    var {_opt_to_kt_var(o.code)}: Boolean = {default}\n")
+    content = _replace_generated_block(content, "optimiser-vars", "".join(opt_var_lines))
+
+    # optimiser-map block
+    opt_map_lines = ['                "enabled" to optimiserEnabled,\n']
+    for o in opts:
+        opt_map_lines.append(f'                "{o.code}" to {_opt_to_kt_var(o.code)},\n')
+    content = _replace_generated_block(content, "optimiser-map", "".join(opt_map_lines))
+
+    if not dry_run:
+        _JB_SETTINGS_PATH.write_text(content, encoding="utf-8")
+    return _JB_SETTINGS_PATH, content
+
+
+def generate_jetbrains_panel(*, dry_run: bool = False) -> tuple[Path, str]:
+    """Regenerate @generated blocks in TclLspSettingsPanel.kt."""
+    content = _JB_PANEL_PATH.read_text(encoding="utf-8")
+    diags = diagnostics_sorted()
+    opts = optimisations_sorted()
+    groups = _generate_diag_section_groups()
+
+    # diag-checkboxes block
+    cb_lines = []
+    for title, section_diags in groups:
+        cb_lines.append(f"    // {title}\n")
+        for d in section_diags:
+            label = _short_label(d.code, d.description, escape_kotlin=True)
+            cb_lines.append(
+                f'    private val {_code_to_kt_checkbox(d.code)} = JBCheckBox("{label}")\n'
+            )
+        cb_lines.append("\n")
+    # Remove trailing blank line
+    if cb_lines and cb_lines[-1] == "\n":
+        cb_lines.pop()
+    content = _replace_generated_block(content, "diag-checkboxes", "".join(cb_lines))
+
+    # diag-ui block
+    ui_lines = []
+    panel_var_names = {
+        "Diagnostics — Errors": "diagErrorPanel",
+        "Diagnostics — Style & Best Practice": "diagWarnPanel",
+        "Diagnostics — Variables": "diagVarPanel",
+        "Diagnostics — Security": "diagSecPanel",
+        "Diagnostics — Hints": "diagHintPanel",
+        "Diagnostics — Shimmer": "diagShimmerPanel",
+        "Diagnostics — Taint": "diagTaintPanel",
+        "Diagnostics — iRules": "diagIRulePanel",
+    }
+    for title, section_diags in groups:
+        panel_var = panel_var_names.get(title, "diagPanel")
+        ui_lines.append(f'        builder.addComponent(TitledSeparator("{title}"))\n')
+        ui_lines.append(f"        val {panel_var} = JPanel(java.awt.GridLayout(0, 2, 8, 2))\n")
+        ui_lines.append("        listOf(\n")
+        # Format checkbox references, 6 per line
+        refs = [_code_to_kt_checkbox(d.code) for d in section_diags]
+        for i in range(0, len(refs), 6):
+            chunk = refs[i : i + 6]
+            ui_lines.append(f"            {', '.join(chunk)},\n")
+        ui_lines.append(f"        ).forEach {{ {panel_var}.add(it) }}\n")
+        ui_lines.append(f"        builder.addComponent({panel_var})\n")
+        ui_lines.append("\n")
+    if ui_lines and ui_lines[-1] == "\n":
+        ui_lines.pop()
+    content = _replace_generated_block(content, "diag-ui", "".join(ui_lines))
+
+    # diag-dirty block
+    dirty_lines = []
+    for d in diags:
+        cb = _code_to_kt_checkbox(d.code)
+        var = _code_to_kt_var(d.code)
+        dirty_lines.append(f"            {cb}.isSelected != s.{var} ||\n")
+    content = _replace_generated_block(content, "diag-dirty", "".join(dirty_lines))
+
+    # diag-apply block
+    apply_lines = []
+    for d in diags:
+        cb = _code_to_kt_checkbox(d.code)
+        var = _code_to_kt_var(d.code)
+        apply_lines.append(f"        s.{var} = {cb}.isSelected\n")
+    content = _replace_generated_block(content, "diag-apply", "".join(apply_lines))
+
+    # diag-reset block
+    reset_lines = []
+    for d in diags:
+        cb = _code_to_kt_checkbox(d.code)
+        var = _code_to_kt_var(d.code)
+        reset_lines.append(f"        {cb}.isSelected = s.{var}\n")
+    content = _replace_generated_block(content, "diag-reset", "".join(reset_lines))
+
+    # opt-checkboxes block
+    opt_cb_lines = ['    private val optEnabled = JBCheckBox("Enable optimiser suggestions")\n']
+    for o in opts:
+        label = _short_label(o.code, o.description, escape_kotlin=True)
+        opt_cb_lines.append(
+            f'    private val {_opt_to_kt_checkbox(o.code)} = JBCheckBox("{label}")\n'
+        )
+    content = _replace_generated_block(content, "opt-checkboxes", "".join(opt_cb_lines))
+
+    # opt-ui block
+    opt_ui_lines = [
+        '        builder.addComponent(TitledSeparator("Optimiser"))\n',
+        "        builder.addComponent(optEnabled)\n",
+        "        val optPanel = JPanel(java.awt.GridLayout(0, 4, 8, 2))\n",
+        "        listOf(\n",
+    ]
+    opt_refs = [_opt_to_kt_checkbox(o.code) for o in opts]
+    for i in range(0, len(opt_refs), 6):
+        chunk = opt_refs[i : i + 6]
+        opt_ui_lines.append(f"            {', '.join(chunk)},\n")
+    opt_ui_lines.append("        ).forEach { optPanel.add(it) }\n")
+    opt_ui_lines.append("        builder.addComponent(optPanel)\n")
+    content = _replace_generated_block(content, "opt-ui", "".join(opt_ui_lines))
+
+    # opt-dirty block
+    opt_dirty_lines = ["            optEnabled.isSelected != s.optimiserEnabled ||\n"]
+    for o in opts:
+        cb = _opt_to_kt_checkbox(o.code)
+        var = _opt_to_kt_var(o.code)
+        opt_dirty_lines.append(f"            {cb}.isSelected != s.{var} ||\n")
+    content = _replace_generated_block(content, "opt-dirty", "".join(opt_dirty_lines))
+
+    # opt-apply block
+    opt_apply_lines = ["        s.optimiserEnabled = optEnabled.isSelected\n"]
+    for o in opts:
+        cb = _opt_to_kt_checkbox(o.code)
+        var = _opt_to_kt_var(o.code)
+        opt_apply_lines.append(f"        s.{var} = {cb}.isSelected\n")
+    content = _replace_generated_block(content, "opt-apply", "".join(opt_apply_lines))
+
+    # opt-reset block
+    opt_reset_lines = ["        optEnabled.isSelected = s.optimiserEnabled\n"]
+    for o in opts:
+        cb = _opt_to_kt_checkbox(o.code)
+        var = _opt_to_kt_var(o.code)
+        opt_reset_lines.append(f"        {cb}.isSelected = s.{var}\n")
+    content = _replace_generated_block(content, "opt-reset", "".join(opt_reset_lines))
+
+    if not dry_run:
+        _JB_PANEL_PATH.write_text(content, encoding="utf-8")
+    return _JB_PANEL_PATH, content
 
 
 def generate_jetbrains_catalog(*, dry_run: bool = False) -> tuple[Path, str]:
@@ -398,6 +647,8 @@ def render_all(*, dry_run: bool = False) -> list[tuple[Path, str]]:
     """Render all generated files. Returns list of (path, content) pairs."""
     return [
         generate_jetbrains_catalog(dry_run=dry_run),
+        generate_jetbrains_settings(dry_run=dry_run),
+        generate_jetbrains_panel(dry_run=dry_run),
         generate_vscode_catalog(dry_run=dry_run),
         generate_vscode_package_json(dry_run=dry_run),
         generate_readme_tables(dry_run=dry_run),

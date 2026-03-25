@@ -119,6 +119,12 @@ _IRULES_OPS = frozenset(
 )
 
 
+# Public accessors for stub-shadow detection.
+BUILTIN_MATH_FUNCTIONS: frozenset[str] = _MATH_FUNCTIONS
+BUILTIN_EXPR_OPS: frozenset[str] = frozenset(_MULTI_OPS) | _SINGLE_OPS
+IRULES_EXPR_OPS: frozenset[str] = _IRULES_OPS
+
+
 class ExprLexer:
     """Tokeniser for Tcl [expr] bodies."""
 

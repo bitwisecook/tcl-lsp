@@ -7,7 +7,7 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..namespace_models import EventRequires
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/sharedvar.html"
@@ -40,6 +40,7 @@ class SharedvarCommand(CommandDef):
                     synopsis="sharedvar VARIABLE",
                 ),
             ),
+            arg_roles={0: ArgRole.VAR_NAME},
             validation=ValidationSpec(
                 arity=Arity(),
             ),

@@ -10,9 +10,12 @@ Conservative summaries are built per lowered proc to describe:
 
 from __future__ import annotations
 
+import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from ..analysis.proc_arg_traits import infer_param_traits
+from ..analysis.semantic_model import ProcArgTrait
 from ..commands.registry.signatures import Arity
 from ..common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
@@ -51,6 +54,8 @@ from .ssa import SSAFunction, SSAValueKey, build_ssa
 from .static_loops import evaluate_expr_with_constants as _evaluate_expr
 from .var_refs import VarReferenceScanner, VarScanOptions
 
+log = logging.getLogger(__name__)
+
 _SIMPLE_VAR_WORD_RE = re.compile(r"\$(?:\{[A-Za-z_][A-Za-z0-9_:]*\}|[A-Za-z_][A-Za-z0-9_:]*)\Z")
 _VAR_REF_SCANNER = VarReferenceScanner(
     VarScanOptions(
@@ -77,6 +82,7 @@ class ProcSummary:
     return_depends_on_params: tuple[str, ...]
     return_passthrough_param: str | None
     can_fold_static_calls: bool
+    param_traits: dict[str, frozenset[ProcArgTrait]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -768,6 +774,15 @@ def analyse_interprocedural_ir(
         if can_fold and qname in ir_module.redefined_procedures:
             can_fold = False
 
+        # Infer proc argument traits from body source.
+        proc = ir_module.procedures[qname]
+        traits: dict[str, frozenset[ProcArgTrait]] = {}
+        if proc.body_source and local.params:
+            try:
+                traits = infer_param_traits(local.params, proc.body_source)
+            except Exception:
+                log.debug("trait inference failed for %s", qname, exc_info=True)
+
         summaries[qname] = ProcSummary(
             qualified_name=qname,
             params=local.params,
@@ -784,6 +799,7 @@ def analyse_interprocedural_ir(
             return_depends_on_params=local.return_depends_on_params,
             return_passthrough_param=local.return_passthrough_param,
             can_fold_static_calls=can_fold,
+            param_traits=traits,
         )
 
     return InterproceduralAnalysis(procedures=summaries)

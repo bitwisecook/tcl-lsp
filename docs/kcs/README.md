@@ -19,6 +19,9 @@ This folder contains small, searchable Knowledge-Centered Service (KCS) notes.
 - [kcs-shimmer-reference-behaviour.md](kcs-shimmer-reference-behaviour.md) — practical shimmer expectations and current validation strategy.
 - [kcs-project-layout-contracts.md](kcs-project-layout-contracts.md) — repository layout ownership and dependency direction contracts.
 
+- [kcs-proc-arg-traits.md](kcs-proc-arg-traits.md) — proc argument trait inference: EVAL, BODY, VAR_WRITE, LOOP_LIST detection.
+- [kcs-dialect-stubs.md](kcs-dialect-stubs.md) — dialect command stubs: `.tcl.stubs` files and inline stubs-begin/end blocks.
+
 ## Diagnostics
 
 - [kcs-irule4005-racy-static-cross-event.md](kcs-irule4005-racy-static-cross-event.md) — IRULE4005: racy `static::` cross-event flow from non-RULE_INIT events.

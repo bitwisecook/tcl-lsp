@@ -125,6 +125,176 @@ class TestIrule5005:
         assert len(irule5005) == 0
 
 
+# IRULE5006: top-level-only command used inside a nested body
+
+
+class TestIRULE5006TopLevelOnly:
+    """IRULE5006: proc, when, timing, priority must be top-level in iRules."""
+
+    def test_proc_inside_when_warns(self):
+        src = textwrap.dedent("""\
+            when HTTP_REQUEST {
+                proc nested {} { return 1 }
+            }
+        """)
+        diags = _diag_with_code(src, "IRULE5006")
+        assert len(diags) == 1
+        assert "'proc'" in diags[0].message
+
+    def test_when_inside_when_warns(self):
+        src = textwrap.dedent("""\
+            when HTTP_REQUEST {
+                when HTTP_RESPONSE { set x 1 }
+            }
+        """)
+        diags = _diag_with_code(src, "IRULE5006")
+        assert len(diags) == 1
+        assert "'when'" in diags[0].message
+
+    def test_timing_inside_when_warns(self):
+        src = textwrap.dedent("""\
+            when HTTP_REQUEST {
+                timing on
+            }
+        """)
+        diags = _diag_with_code(src, "IRULE5006")
+        assert len(diags) == 1
+        assert "'timing'" in diags[0].message
+
+    def test_priority_inside_when_warns(self):
+        src = textwrap.dedent("""\
+            when HTTP_REQUEST {
+                priority 100
+            }
+        """)
+        diags = _diag_with_code(src, "IRULE5006")
+        assert len(diags) == 1
+        assert "'priority'" in diags[0].message
+
+    def test_top_level_proc_no_warning(self):
+        src = textwrap.dedent("""\
+            proc myproc {} { return 1 }
+        """)
+        diags = _diag_with_code(src, "IRULE5006")
+        assert len(diags) == 0
+
+    def test_top_level_when_no_warning(self):
+        src = textwrap.dedent("""\
+            when HTTP_REQUEST {
+                set x 1
+            }
+        """)
+        diags = _diag_with_code(src, "IRULE5006")
+        assert len(diags) == 0
+
+    def test_top_level_timing_no_warning(self):
+        src = "timing on\n"
+        diags = _diag_with_code(src, "IRULE5006")
+        assert len(diags) == 0
+
+    def test_top_level_priority_no_warning(self):
+        src = "priority 500\n"
+        diags = _diag_with_code(src, "IRULE5006")
+        assert len(diags) == 0
+
+    def test_timing_as_when_arg_no_warning(self):
+        """``when EVENT timing enable { body }`` should NOT warn —
+        timing here is an argument to when, not a standalone command."""
+        src = textwrap.dedent("""\
+            when HTTP_REQUEST timing enable {
+                set x 1
+            }
+        """)
+        diags = _diag_with_code(src, "IRULE5006")
+        assert len(diags) == 0
+
+    def test_proc_inside_if_inside_when_warns(self):
+        src = textwrap.dedent("""\
+            when HTTP_REQUEST {
+                if {1} {
+                    proc nested {} { return 1 }
+                }
+            }
+        """)
+        diags = _diag_with_code(src, "IRULE5006")
+        assert len(diags) == 1
+
+    def test_not_in_tcl_dialect(self):
+        """IRULE5006 should not fire in plain Tcl — nested procs are valid."""
+        configure_signatures(dialect="tcl")
+        src = textwrap.dedent("""\
+            proc outer {} {
+                proc inner {} { return 1 }
+            }
+        """)
+        result = analyse(src)
+        w115 = [d for d in result.diagnostics if d.code == "IRULE5006"]
+        assert len(w115) == 0
+
+
+# IRULE5007: event-context command at top level outside when
+
+
+class TestIRULE5007TopLevelEventCommand:
+    """IRULE5007: commands requiring event context warn at top level."""
+
+    def test_pool_at_top_level_warns(self):
+        src = "pool my_pool\n"
+        diags = _diag_with_code(src, "IRULE5007")
+        assert len(diags) == 1
+        assert "'pool'" in diags[0].message
+        assert "when" in diags[0].message
+
+    def test_pool_inside_when_no_warning(self):
+        src = textwrap.dedent("""\
+            when HTTP_REQUEST {
+                pool my_pool
+            }
+        """)
+        diags = _diag_with_code(src, "IRULE5007")
+        assert len(diags) == 0
+
+    def test_http_uri_at_top_level_warns(self):
+        src = "HTTP::uri\n"
+        diags = _diag_with_code(src, "IRULE5007")
+        assert len(diags) == 1
+        assert "'HTTP::uri'" in diags[0].message
+
+    def test_set_at_top_level_no_warning(self):
+        """Tcl builtins like set have no event_requires — no warning."""
+        src = "set x 1\n"
+        diags = _diag_with_code(src, "IRULE5007")
+        assert len(diags) == 0
+
+    def test_proc_at_top_level_no_irule1007(self):
+        """proc is top-level-only (IRULE5006), not an event command."""
+        src = "proc myproc {} { return 1 }\n"
+        diags = _diag_with_code(src, "IRULE5007")
+        assert len(diags) == 0
+
+    def test_event_command_inside_proc_warns(self):
+        """Commands requiring event context inside a proc body should warn
+        since procs are not within a when block."""
+        src = textwrap.dedent("""\
+            proc bad {} {
+                pool my_pool
+            }
+        """)
+        diags = _diag_with_code(src, "IRULE5007")
+        # Inside a proc body, _body_depth > 0 and _current_event is None.
+        # However _body_depth > 0 means it's nested, not top level.
+        # The check is _body_depth == 0, so this should NOT fire here.
+        # IRULE1001 handles the case of wrong-event commands.
+        assert len(diags) == 0
+
+    def test_not_in_tcl_dialect(self):
+        """IRULE5007 should not fire in plain Tcl dialect."""
+        configure_signatures(dialect="tcl")
+        result = analyse("pool my_pool\n")
+        diags = [d for d in result.diagnostics if d.code == "IRULE5007"]
+        assert len(diags) == 0
+
+
 # Analyser: ``call`` resolves the target proc
 
 

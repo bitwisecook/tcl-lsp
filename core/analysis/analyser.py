@@ -45,11 +45,18 @@ from ..compiler.ir import (
 )
 from ..parsing.argv import widen_argv_tokens_to_word_spans
 from ..parsing.command_segmenter import SegmentedCommand, UnclosedDelimiter
-from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
+from ..parsing.expr_lexer import (
+    BUILTIN_EXPR_OPS,
+    BUILTIN_MATH_FUNCTIONS,
+    IRULES_EXPR_OPS,
+    ExprTokenType,
+    tokenise_expr,
+)
 from ..parsing.known_commands import known_command_names
 from ..parsing.lexer import TclLexer
 from ..parsing.recovery import segment_with_recovery
 from ..parsing.tokens import SourcePosition, Token, TokenType
+from .proc_arg_traits import infer_param_traits
 from .semantic_model import (
     AnalysisResult,
     CodeFix,
@@ -65,8 +72,15 @@ from .semantic_model import (
     Severity,
     VarDef,
 )
+from .stub_comments import scan_source_for_stubs
 
 log = logging.getLogger(__name__)
+
+# iRules commands that are only valid at the top level of an iRule script.
+# ``timing`` and ``priority`` also appear as keyword arguments to ``when``
+# (e.g. ``when HTTP_REQUEST timing enable { ... }``), but as standalone
+# *commands* they must be top-level.
+_IRULES_TOP_LEVEL_ONLY = frozenset({"proc", "when", "timing", "priority"})
 
 # Module-level registrations for codes emitted from class methods.
 diag("E200", "Shimmer parse error — internal representation cannot be determined.", section="error")
@@ -78,6 +92,12 @@ diag(
     section="hint",
 )
 diag("W113", "Procedure shadows built-in command.", section="warning")
+diag("IRULE5006", "Top-level-only command used inside a nested body.", section="irules")
+diag(
+    "IRULE5007", "Event-context command used at top level outside a `when` block.", section="irules"
+)
+diag("W116", "Stub command shadows built-in command.", section="warning")
+diag("W117", "Stub expression definition shadows built-in function or operator.", section="warning")
 diag("W210", "Variable read before set.", section="variable")
 diag("W211", "Variable set but never used.", section="variable")
 diag(
@@ -227,8 +247,11 @@ class Analyser:
         self._current_event: str | None = None
         # Cache of built-in command names for redefined-builtin detection.
         self._builtin_names: frozenset[str] | None = None
+        self._builtin_dialect: str | None = None
         # Track conditional nesting depth for package require confidence.
         self._conditional_depth: int = 0
+        # Track body nesting depth for top-level-only command detection.
+        self._body_depth: int = 0
 
     def snapshot(self) -> AnalyserSnapshot:
         """Capture the analyser state for later restoration.
@@ -462,11 +485,49 @@ class Analyser:
     ) -> AnalysisResult:
         """Analyse a full source string."""
         self._source = source
+        # Pre-scan for inline stubs blocks (independent of Tcl parsing).
+        cmd_stubs, expr_stubs = scan_source_for_stubs(source)
+        self.result.stub_commands.extend(cmd_stubs)
+        self.result.stub_expr_defs.extend(expr_stubs)
+        self._check_stub_shadows()
         self._analyse_body(source, self._current_scope)
         self._emit_variable_usage_diagnostics()
         self._emit_cfg_ssa_diagnostics(source, cu=cu)
         self._dedupe_diagnostics()
         return self.result
+
+    def _check_stub_shadows(self) -> None:
+        """Emit W116/W117 when stubs shadow built-in commands or expr defs."""
+        dialect = active_dialect()
+        builtin_commands = set(REGISTRY.command_names(dialect))
+
+        for stub in self.result.stub_commands:
+            normalised_stub = stub.name.lstrip(":")
+            if normalised_stub in builtin_commands:
+                self.result.diagnostics.append(
+                    Diagnostic(
+                        range=stub.range,
+                        message=f"Stub command '{stub.name}' shadows built-in command.",
+                        severity=Severity.WARNING,
+                        code="W116",
+                    )
+                )
+
+        builtin_expr = BUILTIN_MATH_FUNCTIONS | BUILTIN_EXPR_OPS
+        if dialect == "f5-irules":
+            builtin_expr = builtin_expr | IRULES_EXPR_OPS
+
+        for stub_expr in self.result.stub_expr_defs:
+            if stub_expr.name in builtin_expr:
+                kind_label = "function" if stub_expr.kind == "function" else "operator"
+                self.result.diagnostics.append(
+                    Diagnostic(
+                        range=stub_expr.range,
+                        message=f"Stub expression {kind_label} '{stub_expr.name}' shadows built-in {kind_label}.",
+                        severity=Severity.WARNING,
+                        code="W117",
+                    )
+                )
 
     def _analyse_body(
         self,
@@ -479,6 +540,21 @@ class Analyser:
         When *body_token* is provided, the lexer is created with base offsets
         so that all positions in the sub-parse map back to the original source.
         """
+        if body_token is not None:
+            self._body_depth += 1
+        try:
+            self._analyse_body_inner(source, scope, body_token)
+        finally:
+            if body_token is not None:
+                self._body_depth -= 1
+
+    def _analyse_body_inner(
+        self,
+        source: str,
+        scope: Scope,
+        body_token: Token | None = None,
+    ) -> None:
+        """Inner implementation of _analyse_body, separated for try/finally."""
         commands, recovery_diags = segment_with_recovery(source, body_token)
         self.result.diagnostics.extend(recovery_diags)
         cmd_idx = 0
@@ -1122,6 +1198,39 @@ class Analyser:
                 )
             )
 
+        # IRULE5006: top-level-only commands used inside a nested body.
+        if (
+            self._body_depth > 0
+            and active_dialect() == "f5-irules"
+            and cmd_name in _IRULES_TOP_LEVEL_ONLY
+        ):
+            self.result.diagnostics.append(
+                Diagnostic(
+                    range=range_from_token(argv[0]),
+                    message=f"'{cmd_name}' is only valid at the top level of an iRule.",
+                    severity=Severity.WARNING,
+                    code="IRULE5006",
+                )
+            )
+
+        # IRULE5007: event-context command used at top level outside a when block.
+        if (
+            self._body_depth == 0
+            and self._current_event is None
+            and active_dialect() == "f5-irules"
+            and cmd_name not in _IRULES_TOP_LEVEL_ONLY
+        ):
+            spec = REGISTRY.get(cmd_name, "f5-irules")
+            if spec is not None and spec.event_requires is not None:
+                self.result.diagnostics.append(
+                    Diagnostic(
+                        range=range_from_token(argv[0]),
+                        message=f"'{cmd_name}' requires an event context — use it inside a `when` block.",
+                        severity=Severity.WARNING,
+                        code="IRULE5007",
+                    )
+                )
+
         # Record package require/provide statements for cross-file resolution.
         if cmd_name == "package" and args:
             if args[0] == "require":
@@ -1534,13 +1643,21 @@ class Analyser:
         body_range = range_from_token(arg_tokens[2]) if len(arg_tokens) > 2 else name_range
 
         # W113: warn when proc name shadows a built-in command.
-        if self._builtin_names is None:
-            self._builtin_names = frozenset(REGISTRY.command_names(active_dialect()))
-        if proc_name in self._builtin_names:
+        dialect = active_dialect()
+        if self._builtin_names is None or self._builtin_dialect != dialect:
+            self._builtin_names = frozenset(REGISTRY.command_names(dialect))
+            self._builtin_dialect = dialect
+        normalised_proc = proc_name.lstrip(":")
+        normalised_qual = qualified.lstrip(":")
+        shadow_name = normalised_proc if normalised_proc in self._builtin_names else None
+        if shadow_name is None and normalised_qual in self._builtin_names:
+            shadow_name = normalised_qual
+        if shadow_name is not None:
+            dialect_label = f" ({self._builtin_dialect})" if self._builtin_dialect else ""
             self.result.diagnostics.append(
                 Diagnostic(
                     range=name_range,
-                    message=f"Procedure '{proc_name}' shadows built-in command",
+                    message=f"Procedure '{proc_name}' shadows built-in command{dialect_label}",
                     severity=Severity.WARNING,
                     code="W113",
                 )
@@ -1573,6 +1690,14 @@ class Analyser:
 
         body_tok = arg_tokens[2] if len(arg_tokens) > 2 else None
         self._analyse_body(body, proc_scope, body_token=body_tok)
+
+        # Infer proc argument traits from body usage.
+        if params and body:
+            param_names = tuple(p.name for p in params)
+            try:
+                proc_def.param_traits = infer_param_traits(param_names, body)
+            except Exception:
+                pass  # trait inference is best-effort
 
     def _handle_set(
         self,
