@@ -261,8 +261,12 @@ def test_generator_is_idempotent():
 
 # 7. Native language toolchain validation (skipped if toolchain not present)
 
+_EXT_DIR = ROOT / "editors" / "vscode"
+_PROJECT_TSC = _EXT_DIR / "node_modules" / ".bin" / "tsc"
+_HAS_PROJECT_TSC = _PROJECT_TSC.exists()
 
-@pytest.mark.skipif(not shutil.which("tsc"), reason="tsc not found")
+
+@pytest.mark.skipif(not _HAS_PROJECT_TSC, reason="project tsc not found (run npm install)")
 def test_typescript_catalog_compiles():
     """Generated diagnosticCatalog.ts compiles with tsc (if available)."""
     ts_path = ROOT / "editors" / "vscode" / "src" / "generated" / "diagnosticCatalog.ts"
@@ -271,13 +275,13 @@ def test_typescript_catalog_compiles():
     with tempfile.TemporaryDirectory() as tmp:
         result = subprocess.run(
             [
-                "tsc",
+                str(_PROJECT_TSC),
                 "--noEmit",
                 "--strict",
                 "--target",
                 "ES2020",
                 "--moduleResolution",
-                "node",
+                "node10",
                 str(ts_path),
             ],
             capture_output=True,
@@ -288,7 +292,10 @@ def test_typescript_catalog_compiles():
         assert result.returncode == 0, f"tsc failed on diagnosticCatalog.ts:\n{result.stderr}"
 
 
-@pytest.mark.skipif(not shutil.which("node"), reason="node not found")
+@pytest.mark.skipif(
+    not shutil.which("node") or not _HAS_PROJECT_TSC,
+    reason="node or project tsc not found",
+)
 def test_typescript_catalog_importable_by_node():
     """Generated diagnosticCatalog.ts can be transpiled and loaded by Node."""
     ts_path = ROOT / "editors" / "vscode" / "src" / "generated" / "diagnosticCatalog.ts"
@@ -299,7 +306,7 @@ def test_typescript_catalog_importable_by_node():
         # Transpile to JS
         result = subprocess.run(
             [
-                "tsc",
+                str(_PROJECT_TSC),
                 "--outDir",
                 tmp,
                 "--target",
@@ -307,7 +314,7 @@ def test_typescript_catalog_importable_by_node():
                 "--module",
                 "commonjs",
                 "--moduleResolution",
-                "node",
+                "node10",
                 str(ts_path),
             ],
             capture_output=True,
