@@ -11,6 +11,7 @@ reused and only dirty chunks are re-processed.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -274,11 +275,16 @@ class DocumentState:
         point onwards.  Procedure-level caching avoids recomputing SSA
         and dataflow analysis for procs whose source text has not changed.
         """
+        t0 = time.perf_counter()
         new_chunks = segment_top_level_chunks(source)
+        t_seg = time.perf_counter()
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
 
         if not force_reanalyse and self.analysis is not None:
             if source == self.source:
+                log.debug(
+                    "[timing] document update %.0fms (unchanged)", (time.perf_counter() - t0) * 1000
+                )
                 return
             dirty_idx = find_first_dirty_chunk(self.chunks, new_chunks)
             if dirty_idx >= len(new_chunks) and dirty_idx >= len(self.chunks):
@@ -294,6 +300,10 @@ class DocumentState:
                     self._chunk_caches = []
                 self.chunks = new_chunks
                 self.has_partial_commands = has_partial
+                log.debug(
+                    "[timing] document update %.0fms (all chunks match)",
+                    (time.perf_counter() - t0) * 1000,
+                )
                 return
 
             # Incremental path: try to reuse cached artefacts.
@@ -305,6 +315,13 @@ class DocumentState:
                     has_partial,
                     dirty_idx,
                 )
+                log.info(
+                    "[timing] document update %.0fms (incremental, dirty=%d/%d, segment=%.0fms)",
+                    (time.perf_counter() - t0) * 1000,
+                    dirty_idx,
+                    len(new_chunks),
+                    (t_seg - t0) * 1000,
+                )
                 return
             except Exception:
                 log.debug(
@@ -314,6 +331,12 @@ class DocumentState:
                 # Fall through to full rebuild.
 
         self._update_full(source, version, new_chunks, has_partial)
+        log.info(
+            "[timing] document update %.0fms (full rebuild, %d chunks, segment=%.0fms)",
+            (time.perf_counter() - t0) * 1000,
+            len(new_chunks),
+            (t_seg - t0) * 1000,
+        )
 
     def _update_incremental(
         self,
@@ -324,6 +347,7 @@ class DocumentState:
         dirty_idx: int,
     ) -> None:
         """Incremental update: reuse cached artefacts for clean chunks."""
+        t0 = time.perf_counter()
         self.chunks = new_chunks
         self.has_partial_commands = has_partial
         self.source = source
@@ -333,6 +357,7 @@ class DocumentState:
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
         self.tokens = TclLexer(source).tokenise_all()
+        t_tok = time.perf_counter()
 
         # Build chunk IR cache: reuse cached entries for clean chunks,
         # leave dirty chunks as None so lower_to_ir will process them.
@@ -356,6 +381,7 @@ class DocumentState:
         ir_module = None
         try:
             ir_module = lower_to_ir(source, chunk_ir=chunk_ir, chunks=new_chunks)
+            t_lower = time.perf_counter()
             self.compilation_unit = compile_source(
                 source,
                 ir_module=ir_module,
@@ -364,10 +390,12 @@ class DocumentState:
                 prune_interproc_cache=not self.has_partial_commands,
             )
         except Exception:
+            t_lower = time.perf_counter()
             log.debug("document_state: incremental compilation failed", exc_info=True)
             self.compilation_unit = None
             self._proc_cache = prev_proc_cache
             self._interproc_cache = prev_interproc_cache
+        t_compile = time.perf_counter()
 
         self._update_proc_cache()
 
@@ -397,6 +425,7 @@ class DocumentState:
         else:
             # No snapshot to restore from — full analysis.
             self.analysis = analyse(source, cu=self.compilation_unit)
+        t_analyse = time.perf_counter()
 
         # Update chunk caches for newly processed chunks.
         # Take analyser snapshots at each dirty chunk boundary.
@@ -415,6 +444,20 @@ class DocumentState:
                 ir_module if self.compilation_unit else None,
             )
             self._chunk_caches = new_chunk_caches
+        t_caches = time.perf_counter()
+
+        log.info(
+            "[timing] _update_incremental tokenise=%.0fms lower=%.0fms compile=%.0fms"
+            " analyse=%.0fms caches=%.0fms total=%.0fms (dirty=%d/%d)",
+            (t_tok - t0) * 1000,
+            (t_lower - t_tok) * 1000,
+            (t_compile - t_lower) * 1000,
+            (t_analyse - t_compile) * 1000,
+            (t_caches - t_analyse) * 1000,
+            (t_caches - t0) * 1000,
+            dirty_idx,
+            len(new_chunks),
+        )
 
     def _rebuild_chunk_caches_for_dirty(
         self,
@@ -513,6 +556,7 @@ class DocumentState:
         has_partial: bool,
     ) -> None:
         """Full rebuild — no incremental reuse."""
+        t0 = time.perf_counter()
         self.chunks = new_chunks
         self.has_partial_commands = has_partial
 
@@ -523,6 +567,7 @@ class DocumentState:
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
         self.tokens = TclLexer(source).tokenise_all()
+        t_tok = time.perf_counter()
 
         prev_proc_cache = dict(self._proc_cache)
         prev_interproc_cache = dict(self._interproc_cache)
@@ -538,12 +583,27 @@ class DocumentState:
             self.compilation_unit = None
             self._proc_cache = prev_proc_cache
             self._interproc_cache = prev_interproc_cache
+        t_compile = time.perf_counter()
 
         self._update_proc_cache()
         self.analysis = analyse(source, cu=self.compilation_unit)
+        t_analyse = time.perf_counter()
 
         # Build chunk caches for future incremental use.
         self._build_full_chunk_caches(source, new_chunks)
+        t_caches = time.perf_counter()
+
+        n_procs = len(self.compilation_unit.procedures) if self.compilation_unit else 0
+        log.info(
+            "[timing] _update_full tokenise=%.0fms compile=%.0fms analyse=%.0fms"
+            " chunk_caches=%.0fms total=%.0fms (procs=%d)",
+            (t_tok - t0) * 1000,
+            (t_compile - t_tok) * 1000,
+            (t_analyse - t_compile) * 1000,
+            (t_caches - t_analyse) * 1000,
+            (t_caches - t0) * 1000,
+            n_procs,
+        )
 
     def _build_full_chunk_caches(
         self,
@@ -551,6 +611,7 @@ class DocumentState:
         chunks: list[TopLevelChunk],
     ) -> None:
         """Build ``ChunkCache`` entries after a full rebuild."""
+        t0 = time.perf_counter()
         try:
             from core.compiler.lowering import lower_commands_to_ir
 
@@ -590,6 +651,11 @@ class DocumentState:
         except Exception:
             log.debug("document_state: failed to build chunk caches", exc_info=True)
             self._chunk_caches = []
+        log.info(
+            "[timing] _build_full_chunk_caches %.0fms (%d chunks)",
+            (time.perf_counter() - t0) * 1000,
+            len(chunks),
+        )
 
     def _update_proc_cache(self) -> None:
         """Update the procedure cache from the current compilation unit."""

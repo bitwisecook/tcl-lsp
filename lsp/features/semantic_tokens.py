@@ -11,7 +11,9 @@ as one large string token.
 
 from __future__ import annotations
 
+import logging
 import re
+import time
 
 from core.analysis.semantic_model import AnalysisResult
 from core.bigip.apl_parser import AplTokenKind, tokenise_apl
@@ -37,6 +39,8 @@ from core.parsing.lexer import TclLexer
 from core.parsing.recovery import compute_virtual_insertions
 from core.parsing.token_positions import token_content_base, token_content_shift
 from core.parsing.tokens import SourcePosition, Token, TokenType
+
+log = logging.getLogger(__name__)
 
 # Short names: t = Token or token-position tuple.
 
@@ -2844,6 +2848,7 @@ def semantic_tokens_full(
     chunks are extracted from a full token computation.  The cache entries
     are updated in-place so that future calls benefit from the cache.
     """
+    t0 = time.perf_counter()
     regex_positions: frozenset[tuple[int, int]] = frozenset()
     if analysis is not None:
         regex_positions = frozenset(
@@ -2858,12 +2863,20 @@ def semantic_tokens_full(
             for entry in chunk_token_cache:
                 assert entry is not None
                 raw_tokens.extend(entry)
-            return _delta_encode(raw_tokens)
+            result = _delta_encode(raw_tokens)
+            log.info(
+                "[timing] semantic_tokens_full %.0fms (full cache hit, tokens=%d)",
+                (time.perf_counter() - t0) * 1000,
+                len(result) // 5,
+            )
+            return result
 
     # Collect all tokens with absolute positions
     raw_tokens: list[tuple[int, int, int, int, int]] = []
     base_tokens: list[tuple[int, int, int, int, int]] = []
+    t_collect = time.perf_counter()
     _collect_tokens(base_tokens, source, regex_positions=regex_positions)
+    t_after_collect = time.perf_counter()
     if is_bigip_conf:
         # Run full Tcl tokenisation on embedded iRule/iApp bodies.
         embedded_tokens: list[tuple[int, int, int, int, int]] = []
@@ -2903,7 +2916,17 @@ def semantic_tokens_full(
                     tok for tok in raw_tokens if (sl, sc) <= (tok[0], tok[1]) < (el, ec)
                 ]
 
-    return _delta_encode(raw_tokens)
+    result = _delta_encode(raw_tokens)
+    t_end = time.perf_counter()
+    log.info(
+        "[timing] semantic_tokens_full %.0fms (collect=%.0fms, encode=%.0fms, tokens=%d, lines=%d)",
+        (t_end - t0) * 1000,
+        (t_after_collect - t_collect) * 1000,
+        (t_end - t_after_collect) * 1000,
+        len(result) // 5,
+        source.count("\n") + 1,
+    )
+    return result
 
 
 def _delta_encode(raw_tokens: list[tuple[int, int, int, int, int]]) -> list[int]:

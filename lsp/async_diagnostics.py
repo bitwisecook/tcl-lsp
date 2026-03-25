@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -95,6 +96,7 @@ class DiagnosticScheduler:
         publish_fn: PublishFn,
     ) -> None:
         """Execute the deep pass in a thread and publish the merged result."""
+        t0 = time.perf_counter()
         try:
             deep_diags: list[types.Diagnostic] = await asyncio.to_thread(deep_fn)
         except asyncio.CancelledError:
@@ -107,6 +109,11 @@ class DiagnosticScheduler:
             pending = self._pending.get(uri)
             if pending is not None and pending.version == version:
                 self._pending.pop(uri, None)
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log.info(
+            "[timing] deep diagnostics %.0fms (uri=%s, diags=%d)", elapsed_ms, uri, len(deep_diags)
+        )
 
         # Merge basic + deep and publish.
         publish_fn(uri, basic_diags + deep_diags, version)

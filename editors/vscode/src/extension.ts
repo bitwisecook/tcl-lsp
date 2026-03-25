@@ -392,6 +392,8 @@ function resolveServerDir(configuredPath: string, extensionPath: string): string
 }
 
 export async function activate(context: ExtensionContext) {
+  const activateStart = Date.now();
+  const ch = getOutputChannel();
   const config = workspace.getConfiguration("tclLsp");
   const configuredServerPath = config.get<string>("serverPath", "");
 
@@ -405,7 +407,7 @@ export async function activate(context: ExtensionContext) {
         `Unable to locate Tcl server bundle under '${serverDir}'. Set 'tclLsp.serverPath' to the tcl-lsp project root.`,
       );
     }
-    getOutputChannel().appendLine(`Dev mode: using uv in ${serverDir}`);
+    ch.appendLine(`Dev mode: using uv in ${serverDir}`);
     serverOptions = {
       command: "uv",
       args: ["run", "--directory", serverDir, "--no-dev", "python", "-m", "lsp"],
@@ -422,7 +424,9 @@ export async function activate(context: ExtensionContext) {
     }
 
     const configuredPython = config.get<string>("pythonPath", "auto");
+    const pythonStart = Date.now();
     const python = await resolvePython(configuredPython);
+    ch.appendLine(`[timing] Python discovery: ${Date.now() - pythonStart}ms`);
     if (!python) {
       const msg =
         configuredPython && configuredPython !== "auto"
@@ -615,7 +619,9 @@ export async function activate(context: ExtensionContext) {
     }),
   );
 
+  const clientStartTime = Date.now();
   await client.start();
+  ch.appendLine(`[timing] client.start: ${Date.now() - clientStartTime}ms`);
   await applyDialectForEditor(window.activeTextEditor);
 
   try {
@@ -634,6 +640,7 @@ export async function activate(context: ExtensionContext) {
     registerScreenshotDemo(context);
   }
 
+  ch.appendLine(`[timing] extension activation: ${Date.now() - activateStart}ms`);
   return { getClient };
 }
 

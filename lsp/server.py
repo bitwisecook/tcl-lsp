@@ -6,6 +6,7 @@ import asyncio
 import logging
 import re
 import threading
+import time
 from dataclasses import dataclass, field
 
 from lsprotocol import types
@@ -466,6 +467,7 @@ SEMANTIC_TOKENS_LEGEND = types.SemanticTokensLegend(
 def on_semantic_tokens_full(
     params: types.SemanticTokensParams,
 ) -> types.SemanticTokens:
+    t0 = time.perf_counter()
     if not feature_config.semantic_tokens_enabled:
         return types.SemanticTokens(data=[])
     uri = params.text_document.uri
@@ -475,10 +477,16 @@ def on_semantic_tokens_full(
     # Try to use per-chunk semantic token cache.
     chunk_token_cache = None
     chunk_line_ranges = None
+    cache_status = "no_state"
     if state is not None:
         cache_info = state.get_semantic_token_cache()
         if cache_info is not None:
             chunk_token_cache, chunk_line_ranges = cache_info
+            cache_status = (
+                "full_hit" if all(e is not None for e in chunk_token_cache) else "partial"
+            )
+        else:
+            cache_status = "no_cache"
     data = semantic_tokens_full(
         source,
         analysis=analysis,
@@ -491,6 +499,15 @@ def on_semantic_tokens_full(
     # Write back computed tokens to chunk cache.
     if state is not None and chunk_token_cache is not None:
         state.store_semantic_token_cache(chunk_token_cache)
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    log.info(
+        "[timing] semanticTokens/full %.0fms (cache=%s, analysis=%s, tokens=%d, lines=%d)",
+        elapsed_ms,
+        cache_status,
+        "yes" if analysis else "no",
+        len(data) // 5,
+        source.count("\n") + 1,
+    )
     return types.SemanticTokens(data=data)
 
 
@@ -1665,6 +1682,8 @@ async def _publish_diagnostics(
     in a single notification.  If the document changes before the
     deep pass finishes, the task is cancelled automatically.
     """
+    t_start = time.perf_counter()
+
     # Yield the event loop before doing any CPU work.  This ensures
     # that responses for any already-dispatched requests are flushed
     # to the editor before we start blocking.
@@ -1680,13 +1699,26 @@ async def _publish_diagnostics(
 
     # Mutate workspace_state on the event-loop thread to avoid data
     # races with other LSP handlers that read it concurrently.
+    t_update = time.perf_counter()
     state = workspace_state.update(
         uri,
         source,
         version,
         force_reanalyse=force_reanalyse,
     )
+    update_ms = (time.perf_counter() - t_update) * 1000
+    log.info(
+        "[timing] workspace_state.update %.0fms (uri=%s, lines=%d)",
+        update_ms,
+        uri,
+        source.count("\n") + 1,
+    )
     partial_mode = state.has_partial_commands
+
+    # Yield the event loop after the update so queued requests
+    # (e.g. semantic tokens) can be dispatched with the new state
+    # before we start the heavier diagnostic passes.
+    await asyncio.sleep(0)
 
     if not diagnostics_enabled:
         basic_diags: list[types.Diagnostic] = []
@@ -1712,7 +1744,10 @@ async def _publish_diagnostics(
                 cached_style_diagnostics=cached_style,
             )
 
+        t_phase1 = time.perf_counter()
         basic_diags, analysis_result, suppressed = await asyncio.to_thread(_phase1)
+        phase1_ms = (time.perf_counter() - t_phase1) * 1000
+        log.info("[timing] phase1 diagnostics %.0fms (diags=%d)", phase1_ms, len(basic_diags))
 
     if not diagnostics_enabled:
         _publish_diags_to_client(uri, [], version)
@@ -1721,6 +1756,8 @@ async def _publish_diagnostics(
 
     _publish_diags_to_client(uri, basic_diags, version)
     _update_workspace_index(uri, source, state)
+    total_ms = (time.perf_counter() - t_start) * 1000
+    log.info("[timing] _publish_diagnostics total %.0fms (basic diags published)", total_ms)
 
     # Phase 2: deep diagnostics — background thread.
     # Skip deep passes during partial-command states (mid-typing).
@@ -1987,9 +2024,11 @@ def _find_sibling_impl_vars(uri: str, base_dir: str | None) -> list | None:
 
 @server.feature(types.TEXT_DOCUMENT_DID_OPEN)
 async def did_open(params: types.DidOpenTextDocumentParams) -> None:
+    t_open = time.perf_counter()
     uri = params.text_document.uri
     lang_id = params.text_document.language_id or ""
-    log.info("Opened %s (language_id=%r)", uri, lang_id)
+    n_lines = params.text_document.text.count("\n") + 1
+    log.info("Opened %s (language_id=%r, lines=%d)", uri, lang_id, n_lines)
     # Pre-create the document state so the language_id is stored before
     # _publish_diagnostics calls workspace_state.update (which would
     # otherwise create the entry without one).
@@ -2039,6 +2078,7 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
         params.text_document.text,
         params.text_document.version,
     )
+    log.info("[timing] did_open total %.0fms (uri=%s)", (time.perf_counter() - t_open) * 1000, uri)
 
 
 @server.feature(types.TEXT_DOCUMENT_DID_CHANGE)
@@ -2107,6 +2147,7 @@ def _run_background_scan() -> None:
     runs independently of the asyncio event loop — the GIL switch
     interval ensures the event loop stays responsive.
     """
+    t0 = time.perf_counter()
     try:
         results = background_scanner.scan_all()
         for uri, scan_result in results.items():
@@ -2120,7 +2161,8 @@ def _run_background_scan() -> None:
         # Register RULE_INIT variables as cross-file available
         for uri, exports in background_scanner.irules_rule_init_vars.items():
             workspace_index.update_rule_init_vars(uri, exports)
-        log.info("Background scan complete: indexed %d files", len(results))
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log.info("[timing] background scan %.0fms (%d files)", elapsed_ms, len(results))
     except Exception:
         log.error("Background scan failed", exc_info=True)
 
@@ -2142,6 +2184,11 @@ def on_initialized(params: types.InitializedParams) -> None:
             global formatter_config
             formatter_config = FormatterConfig.from_dict(_normalise_formatter_settings(formatting))
         _apply_feature_settings(xdg_settings)
+
+    process_start = getattr(server, "_process_start_time", None)
+    if process_start is not None:
+        startup_ms = (time.monotonic() - process_start) * 1000
+        log.info("[timing] server ready: %.0fms from process start", startup_ms)
 
     log.info(
         "Server initialized (version=%s, dialect=%s)",

@@ -4133,6 +4133,28 @@
             "order": 0
           }
         }
+      },
+      {
+        "title": "Trace",
+        "order": 17,
+        "properties": {
+          "tcl-lsp.trace.server": {
+            "type": "string",
+            "default": "off",
+            "enum": [
+              "off",
+              "messages",
+              "verbose"
+            ],
+            "enumDescriptions": [
+              "No LSP protocol tracing",
+              "Log LSP request/response summaries",
+              "Log full LSP request/response bodies"
+            ],
+            "description": "Trace the communication between VS Code and the Tcl language server. Useful for diagnosing protocol-level issues.",
+            "order": 0
+          }
+        }
       }
     ]
   },

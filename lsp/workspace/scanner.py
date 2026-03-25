@@ -136,14 +136,25 @@ class BackgroundScanner:
         Each file is analysed with a timeout so that a single
         pathological file cannot stall the entire scan.
         """
-        for full_path, ext in self.collect_files():
+        t_start = time.perf_counter()
+        files = self.collect_files()
+        t_collect = time.perf_counter()
+        log.info(
+            "[timing] collect_files %.0fms (%d files found)",
+            (t_collect - t_start) * 1000,
+            len(files),
+        )
+
+        for full_path, ext in files:
             self._analyse_file_with_timeout(full_path, ext)
             # Yield the GIL between files so the asyncio event
             # loop's stdin reader thread can make progress.
             time.sleep(0)
 
+        elapsed_ms = (time.perf_counter() - t_start) * 1000
         log.info(
-            "Background scan complete: indexed %d files, %d bigip configs",
+            "[timing] scan_all %.0fms total (%d files, %d bigip configs)",
+            elapsed_ms,
             len(self._cached),
             len(self._bigip_configs),
         )
@@ -161,6 +172,7 @@ class BackgroundScanner:
         ``_cached`` only after the thread completes within the timeout,
         so a timed-out thread cannot mutate shared state later.
         """
+        t0 = time.perf_counter()
         result_box: list[ScanResult | None] = [None]
 
         def _work() -> None:
@@ -176,6 +188,9 @@ class BackgroundScanner:
                 full_path,
             )
             return None
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        if elapsed_ms > 500:
+            log.info("[timing] scanner file %.0fms %s", elapsed_ms, full_path)
         # Only cache after a successful, timely completion.
         result = result_box[0]
         if result is not None:
