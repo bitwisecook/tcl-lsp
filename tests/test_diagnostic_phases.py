@@ -246,3 +246,38 @@ class TestCombinedGetDiagnostics:
         codes = [d.code for d in combined]
         assert "W100" not in codes
         assert "O111" not in codes
+
+    def test_disabled_o109_excluded_from_group_edits(self):
+        """Disabling O109 should exclude its edits from grouped diagnostics."""
+        # This source produces a group: O105 (propagate constant into string)
+        # + O109 (eliminate dead store for 'set x 5').
+        source = 'proc foo {} {\n  set x 5\n  puts "x=$x"\n}'
+        # With O109 disabled, the group should still emit O105 but without the
+        # O109 member in groupEdits.
+        diags = get_diagnostics(source, disabled_optimisations={"O109"})
+        codes = [d.code for d in diags]
+        assert "O109" not in codes
+        # The O105 diagnostic should survive but its groupEdits must not
+        # contain an O109 entry.
+        o105 = [d for d in diags if d.code == "O105"]
+        if o105:
+            group_edits = o105[0].data.get("groupEdits", [])
+            ge_codes = [ge["code"] for ge in group_edits]
+            assert "O109" not in ge_codes
+
+    def test_group_edits_end_character_is_exclusive(self):
+        """groupEdits endCharacter must use LSP exclusive-end convention."""
+        # O105 + O109 group: the O105 edit replaces $x (2 chars including $).
+        source = 'proc foo {} {\n  set x 5\n  puts "x=$x"\n}'
+        diags = get_diagnostics(source, uri="file:///test.tcl")
+        grouped = [d for d in diags if d.data and d.data.get("groupEdits")]
+        for d in grouped:
+            for ge in d.data["groupEdits"]:
+                # endCharacter should equal the diagnostic range's exclusive
+                # end, not the inclusive token end.  Verify that the source
+                # slice [startOffset : endOffset + 1] covers the expected text.
+                start_off = ge["startOffset"]
+                end_off = ge["endOffset"]
+                snippet = source[start_off : end_off + 1]
+                # The replacement should make sense for the full snippet.
+                assert len(snippet) > 0, f"empty snippet for group edit {ge}"

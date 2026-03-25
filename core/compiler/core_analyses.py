@@ -605,6 +605,13 @@ def _sccp(
                     changed = True
 
             for s in ssa_block.statements:
+                if isinstance(s.statement, IRBarrier):
+                    # Barriers can modify any variable — widen all
+                    # currently-tracked values to OVERDEFINED.
+                    for key in list(values):
+                        if set_value(key, OVERDEFINED):
+                            changed = True
+                    continue
                 for var, ver in s.defs.items():
                     val = _evaluate_def(s.statement, s, values)
                     if set_value((var, ver), val):

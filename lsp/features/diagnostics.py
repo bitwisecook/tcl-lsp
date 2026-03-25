@@ -610,18 +610,30 @@ def get_deep_diagnostics(
                 # Emit one diagnostic per group, at the primary (non-elimination) member.
                 if opt.group in emitted_groups:
                     continue
-                members = groups.get(opt.group, [opt])
-                # Primary = first non-elimination member; fallback to first.
+                # Filter disabled and suppressed members out of the group
+                # so their edits are never included in the code action.
                 _ELIM_CODES = frozenset(("O107", "O108", "O109"))
+                raw_members = groups.get(opt.group, [opt])
+                members = [
+                    m
+                    for m in raw_members
+                    if not (disabled_optimisations and m.code in disabled_optimisations)
+                    and not (suppressed and _is_suppressed(m.code, m.range.start.line, suppressed))
+                ]
+                if not members:
+                    emitted_groups.add(opt.group)
+                    continue
+                # Primary = first non-elimination member; fallback to first.
                 primary = next((m for m in members if m.code not in _ELIM_CODES), members[0])
                 others = [m for m in members if m is not primary]
-                # Build grouped edits for all members.
+                # Build grouped edits for all members.  End positions use
+                # character + 1 to convert from inclusive to LSP exclusive end.
                 group_edits = [
                     {
                         "startLine": m.range.start.line,
                         "startCharacter": m.range.start.character,
                         "endLine": m.range.end.line,
-                        "endCharacter": m.range.end.character,
+                        "endCharacter": m.range.end.character + 1,
                         "startOffset": m.range.start.offset,
                         "endOffset": m.range.end.offset,
                         "replacement": m.replacement,

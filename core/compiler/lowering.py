@@ -1015,6 +1015,28 @@ class _Lowerer:
 
             case _:
                 body_indices = arg_indices_for_role(cmd_name, args, ArgRole.BODY)
+                var_indices = arg_indices_for_role(cmd_name, args, ArgRole.VAR_NAME)
+                var_read_indices = arg_indices_for_role(cmd_name, args, ArgRole.VAR_READ)
+                # Fall back to dialect-agnostic spec so commands from
+                # inactive dialects still get correct body/var handling.
+                if not (body_indices or var_indices or var_read_indices):
+                    _spec = REGISTRY.get(cmd_name)
+                    if _spec is not None and _spec.arg_roles:
+                        body_indices = {
+                            i
+                            for i, r in _spec.arg_roles.items()
+                            if r is ArgRole.BODY and i < len(args)
+                        }
+                        var_indices = {
+                            i
+                            for i, r in _spec.arg_roles.items()
+                            if r is ArgRole.VAR_NAME and i < len(args)
+                        }
+                        var_read_indices = {
+                            i
+                            for i, r in _spec.arg_roles.items()
+                            if r is ArgRole.VAR_READ and i < len(args)
+                        }
                 if body_indices:
                     return IRBarrier(
                         range=cmd.range,
@@ -1023,8 +1045,6 @@ class _Lowerer:
                         args=tuple(args),
                         tokens=cmd.cmd_tokens,
                     )
-                var_indices = arg_indices_for_role(cmd_name, args, ArgRole.VAR_NAME)
-                var_read_indices = arg_indices_for_role(cmd_name, args, ArgRole.VAR_READ)
                 if var_indices or var_read_indices:
                     var_defs = tuple(
                         _normalise_var_name(args[i]) for i in sorted(var_indices) if i < len(args)
