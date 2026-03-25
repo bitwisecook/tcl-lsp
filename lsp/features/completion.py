@@ -14,6 +14,7 @@ from core.commands.registry.runtime import (
 )
 from core.common.dialect import active_dialect
 from core.formatting.config import FormatterConfig, IndentStyle
+from core.formatting.docstring import format_docstring
 
 from .irules_context import find_enclosing_when_event
 from .snippet_templates import SnippetContext, get_snippet_completions
@@ -345,7 +346,14 @@ def get_completions(
                     label=name,
                     kind=types.CompletionItemKind.Function,
                     detail=sig_str,
-                    documentation=proc_def.doc or None,
+                    documentation=(
+                        types.MarkupContent(
+                            kind=types.MarkupKind.Markdown,
+                            value=format_docstring(proc_def.doc),
+                        )
+                        if proc_def.doc
+                        else None
+                    ),
                     sort_text=f"0_{name}",
                 )
             )
@@ -475,7 +483,14 @@ def get_completions(
                     label=name,
                     kind=types.CompletionItemKind.Function,
                     detail=sig_str,
-                    documentation=proc_def.doc or None,
+                    documentation=(
+                        types.MarkupContent(
+                            kind=types.MarkupKind.Markdown,
+                            value=format_docstring(proc_def.doc),
+                        )
+                        if proc_def.doc
+                        else None
+                    ),
                     sort_text=_proc_sort_text(
                         name,
                         qname=qname,

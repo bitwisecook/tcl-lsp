@@ -57,7 +57,9 @@ def _proc_hover_text(proc_def: ProcDef) -> str:
     sig = f"proc {proc_def.qualified_name} {{{' '.join(params)}}} {{...}}"
     parts = [f"```tcl\n{sig}\n```"]
     if proc_def.doc:
-        parts.append(proc_def.doc)
+        from core.formatting.docstring import format_docstring
+
+        parts.append(format_docstring(proc_def.doc))
     return "\n\n".join(parts)
 
 

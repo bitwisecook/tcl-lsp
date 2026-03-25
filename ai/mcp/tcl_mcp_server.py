@@ -270,7 +270,9 @@ def _lsp_diagnostic_to_dict(d: Any) -> dict:
 
 
 def _proc_to_dict(proc_def: Any) -> dict:
-    """Serialize a ProcDef."""
+    """Serialize a ProcDef, including structured docstring info."""
+    from core.formatting.docstring import parse_docstring
+
     params = []
     for p in proc_def.params:
         param: dict[str, Any] = {"name": p.name}
@@ -286,6 +288,9 @@ def _proc_to_dict(proc_def: Any) -> dict:
         result["range"] = _range_to_dict(proc_def.name_range)
     if proc_def.doc:
         result["doc"] = proc_def.doc
+        parsed = parse_docstring(proc_def.doc)
+        if not parsed.is_empty:
+            result["doc_structured"] = parsed.to_dict()
     return result
 
 
@@ -1418,6 +1423,101 @@ def _tool_tk_layout(source: str) -> str:
 
     layout = extract_tk_layout(source)
     return json.dumps(layout)
+
+
+@tool(
+    "generate_docstring",
+    "Generate a docstring stub for a proc from its signature. "
+    "Returns the comment block ready for insertion above or inside the proc.",
+    params={
+        "source": {**_STR, "description": "Tcl source containing the proc."},
+        "proc_name": {**_STR, "description": "Name of the proc to document."},
+        "style": {
+            **_STR,
+            "description": "Tag style: 'doxygen' (@param/@return) or 'plain' (prose). Default: doxygen.",
+        },
+        "decoration": {
+            **_STR,
+            "description": "Add decoration borders: 'true' or 'false'. Default: false.",
+        },
+    },
+    required=["source", "proc_name"],
+)
+def _tool_generate_docstring(
+    source: str,
+    proc_name: str,
+    style: str = "doxygen",
+    decoration: str = "false",
+) -> str:
+    from core.analysis.analyser import analyse
+    from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
+
+    result = analyse(source)
+    proc_def = result.find_proc(proc_name)
+    if proc_def is None:
+        return json.dumps({"error": f"Proc '{proc_name}' not found"})
+
+    tag = resolve_tag_style(style)
+    dec = decoration.lower() in ("true", "1", "yes")
+    stub = generate_stub_for_proc(proc_def, tag_style=tag, decoration=dec)
+    return json.dumps({"proc": proc_name, "docstring": stub})
+
+
+@tool(
+    "read_proc_docs",
+    "Extract structured documentation from all procs in a Tcl source file. "
+    "Returns parsed @param, @return, and description info for each proc.",
+    params={
+        "source": {**_STR, "description": "Tcl source to analyse."},
+    },
+    required=["source"],
+)
+def _tool_read_proc_docs(source: str) -> str:
+    from ai.shared.docstring_ops import collect_proc_docs
+    from core.analysis.analyser import analyse
+
+    result = analyse(source)
+    return json.dumps({"procs": collect_proc_docs(result)}, indent=2)
+
+
+@tool(
+    "update_docstrings",
+    "Reformat or generate docstrings for all procs in a Tcl source file. "
+    "Returns the modified source with docstrings added or updated.",
+    params={
+        "source": {**_STR, "description": "Tcl source to update."},
+        "style": {
+            **_STR,
+            "description": "Tag style: 'doxygen' or 'plain'. Default: doxygen.",
+        },
+        "decoration": {
+            **_STR,
+            "description": "Add decoration borders: 'true' or 'false'. Default: false.",
+        },
+    },
+    required=["source"],
+)
+def _tool_update_docstrings(
+    source: str,
+    style: str = "doxygen",
+    decoration: str = "false",
+) -> str:
+    from ai.shared.docstring_ops import insert_docstring_stubs
+    from core.analysis.analyser import analyse
+    from core.formatting.docstring import resolve_tag_style
+
+    tag = resolve_tag_style(style)
+    dec = decoration.lower() in ("true", "1", "yes")
+    result = analyse(source)
+
+    modified, documented = insert_docstring_stubs(source, result, tag_style=tag, decoration=dec)
+    return json.dumps(
+        {
+            "source": modified,
+            "procs_documented": documented,
+            "total_procs": len(result.all_procs),
+        }
+    )
 
 
 @tool(

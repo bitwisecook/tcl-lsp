@@ -56,6 +56,16 @@ class TestSegmentCommands:
         assert len(cmds) == 1
         assert cmds[0].preceding_comment == "note"
 
+    def test_multiline_preceding_comment(self):
+        cmds = segment_commands("# line one\n# line two\nset a 1")
+        assert len(cmds) == 1
+        assert cmds[0].preceding_comment == "line one\nline two"
+
+    def test_blank_line_breaks_comment_accumulation(self):
+        cmds = segment_commands("# orphan\n\nset a 1")
+        assert len(cmds) == 1
+        assert cmds[0].preceding_comment is None
+
     def test_body_token_segmentation(self):
         tok = Token(
             type=TokenType.STR,

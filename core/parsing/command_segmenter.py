@@ -218,7 +218,11 @@ def _segment_raw(
             break
 
         if tok.type is TokenType.COMMENT:
-            last_comment = tok.text.lstrip("#").strip()
+            line = tok.text.lstrip("#").strip()
+            if last_comment is not None:
+                last_comment = last_comment + "\n" + line
+            else:
+                last_comment = line
             continue
         if tok.type is TokenType.SEP:
             prev_type = tok.type
@@ -244,6 +248,11 @@ def _segment_raw(
                         expand_word=expand if has_expand else None,
                     )
                 )
+                last_comment = None
+            elif tok.text.count("\n") > 1:
+                # Blank line (multiple newlines with no command between) —
+                # reset accumulated comments so that comment blocks separated
+                # by blank lines are not merged and attached to a later command.
                 last_comment = None
             argv = []
             texts = []

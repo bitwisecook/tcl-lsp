@@ -11,6 +11,7 @@ from core.commands.registry import REGISTRY
 from core.commands.registry.models import CommandSpec
 from core.commands.registry.runtime import SIGNATURES, SubcommandSig
 from core.common.dialect import active_dialect
+from core.formatting.docstring import format_docstring
 
 from .symbol_resolution import find_command_context_details_at_position
 
@@ -63,7 +64,14 @@ def _proc_signature_help(
     sig_str = f"{proc_def.name} {' '.join(param_parts)}" if param_parts else proc_def.name
     sig = types.SignatureInformation(
         label=sig_str,
-        documentation=proc_def.doc or None,
+        documentation=(
+            types.MarkupContent(
+                kind=types.MarkupKind.Markdown,
+                value=format_docstring(proc_def.doc),
+            )
+            if proc_def.doc
+            else None
+        ),
         parameters=params,
     )
     return types.SignatureHelp(

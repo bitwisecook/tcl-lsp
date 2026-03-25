@@ -1663,15 +1663,25 @@ class Analyser:
                 )
             )
 
+        preceding_doc = self._last_comment
+        self._last_comment = ""
+
+        # Extract the first comment block from the proc body as a
+        # fallback docstring when there is no preceding comment.
+        body_doc = ""
+        if not preceding_doc and body:
+            from core.formatting.docstring import extract_body_docstring
+
+            body_doc = extract_body_docstring(body)
+
         proc_def = ProcDef(
             name=proc_name,
             qualified_name=qualified,
             params=params,
             name_range=name_range,
             body_range=body_range,
-            doc=self._last_comment,
+            doc=preceding_doc or body_doc,
         )
-        self._last_comment = ""
 
         scope.procs[proc_name] = proc_def
         self.result.all_procs[qualified] = proc_def
@@ -1688,8 +1698,12 @@ class Analyser:
                 warn_if_unused=False,
             )
 
+        # Save/restore _last_comment around body analysis so that
+        # comments inside the body do not bleed to the next proc.
+        saved_comment = self._last_comment
         body_tok = arg_tokens[2] if len(arg_tokens) > 2 else None
         self._analyse_body(body, proc_scope, body_token=body_tok)
+        self._last_comment = saved_comment
 
         # Infer proc argument traits from body usage.
         if params and body:

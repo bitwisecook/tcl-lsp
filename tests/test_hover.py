@@ -128,6 +128,70 @@ class TestProcHover:
         assert result is not None
         assert "Says hello" in _hover_text(result)
 
+    def test_proc_multiline_doc(self):
+        source = textwrap.dedent("""\
+            # Greet a user.
+            # This proc says hello.
+            proc greet {name} { puts "Hello $name" }
+            greet World
+        """)
+        result = get_hover(source, 3, 2)
+        assert result is not None
+        text = _hover_text(result)
+        assert "Greet a user." in text
+        assert "This proc says hello." in text
+
+    def test_proc_body_docstring(self):
+        source = textwrap.dedent("""\
+            proc update_pkg {filename} {
+                # ....................................................................
+                # Update build date and time in pkg
+                #
+                # @param filename - Filename to pkg file
+                # ....................................................................
+                puts $filename
+            }
+            update_pkg test.pkg
+        """)
+        result = get_hover(source, 8, 2)
+        assert result is not None
+        text = _hover_text(result)
+        assert "Update build date" in text
+        assert "**filename**" in text
+
+    def test_proc_no_comment_bleed(self):
+        source = textwrap.dedent("""\
+            proc first {} {
+                # internal comment
+                puts hello
+            }
+            proc second {} { puts world }
+            second
+        """)
+        result = get_hover(source, 5, 2)
+        assert result is not None
+        text = _hover_text(result)
+        # The internal comment from first's body must NOT appear on second
+        assert "internal comment" not in text
+
+    def test_proc_doxygen_tags(self):
+        source = textwrap.dedent("""\
+            # @brief Calculate the sum
+            # @param a - First number
+            # @param b - Second number
+            # @return The sum of a and b
+            proc add {a b} { expr {$a + $b} }
+            add 1 2
+        """)
+        result = get_hover(source, 5, 2)
+        assert result is not None
+        text = _hover_text(result)
+        assert "Calculate the sum" in text
+        assert "**Parameters:**" in text
+        assert "**a**" in text
+        assert "**b**" in text
+        assert "**Returns:**" in text
+
     def test_proc_with_defaults(self):
         source = textwrap.dedent("""\
             proc greet {{name World}} { puts "Hello $name" }

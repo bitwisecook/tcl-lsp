@@ -423,6 +423,11 @@
         "command": "tclLsp.renameSymbolAtPosition",
         "title": "Rename Symbol at Position",
         "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.generateDocstring",
+        "title": "Generate Docstring for Proc",
+        "category": "Tcl"
       }
     ],
     "chatParticipants": [
@@ -3070,31 +3075,27 @@
           "tclLsp.formatting.indentSize": {
             "type": "integer",
             "default": 4,
+            "markdownDescription": "Number of spaces per indentation level.",
             "minimum": 1,
             "maximum": 16,
-            "description": "Number of spaces per indentation level.",
             "order": 0
           },
           "tclLsp.formatting.indentStyle": {
             "type": "string",
             "default": "spaces",
+            "markdownDescription": "Use spaces or tabs for indentation.",
             "enum": [
               "spaces",
               "tabs"
             ],
-            "enumDescriptions": [
-              "Use spaces for indentation",
-              "Use tabs for indentation"
-            ],
-            "description": "Character used for indentation.",
             "order": 1
           },
           "tclLsp.formatting.continuationIndent": {
             "type": "integer",
             "default": 4,
-            "minimum": 0,
+            "markdownDescription": "Extra indentation for continuation lines.",
+            "minimum": 1,
             "maximum": 16,
-            "description": "Extra indentation for continuation lines.",
             "order": 2
           }
         }
@@ -3106,31 +3107,28 @@
           "tclLsp.formatting.braceStyle": {
             "type": "string",
             "default": "k_and_r",
+            "markdownDescription": "Brace placement style. K&R places the opening brace at the end of the line.",
             "enum": [
               "k_and_r"
             ],
-            "enumDescriptions": [
-              "Opening brace at end of line — if {cond} {"
-            ],
-            "description": "Placement of opening braces.",
             "order": 0
           },
           "tclLsp.formatting.spaceBetweenBraces": {
             "type": "boolean",
             "default": true,
-            "description": "Add a space between consecutive braces, e.g. '} {' instead of '}{'.",
+            "markdownDescription": "Insert spaces inside single-line braces: `{ body }` instead of `{body}`.",
             "order": 1
           },
           "tclLsp.formatting.enforceBracedVariables": {
             "type": "boolean",
             "default": false,
-            "description": "Require variables to use ${var} syntax instead of $var.",
+            "markdownDescription": "Rewrite `$var` as `${var}` for consistency.",
             "order": 2
           },
           "tclLsp.formatting.enforceBracedExpr": {
             "type": "boolean",
             "default": false,
-            "description": "Require expressions to use braced form, e.g. expr {1+2}.",
+            "markdownDescription": "Rewrite unbraced `expr` arguments as braced expressions.",
             "order": 3
           }
         }
@@ -3142,28 +3140,28 @@
           "tclLsp.formatting.maxLineLength": {
             "type": "integer",
             "default": 120,
+            "markdownDescription": "Hard limit for line length. Lines exceeding this are wrapped.",
             "minimum": 40,
-            "description": "Hard limit for line length.",
             "order": 0
           },
           "tclLsp.formatting.goalLineLength": {
             "type": "integer",
             "default": 100,
+            "markdownDescription": "Soft target for line length. The formatter prefers to stay within this limit.",
             "minimum": 40,
-            "description": "Soft target line length; used to decide when to expand inline bodies.",
             "order": 1
           },
           "tclLsp.formatting.expandSingleLineBodies": {
             "type": "boolean",
             "default": false,
-            "description": "Expand single-line command bodies to multiple lines.",
+            "markdownDescription": "Expand single-line command bodies onto multiple lines.",
             "order": 2
           },
           "tclLsp.formatting.minBodyCommandsForExpansion": {
             "type": "integer",
             "default": 2,
+            "markdownDescription": "Minimum commands in a body before it is expanded to multiple lines.",
             "minimum": 1,
-            "description": "Minimum number of commands in a body before expansion is triggered.",
             "order": 3
           }
         }
@@ -3175,25 +3173,25 @@
           "tclLsp.formatting.spaceAfterCommentHash": {
             "type": "boolean",
             "default": true,
-            "description": "Ensure a space after '#' in comments.",
+            "markdownDescription": "Ensure a space after `#` in comments.",
             "order": 0
           },
           "tclLsp.formatting.trimTrailingWhitespace": {
             "type": "boolean",
             "default": true,
-            "description": "Remove trailing whitespace from all lines.",
+            "markdownDescription": "Remove trailing whitespace from lines.",
             "order": 1
           },
           "tclLsp.formatting.alignCommentsToCode": {
             "type": "boolean",
             "default": true,
-            "description": "Align inline comments to a consistent column.",
+            "markdownDescription": "Align inline comments to a consistent column.",
             "order": 2
           },
           "tclLsp.formatting.replaceSemicolonsWithNewlines": {
             "type": "boolean",
             "default": true,
-            "description": "Convert semicolons to newlines for readability.",
+            "markdownDescription": "Replace `;` command separators with newlines.",
             "order": 3
           }
         }
@@ -3205,54 +3203,114 @@
           "tclLsp.formatting.blankLinesBetweenProcs": {
             "type": "integer",
             "default": 1,
+            "markdownDescription": "Number of blank lines between proc definitions.",
             "minimum": 0,
             "maximum": 5,
-            "description": "Number of blank lines between procedure definitions.",
             "order": 0
           },
           "tclLsp.formatting.blankLinesBetweenBlocks": {
             "type": "integer",
             "default": 1,
+            "markdownDescription": "Number of blank lines between top-level blocks.",
             "minimum": 0,
             "maximum": 5,
-            "description": "Number of blank lines between control flow blocks.",
             "order": 1
           },
           "tclLsp.formatting.maxConsecutiveBlankLines": {
             "type": "integer",
             "default": 2,
+            "markdownDescription": "Maximum number of consecutive blank lines to keep.",
             "minimum": 1,
             "maximum": 10,
-            "description": "Maximum consecutive blank lines allowed.",
             "order": 2
           },
           "tclLsp.formatting.lineEnding": {
             "type": "string",
             "default": "lf",
+            "markdownDescription": "Line ending style for formatted output.",
             "enum": [
               "lf",
               "crlf",
               "cr"
             ],
-            "enumDescriptions": [
-              "Unix-style line endings (\\n)",
-              "Windows-style line endings (\\r\\n)",
-              "Classic Mac line endings (\\r)"
-            ],
-            "description": "Line ending style for formatted output.",
             "order": 3
           },
           "tclLsp.formatting.ensureFinalNewline": {
             "type": "boolean",
             "default": true,
-            "description": "Ensure the file ends with a newline character.",
+            "markdownDescription": "Ensure the file ends with a newline character.",
+            "order": 4
+          }
+        }
+      },
+      {
+        "title": "Formatting — Docstrings",
+        "order": 7,
+        "properties": {
+          "tclLsp.formatting.docstringStyle": {
+            "type": "string",
+            "default": "none",
+            "markdownDescription": "Where docstrings are placed relative to `proc` definitions. Set to `none` to leave existing docstrings as-is.",
+            "enum": [
+              "preceding",
+              "body",
+              "none"
+            ],
+            "enumDescriptions": [
+              "Comment block above the proc statement.",
+              "Comment block at the start of the proc body.",
+              "Do not generate or reformat docstrings."
+            ],
+            "order": 0
+          },
+          "tclLsp.formatting.docstringTagStyle": {
+            "type": "string",
+            "default": "doxygen",
+            "markdownDescription": "Tag format used in docstrings for parameter and return documentation.",
+            "enum": [
+              "doxygen",
+              "plain",
+              "none"
+            ],
+            "enumDescriptions": [
+              "Doxygen-style tags: @param, @return, @brief.",
+              "Plain prose with an Arguments: section.",
+              "Leave tag format as-is."
+            ],
+            "order": 1
+          },
+          "tclLsp.formatting.docstringDecoration": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Add decoration border lines (e.g. `# ......`) around docstrings.",
+            "order": 2
+          },
+          "tclLsp.formatting.docstringDecorationChar": {
+            "type": "string",
+            "default": ".",
+            "markdownDescription": "Character used for docstring decoration borders.",
+            "enum": [
+              ".",
+              "-",
+              "=",
+              "*",
+              "~"
+            ],
+            "order": 3
+          },
+          "tclLsp.formatting.docstringDecorationWidth": {
+            "type": "integer",
+            "default": 70,
+            "markdownDescription": "Width of docstring decoration border lines.",
+            "minimum": 20,
+            "maximum": 120,
             "order": 4
           }
         }
       },
       {
         "title": "Diagnostics — Errors",
-        "order": 7,
+        "order": 8,
         "properties": {
           "tclLsp.diagnostics.E001": {
             "type": "boolean",
@@ -3282,7 +3340,7 @@
       },
       {
         "title": "Diagnostics — Style & Best Practice",
-        "order": 8,
+        "order": 9,
         "properties": {
           "tclLsp.style.lineLength": {
             "type": "integer",
@@ -3415,7 +3473,7 @@
       },
       {
         "title": "Diagnostics — Variables",
-        "order": 9,
+        "order": 10,
         "properties": {
           "tclLsp.diagnostics.W210": {
             "type": "boolean",
@@ -3457,7 +3515,7 @@
       },
       {
         "title": "Diagnostics — Security",
-        "order": 10,
+        "order": 11,
         "properties": {
           "tclLsp.diagnostics.W101": {
             "type": "boolean",
@@ -3535,7 +3593,7 @@
       },
       {
         "title": "Diagnostics — Hints",
-        "order": 11,
+        "order": 12,
         "properties": {
           "tclLsp.diagnostics.H300": {
             "type": "boolean",
@@ -3547,7 +3605,7 @@
       },
       {
         "title": "Diagnostics — Shimmer",
-        "order": 12,
+        "order": 13,
         "properties": {
           "tclLsp.shimmer.enabled": {
             "type": "boolean",
@@ -3577,7 +3635,7 @@
       },
       {
         "title": "Diagnostics — Taint",
-        "order": 13,
+        "order": 14,
         "properties": {
           "tclLsp.diagnostics.T100": {
             "type": "boolean",
@@ -3601,7 +3659,7 @@
       },
       {
         "title": "Diagnostics — iRules",
-        "order": 14,
+        "order": 15,
         "properties": {
           "tclLsp.diagnostics.IRULE1001": {
             "type": "boolean",
@@ -3796,7 +3854,7 @@
       },
       {
         "title": "Optimiser",
-        "order": 15,
+        "order": 16,
         "properties": {
           "tclLsp.optimiser.enabled": {
             "type": "boolean",

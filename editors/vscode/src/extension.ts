@@ -596,6 +596,23 @@ export async function activate(context: ExtensionContext) {
         await commands.executeCommand("editor.action.rename");
       },
     ),
+    commands.registerCommand("tclLsp.generateDocstring", async () => {
+      const editor = window.activeTextEditor;
+      if (!editor) return;
+      const pos = editor.selection.active;
+      const range = new Range(pos, pos);
+      const actions = await commands.executeCommand<vscode.CodeAction[]>(
+        "vscode.executeCodeActionProvider",
+        editor.document.uri,
+        range,
+      );
+      const docAction = actions?.find((a) => a.title.startsWith("Generate docstring"));
+      if (docAction?.edit) {
+        await vscode.workspace.applyEdit(docAction.edit);
+      } else {
+        window.showInformationMessage("No proc found at cursor, or it already has a docstring.");
+      }
+    }),
   );
 
   await client.start();
