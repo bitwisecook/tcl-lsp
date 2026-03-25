@@ -254,15 +254,19 @@ dict |                   ;# offers: create, get, set, exists, ...
 ### Hover
 
 Hovering on a command, proc call, variable, or operator shows its signature,
-doc comment, and type information.
+doc comment, and type information.  Multi-line docstrings are supported, and
+`@param`, `@return`, and `@brief` tags are parsed and displayed as structured
+markdown.  Docstrings can appear above the proc or inside the proc body.
 
 ```tcl
-## Greet a person by name.
+# @brief Greet a person by name.
+# @param name - Who to greet
+# @return The greeting string
 proc greet {name} {
-    puts "Hello, $name!"
+    return "Hello, $name!"
 }
 
-greet "Alice"     ;# hover on 'greet' shows: proc greet {name} — "Greet a person by name."
+greet "Alice"     ;# hover on 'greet' shows signature + formatted @param/@return docs
 ```
 
 ### Go to definition
@@ -1326,6 +1330,12 @@ Capabilities include:
 - **Blank lines** -- normalise spacing between procs, between control-flow blocks, and cap consecutive blank lines
 - **Comments** -- ensure space after `#`, align inline comments to a consistent column
 - **Whitespace** -- trim trailing whitespace, ensure final newline, normalise line endings (LF/CRLF/CR)
+- **Docstrings** -- configurable style (preceding or body-internal), doxygen or plain tag format, optional decoration borders
+
+The formatter also recognises multi-line docstrings with `@param`, `@return`,
+and `@brief` tags (doxygen-style) and displays them as structured hover
+information.  Body-internal docstrings (comment blocks at the start of a proc
+body) are supported as a fallback when no preceding comment exists.
 
 All options are exposed through `tclLsp.formatting.*` settings (see
 [Configuration](#formatter-settings) below).

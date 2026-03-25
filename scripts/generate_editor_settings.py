@@ -62,6 +62,50 @@ from core.common.codes import (  # noqa: E402
     diagnostics_sorted,
     optimisations_sorted,
 )
+from core.formatting.config import (  # noqa: E402
+    FORMATTER_SETTINGS_CATALOGUE,
+    FormatterConfig,
+)
+
+
+def _snake_to_camel(name: str) -> str:
+    """Convert snake_case to camelCase for VS Code setting keys."""
+    parts = name.split("_")
+    return parts[0] + "".join(p.capitalize() for p in parts[1:])
+
+
+def _build_vscode_formatter_sections() -> list[dict]:
+    """Build VS Code configuration sections for formatter settings.
+
+    Reads ``FORMATTER_SETTINGS_CATALOGUE`` from ``core.formatting.config``
+    (the single source of truth) and builds VS Code schema entries with
+    defaults pulled directly from ``FormatterConfig``.
+    """
+    cfg = FormatterConfig()
+    cfg_dict = cfg.to_dict()
+    _FORMATTER_ORDER_BASE = 2
+
+    sections = []
+    for idx, section in enumerate(FORMATTER_SETTINGS_CATALOGUE):
+        props: dict[str, dict] = {}
+        for i, spec in enumerate(section.settings):
+            camel_key = _snake_to_camel(spec.field_name)
+            setting_key = f"tclLsp.formatting.{camel_key}"
+            default = cfg_dict.get(spec.field_name, None)
+            schema = spec.to_vscode_schema(default)
+            schema["order"] = i
+            props[setting_key] = schema
+        sections.append(
+            {
+                "title": section.title,
+                "order": _FORMATTER_ORDER_BASE + idx,
+                "properties": props,
+            }
+        )
+    return sections
+
+
+_FORMATTER_TITLES = frozenset(s.title for s in FORMATTER_SETTINGS_CATALOGUE)
 
 # Jinja2 environment
 
@@ -457,8 +501,8 @@ def _build_vscode_diagnostic_sections() -> list[dict]:
 
     # Group by title (multiple sections can share a title) and track
     # the VS Code "order" field — derived from position in SECTIONS.
-    # First non-diagnostic section starts at order 7 (matching existing layout).
-    _VSCODE_ORDER_BASE = 7
+    # Diagnostic sections start after formatter sections.
+    _VSCODE_ORDER_BASE = 2 + len(FORMATTER_SETTINGS_CATALOGUE)
 
     title_groups: dict[str, list] = {}
     title_order: dict[str, int] = {}
@@ -557,7 +601,10 @@ def _build_vscode_optimiser_section(*, order: int) -> dict:
 
 
 # Titles that are generated (will be replaced in package.json)
-_GENERATED_TITLES = frozenset(list(dict.fromkeys(title for _, title in SECTIONS)) + ["Optimiser"])
+_GENERATED_TITLES = (
+    frozenset(list(dict.fromkeys(title for _, title in SECTIONS)) + ["Optimiser"])
+    | _FORMATTER_TITLES
+)
 
 
 def generate_vscode_package_json(*, dry_run: bool = False) -> tuple[Path, str]:
@@ -580,10 +627,11 @@ def generate_vscode_package_json(*, dry_run: bool = False) -> tuple[Path, str]:
         sys.exit(1)
 
     # Build new generated sections
+    new_formatter_sections = _build_vscode_formatter_sections()
     new_diag_sections = _build_vscode_diagnostic_sections()
     next_order = max(s["order"] for s in new_diag_sections) + 1 if new_diag_sections else 7
     new_opt_section = _build_vscode_optimiser_section(order=next_order)
-    new_generated = new_diag_sections + [new_opt_section]
+    new_generated = new_formatter_sections + new_diag_sections + [new_opt_section]
 
     # Reconstruct: before-generated + new-generated + after-generated
     before = config_groups[:first_gen_idx]

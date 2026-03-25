@@ -22,6 +22,9 @@ Subcommands:
     tk-layout <file>            Extract Tk widget tree from source
     generate-test <file>        Generate iRule test script from source
     cfg-paths <file>            Extract test-relevant CFG paths from iRule source
+    proc-docs <file>            Extract structured documentation from all procs
+    generate-docstring <file>   Generate docstring stub for a proc
+    update-docstrings <file>    Add docstring stubs to undocumented procs
     help [topic]                Show available features and how to use them
 """
 
@@ -2065,6 +2068,20 @@ examples:
     p.add_argument("--line", type=int, required=True, help="0-based line of the if/switch")
     p.add_argument("--name", default="", help="Data-group name (auto-generated if empty)")
 
+    p = sub.add_parser("proc-docs", help="Extract structured documentation from all procs")
+    p.add_argument("file", help="Tcl file to analyse")
+
+    p = sub.add_parser("generate-docstring", help="Generate docstring stub for a proc")
+    p.add_argument("file", help="Tcl file containing the proc")
+    p.add_argument("--proc", required=True, help="Name of the proc to document")
+    p.add_argument("--style", default="doxygen", choices=["doxygen", "plain"], help="Tag style")
+    p.add_argument("--decoration", action="store_true", help="Add decoration borders")
+
+    p = sub.add_parser("update-docstrings", help="Add docstring stubs to undocumented procs")
+    p.add_argument("file", help="Tcl file to update")
+    p.add_argument("--style", default="doxygen", choices=["doxygen", "plain"], help="Tag style")
+    p.add_argument("--decoration", action="store_true", help="Add decoration borders")
+
     p = sub.add_parser("help", help="Show available features and how to use them")
     p.add_argument(
         "topic",
@@ -2135,6 +2152,96 @@ examples:
             cmd_suggest_datagroups(source, file_path)
         case "extract-datagroup":
             cmd_extract_datagroup(source, file_path, args.line, args.name)
+        case "proc-docs":
+            cmd_proc_docs(source, file_path)
+        case "generate-docstring":
+            cmd_generate_docstring(source, file_path, args.proc, args.style, args.decoration)
+        case "update-docstrings":
+            cmd_update_docstrings(source, file_path, args.style, args.decoration)
+
+
+def cmd_proc_docs(source: str, file_path: str) -> None:
+    """Extract structured documentation from all procs."""
+    _configure_dialect_from_path(file_path)
+    from core.analysis.analyser import analyse
+    from core.formatting.docstring import parse_docstring
+
+    result = analyse(source)
+    procs = []
+    for qname, proc_def in result.all_procs.items():
+        entry: dict = {
+            "name": proc_def.name,
+            "qualified_name": proc_def.qualified_name,
+            "params": [
+                {"name": p.name, "default": p.default_value} if p.has_default else {"name": p.name}
+                for p in proc_def.params
+            ],
+        }
+        if proc_def.doc:
+            entry["doc_raw"] = proc_def.doc
+            parsed = parse_docstring(proc_def.doc)
+            entry["doc"] = parsed.to_dict()
+        else:
+            entry["doc"] = None
+        if proc_def.param_traits:
+            entry["param_traits"] = {
+                name: sorted(t.name for t in traits)
+                for name, traits in proc_def.param_traits.items()
+            }
+        procs.append(entry)
+    print(json.dumps({"procs": procs}, indent=2))
+
+
+def cmd_generate_docstring(
+    source: str, file_path: str, proc_name: str, style: str, decoration: bool
+) -> None:
+    """Generate a docstring stub for a specific proc."""
+    _configure_dialect_from_path(file_path)
+    from core.analysis.analyser import analyse
+    from core.formatting.docstring import DocstringTagStyle, generate_stub
+
+    result = analyse(source)
+    proc_def = result.all_procs.get(f"::{proc_name}") or result.all_procs.get(proc_name)
+    if proc_def is None:
+        for _qname, pd in result.all_procs.items():
+            if pd.name == proc_name:
+                proc_def = pd
+                break
+    if proc_def is None:
+        print(json.dumps({"error": f"Proc '{proc_name}' not found"}))
+        return
+
+    tag = DocstringTagStyle.PLAIN if style == "plain" else DocstringTagStyle.DOXYGEN
+    param_names = [p.name for p in proc_def.params]
+    param_defaults = {p.name: p.default_value for p in proc_def.params if p.has_default}
+    stub = generate_stub(
+        proc_def.name, param_names, param_defaults, tag_style=tag, decoration=decoration
+    )
+    print(stub)
+
+
+def cmd_update_docstrings(source: str, file_path: str, style: str, decoration: bool) -> None:
+    """Add docstring stubs to all undocumented procs."""
+    _configure_dialect_from_path(file_path)
+    from core.analysis.analyser import analyse
+    from core.formatting.docstring import DocstringTagStyle, generate_stub
+
+    tag = DocstringTagStyle.PLAIN if style == "plain" else DocstringTagStyle.DOXYGEN
+    result = analyse(source)
+
+    procs_to_doc = [pd for pd in result.all_procs.values() if not pd.doc]
+    procs_to_doc.sort(key=lambda p: p.name_range.start.line, reverse=True)
+
+    lines = source.splitlines(keepends=True)
+    for proc_def in procs_to_doc:
+        param_names = [p.name for p in proc_def.params]
+        param_defaults = {p.name: p.default_value for p in proc_def.params if p.has_default}
+        stub = generate_stub(
+            proc_def.name, param_names, param_defaults, tag_style=tag, decoration=decoration
+        )
+        lines.insert(proc_def.name_range.start.line, stub + "\n")
+
+    print("".join(lines), end="")
 
 
 def cmd_refactor(source: str, file_path: str) -> None:

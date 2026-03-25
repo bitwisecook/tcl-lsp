@@ -848,12 +848,13 @@ class TestGenerateProfilesHeader:
         assert "FASTHTTP" not in snippets[0]
         assert "HTTP" in snippets[0]
 
-    def test_no_action_for_tcl_dialect(self):
+    def test_no_profiles_action_for_tcl_dialect(self):
         configure_signatures(dialect="tcl8.6")
         source = "proc hello {} { puts hi }\n"
         actions = get_code_actions(source, _FULL_DOC_RANGE, _NO_DIAG_CONTEXT)
         sa = _source_actions(actions)
-        assert len(sa) == 0
+        # Only docstring action should appear, not profiles
+        assert all("Profiles" not in a.title for a in sa)
 
     def test_dns_event_generates_dns_profile(self):
         source = "when DNS_REQUEST {\n    set q [DNS::question name]\n}\n"

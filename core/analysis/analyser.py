@@ -165,32 +165,11 @@ def _argv_with_word_spans(argv: list[Token], all_tokens: list[Token]) -> list[To
 def _extract_body_docstring(body: str) -> str:
     """Extract the leading comment block from a proc body.
 
-    Returns the accumulated comment text (lines joined with newlines) if
-    the body starts with one or more comment lines, otherwise returns an
-    empty string.  Decoration lines consisting only of dots, dashes,
-    hashes, or similar characters (e.g. ``# ....``, ``########``) are
-    stripped.
+    Delegates to the shared ``core.formatting.docstring`` module.
     """
-    lines: list[str] = []
-    for raw_line in body.splitlines():
-        stripped = raw_line.strip()
-        if not stripped:
-            # Blank line: stop if we already have content, skip if leading
-            if lines:
-                break
-            continue
-        if stripped.startswith("#"):
-            text = stripped.lstrip("#").strip()
-            # Skip pure decoration lines (dots, dashes, equals, hashes)
-            # including hash-only lines that become empty after lstrip
-            if not text and set(stripped) <= {"#"}:
-                continue
-            if text and all(ch in ".-=*~#" for ch in text):
-                continue
-            lines.append(text)
-        else:
-            break
-    return "\n".join(lines)
+    from core.formatting.docstring import extract_body_docstring
+
+    return extract_body_docstring(body)
 
 
 def _parse_param_list(param_str: str) -> list[ParamDef]:

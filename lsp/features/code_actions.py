@@ -241,6 +241,11 @@ def get_code_actions(
     # New refactoring actions.
     actions.extend(_new_refactor_actions(source, range_))
 
+    # Generate docstring for proc at cursor.
+    docstring_action = _generate_docstring_action(source, range_, result)
+    if docstring_action is not None:
+        actions.append(docstring_action)
+
     profiles_action = _generate_profiles_action(source, result)
     if profiles_action is not None:
         actions.append(profiles_action)
@@ -1229,6 +1234,47 @@ def _compute_required_profiles(source: str, analysis: AnalysisResult) -> list[st
     profiles -= {p for p in profiles if _PROFILE_LAYERS.get(p) in _INFRA_LAYERS}
 
     return sorted(profiles)
+
+
+def _generate_docstring_action(
+    source: str,
+    range_: types.Range,
+    analysis: AnalysisResult,
+) -> types.CodeAction | None:
+    """Return a source action to generate a docstring stub for a proc.
+
+    Offered when the cursor is on a proc definition that has no docstring.
+    """
+    from core.formatting.docstring import generate_stub
+
+    cursor_line = range_.start.line
+    for proc_def in analysis.all_procs.values():
+        proc_line = proc_def.name_range.start.line
+        if proc_line != cursor_line:
+            continue
+        if proc_def.doc:
+            return None  # already has a docstring
+
+        param_names = [p.name for p in proc_def.params]
+        param_defaults = {p.name: p.default_value for p in proc_def.params if p.has_default}
+        stub = generate_stub(proc_def.name, param_names, param_defaults)
+        stub_text = stub + "\n"
+
+        insert_pos = types.Position(line=proc_line, character=0)
+        return types.CodeAction(
+            title=f"Generate docstring for '{proc_def.name}'",
+            kind=types.CodeActionKind.Source,
+            edit=types.WorkspaceEdit(
+                changes={
+                    "": [
+                        types.TextEdit(
+                            range=types.Range(start=insert_pos, end=insert_pos), new_text=stub_text
+                        )
+                    ]
+                }
+            ),
+        )
+    return None
 
 
 def _generate_profiles_action(
