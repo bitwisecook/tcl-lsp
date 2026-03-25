@@ -159,6 +159,10 @@ def _scan_commands(
         if cmd_name == "for":
             _handle_for(cmd_args, param_set, traits)
 
+        # after ms ?script ...? / after idle ?script ...?
+        if cmd_name == "after":
+            _handle_after(cmd_args, param_set, traits)
+
         # scan string format ?varName ...? — args 2+ are written
         if cmd_name == "scan":
             _handle_variadic_var_write(cmd_args, param_set, traits, start=2)
@@ -401,6 +405,32 @@ def _handle_for(
     body_vn = _extract_var_name(args[3])
     if body_vn and body_vn in param_set:
         traits[body_vn].add(ProcArgTrait.BODY)
+
+
+def _handle_after(
+    args: list[str],
+    param_set: set[str],
+    traits: dict[str, set[ProcArgTrait]],
+) -> None:
+    """Process ``after ms ?script?`` and ``after idle ?script?``.
+
+    ``after cancel`` and ``after info`` do not take bodies.
+    """
+    if len(args) < 2:
+        return
+    # after cancel / after info — no body
+    if args[0] in ("cancel", "info"):
+        return
+    # after ms script... / after idle script...
+    # Script args are everything after the first arg (ms or "idle")
+    # and optional -periodic flag.
+    start = 1
+    if start < len(args) and args[start] == "-periodic":
+        start += 1
+    for arg in args[start:]:
+        vn = _extract_var_name(arg)
+        if vn and vn in param_set:
+            traits[vn].add(ProcArgTrait.EVAL)
 
 
 def _handle_variadic_var_write(

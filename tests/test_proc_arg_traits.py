@@ -21,6 +21,18 @@ class TestEvalTrait:
         traits = infer_param_traits(("template",), "subst $template")
         assert ProcArgTrait.EVAL in traits["template"]
 
+    def test_after_script(self):
+        traits = infer_param_traits(("script",), "after 1000 $script")
+        assert ProcArgTrait.EVAL in traits["script"]
+
+    def test_after_idle_script(self):
+        traits = infer_param_traits(("script",), "after idle $script")
+        assert ProcArgTrait.EVAL in traits["script"]
+
+    def test_after_cancel_not_eval(self):
+        traits = infer_param_traits(("id",), "after cancel $id")
+        assert "id" not in traits
+
 
 class TestBodyTrait:
     def test_param_as_foreach_body_arg(self):
