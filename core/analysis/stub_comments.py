@@ -172,10 +172,6 @@ def parse_expr_stub_line(line: str, line_range: Range) -> StubExprDef | None:
     )
 
 
-# Keep the old name as an alias for compatibility.
-parse_stub_comment = parse_stub_line
-
-
 def parse_stubs_file(
     path: Path,
 ) -> tuple[list[StubCommandDef], list[StubExprDef]]:
@@ -215,21 +211,6 @@ def parse_stubs_file(
             cmd_stubs.append(stub)
 
     return cmd_stubs, expr_stubs
-
-
-def extract_inline_stub(
-    comment_text: str, comment_range: Range
-) -> StubCommandDef | StubExprDef | None:
-    """Extract a stub from a comment that's inside a stubs-begin/end block.
-
-    Called by the analyser only when inside an active stubs block.
-    Returns either a command stub, an expr stub, or ``None``.
-    """
-    # Try expr stub first.
-    expr_stub = parse_expr_stub_line(comment_text, comment_range)
-    if expr_stub is not None:
-        return expr_stub
-    return parse_stub_line(comment_text, comment_range)
 
 
 def scan_source_for_stubs(
@@ -333,15 +314,3 @@ def _parse_flags(flags_str: str) -> set[str]:
         if token in _VALID_FLAGS:
             flags.add(token)
     return flags
-
-
-def stub_to_arg_roles(stub: StubCommandDef) -> dict[int, str]:
-    """Convert a stub's argument definitions to an index->role map.
-
-    Used when registering the stub as a transient command signature.
-    """
-    roles: dict[int, str] = {}
-    for i, arg in enumerate(stub.args):
-        if arg.role != "value":
-            roles[i] = arg.role
-    return roles

@@ -140,6 +140,19 @@ class TestWhileForTraits:
         assert ProcArgTrait.BODY in traits["loopBody"]
 
 
+class TestVarReadTrait:
+    def test_array_get_var_read(self):
+        """Commands with ArgRole.VAR_READ should infer VAR_READ trait."""
+        body = "array get $arrName"
+        traits = infer_param_traits(("arrName",), body)
+        assert ProcArgTrait.VAR_READ in traits.get("arrName", frozenset())
+
+    def test_info_exists_var_read(self):
+        body = "info exists $varName"
+        traits = infer_param_traits(("varName",), body)
+        assert ProcArgTrait.VAR_READ in traits.get("varName", frozenset())
+
+
 class TestCombinedTraits:
     def test_foreach_in_collection_pattern(self):
         """The classic EDA pattern: varName for upvar, collection for loop, body for eval."""

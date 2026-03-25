@@ -26,6 +26,7 @@ import re
 
 from ..commands.registry import REGISTRY
 from ..commands.registry.signatures import ArgRole
+from ..parsing.lexer import TclParseError
 from .semantic_model import ProcArgTrait
 
 # Simple $varName reference pattern.
@@ -87,7 +88,7 @@ def _extract_commands(source: str) -> list[tuple[str, list[str]]]:
     commands: list[tuple[str, list[str]]] = []
     try:
         segments = segment_commands(source)
-    except Exception:
+    except TclParseError:
         return commands
 
     for seg in segments:
@@ -272,7 +273,7 @@ def _scan_deep(
 
     try:
         segments = segment_commands(source)
-    except Exception:
+    except TclParseError:
         return
 
     for seg in segments:
@@ -331,8 +332,6 @@ def _handle_upvar(
 
         if other_vn and other_vn in param_set:
             traits[other_vn].add(ProcArgTrait.VAR_WRITE)
-
-        if other_vn and other_vn in param_set:
             upvar_aliases[my_var] = other_vn
 
         if my_vn and my_vn in param_set:
@@ -423,7 +422,7 @@ def _handle_after(
         return
     # after ms script... / after idle script...
     # Script args are everything after the first arg (ms or "idle")
-    # and optional -periodic flag.
+    # and optional -periodic flag (iRules extension to after).
     start = 1
     if start < len(args) and args[start] == "-periodic":
         start += 1
