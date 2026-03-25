@@ -15,7 +15,8 @@ from core.commands.registry.runtime import (
 from core.common.dialect import active_dialect
 from core.formatting.config import FormatterConfig, IndentStyle
 
-from .hover import _format_docstring
+from core.formatting.docstring import format_docstring
+
 from .irules_context import find_enclosing_when_event
 from .snippet_templates import SnippetContext, get_snippet_completions
 from .symbol_resolution import (
@@ -349,7 +350,7 @@ def get_completions(
                     documentation=(
                         types.MarkupContent(
                             kind=types.MarkupKind.Markdown,
-                            value=_format_docstring(proc_def.doc),
+                            value=format_docstring(proc_def.doc),
                         )
                         if proc_def.doc
                         else None
@@ -486,7 +487,7 @@ def get_completions(
                     documentation=(
                         types.MarkupContent(
                             kind=types.MarkupKind.Markdown,
-                            value=_format_docstring(proc_def.doc),
+                            value=format_docstring(proc_def.doc),
                         )
                         if proc_def.doc
                         else None

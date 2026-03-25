@@ -11,9 +11,11 @@ from core.formatting.docstring import (
     extract_body_docstring,
     format_docstring,
     generate_stub,
+    generate_stub_for_proc,
     parse_docstring,
     render_comment_block,
     render_markdown,
+    resolve_tag_style,
 )
 
 
@@ -240,3 +242,106 @@ class TestDocstringInfoDict:
         info = DocstringInfo()
         d = info.to_dict()
         assert d == {}
+
+
+class TestResolveTagStyle:
+    def test_doxygen_default(self):
+        assert resolve_tag_style("doxygen") is DocstringTagStyle.DOXYGEN
+
+    def test_plain(self):
+        assert resolve_tag_style("plain") is DocstringTagStyle.PLAIN
+
+    def test_case_insensitive(self):
+        assert resolve_tag_style("Plain") is DocstringTagStyle.PLAIN
+        assert resolve_tag_style("PLAIN") is DocstringTagStyle.PLAIN
+
+    def test_unknown_defaults_to_doxygen(self):
+        assert resolve_tag_style("unknown") is DocstringTagStyle.DOXYGEN
+        assert resolve_tag_style("") is DocstringTagStyle.DOXYGEN
+
+
+class TestGenerateStubForProc:
+    def _make_proc(self, name, params):
+        from lsprotocol.types import Position, Range
+
+        from core.analysis.semantic_model import ProcDef
+
+        r = Range(start=Position(line=0, character=0), end=Position(line=0, character=0))
+        return ProcDef(
+            name=name, qualified_name=f"::{name}", params=params,
+            name_range=r, body_range=r,
+        )
+
+    def test_basic(self):
+        from core.analysis.semantic_model import ParamDef
+
+        pd = self._make_proc("greet", [ParamDef(name="name")])
+        stub = generate_stub_for_proc(pd)
+        assert "# @brief TODO: describe greet" in stub
+        assert "# @param name" in stub
+
+    def test_with_defaults(self):
+        from core.analysis.semantic_model import ParamDef
+
+        pd = self._make_proc("greet", [
+            ParamDef(name="name"),
+            ParamDef(name="greeting", has_default=True, default_value="Hello"),
+        ])
+        stub = generate_stub_for_proc(pd)
+        assert "(default: Hello)" in stub
+
+
+class TestParseDocstringEdgeCases:
+    def test_multi_return_accumulated(self):
+        doc = "@return First part\n@return Second part"
+        info = parse_docstring(doc)
+        assert info.returns == "First part Second part"
+
+    def test_param_no_name(self):
+        # @param with no text after it — should not crash
+        info = parse_docstring("@param")
+        assert info.params == []
+
+    def test_brief_no_text(self):
+        info = parse_docstring("@brief")
+        assert info.brief == ""
+
+    def test_decoration_lines_stripped_in_parse(self):
+        doc = "......\nHello world\n------"
+        info = parse_docstring(doc)
+        assert info.description == "Hello world"
+        assert "..." not in info.description
+        assert "---" not in info.description
+
+
+class TestFindProc:
+    def _make_result(self):
+        from lsprotocol.types import Position, Range
+
+        from core.analysis.semantic_model import AnalysisResult, ProcDef
+
+        r = Range(start=Position(line=0, character=0), end=Position(line=0, character=0))
+        result = AnalysisResult()
+        result.all_procs["::foo"] = ProcDef(
+            name="foo", qualified_name="::foo", params=[],
+            name_range=r, body_range=r,
+        )
+        result.all_procs["::ns::bar"] = ProcDef(
+            name="bar", qualified_name="::ns::bar", params=[],
+            name_range=r, body_range=r,
+        )
+        return result
+
+    def test_qualified_lookup(self):
+        result = self._make_result()
+        assert result.find_proc("foo") is not None
+        assert result.find_proc("foo").qualified_name == "::foo"
+
+    def test_bare_lookup(self):
+        result = self._make_result()
+        assert result.find_proc("bar") is not None
+        assert result.find_proc("bar").qualified_name == "::ns::bar"
+
+    def test_not_found(self):
+        result = self._make_result()
+        assert result.find_proc("nonexistent") is None

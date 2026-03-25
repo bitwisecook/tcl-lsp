@@ -127,22 +127,15 @@ class FormatterConfig:
         return replace(self, **changes)
 
 
-# Enum lookup table used by from_dict (auto-discovered from type hints)
+# Enum lookup table used by from_dict.  Cannot be auto-discovered from
+# field type hints because ``from __future__ import annotations`` turns
+# them into strings.
 _ENUM_FIELDS: dict[str, type[Enum]] = {
-    f.name: f.type
-    for f in fields(FormatterConfig)
-    if isinstance(f.type, type) and issubclass(f.type, Enum)
+    "brace_style": BraceStyle,
+    "indent_style": IndentStyle,
+    "docstring_style": DocstringStyle,
+    "docstring_tag_style": DocstringTagStyle,
 }
-# Fallback: the above only works if type annotations are resolved.
-# Explicitly register for safety.
-_ENUM_FIELDS.update(
-    {
-        "brace_style": BraceStyle,
-        "indent_style": IndentStyle,
-        "docstring_style": DocstringStyle,
-        "docstring_tag_style": DocstringTagStyle,
-    }
-)
 
 
 # Editor settings catalogue

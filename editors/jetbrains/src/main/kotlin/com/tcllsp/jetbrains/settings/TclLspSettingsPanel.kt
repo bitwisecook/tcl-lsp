@@ -59,6 +59,11 @@ class TclLspSettingsPanel {
     private val fmtMaxBlankLines = JSpinner(SpinnerNumberModel(2, 1, 10, 1))
     private val fmtLineEnding = JComboBox(arrayOf("lf", "crlf", "cr"))
     private val fmtFinalNewline = JBCheckBox("Ensure final newline")
+    private val fmtDocstringStyle = JComboBox(arrayOf("preceding", "body", "none"))
+    private val fmtDocstringTagStyle = JComboBox(arrayOf("doxygen", "plain", "none"))
+    private val fmtDocstringDecoration = JBCheckBox("Docstring decoration borders")
+    private val fmtDocstringDecorationChar = JComboBox(arrayOf(".", "-", "=", "*", "~"))
+    private val fmtDocstringDecorationWidth = JSpinner(SpinnerNumberModel(70, 20, 120, 10))
 
     // @generated:diag-checkboxes:begin
     // Diagnostics — Errors
@@ -268,6 +273,13 @@ class TclLspSettingsPanel {
         builder.addLabeledComponent(JBLabel("Line ending:"), fmtLineEnding)
         builder.addComponent(fmtFinalNewline)
 
+        builder.addComponent(TitledSeparator("Docstrings"))
+        builder.addLabeledComponent(JBLabel("Docstring style:"), fmtDocstringStyle)
+        builder.addLabeledComponent(JBLabel("Docstring tag style:"), fmtDocstringTagStyle)
+        builder.addComponent(fmtDocstringDecoration)
+        builder.addLabeledComponent(JBLabel("Decoration character:"), fmtDocstringDecorationChar)
+        builder.addLabeledComponent(JBLabel("Decoration width:"), fmtDocstringDecorationWidth)
+
         // @generated:diag-ui:begin
         builder.addComponent(TitledSeparator("Diagnostics — Errors"))
         val diagErrorPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
@@ -435,6 +447,11 @@ class TclLspSettingsPanel {
             (fmtMaxBlankLines.value as Int) != s.formattingMaxConsecutiveBlankLines ||
             fmtLineEnding.selectedItem != s.formattingLineEnding ||
             fmtFinalNewline.isSelected != s.formattingEnsureFinalNewline ||
+            fmtDocstringStyle.selectedItem != s.formattingDocstringStyle ||
+            fmtDocstringTagStyle.selectedItem != s.formattingDocstringTagStyle ||
+            fmtDocstringDecoration.isSelected != s.formattingDocstringDecoration ||
+            fmtDocstringDecorationChar.selectedItem != s.formattingDocstringDecorationChar ||
+            (fmtDocstringDecorationWidth.value as Int) != s.formattingDocstringDecorationWidth ||
             // @generated:diag-dirty:begin
             diagE001.isSelected != s.diagnosticE001 ||
             diagE002.isSelected != s.diagnosticE002 ||
@@ -610,6 +627,11 @@ class TclLspSettingsPanel {
         s.formattingMaxConsecutiveBlankLines = fmtMaxBlankLines.value as Int
         s.formattingLineEnding = fmtLineEnding.selectedItem as String
         s.formattingEnsureFinalNewline = fmtFinalNewline.isSelected
+        s.formattingDocstringStyle = fmtDocstringStyle.selectedItem as String
+        s.formattingDocstringTagStyle = fmtDocstringTagStyle.selectedItem as String
+        s.formattingDocstringDecoration = fmtDocstringDecoration.isSelected
+        s.formattingDocstringDecorationChar = fmtDocstringDecorationChar.selectedItem as String
+        s.formattingDocstringDecorationWidth = fmtDocstringDecorationWidth.value as Int
 
         // @generated:diag-apply:begin
         s.diagnosticE001 = diagE001.isSelected
@@ -783,6 +805,11 @@ class TclLspSettingsPanel {
         fmtMaxBlankLines.value = s.formattingMaxConsecutiveBlankLines
         fmtLineEnding.selectedItem = s.formattingLineEnding
         fmtFinalNewline.isSelected = s.formattingEnsureFinalNewline
+        fmtDocstringStyle.selectedItem = s.formattingDocstringStyle
+        fmtDocstringTagStyle.selectedItem = s.formattingDocstringTagStyle
+        fmtDocstringDecoration.isSelected = s.formattingDocstringDecoration
+        fmtDocstringDecorationChar.selectedItem = s.formattingDocstringDecorationChar
+        fmtDocstringDecorationWidth.value = s.formattingDocstringDecorationWidth
 
         // @generated:diag-reset:begin
         diagE001.isSelected = s.diagnosticE001

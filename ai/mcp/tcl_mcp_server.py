@@ -1450,29 +1450,16 @@ def _tool_generate_docstring(
     decoration: str = "false",
 ) -> str:
     from core.analysis.analyser import analyse
-    from core.formatting.docstring import DocstringTagStyle, generate_stub
+    from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
 
     result = analyse(source)
-    proc_def = result.all_procs.get(f"::{proc_name}") or result.all_procs.get(proc_name)
-    if proc_def is None:
-        for qname, pd in result.all_procs.items():
-            if pd.name == proc_name:
-                proc_def = pd
-                break
+    proc_def = result.find_proc(proc_name)
     if proc_def is None:
         return json.dumps({"error": f"Proc '{proc_name}' not found"})
 
-    tag = DocstringTagStyle.PLAIN if style.lower() == "plain" else DocstringTagStyle.DOXYGEN
+    tag = resolve_tag_style(style)
     dec = decoration.lower() in ("true", "1", "yes")
-    param_names = [p.name for p in proc_def.params]
-    param_defaults = {p.name: p.default_value for p in proc_def.params if p.has_default}
-    stub = generate_stub(
-        proc_def.name,
-        param_names,
-        param_defaults,
-        tag_style=tag,
-        decoration=dec,
-    )
+    stub = generate_stub_for_proc(proc_def, tag_style=tag, decoration=dec)
     return json.dumps({"proc": proc_name, "docstring": stub})
 
 
@@ -1487,32 +1474,11 @@ def _tool_generate_docstring(
 )
 def _tool_read_proc_docs(source: str) -> str:
     from core.analysis.analyser import analyse
-    from core.formatting.docstring import parse_docstring
+
+    from ai.shared.docstring_ops import collect_proc_docs
 
     result = analyse(source)
-    procs = []
-    for qname, proc_def in result.all_procs.items():
-        entry: dict[str, Any] = {
-            "name": proc_def.name,
-            "qualified_name": proc_def.qualified_name,
-            "params": [
-                {"name": p.name, "default": p.default_value} if p.has_default else {"name": p.name}
-                for p in proc_def.params
-            ],
-        }
-        if proc_def.doc:
-            entry["doc_raw"] = proc_def.doc
-            parsed = parse_docstring(proc_def.doc)
-            entry["doc"] = parsed.to_dict()
-        else:
-            entry["doc"] = None
-        if proc_def.param_traits:
-            entry["param_traits"] = {
-                name: sorted(t.name for t in traits)
-                for name, traits in proc_def.param_traits.items()
-            }
-        procs.append(entry)
-    return json.dumps({"procs": procs}, indent=2)
+    return json.dumps({"procs": collect_proc_docs(result)}, indent=2)
 
 
 @tool(
@@ -1538,39 +1504,20 @@ def _tool_update_docstrings(
     decoration: str = "false",
 ) -> str:
     from core.analysis.analyser import analyse
-    from core.formatting.docstring import DocstringTagStyle, generate_stub
+    from core.formatting.docstring import resolve_tag_style
 
-    tag = DocstringTagStyle.PLAIN if style.lower() == "plain" else DocstringTagStyle.DOXYGEN
+    from ai.shared.docstring_ops import insert_docstring_stubs
+
+    tag = resolve_tag_style(style)
     dec = decoration.lower() in ("true", "1", "yes")
     result = analyse(source)
 
-    # Collect procs that need docstrings, sorted by line descending
-    # (so we can insert from bottom to top without shifting offsets).
-    procs_to_doc = []
-    for proc_def in result.all_procs.values():
-        if not proc_def.doc:
-            procs_to_doc.append(proc_def)
-    procs_to_doc.sort(key=lambda p: p.name_range.start.line, reverse=True)
-
-    lines = source.splitlines(keepends=True)
-    documented = 0
-    for proc_def in procs_to_doc:
-        param_names = [p.name for p in proc_def.params]
-        param_defaults = {p.name: p.default_value for p in proc_def.params if p.has_default}
-        stub = generate_stub(
-            proc_def.name,
-            param_names,
-            param_defaults,
-            tag_style=tag,
-            decoration=dec,
-        )
-        insert_line = proc_def.name_range.start.line
-        lines.insert(insert_line, stub + "\n")
-        documented += 1
-
+    modified, documented = insert_docstring_stubs(
+        source, result, tag_style=tag, decoration=dec
+    )
     return json.dumps(
         {
-            "source": "".join(lines),
+            "source": modified,
             "procs_documented": documented,
             "total_procs": len(result.all_procs),
         }

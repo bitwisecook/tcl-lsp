@@ -2164,32 +2164,11 @@ def cmd_proc_docs(source: str, file_path: str) -> None:
     """Extract structured documentation from all procs."""
     _configure_dialect_from_path(file_path)
     from core.analysis.analyser import analyse
-    from core.formatting.docstring import parse_docstring
+
+    from ai.shared.docstring_ops import collect_proc_docs
 
     result = analyse(source)
-    procs = []
-    for qname, proc_def in result.all_procs.items():
-        entry: dict = {
-            "name": proc_def.name,
-            "qualified_name": proc_def.qualified_name,
-            "params": [
-                {"name": p.name, "default": p.default_value} if p.has_default else {"name": p.name}
-                for p in proc_def.params
-            ],
-        }
-        if proc_def.doc:
-            entry["doc_raw"] = proc_def.doc
-            parsed = parse_docstring(proc_def.doc)
-            entry["doc"] = parsed.to_dict()
-        else:
-            entry["doc"] = None
-        if proc_def.param_traits:
-            entry["param_traits"] = {
-                name: sorted(t.name for t in traits)
-                for name, traits in proc_def.param_traits.items()
-            }
-        procs.append(entry)
-    print(json.dumps({"procs": procs}, indent=2))
+    print(json.dumps({"procs": collect_proc_docs(result)}, indent=2))
 
 
 def cmd_generate_docstring(
@@ -2198,24 +2177,16 @@ def cmd_generate_docstring(
     """Generate a docstring stub for a specific proc."""
     _configure_dialect_from_path(file_path)
     from core.analysis.analyser import analyse
-    from core.formatting.docstring import DocstringTagStyle, generate_stub
+    from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
 
     result = analyse(source)
-    proc_def = result.all_procs.get(f"::{proc_name}") or result.all_procs.get(proc_name)
-    if proc_def is None:
-        for _qname, pd in result.all_procs.items():
-            if pd.name == proc_name:
-                proc_def = pd
-                break
+    proc_def = result.find_proc(proc_name)
     if proc_def is None:
         print(json.dumps({"error": f"Proc '{proc_name}' not found"}))
         return
 
-    tag = DocstringTagStyle.PLAIN if style == "plain" else DocstringTagStyle.DOXYGEN
-    param_names = [p.name for p in proc_def.params]
-    param_defaults = {p.name: p.default_value for p in proc_def.params if p.has_default}
-    stub = generate_stub(
-        proc_def.name, param_names, param_defaults, tag_style=tag, decoration=decoration
+    stub = generate_stub_for_proc(
+        proc_def, tag_style=resolve_tag_style(style), decoration=decoration
     )
     print(stub)
 
@@ -2224,24 +2195,15 @@ def cmd_update_docstrings(source: str, file_path: str, style: str, decoration: b
     """Add docstring stubs to all undocumented procs."""
     _configure_dialect_from_path(file_path)
     from core.analysis.analyser import analyse
-    from core.formatting.docstring import DocstringTagStyle, generate_stub
+    from core.formatting.docstring import resolve_tag_style
 
-    tag = DocstringTagStyle.PLAIN if style == "plain" else DocstringTagStyle.DOXYGEN
+    from ai.shared.docstring_ops import insert_docstring_stubs
+
     result = analyse(source)
-
-    procs_to_doc = [pd for pd in result.all_procs.values() if not pd.doc]
-    procs_to_doc.sort(key=lambda p: p.name_range.start.line, reverse=True)
-
-    lines = source.splitlines(keepends=True)
-    for proc_def in procs_to_doc:
-        param_names = [p.name for p in proc_def.params]
-        param_defaults = {p.name: p.default_value for p in proc_def.params if p.has_default}
-        stub = generate_stub(
-            proc_def.name, param_names, param_defaults, tag_style=tag, decoration=decoration
-        )
-        lines.insert(proc_def.name_range.start.line, stub + "\n")
-
-    print("".join(lines), end="")
+    modified, _count = insert_docstring_stubs(
+        source, result, tag_style=resolve_tag_style(style), decoration=decoration
+    )
+    print(modified, end="")
 
 
 def cmd_refactor(source: str, file_path: str) -> None:

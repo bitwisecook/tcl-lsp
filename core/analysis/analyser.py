@@ -162,16 +162,6 @@ def _argv_with_word_spans(argv: list[Token], all_tokens: list[Token]) -> list[To
     return widen_argv_tokens_to_word_spans(argv, all_tokens)
 
 
-def _extract_body_docstring(body: str) -> str:
-    """Extract the leading comment block from a proc body.
-
-    Delegates to the shared ``core.formatting.docstring`` module.
-    """
-    from core.formatting.docstring import extract_body_docstring
-
-    return extract_body_docstring(body)
-
-
 def _parse_param_list(param_str: str) -> list[ParamDef]:
     """Parse a Tcl proc argument list string into ParamDef objects.
 
@@ -1680,7 +1670,9 @@ class Analyser:
         # fallback docstring when there is no preceding comment.
         body_doc = ""
         if not preceding_doc and body:
-            body_doc = _extract_body_docstring(body)
+            from core.formatting.docstring import extract_body_docstring
+
+            body_doc = extract_body_docstring(body)
 
         proc_def = ProcDef(
             name=proc_name,

@@ -269,6 +269,16 @@ class AnalysisResult:
     stub_commands: list[StubCommandDef] = field(default_factory=list)
     stub_expr_defs: list[StubExprDef] = field(default_factory=list)
 
+    def find_proc(self, name: str) -> ProcDef | None:
+        """Look up a proc by name, trying qualified and bare forms."""
+        result = self.all_procs.get(f"::{name}") or self.all_procs.get(name)
+        if result is not None:
+            return result
+        for pd in self.all_procs.values():
+            if pd.name == name:
+                return pd
+        return None
+
     def active_package_names(self) -> frozenset[str]:
         """Return the set of package names imported via ``package require``."""
         return frozenset(pr.name for pr in self.package_requires)
