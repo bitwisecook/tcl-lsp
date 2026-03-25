@@ -23,7 +23,13 @@
     },
     {
       "name": "ACCESS::acl",
-      "summary": "Poll or enforce ACLs in your connections."
+      "summary": "Poll or enforce ACLs in your connections.",
+      "subcommands": [
+        "eval",
+        "lookup",
+        "matched",
+        "result"
+      ]
     },
     {
       "name": "ACCESS::disable",
@@ -51,11 +57,21 @@
     },
     {
       "name": "ACCESS::perflow",
-      "summary": "Returns perflow variable value"
+      "summary": "Returns perflow variable value",
+      "subcommands": [
+        "get",
+        "set"
+      ]
     },
     {
       "name": "ACCESS::policy",
-      "summary": "Return information about access policies."
+      "summary": "Return information about access policies.",
+      "subcommands": [
+        "agent_id",
+        "evaluate",
+        "result",
+        "uri"
+      ]
     },
     {
       "name": "ACCESS::respond",
@@ -67,15 +83,33 @@
     },
     {
       "name": "ACCESS::saml",
-      "summary": "Access or manipulate SAML related messages."
+      "summary": "Access or manipulate SAML related messages.",
+      "subcommands": [
+        "assertion",
+        "authn",
+        "slo_req",
+        "slo_resp"
+      ]
     },
     {
       "name": "ACCESS::session",
-      "summary": "Access or manipulate session information."
+      "summary": "Access or manipulate session information.",
+      "subcommands": [
+        "create",
+        "data",
+        "exists",
+        "modify",
+        "remove",
+        "sid"
+      ]
     },
     {
       "name": "ACCESS::user",
-      "summary": "Returns user ID information."
+      "summary": "Returns user ID information.",
+      "subcommands": [
+        "getkey",
+        "getsid"
+      ]
     },
     {
       "name": "ACCESS::uuid",
@@ -1035,7 +1069,19 @@
     },
     {
       "name": "DIAMETER::avp",
-      "summary": "Provides detailed access to diameter attribute-value pairs."
+      "summary": "Provides detailed access to diameter attribute-value pairs.",
+      "subcommands": [
+        "append",
+        "code",
+        "count",
+        "create",
+        "data",
+        "delete",
+        "flags",
+        "insert",
+        "length",
+        "replace"
+      ]
     },
     {
       "name": "DIAMETER::command",
@@ -1059,7 +1105,19 @@
     },
     {
       "name": "DIAMETER::header",
-      "summary": "Gets or sets the DIAMETER header fields."
+      "summary": "Gets or sets the DIAMETER header fields.",
+      "subcommands": [
+        "application_id",
+        "command_code",
+        "eflag",
+        "end_to_end_id",
+        "hop_by_hop_id",
+        "length",
+        "pflag",
+        "rflag",
+        "tflag",
+        "version"
+      ]
     },
     {
       "name": "DIAMETER::host",
@@ -1143,15 +1201,30 @@
     },
     {
       "name": "DNS::additional",
-      "summary": "Returns, inserts, removes, or clears RRs from the additional section."
+      "summary": "Returns, inserts, removes, or clears RRs from the additional section.",
+      "subcommands": [
+        "clear",
+        "insert",
+        "remove"
+      ]
     },
     {
       "name": "DNS::answer",
-      "summary": "Returns, inserts, removes, or clears all RRs from the answer section."
+      "summary": "Returns, inserts, removes, or clears all RRs from the answer section.",
+      "subcommands": [
+        "clear",
+        "insert",
+        "remove"
+      ]
     },
     {
       "name": "DNS::authority",
-      "summary": "Returns, inserts, removes, or clears RRs from the authority section."
+      "summary": "Returns, inserts, removes, or clears RRs from the authority section.",
+      "subcommands": [
+        "clear",
+        "insert",
+        "remove"
+      ]
     },
     {
       "name": "DNS::class",
@@ -1175,7 +1248,23 @@
     },
     {
       "name": "DNS::header",
-      "summary": "Gets (v11.0+) or sets (v11.1+) simple bits or byte fields."
+      "summary": "Gets (v11.0+) or sets (v11.1+) simple bits or byte fields.",
+      "subcommands": [
+        "aa",
+        "ad",
+        "ancount",
+        "arcount",
+        "cd",
+        "id",
+        "nscount",
+        "opcode",
+        "qdcount",
+        "qr",
+        "ra",
+        "rcode",
+        "rd",
+        "tc"
+      ]
     },
     {
       "name": "DNS::is_wideip",
@@ -1407,7 +1496,15 @@
     },
     {
       "name": "GTP::header",
-      "summary": "Allows for the parsing of GTP header information."
+      "summary": "Allows for the parsing of GTP header information.",
+      "subcommands": [
+        "extension",
+        "npdu",
+        "sequence",
+        "teid",
+        "type",
+        "version"
+      ]
     },
     {
       "name": "GTP::ie",
@@ -1464,6 +1561,10 @@
     {
       "name": "HTML::enable",
       "summary": "Enable the processing of HTML for this transaction."
+    },
+    {
+      "name": "HTML::encode",
+      "summary": "HTML-encodes a string, escaping special characters."
     },
     {
       "name": "HTML::tag",
@@ -1546,7 +1647,8 @@
         "secure",
         "value",
         "version"
-      ]
+      ],
+      "pure": true
     },
     {
       "name": "HTTP::disable",
@@ -1582,11 +1684,13 @@
         "sanitize",
         "value",
         "values"
-      ]
+      ],
+      "pure": true
     },
     {
       "name": "HTTP::host",
-      "summary": "Returns the value contained in the Host header of an HTTP request."
+      "summary": "Returns the value contained in the Host header of an HTTP request.",
+      "pure": true
     },
     {
       "name": "HTTP::hsts",
@@ -1602,7 +1706,8 @@
     },
     {
       "name": "HTTP::method",
-      "summary": "Returns the type of HTTP request method."
+      "summary": "Returns the type of HTTP request method.",
+      "pure": true
     },
     {
       "name": "HTTP::passthrough_reason",
@@ -1614,19 +1719,33 @@
     },
     {
       "name": "HTTP::path",
-      "summary": "Returns or sets the path part of the HTTP request."
+      "summary": "Returns or sets the path part of the HTTP request.",
+      "pure": true
     },
     {
       "name": "HTTP::payload",
-      "summary": "Queries for or manipulates HTTP payload information."
+      "summary": "Queries for or manipulates HTTP payload information.",
+      "pure": true
     },
     {
       "name": "HTTP::proxy",
-      "summary": "Controls the application of HTTP proxy when using an Explicit HTTP profile."
+      "summary": "Controls the application of HTTP proxy when using an Explicit HTTP profile.",
+      "subcommands": [
+        "addr",
+        "chain",
+        "disable",
+        "enable",
+        "exists",
+        "iptuple",
+        "port",
+        "rtdom",
+        "uri-rewrite"
+      ]
     },
     {
       "name": "HTTP::query",
-      "summary": "Returns or sets the query part of the HTTP request."
+      "summary": "Returns or sets the query part of the HTTP request.",
+      "pure": true
     },
     {
       "name": "HTTP::redirect",
@@ -1642,11 +1761,13 @@
     },
     {
       "name": "HTTP::request",
-      "summary": "Returns the raw HTTP request headers as a string."
+      "summary": "Returns the raw HTTP request headers as a string.",
+      "pure": true
     },
     {
       "name": "HTTP::request_num",
-      "summary": "Returns the ordinal number of the current HTTP request on the connection."
+      "summary": "Returns the ordinal number of the current HTTP request on the connection.",
+      "pure": true
     },
     {
       "name": "HTTP::respond",
@@ -1662,11 +1783,13 @@
     },
     {
       "name": "HTTP::status",
-      "summary": "Returns the response status code."
+      "summary": "Returns the response status code.",
+      "pure": true
     },
     {
       "name": "HTTP::uri",
-      "summary": "Returns or sets the URI part of the HTTP request."
+      "summary": "Returns or sets the URI part of the HTTP request.",
+      "pure": true
     },
     {
       "name": "HTTP::username",
@@ -1674,7 +1797,8 @@
     },
     {
       "name": "HTTP::version",
-      "summary": "Returns or sets the HTTP version of the request or response."
+      "summary": "Returns or sets the HTTP version of the request or response.",
+      "pure": true
     },
     {
       "name": "HTTPLOG::disable",
@@ -1778,7 +1902,8 @@
     },
     {
       "name": "IP::client_addr",
-      "summary": "Returns the client IP address of a connection."
+      "summary": "Returns the client IP address of a connection.",
+      "pure": true
     },
     {
       "name": "IP::hops",
@@ -1802,15 +1927,18 @@
     },
     {
       "name": "IP::local_addr",
-      "summary": "Returns the IP address of the virtual server the client is connected to or the self-ip LTM is connected from."
+      "summary": "Returns the IP address of the virtual server the client is connected to or the self-ip LTM is connected from.",
+      "pure": true
     },
     {
       "name": "IP::protocol",
-      "summary": "Returns the IP protocol value."
+      "summary": "Returns the IP protocol value.",
+      "pure": true
     },
     {
       "name": "IP::remote_addr",
-      "summary": "Returns the IP address of the host on the far end of the connection."
+      "summary": "Returns the IP address of the host on the far end of the connection.",
+      "pure": true
     },
     {
       "name": "IP::reputation",
@@ -1818,15 +1946,24 @@
     },
     {
       "name": "IP::server_addr",
-      "summary": "Returns the server's IP address."
+      "summary": "Returns the server's IP address.",
+      "pure": true
     },
     {
       "name": "IP::stats",
-      "summary": "Supplies information about the number of packets or bytes being sent or received in a given connection."
+      "summary": "Supplies information about the number of packets or bytes being sent or received in a given connection.",
+      "subcommands": [
+        "age",
+        "bytes",
+        "in",
+        "out",
+        "pkts"
+      ]
     },
     {
       "name": "IP::tos",
-      "summary": "Returns (or sets) the ToS value encoded within a packet."
+      "summary": "Returns (or sets) the ToS value encoded within a packet.",
+      "pure": true
     },
     {
       "name": "IP::ttl",
@@ -1930,7 +2067,12 @@
     },
     {
       "name": "LB::connlimit",
-      "summary": "Set the connection limit for virtual/node/poolmember."
+      "summary": "Set the connection limit for virtual/node/poolmember.",
+      "subcommands": [
+        "node",
+        "poolmember",
+        "virtual"
+      ]
     },
     {
       "name": "LB::context_id",
@@ -1942,7 +2084,11 @@
     },
     {
       "name": "LB::down",
-      "summary": "Sets the status of a node or pool member as being down."
+      "summary": "Sets the status of a node or pool member as being down.",
+      "subcommands": [
+        "node",
+        "pool"
+      ]
     },
     {
       "name": "LB::dst_tag",
@@ -1958,7 +2104,11 @@
     },
     {
       "name": "LB::persist",
-      "summary": "Forces the system to make a persistence decision."
+      "summary": "Forces the system to make a persistence decision.",
+      "subcommands": [
+        "cookie",
+        "key"
+      ]
     },
     {
       "name": "LB::prime",
@@ -1978,7 +2128,18 @@
     },
     {
       "name": "LB::server",
-      "summary": "Returns information about the currently selected server."
+      "summary": "Returns information about the currently selected server.",
+      "subcommands": [
+        "addr",
+        "name",
+        "pool",
+        "port",
+        "priority",
+        "ratio",
+        "ripeness",
+        "route_domain",
+        "weight"
+      ]
     },
     {
       "name": "LB::snat",
@@ -1990,11 +2151,19 @@
     },
     {
       "name": "LB::status",
-      "summary": "Returns the status of a node address or pool member."
+      "summary": "Returns the status of a node address or pool member.",
+      "subcommands": [
+        "node",
+        "pool"
+      ]
     },
     {
       "name": "LB::up",
-      "summary": "Sets the status of a node or pool member as being up."
+      "summary": "Sets the status of a node or pool member as being up.",
+      "subcommands": [
+        "node",
+        "pool"
+      ]
     },
     {
       "name": "LDAP::activation_mode",
@@ -2134,7 +2303,13 @@
     },
     {
       "name": "MQTT::payload",
-      "summary": "Manipulate payload of MQTT PUBLISH message"
+      "summary": "Manipulate payload of MQTT PUBLISH message",
+      "subcommands": [
+        "append",
+        "length",
+        "prepend",
+        "replace"
+      ]
     },
     {
       "name": "MQTT::protocol_name",
@@ -2178,7 +2353,16 @@
     },
     {
       "name": "MQTT::topic",
-      "summary": "Manipulate topic(s) of MQTT message."
+      "summary": "Manipulate topic(s) of MQTT message.",
+      "subcommands": [
+        "add",
+        "count",
+        "delete",
+        "index",
+        "list",
+        "qos",
+        "replace"
+      ]
     },
     {
       "name": "MQTT::type",
@@ -2810,7 +2994,18 @@
     },
     {
       "name": "SIP::header",
-      "summary": "Gets or sets SIP header information."
+      "summary": "Gets or sets SIP header information.",
+      "subcommands": [
+        "at",
+        "count",
+        "exists",
+        "insert",
+        "names",
+        "remove",
+        "replace",
+        "value",
+        "values"
+      ]
     },
     {
       "name": "SIP::message",
@@ -2838,7 +3033,12 @@
     },
     {
       "name": "SIP::response",
-      "summary": "Gets or rewrites the SIP response."
+      "summary": "Gets or rewrites the SIP response.",
+      "subcommands": [
+        "code",
+        "phrase",
+        "rewrite"
+      ]
     },
     {
       "name": "SIP::route",
@@ -2858,7 +3058,15 @@
     },
     {
       "name": "SIP::via",
-      "summary": "Gets SIP via header information."
+      "summary": "Gets SIP via header information.",
+      "subcommands": [
+        "branch",
+        "maddr",
+        "proto",
+        "received",
+        "sent_by",
+        "ttl"
+      ]
     },
     {
       "name": "SIPALG::hairpin",
@@ -2914,15 +3122,31 @@
     },
     {
       "name": "SSL::authenticate",
-      "summary": "Overrides the current setting for authentication frequency or for the maximum depth of certificate chain traversal."
+      "summary": "Overrides the current setting for authentication frequency or for the maximum depth of certificate chain traversal.",
+      "subcommands": [
+        "always",
+        "depth",
+        "once"
+      ]
     },
     {
       "name": "SSL::c3d",
-      "summary": "Inserts a certificate extension to the C3D certificate, sets the C3D client certificate, or modifies forged certificate subject CN."
+      "summary": "Inserts a certificate extension to the C3D certificate, sets the C3D client certificate, or modifies forged certificate subject CN.",
+      "subcommands": [
+        "cert",
+        "extension",
+        "subject"
+      ]
     },
     {
       "name": "SSL::cert",
-      "summary": "Returns data about an X509 SSL certificate, or sets the certificate mode."
+      "summary": "Returns data about an X509 SSL certificate, or sets the certificate mode.",
+      "subcommands": [
+        "count",
+        "issuer",
+        "mode"
+      ],
+      "pure": true
     },
     {
       "name": "SSL::cert_constraint",
@@ -2930,7 +3154,14 @@
     },
     {
       "name": "SSL::cipher",
-      "summary": "Returns SSL cipher information."
+      "summary": "Returns SSL cipher information.",
+      "subcommands": [
+        "bits",
+        "clientlist",
+        "name",
+        "version"
+      ],
+      "pure": true
     },
     {
       "name": "SSL::clientrandom",
@@ -2950,11 +3181,18 @@
     },
     {
       "name": "SSL::extensions",
-      "summary": "Returns or manipulates SSL extensions."
+      "summary": "Returns or manipulates SSL extensions.",
+      "pure": true
     },
     {
       "name": "SSL::forward_proxy",
-      "summary": "Sets the SSL forward proxy bypass feature to bypass or intercept, or retrieves the forged certificate, or enables/disables/gets verified_handshake semantics, or mask/ignore certificate response_control for the SSL handshake or inserts a certificate extension to the certificate, or sets server certificate status."
+      "summary": "Sets the SSL forward proxy bypass feature to bypass or intercept, or retrieves the forged certificate, or enables/disables/gets verified_handshake semantics, or mask/ignore certificate response_control for the SSL handshake or inserts a certificate extension to the certificate, or sets server certificate status.",
+      "subcommands": [
+        "cert",
+        "extension",
+        "policy",
+        "verified_handshake"
+      ]
     },
     {
       "name": "SSL::handshake",
@@ -3022,11 +3260,19 @@
     },
     {
       "name": "SSL::sni",
-      "summary": "Returns Server Name Indication information."
+      "summary": "Returns Server Name Indication information.",
+      "subcommands": [
+        "name",
+        "required"
+      ]
     },
     {
       "name": "SSL::tls13_secret",
-      "summary": "Return data about various TLS 1.3 secrets."
+      "summary": "Return data about various TLS 1.3 secrets.",
+      "subcommands": [
+        "client",
+        "server"
+      ]
     },
     {
       "name": "SSL::unclean_shutdown",
@@ -3118,11 +3364,13 @@
     },
     {
       "name": "TCP::bandwidth",
-      "summary": "Returns the estimated bandwidth of the connection."
+      "summary": "Returns the estimated bandwidth of the connection.",
+      "pure": true
     },
     {
       "name": "TCP::client_port",
-      "summary": "Returns the client port of the TCP connection."
+      "summary": "Returns the client port of the TCP connection.",
+      "pure": true
     },
     {
       "name": "TCP::close",
@@ -3170,7 +3418,8 @@
     },
     {
       "name": "TCP::local_port",
-      "summary": "Returns the local port of a TCP connection."
+      "summary": "Returns the local port of a TCP connection.",
+      "pure": true
     },
     {
       "name": "TCP::lossfilter",
@@ -3210,7 +3459,12 @@
     },
     {
       "name": "TCP::option",
-      "summary": "Retrieves or changes TCP header options."
+      "summary": "Retrieves or changes TCP header options.",
+      "subcommands": [
+        "get",
+        "noset",
+        "set"
+      ]
     },
     {
       "name": "TCP::pacing",
@@ -3254,7 +3508,8 @@
     },
     {
       "name": "TCP::remote_port",
-      "summary": "Returns the remote TCP port number of a connection."
+      "summary": "Returns the remote TCP port number of a connection.",
+      "pure": true
     },
     {
       "name": "TCP::respond",
@@ -3274,7 +3529,8 @@
     },
     {
       "name": "TCP::rtt",
-      "summary": "Returns the smoothed round-trip time estimate for a TCP connection."
+      "summary": "Returns the smoothed round-trip time estimate for a TCP connection.",
+      "pure": true
     },
     {
       "name": "TCP::rttvar",
@@ -3286,7 +3542,8 @@
     },
     {
       "name": "TCP::server_port",
-      "summary": "Returns the remote TCP port/service number of the serverside TCP connection."
+      "summary": "Returns the remote TCP port/service number of the serverside TCP connection.",
+      "pure": true
     },
     {
       "name": "TCP::setmss",
@@ -3417,6 +3674,14 @@
       "summary": "Returns an encoded version of a given URI."
     },
     {
+      "name": "URI::encode_component",
+      "summary": "Percent-encodes a single URI component."
+    },
+    {
+      "name": "URI::escape",
+      "summary": "Percent-encodes a URI string (alias for URI::encode)."
+    },
+    {
       "name": "URI::host",
       "summary": "Returns the host portion of a given URI."
     },
@@ -3482,7 +3747,18 @@
     },
     {
       "name": "WS::frame",
-      "summary": "This command allows you to perform various operations on a Websocket frame, determine whether this frame indicates the end of the message, insert a new frame, drop the current frame, or manipulate the frame by prepending, appending or replacing the contents of the frame."
+      "summary": "This command allows you to perform various operations on a Websocket frame, determine whether this frame indicates the end of the message, insert a new frame, drop the current frame, or manipulate the frame by prepending, appending or replacing the contents of the frame.",
+      "subcommands": [
+        "append",
+        "drop",
+        "eom",
+        "insert",
+        "mask",
+        "orig_masked",
+        "prepend",
+        "replace",
+        "type"
+      ]
     },
     {
       "name": "WS::masking",
@@ -3510,11 +3786,24 @@
     },
     {
       "name": "WS::request",
-      "summary": "This command returns the values of the various Websocket header fields seen in a client request."
+      "summary": "This command returns the values of the various Websocket header fields seen in a client request.",
+      "subcommands": [
+        "extension",
+        "key",
+        "protocol",
+        "version"
+      ]
     },
     {
       "name": "WS::response",
-      "summary": "This command returns the values of the various Websocket header fields seen in a server response."
+      "summary": "This command returns the values of the various Websocket header fields seen in a server response.",
+      "subcommands": [
+        "extension",
+        "key",
+        "protocol",
+        "valid",
+        "version"
+      ]
     },
     {
       "name": "X509::cert_fields",
@@ -3669,16 +3958,76 @@
       "summary": "Returns the alias for active members of the specified pool (for BIG-IP version 4.X compatibility)."
     },
     {
+      "name": "add_endcap",
+      "summary": "Add endcap cells."
+    },
+    {
+      "name": "add_filler",
+      "summary": "Add filler cells."
+    },
+    {
+      "name": "add_list",
+      "summary": "Add signals to the list window (add list)."
+    },
+    {
+      "name": "add_log",
+      "summary": "Log signals for waveform viewing (add log)."
+    },
+    {
+      "name": "add_wave",
+      "summary": "Add signals to the wave window (add wave)."
+    },
+    {
+      "name": "add_well_tap",
+      "summary": "Add well-tap cells."
+    },
+    {
       "name": "after",
       "summary": "Execute iRules code after a set period of delay."
+    },
+    {
+      "name": "all_clocks",
+      "summary": "Return all defined clocks."
+    },
+    {
+      "name": "all_fanin",
+      "summary": "Return all fanin of a pin/port."
+    },
+    {
+      "name": "all_fanout",
+      "summary": "Return all fanout of a pin/port."
+    },
+    {
+      "name": "all_inputs",
+      "summary": "Return all input ports."
+    },
+    {
+      "name": "all_outputs",
+      "summary": "Return all output ports."
+    },
+    {
+      "name": "all_registers",
+      "summary": "Return all register cells."
+    },
+    {
+      "name": "analyze",
+      "summary": "Analyze HDL source files for syntax and semantic errors."
     },
     {
       "name": "append",
       "summary": "Append to variable"
     },
     {
+      "name": "append_to_collection",
+      "summary": "Append objects to a collection variable."
+    },
+    {
       "name": "apply",
       "summary": "Apply an anonymous function"
+    },
+    {
+      "name": "apply_bd_automation",
+      "summary": "Apply block design automation rules."
     },
     {
       "name": "array",
@@ -3742,6 +4091,18 @@
       "summary": "Encode binary data as a base64 string."
     },
     {
+      "name": "bc",
+      "summary": "Clear (disable) breakpoints."
+    },
+    {
+      "name": "bd",
+      "summary": "Delete breakpoints."
+    },
+    {
+      "name": "be",
+      "summary": "Enable breakpoints."
+    },
+    {
       "name": "bell",
       "summary": "Ring the display's bell."
     },
@@ -3764,12 +4125,36 @@
       "summary": "Arrange for X event bindings on windows or tags."
     },
     {
+      "name": "bl",
+      "summary": "List all breakpoints."
+    },
+    {
+      "name": "bp",
+      "summary": "Set a breakpoint."
+    },
+    {
       "name": "break",
       "summary": "Abort looping command"
     },
     {
       "name": "button",
       "summary": "Create and manipulate a button widget."
+    },
+    {
+      "name": "calibre",
+      "summary": "Run Calibre physical verification."
+    },
+    {
+      "name": "calibre_drc",
+      "summary": "Run Calibre DRC (design rule check)."
+    },
+    {
+      "name": "calibre_lvs",
+      "summary": "Run Calibre LVS (layout vs schematic)."
+    },
+    {
+      "name": "calibre_pex",
+      "summary": "Run Calibre PEX (parasitic extraction)."
     },
     {
       "name": "call",
@@ -3808,6 +4193,10 @@
       "summary": "Evaluate script and trap exceptional returns"
     },
     {
+      "name": "ccopt_design",
+      "summary": "Perform clock tree synthesis (CTS)."
+    },
+    {
       "name": "cd",
       "summary": "Change working directory"
     },
@@ -3839,8 +4228,32 @@
       ]
     },
     {
+      "name": "change",
+      "summary": "Change the value of a VHDL signal or variable."
+    },
+    {
+      "name": "characterize",
+      "summary": "Characterize a subdesign for context-dependent optimization."
+    },
+    {
       "name": "check",
       "summary": "Set the iRule validation level."
+    },
+    {
+      "name": "check_design",
+      "summary": "Check the design for issues."
+    },
+    {
+      "name": "check_library",
+      "summary": "Check libraries for consistency issues."
+    },
+    {
+      "name": "check_timing",
+      "summary": "Check for timing analysis issues."
+    },
+    {
+      "name": "check_timing_intent",
+      "summary": "Verify timing intent completeness."
     },
     {
       "name": "checkbutton",
@@ -3848,7 +4261,22 @@
     },
     {
       "name": "class",
-      "summary": "Advanced access of classes."
+      "summary": "Advanced access of classes.",
+      "subcommands": [
+        "anymore",
+        "donesearch",
+        "element",
+        "exists",
+        "get",
+        "lookup",
+        "match",
+        "names",
+        "nextelement",
+        "search",
+        "size",
+        "startsearch",
+        "type"
+      ]
     },
     {
       "name": "client_addr",
@@ -3885,12 +4313,32 @@
       ]
     },
     {
+      "name": "clock_opt",
+      "summary": "Perform clock tree synthesis and optimization."
+    },
+    {
       "name": "clone",
       "summary": "Causes the system to clone traffic to the specified pool, pool member or vlan regardless of monitor status."
     },
     {
       "name": "close",
-      "summary": "Closes an existing sideband connection."
+      "summary": "Close the connection to the current spawned process."
+    },
+    {
+      "name": "close_device",
+      "summary": "Close the active JTAG device."
+    },
+    {
+      "name": "close_hw_manager",
+      "summary": "Close the hardware manager."
+    },
+    {
+      "name": "close_project",
+      "summary": "Close the current project."
+    },
+    {
+      "name": "close_sim",
+      "summary": "Close the current simulation."
     },
     {
       "name": "cmdline::getopt",
@@ -3906,13 +4354,41 @@
       "pure": true
     },
     {
+      "name": "compile",
+      "summary": "Compile (synthesize) the current design."
+    },
+    {
+      "name": "compile_ultra",
+      "summary": "Compile with advanced optimizations."
+    },
+    {
       "name": "concat",
       "summary": "Join lists together",
       "pure": true
     },
     {
+      "name": "config_ip_cache",
+      "summary": "Configure the IP cache settings."
+    },
+    {
       "name": "connect",
       "summary": "Establishes a sideband connection."
+    },
+    {
+      "name": "connect_bd_intf_net",
+      "summary": "Connect block design interface nets."
+    },
+    {
+      "name": "connect_bd_net",
+      "summary": "Connect block design nets."
+    },
+    {
+      "name": "connect_hw_server",
+      "summary": "Connect to a hardware server."
+    },
+    {
+      "name": "connect_net",
+      "summary": "Connect a net to pins/ports."
     },
     {
       "name": "continue",
@@ -3923,12 +4399,88 @@
       "summary": "Create and produce values from coroutines"
     },
     {
+      "name": "coverage",
+      "summary": "Configure or report code coverage."
+    },
+    {
       "name": "cpu",
       "summary": "Returns the average TMM cpu load for the given interval."
     },
     {
       "name": "crc32",
       "summary": "Returns the crc32 checksum for the specified string."
+    },
+    {
+      "name": "create_analysis_view",
+      "summary": "Create an analysis view combining mode and corner."
+    },
+    {
+      "name": "create_bd_cell",
+      "summary": "Create a block design cell (IP instance)."
+    },
+    {
+      "name": "create_bd_design",
+      "summary": "Create a block design."
+    },
+    {
+      "name": "create_bd_intf_port",
+      "summary": "Create a block design interface port."
+    },
+    {
+      "name": "create_bd_port",
+      "summary": "Create a block design external port."
+    },
+    {
+      "name": "create_cell",
+      "summary": "Create a new cell instance."
+    },
+    {
+      "name": "create_clock",
+      "summary": "Create a clock object."
+    },
+    {
+      "name": "create_constraint_mode",
+      "summary": "Create a constraint mode for MMMC."
+    },
+    {
+      "name": "create_delay_corner",
+      "summary": "Create a delay corner for MMMC."
+    },
+    {
+      "name": "create_floorplan",
+      "summary": "Create a floorplan."
+    },
+    {
+      "name": "create_generated_clock",
+      "summary": "Create a generated clock object."
+    },
+    {
+      "name": "create_ip",
+      "summary": "Create an IP core instance."
+    },
+    {
+      "name": "create_net",
+      "summary": "Create a new net."
+    },
+    {
+      "name": "create_port",
+      "summary": "Create a new port in the design."
+    },
+    {
+      "name": "create_project",
+      "summary": "Create a new Vivado project."
+    },
+    {
+      "name": "create_route_rule",
+      "summary": "Create a non-default routing rule."
+    },
+    {
+      "name": "create_run",
+      "summary": "Create a new run."
+    },
+    {
+      "name": "create_timing_netlist",
+      "summary": "Create a timing netlist for analysis."
     },
     {
       "name": "csv::join",
@@ -3947,12 +4499,72 @@
       "summary": "Split a CSV-formatted line into a list of values."
     },
     {
+      "name": "current_design",
+      "summary": "Get or set the current design."
+    },
+    {
+      "name": "current_instance",
+      "summary": "Navigate into a hierarchical instance."
+    },
+    {
+      "name": "current_project",
+      "summary": "Get or set the current project."
+    },
+    {
+      "name": "dbGet",
+      "summary": "Get a design database object attribute (legacy)."
+    },
+    {
+      "name": "dbQuery",
+      "summary": "Query design database objects (legacy)."
+    },
+    {
+      "name": "dbSet",
+      "summary": "Set a design database object attribute (legacy)."
+    },
+    {
+      "name": "dbShape",
+      "summary": "Access shape data from the design database (legacy)."
+    },
+    {
+      "name": "debug",
+      "summary": "Enable or disable the Expect debugger."
+    },
+    {
       "name": "decode_uri",
       "summary": "Decodes the specified string using HTTP URI encoding."
     },
     {
+      "name": "define_proc_attributes",
+      "summary": "Define attributes for a procedure."
+    },
+    {
+      "name": "delete_timing_netlist",
+      "summary": "Delete the current timing netlist."
+    },
+    {
+      "name": "derive_clocks",
+      "summary": "Automatically derive clocks from the design."
+    },
+    {
+      "name": "derive_pll_clocks",
+      "summary": "Automatically derive PLL output clocks."
+    },
+    {
+      "name": "describe",
+      "summary": "Show type and value information for a signal."
+    },
+    {
       "name": "destroy",
       "summary": "Destroy one or more windows and all their descendants."
+    },
+    {
+      "name": "device_lock",
+      "summary": "Lock a JTAG device for exclusive access."
+    },
+    {
+      "name": "device_unlock",
+      "summary": "Unlock a previously locked JTAG device."
     },
     {
       "name": "dict",
@@ -3985,6 +4597,14 @@
       "summary": "Causes the current packet or connection to be dropped/discarded."
     },
     {
+      "name": "disconnect",
+      "summary": "Disconnect the process from the controlling terminal (daemonise)."
+    },
+    {
+      "name": "disconnect_net",
+      "summary": "Disconnect a net from pins/ports."
+    },
+    {
       "name": "dns::address",
       "summary": "Return the IP addresses from a DNS query result."
     },
@@ -4005,8 +4625,20 @@
       "summary": "Parses the specified string as a dotted domain name and returns the last portions of the domain name."
     },
     {
+      "name": "drivers",
+      "summary": "Find drivers of a signal."
+    },
+    {
       "name": "drop",
       "summary": "Causes the current packet or connection to be dropped/discarded."
+    },
+    {
+      "name": "edit_pin",
+      "summary": "Place or move pins."
+    },
+    {
+      "name": "elaborate",
+      "summary": "Elaborate the design hierarchy."
     },
     {
       "name": "encoding",
@@ -4042,11 +4674,68 @@
       "summary": "Enables or disables evaluation of the specified iRule event or all iRule events on this connection."
     },
     {
+      "name": "examine",
+      "summary": "Examine the value of a signal or variable."
+    },
+    {
       "name": "exec"
     },
     {
+      "name": "execute_flow",
+      "summary": "Execute a Quartus compilation flow."
+    },
+    {
+      "name": "execute_module",
+      "summary": "Execute a specific Quartus module."
+    },
+    {
       "name": "exit",
-      "summary": "End the application"
+      "summary": "Exit Expect, optionally running an onexit handler."
+    },
+    {
+      "name": "exp_continue",
+      "summary": "Continue matching within an expect body instead of returning."
+    },
+    {
+      "name": "exp_internal",
+      "summary": "Control Expect internal diagnostic output."
+    },
+    {
+      "name": "exp_pid",
+      "summary": "Return the process id of a spawned process.",
+      "pure": true
+    },
+    {
+      "name": "exp_version",
+      "summary": "Query or require a minimum Expect version."
+    },
+    {
+      "name": "expect",
+      "summary": "Wait for output matching a pattern from a spawned process."
+    },
+    {
+      "name": "expect_after",
+      "summary": "Define patterns tested after each expect command."
+    },
+    {
+      "name": "expect_background",
+      "summary": "Non-blocking expect: run pattern matching in the background."
+    },
+    {
+      "name": "expect_before",
+      "summary": "Define patterns tested before each expect command."
+    },
+    {
+      "name": "expect_tty",
+      "summary": "Expect input from the controlling terminal (tty)."
+    },
+    {
+      "name": "expect_user",
+      "summary": "Expect input from the user (standard input)."
+    },
+    {
+      "name": "export_assignments",
+      "summary": "Export assignments to the .qsf file."
     },
     {
       "name": "expr",
@@ -4133,6 +4822,14 @@
       "summary": "Write data to a file, replacing any existing content."
     },
     {
+      "name": "filter_collection",
+      "summary": "Filter a collection by an expression."
+    },
+    {
+      "name": "find",
+      "summary": "Find signals matching a pattern."
+    },
+    {
       "name": "findclass",
       "summary": "Searches a data group list for a member that starts with the specified string and returns the data-group member string."
     },
@@ -4167,8 +4864,32 @@
       "summary": "C-style loop with init, test, and next scripts."
     },
     {
+      "name": "force",
+      "summary": "Force a signal to a value."
+    },
+    {
       "name": "foreach",
       "summary": "Iterate over list elements with one or more loop variables."
+    },
+    {
+      "name": "foreach_in_collection",
+      "summary": "Iterate over objects in a collection."
+    },
+    {
+      "name": "fork",
+      "summary": "Fork the Expect process, returning 0 in the child and the child pid in the parent."
+    },
+    {
+      "name": "formal_analyze",
+      "summary": "Analyze formal verification results."
+    },
+    {
+      "name": "formal_compile",
+      "summary": "Compile design for formal verification."
+    },
+    {
+      "name": "formal_verify",
+      "summary": "Run formal verification."
     },
     {
       "name": "format",
@@ -4182,6 +4903,122 @@
     {
       "name": "frame",
       "summary": "Create and manipulate a frame widget."
+    },
+    {
+      "name": "generate_target",
+      "summary": "Generate IP output products."
+    },
+    {
+      "name": "get_all_assignments",
+      "summary": "Get all assignments matching criteria."
+    },
+    {
+      "name": "get_cells",
+      "summary": "Get cell objects matching a pattern."
+    },
+    {
+      "name": "get_clocks",
+      "summary": "Get clock objects matching a pattern."
+    },
+    {
+      "name": "get_db",
+      "summary": "Get a database attribute value."
+    },
+    {
+      "name": "get_global_assignment",
+      "summary": "Get a global project assignment value."
+    },
+    {
+      "name": "get_instance_assignment",
+      "summary": "Get an instance assignment value."
+    },
+    {
+      "name": "get_io_assignment",
+      "summary": "Get an I/O assignment value."
+    },
+    {
+      "name": "get_ips",
+      "summary": "Get IP core instances."
+    },
+    {
+      "name": "get_lib_cells",
+      "summary": "Get library cell objects matching a pattern."
+    },
+    {
+      "name": "get_lib_pins",
+      "summary": "Get library pin objects matching a pattern."
+    },
+    {
+      "name": "get_libs",
+      "summary": "Get library objects matching a pattern."
+    },
+    {
+      "name": "get_name_info",
+      "summary": "Get detailed information about a named signal."
+    },
+    {
+      "name": "get_names",
+      "summary": "Get signal names from the design."
+    },
+    {
+      "name": "get_nets",
+      "summary": "Get net objects matching a pattern."
+    },
+    {
+      "name": "get_number_of_columns",
+      "summary": "Get the number of columns in a report panel."
+    },
+    {
+      "name": "get_number_of_rows",
+      "summary": "Get the number of rows in a report panel."
+    },
+    {
+      "name": "get_object_name",
+      "summary": "Return the name of an object."
+    },
+    {
+      "name": "get_part_info",
+      "summary": "Get information about a specific FPGA part."
+    },
+    {
+      "name": "get_part_list",
+      "summary": "Get a list of available FPGA parts."
+    },
+    {
+      "name": "get_pins",
+      "summary": "Get pin objects matching a pattern."
+    },
+    {
+      "name": "get_ports",
+      "summary": "Get port objects matching a pattern."
+    },
+    {
+      "name": "get_projects",
+      "summary": "Get all open projects."
+    },
+    {
+      "name": "get_property",
+      "summary": "Get a property from a Vivado design object."
+    },
+    {
+      "name": "get_report_panel_data",
+      "summary": "Get data from a specific report panel cell."
+    },
+    {
+      "name": "get_report_panel_id",
+      "summary": "Get the ID of a report panel."
+    },
+    {
+      "name": "get_report_panel_row_index",
+      "summary": "Get the row index of matching data."
+    },
+    {
+      "name": "get_runs",
+      "summary": "Get run objects."
+    },
+    {
+      "name": "get_timing_paths",
+      "summary": "Get timing paths as a collection."
     },
     {
       "name": "getfield",
@@ -4228,6 +5065,14 @@
       ]
     },
     {
+      "name": "group",
+      "summary": "Group logic into a hierarchical block."
+    },
+    {
+      "name": "group_path",
+      "summary": "Group paths for multi-scenario analysis."
+    },
+    {
       "name": "history",
       "summary": "Manipulate the history list of previously executed commands.",
       "subcommands": [
@@ -4250,6 +5095,18 @@
       "name": "html::tagstrip",
       "summary": "Remove all HTML tags from a string.",
       "pure": true
+    },
+    {
+      "name": "html_encode",
+      "summary": "HTML-encode a string (alias for HTML::encode)."
+    },
+    {
+      "name": "html_escape",
+      "summary": "HTML-escape a string (alias for HTML::encode)."
+    },
+    {
+      "name": "htmlencode",
+      "summary": "HTML-encode a string (alias for HTML::encode)."
     },
     {
       "name": "htonl",
@@ -4462,6 +5319,10 @@
       "summary": "Returns an i-mode identifier string."
     },
     {
+      "name": "import_ip",
+      "summary": "Import an IP core into the project."
+    },
+    {
       "name": "incr",
       "summary": "Increment the value of a variable"
     },
@@ -4492,6 +5353,34 @@
         "tclversion",
         "vars"
       ]
+    },
+    {
+      "name": "init_design",
+      "summary": "Initialize the design for implementation."
+    },
+    {
+      "name": "init_signal_driver",
+      "summary": "Initialize signal driver for cross-hierarchy driving."
+    },
+    {
+      "name": "init_signal_spy",
+      "summary": "Initialize signal spy for cross-hierarchy access."
+    },
+    {
+      "name": "initialize_floorplan",
+      "summary": "Initialize the floorplan from constraints."
+    },
+    {
+      "name": "insert_clock_gating",
+      "summary": "Insert clock gating logic."
+    },
+    {
+      "name": "insert_dft",
+      "summary": "Insert DFT structures (scan chains)."
+    },
+    {
+      "name": "interact",
+      "summary": "Give control of the current process to the user for interactive use."
     },
     {
       "name": "interp",
@@ -4559,6 +5448,14 @@
       "summary": "Synonym for IP::ttl. Returns the TTL of the latest IP packet received."
     },
     {
+      "name": "ipx::add_bus_interface",
+      "summary": "Add a bus interface to a packaged IP."
+    },
+    {
+      "name": "ipx::package_project",
+      "summary": "Package a project as an IP core."
+    },
+    {
       "name": "join",
       "summary": "Create a string by joining together list elements",
       "pure": true
@@ -4592,9 +5489,25 @@
       "summary": "Sets the lasthop of an IP connection."
     },
     {
+      "name": "launch_runs",
+      "summary": "Launch synthesis or implementation runs."
+    },
+    {
+      "name": "launch_simulation",
+      "summary": "Launch a simulation."
+    },
+    {
       "name": "lindex",
       "summary": "Retrieve an element from a list",
       "pure": true
+    },
+    {
+      "name": "link",
+      "summary": "Link the current design to library cells."
+    },
+    {
+      "name": "link_design",
+      "summary": "Link the design to its library cells."
     },
     {
       "name": "link_qos",
@@ -4635,6 +5548,14 @@
       "summary": "Load machine code and initialize new commands"
     },
     {
+      "name": "load_package",
+      "summary": "Load a Quartus Tcl package."
+    },
+    {
+      "name": "load_report",
+      "summary": "Load a compilation report into memory."
+    },
+    {
       "name": "local_addr",
       "summary": "Deprecated: Use IP::local_addr instead."
     },
@@ -4645,6 +5566,14 @@
     {
       "name": "log",
       "summary": "Write a message to BIG-IP logging facilities."
+    },
+    {
+      "name": "log_file",
+      "summary": "Control logging of session output to a file."
+    },
+    {
+      "name": "log_user",
+      "summary": "Control whether send/expect output is logged to stdout."
     },
     {
       "name": "logger::init",
@@ -4697,6 +5626,18 @@
     {
       "name": "lsort",
       "pure": true
+    },
+    {
+      "name": "make_connection",
+      "summary": "Make a connection in an ECO change."
+    },
+    {
+      "name": "match",
+      "summary": "Match compare points between reference and implementation."
+    },
+    {
+      "name": "match_max",
+      "summary": "Set or query the maximum match buffer size."
     },
     {
       "name": "matchclass",
@@ -4905,6 +5846,10 @@
       "summary": "Converts the unsigned short integer from network byte order to host byte order."
     },
     {
+      "name": "onbreak",
+      "summary": "Define action when a breakpoint is hit."
+    },
+    {
       "name": "oo::class",
       "summary": "class of all classes"
     },
@@ -4929,6 +5874,42 @@
       "summary": "Open a file-based or command pipeline channel."
     },
     {
+      "name": "open_bd_design",
+      "summary": "Open a block design."
+    },
+    {
+      "name": "open_checkpoint",
+      "summary": "Open a design checkpoint for editing."
+    },
+    {
+      "name": "open_device",
+      "summary": "Open a device on the JTAG chain."
+    },
+    {
+      "name": "open_hw_manager",
+      "summary": "Open the hardware manager."
+    },
+    {
+      "name": "open_hw_target",
+      "summary": "Open a hardware target (JTAG chain)."
+    },
+    {
+      "name": "open_project",
+      "summary": "Open an existing Vivado project."
+    },
+    {
+      "name": "open_run",
+      "summary": "Open a completed run in memory."
+    },
+    {
+      "name": "opt_design",
+      "summary": "Run logic optimization after synthesis."
+    },
+    {
+      "name": "optimize_netlist",
+      "summary": "Perform incremental netlist optimization."
+    },
+    {
       "name": "option",
       "summary": "Add or retrieve window options to or from the option database.",
       "subcommands": [
@@ -4937,6 +5918,10 @@
         "get",
         "readfile"
       ]
+    },
+    {
+      "name": "overlay",
+      "summary": "Replace the Expect process with another program (exec-style)."
     },
     {
       "name": "pack",
@@ -4980,6 +5965,10 @@
       ]
     },
     {
+      "name": "parity",
+      "summary": "Set or query whether parity is retained on spawned process output."
+    },
+    {
       "name": "parray",
       "summary": "standard library of Tcl procedures"
     },
@@ -4994,6 +5983,10 @@
     {
       "name": "persist",
       "summary": "Sets the connection persistence type."
+    },
+    {
+      "name": "phys_opt_design",
+      "summary": "Run physical optimization after placement."
     },
     {
       "name": "pid",
@@ -5020,6 +6013,18 @@
         "info",
         "slaves"
       ]
+    },
+    {
+      "name": "place_design",
+      "summary": "Run placement."
+    },
+    {
+      "name": "place_opt",
+      "summary": "Perform placement optimization."
+    },
+    {
+      "name": "place_opt_design",
+      "summary": "Perform placement and optimization."
     },
     {
       "name": "platform::generic",
@@ -5049,6 +6054,10 @@
       "summary": "Select a load-balancing pool for the current flow."
     },
     {
+      "name": "printvar",
+      "summary": "Print the value of an application variable."
+    },
+    {
       "name": "priority",
       "summary": "Sets the order of execution for iRule events."
     },
@@ -5057,12 +6066,48 @@
       "summary": "Define an iRule proc."
     },
     {
+      "name": "program_hw_devices",
+      "summary": "Program FPGA devices."
+    },
+    {
+      "name": "project_close",
+      "summary": "Close the current Quartus project."
+    },
+    {
+      "name": "project_exists",
+      "summary": "Check whether a Quartus project exists."
+    },
+    {
+      "name": "project_new",
+      "summary": "Create a new Quartus project."
+    },
+    {
+      "name": "project_open",
+      "summary": "Open an existing Quartus project."
+    },
+    {
       "name": "puts",
       "summary": "Write text to a channel (stdout by default)."
     },
     {
       "name": "pwd",
       "summary": "Return current working directory"
+    },
+    {
+      "name": "qrun",
+      "summary": "Questa unified compile/optimize/simulate command."
+    },
+    {
+      "name": "qverilog",
+      "summary": "Questa one-step Verilog compile and simulate."
+    },
+    {
+      "name": "qvhdl",
+      "summary": "Questa one-step VHDL compile and simulate."
+    },
+    {
+      "name": "qwave",
+      "summary": "Questa waveform viewer command."
     },
     {
       "name": "radiobutton",
@@ -5081,8 +6126,84 @@
       "summary": "Selects the specified rate class to use when transmitting packets."
     },
     {
+      "name": "re_quote",
+      "summary": "Escape regex metacharacters in a string."
+    },
+    {
       "name": "read",
       "summary": "Read from a channel"
+    },
+    {
+      "name": "read_checkpoint",
+      "summary": "Read a design checkpoint (.dcp)."
+    },
+    {
+      "name": "read_db",
+      "summary": "Read a .db technology library."
+    },
+    {
+      "name": "read_ddc",
+      "summary": "Read a Synopsys DDC database."
+    },
+    {
+      "name": "read_def",
+      "summary": "Read a DEF file."
+    },
+    {
+      "name": "read_edif",
+      "summary": "Read an EDIF netlist file."
+    },
+    {
+      "name": "read_file",
+      "summary": "Read a design file into memory."
+    },
+    {
+      "name": "read_hdl",
+      "summary": "Read HDL source files (Verilog/SystemVerilog/VHDL)."
+    },
+    {
+      "name": "read_ip",
+      "summary": "Read IP core files (.xci)."
+    },
+    {
+      "name": "read_lef",
+      "summary": "Read a LEF technology file."
+    },
+    {
+      "name": "read_library",
+      "summary": "Read technology library files."
+    },
+    {
+      "name": "read_mmmc",
+      "summary": "Read Multi-Mode Multi-Corner (MMMC) configuration."
+    },
+    {
+      "name": "read_netlist",
+      "summary": "Read a gate-level netlist."
+    },
+    {
+      "name": "read_physical",
+      "summary": "Read physical data (LEF/DEF)."
+    },
+    {
+      "name": "read_sdc",
+      "summary": "Read SDC constraint file for TimeQuest."
+    },
+    {
+      "name": "read_verilog",
+      "summary": "Add Verilog source files to the project."
+    },
+    {
+      "name": "read_vhdl",
+      "summary": "Add VHDL source files to the project."
+    },
+    {
+      "name": "read_xdc",
+      "summary": "Read XDC timing constraint files."
+    },
+    {
+      "name": "readers",
+      "summary": "Find readers of a signal."
     },
     {
       "name": "recv",
@@ -5093,8 +6214,20 @@
       "summary": "Redirects an HTTP request to the specific location."
     },
     {
+      "name": "regex::quote",
+      "summary": "Escape regex metacharacters in a string."
+    },
+    {
+      "name": "regex_quote",
+      "summary": "Escape regex metacharacters in a string."
+    },
+    {
       "name": "regexp",
       "summary": "Match a regular expression against a string."
+    },
+    {
+      "name": "regexp::quote",
+      "summary": "Escape regex metacharacters in a string."
     },
     {
       "name": "regsub",
@@ -5113,6 +6246,10 @@
       "summary": "Sets up a related established connection."
     },
     {
+      "name": "release",
+      "summary": "Release a previously forced signal."
+    },
+    {
       "name": "remote_addr",
       "summary": "Deprecated: Use IP::remote_addr instead."
     },
@@ -5121,8 +6258,180 @@
       "summary": "Deprecated: use TCP::remote_port instead"
     },
     {
+      "name": "remove_all_assignments",
+      "summary": "Remove all assignments matching criteria."
+    },
+    {
+      "name": "remove_cell",
+      "summary": "Remove a cell from the design."
+    },
+    {
+      "name": "remove_connection",
+      "summary": "Remove a connection in an ECO change."
+    },
+    {
+      "name": "remove_design",
+      "summary": "Remove a design from memory."
+    },
+    {
+      "name": "remove_from_collection",
+      "summary": "Remove objects from a collection variable."
+    },
+    {
+      "name": "remove_nulls",
+      "summary": "Control whether null bytes are removed from spawned process output."
+    },
+    {
       "name": "rename",
       "summary": "Rename or delete a command"
+    },
+    {
+      "name": "rename_node",
+      "summary": "Rename a node in an ECO change."
+    },
+    {
+      "name": "report_analysis_coverage",
+      "summary": "Report timing analysis coverage."
+    },
+    {
+      "name": "report_area",
+      "summary": "Report design area."
+    },
+    {
+      "name": "report_bottleneck",
+      "summary": "Report timing bottleneck analysis."
+    },
+    {
+      "name": "report_cell",
+      "summary": "Report cell-level information."
+    },
+    {
+      "name": "report_clock",
+      "summary": "Report clock definitions."
+    },
+    {
+      "name": "report_clock_fmax_summary",
+      "summary": "Report maximum clock frequency summary."
+    },
+    {
+      "name": "report_clock_gating",
+      "summary": "Report clock gating statistics."
+    },
+    {
+      "name": "report_clock_networks",
+      "summary": "Report clock network topology."
+    },
+    {
+      "name": "report_clock_timing",
+      "summary": "Report clock timing characteristics."
+    },
+    {
+      "name": "report_clock_utilization",
+      "summary": "Report clock resource utilization."
+    },
+    {
+      "name": "report_congestion",
+      "summary": "Report routing congestion."
+    },
+    {
+      "name": "report_constraint",
+      "summary": "Report constraint violations."
+    },
+    {
+      "name": "report_datasheet",
+      "summary": "Report I/O timing datasheet."
+    },
+    {
+      "name": "report_delay_calculation",
+      "summary": "Report delay calculation details."
+    },
+    {
+      "name": "report_design",
+      "summary": "Report design summary."
+    },
+    {
+      "name": "report_design_analysis",
+      "summary": "Report design analysis metrics."
+    },
+    {
+      "name": "report_dp",
+      "summary": "Report datapath resources."
+    },
+    {
+      "name": "report_drc",
+      "summary": "Run and report design rule checks."
+    },
+    {
+      "name": "report_gates",
+      "summary": "Report gate-level statistics."
+    },
+    {
+      "name": "report_hierarchy",
+      "summary": "Report design hierarchy."
+    },
+    {
+      "name": "report_io",
+      "summary": "Report I/O port assignments."
+    },
+    {
+      "name": "report_methodology",
+      "summary": "Run and report methodology checks."
+    },
+    {
+      "name": "report_min_pulse_width",
+      "summary": "Report minimum pulse width violations."
+    },
+    {
+      "name": "report_net",
+      "summary": "Report net information."
+    },
+    {
+      "name": "report_power",
+      "summary": "Report power consumption."
+    },
+    {
+      "name": "report_qor",
+      "summary": "Report quality-of-results summary."
+    },
+    {
+      "name": "report_reference",
+      "summary": "Report library cell references."
+    },
+    {
+      "name": "report_route_status",
+      "summary": "Report routing status."
+    },
+    {
+      "name": "report_status",
+      "summary": "Report verification status."
+    },
+    {
+      "name": "report_timing",
+      "summary": "Report timing paths."
+    },
+    {
+      "name": "report_timing_summary",
+      "summary": "Report comprehensive timing summary."
+    },
+    {
+      "name": "report_ucp",
+      "summary": "Report unconstrained paths."
+    },
+    {
+      "name": "report_utilization",
+      "summary": "Report device utilization."
+    },
+    {
+      "name": "reset_run",
+      "summary": "Reset a run to its initial state."
+    },
+    {
+      "name": "restart",
+      "summary": "Restart the current simulation."
+    },
+    {
+      "name": "resume",
+      "summary": "Resume simulation from a breakpoint."
     },
     {
       "name": "return",
@@ -5131,6 +6440,22 @@
     {
       "name": "rmd160",
       "summary": "Returns the RIPEMD-160 message digest of the specified string."
+    },
+    {
+      "name": "route_auto",
+      "summary": "Perform automatic routing."
+    },
+    {
+      "name": "route_design",
+      "summary": "Run routing."
+    },
+    {
+      "name": "route_opt",
+      "summary": "Perform post-route optimization."
+    },
+    {
+      "name": "run",
+      "summary": "Advance simulation by specified time."
     },
     {
       "name": "safe::interpAddToAccessPath",
@@ -5165,12 +6490,40 @@
       "summary": "Set or query the synchronous-source mode for a safe interpreter."
     },
     {
+      "name": "save_bd_design",
+      "summary": "Save the current block design."
+    },
+    {
+      "name": "save_project_as",
+      "summary": "Save the project with a new name."
+    },
+    {
+      "name": "save_report",
+      "summary": "Save the compilation report."
+    },
+    {
       "name": "scale",
       "summary": "Create and manipulate a scale (slider) widget."
     },
     {
       "name": "scan",
       "summary": "Parse string using conversion specifiers in the style of sscanf"
+    },
+    {
+      "name": "script::help",
+      "summary": "Scripts can provide the ``script::help`` procedure for help text."
+    },
+    {
+      "name": "script::init",
+      "summary": "Called before ``script::run``, ``script::help``, and ``script::tabc``."
+    },
+    {
+      "name": "script::run",
+      "summary": "Invoked when the tmsh ``run cli script`` command is issued."
+    },
+    {
+      "name": "script::tabc",
+      "summary": "A script may provide ``script::tabc`` for tab completion."
     },
     {
       "name": "scrollbar",
@@ -5192,7 +6545,23 @@
     },
     {
       "name": "send",
-      "summary": "Sends data on an existing sideband connection."
+      "summary": "Send a string to the current spawned process."
+    },
+    {
+      "name": "send_error",
+      "summary": "Send a string to standard error."
+    },
+    {
+      "name": "send_log",
+      "summary": "Send a string to the log file only (not to the process or user)."
+    },
+    {
+      "name": "send_tty",
+      "summary": "Send a string to the controlling terminal (tty)."
+    },
+    {
+      "name": "send_user",
+      "summary": "Send a string to the user (standard output)."
     },
     {
       "name": "server_addr",
@@ -5208,11 +6577,193 @@
     },
     {
       "name": "session",
-      "summary": "Utilizes the persistence table to store arbitrary information based on the same keys as persistence."
+      "summary": "Utilizes the persistence table to store arbitrary information based on the same keys as persistence.",
+      "subcommands": [
+        "add",
+        "count",
+        "delete",
+        "lookup"
+      ]
     },
     {
       "name": "set",
       "summary": "Read or write a variable value."
+    },
+    {
+      "name": "set_analysis_view",
+      "summary": "Set active analysis views for setup and hold."
+    },
+    {
+      "name": "set_app_var",
+      "summary": "Set a Synopsys application variable."
+    },
+    {
+      "name": "set_case_analysis",
+      "summary": "Set constant case analysis on a port/pin."
+    },
+    {
+      "name": "set_clock_gating_style",
+      "summary": "Specify clock gating implementation style."
+    },
+    {
+      "name": "set_clock_groups",
+      "summary": "Set mutual exclusivity between clock groups."
+    },
+    {
+      "name": "set_clock_latency",
+      "summary": "Set clock network latency."
+    },
+    {
+      "name": "set_clock_transition",
+      "summary": "Set clock transition time."
+    },
+    {
+      "name": "set_clock_uncertainty",
+      "summary": "Set clock uncertainty (jitter)."
+    },
+    {
+      "name": "set_db",
+      "summary": "Set a database attribute value."
+    },
+    {
+      "name": "set_disable_timing",
+      "summary": "Disable timing arcs."
+    },
+    {
+      "name": "set_dont_touch",
+      "summary": "Prevent optimization of cells/nets."
+    },
+    {
+      "name": "set_dont_use",
+      "summary": "Prevent use of library cells."
+    },
+    {
+      "name": "set_driving_cell",
+      "summary": "Set the driving cell for input ports."
+    },
+    {
+      "name": "set_false_path",
+      "summary": "Define a false timing path."
+    },
+    {
+      "name": "set_global_assignment",
+      "summary": "Set a global project assignment."
+    },
+    {
+      "name": "set_host_options",
+      "summary": "Configure multi-core and host settings."
+    },
+    {
+      "name": "set_ideal_latency",
+      "summary": "Set ideal latency on a clock network."
+    },
+    {
+      "name": "set_ideal_network",
+      "summary": "Mark a network as ideal."
+    },
+    {
+      "name": "set_implementation_design",
+      "summary": "Set the implementation design for formal verification."
+    },
+    {
+      "name": "set_input_delay",
+      "summary": "Set input delay on ports."
+    },
+    {
+      "name": "set_input_transition",
+      "summary": "Set input transition time on ports."
+    },
+    {
+      "name": "set_instance_assignment",
+      "summary": "Set an assignment on a specific instance."
+    },
+    {
+      "name": "set_io_assignment",
+      "summary": "Set an I/O assignment."
+    },
+    {
+      "name": "set_load",
+      "summary": "Set capacitive load on nets or ports."
+    },
+    {
+      "name": "set_location_assignment",
+      "summary": "Set a location assignment for a pin."
+    },
+    {
+      "name": "set_max_area",
+      "summary": "Set maximum area constraint."
+    },
+    {
+      "name": "set_max_capacitance",
+      "summary": "Set maximum capacitance constraint."
+    },
+    {
+      "name": "set_max_delay",
+      "summary": "Set maximum delay constraint on a path."
+    },
+    {
+      "name": "set_max_fanout",
+      "summary": "Set maximum fanout constraint."
+    },
+    {
+      "name": "set_max_transition",
+      "summary": "Set maximum transition time constraint."
+    },
+    {
+      "name": "set_min_delay",
+      "summary": "Set minimum delay constraint on a path."
+    },
+    {
+      "name": "set_multicycle_path",
+      "summary": "Define a multicycle timing path."
+    },
+    {
+      "name": "set_operating_conditions",
+      "summary": "Set operating conditions for timing."
+    },
+    {
+      "name": "set_output_delay",
+      "summary": "Set output delay on ports."
+    },
+    {
+      "name": "set_parameter",
+      "summary": "Set a parameter on a design entity."
+    },
+    {
+      "name": "set_propagated_clock",
+      "summary": "Specify that clock latency should be propagated."
+    },
+    {
+      "name": "set_property",
+      "summary": "Set a property on a Vivado design object."
+    },
+    {
+      "name": "set_reference_design",
+      "summary": "Set the reference design for formal verification."
+    },
+    {
+      "name": "set_scan_configuration",
+      "summary": "Configure scan chain parameters."
+    },
+    {
+      "name": "set_size_only",
+      "summary": "Mark cells as size-only (no restructuring)."
+    },
+    {
+      "name": "set_technology",
+      "summary": "Set the target technology."
+    },
+    {
+      "name": "set_units",
+      "summary": "Set the unit specifications."
+    },
+    {
+      "name": "set_wire_load_mode",
+      "summary": "Set the wire load mode."
+    },
+    {
+      "name": "set_wire_load_model",
+      "summary": "Set the wire load model."
     },
     {
       "name": "sha1",
@@ -5243,6 +6794,26 @@
     {
       "name": "sharedvar",
       "summary": "Allows a variable to be accessed in both sides of a VIP-targetting-VIP."
+    },
+    {
+      "name": "signal_force",
+      "summary": "Force a signal value using SignalSpy."
+    },
+    {
+      "name": "signal_release",
+      "summary": "Release a SignalSpy-forced signal."
+    },
+    {
+      "name": "size_cell",
+      "summary": "Resize a cell to a different library cell."
+    },
+    {
+      "name": "sizeof_collection",
+      "summary": "Return the size of a collection."
+    },
+    {
+      "name": "sleep",
+      "summary": "Pause execution for the specified number of seconds."
     },
     {
       "name": "smtp::sendmessage",
@@ -5285,6 +6856,10 @@
       "summary": "Evaluate a file or resource as a Tcl script."
     },
     {
+      "name": "spawn",
+      "summary": "Start a new process and prepare it for interaction."
+    },
+    {
       "name": "spinbox",
       "summary": "Create and manipulate a spinbox widget."
     },
@@ -5292,6 +6867,14 @@
       "name": "split",
       "summary": "Split a string into a proper Tcl list",
       "pure": true
+    },
+    {
+      "name": "strace",
+      "summary": "Trace Expect internal statements at the given detail level."
+    },
+    {
+      "name": "stream_out",
+      "summary": "Stream out a GDSII file (legacy)."
     },
     {
       "name": "string",
@@ -5374,6 +6957,10 @@
       "summary": "Create and manipulate LIFO stack objects."
     },
     {
+      "name": "stty",
+      "summary": "Set or query terminal modes (raw, echo, rows, columns, etc.)."
+    },
+    {
       "name": "subst",
       "summary": "Perform backslash, command, and variable substitutions."
     },
@@ -5382,12 +6969,48 @@
       "summary": "Returns a substring from a string."
     },
     {
+      "name": "swap_cell",
+      "summary": "Swap a cell with a different library cell."
+    },
+    {
       "name": "switch",
       "summary": "Pattern-based branching on a subject string."
     },
     {
+      "name": "syn_generic",
+      "summary": "Perform technology-independent synthesis."
+    },
+    {
+      "name": "syn_map",
+      "summary": "Map the design to target technology."
+    },
+    {
+      "name": "syn_opt",
+      "summary": "Perform post-map optimization."
+    },
+    {
+      "name": "synth_design",
+      "summary": "Run synthesis."
+    },
+    {
+      "name": "system",
+      "summary": "Execute a command string via the system shell (/bin/sh -c)."
+    },
+    {
       "name": "table",
-      "summary": "Provides enhanced access to the session table."
+      "summary": "Provides enhanced access to the session table.",
+      "subcommands": [
+        "add",
+        "append",
+        "delete",
+        "incr",
+        "keys",
+        "lifetime",
+        "lookup",
+        "replace",
+        "set",
+        "timeout"
+      ]
     },
     {
       "name": "tailcall",
@@ -5564,6 +7187,14 @@
       "summary": "Time the execution of a script"
     },
     {
+      "name": "time_design",
+      "summary": "Perform timing analysis."
+    },
+    {
+      "name": "timestamp",
+      "summary": "Return the current time or format a timestamp."
+    },
+    {
       "name": "timing",
       "summary": "Enables or disables iRule timing statistics."
     },
@@ -5606,6 +7237,130 @@
       "summary": "Post a pop-up menu at the given screen coordinates."
     },
     {
+      "name": "tmsh::add_help",
+      "summary": "Displays context-sensitive help when the user types ``?``."
+    },
+    {
+      "name": "tmsh::add_tabc",
+      "summary": "Adds tab completion datasets."
+    },
+    {
+      "name": "tmsh::begin_transaction",
+      "summary": "Begins an update transaction."
+    },
+    {
+      "name": "tmsh::builtin_help",
+      "summary": "Presents the same results as typing ``?`` while entering a tmsh command."
+    },
+    {
+      "name": "tmsh::builtin_tabc",
+      "summary": "Displays the same tab completion results as a built-in command."
+    },
+    {
+      "name": "tmsh::cancel_transaction",
+      "summary": "Cancels all commands issued since the last ``tmsh::begin_transaction``."
+    },
+    {
+      "name": "tmsh::cd",
+      "summary": "Changes the current working directory."
+    },
+    {
+      "name": "tmsh::clear_screen",
+      "summary": "Clears the screen."
+    },
+    {
+      "name": "tmsh::commit_transaction",
+      "summary": "Runs all commands issued since the last ``tmsh::begin_transaction``."
+    },
+    {
+      "name": "tmsh::create",
+      "summary": "Mirrors the tmsh ``create`` command."
+    },
+    {
+      "name": "tmsh::delete",
+      "summary": "Mirrors the tmsh ``delete`` command."
+    },
+    {
+      "name": "tmsh::display",
+      "summary": "Provides access to the tmsh pager."
+    },
+    {
+      "name": "tmsh::display_threshold",
+      "summary": "Re-enables a display-threshold in the script."
+    },
+    {
+      "name": "tmsh::get_config",
+      "summary": "Returns a list of configuration items as Tcl objects."
+    },
+    {
+      "name": "tmsh::get_field_names",
+      "summary": "Returns a list of field names present in an object."
+    },
+    {
+      "name": "tmsh::get_field_value",
+      "summary": "Retrieves the value of the field name."
+    },
+    {
+      "name": "tmsh::get_name",
+      "summary": "Returns the object identifier associated with the object."
+    },
+    {
+      "name": "tmsh::get_status",
+      "summary": "Returns a list of config item statuses as Tcl objects."
+    },
+    {
+      "name": "tmsh::get_type",
+      "summary": "Returns the type identifier associated with the object."
+    },
+    {
+      "name": "tmsh::include",
+      "summary": "Runs the Tcl command ``eval`` on the specified script."
+    },
+    {
+      "name": "tmsh::list",
+      "summary": "Runs the ``list`` command using the specified arguments."
+    },
+    {
+      "name": "tmsh::log",
+      "summary": "Logs the specified message."
+    },
+    {
+      "name": "tmsh::log_dest",
+      "summary": "Specifies where the system sends events."
+    },
+    {
+      "name": "tmsh::log_level",
+      "summary": "Specifies the default severity level."
+    },
+    {
+      "name": "tmsh::modify",
+      "summary": "Runs the ``modify`` command using the specified arguments."
+    },
+    {
+      "name": "tmsh::pwd",
+      "summary": "Returns the current working directory."
+    },
+    {
+      "name": "tmsh::reset_stats",
+      "summary": "Runs the ``reset-stats`` command using the specified arguments."
+    },
+    {
+      "name": "tmsh::show",
+      "summary": "Runs the ``show`` command using the specified arguments."
+    },
+    {
+      "name": "tmsh::stateless",
+      "summary": "Modifies the behaviour of ``tmsh::create`` and ``tmsh::delete``."
+    },
+    {
+      "name": "tmsh::version",
+      "summary": "Returns the version number of the BIG-IP system as a Tcl string."
+    },
+    {
+      "name": "toggle",
+      "summary": "Report toggle coverage statistics."
+    },
+    {
       "name": "toplevel",
       "summary": "Create and manipulate a toplevel widget."
     },
@@ -5623,8 +7378,16 @@
       "summary": "Returns the current traffic group."
     },
     {
+      "name": "transcript",
+      "summary": "Control transcript file output."
+    },
+    {
       "name": "translate",
       "summary": "Enables, disables, or queries (as specified) destination address or port translation."
+    },
+    {
+      "name": "trap",
+      "summary": "Trap signals and execute a command when they occur."
     },
     {
       "name": "try",
@@ -5687,12 +7450,20 @@
       "summary": "Create and manipulate a themed hierarchical multicolumn data display widget."
     },
     {
+      "name": "ungroup",
+      "summary": "Dissolve hierarchy of specified cells."
+    },
+    {
       "name": "uniq_ordered_ip_list",
       "summary": "Return a deduplicated list of valid IP addresses from the given arguments, preserving the original order."
     },
     {
       "name": "uniq_sorted_ip_list",
       "summary": "Return a sorted, deduplicated list of valid IP addresses extracted from the given arguments."
+    },
+    {
+      "name": "uniquify",
+      "summary": "Make each instance of a subdesign unique."
     },
     {
       "name": "unknown",
@@ -5709,6 +7480,18 @@
     {
       "name": "update",
       "summary": "Process pending events and idle callbacks"
+    },
+    {
+      "name": "update_timing",
+      "summary": "Update incremental timing."
+    },
+    {
+      "name": "update_timing_netlist",
+      "summary": "Update the timing netlist after changes."
+    },
+    {
+      "name": "upgrade_ip",
+      "summary": "Upgrade IP cores to a newer version."
     },
     {
       "name": "uplevel",
@@ -5751,24 +7534,88 @@
       ]
     },
     {
+      "name": "validate_bd_design",
+      "summary": "Validate the block design."
+    },
+    {
       "name": "variable",
       "summary": "create and initialize a namespace variable"
     },
     {
+      "name": "vcom",
+      "summary": "Compile VHDL source files."
+    },
+    {
+      "name": "vcover",
+      "summary": "Process coverage data files."
+    },
+    {
+      "name": "vdel",
+      "summary": "Delete a compiled library or design unit."
+    },
+    {
+      "name": "verify",
+      "summary": "Run formal equivalence checking."
+    },
+    {
+      "name": "verify_connectivity",
+      "summary": "Verify design connectivity."
+    },
+    {
+      "name": "verify_drc",
+      "summary": "Run design rule checking."
+    },
+    {
+      "name": "verify_geometry",
+      "summary": "Verify design geometry (DRC)."
+    },
+    {
       "name": "virtual",
-      "summary": "Returns the name of the associated virtual server or selects another virtual server and an optional IP address and port to connect to."
+      "summary": "Create virtual signals or regions."
     },
     {
       "name": "vlan_id",
       "summary": "Returns the VLAN tag of the packet."
     },
     {
+      "name": "vlib",
+      "summary": "Create a design library directory."
+    },
+    {
+      "name": "vlog",
+      "summary": "Compile Verilog/SystemVerilog source files."
+    },
+    {
+      "name": "vmap",
+      "summary": "Map a logical library name to a directory."
+    },
+    {
+      "name": "vopt",
+      "summary": "Optimize a compiled design for simulation."
+    },
+    {
+      "name": "vsim",
+      "summary": "Load and start simulation."
+    },
+    {
       "name": "vwait",
       "summary": "Process events until a variable is written"
     },
     {
+      "name": "wait",
+      "summary": "Wait for a spawned process to terminate."
+    },
+    {
+      "name": "wait_on_run",
+      "summary": "Wait for a run to complete."
+    },
+    {
+      "name": "wave",
+      "summary": "Waveform window command."
+    },
+    {
       "name": "when",
-      "summary": "Declare an iRules event handler block."
+      "summary": "Define conditional actions during simulation."
     },
     {
       "name": "whereis",
@@ -5872,6 +7719,54 @@
       ]
     },
     {
+      "name": "write",
+      "summary": "Write design data to a file."
+    },
+    {
+      "name": "write_bitstream",
+      "summary": "Generate a bitstream file."
+    },
+    {
+      "name": "write_checkpoint",
+      "summary": "Save a design checkpoint (.dcp)."
+    },
+    {
+      "name": "write_def",
+      "summary": "Write a DEF file."
+    },
+    {
+      "name": "write_design",
+      "summary": "Write a design database."
+    },
+    {
+      "name": "write_do_lec",
+      "summary": "Write a Conformal LEC do file."
+    },
+    {
+      "name": "write_file",
+      "summary": "Write design to file in specified format."
+    },
+    {
+      "name": "write_gds",
+      "summary": "Write a GDSII stream file."
+    },
+    {
+      "name": "write_hdl",
+      "summary": "Write synthesized HDL netlist."
+    },
+    {
+      "name": "write_netlist",
+      "summary": "Write a gate-level netlist."
+    },
+    {
+      "name": "write_sdc",
+      "summary": "Write SDC constraints."
+    },
+    {
+      "name": "xelab",
+      "summary": "Elaborate a design for Xcelium simulation."
+    },
+    {
       "name": "xff_list",
       "summary": "Return a sorted, deduplicated list of valid non-loopback IP addresses from the X-Forwarded-For header."
     },
@@ -5882,6 +7777,14 @@
     {
       "name": "xff_uniq_sorted_ip_list",
       "summary": "Return a sorted, deduplicated list of valid non-loopback IP addresses from the X-Forwarded-For header."
+    },
+    {
+      "name": "xrun",
+      "summary": "Run Xcelium compilation and simulation in a single step."
+    },
+    {
+      "name": "xsim",
+      "summary": "Run Xcelium simulation on an elaborated snapshot."
     },
     {
       "name": "yaml::dict2yaml",
