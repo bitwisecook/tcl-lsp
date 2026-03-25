@@ -45,6 +45,46 @@ from .symbol_resolution import (
 log = logging.getLogger(__name__)
 
 
+def _format_docstring(doc: str) -> str:
+    """Format a proc docstring for hover display.
+
+    Recognises ``@param``, ``@return``/``@returns``, and ``@brief`` tags
+    and renders them as a readable markdown section.
+    """
+    description_lines: list[str] = []
+    param_lines: list[str] = []
+    return_lines: list[str] = []
+    for line in doc.splitlines():
+        stripped = line.strip()
+        low = stripped.lower()
+        if low.startswith("@param ") or low.startswith("@param\t"):
+            rest = stripped[7:].strip()
+            # Format: @param name - description  or  @param name description
+            parts = rest.split(None, 1)
+            if len(parts) == 2:
+                name = parts[0].rstrip(" -")
+                desc = parts[1].lstrip("- ")
+                param_lines.append(f"- **{name}** — {desc}")
+            elif parts:
+                param_lines.append(f"- **{parts[0]}**")
+        elif low.startswith(("@return ", "@return\t", "@returns ", "@returns\t")):
+            rest = stripped.split(None, 1)[1] if " " in stripped or "\t" in stripped else ""
+            return_lines.append(rest.lstrip("- "))
+        elif low.startswith("@brief ") or low.startswith("@brief\t"):
+            description_lines.insert(0, stripped[7:].strip())
+        else:
+            description_lines.append(stripped)
+    parts: list[str] = []
+    desc = "\n".join(description_lines).strip()
+    if desc:
+        parts.append(desc)
+    if param_lines:
+        parts.append("**Parameters:**\n" + "\n".join(param_lines))
+    if return_lines:
+        parts.append("**Returns:** " + " ".join(return_lines))
+    return "\n\n".join(parts)
+
+
 def _proc_hover_text(proc_def: ProcDef) -> str:
     """Format hover text for a proc definition."""
     params = []
@@ -57,7 +97,7 @@ def _proc_hover_text(proc_def: ProcDef) -> str:
     sig = f"proc {proc_def.qualified_name} {{{' '.join(params)}}} {{...}}"
     parts = [f"```tcl\n{sig}\n```"]
     if proc_def.doc:
-        parts.append(proc_def.doc)
+        parts.append(_format_docstring(proc_def.doc))
     return "\n\n".join(parts)
 
 

@@ -162,6 +162,33 @@ def _argv_with_word_spans(argv: list[Token], all_tokens: list[Token]) -> list[To
     return widen_argv_tokens_to_word_spans(argv, all_tokens)
 
 
+def _extract_body_docstring(body: str, body_token: Token | None = None) -> str:
+    """Extract the leading comment block from a proc body.
+
+    Returns the accumulated comment text (lines joined with newlines) if
+    the body starts with one or more comment lines, otherwise returns an
+    empty string.  Decoration lines consisting only of dots, dashes, or
+    hashes (e.g. ``# ....``) are stripped.
+    """
+    lines: list[str] = []
+    for raw_line in body.splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            # Blank line: stop if we already have content, skip if leading
+            if lines:
+                break
+            continue
+        if stripped.startswith("#"):
+            text = stripped.lstrip("#").strip()
+            # Skip pure decoration lines (dots, dashes, equals, hashes)
+            if text and all(ch in ".-=*~#" for ch in text):
+                continue
+            lines.append(text)
+        else:
+            break
+    return "\n".join(lines)
+
+
 def _parse_param_list(param_str: str) -> list[ParamDef]:
     """Parse a Tcl proc argument list string into ParamDef objects.
 
@@ -1663,15 +1690,23 @@ class Analyser:
                 )
             )
 
+        preceding_doc = self._last_comment
+        self._last_comment = ""
+
+        # Extract the first comment block from the proc body as a
+        # fallback docstring when there is no preceding comment.
+        body_doc = ""
+        if not preceding_doc and body:
+            body_doc = _extract_body_docstring(body, arg_tokens[2] if len(arg_tokens) > 2 else None)
+
         proc_def = ProcDef(
             name=proc_name,
             qualified_name=qualified,
             params=params,
             name_range=name_range,
             body_range=body_range,
-            doc=self._last_comment,
+            doc=preceding_doc or body_doc,
         )
-        self._last_comment = ""
 
         scope.procs[proc_name] = proc_def
         self.result.all_procs[qualified] = proc_def
@@ -1688,8 +1723,12 @@ class Analyser:
                 warn_if_unused=False,
             )
 
+        # Save/restore _last_comment around body analysis so that
+        # comments inside the body do not bleed to the next proc.
+        saved_comment = self._last_comment
         body_tok = arg_tokens[2] if len(arg_tokens) > 2 else None
         self._analyse_body(body, proc_scope, body_token=body_tok)
+        self._last_comment = saved_comment
 
         # Infer proc argument traits from body usage.
         if params and body:

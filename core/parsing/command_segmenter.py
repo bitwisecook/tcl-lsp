@@ -218,7 +218,11 @@ def _segment_raw(
             break
 
         if tok.type is TokenType.COMMENT:
-            last_comment = tok.text.lstrip("#").strip()
+            line = tok.text.lstrip("#").strip()
+            if last_comment is not None:
+                last_comment = last_comment + "\n" + line
+            else:
+                last_comment = line
             continue
         if tok.type is TokenType.SEP:
             prev_type = tok.type
