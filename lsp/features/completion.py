@@ -346,7 +346,14 @@ def get_completions(
                     label=name,
                     kind=types.CompletionItemKind.Function,
                     detail=sig_str,
-                    documentation=_format_docstring(proc_def.doc) if proc_def.doc else None,
+                    documentation=(
+                        types.MarkupContent(
+                            kind=types.MarkupKind.Markdown,
+                            value=_format_docstring(proc_def.doc),
+                        )
+                        if proc_def.doc
+                        else None
+                    ),
                     sort_text=f"0_{name}",
                 )
             )
@@ -476,7 +483,14 @@ def get_completions(
                     label=name,
                     kind=types.CompletionItemKind.Function,
                     detail=sig_str,
-                    documentation=_format_docstring(proc_def.doc) if proc_def.doc else None,
+                    documentation=(
+                        types.MarkupContent(
+                            kind=types.MarkupKind.Markdown,
+                            value=_format_docstring(proc_def.doc),
+                        )
+                        if proc_def.doc
+                        else None
+                    ),
                     sort_text=_proc_sort_text(
                         name,
                         qname=qname,

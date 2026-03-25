@@ -162,13 +162,14 @@ def _argv_with_word_spans(argv: list[Token], all_tokens: list[Token]) -> list[To
     return widen_argv_tokens_to_word_spans(argv, all_tokens)
 
 
-def _extract_body_docstring(body: str, body_token: Token | None = None) -> str:
+def _extract_body_docstring(body: str) -> str:
     """Extract the leading comment block from a proc body.
 
     Returns the accumulated comment text (lines joined with newlines) if
     the body starts with one or more comment lines, otherwise returns an
-    empty string.  Decoration lines consisting only of dots, dashes, or
-    hashes (e.g. ``# ....``) are stripped.
+    empty string.  Decoration lines consisting only of dots, dashes,
+    hashes, or similar characters (e.g. ``# ....``, ``########``) are
+    stripped.
     """
     lines: list[str] = []
     for raw_line in body.splitlines():
@@ -181,6 +182,9 @@ def _extract_body_docstring(body: str, body_token: Token | None = None) -> str:
         if stripped.startswith("#"):
             text = stripped.lstrip("#").strip()
             # Skip pure decoration lines (dots, dashes, equals, hashes)
+            # including hash-only lines that become empty after lstrip
+            if not text and set(stripped) <= {"#"}:
+                continue
             if text and all(ch in ".-=*~#" for ch in text):
                 continue
             lines.append(text)
@@ -1697,7 +1701,7 @@ class Analyser:
         # fallback docstring when there is no preceding comment.
         body_doc = ""
         if not preceding_doc and body:
-            body_doc = _extract_body_docstring(body, arg_tokens[2] if len(arg_tokens) > 2 else None)
+            body_doc = _extract_body_docstring(body)
 
         proc_def = ProcDef(
             name=proc_name,

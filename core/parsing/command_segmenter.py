@@ -249,6 +249,11 @@ def _segment_raw(
                     )
                 )
                 last_comment = None
+            elif tok.text.count("\n") > 1:
+                # Blank line (multiple newlines with no command between) —
+                # reset accumulated comments so that comment blocks separated
+                # by blank lines are not merged and attached to a later command.
+                last_comment = None
             argv = []
             texts = []
             single = []

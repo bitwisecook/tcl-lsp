@@ -64,7 +64,14 @@ def _proc_signature_help(
     sig_str = f"{proc_def.name} {' '.join(param_parts)}" if param_parts else proc_def.name
     sig = types.SignatureInformation(
         label=sig_str,
-        documentation=_format_docstring(proc_def.doc) if proc_def.doc else None,
+        documentation=(
+            types.MarkupContent(
+                kind=types.MarkupKind.Markdown,
+                value=_format_docstring(proc_def.doc),
+            )
+            if proc_def.doc
+            else None
+        ),
         parameters=params,
     )
     return types.SignatureHelp(
