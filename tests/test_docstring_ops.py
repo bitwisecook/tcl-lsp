@@ -2,19 +2,26 @@
 
 from __future__ import annotations
 
-from core.analysis.semantic_model import AnalysisResult, ParamDef, ProcDef
-from lsprotocol.types import Position, Range
-
 from ai.shared.docstring_ops import collect_proc_docs, insert_docstring_stubs
+from core.analysis.semantic_model import (
+    AnalysisResult,
+    ParamDef,
+    ProcDef,
+    Range,
+    SourcePosition,
+)
 
 
 def _make_proc(name: str, line: int, doc: str = "", params: list | None = None) -> ProcDef:
-    _body_range = Range(start=Position(line=0, character=0), end=Position(line=0, character=0))
+    _body_range = Range.zero()
     return ProcDef(
         name=name,
         qualified_name=f"::{name}",
         params=params or [],
-        name_range=Range(start=Position(line=line, character=0), end=Position(line=line, character=len(name))),
+        name_range=Range(
+            start=SourcePosition(line=line, character=0, offset=0),
+            end=SourcePosition(line=line, character=len(name), offset=len(name)),
+        ),
         body_range=_body_range,
         doc=doc,
     )
@@ -37,7 +44,9 @@ class TestCollectProcDocs:
     def test_params_included(self):
         result = AnalysisResult()
         result.all_procs["::f"] = _make_proc(
-            "f", 0, params=[ParamDef(name="x"), ParamDef(name="y", has_default=True, default_value="0")]
+            "f",
+            0,
+            params=[ParamDef(name="x"), ParamDef(name="y", has_default=True, default_value="0")],
         )
         docs = collect_proc_docs(result)
         assert docs[0]["params"] == [{"name": "x"}, {"name": "y", "default": "0"}]

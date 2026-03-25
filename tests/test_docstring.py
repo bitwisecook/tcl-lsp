@@ -262,14 +262,15 @@ class TestResolveTagStyle:
 
 class TestGenerateStubForProc:
     def _make_proc(self, name, params):
-        from lsprotocol.types import Position, Range
+        from core.analysis.semantic_model import ProcDef, Range
 
-        from core.analysis.semantic_model import ProcDef
-
-        r = Range(start=Position(line=0, character=0), end=Position(line=0, character=0))
+        r = Range.zero()
         return ProcDef(
-            name=name, qualified_name=f"::{name}", params=params,
-            name_range=r, body_range=r,
+            name=name,
+            qualified_name=f"::{name}",
+            params=params,
+            name_range=r,
+            body_range=r,
         )
 
     def test_basic(self):
@@ -283,10 +284,13 @@ class TestGenerateStubForProc:
     def test_with_defaults(self):
         from core.analysis.semantic_model import ParamDef
 
-        pd = self._make_proc("greet", [
-            ParamDef(name="name"),
-            ParamDef(name="greeting", has_default=True, default_value="Hello"),
-        ])
+        pd = self._make_proc(
+            "greet",
+            [
+                ParamDef(name="name"),
+                ParamDef(name="greeting", has_default=True, default_value="Hello"),
+            ],
+        )
         stub = generate_stub_for_proc(pd)
         assert "(default: Hello)" in stub
 
@@ -316,19 +320,23 @@ class TestParseDocstringEdgeCases:
 
 class TestFindProc:
     def _make_result(self):
-        from lsprotocol.types import Position, Range
+        from core.analysis.semantic_model import AnalysisResult, ProcDef, Range
 
-        from core.analysis.semantic_model import AnalysisResult, ProcDef
-
-        r = Range(start=Position(line=0, character=0), end=Position(line=0, character=0))
+        r = Range.zero()
         result = AnalysisResult()
         result.all_procs["::foo"] = ProcDef(
-            name="foo", qualified_name="::foo", params=[],
-            name_range=r, body_range=r,
+            name="foo",
+            qualified_name="::foo",
+            params=[],
+            name_range=r,
+            body_range=r,
         )
         result.all_procs["::ns::bar"] = ProcDef(
-            name="bar", qualified_name="::ns::bar", params=[],
-            name_range=r, body_range=r,
+            name="bar",
+            qualified_name="::ns::bar",
+            params=[],
+            name_range=r,
+            body_range=r,
         )
         return result
 
