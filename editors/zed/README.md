@@ -86,7 +86,7 @@ Add to your Zed `settings.json` to configure the language server:
             "rename": true,
             "signatureHelp": true,
             "workspaceSymbols": true,
-            "inlayHints": true,
+            "inlayHints": false,
             "callHierarchy": true,
             "documentLinks": true,
             "selectionRange": true

@@ -73,7 +73,7 @@
                                                 "rename": { "type": "boolean", "default": true },
                                                 "signatureHelp": { "type": "boolean", "default": true },
                                                 "workspaceSymbols": { "type": "boolean", "default": true },
-                                                "inlayHints": { "type": "boolean", "default": true },
+                                                "inlayHints": { "type": "boolean", "default": false },
                                                 "callHierarchy": { "type": "boolean", "default": true },
                                                 "documentLinks": { "type": "boolean", "default": true },
                                                 "selectionRange": { "type": "boolean", "default": true }

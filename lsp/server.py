@@ -90,7 +90,7 @@ class FeatureConfig:
     rename_enabled: bool = True
     signature_help_enabled: bool = True
     workspace_symbols_enabled: bool = True
-    inlay_hints_enabled: bool = True
+    inlay_hints_enabled: bool = False
     call_hierarchy_enabled: bool = True
     document_links_enabled: bool = True
     selection_range_enabled: bool = True

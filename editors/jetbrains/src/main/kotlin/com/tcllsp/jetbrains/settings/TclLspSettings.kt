@@ -34,7 +34,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureRename: Boolean = true
     var featureSignatureHelp: Boolean = true
     var featureWorkspaceSymbols: Boolean = true
-    var featureInlayHints: Boolean = true
+    var featureInlayHints: Boolean = false
     var featureCallHierarchy: Boolean = true
     var featureDocumentLinks: Boolean = true
     var featureSelectionRange: Boolean = true

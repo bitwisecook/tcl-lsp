@@ -10,8 +10,8 @@ lsp, all-editors
 
 ## How to use
 
-- **Editor**: Shown automatically as faded text inline with the code.
-- **Settings**: Toggle with `tclLsp.features.inlayHints`.
+- **Editor**: Shown as faded text inline with the code when enabled.
+- **Settings**: Toggle with `tclLsp.features.inlayHints` (default: off).
 
 ## Operational context
 
