@@ -37,7 +37,11 @@ _VAR_WRITE_COMMANDS: dict[str, int] = {
     "incr": 0,
     "append": 0,
     "lappend": 0,
+    "lset": 0,
     "unset": 0,
+    "gets": 1,
+    "global": 0,
+    "variable": 0,
     "dict set": 0,
     "dict unset": 0,
     "dict incr": 0,
@@ -154,6 +158,25 @@ def _scan_commands(
         # for {init} {cond} {next} body
         if cmd_name == "for":
             _handle_for(cmd_args, param_set, traits)
+
+        # scan string format ?varName ...? — args 2+ are written
+        if cmd_name == "scan":
+            _handle_variadic_var_write(cmd_args, param_set, traits, start=2)
+
+        # lassign list ?varName ...? — args 1+ are written
+        if cmd_name == "lassign":
+            _handle_variadic_var_write(cmd_args, param_set, traits, start=1)
+
+        # regexp ?switches? exp string ?matchVar ?subMatchVar ...??
+        if cmd_name == "regexp":
+            _handle_regexp_vars(cmd_args, param_set, traits)
+
+        # regsub ?switches? exp string subSpec ?varName?
+        if cmd_name == "regsub":
+            _handle_regsub_var(cmd_args, param_set, traits)
+
+        # switch — body args handled via registry, but dynamic
+        # pattern/body pairs also detected via _resolve_arg_roles.
 
         # Variable-writing commands where param is used as var name
         if cmd_name in _VAR_WRITE_COMMANDS:
@@ -378,3 +401,79 @@ def _handle_for(
     body_vn = _extract_var_name(args[3])
     if body_vn and body_vn in param_set:
         traits[body_vn].add(ProcArgTrait.BODY)
+
+
+def _handle_variadic_var_write(
+    args: list[str],
+    param_set: set[str],
+    traits: dict[str, set[ProcArgTrait]],
+    start: int,
+) -> None:
+    """Mark all args from *start* onwards as VAR_WRITE if they reference params.
+
+    Used for commands like ``scan`` (start=2) and ``lassign`` (start=1)
+    where trailing arguments are variable names written by the command.
+    """
+    for arg in args[start:]:
+        vn = _extract_var_name(arg)
+        if vn and vn in param_set:
+            traits[vn].add(ProcArgTrait.VAR_WRITE)
+
+
+# Options that regexp/regsub accept before the positional arguments.
+_REGEXP_SWITCHES = frozenset(
+    {
+        "-nocase",
+        "-expanded",
+        "-line",
+        "-linestop",
+        "-lineanchor",
+        "-all",
+        "-inline",
+        "-indices",
+        "--",
+    }
+)
+_REGEXP_VALUE_SWITCHES = frozenset({"-start"})
+
+
+def _skip_regexp_switches(args: list[str]) -> int:
+    """Return the index of the first positional argument after switches."""
+    i = 0
+    while i < len(args):
+        if args[i] == "--":
+            return i + 1
+        if args[i] in _REGEXP_SWITCHES:
+            i += 1
+        elif args[i] in _REGEXP_VALUE_SWITCHES:
+            i += 2
+        else:
+            break
+    return i
+
+
+def _handle_regexp_vars(
+    args: list[str],
+    param_set: set[str],
+    traits: dict[str, set[ProcArgTrait]],
+) -> None:
+    """Process ``regexp ?switches? exp string ?matchVar ?subMatchVar ...??``."""
+    pos = _skip_regexp_switches(args)
+    # positional: exp(pos), string(pos+1), matchVar(pos+2), subMatchVar(pos+3)...
+    var_start = pos + 2
+    _handle_variadic_var_write(args, param_set, traits, start=var_start)
+
+
+def _handle_regsub_var(
+    args: list[str],
+    param_set: set[str],
+    traits: dict[str, set[ProcArgTrait]],
+) -> None:
+    """Process ``regsub ?switches? exp string subSpec ?varName?``."""
+    pos = _skip_regexp_switches(args)
+    # positional: exp(pos), string(pos+1), subSpec(pos+2), varName(pos+3)
+    var_idx = pos + 3
+    if var_idx < len(args):
+        vn = _extract_var_name(args[var_idx])
+        if vn and vn in param_set:
+            traits[vn].add(ProcArgTrait.VAR_WRITE)
