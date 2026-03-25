@@ -245,6 +245,40 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             "sizeof_collection collection",
             Arity(1, 1),
         ),
+        CommandSpec(
+            name="append_to_collection",
+            dialects=_SDC_DIALECTS,
+            arg_roles={0: ArgRole.VAR_NAME},
+            hover=HoverSnippet(
+                summary="Append objects to a collection variable.",
+                synopsis=("append_to_collection collection ?-unique? objects",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="append_to_collection collection ?-unique? objects",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(2)),
+        ),
+        CommandSpec(
+            name="remove_from_collection",
+            dialects=_SDC_DIALECTS,
+            arg_roles={0: ArgRole.VAR_NAME},
+            hover=HoverSnippet(
+                summary="Remove objects from a collection variable.",
+                synopsis=("remove_from_collection collection objects",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="remove_from_collection collection objects",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(2)),
+        ),
         _sdc(
             "filter_collection",
             "Filter a collection by an expression.",

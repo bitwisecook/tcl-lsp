@@ -2569,6 +2569,12 @@ def _apply_all_settings(tcl_settings: dict) -> None:
     if not signatures_changed and not features_changed:
         return
 
+    if signatures_changed:
+        # Cancel any in-flight background deep-diagnostic tasks so they
+        # do not overwrite the fresh diagnostics we are about to publish
+        # with stale results computed under the old dialect/signatures.
+        diagnostic_scheduler.cancel_all()
+
     for uri, state in workspace_state.items():
         _publish_diagnostics_sync(
             uri,
