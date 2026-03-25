@@ -142,8 +142,6 @@ def _replace_generated_block(content: str, marker: str, replacement: str) -> str
 
     # Find the indentation of the begin marker
     line_start = content.rfind("\n", 0, begin_idx)
-    indent = content[line_start + 1 : begin_idx].replace(begin_tag, "")
-    # The indent is everything before the marker on its line
     indent = content[line_start + 1 : begin_idx]
 
     before = content[: begin_idx + len(begin_tag)]
