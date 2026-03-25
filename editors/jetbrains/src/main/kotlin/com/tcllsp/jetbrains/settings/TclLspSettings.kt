@@ -67,7 +67,51 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticE002: Boolean = true
     var diagnosticE003: Boolean = true
     var diagnosticE200: Boolean = true
+    var diagnosticW001: Boolean = true
+    var diagnosticW002: Boolean = true
+    var diagnosticW100: Boolean = true
+    var diagnosticW104: Boolean = true
+    var diagnosticW105: Boolean = true
+    var diagnosticW106: Boolean = true
+    var diagnosticW108: Boolean = true
+    var diagnosticW110: Boolean = true
+    var diagnosticW111: Boolean = true
+    var diagnosticW112: Boolean = true
+    var diagnosticW113: Boolean = true
+    var diagnosticW114: Boolean = true
+    var diagnosticW115: Boolean = true
+    var diagnosticW116: Boolean = true
+    var diagnosticW117: Boolean = true
+    var diagnosticW120: Boolean = true
+    var diagnosticW121: Boolean = true
+    var diagnosticW122: Boolean = true
+    var diagnosticW200: Boolean = true
+    var diagnosticW201: Boolean = true
+    var diagnosticW210: Boolean = true
+    var diagnosticW211: Boolean = true
+    var diagnosticW212: Boolean = true
+    var diagnosticW213: Boolean = true
+    var diagnosticW214: Boolean = true
+    var diagnosticW220: Boolean = true
+    var diagnosticW101: Boolean = true
+    var diagnosticW102: Boolean = true
+    var diagnosticW103: Boolean = true
+    var diagnosticW300: Boolean = true
+    var diagnosticW301: Boolean = true
+    var diagnosticW302: Boolean = true
+    var diagnosticW303: Boolean = true
+    var diagnosticW304: Boolean = true
+    var diagnosticW306: Boolean = true
+    var diagnosticW307: Boolean = true
+    var diagnosticW308: Boolean = true
+    var diagnosticW309: Boolean = true
     var diagnosticH300: Boolean = true
+    var diagnosticS100: Boolean = true
+    var diagnosticS101: Boolean = true
+    var diagnosticS102: Boolean = true
+    var diagnosticT100: Boolean = true
+    var diagnosticT101: Boolean = true
+    var diagnosticT102: Boolean = true
     var diagnosticIRULE1001: Boolean = true
     var diagnosticIRULE1002: Boolean = true
     var diagnosticIRULE1003: Boolean = true
@@ -82,6 +126,12 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticIRULE2002: Boolean = true
     var diagnosticIRULE2003: Boolean = true
     var diagnosticIRULE2101: Boolean = true
+    var diagnosticIRULE5001: Boolean = true
+    var diagnosticIRULE5002: Boolean = true
+    var diagnosticIRULE5004: Boolean = true
+    var diagnosticIRULE5005: Boolean = true
+    var diagnosticIRULE5006: Boolean = true
+    var diagnosticIRULE5007: Boolean = true
     var diagnosticIRULE3001: Boolean = true
     var diagnosticIRULE3002: Boolean = true
     var diagnosticIRULE3003: Boolean = true
@@ -92,52 +142,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticIRULE4003: Boolean = true
     var diagnosticIRULE4004: Boolean = true
     var diagnosticIRULE4005: Boolean = true
-    var diagnosticIRULE5001: Boolean = true
-    var diagnosticIRULE5002: Boolean = true
-    var diagnosticIRULE5004: Boolean = true
-    var diagnosticIRULE5005: Boolean = true
-    var diagnosticS100: Boolean = true
-    var diagnosticS101: Boolean = true
-    var diagnosticS102: Boolean = true
-    var diagnosticT100: Boolean = true
-    var diagnosticT101: Boolean = true
-    var diagnosticT102: Boolean = true
-    var diagnosticW001: Boolean = true
-    var diagnosticW002: Boolean = true
-    var diagnosticW100: Boolean = true
-    var diagnosticW101: Boolean = true
-    var diagnosticW102: Boolean = true
-    var diagnosticW103: Boolean = true
-    var diagnosticW104: Boolean = true
-    var diagnosticW105: Boolean = true
-    var diagnosticW106: Boolean = true
-    var diagnosticW108: Boolean = true
-    var diagnosticW110: Boolean = true
-    var diagnosticW111: Boolean = true
-    var diagnosticW112: Boolean = true
-    var diagnosticW113: Boolean = true
-    var diagnosticW114: Boolean = true
-    var diagnosticW115: Boolean = true
-    var diagnosticW120: Boolean = true
-    var diagnosticW121: Boolean = true
-    var diagnosticW122: Boolean = true
-    var diagnosticW200: Boolean = true
-    var diagnosticW201: Boolean = true
-    var diagnosticW210: Boolean = true
-    var diagnosticW211: Boolean = true
-    var diagnosticW212: Boolean = true
-    var diagnosticW213: Boolean = true
-    var diagnosticW214: Boolean = true
-    var diagnosticW220: Boolean = true
-    var diagnosticW300: Boolean = true
-    var diagnosticW301: Boolean = true
-    var diagnosticW302: Boolean = true
-    var diagnosticW303: Boolean = true
-    var diagnosticW304: Boolean = true
-    var diagnosticW306: Boolean = true
-    var diagnosticW307: Boolean = true
-    var diagnosticW308: Boolean = true
-    var diagnosticW309: Boolean = true
     // @generated:diagnostic-vars:end
 
     // Style
@@ -268,7 +272,51 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "E002" to diagnosticE002,
                 "E003" to diagnosticE003,
                 "E200" to diagnosticE200,
+                "W001" to diagnosticW001,
+                "W002" to diagnosticW002,
+                "W100" to diagnosticW100,
+                "W104" to diagnosticW104,
+                "W105" to diagnosticW105,
+                "W106" to diagnosticW106,
+                "W108" to diagnosticW108,
+                "W110" to diagnosticW110,
+                "W111" to diagnosticW111,
+                "W112" to diagnosticW112,
+                "W113" to diagnosticW113,
+                "W114" to diagnosticW114,
+                "W115" to diagnosticW115,
+                "W116" to diagnosticW116,
+                "W117" to diagnosticW117,
+                "W120" to diagnosticW120,
+                "W121" to diagnosticW121,
+                "W122" to diagnosticW122,
+                "W200" to diagnosticW200,
+                "W201" to diagnosticW201,
+                "W210" to diagnosticW210,
+                "W211" to diagnosticW211,
+                "W212" to diagnosticW212,
+                "W213" to diagnosticW213,
+                "W214" to diagnosticW214,
+                "W220" to diagnosticW220,
+                "W101" to diagnosticW101,
+                "W102" to diagnosticW102,
+                "W103" to diagnosticW103,
+                "W300" to diagnosticW300,
+                "W301" to diagnosticW301,
+                "W302" to diagnosticW302,
+                "W303" to diagnosticW303,
+                "W304" to diagnosticW304,
+                "W306" to diagnosticW306,
+                "W307" to diagnosticW307,
+                "W308" to diagnosticW308,
+                "W309" to diagnosticW309,
                 "H300" to diagnosticH300,
+                "S100" to diagnosticS100,
+                "S101" to diagnosticS101,
+                "S102" to diagnosticS102,
+                "T100" to diagnosticT100,
+                "T101" to diagnosticT101,
+                "T102" to diagnosticT102,
                 "IRULE1001" to diagnosticIRULE1001,
                 "IRULE1002" to diagnosticIRULE1002,
                 "IRULE1003" to diagnosticIRULE1003,
@@ -283,6 +331,12 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "IRULE2002" to diagnosticIRULE2002,
                 "IRULE2003" to diagnosticIRULE2003,
                 "IRULE2101" to diagnosticIRULE2101,
+                "IRULE5001" to diagnosticIRULE5001,
+                "IRULE5002" to diagnosticIRULE5002,
+                "IRULE5004" to diagnosticIRULE5004,
+                "IRULE5005" to diagnosticIRULE5005,
+                "IRULE5006" to diagnosticIRULE5006,
+                "IRULE5007" to diagnosticIRULE5007,
                 "IRULE3001" to diagnosticIRULE3001,
                 "IRULE3002" to diagnosticIRULE3002,
                 "IRULE3003" to diagnosticIRULE3003,
@@ -293,52 +347,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "IRULE4003" to diagnosticIRULE4003,
                 "IRULE4004" to diagnosticIRULE4004,
                 "IRULE4005" to diagnosticIRULE4005,
-                "IRULE5001" to diagnosticIRULE5001,
-                "IRULE5002" to diagnosticIRULE5002,
-                "IRULE5004" to diagnosticIRULE5004,
-                "IRULE5005" to diagnosticIRULE5005,
-                "S100" to diagnosticS100,
-                "S101" to diagnosticS101,
-                "S102" to diagnosticS102,
-                "T100" to diagnosticT100,
-                "T101" to diagnosticT101,
-                "T102" to diagnosticT102,
-                "W001" to diagnosticW001,
-                "W002" to diagnosticW002,
-                "W100" to diagnosticW100,
-                "W101" to diagnosticW101,
-                "W102" to diagnosticW102,
-                "W103" to diagnosticW103,
-                "W104" to diagnosticW104,
-                "W105" to diagnosticW105,
-                "W106" to diagnosticW106,
-                "W108" to diagnosticW108,
-                "W110" to diagnosticW110,
-                "W111" to diagnosticW111,
-                "W112" to diagnosticW112,
-                "W113" to diagnosticW113,
-                "W114" to diagnosticW114,
-                "W115" to diagnosticW115,
-                "W120" to diagnosticW120,
-                "W121" to diagnosticW121,
-                "W122" to diagnosticW122,
-                "W200" to diagnosticW200,
-                "W201" to diagnosticW201,
-                "W210" to diagnosticW210,
-                "W211" to diagnosticW211,
-                "W212" to diagnosticW212,
-                "W213" to diagnosticW213,
-                "W214" to diagnosticW214,
-                "W220" to diagnosticW220,
-                "W300" to diagnosticW300,
-                "W301" to diagnosticW301,
-                "W302" to diagnosticW302,
-                "W303" to diagnosticW303,
-                "W304" to diagnosticW304,
-                "W306" to diagnosticW306,
-                "W307" to diagnosticW307,
-                "W308" to diagnosticW308,
-                "W309" to diagnosticW309,
                 // @generated:diagnostic-map:end
             ).let { map ->
                 val patterns = diagnosticsGenericVariablePatterns

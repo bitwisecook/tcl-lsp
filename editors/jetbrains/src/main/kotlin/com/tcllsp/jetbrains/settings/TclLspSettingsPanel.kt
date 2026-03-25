@@ -67,7 +67,7 @@ class TclLspSettingsPanel {
     private val diagE003 = JBCheckBox("E003: Too many arguments for command")
     private val diagE200 = JBCheckBox("E200: Shimmer parse error")
 
-    // Diagnostics — Warnings
+    // Diagnostics — Style & Best Practice
     private val diagW001 = JBCheckBox("W001: Unknown subcommand")
     private val diagW002 = JBCheckBox("W002: Command is disabled in active dialect profile")
     private val diagW100 = JBCheckBox("W100: Unbraced expression argument")
@@ -79,8 +79,10 @@ class TclLspSettingsPanel {
     private val diagW111 = JBCheckBox("W111: Line exceeds maximum length (see tclLsp.style.lineLe...")
     private val diagW112 = JBCheckBox("W112: Trailing whitespace")
     private val diagW113 = JBCheckBox("W113: Procedure shadows built-in command")
-    private val diagW114 = JBCheckBox("W114: Redundant nested [expr]")
+    private val diagW114 = JBCheckBox("W114: Redundant nested [expr {...}]")
     private val diagW115 = JBCheckBox("W115: Backslash-newline in comment silently swallows the n...")
+    private val diagW116 = JBCheckBox("W116: Stub command shadows built-in command")
+    private val diagW117 = JBCheckBox("W117: Stub expression definition shadows built-in function...")
     private val diagW120 = JBCheckBox("W120: Command used without a corresponding package require")
     private val diagW121 = JBCheckBox("W121: Subnet mask has non-contiguous bits")
     private val diagW122 = JBCheckBox("W122: Mistyped IPv4 address (octet > 255 or leading zero)")
@@ -137,6 +139,12 @@ class TclLspSettingsPanel {
     private val diagIRULE2002 = JBCheckBox("IRULE2002: Deprecated iRules command")
     private val diagIRULE2003 = JBCheckBox("IRULE2003: Unsafe iRules command")
     private val diagIRULE2101 = JBCheckBox("IRULE2101: Heavy regexp in a high-frequency event")
+    private val diagIRULE5001 = JBCheckBox("IRULE5001: Ungated log in a high-frequency event")
+    private val diagIRULE5002 = JBCheckBox("IRULE5002: drop/reject/discard without event disable all or return")
+    private val diagIRULE5004 = JBCheckBox("IRULE5004: DNS::return without return")
+    private val diagIRULE5005 = JBCheckBox("IRULE5005: Direct proc invocation without call")
+    private val diagIRULE5006 = JBCheckBox("IRULE5006: Top-level-only command used inside a nested body")
+    private val diagIRULE5007 = JBCheckBox("IRULE5007: Event-context command used at top level outside a wh...")
     private val diagIRULE3001 = JBCheckBox("IRULE3001: Tainted data in HTTP response body")
     private val diagIRULE3002 = JBCheckBox("IRULE3002: Tainted data in HTTP header or cookie value")
     private val diagIRULE3003 = JBCheckBox("IRULE3003: Tainted data in log command")
@@ -147,10 +155,6 @@ class TclLspSettingsPanel {
     private val diagIRULE4003 = JBCheckBox("IRULE4003: Variable scoping concern across events")
     private val diagIRULE4004 = JBCheckBox("IRULE4004: Constant set in per-request event could be hoisted t...")
     private val diagIRULE4005 = JBCheckBox("IRULE4005: Potential race")
-    private val diagIRULE5001 = JBCheckBox("IRULE5001: Ungated log in a high-frequency event")
-    private val diagIRULE5002 = JBCheckBox("IRULE5002: drop/reject/discard without event disable all or return")
-    private val diagIRULE5004 = JBCheckBox("IRULE5004: DNS::return without return")
-    private val diagIRULE5005 = JBCheckBox("IRULE5005: Direct proc invocation without call")
     // @generated:diag-checkboxes:end
 
     // XC Diagnostics
@@ -272,12 +276,13 @@ class TclLspSettingsPanel {
         ).forEach { diagErrorPanel.add(it) }
         builder.addComponent(diagErrorPanel)
 
-        builder.addComponent(TitledSeparator("Diagnostics — Warnings"))
+        builder.addComponent(TitledSeparator("Diagnostics — Style & Best Practice"))
         val diagWarnPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
             diagW001, diagW002, diagW100, diagW104, diagW105, diagW106,
             diagW108, diagW110, diagW111, diagW112, diagW113, diagW114,
-            diagW115, diagW120, diagW121, diagW122, diagW200, diagW201,
+            diagW115, diagW116, diagW117, diagW120, diagW121, diagW122,
+            diagW200, diagW201,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -322,9 +327,9 @@ class TclLspSettingsPanel {
         listOf(
             diagIRULE1001, diagIRULE1002, diagIRULE1003, diagIRULE1004, diagIRULE1005, diagIRULE1006,
             diagIRULE1007, diagIRULE1008, diagIRULE1201, diagIRULE1202, diagIRULE2001, diagIRULE2002,
-            diagIRULE2003, diagIRULE2101, diagIRULE3001, diagIRULE3002, diagIRULE3003, diagIRULE3101,
+            diagIRULE2003, diagIRULE2101, diagIRULE5001, diagIRULE5002, diagIRULE5004, diagIRULE5005,
+            diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003, diagIRULE3101,
             diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003, diagIRULE4004, diagIRULE4005,
-            diagIRULE5001, diagIRULE5002, diagIRULE5004, diagIRULE5005,
         ).forEach { diagIRulePanel.add(it) }
         builder.addComponent(diagIRulePanel)
         // @generated:diag-ui:end
@@ -435,7 +440,51 @@ class TclLspSettingsPanel {
             diagE002.isSelected != s.diagnosticE002 ||
             diagE003.isSelected != s.diagnosticE003 ||
             diagE200.isSelected != s.diagnosticE200 ||
+            diagW001.isSelected != s.diagnosticW001 ||
+            diagW002.isSelected != s.diagnosticW002 ||
+            diagW100.isSelected != s.diagnosticW100 ||
+            diagW104.isSelected != s.diagnosticW104 ||
+            diagW105.isSelected != s.diagnosticW105 ||
+            diagW106.isSelected != s.diagnosticW106 ||
+            diagW108.isSelected != s.diagnosticW108 ||
+            diagW110.isSelected != s.diagnosticW110 ||
+            diagW111.isSelected != s.diagnosticW111 ||
+            diagW112.isSelected != s.diagnosticW112 ||
+            diagW113.isSelected != s.diagnosticW113 ||
+            diagW114.isSelected != s.diagnosticW114 ||
+            diagW115.isSelected != s.diagnosticW115 ||
+            diagW116.isSelected != s.diagnosticW116 ||
+            diagW117.isSelected != s.diagnosticW117 ||
+            diagW120.isSelected != s.diagnosticW120 ||
+            diagW121.isSelected != s.diagnosticW121 ||
+            diagW122.isSelected != s.diagnosticW122 ||
+            diagW200.isSelected != s.diagnosticW200 ||
+            diagW201.isSelected != s.diagnosticW201 ||
+            diagW210.isSelected != s.diagnosticW210 ||
+            diagW211.isSelected != s.diagnosticW211 ||
+            diagW212.isSelected != s.diagnosticW212 ||
+            diagW213.isSelected != s.diagnosticW213 ||
+            diagW214.isSelected != s.diagnosticW214 ||
+            diagW220.isSelected != s.diagnosticW220 ||
+            diagW101.isSelected != s.diagnosticW101 ||
+            diagW102.isSelected != s.diagnosticW102 ||
+            diagW103.isSelected != s.diagnosticW103 ||
+            diagW300.isSelected != s.diagnosticW300 ||
+            diagW301.isSelected != s.diagnosticW301 ||
+            diagW302.isSelected != s.diagnosticW302 ||
+            diagW303.isSelected != s.diagnosticW303 ||
+            diagW304.isSelected != s.diagnosticW304 ||
+            diagW306.isSelected != s.diagnosticW306 ||
+            diagW307.isSelected != s.diagnosticW307 ||
+            diagW308.isSelected != s.diagnosticW308 ||
+            diagW309.isSelected != s.diagnosticW309 ||
             diagH300.isSelected != s.diagnosticH300 ||
+            diagS100.isSelected != s.diagnosticS100 ||
+            diagS101.isSelected != s.diagnosticS101 ||
+            diagS102.isSelected != s.diagnosticS102 ||
+            diagT100.isSelected != s.diagnosticT100 ||
+            diagT101.isSelected != s.diagnosticT101 ||
+            diagT102.isSelected != s.diagnosticT102 ||
             diagIRULE1001.isSelected != s.diagnosticIRULE1001 ||
             diagIRULE1002.isSelected != s.diagnosticIRULE1002 ||
             diagIRULE1003.isSelected != s.diagnosticIRULE1003 ||
@@ -450,6 +499,12 @@ class TclLspSettingsPanel {
             diagIRULE2002.isSelected != s.diagnosticIRULE2002 ||
             diagIRULE2003.isSelected != s.diagnosticIRULE2003 ||
             diagIRULE2101.isSelected != s.diagnosticIRULE2101 ||
+            diagIRULE5001.isSelected != s.diagnosticIRULE5001 ||
+            diagIRULE5002.isSelected != s.diagnosticIRULE5002 ||
+            diagIRULE5004.isSelected != s.diagnosticIRULE5004 ||
+            diagIRULE5005.isSelected != s.diagnosticIRULE5005 ||
+            diagIRULE5006.isSelected != s.diagnosticIRULE5006 ||
+            diagIRULE5007.isSelected != s.diagnosticIRULE5007 ||
             diagIRULE3001.isSelected != s.diagnosticIRULE3001 ||
             diagIRULE3002.isSelected != s.diagnosticIRULE3002 ||
             diagIRULE3003.isSelected != s.diagnosticIRULE3003 ||
@@ -460,52 +515,6 @@ class TclLspSettingsPanel {
             diagIRULE4003.isSelected != s.diagnosticIRULE4003 ||
             diagIRULE4004.isSelected != s.diagnosticIRULE4004 ||
             diagIRULE4005.isSelected != s.diagnosticIRULE4005 ||
-            diagIRULE5001.isSelected != s.diagnosticIRULE5001 ||
-            diagIRULE5002.isSelected != s.diagnosticIRULE5002 ||
-            diagIRULE5004.isSelected != s.diagnosticIRULE5004 ||
-            diagIRULE5005.isSelected != s.diagnosticIRULE5005 ||
-            diagS100.isSelected != s.diagnosticS100 ||
-            diagS101.isSelected != s.diagnosticS101 ||
-            diagS102.isSelected != s.diagnosticS102 ||
-            diagT100.isSelected != s.diagnosticT100 ||
-            diagT101.isSelected != s.diagnosticT101 ||
-            diagT102.isSelected != s.diagnosticT102 ||
-            diagW001.isSelected != s.diagnosticW001 ||
-            diagW002.isSelected != s.diagnosticW002 ||
-            diagW100.isSelected != s.diagnosticW100 ||
-            diagW101.isSelected != s.diagnosticW101 ||
-            diagW102.isSelected != s.diagnosticW102 ||
-            diagW103.isSelected != s.diagnosticW103 ||
-            diagW104.isSelected != s.diagnosticW104 ||
-            diagW105.isSelected != s.diagnosticW105 ||
-            diagW106.isSelected != s.diagnosticW106 ||
-            diagW108.isSelected != s.diagnosticW108 ||
-            diagW110.isSelected != s.diagnosticW110 ||
-            diagW111.isSelected != s.diagnosticW111 ||
-            diagW112.isSelected != s.diagnosticW112 ||
-            diagW113.isSelected != s.diagnosticW113 ||
-            diagW114.isSelected != s.diagnosticW114 ||
-            diagW115.isSelected != s.diagnosticW115 ||
-            diagW120.isSelected != s.diagnosticW120 ||
-            diagW121.isSelected != s.diagnosticW121 ||
-            diagW122.isSelected != s.diagnosticW122 ||
-            diagW200.isSelected != s.diagnosticW200 ||
-            diagW201.isSelected != s.diagnosticW201 ||
-            diagW210.isSelected != s.diagnosticW210 ||
-            diagW211.isSelected != s.diagnosticW211 ||
-            diagW212.isSelected != s.diagnosticW212 ||
-            diagW213.isSelected != s.diagnosticW213 ||
-            diagW214.isSelected != s.diagnosticW214 ||
-            diagW220.isSelected != s.diagnosticW220 ||
-            diagW300.isSelected != s.diagnosticW300 ||
-            diagW301.isSelected != s.diagnosticW301 ||
-            diagW302.isSelected != s.diagnosticW302 ||
-            diagW303.isSelected != s.diagnosticW303 ||
-            diagW304.isSelected != s.diagnosticW304 ||
-            diagW306.isSelected != s.diagnosticW306 ||
-            diagW307.isSelected != s.diagnosticW307 ||
-            diagW308.isSelected != s.diagnosticW308 ||
-            diagW309.isSelected != s.diagnosticW309 ||
             // @generated:diag-dirty:end
             // XC Diagnostics
             xcDiagnosticsEnabled.isSelected != s.xcDiagnosticsEnabled ||
@@ -607,7 +616,51 @@ class TclLspSettingsPanel {
         s.diagnosticE002 = diagE002.isSelected
         s.diagnosticE003 = diagE003.isSelected
         s.diagnosticE200 = diagE200.isSelected
+        s.diagnosticW001 = diagW001.isSelected
+        s.diagnosticW002 = diagW002.isSelected
+        s.diagnosticW100 = diagW100.isSelected
+        s.diagnosticW104 = diagW104.isSelected
+        s.diagnosticW105 = diagW105.isSelected
+        s.diagnosticW106 = diagW106.isSelected
+        s.diagnosticW108 = diagW108.isSelected
+        s.diagnosticW110 = diagW110.isSelected
+        s.diagnosticW111 = diagW111.isSelected
+        s.diagnosticW112 = diagW112.isSelected
+        s.diagnosticW113 = diagW113.isSelected
+        s.diagnosticW114 = diagW114.isSelected
+        s.diagnosticW115 = diagW115.isSelected
+        s.diagnosticW116 = diagW116.isSelected
+        s.diagnosticW117 = diagW117.isSelected
+        s.diagnosticW120 = diagW120.isSelected
+        s.diagnosticW121 = diagW121.isSelected
+        s.diagnosticW122 = diagW122.isSelected
+        s.diagnosticW200 = diagW200.isSelected
+        s.diagnosticW201 = diagW201.isSelected
+        s.diagnosticW210 = diagW210.isSelected
+        s.diagnosticW211 = diagW211.isSelected
+        s.diagnosticW212 = diagW212.isSelected
+        s.diagnosticW213 = diagW213.isSelected
+        s.diagnosticW214 = diagW214.isSelected
+        s.diagnosticW220 = diagW220.isSelected
+        s.diagnosticW101 = diagW101.isSelected
+        s.diagnosticW102 = diagW102.isSelected
+        s.diagnosticW103 = diagW103.isSelected
+        s.diagnosticW300 = diagW300.isSelected
+        s.diagnosticW301 = diagW301.isSelected
+        s.diagnosticW302 = diagW302.isSelected
+        s.diagnosticW303 = diagW303.isSelected
+        s.diagnosticW304 = diagW304.isSelected
+        s.diagnosticW306 = diagW306.isSelected
+        s.diagnosticW307 = diagW307.isSelected
+        s.diagnosticW308 = diagW308.isSelected
+        s.diagnosticW309 = diagW309.isSelected
         s.diagnosticH300 = diagH300.isSelected
+        s.diagnosticS100 = diagS100.isSelected
+        s.diagnosticS101 = diagS101.isSelected
+        s.diagnosticS102 = diagS102.isSelected
+        s.diagnosticT100 = diagT100.isSelected
+        s.diagnosticT101 = diagT101.isSelected
+        s.diagnosticT102 = diagT102.isSelected
         s.diagnosticIRULE1001 = diagIRULE1001.isSelected
         s.diagnosticIRULE1002 = diagIRULE1002.isSelected
         s.diagnosticIRULE1003 = diagIRULE1003.isSelected
@@ -622,6 +675,12 @@ class TclLspSettingsPanel {
         s.diagnosticIRULE2002 = diagIRULE2002.isSelected
         s.diagnosticIRULE2003 = diagIRULE2003.isSelected
         s.diagnosticIRULE2101 = diagIRULE2101.isSelected
+        s.diagnosticIRULE5001 = diagIRULE5001.isSelected
+        s.diagnosticIRULE5002 = diagIRULE5002.isSelected
+        s.diagnosticIRULE5004 = diagIRULE5004.isSelected
+        s.diagnosticIRULE5005 = diagIRULE5005.isSelected
+        s.diagnosticIRULE5006 = diagIRULE5006.isSelected
+        s.diagnosticIRULE5007 = diagIRULE5007.isSelected
         s.diagnosticIRULE3001 = diagIRULE3001.isSelected
         s.diagnosticIRULE3002 = diagIRULE3002.isSelected
         s.diagnosticIRULE3003 = diagIRULE3003.isSelected
@@ -632,52 +691,6 @@ class TclLspSettingsPanel {
         s.diagnosticIRULE4003 = diagIRULE4003.isSelected
         s.diagnosticIRULE4004 = diagIRULE4004.isSelected
         s.diagnosticIRULE4005 = diagIRULE4005.isSelected
-        s.diagnosticIRULE5001 = diagIRULE5001.isSelected
-        s.diagnosticIRULE5002 = diagIRULE5002.isSelected
-        s.diagnosticIRULE5004 = diagIRULE5004.isSelected
-        s.diagnosticIRULE5005 = diagIRULE5005.isSelected
-        s.diagnosticS100 = diagS100.isSelected
-        s.diagnosticS101 = diagS101.isSelected
-        s.diagnosticS102 = diagS102.isSelected
-        s.diagnosticT100 = diagT100.isSelected
-        s.diagnosticT101 = diagT101.isSelected
-        s.diagnosticT102 = diagT102.isSelected
-        s.diagnosticW001 = diagW001.isSelected
-        s.diagnosticW002 = diagW002.isSelected
-        s.diagnosticW100 = diagW100.isSelected
-        s.diagnosticW101 = diagW101.isSelected
-        s.diagnosticW102 = diagW102.isSelected
-        s.diagnosticW103 = diagW103.isSelected
-        s.diagnosticW104 = diagW104.isSelected
-        s.diagnosticW105 = diagW105.isSelected
-        s.diagnosticW106 = diagW106.isSelected
-        s.diagnosticW108 = diagW108.isSelected
-        s.diagnosticW110 = diagW110.isSelected
-        s.diagnosticW111 = diagW111.isSelected
-        s.diagnosticW112 = diagW112.isSelected
-        s.diagnosticW113 = diagW113.isSelected
-        s.diagnosticW114 = diagW114.isSelected
-        s.diagnosticW115 = diagW115.isSelected
-        s.diagnosticW120 = diagW120.isSelected
-        s.diagnosticW121 = diagW121.isSelected
-        s.diagnosticW122 = diagW122.isSelected
-        s.diagnosticW200 = diagW200.isSelected
-        s.diagnosticW201 = diagW201.isSelected
-        s.diagnosticW210 = diagW210.isSelected
-        s.diagnosticW211 = diagW211.isSelected
-        s.diagnosticW212 = diagW212.isSelected
-        s.diagnosticW213 = diagW213.isSelected
-        s.diagnosticW214 = diagW214.isSelected
-        s.diagnosticW220 = diagW220.isSelected
-        s.diagnosticW300 = diagW300.isSelected
-        s.diagnosticW301 = diagW301.isSelected
-        s.diagnosticW302 = diagW302.isSelected
-        s.diagnosticW303 = diagW303.isSelected
-        s.diagnosticW304 = diagW304.isSelected
-        s.diagnosticW306 = diagW306.isSelected
-        s.diagnosticW307 = diagW307.isSelected
-        s.diagnosticW308 = diagW308.isSelected
-        s.diagnosticW309 = diagW309.isSelected
         // @generated:diag-apply:end
         s.xcDiagnosticsEnabled = xcDiagnosticsEnabled.isSelected
 
@@ -776,7 +789,51 @@ class TclLspSettingsPanel {
         diagE002.isSelected = s.diagnosticE002
         diagE003.isSelected = s.diagnosticE003
         diagE200.isSelected = s.diagnosticE200
+        diagW001.isSelected = s.diagnosticW001
+        diagW002.isSelected = s.diagnosticW002
+        diagW100.isSelected = s.diagnosticW100
+        diagW104.isSelected = s.diagnosticW104
+        diagW105.isSelected = s.diagnosticW105
+        diagW106.isSelected = s.diagnosticW106
+        diagW108.isSelected = s.diagnosticW108
+        diagW110.isSelected = s.diagnosticW110
+        diagW111.isSelected = s.diagnosticW111
+        diagW112.isSelected = s.diagnosticW112
+        diagW113.isSelected = s.diagnosticW113
+        diagW114.isSelected = s.diagnosticW114
+        diagW115.isSelected = s.diagnosticW115
+        diagW116.isSelected = s.diagnosticW116
+        diagW117.isSelected = s.diagnosticW117
+        diagW120.isSelected = s.diagnosticW120
+        diagW121.isSelected = s.diagnosticW121
+        diagW122.isSelected = s.diagnosticW122
+        diagW200.isSelected = s.diagnosticW200
+        diagW201.isSelected = s.diagnosticW201
+        diagW210.isSelected = s.diagnosticW210
+        diagW211.isSelected = s.diagnosticW211
+        diagW212.isSelected = s.diagnosticW212
+        diagW213.isSelected = s.diagnosticW213
+        diagW214.isSelected = s.diagnosticW214
+        diagW220.isSelected = s.diagnosticW220
+        diagW101.isSelected = s.diagnosticW101
+        diagW102.isSelected = s.diagnosticW102
+        diagW103.isSelected = s.diagnosticW103
+        diagW300.isSelected = s.diagnosticW300
+        diagW301.isSelected = s.diagnosticW301
+        diagW302.isSelected = s.diagnosticW302
+        diagW303.isSelected = s.diagnosticW303
+        diagW304.isSelected = s.diagnosticW304
+        diagW306.isSelected = s.diagnosticW306
+        diagW307.isSelected = s.diagnosticW307
+        diagW308.isSelected = s.diagnosticW308
+        diagW309.isSelected = s.diagnosticW309
         diagH300.isSelected = s.diagnosticH300
+        diagS100.isSelected = s.diagnosticS100
+        diagS101.isSelected = s.diagnosticS101
+        diagS102.isSelected = s.diagnosticS102
+        diagT100.isSelected = s.diagnosticT100
+        diagT101.isSelected = s.diagnosticT101
+        diagT102.isSelected = s.diagnosticT102
         diagIRULE1001.isSelected = s.diagnosticIRULE1001
         diagIRULE1002.isSelected = s.diagnosticIRULE1002
         diagIRULE1003.isSelected = s.diagnosticIRULE1003
@@ -791,6 +848,12 @@ class TclLspSettingsPanel {
         diagIRULE2002.isSelected = s.diagnosticIRULE2002
         diagIRULE2003.isSelected = s.diagnosticIRULE2003
         diagIRULE2101.isSelected = s.diagnosticIRULE2101
+        diagIRULE5001.isSelected = s.diagnosticIRULE5001
+        diagIRULE5002.isSelected = s.diagnosticIRULE5002
+        diagIRULE5004.isSelected = s.diagnosticIRULE5004
+        diagIRULE5005.isSelected = s.diagnosticIRULE5005
+        diagIRULE5006.isSelected = s.diagnosticIRULE5006
+        diagIRULE5007.isSelected = s.diagnosticIRULE5007
         diagIRULE3001.isSelected = s.diagnosticIRULE3001
         diagIRULE3002.isSelected = s.diagnosticIRULE3002
         diagIRULE3003.isSelected = s.diagnosticIRULE3003
@@ -801,52 +864,6 @@ class TclLspSettingsPanel {
         diagIRULE4003.isSelected = s.diagnosticIRULE4003
         diagIRULE4004.isSelected = s.diagnosticIRULE4004
         diagIRULE4005.isSelected = s.diagnosticIRULE4005
-        diagIRULE5001.isSelected = s.diagnosticIRULE5001
-        diagIRULE5002.isSelected = s.diagnosticIRULE5002
-        diagIRULE5004.isSelected = s.diagnosticIRULE5004
-        diagIRULE5005.isSelected = s.diagnosticIRULE5005
-        diagS100.isSelected = s.diagnosticS100
-        diagS101.isSelected = s.diagnosticS101
-        diagS102.isSelected = s.diagnosticS102
-        diagT100.isSelected = s.diagnosticT100
-        diagT101.isSelected = s.diagnosticT101
-        diagT102.isSelected = s.diagnosticT102
-        diagW001.isSelected = s.diagnosticW001
-        diagW002.isSelected = s.diagnosticW002
-        diagW100.isSelected = s.diagnosticW100
-        diagW101.isSelected = s.diagnosticW101
-        diagW102.isSelected = s.diagnosticW102
-        diagW103.isSelected = s.diagnosticW103
-        diagW104.isSelected = s.diagnosticW104
-        diagW105.isSelected = s.diagnosticW105
-        diagW106.isSelected = s.diagnosticW106
-        diagW108.isSelected = s.diagnosticW108
-        diagW110.isSelected = s.diagnosticW110
-        diagW111.isSelected = s.diagnosticW111
-        diagW112.isSelected = s.diagnosticW112
-        diagW113.isSelected = s.diagnosticW113
-        diagW114.isSelected = s.diagnosticW114
-        diagW115.isSelected = s.diagnosticW115
-        diagW120.isSelected = s.diagnosticW120
-        diagW121.isSelected = s.diagnosticW121
-        diagW122.isSelected = s.diagnosticW122
-        diagW200.isSelected = s.diagnosticW200
-        diagW201.isSelected = s.diagnosticW201
-        diagW210.isSelected = s.diagnosticW210
-        diagW211.isSelected = s.diagnosticW211
-        diagW212.isSelected = s.diagnosticW212
-        diagW213.isSelected = s.diagnosticW213
-        diagW214.isSelected = s.diagnosticW214
-        diagW220.isSelected = s.diagnosticW220
-        diagW300.isSelected = s.diagnosticW300
-        diagW301.isSelected = s.diagnosticW301
-        diagW302.isSelected = s.diagnosticW302
-        diagW303.isSelected = s.diagnosticW303
-        diagW304.isSelected = s.diagnosticW304
-        diagW306.isSelected = s.diagnosticW306
-        diagW307.isSelected = s.diagnosticW307
-        diagW308.isSelected = s.diagnosticW308
-        diagW309.isSelected = s.diagnosticW309
         // @generated:diag-reset:end
         xcDiagnosticsEnabled.isSelected = s.xcDiagnosticsEnabled
 

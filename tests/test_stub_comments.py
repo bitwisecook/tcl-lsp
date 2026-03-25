@@ -9,6 +9,7 @@ from core.analysis.stub_comments import (
     parse_expr_stub_line,
     parse_stub_line,
     parse_stubs_file,
+    scan_source_for_stubs,
 )
 
 _ZERO = Range.zero()
@@ -79,6 +80,17 @@ class TestParseStubLine:
         assert stub is not None
         assert len(stub.args) == 0
 
+    def test_no_command_name_returns_none(self):
+        stub = parse_stub_line("# tcl-lsp: stub", _ZERO)
+        assert stub is None
+
+    def test_unclosed_optional_marker(self):
+        """A ?arg without closing ? is treated as a regular argument name."""
+        stub = parse_stub_line("# tcl-lsp: stub cmd {?arg}", _ZERO)
+        assert stub is not None
+        assert stub.args[0].optional is False
+        assert stub.args[0].name == "?arg"
+
 
 class TestParseExprStubLine:
     def test_expr_func(self):
@@ -143,6 +155,15 @@ class TestParseStubsFile:
 
     def test_missing_file(self, tmp_path: Path):
         cmd_stubs, expr_stubs = parse_stubs_file(tmp_path / "nonexistent.tcl.stubs")
+        assert cmd_stubs == []
+        assert expr_stubs == []
+
+
+class TestScanSourceEdgeCases:
+    def test_empty_block(self):
+        """Begin immediately followed by end produces no stubs."""
+        source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stubs-end\n"
+        cmd_stubs, expr_stubs = scan_source_for_stubs(source)
         assert cmd_stubs == []
         assert expr_stubs == []
 
