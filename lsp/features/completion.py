@@ -303,6 +303,15 @@ def get_completions(
     elif trigger == "switch":
         # Switch/flag completion
         if context_cmd:
+            # Build a TextEdit that replaces the already-typed prefix
+            # (e.g. "-t", "-te", "-tex") so the client doesn't double the dash.
+            switch_edit_range: types.Range | None = None
+            if partial:
+                start_col = character - len(partial)
+                switch_edit_range = types.Range(
+                    start=types.Position(line=line, character=start_col),
+                    end=types.Position(line=line, character=character),
+                )
             cmd_spec = REGISTRY.get(context_cmd, dialect, active_packages=active_packages)
             for sw in REGISTRY.switches(context_cmd, dialect, active_packages=active_packages):
                 if partial and not sw.startswith(partial):
@@ -312,13 +321,17 @@ def get_completions(
                     opt = cmd_spec.option(sw)
                     if opt is not None:
                         doc = opt.detail or (opt.hover.summary if opt.hover else None)
-                items.append(
-                    types.CompletionItem(
-                        label=sw,
-                        kind=types.CompletionItemKind.Keyword,
-                        documentation=doc,
-                    )
+                item = types.CompletionItem(
+                    label=sw,
+                    kind=types.CompletionItemKind.Keyword,
+                    documentation=doc,
                 )
+                if switch_edit_range is not None:
+                    item.text_edit = types.TextEdit(
+                        range=switch_edit_range,
+                        new_text=sw,
+                    )
+                items.append(item)
 
     elif trigger == "call_target":
         # iRules ``call`` — complete with proc names only.

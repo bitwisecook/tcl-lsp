@@ -239,6 +239,55 @@ class TestCompletionDocumentation:
         doc_str = doc if isinstance(doc, str) else doc.value
         assert len(doc_str) > 0
 
+    def test_switch_text_edit_replaces_partial_dash_prefix(self):
+        """Typing '-no' and completing '-nocase' should not produce '--nocase'."""
+        source = "lsort -no"
+        items = get_completions(source, 0, len(source))
+        by_label = {i.label: i for i in items}
+        assert "-nocase" in by_label
+        item = by_label["-nocase"]
+        assert item.text_edit is not None
+        # The edit should replace from the '-' (col 6) to the cursor (col 9)
+        assert item.text_edit.range.start.character == 6
+        assert item.text_edit.range.end.character == 9
+        assert item.text_edit.new_text == "-nocase"
+
+    def test_switch_text_edit_with_single_char_partial(self):
+        """Typing '-n' should also produce a correct text edit."""
+        source = "regexp -n"
+        items = get_completions(source, 0, len(source))
+        by_label = {i.label: i for i in items}
+        assert "-nocase" in by_label
+        item = by_label["-nocase"]
+        assert item.text_edit is not None
+        assert item.text_edit.range.start.character == 7
+        assert item.text_edit.range.end.character == 9
+        assert item.text_edit.new_text == "-nocase"
+
+    def test_switch_text_edit_with_longer_partial(self):
+        """Typing '-noc' should also produce a correct text edit."""
+        source = "lsort -noc"
+        items = get_completions(source, 0, len(source))
+        by_label = {i.label: i for i in items}
+        assert "-nocase" in by_label
+        item = by_label["-nocase"]
+        assert item.text_edit is not None
+        assert item.text_edit.range.start.character == 6
+        assert item.text_edit.range.end.character == 10
+        assert item.text_edit.new_text == "-nocase"
+
+    def test_switch_text_edit_bare_dash(self):
+        """Typing just '-' should produce a text edit replacing the dash."""
+        source = "regexp -"
+        items = get_completions(source, 0, len(source))
+        by_label = {i.label: i for i in items}
+        assert "-nocase" in by_label
+        item = by_label["-nocase"]
+        assert item.text_edit is not None
+        assert item.text_edit.range.start.character == 7
+        assert item.text_edit.range.end.character == 8
+        assert item.text_edit.new_text == "-nocase"
+
     def test_argument_value_has_documentation(self):
         configure_signatures(dialect="f5-irules")
         items = get_completions("when ", 0, 5)
