@@ -1239,6 +1239,64 @@ when the corresponding `package require` appears in the file.  No manual
 toggle is needed — the registry activates the relevant command definitions
 per-document.
 
+### Dialect command stubs
+
+For commands that the LSP does not know about (custom extensions, vendor
+tools, internal frameworks), you can declare stubs so the LSP understands
+their signatures.  Two mechanisms are supported:
+
+**External stub files** (`<name>.tcl.stubs`):
+
+```
+# synopsys.tcl.stubs
+stub foreach_in_collection {varName:var collection body:body} -loop
+stub get_cells {?-hierarchical? ?-filter? pattern:pattern} -pure
+stub sizeof_collection {collection} -pure
+stub expr-func sizeof 1
+```
+
+**Inline stubs** (in any `.tcl` file, using markers):
+
+```tcl
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub foreach_in_collection {varName:var collection body:body} -loop
+# tcl-lsp: stub get_cells {pattern:pattern} -pure
+# tcl-lsp: stub expr-func sizeof 1
+# tcl-lsp: stub expr-op contains 2
+# tcl-lsp: stubs-end
+```
+
+Multiple stubs blocks per file are supported.  Argument roles include
+`body`, `expr`, `var`, `var_read`, `name`, `pattern`, `channel`, and
+`value` (default).  Flags include `-barrier`, `-loop`, `-pure`,
+`-mutator`, `-unsafe`, and `-scope_alias`.
+
+Expression stubs declare custom math functions (`expr-func`) and infix
+operators (`expr-op`) with optional arity.
+
+See [KCS: Dialect stubs](docs/kcs/kcs-dialect-stubs.md) for full syntax.
+
+### Proc argument trait inference
+
+The analyser automatically infers how each proc parameter is used inside
+the proc body, producing structured trait annotations:
+
+| Trait | Detected pattern |
+|-------|-----------------|
+| `EVAL` | `eval $param`, `uplevel 1 $param` |
+| `BODY` | `foreach item $list $param` |
+| `VAR_WRITE` | `upvar 1 $param local; set local 42` |
+| `VAR_READ` | `upvar 1 $param local; return $local` |
+| `EXPR` | `if {$param} {...}` |
+| `LOOP_LIST` | `foreach item $param {...}` |
+
+Two analysis tiers: a fast shallow pass (synchronous, top-level commands)
+and a deep pass (asynchronous, recursive descent into nested bodies).
+Traits feed optimisation, shimmer analysis, taint propagation, and
+diagnostics.
+
+See [KCS: Proc arg traits](docs/kcs/kcs-proc-arg-traits.md) for details.
+
 ## Authoring workflows (VS Code commands)
 
 - `Tcl: Insert Tcl Template Snippet` -- quick-pick and insert any bundled Tcl/iRules snippet template.

@@ -50,6 +50,7 @@ from ..parsing.known_commands import known_command_names
 from ..parsing.lexer import TclLexer
 from ..parsing.recovery import segment_with_recovery
 from ..parsing.tokens import SourcePosition, Token, TokenType
+from .proc_arg_traits import infer_param_traits
 from .semantic_model import (
     AnalysisResult,
     CodeFix,
@@ -65,6 +66,7 @@ from .semantic_model import (
     Severity,
     VarDef,
 )
+from .stub_comments import scan_source_for_stubs
 
 log = logging.getLogger(__name__)
 
@@ -462,6 +464,10 @@ class Analyser:
     ) -> AnalysisResult:
         """Analyse a full source string."""
         self._source = source
+        # Pre-scan for inline stubs blocks (independent of Tcl parsing).
+        cmd_stubs, expr_stubs = scan_source_for_stubs(source)
+        self.result.stub_commands.extend(cmd_stubs)
+        self.result.stub_expr_defs.extend(expr_stubs)
         self._analyse_body(source, self._current_scope)
         self._emit_variable_usage_diagnostics()
         self._emit_cfg_ssa_diagnostics(source, cu=cu)
@@ -1573,6 +1579,14 @@ class Analyser:
 
         body_tok = arg_tokens[2] if len(arg_tokens) > 2 else None
         self._analyse_body(body, proc_scope, body_token=body_tok)
+
+        # Infer proc argument traits from body usage.
+        if params and body:
+            param_names = tuple(p.name for p in params)
+            try:
+                proc_def.param_traits = infer_param_traits(param_names, body)
+            except Exception:
+                pass  # trait inference is best-effort
 
     def _handle_set(
         self,

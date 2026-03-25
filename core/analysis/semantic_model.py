@@ -12,6 +12,23 @@ from enum import Enum, auto
 from ..parsing.tokens import SourcePosition
 
 
+# Proc argument traits
+class ProcArgTrait(Enum):
+    """How a proc parameter is used inside the proc body.
+
+    These traits drive optimisation, shimmer analysis, taint propagation,
+    and diagnostics by telling downstream passes how a parameter value
+    flows through the proc.
+    """
+
+    EVAL = auto()  # Argument is eval'd as a script (eval, uplevel, subst)
+    BODY = auto()  # Argument is used as a loop/control body
+    VAR_WRITE = auto()  # Argument names a variable that the proc writes (upvar + set)
+    VAR_READ = auto()  # Argument names a variable that the proc reads (upvar read-only)
+    EXPR = auto()  # Argument is evaluated as an expression
+    LOOP_LIST = auto()  # Argument is used as the list in a foreach/lmap
+
+
 # Source ranges
 @dataclass(frozen=True, slots=True)
 class Range:
@@ -88,6 +105,9 @@ class ProcDef:
     name_range: Range
     body_range: Range
     doc: str = ""  # extracted from preceding comment
+    # Per-parameter traits inferred from body analysis.
+    # Maps parameter name to the set of traits detected.
+    param_traits: dict[str, frozenset[ProcArgTrait]] = field(default_factory=dict)
 
 
 # Scope
@@ -183,6 +203,54 @@ class Confidence(Enum):
     UNKNOWN = auto()  # dynamic provider detected
 
 
+# Stub command definition from structured comments
+@dataclass(frozen=True, slots=True)
+class StubArgDef:
+    """A parameter in a stub command definition."""
+
+    name: str
+    role: str = (
+        "value"  # "body", "expr", "var_name", "var_read", "name", "pattern", "channel", "value"
+    )
+    optional: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class StubCommandDef:
+    """A command stub defined via ``# tcl-lsp: stub`` structured comment.
+
+    Allows users to declare command signatures for unknown dialect
+    extensions so the LSP can provide diagnostics, completion, and
+    semantic understanding without a full registry entry.
+    """
+
+    name: str
+    args: tuple[StubArgDef, ...]
+    range: Range
+    barrier: bool = False  # creates_dynamic_barrier
+    loop: bool = False  # has_loop_body
+    pure: bool = False
+    mutator: bool = False
+    unsafe: bool = False
+    scope_alias: bool = False  # creates_scope_alias (upvar-like)
+
+
+# Stub expression function/operator definition
+@dataclass(frozen=True, slots=True)
+class StubExprDef:
+    """An expression function or operator stub defined via structured comment.
+
+    Allows users to declare custom math functions or infix operators
+    for dialects that extend the expr sub-language.
+    """
+
+    name: str
+    kind: str  # "function" or "operator"
+    arity: int = 1  # number of arguments (functions) or operands (operators)
+    pure: bool = True
+    range: Range = field(default_factory=Range.zero)
+
+
 # Analysis result
 @dataclass
 class AnalysisResult:
@@ -200,6 +268,8 @@ class AnalysisResult:
     package_requires: list[PackageRequire] = field(default_factory=list)
     package_provides: list[PackageProvide] = field(default_factory=list)
     has_dynamic_providers: bool = False  # True if load/auto_path detected
+    stub_commands: list[StubCommandDef] = field(default_factory=list)
+    stub_expr_defs: list[StubExprDef] = field(default_factory=list)
 
     def active_package_names(self) -> frozenset[str]:
         """Return the set of package names imported via ``package require``."""
