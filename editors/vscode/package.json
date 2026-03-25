@@ -3381,41 +3381,35 @@
             "markdownDescription": "**W117:** Stub expression definition shadows built-in function or operator.",
             "order": 14
           },
-          "tclLsp.diagnostics.W118": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**W118:** Top-level-only command used inside a nested body.",
-            "order": 15
-          },
           "tclLsp.diagnostics.W120": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W120:** Command used without a corresponding `package require`.",
-            "order": 16
+            "order": 15
           },
           "tclLsp.diagnostics.W121": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W121:** Subnet mask has non-contiguous bits.",
-            "order": 17
+            "order": 16
           },
           "tclLsp.diagnostics.W122": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W122:** Mistyped IPv4 address (octet > 255 or leading zero).",
-            "order": 18
+            "order": 17
           },
           "tclLsp.diagnostics.W200": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 19
+            "order": 18
           },
           "tclLsp.diagnostics.W201": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
-            "order": 20
+            "order": 19
           }
         }
       },
@@ -3717,65 +3711,77 @@
             "markdownDescription": "**IRULE5005:** Direct proc invocation without `call` — use `call proc_name`.",
             "order": 17
           },
+          "tclLsp.diagnostics.IRULE5006": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE5006:** Top-level-only command used inside a nested body.",
+            "order": 18
+          },
+          "tclLsp.diagnostics.IRULE5007": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE5007:** Event-context command used at top level outside a `when` block.",
+            "order": 19
+          },
           "tclLsp.diagnostics.IRULE3001": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3001:** Tainted data in HTTP response body.",
-            "order": 18
+            "order": 20
           },
           "tclLsp.diagnostics.IRULE3002": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3002:** Tainted data in HTTP header or cookie value.",
-            "order": 19
+            "order": 21
           },
           "tclLsp.diagnostics.IRULE3003": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3003:** Tainted data in `log` command — log injection risk.",
-            "order": 20
+            "order": 22
           },
           "tclLsp.diagnostics.IRULE3101": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
-            "order": 21
+            "order": 23
           },
           "tclLsp.diagnostics.IRULE3102": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
-            "order": 22
+            "order": 24
           },
           "tclLsp.diagnostics.IRULE4001": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
-            "order": 23
+            "order": 25
           },
           "tclLsp.diagnostics.IRULE4002": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
-            "order": 24
+            "order": 26
           },
           "tclLsp.diagnostics.IRULE4003": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4003:** Variable scoping concern across events.",
-            "order": 25
+            "order": 27
           },
           "tclLsp.diagnostics.IRULE4004": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
-            "order": 26
+            "order": 28
           },
           "tclLsp.diagnostics.IRULE4005": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
-            "order": 27
+            "order": 29
           },
           "tclLsp.diagnostics.genericVariablePatterns": {
             "type": "array",
@@ -3784,7 +3790,7 @@
             },
             "default": [],
             "markdownDescription": "Regex patterns for generic `static::` variable names (IRULE4002). Each pattern is matched case-insensitively against the bare name after stripping `static::`. Also configurable via `~/.config/tcl-lsp/config.ini`.",
-            "order": 28
+            "order": 30
           }
         }
       },

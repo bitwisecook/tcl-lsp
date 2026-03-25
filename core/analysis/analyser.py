@@ -92,7 +92,10 @@ diag(
     section="hint",
 )
 diag("W113", "Procedure shadows built-in command.", section="warning")
-diag("W118", "Top-level-only command used inside a nested body.", section="warning")
+diag("IRULE5006", "Top-level-only command used inside a nested body.", section="irules")
+diag(
+    "IRULE5007", "Event-context command used at top level outside a `when` block.", section="irules"
+)
 diag("W116", "Stub command shadows built-in command.", section="warning")
 diag("W117", "Stub expression definition shadows built-in function or operator.", section="warning")
 diag("W210", "Variable read before set.", section="variable")
@@ -1183,7 +1186,7 @@ class Analyser:
                 )
             )
 
-        # W118: top-level-only commands used inside a nested body (iRules).
+        # IRULE5006: top-level-only commands used inside a nested body.
         if (
             self._body_depth > 0
             and active_dialect() == "f5-irules"
@@ -1194,9 +1197,27 @@ class Analyser:
                     range=range_from_token(argv[0]),
                     message=f"'{cmd_name}' is only valid at the top level of an iRule.",
                     severity=Severity.WARNING,
-                    code="W118",
+                    code="IRULE5006",
                 )
             )
+
+        # IRULE1007: event-context command used at top level outside a when block.
+        if (
+            self._body_depth == 0
+            and self._current_event is None
+            and active_dialect() == "f5-irules"
+            and cmd_name not in _IRULES_TOP_LEVEL_ONLY
+        ):
+            spec = REGISTRY.get(cmd_name, "f5-irules")
+            if spec is not None and spec.event_requires is not None:
+                self.result.diagnostics.append(
+                    Diagnostic(
+                        range=range_from_token(argv[0]),
+                        message=f"'{cmd_name}' requires an event context — use it inside a `when` block.",
+                        severity=Severity.WARNING,
+                        code="IRULE5007",
+                    )
+                )
 
         # Record package require/provide statements for cross-file resolution.
         if cmd_name == "package" and args:

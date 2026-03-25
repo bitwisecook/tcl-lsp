@@ -131,12 +131,6 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
-    code: "W118",
-    section: "warning",
-    description: "Top-level-only command used inside a nested body.",
-    defaultEnabled: true,
-  },
-  {
     code: "W120",
     section: "warning",
     description: "Command used without a corresponding `package require`.",
@@ -426,6 +420,18 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "IRULE5005",
     section: "irules",
     description: "Direct proc invocation without `call` — use `call proc_name`.",
+    defaultEnabled: true,
+  },
+  {
+    code: "IRULE5006",
+    section: "irules",
+    description: "Top-level-only command used inside a nested body.",
+    defaultEnabled: true,
+  },
+  {
+    code: "IRULE5007",
+    section: "irules",
+    description: "Event-context command used at top level outside a `when` block.",
     defaultEnabled: true,
   },
   {
