@@ -59,6 +59,33 @@ class TestLoopListTrait:
         assert ProcArgTrait.LOOP_LIST in traits["items"]
 
 
+class TestWhileForTraits:
+    def test_while_body(self):
+        body = "while {$cond} $body"
+        traits = infer_param_traits(("cond", "body"), body)
+        assert ProcArgTrait.EXPR in traits.get("cond", frozenset())
+        assert ProcArgTrait.BODY in traits.get("body", frozenset())
+
+    def test_while_braced_condition(self):
+        """When condition is braced literal, only body param gets trait."""
+        body = "while {1} $loopBody"
+        traits = infer_param_traits(("loopBody",), body)
+        assert ProcArgTrait.BODY in traits["loopBody"]
+
+    def test_for_all_parts(self):
+        body = "for $init $cond $next $body"
+        traits = infer_param_traits(("init", "cond", "next", "body"), body)
+        assert ProcArgTrait.BODY in traits.get("init", frozenset())
+        assert ProcArgTrait.EXPR in traits.get("cond", frozenset())
+        assert ProcArgTrait.BODY in traits.get("next", frozenset())
+        assert ProcArgTrait.BODY in traits.get("body", frozenset())
+
+    def test_for_body_only(self):
+        body = "for {set i 0} {$i < 10} {incr i} $loopBody"
+        traits = infer_param_traits(("loopBody",), body)
+        assert ProcArgTrait.BODY in traits["loopBody"]
+
+
 class TestCombinedTraits:
     def test_foreach_in_collection_pattern(self):
         """The classic EDA pattern: varName for upvar, collection for loop, body for eval."""

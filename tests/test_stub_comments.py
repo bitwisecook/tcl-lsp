@@ -206,3 +206,80 @@ class TestAnalyserIntegration:
         proc = analyser.result.all_procs.get("::safe_incr")
         assert proc is not None
         assert ProcArgTrait.VAR_WRITE in proc.param_traits.get("varName", frozenset())
+
+    def test_w113_proc_shadows_builtin(self):
+        from core.analysis.analyser import Analyser
+
+        source = "proc set {a b} {\n    return $a\n}\n"
+        analyser = Analyser()
+        analyser.analyse(source)
+        w113 = [d for d in analyser.result.diagnostics if d.code == "W113"]
+        assert len(w113) == 1
+        assert "set" in w113[0].message
+
+    def test_w113_no_shadow_for_custom_proc(self):
+        from core.analysis.analyser import Analyser
+
+        source = "proc my_custom_proc {a} {\n    return $a\n}\n"
+        analyser = Analyser()
+        analyser.analyse(source)
+        w113 = [d for d in analyser.result.diagnostics if d.code == "W113"]
+        assert len(w113) == 0
+
+    def test_w116_stub_shadows_builtin_command(self):
+        from core.analysis.analyser import Analyser
+
+        source = (
+            "# tcl-lsp: stubs-begin\n"
+            "# tcl-lsp: stub set {varName value}\n"
+            "# tcl-lsp: stubs-end\n"
+            "set x 1\n"
+        )
+        analyser = Analyser()
+        analyser.analyse(source)
+        w116 = [d for d in analyser.result.diagnostics if d.code == "W116"]
+        assert len(w116) == 1
+        assert "set" in w116[0].message
+
+    def test_w116_no_shadow_for_unknown_command(self):
+        from core.analysis.analyser import Analyser
+
+        source = (
+            "# tcl-lsp: stubs-begin\n"
+            "# tcl-lsp: stub my_custom_cmd {arg1}\n"
+            "# tcl-lsp: stubs-end\n"
+            "set x 1\n"
+        )
+        analyser = Analyser()
+        analyser.analyse(source)
+        w116 = [d for d in analyser.result.diagnostics if d.code == "W116"]
+        assert len(w116) == 0
+
+    def test_w117_stub_shadows_builtin_math_func(self):
+        from core.analysis.analyser import Analyser
+
+        source = (
+            "# tcl-lsp: stubs-begin\n"
+            "# tcl-lsp: stub expr-func sin 1\n"
+            "# tcl-lsp: stubs-end\n"
+            "set x 1\n"
+        )
+        analyser = Analyser()
+        analyser.analyse(source)
+        w117 = [d for d in analyser.result.diagnostics if d.code == "W117"]
+        assert len(w117) == 1
+        assert "sin" in w117[0].message
+
+    def test_w117_no_shadow_for_custom_func(self):
+        from core.analysis.analyser import Analyser
+
+        source = (
+            "# tcl-lsp: stubs-begin\n"
+            "# tcl-lsp: stub expr-func sizeof 1\n"
+            "# tcl-lsp: stubs-end\n"
+            "set x 1\n"
+        )
+        analyser = Analyser()
+        analyser.analyse(source)
+        w117 = [d for d in analyser.result.diagnostics if d.code == "W117"]
+        assert len(w117) == 0

@@ -119,6 +119,18 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W116",
+    section: "warning",
+    description: "Stub command shadows built-in command.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W117",
+    section: "warning",
+    description: "Stub expression definition shadows built-in function or operator.",
+    defaultEnabled: true,
+  },
+  {
     code: "W120",
     section: "warning",
     description: "Command used without a corresponding `package require`.",

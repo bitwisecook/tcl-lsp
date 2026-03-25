@@ -45,7 +45,13 @@ from ..compiler.ir import (
 )
 from ..parsing.argv import widen_argv_tokens_to_word_spans
 from ..parsing.command_segmenter import SegmentedCommand, UnclosedDelimiter
-from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
+from ..parsing.expr_lexer import (
+    BUILTIN_EXPR_OPS,
+    BUILTIN_MATH_FUNCTIONS,
+    IRULES_EXPR_OPS,
+    ExprTokenType,
+    tokenise_expr,
+)
 from ..parsing.known_commands import known_command_names
 from ..parsing.lexer import TclLexer
 from ..parsing.recovery import segment_with_recovery
@@ -80,6 +86,8 @@ diag(
     section="hint",
 )
 diag("W113", "Procedure shadows built-in command.", section="warning")
+diag("W116", "Stub command shadows built-in command.", section="warning")
+diag("W117", "Stub expression definition shadows built-in function or operator.", section="warning")
 diag("W210", "Variable read before set.", section="variable")
 diag("W211", "Variable set but never used.", section="variable")
 diag(
@@ -229,6 +237,7 @@ class Analyser:
         self._current_event: str | None = None
         # Cache of built-in command names for redefined-builtin detection.
         self._builtin_names: frozenset[str] | None = None
+        self._builtin_dialect: str | None = None
         # Track conditional nesting depth for package require confidence.
         self._conditional_depth: int = 0
 
@@ -468,11 +477,44 @@ class Analyser:
         cmd_stubs, expr_stubs = scan_source_for_stubs(source)
         self.result.stub_commands.extend(cmd_stubs)
         self.result.stub_expr_defs.extend(expr_stubs)
+        self._check_stub_shadows()
         self._analyse_body(source, self._current_scope)
         self._emit_variable_usage_diagnostics()
         self._emit_cfg_ssa_diagnostics(source, cu=cu)
         self._dedupe_diagnostics()
         return self.result
+
+    def _check_stub_shadows(self) -> None:
+        """Emit W116/W117 when stubs shadow built-in commands or expr defs."""
+        dialect = active_dialect()
+        builtin_commands = set(REGISTRY.command_names(dialect))
+
+        for stub in self.result.stub_commands:
+            if stub.name in builtin_commands:
+                self.result.diagnostics.append(
+                    Diagnostic(
+                        range=stub.range,
+                        message=f"Stub command '{stub.name}' shadows built-in command.",
+                        severity=Severity.WARNING,
+                        code="W116",
+                    )
+                )
+
+        builtin_expr = BUILTIN_MATH_FUNCTIONS | BUILTIN_EXPR_OPS
+        if dialect == "f5-irules":
+            builtin_expr = builtin_expr | IRULES_EXPR_OPS
+
+        for stub_expr in self.result.stub_expr_defs:
+            if stub_expr.name in builtin_expr:
+                kind_label = "function" if stub_expr.kind == "function" else "operator"
+                self.result.diagnostics.append(
+                    Diagnostic(
+                        range=stub_expr.range,
+                        message=f"Stub expression {kind_label} '{stub_expr.name}' shadows built-in {kind_label}.",
+                        severity=Severity.WARNING,
+                        code="W117",
+                    )
+                )
 
     def _analyse_body(
         self,
@@ -1541,12 +1583,18 @@ class Analyser:
 
         # W113: warn when proc name shadows a built-in command.
         if self._builtin_names is None:
-            self._builtin_names = frozenset(REGISTRY.command_names(active_dialect()))
-        if proc_name in self._builtin_names:
+            dialect = active_dialect()
+            self._builtin_names = frozenset(REGISTRY.command_names(dialect))
+            self._builtin_dialect = dialect
+        shadow_name = proc_name if proc_name in self._builtin_names else None
+        if shadow_name is None and qualified in self._builtin_names:
+            shadow_name = qualified
+        if shadow_name is not None:
+            dialect_label = f" ({self._builtin_dialect})" if self._builtin_dialect else ""
             self.result.diagnostics.append(
                 Diagnostic(
                     range=name_range,
-                    message=f"Procedure '{proc_name}' shadows built-in command",
+                    message=f"Procedure '{proc_name}' shadows built-in command{dialect_label}",
                     severity=Severity.WARNING,
                     code="W113",
                 )

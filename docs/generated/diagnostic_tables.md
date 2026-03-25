@@ -19,6 +19,8 @@
 | W113 | warning | Procedure shadows built-in command. | ✓ |
 | W114 | warning | Redundant nested `[expr {...}]` — already in expression context. | ✓ |
 | W115 | warning | Backslash-newline in comment silently swallows the next line. | ✓ |
+| W116 | warning | Stub command shadows built-in command. | ✓ |
+| W117 | warning | Stub expression definition shadows built-in function or operator. | ✓ |
 | W120 | warning | Command used without a corresponding `package require`. | ✓ |
 | W121 | warning | Subnet mask has non-contiguous bits. | ✓ |
 | W122 | warning | Mistyped IPv4 address (octet > 255 or leading zero). | ✓ |

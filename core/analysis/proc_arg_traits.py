@@ -147,6 +147,14 @@ def _scan_commands(
         if cmd_name in ("foreach", "lmap"):
             _handle_foreach(cmd_args, param_set, traits)
 
+        # while {cond} body
+        if cmd_name == "while":
+            _handle_while(cmd_args, param_set, traits)
+
+        # for {init} {cond} {next} body
+        if cmd_name == "for":
+            _handle_for(cmd_args, param_set, traits)
+
         # Variable-writing commands where param is used as var name
         if cmd_name in _VAR_WRITE_COMMANDS:
             var_idx = _VAR_WRITE_COMMANDS[cmd_name]
@@ -324,3 +332,49 @@ def _handle_foreach(
         if list_vn and list_vn in param_set:
             traits[list_vn].add(ProcArgTrait.LOOP_LIST)
         i += 2
+
+
+def _handle_while(
+    args: list[str],
+    param_set: set[str],
+    traits: dict[str, set[ProcArgTrait]],
+) -> None:
+    """Process ``while {cond} body`` to detect EXPR and BODY traits."""
+    if len(args) < 2:
+        return
+
+    # while $condParam $bodyParam
+    cond_vn = _extract_var_name(args[0])
+    if cond_vn and cond_vn in param_set:
+        traits[cond_vn].add(ProcArgTrait.EXPR)
+
+    body_vn = _extract_var_name(args[1])
+    if body_vn and body_vn in param_set:
+        traits[body_vn].add(ProcArgTrait.BODY)
+
+
+def _handle_for(
+    args: list[str],
+    param_set: set[str],
+    traits: dict[str, set[ProcArgTrait]],
+) -> None:
+    """Process ``for {init} {cond} {next} body`` to detect EXPR and BODY traits."""
+    if len(args) < 4:
+        return
+
+    # for $initParam $condParam $nextParam $bodyParam
+    init_vn = _extract_var_name(args[0])
+    if init_vn and init_vn in param_set:
+        traits[init_vn].add(ProcArgTrait.BODY)
+
+    cond_vn = _extract_var_name(args[1])
+    if cond_vn and cond_vn in param_set:
+        traits[cond_vn].add(ProcArgTrait.EXPR)
+
+    next_vn = _extract_var_name(args[2])
+    if next_vn and next_vn in param_set:
+        traits[next_vn].add(ProcArgTrait.BODY)
+
+    body_vn = _extract_var_name(args[3])
+    if body_vn and body_vn in param_set:
+        traits[body_vn].add(ProcArgTrait.BODY)
