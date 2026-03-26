@@ -26,6 +26,7 @@ from core.commands.registry.runtime import (
     ArgRole,
     SubcommandSig,
     arg_indices_for_role,
+    arg_indices_for_roles,
     options_with_value,
     regexp_pattern_index,
     skip_options,
@@ -2514,12 +2515,18 @@ def _collect_tokens(
                 )
                 return  # stay in switch recovery for next command
             switch_recovery_active[0] = False
-        body_indices = _arg_indices(cmd_name, argv_texts[1:], ArgRole.BODY)
-        expr_indices = _arg_indices(cmd_name, argv_texts[1:], ArgRole.EXPR)
-        varname_indices = _arg_indices(cmd_name, argv_texts[1:], ArgRole.VAR_NAME) | _arg_indices(
-            cmd_name, argv_texts[1:], ArgRole.VAR_READ
+        (
+            body_indices,
+            expr_indices,
+            _varname_indices,
+            _varread_indices,
+            pattern_indices,
+        ) = arg_indices_for_roles(
+            cmd_name,
+            argv_texts[1:],
+            (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_NAME, ArgRole.VAR_READ, ArgRole.PATTERN),
         )
-        pattern_indices = _arg_indices(cmd_name, argv_texts[1:], ArgRole.PATTERN)
+        varname_indices = _varname_indices | _varread_indices
         param_arg_idx = _proc_param_list_arg_index(cmd_name, argv_texts)
         proc_name_arg_idx = _procedure_name_arg_index(cmd_name, argv_texts)
         binary_format_arg_idx = _binary_format_arg_index(cmd_name, argv_texts)
@@ -2970,3 +2977,47 @@ def _delta_encode(raw_tokens: list[tuple[int, int, int, int, int]]) -> list[int]
         prev_char = char
 
     return data
+
+
+def compute_semantic_tokens_edits(
+    old_data: list[int],
+    new_data: list[int],
+) -> list[tuple[int, int, list[int]]]:
+    """Compute minimal edits to transform *old_data* into *new_data*.
+
+    Returns a list of ``(start, delete_count, insert_data)`` tuples
+    suitable for ``SemanticTokensEdit``.  Operates on the flat 5-int
+    encoded arrays.
+
+    The algorithm finds the longest common prefix and suffix, then
+    emits a single edit for the differing middle section.  This is
+    optimal for the common case of a single contiguous change region
+    (which is what single-line or multi-line edits produce).
+    """
+    old_len = len(old_data)
+    new_len = len(new_data)
+
+    # Find common prefix length (must be 5-int aligned).
+    min_len = min(old_len, new_len)
+    prefix = 0
+    while prefix < min_len and old_data[prefix] == new_data[prefix]:
+        prefix += 1
+    # Align to 5-int token boundary.
+    prefix = (prefix // 5) * 5
+
+    # Find common suffix length (must be 5-int aligned).
+    suffix = 0
+    while (
+        suffix < (min_len - prefix)
+        and old_data[old_len - 1 - suffix] == new_data[new_len - 1 - suffix]
+    ):
+        suffix += 1
+    suffix = (suffix // 5) * 5
+
+    delete_count = old_len - prefix - suffix
+    insert_data = new_data[prefix : new_len - suffix] if suffix > 0 else new_data[prefix:]
+
+    if delete_count == 0 and len(insert_data) == 0:
+        return []  # identical
+
+    return [(prefix, delete_count, insert_data)]

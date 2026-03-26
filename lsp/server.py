@@ -61,6 +61,7 @@ from .features.selection_range import get_selection_ranges
 from .features.semantic_tokens import (
     SEMANTIC_TOKEN_MODIFIERS,
     SEMANTIC_TOKEN_TYPES,
+    compute_semantic_tokens_edits,
     semantic_tokens_full,
 )
 from .features.signature_help import get_signature_help
@@ -455,18 +456,24 @@ SEMANTIC_TOKENS_LEGEND = types.SemanticTokensLegend(
     token_modifiers=SEMANTIC_TOKEN_MODIFIERS,
 )
 
+# Per-URI storage for semantic tokens delta support (P8).
+# Maps URI → (result_id, flat token data).
+_semantic_token_results: dict[str, tuple[str, list[int]]] = {}
+_semantic_token_result_counter: int = 0
+
 
 @server.feature(
     types.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
     types.SemanticTokensRegistrationOptions(
         legend=SEMANTIC_TOKENS_LEGEND,
-        full=True,
+        full=types.SemanticTokensFullDelta(delta=True),
         document_selector=_TCL_DOCUMENT_SELECTOR,
     ),
 )
 def on_semantic_tokens_full(
     params: types.SemanticTokensParams,
 ) -> types.SemanticTokens:
+    global _semantic_token_result_counter
     t0 = time.perf_counter()
     if not feature_config.semantic_tokens_enabled:
         return types.SemanticTokens(data=[])
@@ -499,6 +506,10 @@ def on_semantic_tokens_full(
     # Write back computed tokens to chunk cache.
     if state is not None and chunk_token_cache is not None:
         state.store_semantic_token_cache(chunk_token_cache)
+    # Store result for delta support (P8).
+    _semantic_token_result_counter += 1
+    result_id = str(_semantic_token_result_counter)
+    _semantic_token_results[uri] = (result_id, data)
     elapsed_ms = (time.perf_counter() - t0) * 1000
     log.info(
         "[timing] semanticTokens/full %.0fms (cache=%s, analysis=%s, tokens=%d, lines=%d)",
@@ -508,7 +519,93 @@ def on_semantic_tokens_full(
         len(data) // 5,
         source.count("\n") + 1,
     )
-    return types.SemanticTokens(data=data)
+    return types.SemanticTokens(data=data, result_id=result_id)
+
+
+@server.feature(types.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL_DELTA)
+def on_semantic_tokens_delta(
+    params: types.SemanticTokensDeltaParams,
+) -> types.SemanticTokens | types.SemanticTokensDelta:
+    global _semantic_token_result_counter
+    t0 = time.perf_counter()
+    uri = params.text_document.uri
+    previous_result_id = params.previous_result_id
+
+    if not feature_config.semantic_tokens_enabled:
+        return types.SemanticTokens(data=[])
+
+    # Look up previous result for this URI.
+    prev = _semantic_token_results.get(uri)
+    if prev is None or prev[0] != previous_result_id:
+        # No matching previous result — fall back to full.
+        log.info("[timing] semanticTokens/delta fallback to full (no prev result)")
+        return on_semantic_tokens_full(
+            types.SemanticTokensParams(text_document=params.text_document)
+        )
+
+    old_data = prev[1]
+
+    # Compute fresh tokens.
+    source = _get_doc_source(uri)
+    state = workspace_state.get(uri)
+    analysis = state.analysis if state else None
+    chunk_token_cache = None
+    chunk_line_ranges = None
+    if state is not None:
+        cache_info = state.get_semantic_token_cache()
+        if cache_info is not None:
+            chunk_token_cache, chunk_line_ranges = cache_info
+    new_data = semantic_tokens_full(
+        source,
+        analysis=analysis,
+        is_bigip_conf=_is_bigip_conf(uri),
+        is_irules=_is_irules_source(uri),
+        is_apl=_is_apl_source(uri),
+        chunk_token_cache=chunk_token_cache,
+        chunk_line_ranges=chunk_line_ranges,
+    )
+    if state is not None and chunk_token_cache is not None:
+        state.store_semantic_token_cache(chunk_token_cache)
+
+    # Store new result.
+    _semantic_token_result_counter += 1
+    result_id = str(_semantic_token_result_counter)
+    _semantic_token_results[uri] = (result_id, new_data)
+
+    # Compute edits.
+    edits = compute_semantic_tokens_edits(old_data, new_data)
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+
+    if not edits:
+        log.info("[timing] semanticTokens/delta %.0fms (no changes)", elapsed_ms)
+        return types.SemanticTokensDelta(edits=[], result_id=result_id)
+
+    # If delta is larger than full, send full instead.
+    edit_data_size = sum(len(ins) for _, _, ins in edits) + len(edits) * 2  # overhead
+    if edit_data_size >= len(new_data):
+        log.info(
+            "[timing] semanticTokens/delta %.0fms → full (delta larger, tokens=%d)",
+            elapsed_ms,
+            len(new_data) // 5,
+        )
+        return types.SemanticTokens(data=new_data, result_id=result_id)
+
+    lsp_edits = [
+        types.SemanticTokensEdit(
+            start=start,
+            delete_count=delete_count,
+            data=insert_data if insert_data else None,
+        )
+        for start, delete_count, insert_data in edits
+    ]
+    log.info(
+        "[timing] semanticTokens/delta %.0fms (edits=%d, delta_size=%d, full_size=%d)",
+        elapsed_ms,
+        len(lsp_edits),
+        edit_data_size,
+        len(new_data),
+    )
+    return types.SemanticTokensDelta(edits=lsp_edits, result_id=result_id)
 
 
 # Completion
@@ -1689,6 +1786,23 @@ async def _publish_diagnostics(
     # to the editor before we start blocking.
     await asyncio.sleep(0)
 
+    # Phase 0 (fast): update source/version/chunks on the event loop
+    # so that queued semantic-token requests can be served immediately
+    # with the new source text — even before analysis completes.
+    t_quick = time.perf_counter()
+    state = workspace_state.get(uri)
+    if state is None:
+        state = workspace_state.open(uri, source, version, analyse=False)
+        needs_analysis = True
+    else:
+        needs_analysis = state.update_source_quick(source, version)
+    quick_ms = (time.perf_counter() - t_quick) * 1000
+
+    # Yield the event loop so queued requests (e.g. semantic tokens)
+    # can be dispatched with the new source text before the heavy
+    # analysis pass blocks.
+    await asyncio.sleep(0)
+
     # Snapshot config values before entering the thread — these are
     # only mutated on the event loop so reading them here is safe.
     diagnostics_enabled = feature_config.diagnostics_enabled
@@ -1697,27 +1811,31 @@ async def _publish_diagnostics(
     optimiser_enabled = feature_config.optimiser_enabled
     disabled_optimisations = set(feature_config.disabled_optimisations)
 
-    # Mutate workspace_state on the event-loop thread to avoid data
-    # races with other LSP handlers that read it concurrently.
+    # Full analysis: compile, analyse, build chunk caches.
     t_update = time.perf_counter()
-    state = workspace_state.update(
-        uri,
-        source,
-        version,
-        force_reanalyse=force_reanalyse,
-    )
+    did_analyse = needs_analysis or force_reanalyse
+    if did_analyse:
+        state.update(source, version, force_reanalyse=force_reanalyse)
     update_ms = (time.perf_counter() - t_update) * 1000
     log.info(
-        "[timing] workspace_state.update %.0fms (uri=%s, lines=%d)",
+        "[timing] workspace_state.update %.0fms (quick=%.0fms, uri=%s, lines=%d)",
         update_ms,
+        quick_ms,
         uri,
         source.count("\n") + 1,
     )
     partial_mode = state.has_partial_commands
 
-    # Yield the event loop after the update so queued requests
-    # (e.g. semantic tokens) can be dispatched with the new state
-    # before we start the heavier diagnostic passes.
+    # After analysis completes, ask the client to re-request semantic
+    # tokens so they benefit from analysis enrichment (regex_positions).
+    if did_analyse and state.analysis is not None:
+        try:
+            server.workspace_semantic_tokens_refresh(None)
+        except Exception:
+            pass  # client may not support refresh
+
+    # Yield the event loop after the full update so queued requests
+    # can be dispatched with analysis-enriched state.
     await asyncio.sleep(0)
 
     if not diagnostics_enabled:
@@ -2122,6 +2240,7 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
         )
         return
+    _semantic_token_results.pop(uri, None)
     workspace_state.close(uri)
     # If this file was also scanned in the background, revert to that entry
     # so cross-file references keep working after the file is closed.

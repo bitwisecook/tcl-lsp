@@ -307,6 +307,38 @@ class DocumentState:
         self._deep_diag_proc_key = self.get_deep_diag_proc_key()
         self._deep_diag_result = diagnostics
 
+    def update_source_quick(
+        self,
+        source: str,
+        version: int | None = None,
+    ) -> bool:
+        """Fast source-only update: set source/version/chunks, clear analysis.
+
+        Returns ``True`` if the source actually changed and a full
+        ``update()`` is needed afterwards to rebuild analysis/caches.
+        Returns ``False`` if unchanged (no further work needed).
+
+        This is designed to be called on the event loop before yielding,
+        so that semantic token requests can be served immediately with
+        the new source text (without analysis enrichment).
+        """
+        if self.analysis is not None and source == self.source:
+            return False  # unchanged
+        new_chunks = segment_top_level_chunks(source)
+        has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
+        self.source = source
+        self._lines = None
+        self.version = version
+        self.chunks = new_chunks
+        self.has_partial_commands = has_partial
+        # Clear analysis and caches so handlers see "analysis in progress"
+        # rather than stale data.  Analysis will be set by the subsequent
+        # ``update()`` call.
+        self.analysis = None
+        self.compilation_unit = None
+        self._chunk_caches = []
+        return True
+
     def update(
         self,
         source: str,
