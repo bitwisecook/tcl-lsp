@@ -26,11 +26,15 @@ def _parse_expr(expr_text: str):  # noqa: ANN202
     return _std_parse_expr(expr_text)
 
 
-def _expr_arg_from_expr_command(text: str) -> str | None:
+def _expr_arg_from_expr_command(
+    text: str,
+    *,
+    expr_aliases: frozenset[str] | None = None,
+) -> str | None:
     """Extract the expr argument from a [expr {...}] command substitution."""
     from ...parsing.command_shapes import extract_single_expr_argument
 
-    return extract_single_expr_argument(text)
+    return extract_single_expr_argument(text, expr_aliases=expr_aliases)
 
 
 def lower_set(lowerer: object, cmd: _Command) -> object | None:
@@ -58,7 +62,11 @@ def lower_set(lowerer: object, cmd: _Command) -> object | None:
         if const_value is not None:
             return IRAssignConst(range=cmd.range, name=name, value=const_value)
         if tok.type is TokenType.CMD:
-            expr_arg = _expr_arg_from_expr_command(tok.text)
+            aliases: frozenset[str] | None = None
+            get_aliases = getattr(lowerer, "expr_alias_names", None)
+            if get_aliases is not None:
+                aliases = get_aliases()
+            expr_arg = _expr_arg_from_expr_command(tok.text, expr_aliases=aliases)
             if expr_arg is not None:
                 return IRAssignExpr(range=cmd.range, name=name, expr=_parse_expr(expr_arg))
         if tok.type is TokenType.ESC and "\\" in value:

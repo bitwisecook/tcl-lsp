@@ -301,6 +301,9 @@ class AnalysisResult:
     has_dynamic_providers: bool = False  # True if load/auto_path detected
     stub_commands: list[StubCommandDef] = field(default_factory=list)
     stub_expr_defs: list[StubExprDef] = field(default_factory=list)
+    # Command aliases: maps alias_name -> (target_cmd, prepended_args).
+    # Populated from ``interp alias {} name {} target ?arg ...?`` statements.
+    command_aliases: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
 
     def copy_for_snapshot(self) -> AnalysisResult:
         """Create an independent copy suitable for analyser snapshots.
@@ -337,6 +340,7 @@ class AnalysisResult:
             has_dynamic_providers=self.has_dynamic_providers,
             stub_commands=list(self.stub_commands),
             stub_expr_defs=list(self.stub_expr_defs),
+            command_aliases=dict(self.command_aliases),
         )
 
     def find_proc(self, name: str) -> ProcDef | None:

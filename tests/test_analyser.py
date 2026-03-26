@@ -690,3 +690,71 @@ class TestUnusedProcParameters:
         result = analyse("proc foo {x} { if {$x > 0} { puts yes } }")
         w214 = [d for d in result.diagnostics if d.code == "W214"]
         assert len(w214) == 0
+
+    def test_param_used_in_expr_alias_no_warning(self):
+        """interp alias for expr — variable references in the aliased
+        expression argument must count as reads (issue #42)."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            proc foo {x y} {
+                set result [= {$x + $y}]
+                return $result
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_param_used_in_expr_alias_complex(self):
+        """Full example from issue #42 — relPos should not be flagged."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            proc calc {index relPos} {
+                set newIndex [= {$index+$relPos}]
+                return $newIndex
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+
+# interp alias
+class TestInterpAlias:
+    def test_alias_recorded(self):
+        result = analyse("interp alias {} = {} expr")
+        assert "=" in result.command_aliases
+        assert result.command_aliases["="] == ("expr", ())
+
+    def test_alias_with_prepended_args(self):
+        result = analyse("interp alias {} myput {} puts stdout")
+        assert "myput" in result.command_aliases
+        assert result.command_aliases["myput"] == ("puts", ("stdout",))
+
+    def test_alias_non_current_interp_not_recorded(self):
+        result = analyse("interp alias child = {} expr")
+        assert "=" not in result.command_aliases
+
+    def test_alias_expr_analysis(self):
+        """Standalone expr alias call should have its argument analysed as expr."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            = {1 + 2}
+        """)
+        result = analyse(source)
+        # No errors — the expression is valid
+        errors = [d for d in result.diagnostics if d.severity == Severity.ERROR]
+        assert len(errors) == 0
+
+    def test_alias_body_analysis(self):
+        """Alias for a body-taking command should recurse into the body."""
+        source = textwrap.dedent("""\
+            interp alias {} myeval {} eval
+            proc foo {x} {
+                myeval { set y 1 }
+                return $x
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0

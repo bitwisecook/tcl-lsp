@@ -1283,6 +1283,24 @@ operators (`expr-op`) with optional arity.
 
 See [KCS: Dialect stubs](docs/kcs/kcs-dialect-stubs.md) for full syntax.
 
+### Command alias resolution
+
+When `interp alias {} name {} target ?args?` creates a command alias in the
+current interpreter, the LSP automatically inherits the target command's
+argument semantics.  This means expression arguments, body arguments, variable
+names, and patterns are all correctly analysed through the alias:
+
+```tcl
+interp alias {} = {} expr
+proc calculate {x y} {
+    set result [= {$x + $y}]   ;# $x and $y recognised as reads — no W214
+    return $result
+}
+```
+
+See [KCS: Command alias resolution](docs/kcs/kcs-command-alias-resolution.md)
+for details.
+
 ### Proc argument trait inference
 
 The analyser automatically infers how each proc parameter is used inside

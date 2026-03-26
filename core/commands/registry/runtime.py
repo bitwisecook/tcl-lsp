@@ -1014,6 +1014,8 @@ def iter_body_arguments(
     cmd_name: str,
     args: list[str],
     arg_tokens: list[Token],
+    *,
+    prepend_n: int = 0,
 ) -> Iterator[BodyArgument]:
     """Yield validated :class:`BodyArgument` entries for *cmd_name*.
 
@@ -1021,13 +1023,21 @@ def iter_body_arguments(
     yields one ``BodyArgument`` per index that is within bounds of both
     *args* and *arg_tokens*.  Indices are yielded in ascending order.
 
+    When *prepend_n* > 0 (alias resolution with prepended arguments),
+    *args* contains the virtual argument list but *arg_tokens* only
+    covers the real (non-prepended) arguments.  Virtual indices are
+    mapped back by subtracting *prepend_n* before accessing *arg_tokens*.
+
     Callers should apply any further filtering they need (e.g. checking
     ``body.token.type is TokenType.STR`` or ``body.text.strip()``).
     """
-    for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.BODY)):
-        if idx >= len(args) or idx >= len(arg_tokens):
+    for virtual_idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.BODY)):
+        if virtual_idx >= len(args):
             continue
-        yield BodyArgument(index=idx, text=args[idx], token=arg_tokens[idx])
+        real_idx = virtual_idx - prepend_n
+        if real_idx < 0 or real_idx >= len(arg_tokens):
+            continue
+        yield BodyArgument(index=real_idx, text=args[virtual_idx], token=arg_tokens[real_idx])
 
 
 # Register the cache-invalidation callback so that
