@@ -12,9 +12,7 @@ from .naming import normalise_qualified_name
 CommandAliasMap = dict[str, tuple[str, tuple[str, ...]]]
 
 
-def detect_interp_alias(
-    cmd_name: str, args: list[str]
-) -> tuple[str, str, tuple[str, ...]] | None:
+def detect_interp_alias(cmd_name: str, args: list[str]) -> tuple[str, str, tuple[str, ...]] | None:
     """Detect ``interp alias {} name {} target ?args?``.
 
     Returns ``(qualified_alias_name, target_cmd, prepended_args)`` or

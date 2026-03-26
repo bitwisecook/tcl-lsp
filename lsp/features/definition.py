@@ -9,7 +9,6 @@ from lsprotocol import types
 from core.analysis.analyser import analyse
 from core.analysis.proc_lookup import find_proc_by_reference
 from core.analysis.semantic_model import AnalysisResult
-from core.common.alias import lookup_alias_for_word
 from core.bigip.model import BigipConfig
 from core.bigip.object_registry import (
     candidate_kinds_for_key,
@@ -18,6 +17,7 @@ from core.bigip.object_registry import (
     resolve_kind_in_configs,
 )
 from core.bigip.parser import parse_bigip_conf
+from core.common.alias import lookup_alias_for_word
 from core.common.lsp import find_var_in_scopes, to_lsp_location
 from core.common.position import position_in_range
 

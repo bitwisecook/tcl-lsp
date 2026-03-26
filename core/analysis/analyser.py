@@ -21,9 +21,9 @@ from ..commands.registry.runtime import (
     iter_body_arguments,
 )
 from ..commands.registry.signatures import Arity
+from ..common.alias import detect_interp_alias, resolve_alias
 from ..common.codes import diag
 from ..common.dialect import active_dialect
-from ..common.alias import detect_interp_alias, resolve_alias
 from ..common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )

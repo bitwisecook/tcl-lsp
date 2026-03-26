@@ -7,10 +7,10 @@ from lsprotocol import types
 from core.analysis.analyser import analyse
 from core.analysis.proc_lookup import find_proc_by_reference
 from core.analysis.semantic_model import AnalysisResult, ProcDef
-from core.common.alias import lookup_alias_for_word
 from core.commands.registry import REGISTRY
 from core.commands.registry.models import CommandSpec
 from core.commands.registry.runtime import SIGNATURES, SubcommandSig
+from core.common.alias import lookup_alias_for_word
 from core.common.dialect import active_dialect
 from core.formatting.docstring import format_docstring
 

@@ -21,7 +21,11 @@ from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import ArgRole, arg_indices_for_role
 from ..common.alias import (
     detect_interp_alias,
+)
+from ..common.alias import (
     expr_alias_names as _expr_alias_names,
+)
+from ..common.alias import (
     resolve_alias as _resolve_alias_shared,
 )
 from ..common.dialect import active_dialect as _active_dialect
@@ -888,7 +892,11 @@ class _Lowerer:
         # Check for a registered lowering hook first.
         spec = REGISTRY.get_any(cmd_name)
         # If the command itself has no lowering hook, try the alias target.
-        alias_entry = self._resolve_alias(cmd_name, namespace) if spec is None or spec.lowering is None else None
+        alias_entry = (
+            self._resolve_alias(cmd_name, namespace)
+            if spec is None or spec.lowering is None
+            else None
+        )
         if alias_entry is not None:
             target, prepended = alias_entry
             target_spec = REGISTRY.get_any(target)
@@ -902,13 +910,17 @@ class _Lowerer:
                 virtual_single = [True] * (1 + len(prepended)) + cmd.single_token_word[1:]
                 template_tok = cmd.argv[0]
                 synthetic_toks = [
-                    Token(type=TokenType.ESC, text=p, start=template_tok.start, end=template_tok.end)
+                    Token(
+                        type=TokenType.ESC, text=p, start=template_tok.start, end=template_tok.end
+                    )
                     for p in prepended
                 ]
                 virtual_argv = [cmd.argv[0], *synthetic_toks, *cmd.argv[1:]]
                 virtual_expand: list[bool] | None = None
                 if cmd.expand_word is not None:
-                    virtual_expand = [cmd.expand_word[0]] + [False] * len(prepended) + cmd.expand_word[1:]
+                    virtual_expand = (
+                        [cmd.expand_word[0]] + [False] * len(prepended) + cmd.expand_word[1:]
+                    )
                 virtual = _Command(
                     range=cmd.range,
                     argv=virtual_argv,

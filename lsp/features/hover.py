@@ -9,11 +9,11 @@ from lsprotocol import types
 from core.analysis.analyser import analyse
 from core.analysis.semantic_model import AnalysisResult, ProcDef, Scope, VarDef
 from core.commands.registry import REGISTRY
-from core.common.alias import lookup_alias_for_word
 from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.operators import operator_hover
 from core.commands.registry.runtime import SIGNATURES, SubcommandSig
+from core.common.alias import lookup_alias_for_word
 from core.common.dialect import active_dialect
 from core.common.ip_utils import format_ip_hover, parse_ip
 from core.compiler.core_analyses import analyse_source
@@ -919,9 +919,7 @@ def get_hover(
             if target_spec and target_spec.hover:
                 alias_text += f"\n\n---\n\n{target_spec.hover.render_hover_lean(target_cmd)}"
             return types.Hover(
-                contents=types.MarkupContent(
-                    kind=types.MarkupKind.Markdown, value=alias_text
-                ),
+                contents=types.MarkupContent(kind=types.MarkupKind.Markdown, value=alias_text),
             )
 
     # Command-position hover from registry docs.
