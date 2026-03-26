@@ -2736,16 +2736,19 @@ _SETTINGS_DEBOUNCE_S = 0.3
 
 
 def _apply_all_settings(tcl_settings: dict) -> None:
-    """Debounced settings application.
+    """Debounced settings application — leading-edge with trailing coalesce.
 
-    Stores *tcl_settings* and schedules :func:`_apply_all_settings_now`
-    after a short delay.  If another call arrives within the debounce
-    window the timer is reset so that only the latest settings are
-    applied.  This prevents the dialect ping-pong problem where two
-    rapid ``didChangeConfiguration`` notifications each trigger a full
-    rebuild of every open document.
+    On the *first* call (no pending timer) the settings are applied
+    immediately so that the initial dialect switch is not delayed.
+    A cooldown timer is started; if another call arrives within the
+    debounce window the timer is reset so that only the latest settings
+    are applied at the trailing edge.  This prevents the dialect
+    ping-pong problem where two rapid ``didChangeConfiguration``
+    notifications each trigger a full rebuild of every open document.
     """
     global _pending_settings, _pending_settings_handle
+
+    first_in_burst = _pending_settings_handle is None
     _pending_settings = tcl_settings
     if _pending_settings_handle is not None:
         _pending_settings_handle.cancel()
@@ -2755,6 +2758,10 @@ def _apply_all_settings(tcl_settings: dict) -> None:
         # No running loop (e.g. during tests) — apply immediately.
         _apply_all_settings_now()
         return
+    if first_in_burst:
+        # Leading edge — apply immediately and start cooldown.
+        _apply_all_settings_now()
+    # Schedule trailing-edge apply (resets on each subsequent call).
     _pending_settings_handle = loop.call_later(
         _SETTINGS_DEBOUNCE_S,
         _apply_all_settings_now,
