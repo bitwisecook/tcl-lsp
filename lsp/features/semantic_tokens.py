@@ -3009,7 +3009,7 @@ def compute_semantic_tokens_edits(
     suffix = (suffix // 5) * 5
 
     delete_count = old_len - prefix - suffix
-    insert_data = new_data[prefix : new_len - suffix] if suffix > 0 else new_data[prefix:]
+    insert_data = new_data[prefix : new_len - suffix]
 
     if delete_count == 0 and len(insert_data) == 0:
         return []  # identical

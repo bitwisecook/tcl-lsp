@@ -862,6 +862,9 @@ def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[in
     return set()
 
 
+_SPECIAL_ROLES = frozenset({ArgRole.BODY, ArgRole.EXPR, ArgRole.PATTERN})
+
+
 def arg_indices_for_roles(
     command: str,
     args: list[str],
@@ -873,15 +876,13 @@ def arg_indices_for_roles(
     ``arg_indices_for_role`` incurs per role.  Returns a tuple of
     ``set[int]`` in the same order as *roles*.
     """
-    # Roles with special-case logic must still go through the per-role function
-    # because they short-circuit before consulting SIGNATURES.
-    _SPECIAL = {ArgRole.BODY, ArgRole.EXPR, ArgRole.PATTERN}
     results: list[set[int]] = []
 
-    # Check if we can batch — only if ALL requested roles can use the shared sig.
+    # Roles with special-case logic must still go through the per-role function
+    # because they short-circuit before consulting SIGNATURES.
     need_sig_roles: list[tuple[int, ArgRole]] = []
     for i, role in enumerate(roles):
-        if role in _SPECIAL:
+        if role in _SPECIAL_ROLES:
             results.append(arg_indices_for_role(command, args, role))
         else:
             results.append(set())  # placeholder

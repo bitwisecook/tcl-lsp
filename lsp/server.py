@@ -1822,7 +1822,7 @@ async def _publish_diagnostics(
         update_ms,
         quick_ms,
         uri,
-        source.count("\n") + 1,
+        len(state.buffer.line_starts),
     )
     partial_mode = state.has_partial_commands
 
