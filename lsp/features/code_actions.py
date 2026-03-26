@@ -983,9 +983,6 @@ _TAINT_WRAP_FIXES: dict[str, tuple[str, str]] = {
     "T103": ("Wrap ${var} with [regex::quote]", "regex::quote"),
 }
 
-# Encoder commands for T106 (double-encoding) code action — derived from registry.
-# Called per-use (not module-level) because dialect specs load lazily.
-
 # Template proc definitions for helpers the code actions suggest.
 # Keyed by proc name; value is the complete proc source (with trailing \n\n).
 _HELPER_PROC_TEMPLATES: dict[str, str] = {

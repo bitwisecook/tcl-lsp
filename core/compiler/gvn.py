@@ -427,10 +427,6 @@ def _find_cmd_tokens_in_text(
     return result
 
 
-# Derived from registry: commands with loop_list_header=True.
-# Called per-use (not module-level) because dialect specs load lazily.
-
-
 def _cmd_tokens_from_statement(
     ir_stmt,
     source: str,

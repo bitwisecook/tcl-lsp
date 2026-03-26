@@ -109,9 +109,6 @@ def check_unsafe_irules_command(
 
 # IRULE3102: HTTP::path / HTTP::uri / HTTP::query should use -normalized
 
-# Derived from registry: commands with a ``-normalized`` OptionSpec.
-# Called per-check (not module-level) because dialect specs load lazily.
-
 
 @diag(
     "IRULE3102",
