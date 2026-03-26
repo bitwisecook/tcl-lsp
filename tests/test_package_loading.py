@@ -27,6 +27,14 @@ from core.tk.detection import has_tk_require
 from lsp.features.package_suggestions import rank_package_suggestions
 from lsp.workspace.workspace_index import EntrySource, WorkspaceIndex
 
+
+def _build_registry_with_tk() -> CommandRegistry:
+    """Build a fresh registry with Tk specs loaded (for package-filtering tests)."""
+    registry = CommandRegistry.build_default()
+    registry.load_dialect_specs("tcl8.6")
+    return registry
+
+
 # Helper utilities
 
 
@@ -770,7 +778,7 @@ class TestTkRegistryFiltering:
     """Tk commands filtered by active packages."""
 
     def test_tk_visible_with_package(self):
-        registry = CommandRegistry.build_default()
+        registry = _build_registry_with_tk()
         names = set(registry.commands_for_packages(frozenset({"Tk"})))
         assert "button" in names
         assert "ttk::button" in names
@@ -778,18 +786,18 @@ class TestTkRegistryFiltering:
         assert "wm" in names
 
     def test_tk_hidden_without_package(self):
-        registry = CommandRegistry.build_default()
+        registry = _build_registry_with_tk()
         names = set(registry.commands_for_packages(frozenset()))
         assert "button" not in names
         assert "ttk::button" not in names
 
     def test_tk_hidden_with_wrong_package(self):
-        registry = CommandRegistry.build_default()
+        registry = _build_registry_with_tk()
         names = set(registry.commands_for_packages(frozenset({"http"})))
         assert "button" not in names
 
     def test_tk_with_multiple_packages(self):
-        registry = CommandRegistry.build_default()
+        registry = _build_registry_with_tk()
         names = set(registry.commands_for_packages(frozenset({"Tk", "http"})))
         assert "button" in names
         assert "http::geturl" in names
@@ -1065,7 +1073,7 @@ class TestFullPipelineTk:
         assert "Tk" in pkgs
         assert has_tk_require(result)
 
-        registry = CommandRegistry.build_default()
+        registry = _build_registry_with_tk()
         names = set(registry.commands_for_packages(pkgs))
         assert "button" in names
         assert "pack" in names
@@ -1077,7 +1085,7 @@ class TestFullPipelineTk:
         assert "Tk" not in pkgs
         assert not has_tk_require(result)
 
-        registry = CommandRegistry.build_default()
+        registry = _build_registry_with_tk()
         names = set(registry.commands_for_packages(pkgs))
         assert "button" not in names
 
@@ -1094,7 +1102,7 @@ class TestFullPipelineTk:
         assert has_tk_require(result)
         assert REGISTRY.get("http::geturl", active_packages=pkgs) is not None
 
-        registry = CommandRegistry.build_default()
+        registry = _build_registry_with_tk()
         names = set(registry.commands_for_packages(pkgs))
         assert "button" in names
         assert "http::geturl" in names
@@ -1120,7 +1128,7 @@ class TestFullPipelineAllThree:
         assert pkgs == frozenset({"Tk", "http", "json", "base64"})
         assert has_tk_require(result)
 
-        registry = CommandRegistry.build_default()
+        registry = _build_registry_with_tk()
         names = set(registry.commands_for_packages(pkgs))
 
         # Tk commands

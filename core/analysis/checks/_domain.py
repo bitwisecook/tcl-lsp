@@ -110,7 +110,7 @@ def check_unsafe_irules_command(
 # IRULE3102: HTTP::path / HTTP::uri / HTTP::query should use -normalized
 
 # Derived from registry: commands with a ``-normalized`` OptionSpec.
-_NORMALIZABLE_HTTP_COMMANDS = normalized_flag_commands()
+# Called per-check (not module-level) because dialect specs load lazily.
 
 
 @diag(
@@ -128,7 +128,7 @@ def check_irules_unnormalized_http_getter(
     """IRULE3102: Warn when HTTP URI/path/query getters omit ``-normalized``."""
     if active_dialect() != "f5-irules":
         return []
-    if cmd_name not in _NORMALIZABLE_HTTP_COMMANDS:
+    if cmd_name not in normalized_flag_commands():
         return []
     # Already using -normalized — nothing to warn about.
     if "-normalized" in args:
