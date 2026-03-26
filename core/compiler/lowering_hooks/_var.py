@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
-from ...common.alias import CommandAliasMap, expr_alias_names as _expr_alias_names
+from ...common.alias import CommandAliasMap
+from ...common.alias import expr_alias_names as _expr_alias_names
 from ...common.naming import normalise_var_name as _normalise_var_name
 from ...parsing.substitution import backslash_subst as _tcl_backsubst
 from ..ir import (
