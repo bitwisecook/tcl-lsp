@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -66,77 +68,28 @@ def _core_command_specs() -> tuple[CommandSpec, ...]:
     return tcl_command_specs() + stdlib_command_specs() + tcllib_command_specs()
 
 
-from collections.abc import Callable  # noqa: E402
-
-_DIALECT_LOADERS: dict[str, Callable[[], tuple[CommandSpec, ...]]] = {}
-
-
-def _register_dialect_loaders() -> None:
-    """Register lazy spec loaders for each dialect family."""
-
-    def _tk() -> tuple[CommandSpec, ...]:
-        from .tk import tk_command_specs
-
-        return tk_command_specs()
-
-    def _irules() -> tuple[CommandSpec, ...]:
-        from .irules import irules_command_specs
-
-        return irules_command_specs()
-
-    def _iapps() -> tuple[CommandSpec, ...]:
-        from .iapps import iapps_command_specs
-
-        return iapps_command_specs()
-
-    def _sdc_base() -> tuple[CommandSpec, ...]:
-        from .eda_sdc_base import sdc_base_command_specs
-
-        return sdc_base_command_specs()
-
-    def _synopsys() -> tuple[CommandSpec, ...]:
-        from .eda_synopsys import synopsys_command_specs
-
-        return synopsys_command_specs()
-
-    def _cadence() -> tuple[CommandSpec, ...]:
-        from .eda_cadence import cadence_command_specs
-
-        return cadence_command_specs()
-
-    def _xilinx() -> tuple[CommandSpec, ...]:
-        from .eda_xilinx import xilinx_command_specs
-
-        return xilinx_command_specs()
-
-    def _quartus() -> tuple[CommandSpec, ...]:
-        from .eda_quartus import quartus_command_specs
-
-        return quartus_command_specs()
-
-    def _mentor() -> tuple[CommandSpec, ...]:
-        from .eda_mentor import mentor_command_specs
-
-        return mentor_command_specs()
-
-    def _expect() -> tuple[CommandSpec, ...]:
-        from .expect import expect_command_specs
-
-        return expect_command_specs()
-
-    _DIALECT_LOADERS["tk"] = _tk
-    _DIALECT_LOADERS["f5-irules"] = _irules
-    _DIALECT_LOADERS["f5-iapps"] = _iapps
-    _DIALECT_LOADERS["sdc-base"] = _sdc_base
-    _DIALECT_LOADERS["synopsys-eda-tcl"] = _synopsys
-    _DIALECT_LOADERS["cadence-eda-tcl"] = _cadence
-    _DIALECT_LOADERS["xilinx-eda-tcl"] = _xilinx
-    _DIALECT_LOADERS["intel-quartus-eda-tcl"] = _quartus
-    _DIALECT_LOADERS["mentor-eda-tcl"] = _mentor
-    _DIALECT_LOADERS["expect"] = _expect
+# Lazy dialect spec loaders.  Each key maps to a (module_name, func_name)
+# pair resolved relative to this package via importlib.
+_DIALECT_LOADER_SPECS: dict[str, tuple[str, str]] = {
+    "tk": ("tk", "tk_command_specs"),
+    "f5-irules": ("irules", "irules_command_specs"),
+    "f5-iapps": ("iapps", "iapps_command_specs"),
+    "sdc-base": ("eda_sdc_base", "sdc_base_command_specs"),
+    "synopsys-eda-tcl": ("eda_synopsys", "synopsys_command_specs"),
+    "cadence-eda-tcl": ("eda_cadence", "cadence_command_specs"),
+    "xilinx-eda-tcl": ("eda_xilinx", "xilinx_command_specs"),
+    "intel-quartus-eda-tcl": ("eda_quartus", "quartus_command_specs"),
+    "mentor-eda-tcl": ("eda_mentor", "mentor_command_specs"),
+    "expect": ("expect", "expect_command_specs"),
+}
 
 
-_register_dialect_loaders()
+def _load_dialect_pack(key: str) -> tuple[CommandSpec, ...]:
+    """Import and call the spec factory for *key*."""
+    mod_name, func_name = _DIALECT_LOADER_SPECS[key]
+    mod = importlib.import_module(f".{mod_name}", __package__)
+    return getattr(mod, func_name)()
+
 
 # Dialect -> loader keys needed.  Core Tcl specs are always loaded.
 _DIALECT_TO_LOADERS: dict[str, tuple[str, ...]] = {
@@ -157,7 +110,7 @@ _DIALECT_TO_LOADERS: dict[str, tuple[str, ...]] = {
 }
 
 # Callback set by runtime.py to invalidate derived caches after spec loading.
-_on_specs_loaded: Callable[[], None] | None = None
+_on_specs_loaded: Callable[[list[str]], None] | None = None
 
 
 @dataclass(slots=True)
@@ -285,9 +238,8 @@ class CommandRegistry:
 
         new_specs: list[CommandSpec] = []
         for key in needed:
-            loader = _DIALECT_LOADERS.get(key)
-            if loader is not None:
-                new_specs.extend(loader())
+            if key in _DIALECT_LOADER_SPECS:
+                new_specs.extend(_load_dialect_pack(key))
             self._loaded_loaders.add(key)
 
         if not new_specs:
@@ -325,7 +277,7 @@ class CommandRegistry:
         # Notify runtime.py to rebuild its derived data (only for the
         # global singleton, not for test-local registry copies).
         if _on_specs_loaded is not None and self is REGISTRY:
-            _on_specs_loaded()
+            _on_specs_loaded(needed)
 
         return True
 
@@ -653,6 +605,7 @@ class CommandRegistry:
         dialect: str | None = None,
         active_packages: frozenset[str] | None = None,
     ) -> ValidationSpec | None:
+        self._ensure_dialect_loaded(dialect)
         specs = self.specs_by_name.get(name)
         if specs is None:
             return None
@@ -728,14 +681,17 @@ class CommandRegistry:
 
     def is_dynamic_barrier(self, name: str, dialect: str | None = None) -> bool:
         """Check if the command creates a dynamic barrier (eval, uplevel, etc.)."""
+        self._ensure_dialect_loaded(dialect)
         return self._any_spec_has(name, "creates_dynamic_barrier")
 
     def has_loop_body(self, name: str, dialect: str | None = None) -> bool:
         """Check if the command has a loop body (for, while, foreach)."""
+        self._ensure_dialect_loaded(dialect)
         return self._any_spec_has(name, "has_loop_body")
 
     def never_inline_body(self, name: str, dialect: str | None = None) -> bool:
         """Check if the command's body should never be formatted inline."""
+        self._ensure_dialect_loaded(dialect)
         return self._any_spec_has(name, "never_inline_body")
 
     def resolve_option_terminator(
@@ -810,14 +766,17 @@ class CommandRegistry:
 
     def dynamic_barrier_commands(self, dialect: str | None = None) -> frozenset[str]:
         """Return all commands that create dynamic barriers."""
+        self._ensure_dialect_loaded(dialect)
         return self._trait_names("creates_dynamic_barrier")
 
     def loop_body_commands(self, dialect: str | None = None) -> frozenset[str]:
         """Return all commands that have loop bodies."""
+        self._ensure_dialect_loaded(dialect)
         return self._trait_names("has_loop_body")
 
     def never_inline_body_commands(self, dialect: str | None = None) -> frozenset[str]:
         """Return all commands whose bodies should never be formatted inline."""
+        self._ensure_dialect_loaded(dialect)
         return self._trait_names("never_inline_body")
 
     # Purity / CSE
@@ -1106,9 +1065,10 @@ class CommandRegistry:
         filtering.  Raises ``ValueError`` if *event* is non-None for
         a dialect that has no event concept.
 
-        Built on first access, invalidated only if registry changes
-        (which doesn't happen after startup).
+        Built on first access; the cache is invalidated when
+        ``load_dialect_specs`` expands the registry.
         """
+        self._ensure_dialect_loaded(dialect)
         if event is not None and dialect not in self._EVENT_AWARE_DIALECTS:
             raise ValueError(
                 f"dialect {dialect!r} has no event concept; event={event!r} is not valid"

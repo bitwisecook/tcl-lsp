@@ -7,7 +7,8 @@ semantics needed by analysis/formatting/compiler passes.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+import importlib
+from collections.abc import Iterator
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -106,22 +107,12 @@ from .tcl import tcl_taint_hints as _tcl_taint_hints  # noqa: E402
 
 TAINT_HINTS: dict[str, TaintHint] = {**_tcl_taint_hints()}
 
-# Taint hint loaders keyed by dialect loader key, mirroring
-# _DIALECT_LOADERS in command_registry.  Only dialects with taint hints
-# need entries here.
-_TAINT_HINT_LOADERS: dict[str, Callable[[], dict[str, TaintHint]]] = {}
-
-
-def _register_taint_hint_loaders() -> None:
-    def _irules_hints() -> dict[str, TaintHint]:
-        from .irules import irules_taint_hints
-
-        return irules_taint_hints()
-
-    _TAINT_HINT_LOADERS["f5-irules"] = _irules_hints
-
-
-_register_taint_hint_loaders()
+# Taint hint loaders: (module_name, func_name) for dialects that provide
+# taint hints.  Loaded lazily via importlib, mirroring the command spec
+# loader pattern in command_registry.py.
+_TAINT_HINT_LOADER_SPECS: dict[str, tuple[str, str]] = {
+    "f5-irules": ("irules", "irules_taint_hints"),
+}
 
 # Loader keys whose taint hints have already been merged.
 _loaded_taint_loaders: set[str] = set()
@@ -132,14 +123,17 @@ def _merge_taint_hints_for_loaders(loader_keys: list[str]) -> None:
     for key in loader_keys:
         if key in _loaded_taint_loaders:
             continue
-        loader = _TAINT_HINT_LOADERS.get(key)
-        if loader is not None:
-            TAINT_HINTS.update(loader())
+        spec = _TAINT_HINT_LOADER_SPECS.get(key)
+        if spec is not None:
+            mod_name, func_name = spec
+            mod = importlib.import_module(f".{mod_name}", __package__)
+            TAINT_HINTS.update(getattr(mod, func_name)())
         _loaded_taint_loaders.add(key)
 
 
-def _invalidate_runtime_caches() -> None:
+def _invalidate_runtime_caches(loader_keys: list[str]) -> None:
     """Rebuild derived data after the registry has been expanded."""
+    _merge_taint_hints_for_loaders(loader_keys)
     global _ROLE_HINTS
     _ROLE_HINTS = _role_hints_from_registry()
     TYPE_HINTS.clear()
@@ -589,12 +583,9 @@ def configure_signatures(
         return False
 
     # Ensure dialect-specific command specs are loaded before building
-    # signatures.  This is a no-op if the dialect pack is already loaded.
-    from .command_registry import _DIALECT_TO_LOADERS
-
-    loader_keys = list(_DIALECT_TO_LOADERS.get(next_dialect, ()))
+    # signatures.  Taint hints are merged automatically via the
+    # _on_specs_loaded callback when new specs are loaded.
     REGISTRY.load_dialect_specs(next_dialect)
-    _merge_taint_hints_for_loaders(loader_keys)
 
     new_signatures = _build_signatures(
         next_dialect,

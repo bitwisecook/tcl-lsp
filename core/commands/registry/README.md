@@ -28,7 +28,8 @@ Command specs can include:
 1. Add specs under `<dialect>/` (for example `irules/http.py`).
 2. Set `dialects=frozenset({"<dialect-name>"})`.
 3. Export from `<dialect>/__init__.py`.
-4. Include in `command_registry.py` through `_all_command_specs()`.
+4. Register a lazy loader entry in `_DIALECT_LOADER_SPECS` in `command_registry.py`
+   and map the dialect to loader keys in `_DIALECT_TO_LOADERS`.
 
 ## Regenerating iRules Baseline
 

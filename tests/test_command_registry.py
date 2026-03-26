@@ -508,3 +508,70 @@ class TestSideEffectHintsDialectFiltering:
         assert irules_hints is not None
         assert tcl_hints[0].target is SideEffectTarget.FILE_IO
         assert irules_hints[0].target is SideEffectTarget.CONNECTION_CONTROL
+
+
+class TestLazyDialectLoading:
+    """Tests for the lazy dialect loading mechanism."""
+
+    def _fresh_registry(self):
+        from core.commands.registry.command_registry import CommandRegistry
+
+        return CommandRegistry.build_default()
+
+    def test_dialect_specs_not_in_default_registry(self):
+        registry = self._fresh_registry()
+        assert "HTTP::header" not in registry.specs_by_name
+        assert "button" not in registry.specs_by_name
+        assert "set" in registry.specs_by_name
+
+    def test_load_dialect_specs_returns_true_on_first_load(self):
+        registry = self._fresh_registry()
+        assert registry.load_dialect_specs("f5-irules") is True
+
+    def test_load_dialect_specs_returns_false_on_second_load(self):
+        registry = self._fresh_registry()
+        registry.load_dialect_specs("f5-irules")
+        assert registry.load_dialect_specs("f5-irules") is False
+
+    def test_load_unknown_dialect_is_noop(self):
+        registry = self._fresh_registry()
+        assert registry.load_dialect_specs("nonexistent") is False
+
+    def test_get_auto_loads_dialect(self):
+        registry = self._fresh_registry()
+        assert "HTTP::header" not in registry.specs_by_name
+        spec = registry.get("HTTP::header", "f5-irules")
+        assert spec is not None
+        assert "HTTP::header" in registry.specs_by_name
+
+    def test_validation_auto_loads_dialect(self):
+        registry = self._fresh_registry()
+        val = registry.validation("ACCESS::acl", "f5-irules")
+        assert val is not None
+
+    def test_commands_for_event_auto_loads_dialect(self):
+        registry = self._fresh_registry()
+        es = registry.commands_for_event("f5-irules", "HTTP_REQUEST")
+        assert "HTTP::header" in es.valid_commands
+
+    def test_command_names_auto_loads_dialect(self):
+        registry = self._fresh_registry()
+        names = set(registry.command_names("f5-irules"))
+        assert "HTTP::header" in names
+
+    def test_command_legality_auto_loads_dialect(self):
+        registry = self._fresh_registry()
+        legality = registry.command_legality("f5-irules")
+        assert legality.is_legal("HTTP_REQUEST", "HTTP::header")
+
+    def test_tk_loaded_for_tcl_dialects(self):
+        registry = self._fresh_registry()
+        spec = registry.get("button", "tcl8.6")
+        assert spec is not None
+
+    def test_eda_loads_tk_and_sdc(self):
+        registry = self._fresh_registry()
+        registry.load_dialect_specs("synopsys-eda-tcl")
+        assert "button" in registry.specs_by_name
+        # SDC base commands should also be present.
+        assert len(registry._loaded_loaders & {"tk", "sdc-base", "synopsys-eda-tcl"}) == 3
