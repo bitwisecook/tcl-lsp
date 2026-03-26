@@ -917,6 +917,68 @@ def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[in
     return set()
 
 
+def arg_indices_for_roles(
+    command: str,
+    args: list[str],
+    roles: tuple[ArgRole, ...],
+) -> tuple[set[int], ...]:
+    """Return argument indices for multiple roles with a single signature lookup.
+
+    This avoids the repeated ``SIGNATURES.get(command)`` call that
+    ``arg_indices_for_role`` incurs per role.  Returns a tuple of
+    ``set[int]`` in the same order as *roles*.
+    """
+    # Roles with special-case logic must still go through the per-role function
+    # because they short-circuit before consulting SIGNATURES.
+    _SPECIAL = {ArgRole.BODY, ArgRole.EXPR, ArgRole.PATTERN}
+    results: list[set[int]] = []
+
+    # Check if we can batch — only if ALL requested roles can use the shared sig.
+    need_sig_roles: list[tuple[int, ArgRole]] = []
+    for i, role in enumerate(roles):
+        if role in _SPECIAL:
+            results.append(arg_indices_for_role(command, args, role))
+        else:
+            results.append(set())  # placeholder
+            need_sig_roles.append((i, role))
+
+    if not need_sig_roles:
+        return tuple(results)
+
+    sig = SIGNATURES.get(command)
+    if sig is None:
+        return tuple(results)
+
+    if isinstance(sig, SubcommandSig):
+        if not args:
+            return tuple(results)
+        sub_sig = sig.subcommands.get(args[0])
+        if sub_sig is None:
+            return tuple(results)
+        for idx_in_result, role in need_sig_roles:
+            results[idx_in_result] = {
+                idx + 1
+                for idx, arg_role in sub_sig.arg_roles.items()
+                if arg_role is role and (idx + 1) < len(args)
+            }
+    elif isinstance(sig, CommandSig):
+        if sig.arg_role_resolver is not None:
+            resolved = sig.arg_role_resolver(args)
+            for idx_in_result, role in need_sig_roles:
+                results[idx_in_result] = {
+                    idx for idx, r in resolved.items() if r is role and idx < len(args)
+                }
+        else:
+            for idx_in_result, role in need_sig_roles:
+                results[idx_in_result] = {
+                    idx
+                    for idx, arg_role in sig.arg_roles.items()
+                    if arg_role is role and idx < len(args)
+                }
+
+    return tuple(results)
+
+
 def body_arg_indices(command: str, args: list[str]) -> set[int]:
     """Return BODY argument indices for *command* given args after command name."""
     return arg_indices_for_role(command, args, ArgRole.BODY)
