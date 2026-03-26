@@ -327,7 +327,7 @@ class Analyser:
     ) -> None:
         """Walk old and new scope trees in parallel, recording id mappings."""
         mapping[id(old_scope)] = new_scope
-        for old_child, new_child in zip(old_scope.children, new_scope.children):
+        for old_child, new_child in zip(old_scope.children, new_scope.children, strict=True):
             Analyser._build_scope_id_map(old_child, new_child, mapping)
 
     def analyse_chunked(
