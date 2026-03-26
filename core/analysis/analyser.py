@@ -23,6 +23,7 @@ from ..commands.registry.runtime import (
 from ..commands.registry.signatures import Arity
 from ..common.codes import diag
 from ..common.dialect import active_dialect
+from ..common.alias import detect_interp_alias, resolve_alias
 from ..common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
@@ -1690,30 +1691,11 @@ class Analyser:
 
         Records the alias so that argument roles (EXPR, BODY, etc.) from
         the target command are applied when the alias is invoked.
-
-        Alias names are stored in fully-qualified form (``::name``)
-        because ``interp alias`` creates interpreter-wide commands.
         """
-        # interp alias srcPath srcToken targetPath targetCmd ?arg ...?
-        # For current-interp aliases: interp alias {} name {} target ?args?
-        if cmd_name != "interp" or len(args) < 4:
+        detected = detect_interp_alias(cmd_name, args)
+        if detected is None:
             return
-        if args[0] != "alias":
-            return
-        # args: ["alias", srcPath, srcToken, targetPath, targetCmd, ?arg ...?]
-        if len(args) < 5:
-            return
-        src_path = args[1]
-        alias_name = args[2]
-        target_path = args[3]
-        target_cmd = args[4]
-        prepended = tuple(args[5:])
-        # Only track aliases in the current interpreter (empty path).
-        if src_path not in ("", "{}") or target_path not in ("", "{}"):
-            return
-        # Normalise to fully-qualified name — interp alias always
-        # creates a global command in the target interpreter.
-        qualified = _normalise_qualified_name(alias_name) if alias_name else alias_name
+        qualified, target_cmd, prepended = detected
         self._command_aliases[qualified] = (target_cmd, prepended)
         self.result.command_aliases[qualified] = (target_cmd, prepended)
 
@@ -1758,36 +1740,14 @@ class Analyser:
         and the effective argument list (prepended args + original args).
         Otherwise returns the original cmd_name and args unchanged.
 
-        Lookup order mirrors Tcl's command resolution: first try the
-        fully-qualified name in the current namespace, then fall back
-        to the global namespace (``::``).
+        Delegates to the shared ``resolve_alias()`` utility with the
+        namespace derived from the current scope chain.
         """
-        # Try exact qualified form first.
-        if cmd_name.startswith("::"):
-            qualified = _normalise_qualified_name(cmd_name)
-            alias = self._command_aliases.get(qualified)
-            if alias is not None:
-                target_cmd, prepended = alias
-                return target_cmd, list(prepended) + args
-            return cmd_name, args
-
-        # Unqualified name — try current namespace, then global.
-        if scope is not None:
-            ns = self._namespace_from_scope(scope)
-            if ns != "::":
-                candidate = _normalise_qualified_name(f"{ns}::{cmd_name}")
-                alias = self._command_aliases.get(candidate)
-                if alias is not None:
-                    target_cmd, prepended = alias
-                    return target_cmd, list(prepended) + args
-
-        # Fall back to global namespace.
-        global_name = _normalise_qualified_name(f"::{cmd_name}")
-        alias = self._command_aliases.get(global_name)
+        ns = self._namespace_from_scope(scope) if scope is not None else "::"
+        alias = resolve_alias(cmd_name, self._command_aliases, namespace=ns)
         if alias is not None:
             target_cmd, prepended = alias
             return target_cmd, list(prepended) + args
-
         return cmd_name, args
 
     def _handle_proc(

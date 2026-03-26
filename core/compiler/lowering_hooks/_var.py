@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
+from ...common.alias import CommandAliasMap, expr_alias_names as _expr_alias_names
 from ...common.naming import normalise_var_name as _normalise_var_name
 from ...parsing.substitution import backslash_subst as _tcl_backsubst
 from ..ir import (
@@ -17,6 +18,12 @@ from ..token_helpers import parse_decimal_int as _parse_decimal_int
 
 if TYPE_CHECKING:
     from ..lowering import _Command
+
+
+class _LowererLike(Protocol):
+    """Minimal protocol for the lowerer interface used by hooks."""
+
+    _command_aliases: CommandAliasMap
 
 
 def _parse_expr(expr_text: str):  # noqa: ANN202
@@ -37,7 +44,7 @@ def _expr_arg_from_expr_command(
     return extract_single_expr_argument(text, expr_aliases=expr_aliases)
 
 
-def lower_set(lowerer: object, cmd: _Command) -> object | None:
+def lower_set(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``set`` to IRAssignConst/IRAssignExpr/IRAssignValue."""
     from ...parsing.tokens import TokenType
 
@@ -62,11 +69,8 @@ def lower_set(lowerer: object, cmd: _Command) -> object | None:
         if const_value is not None:
             return IRAssignConst(range=cmd.range, name=name, value=const_value)
         if tok.type is TokenType.CMD:
-            aliases: frozenset[str] | None = None
-            get_aliases = getattr(lowerer, "expr_alias_names", None)
-            if get_aliases is not None:
-                aliases = get_aliases()
-            expr_arg = _expr_arg_from_expr_command(tok.text, expr_aliases=aliases)
+            aliases = _expr_alias_names(lowerer._command_aliases)
+            expr_arg = _expr_arg_from_expr_command(tok.text, expr_aliases=aliases or None)
             if expr_arg is not None:
                 return IRAssignExpr(range=cmd.range, name=name, expr=_parse_expr(expr_arg))
         if tok.type is TokenType.ESC and "\\" in value:

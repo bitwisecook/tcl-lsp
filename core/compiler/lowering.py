@@ -19,6 +19,11 @@ from typing import cast
 from ..analysis.semantic_model import Range
 from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import ArgRole, arg_indices_for_role
+from ..common.alias import (
+    detect_interp_alias,
+    expr_alias_names as _expr_alias_names,
+    resolve_alias as _resolve_alias_shared,
+)
 from ..common.dialect import active_dialect as _active_dialect
 from ..common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
@@ -205,43 +210,12 @@ class _Lowerer:
         self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
 
     def expr_alias_names(self) -> frozenset[str]:
-        """Return names that are aliases for ``expr`` (no prepended args).
-
-        Returns both the qualified keys (``::=``) and stripped short
-        names (``=``) so callers that match against bare command words
-        get a hit.
-        """
-        result: set[str] = set()
-        for name, (target, prepended) in self._command_aliases.items():
-            if target == "expr" and not prepended:
-                result.add(name)
-                # Also add the short (unqualified) form for callers
-                # that match against bare command names.
-                if name.startswith("::"):
-                    short = name.rsplit("::", 1)[-1]
-                    if short:
-                        result.add(short)
-        return frozenset(result)
+        """Return names that are aliases for ``expr`` (no prepended args)."""
+        return _expr_alias_names(self._command_aliases)
 
     def _resolve_alias(self, cmd_name: str, namespace: str) -> tuple[str, tuple[str, ...]] | None:
-        """Look up a command alias, namespace-aware.
-
-        ``interp alias`` creates interpreter-wide (global) commands,
-        so aliases are stored under their fully-qualified name.  The
-        lookup mirrors Tcl's command resolution: try the current
-        namespace first, then fall back to global (``::``).
-        """
-        if cmd_name.startswith("::"):
-            return self._command_aliases.get(_normalise_qualified_name(cmd_name))
-
-        # Unqualified — try current namespace, then global.
-        if namespace != "::":
-            candidate = _normalise_qualified_name(f"{namespace}::{cmd_name}")
-            alias = self._command_aliases.get(candidate)
-            if alias is not None:
-                return alias
-
-        return self._command_aliases.get(_normalise_qualified_name(f"::{cmd_name}"))
+        """Look up a command alias, namespace-aware."""
+        return _resolve_alias_shared(cmd_name, self._command_aliases, namespace=namespace)
 
     def lower(self, source: str) -> IRModule:
         self.module.top_level = self._lower_script(source, namespace="::")
@@ -906,17 +880,10 @@ class _Lowerer:
 
         # Detect ``interp alias {} name {} target ?args?`` and record
         # the alias for resolving argument semantics of later calls.
-        # Alias names are stored fully-qualified (``::name``) because
-        # ``interp alias`` creates interpreter-wide commands.
-        if cmd_name == "interp" and len(args) >= 4 and args[0] == "alias":
-            src_path = args[1]
-            alias_name = args[2]
-            target_path = args[3]
-            if src_path in ("", "{}") and target_path in ("", "{}") and len(args) >= 5:
-                target_cmd = args[4]
-                prepended = tuple(args[5:])
-                qualified = _normalise_qualified_name(alias_name) if alias_name else alias_name
-                self._command_aliases[qualified] = (target_cmd, prepended)
+        detected = detect_interp_alias(cmd_name, args)
+        if detected is not None:
+            qualified, target_cmd_name, prepended_args = detected
+            self._command_aliases[qualified] = (target_cmd_name, prepended_args)
 
         # Check for a registered lowering hook first.
         spec = REGISTRY.get_any(cmd_name)
