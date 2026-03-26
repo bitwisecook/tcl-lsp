@@ -34,8 +34,6 @@ from .irules_context import find_enclosing_when_event
 from .package_suggestions import rank_package_suggestions
 from .symbol_resolution import (
     find_word_at_position as _find_word_at_position,
-)
-from .symbol_resolution import (
     find_word_span_at_position as _find_word_span_at_position,
 )
 
@@ -764,7 +762,6 @@ def _ip_conversion_actions(
         source,
         range_.start.line,
         range_.start.character,
-        delimiters=" \t;{}[]\"'",
     )
     if span is None:
         return []

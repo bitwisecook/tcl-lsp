@@ -15,7 +15,6 @@ def find_word_span_at_position(
     character: int,
     *,
     lines: list[str] | None = None,
-    delimiters: str | None = None,
 ) -> tuple[str, int, int] | None:
     """Extract the word and its [start, end) columns at the given position."""
     if lines is None:
@@ -26,13 +25,12 @@ def find_word_span_at_position(
     if character >= len(line_text):
         return None
 
-    delims = delimiters if delimiters is not None else _WORD_DELIMS
     start = character
-    while start > 0 and line_text[start - 1] not in delims:
+    while start > 0 and line_text[start - 1] not in _WORD_DELIMS:
         start -= 1
 
     end = character
-    while end < len(line_text) and line_text[end] not in delims:
+    while end < len(line_text) and line_text[end] not in _WORD_DELIMS:
         end += 1
 
     word = line_text[start:end]
