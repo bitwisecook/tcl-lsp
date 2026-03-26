@@ -39,6 +39,7 @@ W123 behaviour accordingly:
 - **Package require**: If any `package require` is present, W123 is suppressed (external packages may define commands).
 - **Dialect stubs**: Commands declared via `# tcl-lsp: stub` are treated as known. See [Dialect Stubs](../kcs-dialect-stubs.md).
 - **User-defined procs**: Any `proc` defined in the file (or sourced via packages) is a known command.
+- **Command aliases**: Commands defined via `interp alias` are treated as known. See [Command Alias Resolution](../kcs-command-alias-resolution.md).
 - **Namespace-qualified names**: Commands containing `::` are skipped (may come from `namespace import`).
 
 ## Operational context
@@ -49,7 +50,7 @@ later in the file are still captured.
 
 The "did you mean?" engine uses Levenshtein edit distance (max distance 2)
 against the union of: registry commands, user-defined procs, stub commands,
-and `unknown` dispatch targets.
+`unknown` dispatch targets, and command alias names.
 
 ## File-path anchors
 
@@ -60,7 +61,7 @@ and `unknown` dispatch targets.
 
 ## Failure modes
 
-- False positives in codebases using `interp alias` or other dynamic command creation not detected by the gating logic.
+- False positives in codebases using dynamic command creation (e.g. `apply`, `coroutine`) not detected by the gating logic.
 - Forward-defined `unknown` proc in a sourced file (cross-file) is not detected — analysis is single-file.
 
 ## Test anchors

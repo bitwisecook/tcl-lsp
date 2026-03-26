@@ -2006,11 +2006,19 @@ class Analyser:
 
         dispatch_targets = upi.dispatch_targets if upi is not None else frozenset()
 
+        # Build set of alias tail names (e.g. "=" from "::=").
+        alias_names: set[str] = set()
+        for qname in self.result.command_aliases:
+            tail = qname.rsplit("::", 1)[-1]
+            if tail:
+                alias_names.add(tail)
+
         candidates: set[str] = set()
         candidates.update(registry_names)
         candidates.update(proc_tail_names)
         candidates.update(stub_names)
         candidates.update(dispatch_targets)
+        candidates.update(alias_names)
 
         for inv in self.result.command_invocations:
             cmd_name = inv.name
@@ -2033,6 +2041,10 @@ class Analyser:
 
             # Skip stub commands.
             if cmd_name in stub_names:
+                continue
+
+            # Skip commands defined as aliases (interp alias).
+            if cmd_name in alias_names:
                 continue
 
             # Skip commands explicitly handled by unknown dispatch.

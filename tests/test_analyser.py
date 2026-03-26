@@ -1237,6 +1237,23 @@ class TestW123UnresolvedCommand:
         diags = [d for d in result.diagnostics if d.code == "W123"]
         assert len(diags) == 0
 
+    # --- alias integration ---
+
+    def test_alias_command_no_w123(self):
+        """Commands defined via interp alias should not trigger W123."""
+        diags = self._w123("interp alias {} = {} expr\n= {1 + 2}")
+        assert len(diags) == 0
+
+    def test_alias_in_did_you_mean(self):
+        """Alias names should appear in 'did you mean?' suggestions."""
+        source = textwrap.dedent("""\
+            interp alias {} myput {} puts stdout
+            myptu hello
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 1
+        assert "myput" in diags[0].message
+
     def test_tcl_unknown_qualified(self):
         """``proc ::tcl::unknown`` is recognised as the unknown handler."""
         source = textwrap.dedent("""\
