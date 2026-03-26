@@ -256,6 +256,8 @@ class Analyser:
         # Command aliases: alias_name -> (target_cmd, prepended_args).
         # Populated from ``interp alias {} name {} target ?arg ...?``.
         self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
+        # Cache: id(scope) -> namespace string, for _namespace_from_scope.
+        self._ns_cache: dict[int, str] = {}
 
     def snapshot(self) -> AnalyserSnapshot:
         """Capture the analyser state for later restoration.
@@ -281,6 +283,7 @@ class Analyser:
             regex_vars=set(self._regex_vars),
             current_event=self._current_event,
             conditional_depth=self._conditional_depth,
+            # Shallow copy — values are immutable (str, tuple) so no deep copy needed.
             command_aliases=dict(self._command_aliases),
             scope_id_map=scope_id_map,
         )
@@ -299,6 +302,7 @@ class Analyser:
         self._current_event = snap.current_event
         self._conditional_depth = snap.conditional_depth
         self._command_aliases = dict(snap.command_aliases)
+        self._ns_cache.clear()
 
         # Remap scope ids: old_id → new scope's id
         # snap.scope_id_map maps id(original_live_scope) → copied_scope_in_snap.result.
@@ -1713,9 +1717,17 @@ class Analyser:
         self._command_aliases[qualified] = (target_cmd, prepended)
         self.result.command_aliases[qualified] = (target_cmd, prepended)
 
-    @staticmethod
-    def _namespace_from_scope(scope: Scope) -> str:
-        """Derive the current namespace string from a scope chain."""
+    def _namespace_from_scope(self, scope: Scope) -> str:
+        """Derive the current namespace string from a scope chain.
+
+        Results are cached on the analyser instance by scope identity so
+        that repeated calls for the same scope (common during alias
+        resolution) avoid re-walking the parent chain.
+        """
+        sid = id(scope)
+        cached = self._ns_cache.get(sid)
+        if cached is not None:
+            return cached
         parts: list[str] = []
         s: Scope | None = scope
         while s is not None:
@@ -1723,6 +1735,7 @@ class Analyser:
                 parts.append(s.name)
             s = s.parent
         if not parts:
+            self._ns_cache[sid] = "::"
             return "::"
         parts.reverse()
         # Build the namespace path — each part may itself be relative
@@ -1733,6 +1746,7 @@ class Analyser:
                 ns = _normalise_qualified_name(p)
             else:
                 ns = _normalise_qualified_name(f"{ns}::{p}")
+        self._ns_cache[sid] = ns
         return ns
 
     def _resolve_alias(
