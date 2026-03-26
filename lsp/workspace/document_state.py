@@ -332,23 +332,27 @@ class DocumentState:
         This is designed to be called on the event loop before yielding,
         so that semantic token requests can be served immediately with
         the new source text (without analysis enrichment).
+
+        Acquires ``_lock`` to prevent races with a concurrent
+        ``update()`` running in a background thread.
         """
-        if source == self.source and (version is None or version == self.version):
-            return False  # unchanged
-        new_chunks = segment_top_level_chunks(source)
-        has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
-        self.source = source
-        self._buffer = None  # invalidate — will be rebuilt lazily
-        self.version = version
-        self.chunks = new_chunks
-        self.has_partial_commands = has_partial
-        # Clear analysis and caches so handlers see "analysis in progress"
-        # rather than stale data.  Analysis will be set by the subsequent
-        # ``update()`` call.
-        self.analysis = None
-        self.compilation_unit = None
-        self._chunk_caches = []
-        return True
+        with self._lock:
+            if source == self.source and (version is None or version == self.version):
+                return False  # unchanged
+            new_chunks = segment_top_level_chunks(source)
+            has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
+            self.source = source
+            self._buffer = None  # invalidate — will be rebuilt lazily
+            self.version = version
+            self.chunks = new_chunks
+            self.has_partial_commands = has_partial
+            # Clear analysis and caches so handlers see "analysis in progress"
+            # rather than stale data.  Analysis will be set by the subsequent
+            # ``update()`` call.
+            self.analysis = None
+            self.compilation_unit = None
+            self._chunk_caches = []
+            return True
 
     def update(
         self,
@@ -370,6 +374,15 @@ class DocumentState:
         dirty chunk, only re-lowering and re-analysing from the dirty
         point onwards.  Procedure-level caching avoids recomputing SSA
         and dataflow analysis for procs whose source text has not changed.
+
+        **Threading**: This method holds ``_lock`` for its entire
+        duration, including the expensive compilation and analysis
+        phases.  Concurrent readers (hover, completion, semantic tokens)
+        do *not* acquire the lock — they rely on CPython's GIL for
+        atomic attribute reads and tolerate ``analysis=None`` during
+        updates.  A future improvement would restructure this to build
+        new state outside the lock and swap atomically, avoiding both
+        reader contention and torn-read risk.
         """
         with self._lock:
             t0 = time.perf_counter()

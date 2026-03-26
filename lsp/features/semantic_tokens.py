@@ -1087,7 +1087,7 @@ def _collect_expression_tokens(
                 cmd_text,
                 body_token=synthetic,
                 regex_positions=regex_positions,
-                _line_starts=list(line_starts) if line_starts else None,
+                _line_starts=line_starts,
                 _source_len=source_len or None,
             )
             prev_op_text = ""
@@ -1521,7 +1521,7 @@ def _collect_switch_case_bodies(
                 body,
                 body_token=body_tok,
                 regex_positions=regex_positions,
-                _line_starts=list(line_starts) if line_starts else None,
+                _line_starts=line_starts,
                 _source_len=source_len or None,
             )
         idx += 2
@@ -2416,7 +2416,7 @@ def _collect_tokens(
     source: str,
     body_token: Token | None = None,
     regex_positions: frozenset[tuple[int, int]] = frozenset(),
-    _line_starts: list[int] | None = None,
+    _line_starts: list[int] | tuple[int, ...] | None = None,
     _source_len: int | None = None,
 ) -> None:
     """Collect semantic tokens from *source* into *tokens*.
@@ -3030,7 +3030,7 @@ def compute_semantic_tokens_edits(
     old_data: list[int],
     new_data: list[int],
 ) -> list[tuple[int, int, list[int]]]:
-    """Compute minimal edits to transform *old_data* into *new_data*.
+    """Compute a single spanning edit to transform *old_data* into *new_data*.
 
     Returns a list of ``(start, delete_count, insert_data)`` tuples
     suitable for ``SemanticTokensEdit``.  Operates on the flat 5-int
@@ -3038,6 +3038,8 @@ def compute_semantic_tokens_edits(
 
     The algorithm finds the longest common prefix and suffix, then
     emits a single edit for the differing middle section.  This is
+    not truly minimal for multiple disjoint changes (it covers the
+    entire range from the first to the last difference), but is
     optimal for the common case of a single contiguous change region
     (which is what single-line or multi-line edits produce).
     """

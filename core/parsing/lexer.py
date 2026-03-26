@@ -79,7 +79,7 @@ class TclLexer:
         base_line: int = 0,
         base_col: int = 0,
         virtual_insertions: dict[int, str] | None = None,
-        line_starts: list[int] | None = None,
+        line_starts: list[int] | tuple[int, ...] | None = None,
     ) -> None:
         self.text = text
         self._len = len(text)
@@ -110,7 +110,7 @@ class TclLexer:
         # Line index for _pos_at().  Shared across lexer instances for the
         # same source to avoid O(n) newline scanning per instance.
         if line_starts is not None:
-            self._line_starts: list[int] = line_starts
+            self._line_starts: list[int] | tuple[int, ...] = line_starts
         else:
             starts = [0]
             for i, ch in enumerate(text):
