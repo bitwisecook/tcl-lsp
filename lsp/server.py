@@ -20,8 +20,8 @@ from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import configure_signatures, is_irules_dialect
 from core.common.codes import diagnostic_codes, optimisation_codes
+from core.common.document_buffer import DocumentBuffer
 from core.common.lsp import to_lsp_location
-from core.common.source_map import SourceMap
 from core.common.user_config import (
     get_all_settings,
     load_user_config,
@@ -1613,9 +1613,9 @@ def on_write_rule_back(
     except Exception:
         return False
 
-    source_map = SourceMap(source)
-    start_pos = source_map.offset_to_position(body_start_offset)
-    end_pos = source_map.offset_to_position(body_end_offset)
+    buf = DocumentBuffer.from_source(source)
+    start_pos = buf.offset_to_position(body_start_offset)
+    end_pos = buf.offset_to_position(body_end_offset)
     start = types.Position(line=start_pos.line, character=start_pos.character)
     end = types.Position(line=end_pos.line, character=end_pos.character)
 

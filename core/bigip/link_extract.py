@@ -126,10 +126,10 @@ def _extract_value_tokens(value: str) -> list[str]:
 
 
 def _build_objects_for_source(uri: str, source: str) -> list[_BlockObject]:
-    from core.common.source_map import SourceMap
+    from core.common.document_buffer import DocumentBuffer
 
     result: list[_BlockObject] = []
-    source_map = SourceMap(source)
+    source_map = DocumentBuffer.from_source(source)
     for block in _extract_blocks(source):
         generic = _parse_generic_header(block.header)
         if generic is None:

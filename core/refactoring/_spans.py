@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..commands.registry.runtime import iter_body_arguments
-from ..common.source_map import SourceMap
+from ..common.document_buffer import DocumentBuffer
 from ..parsing.command_segmenter import segment_commands
 from ..parsing.tokens import TokenType
 
@@ -51,9 +51,9 @@ def offsets_to_position(
     end: int,
 ) -> tuple[int, int, int, int]:
     """Convert offsets to ``(start_line, start_char, end_line, end_char)``."""
-    source_map = SourceMap(source)
-    start_pos = source_map.offset_to_position(start)
-    end_pos = source_map.offset_to_position(end)
+    buf = DocumentBuffer.from_source(source)
+    start_pos = buf.offset_to_position(start)
+    end_pos = buf.offset_to_position(end)
     return (
         start_pos.line,
         start_pos.character,

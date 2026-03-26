@@ -228,7 +228,7 @@ def _profile_sub_phases(source: str, abs_path: Path, args: argparse.Namespace) -
 
     # Chunk caches (profile this more deeply since it's the bottleneck)
     print("\n  _build_full_chunk_caches sub-profile:")
-    from lsp.workspace.document_state import _chunk_line_range
+    from core.common.document_buffer import DocumentBuffer
 
     t_total_lower = 0.0
     t_total_analyse = 0.0
@@ -237,6 +237,7 @@ def _profile_sub_phases(source: str, abs_path: Path, args: argparse.Namespace) -
 
     analyser = Analyser()
     analyser._source = source
+    buf = DocumentBuffer.from_source(source)
     from lsp.features.diagnostics import compute_style_diagnostics_for_range
 
     for i, chunk in enumerate(chunks):
@@ -258,7 +259,7 @@ def _profile_sub_phases(source: str, abs_path: Path, args: argparse.Namespace) -
         t_total_snap += t1 - t0
 
         t0 = time.perf_counter()
-        start_line, _sc, end_line, _ec = _chunk_line_range(source, chunk)
+        start_line, _sc, end_line, _ec = buf.chunk_line_range(chunk.start_offset, chunk.end_offset)
         compute_style_diagnostics_for_range(source, start_line, end_line)
         t1 = time.perf_counter()
         t_total_style += t1 - t0
