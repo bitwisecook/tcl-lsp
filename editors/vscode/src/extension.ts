@@ -430,7 +430,8 @@ export async function activate(context: ExtensionContext) {
     const python = await resolvePython(configuredPython);
     ch.appendLine(`[timing] Python discovery: ${Date.now() - pythonStart}ms`);
     if (!python) {
-      const installGuide = "https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite";
+      const installGuide =
+        "https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite";
       const msg =
         configuredPython && configuredPython !== "auto"
           ? `Tcl LSP: configured Python '${configuredPython}' not found or below 3.10.`
