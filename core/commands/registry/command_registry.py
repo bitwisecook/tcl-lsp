@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, NamedTuple
@@ -162,6 +163,9 @@ class CommandRegistry:
     # Loader keys that have already been applied to this registry.
     _loaded_loaders: set[str] = field(default_factory=set, init=False, repr=False)
 
+    # Serialises dialect loading so concurrent threads cannot double-merge.
+    _load_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+
     def __post_init__(self) -> None:
         self._trait_indexes = self._build_trait_indexes()
 
@@ -230,56 +234,63 @@ class CommandRegistry:
         """Load command specs for *dialect* if not already loaded.
 
         Returns ``True`` if new specs were added to the registry.
+        Thread-safe: concurrent callers are serialised by ``_load_lock``.
         """
         loader_keys = _DIALECT_TO_LOADERS.get(dialect, ())
-        needed = [k for k in loader_keys if k not in self._loaded_loaders]
-        if not needed:
+        # Fast path: avoid acquiring the lock when nothing needs loading.
+        if not any(k not in self._loaded_loaders for k in loader_keys):
             return False
 
-        new_specs: list[CommandSpec] = []
-        for key in needed:
-            if key in _DIALECT_LOADER_SPECS:
-                new_specs.extend(_load_dialect_pack(key))
-            self._loaded_loaders.add(key)
+        with self._load_lock:
+            # Re-check under lock (another thread may have loaded in the meantime).
+            needed = [k for k in loader_keys if k not in self._loaded_loaders]
+            if not needed:
+                return False
 
-        if not new_specs:
-            return False
+            new_specs: list[CommandSpec] = []
+            for key in needed:
+                if key in _DIALECT_LOADER_SPECS:
+                    new_specs.extend(_load_dialect_pack(key))
+                self._loaded_loaders.add(key)
 
-        # Merge new specs into specs_by_name (mutable dict of tuples).
-        by_name: dict[str, list[CommandSpec]] = {}
-        for spec in new_specs:
-            by_name.setdefault(spec.name, []).append(spec)
+            if not new_specs:
+                return False
 
-        for name, spec_list in by_name.items():
-            existing = self.specs_by_name.get(name)
-            if existing is not None:
-                self.specs_by_name[name] = existing + tuple(spec_list)
-            else:
-                self.specs_by_name[name] = tuple(spec_list)
+            # Merge new specs into specs_by_name (mutable dict of tuples).
+            by_name: dict[str, list[CommandSpec]] = {}
+            for spec in new_specs:
+                by_name.setdefault(spec.name, []).append(spec)
 
-        # Update package indexes for newly loaded specs.
-        for spec in new_specs:
-            if spec.tcllib_package:
-                pkg = spec.tcllib_package
-                existing_cmds = self._tcllib_packages.get(pkg, frozenset())
-                self._tcllib_packages[pkg] = existing_cmds | {spec.name}
-                self._tcllib_command_to_package[spec.name] = pkg
-            if spec.required_package:
-                self._command_to_required_package[spec.name] = spec.required_package
+            for name, spec_list in by_name.items():
+                existing = self.specs_by_name.get(name)
+                if existing is not None:
+                    self.specs_by_name[name] = existing + tuple(spec_list)
+                else:
+                    self.specs_by_name[name] = tuple(spec_list)
 
-        # Invalidate all derived caches.
-        self._trait_indexes = self._build_trait_indexes()
-        self._command_names_cache.clear()
-        self._event_command_cache.clear()
-        self._legality_cache.clear()
-        self._filtered_cache.clear()
+            # Update package indexes for newly loaded specs.
+            for spec in new_specs:
+                if spec.tcllib_package:
+                    pkg = spec.tcllib_package
+                    existing_cmds = self._tcllib_packages.get(pkg, frozenset())
+                    self._tcllib_packages[pkg] = existing_cmds | {spec.name}
+                    self._tcllib_command_to_package[spec.name] = pkg
+                if spec.required_package:
+                    self._command_to_required_package[spec.name] = spec.required_package
 
-        # Notify runtime.py to rebuild its derived data (only for the
-        # global singleton, not for test-local registry copies).
-        if _on_specs_loaded is not None and self is REGISTRY:
-            _on_specs_loaded(needed)
+            # Invalidate all derived caches.
+            self._trait_indexes = self._build_trait_indexes()
+            self._command_names_cache.clear()
+            self._event_command_cache.clear()
+            self._legality_cache.clear()
+            self._filtered_cache.clear()
 
-        return True
+            # Notify runtime.py to rebuild its derived data (only for the
+            # global singleton, not for test-local registry copies).
+            if _on_specs_loaded is not None and self is REGISTRY:
+                _on_specs_loaded(needed)
+
+            return True
 
     # Handler back-registration
 
@@ -838,6 +849,7 @@ class CommandRegistry:
         explicitly carries the active dialect.
         """
         filter_dialect = "f5-irules" if dialect == "irules" else dialect
+        self._ensure_dialect_loaded(filter_dialect)
 
         specs = self.specs_by_name.get(name, ())
         for spec in reversed(specs):
@@ -914,6 +926,7 @@ class CommandRegistry:
         Returns a :class:`TaintSinkInfo` with all relevant sink flags set.
         This avoids repeated ``specs_by_name`` lookups and dialect filtering.
         """
+        self._ensure_dialect_loaded(dialect)
         specs = self.specs_by_name.get(name, ())
         if not specs:
             return _EMPTY_TAINT_SINK_INFO

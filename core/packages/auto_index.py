@@ -57,7 +57,7 @@ def parse_tcl_index(tcl_index_path: str) -> list[AutoIndexEntry]:
         log.debug("auto_index: failed to read %s", tcl_index_path, exc_info=True)
         return []
 
-    index_dir = os.path.dirname(tcl_index_path)
+    index_dir = os.path.abspath(os.path.dirname(tcl_index_path))
     entries: list[AutoIndexEntry] = []
 
     for match in _AUTO_INDEX_RE.finditer(content):
