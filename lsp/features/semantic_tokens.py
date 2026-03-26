@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from bisect import bisect_right
 
 from core.analysis.semantic_model import AnalysisResult
 from core.bigip.apl_parser import AplTokenKind, tokenise_apl
@@ -729,7 +730,7 @@ def _find_apl_embedded_tcl(source: str) -> list[tuple[int, int, int, str]]:
                 body = source[start_pos + 1 : pos - 1]
                 if body.strip():
                     # Determine start line and column from absolute offset
-                    start_line = source.count("\n", 0, start_pos)
+                    start_line = bisect_right(line_offsets, start_pos) - 1
                     start_col = start_pos - line_offsets[start_line] + 1  # +1 past '['
                     regions.append((start_line, start_col, pos, body))
             continue
@@ -2914,13 +2915,8 @@ def semantic_tokens_full(
     are updated in-place so that future calls benefit from the cache.
     """
     t0 = time.perf_counter()
-    regex_positions: frozenset[tuple[int, int]] = frozenset()
-    if analysis is not None:
-        regex_positions = frozenset(
-            (rp.range.start.line, rp.range.start.character) for rp in analysis.regex_patterns
-        )
 
-    # Check if we have a full cache hit.
+    # Check if we have a full cache hit (before building regex_positions).
     if chunk_token_cache is not None and chunk_line_ranges is not None:
         if all(entry is not None for entry in chunk_token_cache):
             # Full cache hit — assemble from cached absolute tokens.
@@ -2935,6 +2931,12 @@ def semantic_tokens_full(
                 len(result) // 5,
             )
             return result
+
+    regex_positions: frozenset[tuple[int, int]] = frozenset()
+    if analysis is not None:
+        regex_positions = frozenset(
+            (rp.range.start.line, rp.range.start.character) for rp in analysis.regex_patterns
+        )
 
     # Collect all tokens with absolute positions
     raw_tokens: list[tuple[int, int, int, int, int]] = []
@@ -2953,14 +2955,12 @@ def semantic_tokens_full(
             # with embedded body ranges; the body-specific tokens are
             # richer.  BIG-IP overlay tokens are added separately.
             # Use bisect for O(T log R) instead of O(T × R).
-            from bisect import bisect_right as _br
-
             body_ranges.sort()
             _range_starts = [s for s, _e in body_ranges]
             _range_ends = [e for _s, e in body_ranges]
 
             def _in_body(line: int) -> bool:
-                idx = _br(_range_starts, line) - 1
+                idx = bisect_right(_range_starts, line) - 1
                 return idx >= 0 and line <= _range_ends[idx]
 
             base_tokens = [tok for tok in base_tokens if not _in_body(tok[0])]
