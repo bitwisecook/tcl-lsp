@@ -59,6 +59,12 @@ from core.commands.registry.namespace_data import (
     order_events_for_file,
 )
 from core.commands.registry.runtime import configure_signatures
+from core.common.codes import (
+    default_disabled_diagnostics as _default_disabled_diagnostics,
+)
+from core.common.codes import (
+    diagnostic_codes as _diagnostic_codes,
+)
 from core.compiler.cfg import build_cfg
 from core.compiler.codegen import format_module_asm
 from core.compiler.codegen.wasm import wasm_codegen_module
@@ -157,51 +163,7 @@ _HTML_HIGHLIGHT_STYLES: dict[str, str] = {
 
 # CLI configuration (INI file + flag cascade)
 
-_ALL_DIAGNOSTIC_CODES = frozenset(
-    {
-        "E001",
-        "E002",
-        "E003",
-        "E200",
-        "W001",
-        "W002",
-        "W100",
-        "W101",
-        "W102",
-        "W103",
-        "W104",
-        "W105",
-        "W106",
-        "W108",
-        "W110",
-        "W111",
-        "W112",
-        "W113",
-        "W114",
-        "W115",
-        "W120",
-        "W121",
-        "W122",
-        "W200",
-        "W201",
-        "H300",
-        "W210",
-        "W211",
-        "W212",
-        "W213",
-        "W214",
-        "W220",
-        "W300",
-        "W301",
-        "W302",
-        "W303",
-        "W304",
-        "W306",
-        "W307",
-        "W308",
-        "W309",
-    }
-)
+_ALL_DIAGNOSTIC_CODES = _diagnostic_codes()
 
 _ALL_OPTIMISATION_CODES = frozenset(
     {
@@ -295,10 +257,14 @@ def _load_config() -> _CliConfig:
         sec = cp["diagnostics"]
         enabled = sec.get("enabled", "true").strip().lower()
         cfg.diagnostics_enabled = enabled != "false"
+        cfg.disabled_diagnostics = set(_default_disabled_diagnostics())
         for code in _ALL_DIAGNOSTIC_CODES:
-            val = sec.get(code, "true").strip().lower()
+            default_val = "false" if code in cfg.disabled_diagnostics else "true"
+            val = sec.get(code, default_val).strip().lower()
             if val == "false":
                 cfg.disabled_diagnostics.add(code)
+            elif val == "true":
+                cfg.disabled_diagnostics.discard(code)
 
     # [optimiser]
     if cp.has_section("optimiser"):
