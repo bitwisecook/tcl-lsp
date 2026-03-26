@@ -241,9 +241,10 @@ class AnalyserSnapshot:
 class Analyser:
     """Analyses Tcl source and produces an AnalysisResult."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, disabled_diagnostics: frozenset[str] | None = None) -> None:
         self.result = AnalysisResult()
         self._current_scope = self.result.global_scope
+        self._disabled_diagnostics = disabled_diagnostics or frozenset()
         self._last_comment: str = ""
         # Per-scope constant string tracker: maps scope_id →
         #   { var_name → (value_text, value_range) }
@@ -384,6 +385,7 @@ class Analyser:
         for cmds in chunk_commands:
             self._analyse_commands_inner(cmds, self._current_scope, source)
             snapshots.append(self.snapshot())
+        self._emit_unresolved_command_diagnostics()
         self._emit_variable_usage_diagnostics()
         self._emit_cfg_ssa_diagnostics(source, cu=cu)
         self._dedupe_diagnostics()
@@ -1907,7 +1909,20 @@ class Analyser:
             ir_module = lower_to_ir(body)
         except Exception:
             # If lowering fails, be conservative — assume unknown can
-            # resolve anything.
+            # resolve anything. Treat the handler as fully dynamic/opaque
+            # so downstream diagnostics (e.g. W123) are suppressed.
+            log.exception(
+                "Failed to lower 'unknown' proc body to IR; assuming fully dynamic dispatch"
+            )
+            self.result.unknown_proc_info = UnknownProcInfo(
+                dispatch_targets=frozenset(),
+                chains_original=True,
+                empty_stub=False,
+                case_insensitive=True,
+                has_pattern_dispatch=True,
+                has_exec=True,
+                has_auto_load=True,
+            )
             return
 
         dispatch_targets: set[str] = set()
@@ -1970,6 +1985,12 @@ class Analyser:
         if self._unresolved_commands_emitted:
             return
         self._unresolved_commands_emitted = True
+
+        # W123 is opt-in (default=False).  Skip the entire pass when
+        # the caller has told us it is disabled — avoids building the
+        # candidate pool and running edit-distance comparisons.
+        if "W123" in self._disabled_diagnostics:
+            return
 
         from ..common.text import suggest_similar
 

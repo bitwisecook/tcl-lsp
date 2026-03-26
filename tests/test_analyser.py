@@ -1254,6 +1254,29 @@ class TestW123UnresolvedCommand:
         assert len(diags) == 1
         assert "myput" in diags[0].message
 
+    def test_unknown_proc_lowering_failure_suppresses(self):
+        """When IR lowering of the unknown proc body fails, treat as opaque."""
+        from unittest.mock import patch
+
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                switch $cmd {
+                    foo { puts foo }
+                }
+            }
+            baz x
+        """)
+        with patch(
+            "core.compiler.lowering.lower_to_ir",
+            side_effect=RuntimeError("lowering failed"),
+        ):
+            result = analyse(source)
+        upi = result.unknown_proc_info
+        assert upi is not None
+        assert upi.chains_original  # opaque — suppresses W123
+        diags = [d for d in result.diagnostics if d.code == "W123"]
+        assert len(diags) == 0
+
     def test_tcl_unknown_qualified(self):
         """``proc ::tcl::unknown`` is recognised as the unknown handler."""
         source = textwrap.dedent("""\
