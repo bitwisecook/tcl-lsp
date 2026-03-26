@@ -2906,11 +2906,18 @@ def semantic_tokens_full(
             # Remove tokens from the whole-file Tcl pass that overlap
             # with embedded body ranges; the body-specific tokens are
             # richer.  BIG-IP overlay tokens are added separately.
-            base_tokens = [
-                tok
-                for tok in base_tokens
-                if not any(start <= tok[0] <= end for start, end in body_ranges)
-            ]
+            # Use bisect for O(T log R) instead of O(T × R).
+            from bisect import bisect_right as _br
+
+            body_ranges.sort()
+            _range_starts = [s for s, _e in body_ranges]
+            _range_ends = [e for _s, e in body_ranges]
+
+            def _in_body(line: int) -> bool:
+                idx = _br(_range_starts, line) - 1
+                return idx >= 0 and line <= _range_ends[idx]
+
+            base_tokens = [tok for tok in base_tokens if not _in_body(tok[0])]
         raw_tokens.extend(base_tokens)
         raw_tokens.extend(embedded_tokens)
         _collect_bigip_tokens(raw_tokens, source)
