@@ -15,7 +15,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.analysis.analyser import Analyser, AnalyserSnapshot, AnalysisResult, analyse
+from core.analysis.analyser import Analyser, AnalyserSnapshot, AnalysisResult
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect
 from core.common.document_buffer import DocumentBuffer
@@ -24,7 +24,6 @@ from core.compiler.interprocedural import ProcLocalSummary
 from core.compiler.ir import IRProcedure, IRStatement
 from core.compiler.lowering import lower_to_ir
 from core.parsing.command_segmenter import (
-    SegmentedCommand,
     TopLevelChunk,
     find_first_dirty_chunk,
     segment_top_level_chunks,
