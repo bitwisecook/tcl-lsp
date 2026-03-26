@@ -140,6 +140,25 @@ This updates the generated diagnostic tables in VS Code, Neovim, Zed, Emacs,
 Helix, Sublime, and JetBrains editor integrations. Commit the regenerated files
 alongside the diagnostic/optimisation change — CI will fail if they are stale.
 
+## Position infrastructure
+
+`DocumentBuffer` (`core/common/document_buffer.py`) is the per-document
+position type. Use it instead of constructing `SourceMap` or calling
+`source.split("\n")` in hot paths:
+
+- `DocumentState.buffer` gives the canonical `DocumentBuffer` for an open
+  document.
+- `buf.lines` replaces `source.split("\n")` (cached, shared).
+- `buf.offset_to_position()` / `buf.position_to_offset()` replace `SourceMap`
+  construction (O(log n) bisect, no allocation).
+- `buf.chunk_line_range()` replaces `_chunk_line_range(source, chunk)`
+  (O(log n) instead of O(offset)).
+- `position_from_offset()` (`core/common/ranges.py`) replaces
+  `position_from_relative()` when a `line_starts` array is available
+  (O(log n) instead of O(text_len)).
+
+See `docs/kcs/kcs-core-lsp-shared-utility-contracts.md` for the full contract.
+
 ## Command registry
 
 Command metadata lives on `CommandSpec` in `core/commands/registry/models.py`,
