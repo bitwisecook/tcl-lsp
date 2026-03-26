@@ -31,13 +31,21 @@ or `#!/usr/bin/expect` are recognised as Tcl/Expect.
 
 ## Prerequisites
 
-- **Python 3.10+** — the extension auto-discovers `python3.10`–`python3.15`
-  on your PATH
+- **Python 3.10+** — we recommend the latest stable Python (currently
+  3.13). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
+  (`brew install python@3.13`) or
+  [python.org](https://www.python.org/downloads/). The extension
+  auto-discovers `python3.10`–`python3.15` on your PATH.
 - **Zed** — latest stable release
 
-The `tcl-lsp-server.pyz` zipapp is downloaded automatically from GitHub
-releases on first use. You can also place it in your workspace root or PATH
-for offline use.
+The `tcl-lsp-server.pyz` zipapp bundles all Python dependencies
+internally — no `pip install` is needed. You only need a Python
+interpreter on your system. The zipapp is downloaded automatically from
+GitHub releases on first use. You can also place it in your workspace
+root or PATH for offline use.
+
+See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+full details on Python setup across platforms.
 
 ## Installation
 

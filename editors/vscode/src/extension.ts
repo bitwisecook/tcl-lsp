@@ -15,12 +15,14 @@ import { promisify } from "util";
 import * as vscode from "vscode";
 import {
   commands,
+  env,
   ExtensionContext,
   Range,
   StatusBarAlignment,
   StatusBarItem,
   TextDocument,
   TextEditor,
+  Uri,
   window,
   workspace,
 } from "vscode";
@@ -428,11 +430,18 @@ export async function activate(context: ExtensionContext) {
     const python = await resolvePython(configuredPython);
     ch.appendLine(`[timing] Python discovery: ${Date.now() - pythonStart}ms`);
     if (!python) {
+      const installGuide = "https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite";
       const msg =
         configuredPython && configuredPython !== "auto"
           ? `Tcl LSP: configured Python '${configuredPython}' not found or below 3.10.`
-          : "Tcl LSP: no Python 3.10+ interpreter found. Install Python from python.org or set tclLsp.pythonPath.";
-      window.showErrorMessage(msg);
+          : "Tcl LSP: Python 3.10+ is required but was not found. " +
+            "The VSIX bundles all Python dependencies, but a Python interpreter must be installed on your system.";
+      const action = await window.showErrorMessage(msg, "Install Python", "Open Guide");
+      if (action === "Install Python") {
+        env.openExternal(Uri.parse("https://www.python.org/downloads/"));
+      } else if (action === "Open Guide") {
+        env.openExternal(Uri.parse(installGuide));
+      }
       return;
     }
 

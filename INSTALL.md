@@ -2,7 +2,7 @@
 
 Step-by-step instructions for installing tcl-lsp from
 [GitHub Releases](https://github.com/bitwisecook/tcl-lsp/releases) on
-macOS and Windows.
+macOS, Linux, and Windows.
 
 Each release publishes these artefacts:
 
@@ -16,9 +16,89 @@ Each release publishes these artefacts:
 
 ---
 
+## Python prerequisite
+
+tcl-lsp requires **Python 3.10 or newer**. We recommend installing the
+**latest stable Python** (currently 3.13) for the best performance and
+security updates.
+
+> **Bundled extensions (VS Code, Sublime Text, JetBrains):** The `.vsix`,
+> `.sublime-package`, and `.zip` plugin archives bundle all Python
+> *dependencies* (pygls, lsprotocol, etc.) inside the package — you do **not**
+> need to `pip install` anything. However, a Python 3.10+ **interpreter**
+> must still be installed on your system, because the bundled server runs as a
+> Python zipapp (`.pyz`) that is executed by your local interpreter.
+
+### Installing Python
+
+#### macOS (Homebrew — recommended)
+
+```bash
+brew install python@3.13
+```
+
+Homebrew installs to `/opt/homebrew/bin/python3` (Apple Silicon) or
+`/usr/local/bin/python3` (Intel). The extension auto-discovers both
+locations.
+
+See the [Homebrew Python documentation](https://docs.brew.sh/Homebrew-and-Python)
+for more details.
+
+#### macOS / Windows (python.org)
+
+Download the latest installer from
+[python.org/downloads](https://www.python.org/downloads/) and run it.
+On Windows, check **"Add python.exe to PATH"** during installation.
+
+#### Linux
+
+Use your distribution's package manager:
+
+```bash
+# Debian / Ubuntu
+sudo apt install python3
+
+# Fedora
+sudo dnf install python3
+
+# Arch
+sudo pacman -S python
+```
+
+### Verifying your installation
+
+```bash
+python3 --version   # Should print Python 3.10 or newer
+```
+
+### Pointing the extension to a specific interpreter
+
+If you have multiple Python versions or a non-standard install location,
+you can tell the extension exactly which interpreter to use:
+
+| Editor | Setting |
+|--------|---------|
+| VS Code | `tclLsp.pythonPath` in Settings (default: `"auto"`) |
+| Sublime Text | `python_path` in `LSP-Tcl.sublime-settings` |
+| JetBrains | **Settings > Tools > Tcl Language Server > Python path** |
+| Neovim / Emacs / Helix | First element of the `cmd` array in your LSP config |
+| Zed | Discovered automatically from PATH |
+
+Set the value to the full path of your Python interpreter, e.g.
+`/opt/homebrew/bin/python3.13` or `C:\Python313\python.exe`.
+When set to `"auto"` (the default for VS Code, Sublime Text, and
+JetBrains), the extension scans PATH and well-known locations for the
+highest available Python 3.10+ version.
+
+---
+
 ## VS Code
 
-The `.vsix` bundles the server — no extra dependencies required.
+The `.vsix` bundles the server and all Python dependencies — only a
+Python 3.10+ interpreter is required (see [above](#python-prerequisite)).
+
+If no suitable interpreter is found, the extension shows an error
+notification with a link to this guide.
 
 ### macOS
 
@@ -37,14 +117,23 @@ code --install-extension "$env:USERPROFILE\Downloads\tcl-lsp-vscode-VERSION.vsix
 Restart VS Code after installation. Settings are available under
 **Settings > Extensions > Tcl**.
 
+To use a specific Python interpreter, set **`tclLsp.pythonPath`** in
+VS Code settings to the full path (e.g. `/opt/homebrew/bin/python3.13`).
+The default `"auto"` scans PATH and well-known locations automatically.
+
 ---
 
 ## Sublime Text
 
-**Prerequisites**: Sublime Text 4 (build 4107+), Python 3.10+ on PATH.
+**Prerequisites**: Sublime Text 4 (build 4107+), Python 3.10+ on PATH
+(see [Python prerequisite](#python-prerequisite)).
 
-The `.sublime-package` bundles the server. For full LSP features, also
-install the **LSP** package from Package Control.
+The `.sublime-package` bundles the server and all Python dependencies.
+For full LSP features, also install the **LSP** package from Package
+Control.
+
+If no suitable interpreter is found, Sublime Text shows an error in the
+status bar with guidance to install Python.
 
 ### macOS
 
@@ -76,17 +165,31 @@ Copy-Item "$env:USERPROFILE\Downloads\tcl-lsp-sublime-VERSION.sublime-package" `
 
 Restart Sublime Text after installation.
 
+To use a specific Python interpreter, set `python_path` in
+**Preferences > Package Settings > LSP-Tcl > Settings**:
+
+```json
+{
+    "python_path": "/opt/homebrew/bin/python3.13"
+}
+```
+
 ---
 
 ## JetBrains (IntelliJ IDEA, PyCharm, WebStorm, etc.)
 
 **Prerequisites**: IntelliJ IDEA Ultimate 2024.1+ (or other paid JetBrains
-IDE), Python 3.10+ on PATH.
+IDE), Python 3.10+ on PATH
+(see [Python prerequisite](#python-prerequisite)).
 
 > Starting with IntelliJ IDEA 2025.3, the LSP API is available to all users
 > including free editions.
 
-The `.zip` bundles the server — no extra configuration needed.
+The `.zip` bundles the server and all Python dependencies — only a Python
+interpreter is needed.
+
+If no suitable interpreter is found, the IDE shows a notification balloon
+with guidance to install Python.
 
 ### macOS and Windows
 
@@ -96,16 +199,20 @@ The `.zip` bundles the server — no extra configuration needed.
 4. Select the downloaded `.zip` file
 5. Restart the IDE
 
-Configure via **Settings > Tools > Tcl Language Server**.
+Configure via **Settings > Tools > Tcl Language Server**. To use a
+specific Python interpreter, set the **Python path** field to the full
+path (e.g. `/opt/homebrew/bin/python3.13`).
 
 ---
 
 ## Neovim
 
-**Prerequisites**: Neovim 0.11+ (or 0.8+ with nvim-lspconfig), Python 3.10+.
+**Prerequisites**: Neovim 0.11+ (or 0.8+ with nvim-lspconfig), Python 3.10+
+(see [Python prerequisite](#python-prerequisite)).
 
 Neovim does not use a packaged extension — instead, download the standalone
-server and point your LSP config at it.
+server and point your LSP config at it. The `.pyz` zipapp bundles all
+Python dependencies; only a Python 3.10+ interpreter is needed.
 
 ### macOS
 
@@ -119,11 +226,15 @@ mkdir -p ~/.config/nvim/lsp
 cp editors/neovim/tcl_lsp.lua ~/.config/nvim/lsp/tcl_lsp.lua
 ```
 
-Edit `~/.config/nvim/lsp/tcl_lsp.lua` and set the `cmd` line:
+Edit `~/.config/nvim/lsp/tcl_lsp.lua` and set the `cmd` line to your
+Python interpreter and server path:
 
 ```lua
-cmd = { 'python3', os.getenv('HOME') .. '/bin/tcl-lsp-server.pyz' },
+cmd = { '/opt/homebrew/bin/python3', os.getenv('HOME') .. '/bin/tcl-lsp-server.pyz' },
 ```
+
+If `python3` on your PATH is 3.10+, you can simply use `'python3'` as the
+first element.
 
 Then add to your `init.lua`:
 
@@ -166,10 +277,12 @@ and manual autocommand alternatives.
 
 ## Emacs
 
-**Prerequisites**: Emacs 29+ (for eglot) or lsp-mode, Python 3.10+.
+**Prerequisites**: Emacs 29+ (for eglot) or lsp-mode, Python 3.10+
+(see [Python prerequisite](#python-prerequisite)).
 
 Download `tcl-lsp-server-VERSION.pyz` from GitHub Releases and place it
-somewhere on your system.
+somewhere on your system. The `.pyz` zipapp bundles all Python
+dependencies; only a Python 3.10+ interpreter is needed.
 
 ### macOS and Windows
 
@@ -197,8 +310,10 @@ Or with lsp-mode:
 (add-hook 'tcl-mode-hook #'lsp)
 ```
 
-Replace `/path/to/tcl-lsp-server.pyz` with the actual path where you saved
-the file.
+Replace `"python3"` with the full path to your Python 3.10+ interpreter
+if `python3` on your PATH is too old or absent (e.g.
+`"/opt/homebrew/bin/python3.13"`). Replace `/path/to/tcl-lsp-server.pyz`
+with the actual path where you saved the file.
 
 See [editors/emacs/README.md](editors/emacs/README.md) for settings and
 running from source.
@@ -207,9 +322,12 @@ running from source.
 
 ## Helix
 
-**Prerequisites**: Helix editor, Python 3.10+.
+**Prerequisites**: Helix editor, Python 3.10+
+(see [Python prerequisite](#python-prerequisite)).
 
-Download `tcl-lsp-server-VERSION.pyz` from GitHub Releases.
+Download `tcl-lsp-server-VERSION.pyz` from GitHub Releases. The `.pyz`
+zipapp bundles all Python dependencies; only a Python 3.10+ interpreter
+is needed.
 
 ### macOS
 
@@ -228,6 +346,9 @@ comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 ```
+
+Replace `"python3"` with the full path to your interpreter if needed
+(e.g. `"/opt/homebrew/bin/python3.13"`).
 
 ### Windows
 
@@ -253,10 +374,14 @@ See [editors/helix/README.md](editors/helix/README.md) for workspace settings.
 
 ## Zed
 
-**Prerequisites**: Zed editor, Python 3.10+.
+**Prerequisites**: Zed editor, Python 3.10+
+(see [Python prerequisite](#python-prerequisite)).
 
 Zed currently requires installing the extension from source (a dev extension).
 There is no standalone release artefact.
+
+If no suitable Python interpreter is found, the extension shows an error
+notification with guidance to install Python.
 
 ### macOS and Windows
 

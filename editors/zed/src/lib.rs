@@ -46,7 +46,14 @@ fn find_python(worktree: &zed::Worktree) -> Result<String> {
             return Ok(path);
         }
     }
-    Err("Python 3.10+ not found on PATH. Install Python and restart Zed.".into())
+    Err(
+        "Python 3.10+ is required but was not found on PATH. \
+         The extension bundles all Python dependencies, but a Python interpreter \
+         must be installed on your system. Install from https://www.python.org/downloads/ \
+         or via Homebrew (brew install python@3.13), then restart Zed. \
+         See https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite"
+            .into(),
+    )
 }
 
 /// Find the best Python 3.10+ by probing common names without a worktree.
