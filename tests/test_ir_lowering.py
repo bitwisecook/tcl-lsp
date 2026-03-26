@@ -445,3 +445,59 @@ class TestNamespaceArrayScalarVariableForms:
         assert stmt.command == "upvar"
         assert stmt.args == ("0", "::ns::x", "local")
         assert stmt.defs == ("local",)
+
+
+class TestAliasLowering:
+    """IR-level tests for interp alias handling."""
+
+    def test_set_expr_alias_produces_assign_expr(self):
+        """``set x [= {$a + 1}]`` with ``=`` alias for ``expr`` -> IRAssignExpr."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            set x [= {$a + 1}]
+        """)
+        mod = lower_to_ir(source)
+        stmts = mod.top_level.statements
+        assign_stmts = [s for s in stmts if isinstance(s, IRAssignExpr)]
+        assert len(assign_stmts) == 1
+        assert assign_stmts[0].name == "x"
+
+    def test_alias_body_command_produces_barrier(self):
+        """Alias for eval -> IRBarrier (unsupported body command)."""
+        source = textwrap.dedent("""\
+            interp alias {} myeval {} eval
+            myeval { set x 1 }
+        """)
+        mod = lower_to_ir(source)
+        barriers = [s for s in mod.top_level.statements if isinstance(s, IRBarrier)]
+        assert any(b.reason == "unsupported body command" for b in barriers)
+
+    def test_alias_var_defs_correctly_adjusted(self):
+        """Alias for scan — var defs indices adjusted for the alias."""
+        source = textwrap.dedent("""\
+            interp alias {} myscan {} scan
+            myscan {123} {%d} myvar
+        """)
+        mod = lower_to_ir(source)
+        calls = [s for s in mod.top_level.statements if isinstance(s, IRCall)]
+        var_calls = [c for c in calls if c.defs]
+        assert len(var_calls) >= 1
+        assert any("myvar" in c.defs for c in var_calls)
+
+    def test_real_world_suchenwirth_equals(self):
+        """Suchenwirth's classic ``=`` alias: set var [= {expr}] -> IRAssignExpr."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            proc hypot {a b} {
+                set c2 [= {$a*$a + $b*$b}]
+                set c [= {sqrt($c2)}]
+                return $c
+            }
+        """)
+        mod = lower_to_ir(source)
+        proc = mod.procedures.get("::hypot")
+        assert proc is not None
+        assign_exprs = [s for s in proc.body.statements if isinstance(s, IRAssignExpr)]
+        assert len(assign_exprs) == 2
+        assert assign_exprs[0].name == "c2"
+        assert assign_exprs[1].name == "c"

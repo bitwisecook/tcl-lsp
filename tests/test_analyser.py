@@ -806,3 +806,193 @@ class TestInterpAlias:
         result = analyse(source)
         w214 = [d for d in result.diagnostics if d.code == "W214"]
         assert len(w214) == 0
+
+    def test_alias_chain_not_resolved(self):
+        """Alias-of-alias should NOT resolve transitively."""
+        source = textwrap.dedent("""\
+            interp alias {} a {} b
+            interp alias {} b {} expr
+        """)
+        result = analyse(source)
+        assert result.command_aliases["::a"] == ("b", ())
+        assert result.command_aliases["::b"] == ("expr", ())
+
+    def test_alias_dynamic_name_not_recorded(self):
+        """Variable in alias name is not resolved statically."""
+        source = 'set n "="\ninterp alias {} $n {} expr'
+        result = analyse(source)
+        # $n is dynamic — stored literally, not as "="
+        assert "::=" not in result.command_aliases
+
+    def test_alias_redefinition_overwrites(self):
+        """Redefining an alias updates the target."""
+        source = textwrap.dedent("""\
+            interp alias {} myop {} expr
+            interp alias {} myop {} puts
+        """)
+        result = analyse(source)
+        assert result.command_aliases["::myop"] == ("puts", ())
+
+    def test_alias_too_few_args_no_crash(self):
+        """interp alias {} = {} (missing target) should not crash."""
+        result = analyse("interp alias {} = {}")
+        assert "::=" not in result.command_aliases
+
+    def test_alias_target_in_child_interp(self):
+        """interp alias {} name child target — not tracked (target in child)."""
+        result = analyse("interp alias {} myexpr child expr")
+        assert "::myexpr" not in result.command_aliases
+
+    def test_alias_query_form_no_crash(self):
+        """interp alias {} name (query form, 3 args) — should not crash."""
+        result = analyse("interp alias {} myexpr")
+        assert "::myexpr" not in result.command_aliases
+
+    def test_alias_for_foreach(self):
+        """Alias for foreach — body and var_name roles work through alias."""
+        source = textwrap.dedent("""\
+            interp alias {} myforeach {} foreach
+            proc foo {items} {
+                myforeach item $items { puts $item }
+                return $item
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    # Real-world patterns
+    def test_real_world_math_operators(self):
+        """Common Tcl pattern: operator aliases for expr (= + - * /)."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            interp alias {} + {} expr
+            proc calculate {base rate discount} {
+                set subtotal [= {$base * $rate}]
+                set total [= {$subtotal - $discount}]
+                return $total
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_real_world_logging_alias_with_prepended(self):
+        """Common pattern: logging alias with channel prepended."""
+        source = textwrap.dedent("""\
+            interp alias {} log {} puts stderr
+            proc process {data} {
+                log "Processing: $data"
+                return $data
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_real_world_namespace_dsl(self):
+        """DSL-style namespace with aliased commands."""
+        source = textwrap.dedent("""\
+            interp alias {} ::dsl::calculate {} expr
+            namespace eval dsl {
+                proc run {x y} {
+                    set result [calculate {$x + $y}]
+                    return $result
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_real_world_safe_interp_not_tracked(self):
+        """Safe interpreter aliases should not be tracked (real-world pattern)."""
+        source = textwrap.dedent("""\
+            set i [interp create -safe]
+            interp alias $i add {} ::api::add
+            proc ::api::add {a b} {
+                return [expr {$a + $b}]
+            }
+        """)
+        result = analyse(source)
+        # $i is not the current interp — should not be tracked
+        assert "::add" not in result.command_aliases
+
+    def test_real_world_multi_arg_expr(self):
+        """Real issue #42 pattern: proc params used in aliased expr."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            proc relativePosition {index relPos} {
+                set newIndex [= {$index + $relPos}]
+                if {$newIndex < 0} {
+                    set newIndex 0
+                }
+                return $newIndex
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_real_world_file_shortcuts(self):
+        """Unix-like file command shortcuts (common interactive Tcl pattern)."""
+        source = textwrap.dedent("""\
+            interp alias {} cp {} file copy -force
+            interp alias {} mkdir {} file mkdir
+            interp alias {} rm {} file delete -force
+        """)
+        result = analyse(source)
+        assert "::cp" in result.command_aliases
+        assert result.command_aliases["::cp"] == ("file", ("copy", "-force"))
+        assert result.command_aliases["::mkdir"] == ("file", ("mkdir",))
+        assert result.command_aliases["::rm"] == ("file", ("delete", "-force"))
+
+    def test_real_world_dynamic_html_tag_aliases(self):
+        """Dynamic alias creation via foreach (common metaprogramming pattern).
+
+        Since the alias name is ``$tag`` (a variable), the analyser cannot
+        resolve it statically — this tests that it does not crash.
+        """
+        source = textwrap.dedent("""\
+            proc html_tag {tag args} { return "<$tag>$args</$tag>" }
+            foreach tag {h1 h2 h3 p div span} {
+                interp alias {} $tag {} html_tag $tag
+            }
+        """)
+        result = analyse(source)
+        # Dynamic names — none should be tracked as literal aliases
+        assert "::h1" not in result.command_aliases
+
+    def test_real_world_cross_interp_alias(self):
+        """Cross-interpreter alias (from test_vm_basic_test.py pattern).
+
+        ``interp alias {} localGreet child greet`` has target path "child"
+        (not empty), so the alias target is in a child interp.  We only
+        track aliases where both source and target paths are empty.
+        """
+        source = textwrap.dedent("""\
+            interp create child
+            interp eval child { proc greet {} { return hello } }
+            interp alias {} localGreet child greet
+            localGreet
+            interp delete child
+        """)
+        result = analyse(source)
+        # Target path is "child" (not empty) — not tracked.
+        assert "::localGreet" not in result.command_aliases
+
+    def test_real_world_alias_deletion_form(self):
+        """Alias deletion: ``interp alias {} name {}`` (empty target path, no target).
+
+        This 4-arg form should not be recorded (it deletes the alias).
+        """
+        source = textwrap.dedent("""\
+            interp alias {} myalias {} list
+            interp alias {} myalias {}
+        """)
+        result = analyse(source)
+        # The second call has only 4 args after "interp" — should not be
+        # detected as a new alias (gated by len >= 5).  The first call's
+        # alias should still be present since we don't track deletions.
+        assert "::myalias" in result.command_aliases
+        assert result.command_aliases["::myalias"] == ("list", ())
