@@ -1004,3 +1004,34 @@ class TestGenerateDocstringAction:
         snippets = _action_snippets(doc_actions)
         assert any("@param a" in s for s in snippets)
         assert any("@param b" in s for s in snippets)
+
+
+class TestIpConversionCursorOutOfRange:
+    """Regression test for GitHub issue #38 — IndexError when cursor is beyond line end."""
+
+    def test_cursor_past_end_of_line_does_not_crash(self):
+        source = "set x 1\n"
+        cursor = types.Range(
+            start=types.Position(line=0, character=999),
+            end=types.Position(line=0, character=999),
+        )
+        actions = get_code_actions(source, cursor, _NO_DIAG_CONTEXT)
+        assert isinstance(actions, list)
+
+    def test_cursor_on_empty_line_does_not_crash(self):
+        source = "set x 1\n\nset y 2\n"
+        cursor = types.Range(
+            start=types.Position(line=1, character=0),
+            end=types.Position(line=1, character=0),
+        )
+        actions = get_code_actions(source, cursor, _NO_DIAG_CONTEXT)
+        assert isinstance(actions, list)
+
+    def test_cursor_past_last_line_does_not_crash(self):
+        source = "set x 1\n"
+        cursor = types.Range(
+            start=types.Position(line=99, character=0),
+            end=types.Position(line=99, character=0),
+        )
+        actions = get_code_actions(source, cursor, _NO_DIAG_CONTEXT)
+        assert isinstance(actions, list)

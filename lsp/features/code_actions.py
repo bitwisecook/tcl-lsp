@@ -32,7 +32,12 @@ from core.refactoring._switch_to_dict import switch_to_dict
 from .diagnostics import _check_comment_continuation, _check_trailing_whitespace
 from .irules_context import find_enclosing_when_event
 from .package_suggestions import rank_package_suggestions
-from .symbol_resolution import find_word_at_position as _find_word_at_position
+from .symbol_resolution import (
+    find_word_at_position as _find_word_at_position,
+)
+from .symbol_resolution import (
+    find_word_span_at_position as _find_word_span_at_position,
+)
 
 # Short names: d = Diagnostic.
 
@@ -755,22 +760,14 @@ def _ip_conversion_actions(
     if range_.start.line != range_.end.line:
         return []
 
-    lines = source.split("\n")
-    if range_.start.line >= len(lines):
+    span = _find_word_span_at_position(
+        source,
+        range_.start.line,
+        range_.start.character,
+    )
+    if span is None:
         return []
-    line_text = lines[range_.start.line]
-
-    # Extract word at cursor
-    col = range_.start.character
-    start = col
-    while start > 0 and line_text[start - 1] not in " \t;{}[]\"'":
-        start -= 1
-    end = col
-    while end < len(line_text) and line_text[end] not in " \t;{}[]\"'":
-        end += 1
-    word = line_text[start:end]
-    if not word:
-        return []
+    word, start, end = span
 
     info = parse_ip(word)
     if info is None:
