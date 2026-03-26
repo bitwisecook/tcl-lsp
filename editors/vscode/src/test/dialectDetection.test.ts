@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri } from "./helper";
+import { activate, getDocUri, sleep } from "./helper";
 
 async function completionLabels(uri: vscode.Uri, position: vscode.Position): Promise<string[]> {
   const result = (await vscode.commands.executeCommand(
@@ -12,6 +12,30 @@ async function completionLabels(uri: vscode.Uri, position: vscode.Position): Pro
   return result.items.map((item) =>
     typeof item.label === "string" ? item.label : item.label.label,
   );
+}
+
+/**
+ * Poll completions until a predicate is satisfied or timeout expires.
+ * Dialect switches propagate asynchronously from the extension to the
+ * server, so we need to retry until the server has processed the
+ * configuration change notification.
+ */
+async function waitForCompletions(
+  uri: vscode.Uri,
+  position: vscode.Position,
+  predicate: (labels: string[]) => boolean,
+  timeout = 15_000,
+): Promise<string[]> {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const labels = await completionLabels(uri, position);
+    if (predicate(labels)) {
+      return labels;
+    }
+    await sleep(250);
+  }
+  // Return last result so the assertion can produce a useful message.
+  return completionLabels(uri, position);
 }
 
 suite("Dialect Detection", () => {
@@ -27,7 +51,13 @@ suite("Dialect Detection", () => {
     const uri = getDocUri("dialect-shebang85.tcl");
     await activate(uri);
 
-    const labels = await completionLabels(uri, new vscode.Position(1, 2));
+    // Dialect detection sends a config notification asynchronously;
+    // poll until the server reflects the tclsh8.5 dialect (no "try").
+    const labels = await waitForCompletions(
+      uri,
+      new vscode.Position(1, 2),
+      (l) => !l.includes("try"),
+    );
     assert.ok(!labels.includes("try"), 'Did not expect "try" completion for shebang tclsh8.5');
   });
 
@@ -35,8 +65,9 @@ suite("Dialect Detection", () => {
     const uri = getDocUri("dialect.irul");
     await activate(uri);
 
-    // Query completion within "HTTP::header" on line 2.
-    const labels = await completionLabels(uri, new vscode.Position(2, 11));
+    const labels = await waitForCompletions(uri, new vscode.Position(2, 11), (l) =>
+      l.includes("HTTP::header"),
+    );
     assert.ok(
       labels.includes("HTTP::header"),
       'Expected "HTTP::header" completion for .irule file',
@@ -47,9 +78,9 @@ suite("Dialect Detection", () => {
     const uri = getDocUri("dialect.iapp");
     await activate(uri);
 
-    // Request completion at the command-start position inside "[...]"
-    // so results are not filtered by an in-progress partial token.
-    const labels = await completionLabels(uri, new vscode.Position(1, 6));
+    const labels = await waitForCompletions(uri, new vscode.Position(1, 6), (l) =>
+      l.includes("iapp::template"),
+    );
     assert.ok(
       labels.includes("iapp::template"),
       'Expected "iapp::template" completion for .iapp file',
@@ -60,7 +91,9 @@ suite("Dialect Detection", () => {
     const uri = getDocUri("dialect.exp");
     await activate(uri);
 
-    const labels = await completionLabels(uri, new vscode.Position(2, 0));
+    const labels = await waitForCompletions(uri, new vscode.Position(2, 0), (l) =>
+      l.includes("spawn"),
+    );
     assert.ok(labels.includes("spawn"), 'Expected "spawn" completion for .exp file');
   });
 });

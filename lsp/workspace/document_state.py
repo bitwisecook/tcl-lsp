@@ -988,6 +988,7 @@ class WorkspaceState:
         language_id: str = "",
         force_reanalyse: bool = False,
         analyse: bool = True,
+        line_length: int = 120,
     ) -> DocumentState:
         """Register a newly opened document.
 
@@ -999,10 +1000,12 @@ class WorkspaceState:
             triggering analysis later (e.g. via ``_publish_diagnostics``
             running in a background thread).  This keeps ``didOpen`` fast
             so the event loop remains responsive for other requests.
+        line_length:
+            Maximum line length for style diagnostics.
         """
         state = DocumentState(uri=uri, language_id=language_id)
         if analyse:
-            state.update(source, version, force_reanalyse=force_reanalyse)
+            state.update(source, version, force_reanalyse=force_reanalyse, line_length=line_length)
         else:
             # Lightweight open: store source and version without analysis.
             state.source = source
@@ -1017,11 +1020,18 @@ class WorkspaceState:
         version: int | None = None,
         *,
         force_reanalyse: bool = False,
+        line_length: int = 120,
     ) -> DocumentState:
         state = self._documents.get(uri)
         if state is None:
-            return self.open(uri, source, version, force_reanalyse=force_reanalyse)
-        state.update(source, version, force_reanalyse=force_reanalyse)
+            return self.open(
+                uri,
+                source,
+                version,
+                force_reanalyse=force_reanalyse,
+                line_length=line_length,
+            )
+        state.update(source, version, force_reanalyse=force_reanalyse, line_length=line_length)
         return state
 
     def close(self, uri: str) -> None:

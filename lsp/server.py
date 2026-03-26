@@ -1738,6 +1738,7 @@ def _publish_diagnostics_sync(
         source,
         version,
         force_reanalyse=force_reanalyse,
+        line_length=feature_config.line_length,
     )
     partial_mode = state.has_partial_commands
 
@@ -2274,6 +2275,9 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
 # Workspace scanning
 
 
+_scan_lock = threading.Lock()
+
+
 def _run_background_scan() -> None:
     """Execute background scan in a daemon thread.
 
@@ -2281,10 +2285,17 @@ def _run_background_scan() -> None:
     pathological file cannot block the entire scan.  The daemon thread
     runs independently of the asyncio event loop — the GIL switch
     interval ensures the event loop stays responsive.
+
+    Concurrent scan requests are deduplicated: if a scan is already
+    running, subsequent calls return immediately.
     """
+    if not _scan_lock.acquire(blocking=False):
+        log.debug("Background scan already running — skipping duplicate request")
+        return
     t0 = time.perf_counter()
     try:
-        results = background_scanner.scan_all()
+        open_uris = frozenset(uri for uri, _ in workspace_state.items())
+        results = background_scanner.scan_all(skip_uris=open_uris)
         for uri, scan_result in results.items():
             # Don't overwrite entries for currently open files
             if workspace_state.get(uri) is not None:
@@ -2319,6 +2330,8 @@ def _run_background_scan() -> None:
         )
     except Exception:
         log.error("Background scan failed", exc_info=True)
+    finally:
+        _scan_lock.release()
 
 
 @server.feature(types.INITIALIZED)
@@ -2714,14 +2727,62 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     return changed
 
 
+# ---- Settings debounce ----
+# Rapid didChangeConfiguration notifications (e.g. dialect ping-pong during
+# startup) are coalesced so only the final settings are applied.
+_pending_settings: dict | None = None
+_pending_settings_handle: asyncio.TimerHandle | None = None
+_SETTINGS_DEBOUNCE_S = 0.3
+
+
 def _apply_all_settings(tcl_settings: dict) -> None:
-    """Apply a full set of extracted ``tclLsp`` settings.
+    """Debounced settings application — leading-edge with trailing coalesce.
+
+    On the *first* call (no pending timer) the settings are applied
+    immediately so that the initial dialect switch is not delayed.
+    A cooldown timer is started; if another call arrives within the
+    debounce window the timer is reset so that only the latest settings
+    are applied at the trailing edge.  This prevents the dialect
+    ping-pong problem where two rapid ``didChangeConfiguration``
+    notifications each trigger a full rebuild of every open document.
+    """
+    global _pending_settings, _pending_settings_handle
+
+    first_in_burst = _pending_settings_handle is None
+    _pending_settings = tcl_settings
+    if _pending_settings_handle is not None:
+        _pending_settings_handle.cancel()
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        # No running loop (e.g. during tests) — apply immediately.
+        _apply_all_settings_now()
+        return
+    if first_in_burst:
+        # Leading edge — apply immediately and start cooldown.
+        _apply_all_settings_now()
+    # Schedule trailing-edge apply (resets on each subsequent call).
+    _pending_settings_handle = loop.call_later(
+        _SETTINGS_DEBOUNCE_S,
+        _apply_all_settings_now,
+    )
+
+
+def _apply_all_settings_now() -> None:
+    """Apply the most recent settings (called after debounce timer).
 
     This is the shared implementation used by both the push-model
     ``workspace/didChangeConfiguration`` handler and the pull-model
     ``workspace/configuration`` callback.
     """
-    global formatter_config
+    global _pending_settings, _pending_settings_handle, formatter_config
+    settings = _pending_settings
+    _pending_settings = None
+    _pending_settings_handle = None
+    if settings is None:
+        return
+
+    tcl_settings = settings
 
     formatting = tcl_settings.get("formatting")
     if isinstance(formatting, dict) and formatting:
