@@ -2893,7 +2893,7 @@
           "tclLsp.pythonPath": {
             "type": "string",
             "default": "auto",
-            "description": "Python 3.10+ interpreter for the language server. 'auto' searches PATH and well-known locations for the highest available version.",
+            "description": "Python 3.10+ interpreter for the language server (latest stable recommended). The VSIX bundles all Python dependencies — only the interpreter is needed. Set to 'auto' (default) to search PATH and well-known locations, or provide a full path (e.g. /opt/homebrew/bin/python3.14). Install Python from python.org or via Homebrew (brew install python@3.14).",
             "order": 0
           },
           "tclLsp.serverPath": {

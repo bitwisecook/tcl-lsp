@@ -1,7 +1,19 @@
 # Helix
 
 Helix has built-in LSP support. Add the following to your `languages.toml`
-(typically `~/.config/helix/languages.toml`):
+(typically `~/.config/helix/languages.toml`).
+
+## Prerequisites
+
+**Python 3.10+** is required. We recommend the latest stable Python
+(currently 3.14). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
+(`brew install python@3.14`) or [python.org](https://www.python.org/downloads/).
+
+The `.pyz` zipapp bundles all Python dependencies internally — no
+`pip install` is needed. You only need a Python interpreter on your system.
+
+See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+full details on Python setup across platforms.
 
 ## Configuration
 

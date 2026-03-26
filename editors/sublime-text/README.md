@@ -31,8 +31,22 @@ with a superset of its features across all Tcl dialects.
 4. Install the [LSP](https://packagecontrol.io/packages/LSP) package from
    Package Control for full language-server features
 
-The bundled server is extracted to the Sublime Text cache on first load —
-no manual Python path configuration is needed.
+**Python 3.10+** is required for LSP features. We recommend the latest
+stable Python (currently 3.14). Install via
+[Homebrew](https://docs.brew.sh/Homebrew-and-Python)
+(`brew install python@3.14`) or
+[python.org](https://www.python.org/downloads/).
+
+The `.sublime-package` bundles the server and all Python dependencies
+internally — no `pip install` is needed. You only need a Python
+interpreter on your system. The bundled server is extracted to the
+Sublime Text cache on first load.
+
+To use a specific Python interpreter, set `python_path` in
+**Preferences > Package Settings > LSP-Tcl > Settings**.
+
+See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+full details on Python setup across platforms.
 
 ### Development install (from source)
 

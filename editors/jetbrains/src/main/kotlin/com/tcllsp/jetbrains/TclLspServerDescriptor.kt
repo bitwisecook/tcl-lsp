@@ -53,8 +53,11 @@ class TclLspServerDescriptor(project: Project) :
             val msg = if (settings.pythonPath.isNotBlank() && settings.pythonPath != "auto") {
                 "Tcl LSP: configured Python '${settings.pythonPath}' not found or below 3.10."
             } else {
-                "Tcl LSP: no Python 3.10+ interpreter found. " +
-                "Install Python from python.org or set the Python path in Settings > Tools > Tcl Language Server."
+                "Tcl LSP: Python 3.10+ is required but was not found. " +
+                "The plugin bundles all Python dependencies, but a Python interpreter must be installed on your system. " +
+                "Install from https://www.python.org/downloads/ or via Homebrew (brew install python@3.14), " +
+                "then set the path in Settings > Tools > Tcl Language Server. " +
+                "See https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite"
             }
             notifyError(msg)
             throw IllegalStateException(msg)
