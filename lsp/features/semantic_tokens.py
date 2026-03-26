@@ -2930,10 +2930,10 @@ def semantic_tokens_full(
 
 
 def _delta_encode(raw_tokens: list[tuple[int, int, int, int, int]]) -> list[int]:
-    """Convert absolute-position tokens to LSP delta-encoded format."""
-    # Sort by position (line, then character) for correct delta encoding
-    raw_tokens.sort(key=lambda t: (t[0], t[1]))
+    """Convert absolute-position tokens to LSP delta-encoded format.
 
+    *raw_tokens* must already be sorted by ``(line, char)``.
+    """
     data: list[int] = []
     prev_line = 0
     prev_char = 0
