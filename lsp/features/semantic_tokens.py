@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from bisect import bisect_right
 
 from core.analysis.semantic_model import AnalysisResult
 from core.bigip.apl_parser import AplTokenKind, tokenise_apl
@@ -729,7 +730,7 @@ def _find_apl_embedded_tcl(source: str) -> list[tuple[int, int, int, str]]:
                 body = source[start_pos + 1 : pos - 1]
                 if body.strip():
                     # Determine start line and column from absolute offset
-                    start_line = source.count("\n", 0, start_pos)
+                    start_line = bisect_right(line_offsets, start_pos) - 1
                     start_col = start_pos - line_offsets[start_line] + 1  # +1 past '['
                     regions.append((start_line, start_col, pos, body))
             continue
@@ -3008,17 +3009,22 @@ def _delta_encode(raw_tokens: list[tuple[int, int, int, int, int]]) -> list[int]
 
     *raw_tokens* must already be sorted by ``(line, char)``.
     """
-    data: list[int] = []
+    n = len(raw_tokens)
+    data = [0] * (n * 5)
+    idx = 0
     prev_line = 0
     prev_char = 0
 
     for line, char, length, type_idx, modifiers in raw_tokens:
         delta_line = line - prev_line
-        delta_char = char - prev_char if delta_line == 0 else char
-
-        data.extend([delta_line, delta_char, length, type_idx, modifiers])
+        data[idx] = delta_line
+        data[idx + 1] = char - prev_char if delta_line == 0 else char
+        data[idx + 2] = length
+        data[idx + 3] = type_idx
+        data[idx + 4] = modifiers
         prev_line = line
         prev_char = char
+        idx += 5
 
     return data
 

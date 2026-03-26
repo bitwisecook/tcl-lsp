@@ -85,6 +85,8 @@ class BackgroundScanner:
     ) -> None:
         if workspace_roots is not None:
             self._workspace_roots = list(workspace_roots)
+            # New roots → invalidate all cached results.
+            self._cached.clear()
         if library_paths is not None:
             self._library_paths = list(library_paths)
 
@@ -94,7 +96,6 @@ class BackgroundScanner:
         Returns a list of ``(full_path, ext)`` pairs for Tcl files.
         BIG-IP config files are parsed eagerly (they're lightweight).
         """
-        self._cached.clear()
         self._bigip_configs.clear()
         all_dirs = self._workspace_roots + self._library_paths
         result: list[tuple[str, str]] = []
@@ -130,11 +131,17 @@ class BackgroundScanner:
     # the background scan.  Files that exceed this are skipped.
     PER_FILE_TIMEOUT: float = 10.0
 
-    def scan_all(self) -> dict[str, ScanResult]:
+    def scan_all(
+        self,
+        skip_uris: frozenset[str] = frozenset(),
+    ) -> dict[str, ScanResult]:
         """Scan all configured directories.  Returns all results.
 
         Each file is analysed with a timeout so that a single
         pathological file cannot stall the entire scan.
+
+        *skip_uris* is an optional set of URIs to skip (e.g. files
+        already open and analysed via ``didOpen``).
         """
         t_start = time.perf_counter()
         files = self.collect_files()
@@ -145,11 +152,33 @@ class BackgroundScanner:
             len(files),
         )
 
+        skipped_open = 0
+        skipped_cached = 0
+        discovered_uris: set[str] = set()
         for full_path, ext in files:
+            uri = path_to_uri(full_path)
+            discovered_uris.add(uri)
+            if skip_uris and uri in skip_uris:
+                skipped_open += 1
+                continue
+            if uri in self._cached:
+                skipped_cached += 1
+                continue
             self._analyse_file_with_timeout(full_path, ext)
             # Yield the GIL between files so the asyncio event
             # loop's stdin reader thread can make progress.
             time.sleep(0)
+        if skipped_open or skipped_cached:
+            log.info(
+                "Scanner: skipped %d open + %d cached files",
+                skipped_open,
+                skipped_cached,
+            )
+
+        # Prune stale entries for files that no longer exist.
+        stale = set(self._cached) - discovered_uris
+        for uri in stale:
+            del self._cached[uri]
 
         elapsed_ms = (time.perf_counter() - t_start) * 1000
         log.info(
