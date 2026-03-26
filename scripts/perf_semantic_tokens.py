@@ -291,7 +291,7 @@ def benchmark_file(
         try:
             _initialize(client)
 
-            # Clear any startup stderr
+            # Read and ignore any startup stderr (does not clear buffer)
             client.get_all_stderr()
 
             t_open = time.perf_counter()

@@ -1079,7 +1079,14 @@ def _collect_expression_tokens(
                 source_len,
             )
             synthetic = Token(type=TokenType.CMD, text=cmd_text, start=cmd_start, end=cmd_end)
-            _collect_tokens(out, cmd_text, body_token=synthetic, regex_positions=regex_positions)
+            _collect_tokens(
+                out,
+                cmd_text,
+                body_token=synthetic,
+                regex_positions=regex_positions,
+                _line_starts=list(line_starts) if line_starts else None,
+                _source_len=source_len or None,
+            )
             prev_op_text = ""
             continue
 
@@ -1506,7 +1513,14 @@ def _collect_switch_case_bodies(
         body = elements[idx + 1]
         body_tok = element_tokens[idx + 1]
         if body != "-" and body_tok.type is TokenType.STR and body.strip():
-            _collect_tokens(out, body, body_token=body_tok, regex_positions=regex_positions)
+            _collect_tokens(
+                out,
+                body,
+                body_token=body_tok,
+                regex_positions=regex_positions,
+                _line_starts=list(line_starts) if line_starts else None,
+                _source_len=source_len or None,
+            )
         idx += 2
 
     return {i}
@@ -2400,6 +2414,7 @@ def _collect_tokens(
     body_token: Token | None = None,
     regex_positions: frozenset[tuple[int, int]] = frozenset(),
     _line_starts: list[int] | None = None,
+    _source_len: int | None = None,
 ) -> None:
     """Collect semantic tokens from *source* into *tokens*.
 
@@ -2432,9 +2447,12 @@ def _collect_tokens(
     else:
         lexer = TclLexer(source, virtual_insertions=vi, line_starts=_line_starts)
     # Share line_starts across recursive calls to avoid O(n) newline
-    # scanning per lexer instance.
-    if _line_starts is None:
+    # scanning per lexer instance.  Also capture the full document
+    # source length so that position_from_offset clamps correctly
+    # even when ``source`` is a body substring.
+    if _line_starts is None and body_token is None:
         _line_starts = lexer._line_starts
+        _source_len = len(source)
 
     # We need to track commands so we can identify BODY arguments.
     # Collect tokens per command, then emit them.
@@ -2507,8 +2525,8 @@ def _collect_tokens(
                 argv_texts[1:],
                 argv[1:],
                 regex_positions=regex_positions,
-                line_starts=_line_starts,
-                source_len=len(source),
+                line_starts=_line_starts or (),
+                source_len=_source_len or len(source),
             )
             # Activate E101 recovery if the switch parsed as Form 1
             # (explicit pattern/body pairs, not a single braced body).
@@ -2548,6 +2566,7 @@ def _collect_tokens(
                     body_token=tok,
                     regex_positions=regex_positions,
                     _line_starts=_line_starts,
+                    _source_len=_source_len,
                 )
                 continue
 
@@ -2563,6 +2582,7 @@ def _collect_tokens(
                     body_token=tok,
                     regex_positions=regex_positions,
                     _line_starts=_line_starts,
+                    _source_len=_source_len,
                 )
                 continue
 
@@ -2572,8 +2592,8 @@ def _collect_tokens(
                     tok.text,
                     tok,
                     regex_positions=regex_positions,
-                    line_starts=_line_starts,
-                    source_len=len(source),
+                    line_starts=_line_starts or (),
+                    source_len=_source_len or len(source),
                 )
                 continue
 
@@ -2628,7 +2648,10 @@ def _collect_tokens(
                 and tok is argv[arg_idx]
             ):
                 if _collect_binary_format_spec_tokens(
-                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                    tokens,
+                    tok,
+                    line_starts=_line_starts or (),
+                    source_len=_source_len or len(source),
                 ):
                     continue
 
@@ -2639,7 +2662,10 @@ def _collect_tokens(
                 and tok is argv[arg_idx]
             ):
                 if _collect_sprintf_format_spec_tokens(
-                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                    tokens,
+                    tok,
+                    line_starts=_line_starts or (),
+                    source_len=_source_len or len(source),
                 ):
                     continue
 
@@ -2650,7 +2676,10 @@ def _collect_tokens(
                 and tok is argv[arg_idx]
             ):
                 if _collect_clock_format_spec_tokens(
-                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                    tokens,
+                    tok,
+                    line_starts=_line_starts or (),
+                    source_len=_source_len or len(source),
                 ):
                     continue
 
@@ -2661,7 +2690,10 @@ def _collect_tokens(
                 and tok is argv[arg_idx]
             ):
                 if _collect_regsub_subspec_tokens(
-                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                    tokens,
+                    tok,
+                    line_starts=_line_starts or (),
+                    source_len=_source_len or len(source),
                 ):
                     continue
 
@@ -2685,7 +2717,10 @@ def _collect_tokens(
                 and tok.type in (TokenType.ESC, TokenType.STR)
             ):
                 if _collect_glob_pattern_tokens(
-                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                    tokens,
+                    tok,
+                    line_starts=_line_starts or (),
+                    source_len=_source_len or len(source),
                 ):
                     continue
 
@@ -2704,7 +2739,12 @@ def _collect_tokens(
             # Regex pattern arguments (e.g. the pattern in "regexp {pat} str")
             # get highlighted as the "regexp" semantic token type.
             if is_pattern and tok.type in (TokenType.ESC, TokenType.STR):
-                _emit_regex_token(tokens, tok, line_starts=_line_starts, source_len=len(source))
+                _emit_regex_token(
+                    tokens,
+                    tok,
+                    line_starts=_line_starts or (),
+                    source_len=_source_len or len(source),
+                )
                 continue
 
             # Analysis-driven regex override: when the analyser has
@@ -2787,15 +2827,18 @@ def _collect_tokens(
                     tok,
                     type_idx,
                     modifiers,
-                    line_starts=_line_starts,
-                    source_len=len(source),
+                    line_starts=_line_starts or (),
+                    source_len=_source_len or len(source),
                 )
                 continue
 
             # Escape sequences in string-classified ESC tokens
             if type_idx == _TYPE_INDEX["string"] and tok.type is TokenType.ESC and "\\" in tok.text:
                 if _emit_string_with_escapes(
-                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                    tokens,
+                    tok,
+                    line_starts=_line_starts or (),
+                    source_len=_source_len or len(source),
                 ):
                     continue
 
