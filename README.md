@@ -201,7 +201,10 @@ string length "a" "b"   ;# E003: too many arguments
 Variables, procs, keywords, and strings are classified using SSA-informed type
 information, giving richer highlighting than a TextMate grammar alone.  The
 server provides 43 token types beyond the standard LSP set, including
-sub-token highlighting inside strings.
+sub-token highlighting inside strings.  Tokens are cached per top-level chunk
+so only dirty regions are recomputed after an edit, and the server supports
+`textDocument/semanticTokens/full/delta` for bandwidth-efficient incremental
+updates.
 
 ```tcl
 namespace eval app {

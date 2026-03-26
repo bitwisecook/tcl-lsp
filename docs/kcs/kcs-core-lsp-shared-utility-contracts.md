@@ -37,7 +37,7 @@ Shared utility modules were lifted to provide one internal contract surface acro
 
 ## File-path anchors
 
-- `core/common/document_buffer.py` — `DocumentBuffer`, `EditDescriptor`, `compute_line_starts`, `update_line_starts`
+- `core/common/document_buffer.py` — `DocumentBuffer`, `compute_line_starts`; single source of truth for source text, version, and line-start metadata per document
 - `core/common/source_map.py` — legacy `SourceMap`, `offset_to_line_col` (non-hot-path only)
 - `core/common/ranges.py` — `position_from_offset`, `position_from_relative`
 - `core/common/position.py` — `offset_at_position`, `find_command_at_position`

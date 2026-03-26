@@ -327,7 +327,7 @@ class Analyser:
     ) -> None:
         """Walk old and new scope trees in parallel, recording id mappings."""
         mapping[id(old_scope)] = new_scope
-        for old_child, new_child in zip(old_scope.children, new_scope.children):
+        for old_child, new_child in zip(old_scope.children, new_scope.children, strict=True):
             Analyser._build_scope_id_map(old_child, new_child, mapping)
 
     def analyse_chunked(
@@ -336,6 +336,7 @@ class Analyser:
         chunk_commands: list[list[SegmentedCommand]],
         *,
         cu: CompilationUnit | None = None,
+        skip_stubs: bool = False,
     ) -> tuple[AnalysisResult, list[AnalyserSnapshot]]:
         """Analyse commands chunk-by-chunk and capture per-chunk snapshots.
 
@@ -343,13 +344,18 @@ class Analyser:
         ``AnalyserSnapshot`` objects (one per chunk, taken after each
         chunk's commands are processed).  This avoids the need for a
         separate snapshot-building pass after analysis.
+
+        When *skip_stubs* is ``True``, the inline-stub scan is skipped.
+        This is used by the incremental path where the analyser has been
+        restored from a snapshot that already includes earlier stubs.
         """
         self._source = source
-        # Pre-scan for inline stubs (same as analyse()).
-        cmd_stubs, expr_stubs = scan_source_for_stubs(source)
-        self.result.stub_commands.extend(cmd_stubs)
-        self.result.stub_expr_defs.extend(expr_stubs)
-        self._check_stub_shadows()
+        if not skip_stubs:
+            # Pre-scan for inline stubs (same as analyse()).
+            cmd_stubs, expr_stubs = scan_source_for_stubs(source)
+            self.result.stub_commands.extend(cmd_stubs)
+            self.result.stub_expr_defs.extend(expr_stubs)
+            self._check_stub_shadows()
 
         snapshots: list[AnalyserSnapshot] = []
         for cmds in chunk_commands:

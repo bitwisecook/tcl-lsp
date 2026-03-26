@@ -618,3 +618,53 @@ class TestVariousEditPatterns:
             if i < len(old_caches) and cc is old_caches[i] and cc is not None
         )
         assert reused >= 48  # at least 48 of 50 chunks reused
+
+
+class TestChunkBoundaryTokenAssignment:
+    """Verify that tokens at chunk boundaries are assigned to exactly one chunk.
+
+    The bisect_left partitioning in semantic_tokens_full must not duplicate
+    or drop tokens when they fall exactly on a chunk boundary line/col.
+    """
+
+    def test_tokens_at_boundary_not_duplicated_or_lost(self):
+        """Tokens produced via chunk cache must match tokens without cache."""
+        # Two commands on separate lines — each becomes its own chunk.
+        source = "set x 1\nset y 2\n"
+        state = DocumentState(uri="test://boundary.tcl")
+        state.update(source)
+
+        # Tokens without cache (baseline).
+        tokens_no_cache = semantic_tokens_full(source, analysis=state.analysis)
+
+        # Tokens with chunk cache.
+        cache_info = state.get_semantic_token_cache()
+        assert cache_info is not None
+        chunk_token_cache, chunk_line_ranges = cache_info
+        tokens_with_cache = semantic_tokens_full(
+            source,
+            analysis=state.analysis,
+            chunk_token_cache=chunk_token_cache,
+            chunk_line_ranges=chunk_line_ranges,
+        )
+
+        assert tokens_no_cache == tokens_with_cache
+
+    def test_semicolon_separated_same_line(self):
+        """Chunks sharing a line must partition tokens correctly."""
+        source = "set x 1; set y 2\n"
+        state = DocumentState(uri="test://semicolon.tcl")
+        state.update(source)
+
+        tokens_no_cache = semantic_tokens_full(source, analysis=state.analysis)
+
+        cache_info = state.get_semantic_token_cache()
+        if cache_info is not None:
+            chunk_token_cache, chunk_line_ranges = cache_info
+            tokens_with_cache = semantic_tokens_full(
+                source,
+                analysis=state.analysis,
+                chunk_token_cache=chunk_token_cache,
+                chunk_line_ranges=chunk_line_ranges,
+            )
+            assert tokens_no_cache == tokens_with_cache
