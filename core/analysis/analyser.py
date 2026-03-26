@@ -1448,7 +1448,7 @@ class Analyser:
                 ns = pattern[:-3]
                 for qname in self.result.all_procs:
                     if qname.startswith(ns + "::"):
-                        short = qname[len(ns) + 2:]
+                        short = qname[len(ns) + 2 :]
                         self.result.command_aliases[short] = qname
             elif "::" in pattern:
                 short = pattern.rsplit("::", 1)[-1]

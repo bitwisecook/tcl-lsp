@@ -573,7 +573,6 @@ class DocumentState:
         during the single analysis pass.
         """
         try:
-
             buf = self.buffer
             all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
             diag_lines = [d.range.start.line for d in all_style_diags]

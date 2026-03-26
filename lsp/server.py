@@ -459,6 +459,7 @@ SEMANTIC_TOKENS_LEGEND = types.SemanticTokensLegend(
     token_modifiers=SEMANTIC_TOKEN_MODIFIERS,
 )
 
+
 # Thread-safe per-URI storage for semantic tokens delta support.
 class _SemanticTokenState:
     """Thread-safe semantic token result cache with bounded size."""
