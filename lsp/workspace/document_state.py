@@ -86,8 +86,13 @@ def _extract_chunk_ir(
     top_stmts = ir_module.top_level.statements
     all_procs = ir_module.procedures
 
+    # Sort procedures by start offset for O(S + P + C) sliding-window
+    # extraction instead of O(C × P).
+    sorted_procs = sorted(all_procs.items(), key=lambda p: p[1].range.start.offset)
+
     result: list[tuple[tuple, dict]] = []
     stmt_idx = 0
+    proc_idx = 0
     for chunk in chunks:
         c_start = chunk.start_offset
         c_end = chunk.end_offset
@@ -100,11 +105,15 @@ def _extract_chunk_ir(
             if stmt.range.start.offset >= c_start:
                 chunk_stmts.append(stmt)
             stmt_idx += 1
-        # Collect procedures whose definition range falls within this chunk.
+        # Collect procedures via sliding pointer (procs sorted by offset).
         chunk_procs: dict = {}
-        for name, proc in all_procs.items():
-            if c_start <= proc.range.start.offset < c_end:
+        while proc_idx < len(sorted_procs):
+            name, proc = sorted_procs[proc_idx]
+            if proc.range.start.offset >= c_end:
+                break
+            if proc.range.start.offset >= c_start:
                 chunk_procs[name] = proc
+            proc_idx += 1
         result.append((tuple(chunk_stmts), chunk_procs))
     return result
 
@@ -485,7 +494,8 @@ class DocumentState:
         self._update_proc_cache()
 
         # Incremental analysis: restore from the last clean chunk's
-        # analyser snapshot and only analyse commands from dirty chunks.
+        # analyser snapshot and analyse dirty chunks with per-chunk
+        # snapshots in a single pass (avoiding double analysis).
         restore_snapshot: AnalyserSnapshot | None = None
         if dirty_idx > 0:
             for i in range(dirty_idx - 1, -1, -1):
@@ -494,39 +504,40 @@ class DocumentState:
                     restore_snapshot = cc.analyser_snapshot_after
                     break
 
-        # Gather commands from dirty chunks onwards.
-        dirty_commands: list[SegmentedCommand] = []
-        for chunk in new_chunks[dirty_idx:]:
-            dirty_commands.extend(chunk.commands)
+        dirty_chunk_commands = [list(chunk.commands) for chunk in new_chunks[dirty_idx:]]
 
         if restore_snapshot is not None:
             analyser = Analyser()
             analyser.restore(restore_snapshot)
-            self.analysis = analyser.analyse_commands(
+            self.analysis, dirty_snapshots = analyser.analyse_chunked(
                 source,
-                dirty_commands,
+                dirty_chunk_commands,
                 cu=self.compilation_unit,
+                skip_stubs=True,
             )
         else:
-            # No snapshot to restore from — full analysis.
-            self.analysis = analyse(source, cu=self.compilation_unit)
+            # No snapshot to restore from — full chunked analysis.
+            analyser = Analyser()
+            self.analysis, dirty_snapshots = analyser.analyse_chunked(
+                source,
+                dirty_chunk_commands,
+                cu=self.compilation_unit,
+            )
         t_analyse = time.perf_counter()
 
-        # Update chunk caches for newly processed chunks.
-        # Take analyser snapshots at each dirty chunk boundary.
-        # If incremental compilation failed (no ir_module despite expecting
-        # one), skip chunk cache updates to avoid storing empty IR that
-        # could later be mistaken for valid cached entries.
+        # Build chunk caches for dirty chunks using the snapshots from
+        # analyse_chunked — no re-analysis needed.
         if self.compilation_unit is None and ir_module is None:
             log.debug("Skipping chunk-cache update: incremental compilation failed")
             self._chunk_caches = new_chunk_caches
         else:
-            self._rebuild_chunk_caches_for_dirty(
+            self._build_dirty_chunk_caches(
                 source,
                 new_chunks,
                 new_chunk_caches,
                 dirty_idx,
-                ir_module if self.compilation_unit else None,
+                dirty_snapshots,
+                ir_module,
             )
             self._chunk_caches = new_chunk_caches
         t_caches = time.perf_counter()
@@ -544,78 +555,43 @@ class DocumentState:
             len(new_chunks),
         )
 
-    def _rebuild_chunk_caches_for_dirty(
+    def _build_dirty_chunk_caches(
         self,
         source: str,
         chunks: list[TopLevelChunk],
         chunk_caches: list[ChunkCache | None],
         dirty_idx: int,
+        dirty_snapshots: list[AnalyserSnapshot],
         ir_module: object | None,
     ) -> None:
-        """Build ``ChunkCache`` entries for newly-analysed dirty chunks.
+        """Build ``ChunkCache`` entries for dirty chunks using pre-built snapshots.
 
-        Takes analyser snapshots at each chunk boundary so future
-        incremental passes can restore from the last clean point.
+        Unlike the old ``_rebuild_chunk_caches_for_dirty``, this does **not**
+        re-run the analyser — it uses snapshots captured by ``analyse_chunked``
+        during the single analysis pass.
         """
-        # To build snapshots, we need to re-run the analyser per-chunk.
-        # This is a bookkeeping pass — the actual analysis results have
-        # already been computed.  We only need the snapshots.
         try:
-            snapshot_analyser = Analyser()
-            # If there's a clean snapshot before the dirty region, start from there.
-            restored = False
-            if dirty_idx > 0:
-                for i in range(dirty_idx - 1, -1, -1):
-                    cc = chunk_caches[i] if i < len(chunk_caches) else None
-                    if cc is not None and cc.analyser_snapshot_after is not None:
-                        snapshot_analyser.restore(cc.analyser_snapshot_after)
-                        restored = True
-                        break
-
-            if not restored and dirty_idx > 0:
-                # Process clean chunks to build the snapshot base.
-                all_clean_cmds: list[SegmentedCommand] = []
-                for chunk in chunks[:dirty_idx]:
-                    all_clean_cmds.extend(chunk.commands)
-                snapshot_analyser._source = source
-                snapshot_analyser._analyse_commands_inner(
-                    all_clean_cmds,
-                    snapshot_analyser._current_scope,
-                    source,
-                )
-
-            # Compute style diagnostics once for the whole file, then
-            # partition by chunk using bisect.
             from bisect import bisect_left, bisect_right
 
             buf = self.buffer
             all_style_diags = _get_style_diag_all_fn()(source)
             diag_lines = [d.range.start.line for d in all_style_diags]
 
-            # Now process each dirty chunk and take snapshots.
-            for i in range(dirty_idx, len(chunks)):
-                chunk = chunks[i]
-                cmds = list(chunk.commands)
-                snapshot_analyser._source = source
-                snapshot_analyser._analyse_commands_inner(
-                    cmds,
-                    snapshot_analyser._current_scope,
-                    source,
-                )
-                snap = snapshot_analyser.snapshot()
+            # Extract per-chunk IR from the IR module when available.
+            dirty_chunks = chunks[dirty_idx:]
+            chunk_ir_map = _extract_chunk_ir(self.compilation_unit, dirty_chunks)
 
-                # Build IR cache entry for this chunk from the IR module.
-                ir_stmts: tuple[IRStatement, ...] = ()
-                ir_procs: dict[str, IRProcedure] = {}
-                if ir_module is not None and hasattr(ir_module, "top_level"):
-                    from core.compiler.ir import IRModule as IRModuleType
+            for di, chunk in enumerate(dirty_chunks):
+                i = dirty_idx + di
+                snap = dirty_snapshots[di]
 
-                    if isinstance(ir_module, IRModuleType):
-                        # We can't easily extract per-chunk IR from the assembled
-                        # module, so re-lower this chunk's commands.
-                        from core.compiler.lowering import lower_commands_to_ir
+                # Use pre-extracted IR if available; fall back to lowering.
+                if chunk_ir_map is not None:
+                    ir_stmts, ir_procs = chunk_ir_map[di]
+                else:
+                    from core.compiler.lowering import lower_commands_to_ir
 
-                        ir_stmts, ir_procs = lower_commands_to_ir(source, cmds)
+                    ir_stmts, ir_procs = lower_commands_to_ir(source, list(chunk.commands))
 
                 # Partition pre-computed style diagnostics for this chunk.
                 start_line, _sc, end_line, _ec = _chunk_line_range(buf, chunk)
