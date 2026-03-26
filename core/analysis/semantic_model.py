@@ -359,6 +359,25 @@ class AnalysisResult:
     # ``interp alias {} name {} target ?arg ...?`` statements.
     command_aliases: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
     unknown_proc_info: UnknownProcInfo | None = None
+    # Cached set of (line, character) for regex pattern positions,
+    # built lazily by ``regex_position_set`` to avoid rebuilding on
+    # every semantic token request.
+    _regex_position_set: frozenset[tuple[int, int]] | None = field(
+        default=None, repr=False, compare=False
+    )
+
+    @property
+    def regex_position_set(self) -> frozenset[tuple[int, int]]:
+        """Return a frozenset of ``(line, character)`` for all regex patterns.
+
+        Cached after first computation so repeated semantic token
+        requests reuse the same set.
+        """
+        if self._regex_position_set is None:
+            self._regex_position_set = frozenset(
+                (rp.range.start.line, rp.range.start.character) for rp in self.regex_patterns
+            )
+        return self._regex_position_set
 
     def copy_for_snapshot(self) -> AnalysisResult:
         """Create an independent copy suitable for analyser snapshots.
@@ -366,49 +385,65 @@ class AnalysisResult:
         Much faster than ``copy.deepcopy`` because it shares immutable
         objects by reference (all ``frozen=True, slots=True`` dataclasses)
         and only copies mutable containers and their mutable items.
+
+        ``ProcDef`` copies share the (already-immutable) ``params`` list
+        items and ``param_traits`` frozenset values.  ``VarDef`` copies
+        share immutable ``Range`` objects but must copy the mutable
+        ``references`` list.
         """
         new_scope = self.global_scope._copy_tree()
+        # Share params list via shallow copy (ParamDef is frozen).
+        # Share param_traits dict values (frozenset — immutable).
+        new_procs = {
+            k: ProcDef(
+                v.name,
+                v.qualified_name,
+                v.params[:],
+                v.name_range,
+                v.body_range,
+                v.doc,
+                v.param_traits.copy(),
+            )
+            for k, v in self.all_procs.items()
+        }
+        new_vars = {
+            k: VarDef(v.name, v.definition_range, v.references[:], v.warn_if_unused)
+            for k, v in self.all_variables.items()
+        }
         return AnalysisResult(
             global_scope=new_scope,
-            all_procs={
-                k: ProcDef(
-                    v.name,
-                    v.qualified_name,
-                    list(v.params),
-                    v.name_range,
-                    v.body_range,
-                    v.doc,
-                    dict(v.param_traits),
-                )
-                for k, v in self.all_procs.items()
-            },
-            all_variables={
-                k: VarDef(v.name, v.definition_range, list(v.references), v.warn_if_unused)
-                for k, v in self.all_variables.items()
-            },
-            diagnostics=list(self.diagnostics),
-            suppressed_lines=dict(self.suppressed_lines),
-            regex_patterns=list(self.regex_patterns),
-            command_invocations=list(self.command_invocations),
-            package_requires=list(self.package_requires),
-            package_provides=list(self.package_provides),
+            all_procs=new_procs,
+            all_variables=new_vars,
+            diagnostics=self.diagnostics[:],
+            suppressed_lines=self.suppressed_lines.copy(),
+            regex_patterns=self.regex_patterns[:],
+            command_invocations=self.command_invocations[:],
+            package_requires=self.package_requires[:],
+            package_provides=self.package_provides[:],
             has_dynamic_providers=self.has_dynamic_providers,
-            source_targets=list(self.source_targets),
-            stub_commands=list(self.stub_commands),
-            stub_expr_defs=list(self.stub_expr_defs),
-            command_aliases=dict(self.command_aliases),
+            source_targets=self.source_targets[:],
+            stub_commands=self.stub_commands[:],
+            stub_expr_defs=self.stub_expr_defs[:],
+            command_aliases=self.command_aliases.copy(),
             unknown_proc_info=self.unknown_proc_info,
         )
 
     def find_proc(self, name: str) -> ProcDef | None:
-        """Look up a proc by name, trying qualified and bare forms."""
+        """Look up a proc by name, trying qualified and bare forms.
+
+        Uses a lazily built bare-name index for O(1) amortised lookup
+        instead of O(P) linear scan.
+        """
         result = self.all_procs.get(f"::{name}") or self.all_procs.get(name)
         if result is not None:
             return result
-        for pd in self.all_procs.values():
-            if pd.name == name:
-                return pd
-        return None
+        # Build bare-name index lazily on first miss.
+        if not hasattr(self, "_bare_name_index"):
+            idx: dict[str, ProcDef] = {}
+            for pd in self.all_procs.values():
+                idx.setdefault(pd.name, pd)
+            self._bare_name_index = idx
+        return self._bare_name_index.get(name)
 
     def active_package_names(self) -> frozenset[str]:
         """Return the set of package names imported via ``package require``."""

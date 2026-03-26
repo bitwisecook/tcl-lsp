@@ -180,7 +180,9 @@ class _StateSnapshot:
 
     source: str = ""
     version: int | None = None
-    tokens: list[Token] = field(default_factory=list)
+    # Lazily computed on first access via DocumentState.tokens to
+    # avoid an O(source_len) lexer pass on every incremental update.
+    tokens: list[Token] | None = None
     analysis: AnalysisResult | None = None
     compilation_unit: CompilationUnit | None = None
     chunks: list[TopLevelChunk] = field(default_factory=list)
@@ -245,7 +247,10 @@ class DocumentState:
 
     @property
     def tokens(self) -> list[Token]:
-        return self._snap.tokens
+        snap = self._snap
+        if snap.tokens is None:
+            snap.tokens = TclLexer(snap.source).tokenise_all()
+        return snap.tokens
 
     @tokens.setter
     def tokens(self, value: list[Token]) -> None:
@@ -459,18 +464,36 @@ class DocumentState:
         the new source text (without analysis enrichment).
 
         Builds a new ``_StateSnapshot`` and swaps it atomically.
+        Chunk caches for unchanged chunks are carried forward so that
+        semantic token requests between the quick update and the full
+        ``update()`` can reuse cached tokens instead of recomputing
+        the entire document.
         """
         old = self._snap
         if source == old.source and (version is None or version == old.version):
             return False  # unchanged
         new_chunks = segment_top_level_chunks(source)
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
-        # Build a fresh snapshot with cleared analysis/caches.
+        # Carry forward chunk caches for unchanged chunks so that
+        # semantic token requests can serve cached tokens immediately.
+        old_caches = old.chunk_caches
+        new_caches: list[ChunkCache | None] = []
+        if old_caches:
+            dirty_idx = find_first_dirty_chunk(old.chunks, new_chunks)
+            for i, chunk in enumerate(new_chunks):
+                if i < dirty_idx and i < len(old_caches):
+                    cc = old_caches[i]
+                    if cc is not None and cc.chunk_hash == chunk.source_hash:
+                        new_caches.append(cc)
+                        continue
+                new_caches.append(None)
         self._snap = _StateSnapshot(
             source=source,
             version=version,
             chunks=new_chunks,
             has_partial_commands=has_partial,
+            chunk_caches=new_caches,
+            file_profiles=old.file_profiles,
         )
         return True
 
@@ -505,7 +528,12 @@ class DocumentState:
         # Snapshot the current state for incremental decisions.
         # This read is atomic (single attribute load under the GIL).
         old_snap = self._snap
-        new_chunks = segment_top_level_chunks(source)
+        # Reuse chunks from update_source_quick() when the source matches,
+        # avoiding a redundant O(source_len) lexer pass.
+        if source == old_snap.source and old_snap.chunks:
+            new_chunks = old_snap.chunks
+        else:
+            new_chunks = segment_top_level_chunks(source)
         t_seg = time.perf_counter()
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
 
@@ -593,7 +621,8 @@ class DocumentState:
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        tokens = TclLexer(source).tokenise_all()
+        # Tokens are computed lazily on first access via DocumentState.tokens,
+        # avoiding an O(source_len) lexer pass when no handler needs them.
         t_tok = time.perf_counter()
 
         # Build chunk IR cache: reuse cached entries for clean chunks,
@@ -687,10 +716,10 @@ class DocumentState:
         t_caches = time.perf_counter()
 
         # Atomic swap: build and install the new snapshot.
+        # Tokens are left as None (lazy) — computed on first access.
         self._snap = _StateSnapshot(
             source=source,
             version=version,
-            tokens=tokens,
             analysis=analysis,
             compilation_unit=compilation_unit,
             chunks=new_chunks,
@@ -700,9 +729,8 @@ class DocumentState:
         )
 
         log.info(
-            "[timing] _update_incremental tokenise=%.0fms lower=%.0fms compile=%.0fms"
+            "[timing] _update_incremental lower=%.0fms compile=%.0fms"
             " analyse=%.0fms caches=%.0fms total=%.0fms (dirty=%d/%d)",
-            (t_tok - t0) * 1000,
             (t_lower - t_tok) * 1000,
             (t_compile - t_lower) * 1000,
             (t_analyse - t_compile) * 1000,
@@ -795,7 +823,7 @@ class DocumentState:
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        tokens = TclLexer(source).tokenise_all()
+        # Tokens are computed lazily on first access via DocumentState.tokens.
         t_tok = time.perf_counter()
 
         prev_proc_cache = dict(self._proc_cache)
@@ -839,10 +867,10 @@ class DocumentState:
         t_caches = time.perf_counter()
 
         # Atomic swap: install the new snapshot.
+        # Tokens left as None (lazy) — computed on first access.
         self._snap = _StateSnapshot(
             source=source,
             version=version,
-            tokens=tokens,
             analysis=analysis,
             compilation_unit=compilation_unit,
             chunks=new_chunks,
@@ -853,9 +881,8 @@ class DocumentState:
 
         n_procs = len(compilation_unit.procedures) if compilation_unit else 0
         log.info(
-            "[timing] _update_full tokenise=%.0fms compile=%.0fms analyse=%.0fms"
+            "[timing] _update_full compile=%.0fms analyse=%.0fms"
             " chunk_caches=%.0fms total=%.0fms (procs=%d)",
-            (t_tok - t0) * 1000,
             (t_compile - t_tok) * 1000,
             (t_analyse - t_compile) * 1000,
             (t_caches - t_analyse) * 1000,

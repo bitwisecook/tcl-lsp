@@ -206,7 +206,8 @@ class TestUpdateSourceQuick:
         assert changed is True
         assert state.source == "set x 20\n"
         assert state.analysis is None  # cleared
-        assert state._chunk_caches == []
+        # Dirty chunks get None entries; clean prefix caches are carried forward.
+        assert all(cc is None for cc in state._chunk_caches)
 
     def test_quick_update_returns_false_when_unchanged(self):
         state = DocumentState(uri="test")

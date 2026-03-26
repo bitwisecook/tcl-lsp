@@ -2934,9 +2934,7 @@ def semantic_tokens_full(
 
     regex_positions: frozenset[tuple[int, int]] = frozenset()
     if analysis is not None:
-        regex_positions = frozenset(
-            (rp.range.start.line, rp.range.start.character) for rp in analysis.regex_patterns
-        )
+        regex_positions = analysis.regex_position_set
 
     # Collect all tokens with absolute positions
     raw_tokens: list[tuple[int, int, int, int, int]] = []
@@ -2975,7 +2973,7 @@ def semantic_tokens_full(
     if is_apl:
         _collect_apl_tokens(raw_tokens, source)
 
-    # Sort by position (line, then character) for correct delta encoding
+    # Sort by position (line, then character) for correct delta encoding.
     raw_tokens.sort(key=lambda t: (t[0], t[1]))
 
     # Populate chunk cache if provided.
@@ -3010,16 +3008,23 @@ def _delta_encode(raw_tokens: list[tuple[int, int, int, int, int]]) -> list[int]
     """Convert absolute-position tokens to LSP delta-encoded format.
 
     *raw_tokens* must already be sorted by ``(line, char)``.
+    Pre-allocates the output list to avoid per-token temporary allocations.
     """
-    data: list[int] = []
+    n = len(raw_tokens)
+    data = [0] * (n * 5)
     prev_line = 0
     prev_char = 0
+    idx = 0
 
     for line, char, length, type_idx, modifiers in raw_tokens:
         delta_line = line - prev_line
         delta_char = char - prev_char if delta_line == 0 else char
-
-        data.extend([delta_line, delta_char, length, type_idx, modifiers])
+        data[idx] = delta_line
+        data[idx + 1] = delta_char
+        data[idx + 2] = length
+        data[idx + 3] = type_idx
+        data[idx + 4] = modifiers
+        idx += 5
         prev_line = line
         prev_char = char
 
