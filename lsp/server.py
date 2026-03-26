@@ -2161,8 +2161,27 @@ def _run_background_scan() -> None:
         # Register RULE_INIT variables as cross-file available
         for uri, exports in background_scanner.irules_rule_init_vars.items():
             workspace_index.update_rule_init_vars(uri, exports)
+        # Index files discovered via tclIndex that were not already scanned.
+        auto_loaded = 0
+        for _proc_name, source_file in background_scanner.auto_index_entries.items():
+            source_uri = path_to_uri(source_file)
+            if workspace_index.get_analysis(source_uri) is not None:
+                continue
+            scan_result = background_scanner.rescan_file(source_file)
+            if scan_result:
+                workspace_index.update(
+                    source_uri,
+                    scan_result.analysis,
+                    EntrySource.AUTO_INDEX,
+                )
+                auto_loaded += 1
         elapsed_ms = (time.perf_counter() - t0) * 1000
-        log.info("[timing] background scan %.0fms (%d files)", elapsed_ms, len(results))
+        log.info(
+            "[timing] background scan %.0fms (%d files, %d auto-index)",
+            elapsed_ms,
+            len(results),
+            auto_loaded,
+        )
     except Exception:
         log.error("Background scan failed", exc_info=True)
 

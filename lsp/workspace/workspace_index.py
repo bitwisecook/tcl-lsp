@@ -20,6 +20,7 @@ class EntrySource(Enum):
     OPEN = auto()  # File is open in the editor
     BACKGROUND = auto()  # File scanned from workspace on disk
     PACKAGE = auto()  # File loaded via package require resolution
+    AUTO_INDEX = auto()  # File discovered via tclIndex auto-loading
 
 
 @dataclass
@@ -262,6 +263,7 @@ class WorkspaceIndex:
             return self._source_kinds.get(uri) in (
                 EntrySource.BACKGROUND,
                 EntrySource.PACKAGE,
+                EntrySource.AUTO_INDEX,
             )
 
     def remove_background_entries(self) -> None:

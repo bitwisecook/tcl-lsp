@@ -31,6 +31,7 @@ class PackageResolver:
 
     def __init__(self) -> None:
         self._packages: dict[str, list[PackageInfo]] = {}  # name -> versions
+        self._auto_index: dict[str, list[str]] = {}  # proc_name -> [abs paths]
         self._search_paths: list[str] = []
         self._scanned: bool = False
 
@@ -39,8 +40,9 @@ class PackageResolver:
         self._scanned = False
 
     def scan_packages(self) -> None:
-        """Walk search paths looking for pkgIndex.tcl files."""
+        """Walk search paths looking for pkgIndex.tcl and tclIndex files."""
         self._packages.clear()
+        self._auto_index.clear()
         for search_path in self._search_paths:
             expanded = os.path.expanduser(search_path)
             if not os.path.isdir(expanded):
@@ -50,10 +52,16 @@ class PackageResolver:
                 if "pkgIndex.tcl" in files:
                     pkg_index_path = os.path.join(root, "pkgIndex.tcl")
                     self._parse_pkg_index(pkg_index_path, root)
+                # Also parse tclIndex files for auto-loading support.
+                files_lower = {f.lower(): f for f in files}
+                if "tclindex" in files_lower:
+                    tcl_index_path = os.path.join(root, files_lower["tclindex"])
+                    self._parse_auto_index(tcl_index_path)
         self._scanned = True
         log.info(
-            "Package scan: found %d packages in %d search paths",
+            "Package scan: found %d packages, %d auto-index procs in %d search paths",
             len(self._packages),
+            len(self._auto_index),
             len(self._search_paths),
         )
 
@@ -153,3 +161,22 @@ class PackageResolver:
                 pass
 
         return files
+
+    def _parse_auto_index(self, tcl_index_path: str) -> None:
+        """Parse a tclIndex file and register proc->file mappings."""
+        from .auto_index import parse_tcl_index
+
+        for entry in parse_tcl_index(tcl_index_path):
+            self._auto_index.setdefault(entry.proc_name, []).append(entry.source_file)
+
+    def resolve_auto_proc(self, proc_name: str) -> list[str]:
+        """Resolve an auto-loaded proc name to its source file paths."""
+        if not self._scanned:
+            self.scan_packages()
+        return list(self._auto_index.get(proc_name, []))
+
+    def all_auto_proc_names(self) -> list[str]:
+        """Return all known auto-loadable proc names from tclIndex files."""
+        if not self._scanned:
+            self.scan_packages()
+        return list(self._auto_index.keys())
