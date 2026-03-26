@@ -69,6 +69,42 @@ proc calculate {x y} {
 # No W214 warnings: both x and y are used
 ```
 
+## Namespace awareness
+
+Alias names are stored fully qualified (e.g. `::=`, `::math::=`)
+because `interp alias` creates interpreter-wide commands.  Resolution
+mirrors Tcl's command lookup:
+
+1. If the call uses a qualified name (`::math::=`), it is looked up
+   directly after normalisation.
+2. If the call uses an unqualified name (`=`), the current namespace is
+   tried first (`::math::=` inside `namespace eval math`), then the
+   global namespace (`::=`).
+
+```tcl
+interp alias {} ::math::= {} expr
+
+namespace eval math {
+    proc calc {x y} {
+        set r [= {$x + $y}]   ;# resolves ::math::= → expr
+        return $r
+    }
+}
+```
+
+Global aliases also resolve from inside any namespace:
+
+```tcl
+interp alias {} = {} expr
+
+namespace eval utils {
+    proc calc {x y} {
+        set r [= {$x + $y}]   ;# resolves ::= → expr (global fallback)
+        return $r
+    }
+}
+```
+
 ## Limitations
 
 - Aliases must appear textually before their use in the same file
