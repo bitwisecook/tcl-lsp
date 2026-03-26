@@ -17,18 +17,30 @@ Shared utility modules were lifted to provide one internal contract surface acro
 
 ## Decision rules / contracts
 
-1. Use `core/common/source_map.py` for offset↔position conversions; do not add local converters.
-2. Command-name knownness for parsing/recovery must come from `known_command_names()`, not module-local caches.
-3. Multi-token argv span reconstruction must use `widen_argv_tokens_to_word_spans()`.
-4. `extract_single_expr_argument()` must preserve source-faithful one-word shape (`$x` vs `${x}`, `[...]` retained).
-5. Compiler passes must use shared helpers for value/word parsing (`value_shapes.py`, `var_refs.py`) rather than pass-local mini-parsers.
-6. Proc reference matching precedence must come from `find_proc_by_reference()` / `iter_procs_by_reference()`.
-7. Package suggestion ranking semantics are shared and fixed: `exact=0`, `startswith=1`, `contains=2`; caller controls limit.
-8. iRules event context helper contract is `(event_name | None, anchor_line)` and should prefer the innermost enclosing `when`.
+### Position infrastructure
+
+1. Use `DocumentBuffer` (`core/common/document_buffer.py`) as the primary per-document position infrastructure. It provides cached `lines`, O(log n) `offset_to_position`, `position_to_offset`, `chunk_line_range`, and `range_from_offsets`. Do not construct standalone `SourceMap` instances in new code.
+2. `DocumentState.buffer` is the canonical `DocumentBuffer` for an open document. It is lazily created and invalidated when `source` changes.
+3. Use `DocumentBuffer.lines` instead of `source.split("\n")`. The result is cached per buffer.
+4. Use `position_from_offset()` (`core/common/ranges.py`) instead of `position_from_relative()` when a `line_starts` array is available. It is O(log n) vs O(text_len).
+5. `SourceMap` (`core/common/source_map.py`) is retained for backward compatibility in non-hot-path code (explorer, scripts, tests). Do not add new usages in `lsp/` or `core/` hot paths.
+
+### Other contracts
+
+6. Command-name knownness for parsing/recovery must come from `known_command_names()`, not module-local caches.
+7. Multi-token argv span reconstruction must use `widen_argv_tokens_to_word_spans()`.
+8. `extract_single_expr_argument()` must preserve source-faithful one-word shape (`$x` vs `${x}`, `[...]` retained).
+9. Compiler passes must use shared helpers for value/word parsing (`value_shapes.py`, `var_refs.py`) rather than pass-local mini-parsers.
+10. Proc reference matching precedence must come from `find_proc_by_reference()` / `iter_procs_by_reference()`.
+11. Package suggestion ranking semantics are shared and fixed: `exact=0`, `startswith=1`, `contains=2`; caller controls limit.
+12. iRules event context helper contract is `(event_name | None, anchor_line)` and should prefer the innermost enclosing `when`.
 
 ## File-path anchors
 
-- `core/common/source_map.py`
+- `core/common/document_buffer.py` — `DocumentBuffer`, `EditDescriptor`, `compute_line_starts`, `update_line_starts`
+- `core/common/source_map.py` — legacy `SourceMap`, `offset_to_line_col` (non-hot-path only)
+- `core/common/ranges.py` — `position_from_offset`, `position_from_relative`
+- `core/common/position.py` — `offset_at_position`, `find_command_at_position`
 - `core/parsing/known_commands.py`
 - `core/parsing/argv.py`
 - `core/parsing/command_shapes.py`
@@ -41,10 +53,13 @@ Shared utility modules were lifted to provide one internal contract surface acro
 
 Primary consumers:
 
-- `core/common/position.py`
+- `lsp/workspace/document_state.py` — `DocumentState.buffer` property
+- `lsp/features/semantic_tokens.py` — `position_from_offset` with shared `_line_starts`
+- `lsp/server.py`
 - `core/bigip/parser.py`
 - `core/bigip/rule_extract.py`
 - `core/bigip/validator.py`
+- `core/common/position.py`
 - `core/analysis/analyser.py`
 - `core/compiler/compiler_checks.py`
 - `core/compiler/lowering.py`
@@ -55,6 +70,7 @@ Primary consumers:
 - `core/compiler/ssa.py`
 - `core/compiler/interprocedural.py`
 - `core/compiler/gvn.py`
+- `core/refactoring/_spans.py`
 - `lsp/features/definition.py`
 - `lsp/features/references.py`
 - `lsp/features/rename.py`
@@ -64,7 +80,6 @@ Primary consumers:
 - `lsp/features/completion.py`
 - `lsp/features/semantic_tokens.py`
 - `lsp/features/inlay_hints.py`
-- `lsp/server.py`
 
 ## Failure modes
 
@@ -73,10 +88,14 @@ Primary consumers:
 - Proc navigation features disagree on ambiguous short names.
 - Code actions and server command rank package suggestions differently.
 - iRules collect bootstrap insertion fails due to event-context tuple/order drift.
+- Stale `DocumentBuffer` served after source change (buffer not invalidated).
+- O(n) position computation in hot path because `SourceMap` used instead of `DocumentBuffer`.
 
 ## Test anchors
 
+- `tests/test_document_buffer.py`
 - `tests/test_source_map.py`
+- `tests/test_semantic_tokens_delta.py`
 - `tests/test_parsing_helpers.py`
 - `tests/test_token_positions.py`
 - `tests/test_compiler_helpers.py`
