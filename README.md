@@ -201,7 +201,10 @@ string length "a" "b"   ;# E003: too many arguments
 Variables, procs, keywords, and strings are classified using SSA-informed type
 information, giving richer highlighting than a TextMate grammar alone.  The
 server provides 43 token types beyond the standard LSP set, including
-sub-token highlighting inside strings.
+sub-token highlighting inside strings.  Tokens are cached per top-level chunk
+so only dirty regions are recomputed after an edit, and the server supports
+`textDocument/semanticTokens/full/delta` for bandwidth-efficient incremental
+updates.
 
 ```tcl
 namespace eval app {
@@ -1279,6 +1282,29 @@ Expression stubs declare custom math functions (`expr-func`) and infix
 operators (`expr-op`) with optional arity.
 
 See [KCS: Dialect stubs](docs/kcs/kcs-dialect-stubs.md) for full syntax.
+
+### Command alias resolution
+
+When `interp alias {} name {} target ?args?` creates a command alias in the
+current interpreter, the LSP automatically inherits the target command's
+argument semantics.  This means expression arguments, body arguments, variable
+names, and patterns are all correctly analysed through the alias:
+
+```tcl
+interp alias {} = {} expr
+proc calculate {x y} {
+    set result [= {$x + $y}]   ;# $x and $y recognised as reads — no W214
+    return $result
+}
+```
+
+Alias information is also used by LSP features: **hover** shows the target
+command's documentation, **completion** offers aliases as candidates,
+**go-to-definition** follows aliases to the target proc, and
+**signature help** shows the target's parameter hints.
+
+See [KCS: Command alias resolution](docs/kcs/kcs-command-alias-resolution.md)
+for details.
 
 ### Proc argument trait inference
 

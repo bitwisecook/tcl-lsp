@@ -6,24 +6,32 @@ unless the document changes.
 Supports incremental updates: when only a subset of top-level chunks
 change, cached per-chunk artefacts (IR, analyser snapshot, tokens) are
 reused and only dirty chunks are re-processed.
+
+**Threading model**: ``update()`` runs in a background thread.  It does
+all expensive work (tokenisation, compilation, analysis, chunk-cache
+building) into local variables, then swaps the results into a
+``_StateSnapshot`` under a brief lock.  Concurrent readers on the event
+loop thread access the snapshot atomically via ``DocumentState.snap``,
+guaranteeing they never observe partially-updated state.
 """
 
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.analysis.analyser import Analyser, AnalyserSnapshot, AnalysisResult, analyse
+from core.analysis.analyser import Analyser, AnalyserSnapshot, AnalysisResult
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect
+from core.common.document_buffer import DocumentBuffer
 from core.compiler.compilation_unit import CompilationUnit, FunctionUnit, compile_source
 from core.compiler.interprocedural import ProcLocalSummary
 from core.compiler.ir import IRProcedure, IRStatement
 from core.compiler.lowering import lower_to_ir
 from core.parsing.command_segmenter import (
-    SegmentedCommand,
     TopLevelChunk,
     find_first_dirty_chunk,
     segment_top_level_chunks,
@@ -33,6 +41,7 @@ from core.parsing.tokens import Token
 
 # Lazy import to avoid circular dependencies at module load time.
 _style_diag_fn = None
+_style_diag_all_fn = None
 
 
 def _get_style_diag_fn():
@@ -45,25 +54,75 @@ def _get_style_diag_fn():
     return _style_diag_fn
 
 
-def _chunk_line_range(source: str, chunk: TopLevelChunk) -> tuple[int, int, int, int]:
-    """Return ``(start_line, start_col, end_line, end_col)`` for a chunk.
+def _get_style_diag_all_fn():
+    """Lazily import ``compute_all_style_diagnostics``."""
+    global _style_diag_all_fn
+    if _style_diag_all_fn is None:
+        from lsp.features.diagnostics import compute_all_style_diagnostics
 
-    Uses ``(line, col)`` positions (not just line numbers) so that
-    semicolon-separated chunks sharing the same line get non-overlapping
-    boundaries and can be cached independently.
+        _style_diag_all_fn = compute_all_style_diagnostics
+    return _style_diag_all_fn
 
-    ``end_col`` points one past the last character of the chunk (exclusive).
+
+def _chunk_line_range(
+    buf: DocumentBuffer,
+    chunk: TopLevelChunk,
+) -> tuple[int, int, int, int]:
+    """O(log n) chunk line range using ``DocumentBuffer``.
+
+    Returns ``(start_line, start_col, end_line, end_col)`` for a chunk.
     """
-    prefix = source[: chunk.start_offset]
-    start_line = prefix.count("\n")
-    last_nl = prefix.rfind("\n")
-    start_col = chunk.start_offset - (last_nl + 1)
+    return buf.chunk_line_range(chunk.start_offset, chunk.end_offset)
 
-    end_prefix = source[: chunk.end_offset]
-    end_line = end_prefix.count("\n")
-    last_nl_end = end_prefix.rfind("\n")
-    end_col = chunk.end_offset - (last_nl_end + 1)
-    return start_line, start_col, end_line, end_col
+
+def _extract_chunk_ir(
+    compilation_unit: object | None,
+    chunks: list[TopLevelChunk],
+) -> list[tuple[tuple, dict]] | None:
+    """Extract per-chunk IR from an already-compiled ``IRModule``.
+
+    Returns a list parallel to *chunks* of ``(ir_stmts, ir_procs)`` tuples,
+    or ``None`` if the compilation unit / IR module is unavailable.  This
+    avoids redundant re-lowering of each chunk during cache building.
+    """
+    if compilation_unit is None:
+        return None
+    ir_module = getattr(compilation_unit, "ir_module", None)
+    if ir_module is None:
+        return None
+    top_stmts = ir_module.top_level.statements
+    all_procs = ir_module.procedures
+
+    # Sort procedures by start offset for O(S + P + C) sliding-window
+    # extraction instead of O(C × P).
+    sorted_procs = sorted(all_procs.items(), key=lambda p: p[1].range.start.offset)
+
+    result: list[tuple[tuple, dict]] = []
+    stmt_idx = 0
+    proc_idx = 0
+    for chunk in chunks:
+        c_start = chunk.start_offset
+        c_end = chunk.end_offset
+        # Collect top-level statements whose range falls within this chunk.
+        chunk_stmts: list = []
+        while stmt_idx < len(top_stmts):
+            stmt = top_stmts[stmt_idx]
+            if stmt.range.start.offset >= c_end:
+                break
+            if stmt.range.start.offset >= c_start:
+                chunk_stmts.append(stmt)
+            stmt_idx += 1
+        # Collect procedures via sliding pointer (procs sorted by offset).
+        chunk_procs: dict = {}
+        while proc_idx < len(sorted_procs):
+            name, proc = sorted_procs[proc_idx]
+            if proc.range.start.offset >= c_end:
+                break
+            if proc.range.start.offset >= c_start:
+                chunk_procs[name] = proc
+            proc_idx += 1
+        result.append((tuple(chunk_stmts), chunk_procs))
+    return result
 
 
 log = logging.getLogger(__name__)
@@ -111,20 +170,43 @@ class ChunkCache:
 
 
 @dataclass
-class DocumentState:
-    """Cached analysis state for a single document."""
+class _StateSnapshot:
+    """Immutable snapshot of all handler-visible ``DocumentState`` fields.
 
-    uri: str
-    language_id: str = ""
-    version: int | None = None
+    Built by ``update()`` / ``update_source_quick()`` and swapped
+    atomically so concurrent readers never observe torn state.
+    """
+
     source: str = ""
+    version: int | None = None
     tokens: list[Token] = field(default_factory=list)
     analysis: AnalysisResult | None = None
     compilation_unit: CompilationUnit | None = None
     chunks: list[TopLevelChunk] = field(default_factory=list)
     has_partial_commands: bool = False
     file_profiles: frozenset[str] = field(default_factory=frozenset)
-    _lines: list[str] | None = field(default=None, repr=False)
+    chunk_caches: list[ChunkCache | None] = field(default_factory=list)
+    buffer: DocumentBuffer | None = None
+    deep_diag_proc_key: frozenset[tuple[str, int]] | None = None
+    deep_diag_result: list[Any] | None = None
+
+
+@dataclass
+class DocumentState:
+    """Cached analysis state for a single document.
+
+    Handler-visible state is stored in a ``_StateSnapshot`` that is
+    atomically swapped after each update.  Property accessors
+    delegate to the current snapshot, so readers never see
+    partially-updated fields.
+    """
+
+    uri: str
+    language_id: str = ""
+    _snap: _StateSnapshot = field(default_factory=_StateSnapshot, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    # Internal caches for the compilation pipeline — not accessed by
+    # request handlers, so they live outside the snapshot.
     _proc_cache: dict[tuple[str, int], FunctionUnit] = field(
         default_factory=dict,
         repr=False,
@@ -133,25 +215,129 @@ class DocumentState:
         default_factory=dict,
         repr=False,
     )
-    _chunk_caches: list[ChunkCache | None] = field(
-        default_factory=list,
-        repr=False,
-    )
-    _deep_diag_proc_key: frozenset[tuple[str, int]] | None = field(
-        default=None,
-        repr=False,
-    )
-    _deep_diag_result: list[Any] | None = field(
-        default=None,
-        repr=False,
-    )
+
+    # -- Property accessors delegating to the snapshot ----------------
+    # These provide backward-compatible access for existing handler code
+    # while guaranteeing that each snapshot read is atomic (single
+    # attribute load from ``_snap``).
+
+    @property
+    def snap(self) -> _StateSnapshot:
+        """The current immutable state snapshot."""
+        return self._snap
+
+    @property
+    def source(self) -> str:
+        return self._snap.source
+
+    @source.setter
+    def source(self, value: str) -> None:
+        self._snap.source = value
+
+    @property
+    def version(self) -> int | None:
+        return self._snap.version
+
+    @version.setter
+    def version(self, value: int | None) -> None:
+        self._snap.version = value
+
+    @property
+    def tokens(self) -> list[Token]:
+        return self._snap.tokens
+
+    @tokens.setter
+    def tokens(self, value: list[Token]) -> None:
+        self._snap.tokens = value
+
+    @property
+    def analysis(self) -> AnalysisResult | None:
+        return self._snap.analysis
+
+    @analysis.setter
+    def analysis(self, value: AnalysisResult | None) -> None:
+        self._snap.analysis = value
+
+    @property
+    def compilation_unit(self) -> CompilationUnit | None:
+        return self._snap.compilation_unit
+
+    @compilation_unit.setter
+    def compilation_unit(self, value: CompilationUnit | None) -> None:
+        self._snap.compilation_unit = value
+
+    @property
+    def chunks(self) -> list[TopLevelChunk]:
+        return self._snap.chunks
+
+    @chunks.setter
+    def chunks(self, value: list[TopLevelChunk]) -> None:
+        self._snap.chunks = value
+
+    @property
+    def has_partial_commands(self) -> bool:
+        return self._snap.has_partial_commands
+
+    @has_partial_commands.setter
+    def has_partial_commands(self, value: bool) -> None:
+        self._snap.has_partial_commands = value
+
+    @property
+    def file_profiles(self) -> frozenset[str]:
+        return self._snap.file_profiles
+
+    @file_profiles.setter
+    def file_profiles(self, value: frozenset[str]) -> None:
+        self._snap.file_profiles = value
+
+    @property
+    def _chunk_caches(self) -> list[ChunkCache | None]:
+        return self._snap.chunk_caches
+
+    @_chunk_caches.setter
+    def _chunk_caches(self, value: list[ChunkCache | None]) -> None:
+        self._snap.chunk_caches = value
+
+    @property
+    def _buffer(self) -> DocumentBuffer | None:
+        return self._snap.buffer
+
+    @_buffer.setter
+    def _buffer(self, value: DocumentBuffer | None) -> None:
+        self._snap.buffer = value
+
+    @property
+    def _deep_diag_proc_key(self) -> frozenset[tuple[str, int]] | None:
+        return self._snap.deep_diag_proc_key
+
+    @_deep_diag_proc_key.setter
+    def _deep_diag_proc_key(self, value: frozenset[tuple[str, int]] | None) -> None:
+        self._snap.deep_diag_proc_key = value
+
+    @property
+    def _deep_diag_result(self) -> list[Any] | None:
+        return self._snap.deep_diag_result
+
+    @_deep_diag_result.setter
+    def _deep_diag_result(self, value: list[Any] | None) -> None:
+        self._snap.deep_diag_result = value
+
+    @property
+    def buffer(self) -> DocumentBuffer:
+        """Shared position infrastructure for the current source text.
+
+        Lazily created on first access; invalidated whenever ``source``
+        changes (by setting ``_buffer = None``).
+        """
+        snap = self._snap
+        if snap.buffer is None or snap.buffer.source is not snap.source:
+            snap.buffer = DocumentBuffer.from_source(snap.source, snap.version)
+        return snap.buffer
 
     @property
     def lines(self) -> list[str]:
         """Source split into lines, cached for the lifetime of the current source."""
-        if self._lines is None:
-            self._lines = self.source.split("\n")
-        return self._lines
+        return self.buffer.lines
 
     def get_cached_style_diagnostics(
         self,
@@ -208,12 +394,13 @@ class DocumentState:
 
         cache: list[list[tuple[int, int, int, int, int]] | None] = []
         ranges: list[tuple[int, int, int, int]] = []
+        buf = self.buffer
         for i, cc in enumerate(self._chunk_caches):
             if cc is None:
                 cache.append(None)
             else:
                 cache.append(cc.semantic_tokens_abs)
-            ranges.append(_chunk_line_range(self.source, self.chunks[i]))
+            ranges.append(_chunk_line_range(buf, self.chunks[i]))
         return cache, ranges
 
     def store_semantic_token_cache(
@@ -255,12 +442,44 @@ class DocumentState:
         self._deep_diag_proc_key = self.get_deep_diag_proc_key()
         self._deep_diag_result = diagnostics
 
+    def update_source_quick(
+        self,
+        source: str,
+        version: int | None = None,
+    ) -> bool:
+        """Fast source-only update: set source/version/chunks, clear analysis.
+
+        Returns ``True`` if the source actually changed and a full
+        ``update()`` is needed afterwards to rebuild analysis/caches.
+        Returns ``False`` if unchanged (no further work needed).
+
+        This is designed to be called on the event loop before yielding,
+        so that semantic token requests can be served immediately with
+        the new source text (without analysis enrichment).
+
+        Builds a new ``_StateSnapshot`` and swaps it atomically.
+        """
+        old = self._snap
+        if source == old.source and (version is None or version == old.version):
+            return False  # unchanged
+        new_chunks = segment_top_level_chunks(source)
+        has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
+        # Build a fresh snapshot with cleared analysis/caches.
+        self._snap = _StateSnapshot(
+            source=source,
+            version=version,
+            chunks=new_chunks,
+            has_partial_commands=has_partial,
+        )
+        return True
+
     def update(
         self,
         source: str,
         version: int | None = None,
         *,
         force_reanalyse: bool = False,
+        line_length: int = 120,
     ) -> None:
         """Re-analyse if the source has changed.
 
@@ -274,32 +493,45 @@ class DocumentState:
         dirty chunk, only re-lowering and re-analysing from the dirty
         point onwards.  Procedure-level caching avoids recomputing SSA
         and dataflow analysis for procs whose source text has not changed.
+
+        **Threading**: All expensive work (tokenisation, compilation,
+        analysis, chunk-cache building) runs into local variables.  The
+        resulting ``_StateSnapshot`` is swapped into ``self._snap``
+        atomically at the end, so concurrent readers on the event-loop
+        thread never observe partially-updated state.
         """
         t0 = time.perf_counter()
+        # Snapshot the current state for incremental decisions.
+        # This read is atomic (single attribute load under the GIL).
+        old_snap = self._snap
         new_chunks = segment_top_level_chunks(source)
         t_seg = time.perf_counter()
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
 
-        if not force_reanalyse and self.analysis is not None:
-            if source == self.source:
+        if not force_reanalyse and old_snap.analysis is not None:
+            if source == old_snap.source:
                 log.debug(
-                    "[timing] document update %.0fms (unchanged)", (time.perf_counter() - t0) * 1000
+                    "[timing] document update %.0fms (unchanged)",
+                    (time.perf_counter() - t0) * 1000,
                 )
                 return
-            dirty_idx = find_first_dirty_chunk(self.chunks, new_chunks)
-            if dirty_idx >= len(new_chunks) and dirty_idx >= len(self.chunks):
+            dirty_idx = find_first_dirty_chunk(old_snap.chunks, new_chunks)
+            if dirty_idx >= len(new_chunks) and dirty_idx >= len(old_snap.chunks):
                 # All chunks match — source is semantically identical.
-                self.source = source
-                self._lines = None
-                self.version = version
-                # Invalidate per-chunk caches when offsets may have shifted
-                # (e.g. whitespace changes between commands).  Token ranges
-                # and diagnostic positions are offset-dependent, so stale
-                # caches would produce incorrect results.
-                if self.chunks != new_chunks:
-                    self._chunk_caches = []
-                self.chunks = new_chunks
-                self.has_partial_commands = has_partial
+                new_snap = _StateSnapshot(
+                    source=source,
+                    version=version,
+                    tokens=old_snap.tokens,
+                    analysis=old_snap.analysis,
+                    compilation_unit=old_snap.compilation_unit,
+                    chunks=new_chunks,
+                    has_partial_commands=has_partial,
+                    file_profiles=old_snap.file_profiles,
+                    chunk_caches=old_snap.chunk_caches if old_snap.chunks == new_chunks else [],
+                    deep_diag_proc_key=old_snap.deep_diag_proc_key,
+                    deep_diag_result=old_snap.deep_diag_result,
+                )
+                self._snap = new_snap
                 log.debug(
                     "[timing] document update %.0fms (all chunks match)",
                     (time.perf_counter() - t0) * 1000,
@@ -311,9 +543,11 @@ class DocumentState:
                 self._update_incremental(
                     source,
                     version,
+                    old_snap,
                     new_chunks,
                     has_partial,
                     dirty_idx,
+                    line_length=line_length,
                 )
                 log.info(
                     "[timing] document update %.0fms (incremental, dirty=%d/%d, segment=%.0fms)",
@@ -330,7 +564,7 @@ class DocumentState:
                 )
                 # Fall through to full rebuild.
 
-        self._update_full(source, version, new_chunks, has_partial)
+        self._update_full(source, version, new_chunks, has_partial, line_length=line_length)
         log.info(
             "[timing] document update %.0fms (full rebuild, %d chunks, segment=%.0fms)",
             (time.perf_counter() - t0) * 1000,
@@ -342,31 +576,34 @@ class DocumentState:
         self,
         source: str,
         version: int | None,
+        old_snap: _StateSnapshot,
         new_chunks: list[TopLevelChunk],
         has_partial: bool,
         dirty_idx: int,
+        *,
+        line_length: int = 120,
     ) -> None:
-        """Incremental update: reuse cached artefacts for clean chunks."""
+        """Incremental update: reuse cached artefacts for clean chunks.
+
+        Builds all new state into local variables and swaps a new
+        ``_StateSnapshot`` atomically at the end.
+        """
         t0 = time.perf_counter()
-        self.chunks = new_chunks
-        self.has_partial_commands = has_partial
-        self.source = source
-        self._lines = None
-        self.version = version
-        self.file_profiles = (
+        file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        self.tokens = TclLexer(source).tokenise_all()
+        tokens = TclLexer(source).tokenise_all()
         t_tok = time.perf_counter()
 
         # Build chunk IR cache: reuse cached entries for clean chunks,
         # leave dirty chunks as None so lower_to_ir will process them.
         chunk_ir: list[tuple[tuple[IRStatement, ...], dict[str, IRProcedure]] | None] = []
         new_chunk_caches: list[ChunkCache | None] = []
+        old_chunk_caches = old_snap.chunk_caches
 
         for i, chunk in enumerate(new_chunks):
-            if i < dirty_idx and i < len(self._chunk_caches):
-                cached = self._chunk_caches[i]
+            if i < dirty_idx and i < len(old_chunk_caches):
+                cached = old_chunk_caches[i]
                 if cached is not None and cached.chunk_hash == chunk.source_hash:
                     chunk_ir.append((cached.ir_statements, cached.procedures))
                     new_chunk_caches.append(cached)
@@ -379,28 +616,29 @@ class DocumentState:
         prev_proc_cache = dict(self._proc_cache)
         prev_interproc_cache = dict(self._interproc_cache)
         ir_module = None
+        compilation_unit: CompilationUnit | None = None
         try:
             ir_module = lower_to_ir(source, chunk_ir=chunk_ir, chunks=new_chunks)
             t_lower = time.perf_counter()
-            self.compilation_unit = compile_source(
+            compilation_unit = compile_source(
                 source,
                 ir_module=ir_module,
                 proc_cache=self._proc_cache,
                 interproc_cache=self._interproc_cache,
-                prune_interproc_cache=not self.has_partial_commands,
+                prune_interproc_cache=not has_partial,
             )
         except Exception:
             t_lower = time.perf_counter()
             log.debug("document_state: incremental compilation failed", exc_info=True)
-            self.compilation_unit = None
             self._proc_cache = prev_proc_cache
             self._interproc_cache = prev_interproc_cache
         t_compile = time.perf_counter()
 
-        self._update_proc_cache()
+        self._do_update_proc_cache(compilation_unit, has_partial)
 
         # Incremental analysis: restore from the last clean chunk's
-        # analyser snapshot and only analyse commands from dirty chunks.
+        # analyser snapshot and analyse dirty chunks with per-chunk
+        # snapshots in a single pass (avoiding double analysis).
         restore_snapshot: AnalyserSnapshot | None = None
         if dirty_idx > 0:
             for i in range(dirty_idx - 1, -1, -1):
@@ -409,42 +647,56 @@ class DocumentState:
                     restore_snapshot = cc.analyser_snapshot_after
                     break
 
-        # Gather commands from dirty chunks onwards.
-        dirty_commands: list[SegmentedCommand] = []
-        for chunk in new_chunks[dirty_idx:]:
-            dirty_commands.extend(chunk.commands)
+        dirty_chunk_commands = [list(chunk.commands) for chunk in new_chunks[dirty_idx:]]
 
         if restore_snapshot is not None:
             analyser = Analyser()
             analyser.restore(restore_snapshot)
-            self.analysis = analyser.analyse_commands(
+            analysis, dirty_snapshots = analyser.analyse_chunked(
                 source,
-                dirty_commands,
-                cu=self.compilation_unit,
+                dirty_chunk_commands,
+                cu=compilation_unit,
+                skip_stubs=True,
             )
         else:
-            # No snapshot to restore from — full analysis.
-            self.analysis = analyse(source, cu=self.compilation_unit)
+            # No snapshot to restore from — full chunked analysis.
+            analyser = Analyser()
+            analysis, dirty_snapshots = analyser.analyse_chunked(
+                source,
+                dirty_chunk_commands,
+                cu=compilation_unit,
+            )
         t_analyse = time.perf_counter()
 
-        # Update chunk caches for newly processed chunks.
-        # Take analyser snapshots at each dirty chunk boundary.
-        # If incremental compilation failed (no ir_module despite expecting
-        # one), skip chunk cache updates to avoid storing empty IR that
-        # could later be mistaken for valid cached entries.
-        if self.compilation_unit is None and ir_module is None:
+        # Build chunk caches for dirty chunks using the snapshots from
+        # analyse_chunked — no re-analysis needed.
+        if compilation_unit is None and ir_module is None:
             log.debug("Skipping chunk-cache update: incremental compilation failed")
-            self._chunk_caches = new_chunk_caches
         else:
-            self._rebuild_chunk_caches_for_dirty(
+            self._build_dirty_chunk_caches(
                 source,
                 new_chunks,
                 new_chunk_caches,
                 dirty_idx,
-                ir_module if self.compilation_unit else None,
+                dirty_snapshots,
+                ir_module,
+                compilation_unit,
+                line_length=line_length,
             )
-            self._chunk_caches = new_chunk_caches
         t_caches = time.perf_counter()
+
+        # Atomic swap: build and install the new snapshot.
+        self._snap = _StateSnapshot(
+            source=source,
+            version=version,
+            tokens=tokens,
+            analysis=analysis,
+            compilation_unit=compilation_unit,
+            chunks=new_chunks,
+            has_partial_commands=has_partial,
+            file_profiles=file_profiles,
+            chunk_caches=new_chunk_caches,
+        )
 
         log.info(
             "[timing] _update_incremental tokenise=%.0fms lower=%.0fms compile=%.0fms"
@@ -459,77 +711,52 @@ class DocumentState:
             len(new_chunks),
         )
 
-    def _rebuild_chunk_caches_for_dirty(
+    def _build_dirty_chunk_caches(
         self,
         source: str,
         chunks: list[TopLevelChunk],
         chunk_caches: list[ChunkCache | None],
         dirty_idx: int,
+        dirty_snapshots: list[AnalyserSnapshot],
         ir_module: object | None,
+        compilation_unit: CompilationUnit | None,
+        *,
+        line_length: int = 120,
     ) -> None:
-        """Build ``ChunkCache`` entries for newly-analysed dirty chunks.
+        """Build ``ChunkCache`` entries for dirty chunks using pre-built snapshots.
 
-        Takes analyser snapshots at each chunk boundary so future
-        incremental passes can restore from the last clean point.
+        Unlike the old ``_rebuild_chunk_caches_for_dirty``, this does **not**
+        re-run the analyser — it uses snapshots captured by ``analyse_chunked``
+        during the single analysis pass.
         """
-        # To build snapshots, we need to re-run the analyser per-chunk.
-        # This is a bookkeeping pass — the actual analysis results have
-        # already been computed.  We only need the snapshots.
         try:
-            snapshot_analyser = Analyser()
-            # If there's a clean snapshot before the dirty region, start from there.
-            restored = False
-            if dirty_idx > 0:
-                for i in range(dirty_idx - 1, -1, -1):
-                    cc = chunk_caches[i] if i < len(chunk_caches) else None
-                    if cc is not None and cc.analyser_snapshot_after is not None:
-                        snapshot_analyser.restore(cc.analyser_snapshot_after)
-                        restored = True
-                        break
+            from bisect import bisect_left, bisect_right
 
-            if not restored and dirty_idx > 0:
-                # Process clean chunks to build the snapshot base.
-                all_clean_cmds: list[SegmentedCommand] = []
-                for chunk in chunks[:dirty_idx]:
-                    all_clean_cmds.extend(chunk.commands)
-                snapshot_analyser._source = source
-                snapshot_analyser._analyse_commands_inner(
-                    all_clean_cmds,
-                    snapshot_analyser._current_scope,
-                    source,
-                )
+            buf = DocumentBuffer.from_source(source)
+            all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
+            diag_lines = [d.range.start.line for d in all_style_diags]
 
-            # Compute style diagnostics for dirty chunks.
-            style_fn = _get_style_diag_fn()
+            # Extract per-chunk IR from the IR module when available.
+            dirty_chunks = chunks[dirty_idx:]
+            chunk_ir_map = _extract_chunk_ir(compilation_unit, dirty_chunks)
 
-            # Now process each dirty chunk and take snapshots.
-            for i in range(dirty_idx, len(chunks)):
-                chunk = chunks[i]
-                cmds = list(chunk.commands)
-                snapshot_analyser._source = source
-                snapshot_analyser._analyse_commands_inner(
-                    cmds,
-                    snapshot_analyser._current_scope,
-                    source,
-                )
-                snap = snapshot_analyser.snapshot()
+            for di, chunk in enumerate(dirty_chunks):
+                i = dirty_idx + di
+                snap = dirty_snapshots[di]
 
-                # Build IR cache entry for this chunk from the IR module.
-                ir_stmts: tuple[IRStatement, ...] = ()
-                ir_procs: dict[str, IRProcedure] = {}
-                if ir_module is not None and hasattr(ir_module, "top_level"):
-                    from core.compiler.ir import IRModule as IRModuleType
+                # Use pre-extracted IR if available; fall back to lowering.
+                if chunk_ir_map is not None:
+                    ir_stmts, ir_procs = chunk_ir_map[di]
+                else:
+                    from core.compiler.lowering import lower_commands_to_ir
 
-                    if isinstance(ir_module, IRModuleType):
-                        # We can't easily extract per-chunk IR from the assembled
-                        # module, so re-lower this chunk's commands.
-                        from core.compiler.lowering import lower_commands_to_ir
+                    ir_stmts, ir_procs = lower_commands_to_ir(source, list(chunk.commands))
 
-                        ir_stmts, ir_procs = lower_commands_to_ir(source, cmds)
-
-                # Style diagnostics for this chunk's line range.
-                start_line, _sc, end_line, _ec = _chunk_line_range(source, chunk)
-                style_diags = style_fn(source, start_line, end_line)
+                # Partition pre-computed style diagnostics for this chunk.
+                start_line, _sc, end_line, _ec = _chunk_line_range(buf, chunk)
+                lo = bisect_left(diag_lines, start_line)
+                hi = bisect_right(diag_lines, end_line)
+                style_diags = all_style_diags[lo:hi]
 
                 # Extend chunk_caches to cover this index.
                 while len(chunk_caches) <= i:
@@ -541,6 +768,7 @@ class DocumentState:
                     procedures=ir_procs,
                     analyser_snapshot_after=snap,
                     style_diagnostics=style_diags,
+                    style_line_length=line_length,
                 )
         except Exception:
             log.debug(
@@ -554,46 +782,75 @@ class DocumentState:
         version: int | None,
         new_chunks: list[TopLevelChunk],
         has_partial: bool,
+        *,
+        line_length: int = 120,
     ) -> None:
-        """Full rebuild — no incremental reuse."""
-        t0 = time.perf_counter()
-        self.chunks = new_chunks
-        self.has_partial_commands = has_partial
+        """Full rebuild — no incremental reuse.
 
-        self.source = source
-        self._lines = None
-        self.version = version
-        self.file_profiles = (
+        Builds all state into local variables and swaps a new
+        ``_StateSnapshot`` atomically at the end.
+        """
+        t0 = time.perf_counter()
+        file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        self.tokens = TclLexer(source).tokenise_all()
+        tokens = TclLexer(source).tokenise_all()
         t_tok = time.perf_counter()
 
         prev_proc_cache = dict(self._proc_cache)
         prev_interproc_cache = dict(self._interproc_cache)
+        compilation_unit: CompilationUnit | None = None
         try:
-            self.compilation_unit = compile_source(
+            compilation_unit = compile_source(
                 source,
                 proc_cache=self._proc_cache,
                 interproc_cache=self._interproc_cache,
-                prune_interproc_cache=not self.has_partial_commands,
+                prune_interproc_cache=not has_partial,
             )
         except Exception:
             log.debug("document_state: compilation failed, preserving caches", exc_info=True)
-            self.compilation_unit = None
             self._proc_cache = prev_proc_cache
             self._interproc_cache = prev_interproc_cache
         t_compile = time.perf_counter()
 
-        self._update_proc_cache()
-        self.analysis = analyse(source, cu=self.compilation_unit)
+        self._do_update_proc_cache(compilation_unit, has_partial)
+
+        # Analyse and build chunk caches in a single pass: process commands
+        # chunk-by-chunk, capturing snapshots at each boundary.  This avoids
+        # the old pattern of running analyse() then re-analysing per-chunk.
+        chunk_commands = [list(chunk.commands) for chunk in new_chunks]
+        analyser = Analyser()
+        analysis, chunk_snapshots = analyser.analyse_chunked(
+            source,
+            chunk_commands,
+            cu=compilation_unit,
+        )
         t_analyse = time.perf_counter()
 
-        # Build chunk caches for future incremental use.
-        self._build_full_chunk_caches(source, new_chunks)
+        # Build chunk caches using pre-built snapshots.
+        chunk_caches = self._build_full_chunk_caches(
+            source,
+            new_chunks,
+            chunk_snapshots,
+            compilation_unit,
+            line_length=line_length,
+        )
         t_caches = time.perf_counter()
 
-        n_procs = len(self.compilation_unit.procedures) if self.compilation_unit else 0
+        # Atomic swap: install the new snapshot.
+        self._snap = _StateSnapshot(
+            source=source,
+            version=version,
+            tokens=tokens,
+            analysis=analysis,
+            compilation_unit=compilation_unit,
+            chunks=new_chunks,
+            has_partial_commands=has_partial,
+            file_profiles=file_profiles,
+            chunk_caches=chunk_caches,
+        )
+
+        n_procs = len(compilation_unit.procedures) if compilation_unit else 0
         log.info(
             "[timing] _update_full tokenise=%.0fms compile=%.0fms analyse=%.0fms"
             " chunk_caches=%.0fms total=%.0fms (procs=%d)",
@@ -609,34 +866,67 @@ class DocumentState:
         self,
         source: str,
         chunks: list[TopLevelChunk],
-    ) -> None:
-        """Build ``ChunkCache`` entries after a full rebuild."""
+        chunk_snapshots: list[AnalyserSnapshot] | None,
+        compilation_unit: CompilationUnit | None,
+        *,
+        line_length: int = 120,
+    ) -> list[ChunkCache | None]:
+        """Build ``ChunkCache`` entries after a full rebuild.
+
+        When *chunk_snapshots* is provided (from ``analyse_chunked``),
+        the snapshots are used directly — no re-analysis is performed.
+
+        Returns the list of chunk caches (does not write to ``self``).
+        """
         t0 = time.perf_counter()
         try:
-            from core.compiler.lowering import lower_commands_to_ir
+            from bisect import bisect_left, bisect_right
 
+            buf = DocumentBuffer.from_source(source)
             caches: list[ChunkCache | None] = []
-            snapshot_analyser = Analyser()
-            snapshot_analyser._source = source
 
-            # Compute style diagnostics per chunk.
-            style_fn = _get_style_diag_fn()
+            # Compute style diagnostics once for the whole file, then
+            # partition by chunk using bisect (O(lines) + O(chunks×log(diags))
+            # instead of the old O(chunks×lines) approach).
+            all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
+            diag_lines = [d.range.start.line for d in all_style_diags]
 
-            for chunk in chunks:
-                cmds = list(chunk.commands)
-                # Lower per-chunk IR.
-                ir_stmts, ir_procs = lower_commands_to_ir(source, cmds)
-                # Analyse commands for snapshot.
-                snapshot_analyser._analyse_commands_inner(
-                    cmds,
-                    snapshot_analyser._current_scope,
-                    source,
-                )
-                snap = snapshot_analyser.snapshot()
+            # Extract per-chunk IR from the already-compiled IRModule when
+            # available, avoiding redundant re-lowering of each chunk.
+            chunk_ir_map = _extract_chunk_ir(compilation_unit, chunks)
 
-                # Style diagnostics for this chunk's line range.
-                start_line, _sc, end_line, _ec = _chunk_line_range(source, chunk)
-                style_diags = style_fn(source, start_line, end_line)
+            # Fall back to per-chunk analysis if no pre-built snapshots.
+            snapshot_analyser: Analyser | None = None
+            if chunk_snapshots is None:
+                snapshot_analyser = Analyser()
+                snapshot_analyser._source = source
+
+            for ci, chunk in enumerate(chunks):
+                # Use pre-extracted IR if available; fall back to lowering.
+                if chunk_ir_map is not None:
+                    ir_stmts, ir_procs = chunk_ir_map[ci]
+                else:
+                    from core.compiler.lowering import lower_commands_to_ir
+
+                    ir_stmts, ir_procs = lower_commands_to_ir(source, list(chunk.commands))
+
+                # Use pre-built snapshot or analyse this chunk for one.
+                if chunk_snapshots is not None:
+                    snap = chunk_snapshots[ci]
+                else:
+                    assert snapshot_analyser is not None
+                    snapshot_analyser._analyse_commands_inner(
+                        list(chunk.commands),
+                        snapshot_analyser._current_scope,
+                        source,
+                    )
+                    snap = snapshot_analyser.snapshot()
+
+                # Partition pre-computed style diagnostics for this chunk.
+                start_line, _sc, end_line, _ec = _chunk_line_range(buf, chunk)
+                lo = bisect_left(diag_lines, start_line)
+                hi = bisect_right(diag_lines, end_line)
+                style_diags = all_style_diags[lo:hi]
 
                 caches.append(
                     ChunkCache(
@@ -645,30 +935,36 @@ class DocumentState:
                         procedures=ir_procs,
                         analyser_snapshot_after=snap,
                         style_diagnostics=style_diags,
+                        style_line_length=line_length,
                     )
                 )
-            self._chunk_caches = caches
+            result = caches
         except Exception:
             log.debug("document_state: failed to build chunk caches", exc_info=True)
-            self._chunk_caches = []
+            result = []
         log.info(
             "[timing] _build_full_chunk_caches %.0fms (%d chunks)",
             (time.perf_counter() - t0) * 1000,
             len(chunks),
         )
+        return result
 
-    def _update_proc_cache(self) -> None:
-        """Update the procedure cache from the current compilation unit."""
-        if self.compilation_unit is not None:
-            next_proc_cache = _build_proc_cache(self.compilation_unit)
-            if self.has_partial_commands:
+    def _do_update_proc_cache(
+        self,
+        compilation_unit: CompilationUnit | None,
+        has_partial: bool,
+    ) -> None:
+        """Update the procedure cache from the given compilation unit."""
+        if compilation_unit is not None:
+            next_proc_cache = _build_proc_cache(compilation_unit)
+            if has_partial:
                 merged = dict(self._proc_cache)
                 merged.update(next_proc_cache)
                 self._proc_cache = merged
             else:
                 self._proc_cache = next_proc_cache
         else:
-            if not self.has_partial_commands:
+            if not has_partial:
                 self._proc_cache = {}
                 self._interproc_cache = {}
 

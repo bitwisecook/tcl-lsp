@@ -20,8 +20,16 @@ def _word_piece(tok: Token) -> str:
     return tok.text
 
 
-def extract_single_expr_argument(cmd_text: str) -> str | None:
-    """Return expr argument if command text is exactly: ``expr <one-arg>``."""
+def extract_single_expr_argument(
+    cmd_text: str,
+    *,
+    expr_aliases: frozenset[str] | None = None,
+) -> str | None:
+    """Return expr argument if command text is exactly: ``expr <one-arg>``.
+
+    When *expr_aliases* is provided, command names in that set are also
+    accepted as equivalent to ``expr`` (e.g. for ``interp alias`` aliases).
+    """
     lexer = TclLexer(cmd_text)
     argv_texts: list[str] = []
     argv_single: list[bool] = []
@@ -46,6 +54,8 @@ def extract_single_expr_argument(cmd_text: str) -> str | None:
 
     if len(argv_texts) != 2:
         return None
-    if argv_texts[0] != "expr" or not argv_single[1]:
+    cmd_name = argv_texts[0]
+    is_expr = cmd_name == "expr" or (expr_aliases is not None and cmd_name in expr_aliases)
+    if not is_expr or not argv_single[1]:
         return None
     return argv_texts[1]

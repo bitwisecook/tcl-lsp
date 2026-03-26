@@ -17,6 +17,7 @@ from core.bigip.object_registry import (
     resolve_kind_in_configs,
 )
 from core.bigip.parser import parse_bigip_conf
+from core.common.alias import lookup_alias_for_word
 from core.common.lsp import find_var_in_scopes, to_lsp_location
 from core.common.position import position_in_range
 
@@ -52,6 +53,16 @@ def get_definition(
     if proc_match is not None:
         _qname, proc_def = proc_match
         return [to_lsp_location(uri, proc_def.name_range)]
+
+    # Check if word is a command alias — follow to target proc definition.
+    if analysis.command_aliases:
+        alias_info = lookup_alias_for_word(word, analysis.command_aliases)
+        if alias_info is not None:
+            target_cmd, _prepended = alias_info
+            target_match = find_proc_by_reference(analysis, target_cmd)
+            if target_match is not None:
+                _qname, proc_def = target_match
+                return [to_lsp_location(uri, proc_def.name_range)]
 
     return []
 

@@ -13,6 +13,7 @@ from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.operators import operator_hover
 from core.commands.registry.runtime import SIGNATURES, SubcommandSig
+from core.common.alias import lookup_alias_for_word
 from core.common.dialect import active_dialect
 from core.common.ip_utils import format_ip_hover, parse_ip
 from core.compiler.core_analyses import analyse_source
@@ -905,6 +906,21 @@ def get_hover(
         lines = source.split("\n")
     line_text = lines[line] if line < len(lines) else ""
     context_cmd, _context_word, word_index = find_command_context_in_line(line_text, word_end)
+
+    # Check if the word is a command alias (interp alias).
+    if analysis.command_aliases:
+        alias_info = lookup_alias_for_word(word, analysis.command_aliases)
+        if alias_info is not None:
+            target_cmd, prepended = alias_info
+            alias_text = f"**Alias** for `{target_cmd}`"
+            if prepended:
+                alias_text += f" with prepended args: `{' '.join(prepended)}`"
+            target_spec = REGISTRY.get(target_cmd, dialect, active_packages=active_packages)
+            if target_spec and target_spec.hover:
+                alias_text += f"\n\n---\n\n{target_spec.hover.render_hover_lean(target_cmd)}"
+            return types.Hover(
+                contents=types.MarkupContent(kind=types.MarkupKind.Markdown, value=alias_text),
+            )
 
     # Command-position hover from registry docs.
     # Try package-filtered first; fall back without filtering for

@@ -123,6 +123,39 @@ class Scope:
     procs: dict[str, ProcDef] = field(default_factory=dict)
     children: list[Scope] = field(default_factory=list)
 
+    def _copy_tree(self, parent: Scope | None = None) -> Scope:
+        """Fast recursive copy of the scope tree.
+
+        Much faster than ``copy.deepcopy`` because it avoids cycle
+        detection (``parent`` references create cycles that force
+        deepcopy to maintain a memo dict), generic dispatch overhead,
+        and copies frozen/immutable objects by reference.
+        """
+        new = Scope(
+            kind=self.kind,
+            name=self.name,
+            parent=parent,
+            body_range=self.body_range,  # frozen — shared reference
+            variables={
+                k: VarDef(v.name, v.definition_range, list(v.references), v.warn_if_unused)
+                for k, v in self.variables.items()
+            },
+            procs={
+                k: ProcDef(
+                    v.name,
+                    v.qualified_name,
+                    list(v.params),
+                    v.name_range,
+                    v.body_range,
+                    v.doc,
+                    dict(v.param_traits),
+                )
+                for k, v in self.procs.items()
+            },
+        )
+        new.children = [child._copy_tree(parent=new) for child in self.children]
+        return new
+
 
 # Regex pattern occurrence
 @dataclass(frozen=True, slots=True)
@@ -268,6 +301,48 @@ class AnalysisResult:
     has_dynamic_providers: bool = False  # True if load/auto_path detected
     stub_commands: list[StubCommandDef] = field(default_factory=list)
     stub_expr_defs: list[StubExprDef] = field(default_factory=list)
+    # Command aliases: maps qualified alias_name (e.g. ``::=``) to
+    # (target_cmd, prepended_args).  Populated from
+    # ``interp alias {} name {} target ?arg ...?`` statements.
+    command_aliases: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
+
+    def copy_for_snapshot(self) -> AnalysisResult:
+        """Create an independent copy suitable for analyser snapshots.
+
+        Much faster than ``copy.deepcopy`` because it shares immutable
+        objects by reference (all ``frozen=True, slots=True`` dataclasses)
+        and only copies mutable containers and their mutable items.
+        """
+        new_scope = self.global_scope._copy_tree()
+        return AnalysisResult(
+            global_scope=new_scope,
+            all_procs={
+                k: ProcDef(
+                    v.name,
+                    v.qualified_name,
+                    list(v.params),
+                    v.name_range,
+                    v.body_range,
+                    v.doc,
+                    dict(v.param_traits),
+                )
+                for k, v in self.all_procs.items()
+            },
+            all_variables={
+                k: VarDef(v.name, v.definition_range, list(v.references), v.warn_if_unused)
+                for k, v in self.all_variables.items()
+            },
+            diagnostics=list(self.diagnostics),
+            suppressed_lines=dict(self.suppressed_lines),
+            regex_patterns=list(self.regex_patterns),
+            command_invocations=list(self.command_invocations),
+            package_requires=list(self.package_requires),
+            package_provides=list(self.package_provides),
+            has_dynamic_providers=self.has_dynamic_providers,
+            stub_commands=list(self.stub_commands),
+            stub_expr_defs=list(self.stub_expr_defs),
+            command_aliases=dict(self.command_aliases),
+        )
 
     def find_proc(self, name: str) -> ProcDef | None:
         """Look up a proc by name, trying qualified and bare forms."""

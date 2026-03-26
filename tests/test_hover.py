@@ -361,3 +361,28 @@ class TestFormatStringHover:
         assert result is not None
         text = _hover_text(result)
         assert "Literal" in text or "no metacharacters" in text.lower()
+
+
+class TestAliasHover:
+    def test_alias_hover_shows_target(self):
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            = {1 + 2}
+        """)
+        result = get_hover(source, 1, 0)
+        assert result is not None
+        text = _hover_text(result)
+        assert "Alias" in text
+        assert "expr" in text
+
+    def test_alias_hover_with_prepended_args(self):
+        source = textwrap.dedent("""\
+            interp alias {} myput {} puts stdout
+            myput hello
+        """)
+        result = get_hover(source, 1, 0)
+        assert result is not None
+        text = _hover_text(result)
+        assert "Alias" in text
+        assert "puts" in text
+        assert "stdout" in text

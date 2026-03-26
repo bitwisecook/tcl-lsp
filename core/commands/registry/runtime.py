@@ -917,6 +917,69 @@ def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[in
     return set()
 
 
+_SPECIAL_ROLES = frozenset({ArgRole.BODY, ArgRole.EXPR, ArgRole.PATTERN})
+
+
+def arg_indices_for_roles(
+    command: str,
+    args: list[str],
+    roles: tuple[ArgRole, ...],
+) -> tuple[set[int], ...]:
+    """Return argument indices for multiple roles with a single signature lookup.
+
+    This avoids the repeated ``SIGNATURES.get(command)`` call that
+    ``arg_indices_for_role`` incurs per role.  Returns a tuple of
+    ``set[int]`` in the same order as *roles*.
+    """
+    results: list[set[int]] = []
+
+    # Roles with special-case logic must still go through the per-role function
+    # because they short-circuit before consulting SIGNATURES.
+    need_sig_roles: list[tuple[int, ArgRole]] = []
+    for i, role in enumerate(roles):
+        if role in _SPECIAL_ROLES:
+            results.append(arg_indices_for_role(command, args, role))
+        else:
+            results.append(set())  # placeholder
+            need_sig_roles.append((i, role))
+
+    if not need_sig_roles:
+        return tuple(results)
+
+    sig = SIGNATURES.get(command)
+    if sig is None:
+        return tuple(results)
+
+    if isinstance(sig, SubcommandSig):
+        if not args:
+            return tuple(results)
+        sub_sig = sig.subcommands.get(args[0])
+        if sub_sig is None:
+            return tuple(results)
+        for idx_in_result, role in need_sig_roles:
+            results[idx_in_result] = {
+                idx + 1
+                for idx, arg_role in sub_sig.arg_roles.items()
+                if arg_role is role and (idx + 1) < len(args)
+            }
+    elif isinstance(sig, CommandSig):
+        if sig.arg_role_resolver is not None:
+            resolved = sig.arg_role_resolver(args)
+            for idx_in_result, role in need_sig_roles:
+                results[idx_in_result] = {
+                    idx for idx, r in resolved.items() if r is role and idx < len(args)
+                }
+        else:
+            for idx_in_result, role in need_sig_roles:
+                results[idx_in_result] = {
+                    idx
+                    for idx, arg_role in sig.arg_roles.items()
+                    if arg_role is role and idx < len(args)
+                }
+
+    return tuple(results)
+
+
 def body_arg_indices(command: str, args: list[str]) -> set[int]:
     """Return BODY argument indices for *command* given args after command name."""
     return arg_indices_for_role(command, args, ArgRole.BODY)
@@ -951,6 +1014,8 @@ def iter_body_arguments(
     cmd_name: str,
     args: list[str],
     arg_tokens: list[Token],
+    *,
+    prepend_n: int = 0,
 ) -> Iterator[BodyArgument]:
     """Yield validated :class:`BodyArgument` entries for *cmd_name*.
 
@@ -958,13 +1023,21 @@ def iter_body_arguments(
     yields one ``BodyArgument`` per index that is within bounds of both
     *args* and *arg_tokens*.  Indices are yielded in ascending order.
 
+    When *prepend_n* > 0 (alias resolution with prepended arguments),
+    *args* contains the virtual argument list but *arg_tokens* only
+    covers the real (non-prepended) arguments.  Virtual indices are
+    mapped back by subtracting *prepend_n* before accessing *arg_tokens*.
+
     Callers should apply any further filtering they need (e.g. checking
     ``body.token.type is TokenType.STR`` or ``body.text.strip()``).
     """
-    for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.BODY)):
-        if idx >= len(args) or idx >= len(arg_tokens):
+    for virtual_idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.BODY)):
+        if virtual_idx >= len(args):
             continue
-        yield BodyArgument(index=idx, text=args[idx], token=arg_tokens[idx])
+        real_idx = virtual_idx - prepend_n
+        if real_idx < 0 or real_idx >= len(arg_tokens):
+            continue
+        yield BodyArgument(index=real_idx, text=args[virtual_idx], token=arg_tokens[real_idx])
 
 
 # Register the cache-invalidation callback so that

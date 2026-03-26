@@ -501,6 +501,27 @@ def get_completions(
                 )
             )
 
+        # Command aliases from interp alias
+        if analysis and analysis.command_aliases:
+            existing_labels = {item.label for item in items}
+            for qualified, (target_cmd, prepended) in analysis.command_aliases.items():
+                short = qualified.rsplit("::", 1)[-1]
+                if not short or short in existing_labels:
+                    continue
+                if partial and not short.startswith(partial):
+                    continue
+                detail = f"alias \u2192 {target_cmd}"
+                if prepended:
+                    detail += f" {' '.join(prepended)}"
+                items.append(
+                    types.CompletionItem(
+                        label=short,
+                        kind=types.CompletionItemKind.Function,
+                        detail=detail,
+                        sort_text=f"1_{short}",
+                    )
+                )
+
         # Workspace-wide procs
         if workspace_procs:
             existing = {item.label for item in items}

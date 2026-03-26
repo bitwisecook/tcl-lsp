@@ -19,6 +19,15 @@ from typing import cast
 from ..analysis.semantic_model import Range
 from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import ArgRole, arg_indices_for_role
+from ..common.alias import (
+    detect_interp_alias,
+)
+from ..common.alias import (
+    expr_alias_names as _expr_alias_names,
+)
+from ..common.alias import (
+    resolve_alias as _resolve_alias_shared,
+)
 from ..common.dialect import active_dialect as _active_dialect
 from ..common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
@@ -200,6 +209,17 @@ class _Lowerer:
         self.module = IRModule()
         self._in_namespace_eval = False
         self._when_counts: dict[str, int] = {}  # event -> occurrence count
+        # Command aliases: alias_name -> (target_cmd, prepended_args).
+        # Populated from ``interp alias {} name {} target ?arg ...?``.
+        self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
+
+    def expr_alias_names(self) -> frozenset[str]:
+        """Return names that are aliases for ``expr`` (no prepended args)."""
+        return _expr_alias_names(self._command_aliases)
+
+    def _resolve_alias(self, cmd_name: str, namespace: str) -> tuple[str, tuple[str, ...]] | None:
+        """Look up a command alias, namespace-aware."""
+        return _resolve_alias_shared(cmd_name, self._command_aliases, namespace=namespace)
 
     def lower(self, source: str) -> IRModule:
         self.module.top_level = self._lower_script(source, namespace="::")
@@ -862,8 +882,57 @@ class _Lowerer:
         args = cmd.args
         arg_tokens = cmd.arg_tokens
 
+        # Detect ``interp alias {} name {} target ?args?`` and record
+        # the alias for resolving argument semantics of later calls.
+        detected = detect_interp_alias(cmd_name, args)
+        if detected is not None:
+            qualified, target_cmd_name, prepended_args = detected
+            self._command_aliases[qualified] = (target_cmd_name, prepended_args)
+
         # Check for a registered lowering hook first.
         spec = REGISTRY.get_any(cmd_name)
+        # If the command itself has no lowering hook, try the alias target.
+        alias_entry = (
+            self._resolve_alias(cmd_name, namespace)
+            if spec is None or spec.lowering is None
+            else None
+        )
+        if alias_entry is not None:
+            target, prepended = alias_entry
+            target_spec = REGISTRY.get_any(target)
+            if target_spec is not None and target_spec.lowering is not None:
+                # Build a virtual command with the target name and
+                # prepended + real arguments for the lowering hook.
+                # Construct synthetic tokens for prepended args so that
+                # argv, texts, single_token_word, and expand_word all
+                # have matching lengths.
+                virtual_texts = [target, *prepended, *cmd.texts[1:]]
+                virtual_single = [True] * (1 + len(prepended)) + cmd.single_token_word[1:]
+                template_tok = cmd.argv[0]
+                synthetic_toks = [
+                    Token(
+                        type=TokenType.ESC, text=p, start=template_tok.start, end=template_tok.end
+                    )
+                    for p in prepended
+                ]
+                virtual_argv = [cmd.argv[0], *synthetic_toks, *cmd.argv[1:]]
+                virtual_expand: list[bool] | None = None
+                if cmd.expand_word is not None:
+                    virtual_expand = (
+                        [cmd.expand_word[0]] + [False] * len(prepended) + cmd.expand_word[1:]
+                    )
+                virtual = _Command(
+                    range=cmd.range,
+                    argv=virtual_argv,
+                    texts=virtual_texts,
+                    single_token_word=virtual_single,
+                    all_tokens=cmd.all_tokens,
+                    expand_word=virtual_expand,
+                )
+                result = target_spec.lowering(self, virtual)
+                if result is not None:
+                    return cast(IRStatement, result)
+                spec = target_spec
         if spec is not None and spec.lowering is not None:
             result = spec.lowering(self, cmd)
             if result is not None:
@@ -1014,9 +1083,19 @@ class _Lowerer:
                 )
 
             case _:
-                body_indices = arg_indices_for_role(cmd_name, args, ArgRole.BODY)
-                var_indices = arg_indices_for_role(cmd_name, args, ArgRole.VAR_NAME)
-                var_read_indices = arg_indices_for_role(cmd_name, args, ArgRole.VAR_READ)
+                # Resolve alias for arg role lookups.
+                role_cmd = cmd_name
+                role_args: list[str] = list(args)
+                prepend_n = 0
+                fallback_alias = self._resolve_alias(cmd_name, namespace)
+                if fallback_alias is not None:
+                    target, prepended = fallback_alias
+                    role_cmd = target
+                    role_args = list(prepended) + list(args)
+                    prepend_n = len(prepended)
+                body_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.BODY)
+                var_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_NAME)
+                var_read_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_READ)
                 if body_indices:
                     return IRBarrier(
                         range=cmd.range,
@@ -1026,13 +1105,17 @@ class _Lowerer:
                         tokens=cmd.cmd_tokens,
                     )
                 if var_indices or var_read_indices:
+                    # Subtract prepend_n to map virtual indices back to
+                    # real arg positions (mirrors the analyser).
                     var_defs = tuple(
-                        _normalise_var_name(args[i]) for i in sorted(var_indices) if i < len(args)
+                        _normalise_var_name(args[i - prepend_n])
+                        for i in sorted(var_indices)
+                        if 0 <= i - prepend_n < len(args)
                     )
                     var_reads = tuple(
-                        _normalise_var_name(args[i])
+                        _normalise_var_name(args[i - prepend_n])
                         for i in sorted(var_read_indices)
-                        if i < len(args)
+                        if 0 <= i - prepend_n < len(args)
                     )
                     return IRCall(
                         range=cmd.range,

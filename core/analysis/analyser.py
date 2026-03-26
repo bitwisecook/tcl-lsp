@@ -7,7 +7,6 @@ detectable errors.
 
 from __future__ import annotations
 
-import copy
 import logging
 import re
 from dataclasses import dataclass, field
@@ -22,6 +21,7 @@ from ..commands.registry.runtime import (
     iter_body_arguments,
 )
 from ..commands.registry.signatures import Arity
+from ..common.alias import detect_interp_alias, resolve_alias
 from ..common.codes import diag
 from ..common.dialect import active_dialect
 from ..common.naming import (
@@ -223,6 +223,8 @@ class AnalyserSnapshot:
     regex_vars: set[tuple[int, str]]
     current_event: str | None
     conditional_depth: int = 0
+    # Command aliases: alias_name -> (target_cmd, prepended_args).
+    command_aliases: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
     # Map from old scope id → scope object for scope identity reconstruction.
     scope_id_map: dict[int, Scope] = field(default_factory=dict)
 
@@ -252,45 +254,56 @@ class Analyser:
         self._conditional_depth: int = 0
         # Track body nesting depth for top-level-only command detection.
         self._body_depth: int = 0
+        # Command aliases: alias_name -> (target_cmd, prepended_args).
+        # Populated from ``interp alias {} name {} target ?arg ...?``.
+        self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
+        # Cache: id(scope) -> namespace string, for _namespace_from_scope.
+        self._ns_cache: dict[int, str] = {}
 
     def snapshot(self) -> AnalyserSnapshot:
         """Capture the analyser state for later restoration.
 
-        The ``AnalysisResult`` and scope tree are deep-copied so that
-        the snapshot is fully independent.  ``_const_strings`` and
-        ``_regex_vars`` use ``id(scope)`` as keys — the ``scope_id_map``
-        records the mapping from the *live* scope ids to the *copied*
-        scope objects so ``restore`` can remap them.
+        Uses ``AnalysisResult.copy_for_snapshot()`` instead of
+        ``copy.deepcopy`` for dramatically better performance — frozen
+        dataclass items are shared by reference rather than copied.
+
+        ``_const_strings`` and ``_regex_vars`` use ``id(scope)`` as
+        keys — the ``scope_id_map`` records the mapping from the *live*
+        scope ids to the *copied* scope objects so ``restore`` can
+        remap them.
         """
-        result_copy = copy.deepcopy(self.result)
+        result_copy = self.result.copy_for_snapshot()
         # Build a mapping from old scope id → new (copied) scope object.
-        # The deep copy preserves structure; we walk both trees in parallel.
         scope_id_map: dict[int, Scope] = {}
         self._build_scope_id_map(self.result.global_scope, result_copy.global_scope, scope_id_map)
 
         return AnalyserSnapshot(
             result=result_copy,
             last_comment=self._last_comment,
-            const_strings=copy.deepcopy(self._const_strings),
+            const_strings={k: dict(v) for k, v in self._const_strings.items()},
             regex_vars=set(self._regex_vars),
             current_event=self._current_event,
             conditional_depth=self._conditional_depth,
+            # Shallow copy — values are immutable (str, tuple) so no deep copy needed.
+            command_aliases=dict(self._command_aliases),
             scope_id_map=scope_id_map,
         )
 
     def restore(self, snap: AnalyserSnapshot) -> None:
         """Restore analyser state from a snapshot.
 
-        The ``AnalysisResult`` is deep-copied from the snapshot so that
-        the snapshot can be reused across multiple incremental passes.
+        Uses ``AnalysisResult.copy_for_snapshot()`` instead of
+        ``copy.deepcopy`` for dramatically better performance.
         ``_const_strings`` and ``_regex_vars`` keys (which are scope ids)
         are remapped to the new scope objects' ids.
         """
-        self.result = copy.deepcopy(snap.result)
+        self.result = snap.result.copy_for_snapshot()
         self._current_scope = self.result.global_scope
         self._last_comment = snap.last_comment
         self._current_event = snap.current_event
         self._conditional_depth = snap.conditional_depth
+        self._command_aliases = dict(snap.command_aliases)
+        self._ns_cache.clear()
 
         # Remap scope ids: old_id → new scope's id
         # snap.scope_id_map maps id(original_live_scope) → copied_scope_in_snap.result.
@@ -310,7 +323,7 @@ class Analyser:
         self._const_strings = {}
         for old_sid, entries in snap.const_strings.items():
             new_sid = id_remap.get(old_sid, old_sid)
-            self._const_strings[new_sid] = copy.deepcopy(entries)
+            self._const_strings[new_sid] = dict(entries)
 
         # Remap _regex_vars
         self._regex_vars = set()
@@ -326,8 +339,44 @@ class Analyser:
     ) -> None:
         """Walk old and new scope trees in parallel, recording id mappings."""
         mapping[id(old_scope)] = new_scope
-        for old_child, new_child in zip(old_scope.children, new_scope.children):
+        for old_child, new_child in zip(old_scope.children, new_scope.children, strict=True):
             Analyser._build_scope_id_map(old_child, new_child, mapping)
+
+    def analyse_chunked(
+        self,
+        source: str,
+        chunk_commands: list[list[SegmentedCommand]],
+        *,
+        cu: CompilationUnit | None = None,
+        skip_stubs: bool = False,
+    ) -> tuple[AnalysisResult, list[AnalyserSnapshot]]:
+        """Analyse commands chunk-by-chunk and capture per-chunk snapshots.
+
+        Returns the final ``AnalysisResult`` and a list of
+        ``AnalyserSnapshot`` objects (one per chunk, taken after each
+        chunk's commands are processed).  This avoids the need for a
+        separate snapshot-building pass after analysis.
+
+        When *skip_stubs* is ``True``, the inline-stub scan is skipped.
+        This is used by the incremental path where the analyser has been
+        restored from a snapshot that already includes earlier stubs.
+        """
+        self._source = source
+        if not skip_stubs:
+            # Pre-scan for inline stubs (same as analyse()).
+            cmd_stubs, expr_stubs = scan_source_for_stubs(source)
+            self.result.stub_commands.extend(cmd_stubs)
+            self.result.stub_expr_defs.extend(expr_stubs)
+            self._check_stub_shadows()
+
+        snapshots: list[AnalyserSnapshot] = []
+        for cmds in chunk_commands:
+            self._analyse_commands_inner(cmds, self._current_scope, source)
+            snapshots.append(self.snapshot())
+        self._emit_variable_usage_diagnostics()
+        self._emit_cfg_ssa_diagnostics(source, cu=cu)
+        self._dedupe_diagnostics()
+        return self.result, snapshots
 
     def analyse_commands(
         self,
@@ -1275,7 +1324,16 @@ class Analyser:
         if self._run_command_special_cases(cmd_name, args, arg_tokens, argv[0], scope):
             return
 
+        # Resolve command aliases for role-based argument analysis.
+        # For ``interp alias {} = {} expr``, calling ``= {$x+1}`` should
+        # analyse the argument as an expression (ArgRole.EXPR).
+        role_cmd, role_args = self._resolve_alias(cmd_name, args, scope)
+        prepend_n = len(role_args) - len(args)
+
         resolved_sig = self._signature_for_command(cmd_name)
+        # If the command itself has no signature, try the alias target.
+        if resolved_sig is None and role_cmd != cmd_name:
+            resolved_sig = self._signature_for_command(role_cmd)
 
         # Arity checking for user-defined procs (needs ProcDef.params
         # with has_default info, which the IR doesn't carry).
@@ -1295,7 +1353,12 @@ class Analyser:
                     arg_tokens[0],
                 )
 
-        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.EXPR)):
+        # Use the resolved alias target for role-based lookups, then map
+        # indices back to the real args by subtracting the prepend offset.
+        for virtual_idx in sorted(arg_indices_for_role(role_cmd, role_args, ArgRole.EXPR)):
+            idx = virtual_idx - prepend_n
+            if idx < 0 or idx >= len(args):
+                continue
             expr_tok = arg_tokens[idx] if idx < len(arg_tokens) else None
             self._analyse_expr(args[idx], scope, expr_token=expr_tok)
 
@@ -1309,7 +1372,7 @@ class Analyser:
         is_conditional = cmd_name in ("if", "try")
         if is_conditional:
             self._conditional_depth += 1
-        for body in iter_body_arguments(cmd_name, args, arg_tokens):
+        for body in iter_body_arguments(role_cmd, role_args, arg_tokens, prepend_n=prepend_n):
             self._analyse_body(body.text, scope, body_token=body.token)
         if is_conditional:
             self._conditional_depth -= 1
@@ -1317,15 +1380,19 @@ class Analyser:
             self._current_event = prev_event
 
         if cmd_name not in ("set", "variable", "global", "incr"):
-            for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_NAME)):
+            for virtual_idx in sorted(arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_NAME)):
+                idx = virtual_idx - prepend_n
+                if idx < 0 or idx >= len(args):
+                    continue
                 tok = arg_tokens[idx] if idx < len(arg_tokens) else argv[0]
                 self._define_var(args[idx], tok, scope, warn_if_unused=False)
 
         # Record regex pattern arguments (regexp, regsub).
         # When the pattern position is a variable reference, look up its
         # constant value and also mark the defining `set` as a regex pattern.
-        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.PATTERN)):
-            if idx >= len(arg_tokens):
+        for virtual_idx in sorted(arg_indices_for_role(role_cmd, role_args, ArgRole.PATTERN)):
+            idx = virtual_idx - prepend_n
+            if idx < 0 or idx >= len(arg_tokens):
                 continue
             pat_tok = arg_tokens[idx]
             if pat_tok.type is TokenType.VAR:
@@ -1385,6 +1452,7 @@ class Analyser:
             return True
 
         self._handle_incr_command(cmd_name, args, arg_tokens, scope)
+        self._handle_interp_alias(cmd_name, args)
         return False
 
     def _handle_proc_command(
@@ -1617,6 +1685,70 @@ class Analyser:
     ) -> None:
         if cmd_name == "incr" and args and arg_tokens:
             self._define_var(args[0], arg_tokens[0], scope, warn_if_unused=True)
+
+    def _handle_interp_alias(self, cmd_name: str, args: list[str]) -> None:
+        """Detect ``interp alias {} srcToken {} targetCmd ?arg ...?``.
+
+        Records the alias so that argument roles (EXPR, BODY, etc.) from
+        the target command are applied when the alias is invoked.
+        """
+        detected = detect_interp_alias(cmd_name, args)
+        if detected is None:
+            return
+        qualified, target_cmd, prepended = detected
+        self._command_aliases[qualified] = (target_cmd, prepended)
+        self.result.command_aliases[qualified] = (target_cmd, prepended)
+
+    def _namespace_from_scope(self, scope: Scope) -> str:
+        """Derive the current namespace string from a scope chain.
+
+        Results are cached on the analyser instance by scope identity so
+        that repeated calls for the same scope (common during alias
+        resolution) avoid re-walking the parent chain.
+        """
+        sid = id(scope)
+        cached = self._ns_cache.get(sid)
+        if cached is not None:
+            return cached
+        parts: list[str] = []
+        s: Scope | None = scope
+        while s is not None:
+            if s.kind == "namespace":
+                parts.append(s.name)
+            s = s.parent
+        if not parts:
+            self._ns_cache[sid] = "::"
+            return "::"
+        parts.reverse()
+        # Build the namespace path — each part may itself be relative
+        # or absolute, so join them the same way the lowerer does.
+        ns = "::"
+        for p in parts:
+            if p.startswith("::"):
+                ns = _normalise_qualified_name(p)
+            else:
+                ns = _normalise_qualified_name(f"{ns}::{p}")
+        self._ns_cache[sid] = ns
+        return ns
+
+    def _resolve_alias(
+        self, cmd_name: str, args: list[str], scope: Scope | None = None
+    ) -> tuple[str, list[str]]:
+        """Resolve a command alias to (target_cmd, effective_args).
+
+        If *cmd_name* is a known alias, returns the target command name
+        and the effective argument list (prepended args + original args).
+        Otherwise returns the original cmd_name and args unchanged.
+
+        Delegates to the shared ``resolve_alias()`` utility with the
+        namespace derived from the current scope chain.
+        """
+        ns = self._namespace_from_scope(scope) if scope is not None else "::"
+        alias = resolve_alias(cmd_name, self._command_aliases, namespace=ns)
+        if alias is not None:
+            target_cmd, prepended = alias
+            return target_cmd, list(prepended) + args
+        return cmd_name, args
 
     def _handle_proc(
         self,
