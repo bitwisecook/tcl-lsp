@@ -28,6 +28,7 @@ Shared utility modules were lifted to provide one internal contract surface acro
 
 ## File-path anchors
 
+- `core/common/document_buffer.py` — single source of truth for source text, version, and line-start metadata per document; all position conversions go through it
 - `core/common/source_map.py`
 - `core/parsing/known_commands.py`
 - `core/parsing/argv.py`
