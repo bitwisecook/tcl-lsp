@@ -1422,7 +1422,77 @@ class Analyser:
             return True
 
         self._handle_incr_command(cmd_name, args, arg_tokens, scope)
+        self._handle_rename_command(cmd_name, args)
+        self._handle_namespace_import_command(cmd_name, args)
+        if self._handle_apply_command(cmd_name, args, arg_tokens, scope):
+            return True
         return False
+
+    def _handle_rename_command(self, cmd_name: str, args: list[str]) -> None:
+        """Track ``rename oldName newName`` for alias resolution."""
+        if cmd_name != "rename" or len(args) < 2:
+            return
+        old_name, new_name = args[0], args[1]
+        if new_name:  # Empty newName deletes the command.
+            self.result.command_aliases[new_name] = old_name
+
+    def _handle_namespace_import_command(self, cmd_name: str, args: list[str]) -> None:
+        """Track ``namespace import ?-force? pattern ...``."""
+        if cmd_name != "namespace" or len(args) < 2 or args[0] != "import":
+            return
+        patterns = args[1:]
+        if patterns and patterns[0] == "-force":
+            patterns = patterns[1:]
+        for pattern in patterns:
+            if pattern.endswith("::*"):
+                ns = pattern[:-3]
+                for qname in self.result.all_procs:
+                    if qname.startswith(ns + "::"):
+                        short = qname[len(ns) + 2:]
+                        self.result.command_aliases[short] = qname
+            elif "::" in pattern:
+                short = pattern.rsplit("::", 1)[-1]
+                self.result.command_aliases[short] = pattern
+
+    def _handle_apply_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> bool:
+        """Handle ``apply {params body ?namespace?}`` by analysing the lambda body."""
+        if cmd_name != "apply" or not args:
+            return False
+        lambda_text = args[0]
+        if not lambda_text.strip():
+            return False
+        # Parse the lambda spec as a Tcl list: {params body ?namespace?}
+        from core.compiler.codegen._helpers import _split_list_simple
+
+        try:
+            elements = _split_list_simple(lambda_text)
+        except Exception:
+            return False
+        if len(elements) < 2:
+            return False
+        param_str = elements[0]
+        body_text = elements[1]
+        if not body_text.strip():
+            return False
+
+        # Create a lambda scope with parameters.
+        lambda_scope = Scope(kind="proc", name="<lambda>", parent=scope)
+        scope.children.append(lambda_scope)
+        params = _parse_param_list(param_str)
+        for p in params:
+            lambda_scope.variables[p.name] = VarDef(
+                name=p.name,
+                definition_range=Range.zero(),
+                warn_if_unused=False,
+            )
+        self._analyse_body(body_text, lambda_scope)
+        return True
 
     def _handle_proc_command(
         self,

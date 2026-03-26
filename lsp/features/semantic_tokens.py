@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 
 from core.analysis.semantic_model import AnalysisResult
 from core.bigip.apl_parser import AplTokenKind, tokenise_apl
@@ -2416,6 +2416,7 @@ def _collect_tokens(
     regex_positions: frozenset[tuple[int, int]] = frozenset(),
     _line_starts: list[int] | None = None,
     _source_len: int | None = None,
+    _aliases: dict[str, str] | None = None,
 ) -> None:
     """Collect semantic tokens from *source* into *tokens*.
 
@@ -2568,6 +2569,7 @@ def _collect_tokens(
                     regex_positions=regex_positions,
                     _line_starts=_line_starts,
                     _source_len=_source_len,
+                    _aliases=_aliases,
                 )
                 continue
 
@@ -2584,6 +2586,7 @@ def _collect_tokens(
                     regex_positions=regex_positions,
                     _line_starts=_line_starts,
                     _source_len=_source_len,
+                    _aliases=_aliases,
                 )
                 continue
 
@@ -2792,7 +2795,19 @@ def _collect_tokens(
                 )
                 continue
 
-            type_idx = _classify_token(tok.type, tok.text, is_command_name=is_cmd_name)
+            # Resolve command name through aliases before classification
+            # so that e.g. ``rename puts myputs`` makes ``myputs`` a keyword.
+            classify_text = tok.text
+            if is_cmd_name and _aliases:
+                resolved = classify_text
+                for _ in range(5):  # max chain depth
+                    if resolved in _aliases:
+                        resolved = _aliases[resolved]
+                    else:
+                        break
+                classify_text = resolved
+
+            type_idx = _classify_token(tok.type, classify_text, is_command_name=is_cmd_name)
             if type_idx is None:
                 continue
 
@@ -2938,7 +2953,8 @@ def semantic_tokens_full(
     raw_tokens: list[tuple[int, int, int, int, int]] = []
     base_tokens: list[tuple[int, int, int, int, int]] = []
     t_collect = time.perf_counter()
-    _collect_tokens(base_tokens, source, regex_positions=regex_positions)
+    aliases = analysis.command_aliases if analysis is not None else None
+    _collect_tokens(base_tokens, source, regex_positions=regex_positions, _aliases=aliases or None)
     t_after_collect = time.perf_counter()
     if is_bigip_conf:
         # Run full Tcl tokenisation on embedded iRule/iApp bodies.
@@ -2951,14 +2967,12 @@ def semantic_tokens_full(
             # with embedded body ranges; the body-specific tokens are
             # richer.  BIG-IP overlay tokens are added separately.
             # Use bisect for O(T log R) instead of O(T × R).
-            from bisect import bisect_right as _br
-
             body_ranges.sort()
             _range_starts = [s for s, _e in body_ranges]
             _range_ends = [e for _s, e in body_ranges]
 
             def _in_body(line: int) -> bool:
-                idx = _br(_range_starts, line) - 1
+                idx = bisect_right(_range_starts, line) - 1
                 return idx >= 0 and line <= _range_ends[idx]
 
             base_tokens = [tok for tok in base_tokens if not _in_body(tok[0])]
@@ -2982,8 +2996,6 @@ def semantic_tokens_full(
     # Binary search (bisect) gives O(chunks * log(tokens)) instead of
     # O(chunks * tokens) — significant for large files with many chunks.
     if chunk_token_cache is not None and chunk_line_ranges is not None:
-        from bisect import bisect_left
-
         keys = [(t[0], t[1]) for t in raw_tokens]
         for i, (sl, sc, el, ec) in enumerate(chunk_line_ranges):
             if i < len(chunk_token_cache) and chunk_token_cache[i] is None:
@@ -3002,6 +3014,65 @@ def semantic_tokens_full(
         source.count("\n") + 1,
     )
     return result
+
+
+def semantic_tokens_range(
+    source: str,
+    start_line: int,
+    start_char: int,
+    end_line: int,
+    end_char: int,
+    analysis: AnalysisResult | None = None,
+    *,
+    is_bigip_conf: bool = False,
+    is_irules: bool = False,
+    is_apl: bool = False,
+    chunk_token_cache: list[list[tuple[int, int, int, int, int]] | None] | None = None,
+    chunk_line_ranges: list[tuple[int, int, int, int]] | None = None,
+) -> list[int]:
+    """Return delta-encoded tokens within the given range.
+
+    Delegates to ``semantic_tokens_full`` for token collection (benefiting
+    from chunk caching), then extracts only tokens within the requested
+    range using bisect before delta-encoding.
+    """
+    full_data = semantic_tokens_full(
+        source,
+        analysis=analysis,
+        is_bigip_conf=is_bigip_conf,
+        is_irules=is_irules,
+        is_apl=is_apl,
+        chunk_token_cache=chunk_token_cache,
+        chunk_line_ranges=chunk_line_ranges,
+    )
+
+    # Decode the flat delta-encoded data back to absolute positions,
+    # filter by range, then re-encode.  This avoids duplicating the
+    # entire collection pipeline.
+    n = len(full_data) // 5
+    if n == 0:
+        return []
+
+    abs_tokens: list[tuple[int, int, int, int, int]] = []
+    prev_line = 0
+    prev_char = 0
+    for i in range(n):
+        base = i * 5
+        delta_line = full_data[base]
+        delta_char = full_data[base + 1]
+        length = full_data[base + 2]
+        type_idx = full_data[base + 3]
+        mods = full_data[base + 4]
+        line = prev_line + delta_line
+        char = delta_char if delta_line != 0 else prev_char + delta_char
+        abs_tokens.append((line, char, length, type_idx, mods))
+        prev_line = line
+        prev_char = char
+
+    keys = [(t[0], t[1]) for t in abs_tokens]
+    lo = bisect_left(keys, (start_line, start_char))
+    hi = bisect_right(keys, (end_line, end_char))
+    return _delta_encode(abs_tokens[lo:hi])
 
 
 def _delta_encode(raw_tokens: list[tuple[int, int, int, int, int]]) -> list[int]:

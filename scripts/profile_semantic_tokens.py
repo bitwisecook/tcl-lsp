@@ -105,6 +105,8 @@ def main() -> None:
         print("Phase: _build_full_chunk_caches() only")
         print(f"{'=' * 60}")
 
+        from core.analysis.analyser import Analyser
+
         state = DocumentState(uri=f"file://{abs_path}")
         # Do the update without chunk caches, then profile chunk cache building
         chunks = segment_top_level_chunks(source)
@@ -115,12 +117,16 @@ def main() -> None:
             state.compilation_unit = compile_source(source)
         except Exception:
             state.compilation_unit = None
-        state.analysis = analyse(source, cu=state.compilation_unit)
+        chunk_commands = [list(chunk.commands) for chunk in chunks]
+        analyser = Analyser()
+        state.analysis, chunk_snapshots = analyser.analyse_chunked(
+            source, chunk_commands, cu=state.compilation_unit
+        )
 
         prof = cProfile.Profile()
         prof.enable()
         t0 = time.perf_counter()
-        state._build_full_chunk_caches(source, chunks)
+        state._build_full_chunk_caches(source, chunks, chunk_snapshots)
         t1 = time.perf_counter()
         prof.disable()
 

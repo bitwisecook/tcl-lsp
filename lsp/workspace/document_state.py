@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -33,18 +34,7 @@ from core.parsing.lexer import TclLexer
 from core.parsing.tokens import Token
 
 # Lazy import to avoid circular dependencies at module load time.
-_style_diag_fn = None
 _style_diag_all_fn = None
-
-
-def _get_style_diag_fn():
-    """Lazily import ``compute_style_diagnostics_for_range``."""
-    global _style_diag_fn
-    if _style_diag_fn is None:
-        from lsp.features.diagnostics import compute_style_diagnostics_for_range
-
-        _style_diag_fn = compute_style_diagnostics_for_range
-    return _style_diag_fn
 
 
 def _get_style_diag_all_fn():
@@ -263,34 +253,36 @@ class DocumentState:
         Each range is ``(start_line, start_col, end_line, end_col)`` so
         that chunks sharing a line get non-overlapping boundaries.
         """
-        if not self._chunk_caches or not self.chunks:
-            return None
-        if len(self._chunk_caches) != len(self.chunks):
-            return None
+        with self._lock:
+            if not self._chunk_caches or not self.chunks:
+                return None
+            if len(self._chunk_caches) != len(self.chunks):
+                return None
 
-        cache: list[list[tuple[int, int, int, int, int]] | None] = []
-        ranges: list[tuple[int, int, int, int]] = []
-        buf = self.buffer
-        for i, cc in enumerate(self._chunk_caches):
-            if cc is None:
-                cache.append(None)
-            else:
-                cache.append(cc.semantic_tokens_abs)
-            ranges.append(_chunk_line_range(buf, self.chunks[i]))
-        return cache, ranges
+            cache: list[list[tuple[int, int, int, int, int]] | None] = []
+            ranges: list[tuple[int, int, int, int]] = []
+            buf = self.buffer
+            for i, cc in enumerate(self._chunk_caches):
+                if cc is None:
+                    cache.append(None)
+                else:
+                    cache.append(cc.semantic_tokens_abs)
+                ranges.append(_chunk_line_range(buf, self.chunks[i]))
+            return cache, ranges
 
     def store_semantic_token_cache(
         self,
         chunk_token_cache: list[list[tuple[int, int, int, int, int]] | None],
     ) -> None:
         """Write back computed semantic tokens to chunk caches."""
-        for i, tokens in enumerate(chunk_token_cache):
-            if (
-                tokens is not None
-                and i < len(self._chunk_caches)
-                and self._chunk_caches[i] is not None
-            ):
-                self._chunk_caches[i].semantic_tokens_abs = tokens  # type: ignore[union-attr, invalid-assignment]
+        with self._lock:
+            for i, tokens in enumerate(chunk_token_cache):
+                if (
+                    tokens is not None
+                    and i < len(self._chunk_caches)
+                    and self._chunk_caches[i] is not None
+                ):
+                    self._chunk_caches[i].semantic_tokens_abs = tokens  # type: ignore[union-attr, invalid-assignment]
 
     def get_deep_diag_proc_key(self) -> frozenset[tuple[str, int]]:
         """Compute the identity key for deep diagnostic caching.
@@ -581,7 +573,6 @@ class DocumentState:
         during the single analysis pass.
         """
         try:
-            from bisect import bisect_left, bisect_right
 
             buf = self.buffer
             all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
@@ -700,19 +691,17 @@ class DocumentState:
         self,
         source: str,
         chunks: list[TopLevelChunk],
-        chunk_snapshots: list[AnalyserSnapshot] | None = None,
+        chunk_snapshots: list[AnalyserSnapshot],
         *,
         line_length: int = 120,
     ) -> None:
         """Build ``ChunkCache`` entries after a full rebuild.
 
-        When *chunk_snapshots* is provided (from ``analyse_chunked``),
-        the snapshots are used directly — no re-analysis is performed.
+        *chunk_snapshots* (from ``analyse_chunked``) provides pre-built
+        snapshots — no re-analysis is performed.
         """
         t0 = time.perf_counter()
         try:
-            from bisect import bisect_left, bisect_right
-
             buf = self.buffer
             caches: list[ChunkCache | None] = []
 
@@ -726,12 +715,6 @@ class DocumentState:
             # available, avoiding redundant re-lowering of each chunk.
             chunk_ir_map = _extract_chunk_ir(self.compilation_unit, chunks)
 
-            # Fall back to per-chunk analysis if no pre-built snapshots.
-            snapshot_analyser: Analyser | None = None
-            if chunk_snapshots is None:
-                snapshot_analyser = Analyser()
-                snapshot_analyser._source = source
-
             for ci, chunk in enumerate(chunks):
                 # Use pre-extracted IR if available; fall back to lowering.
                 if chunk_ir_map is not None:
@@ -741,17 +724,7 @@ class DocumentState:
 
                     ir_stmts, ir_procs = lower_commands_to_ir(source, list(chunk.commands))
 
-                # Use pre-built snapshot or analyse this chunk for one.
-                if chunk_snapshots is not None:
-                    snap = chunk_snapshots[ci]
-                else:
-                    assert snapshot_analyser is not None
-                    snapshot_analyser._analyse_commands_inner(
-                        list(chunk.commands),
-                        snapshot_analyser._current_scope,
-                        source,
-                    )
-                    snap = snapshot_analyser.snapshot()
+                snap = chunk_snapshots[ci]
 
                 # Partition pre-computed style diagnostics for this chunk.
                 start_line, _sc, end_line, _ec = _chunk_line_range(buf, chunk)

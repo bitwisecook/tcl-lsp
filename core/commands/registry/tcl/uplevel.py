@@ -7,11 +7,25 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ..taint_hints import TaintColour
 from ._base import register
 
 _SOURCE = "Tcl man page uplevel.n"
+
+
+def _uplevel_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Resolve arg roles for ``uplevel ?level? arg ?arg ...?``
+
+    If the first argument looks like a stack level (integer or ``#N``),
+    all remaining arguments are BODY.  Otherwise all arguments are BODY.
+    """
+    if not args:
+        return {}
+    first = args[0]
+    if first.isdigit() or (first.startswith("#") and len(first) > 1 and first[1:].isdigit()):
+        return {i: ArgRole.BODY for i in range(1, len(args))}
+    return {i: ArgRole.BODY for i in range(len(args))}
 
 
 @register
@@ -39,6 +53,7 @@ class UplevelCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
+            arg_role_resolver=_uplevel_arg_roles,
             taint_sink=True,
             taint_sink_safe_colour=TaintColour.LIST_CANONICAL,
             xc_translatable=False,

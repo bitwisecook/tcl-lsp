@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 import re
 import threading
@@ -61,8 +62,10 @@ from .features.selection_range import get_selection_ranges
 from .features.semantic_tokens import (
     SEMANTIC_TOKEN_MODIFIERS,
     SEMANTIC_TOKEN_TYPES,
+    _delta_encode,
     compute_semantic_tokens_edits,
     semantic_tokens_full,
+    semantic_tokens_range,
 )
 from .features.signature_help import get_signature_help
 from .features.symbol_resolution import find_word_at_position
@@ -456,10 +459,37 @@ SEMANTIC_TOKENS_LEGEND = types.SemanticTokensLegend(
     token_modifiers=SEMANTIC_TOKEN_MODIFIERS,
 )
 
-# Per-URI storage for semantic tokens delta support (P8).
-# Maps URI → (result_id, flat token data).
-_semantic_token_results: dict[str, tuple[str, list[int]]] = {}
-_semantic_token_result_counter: int = 0
+# Thread-safe per-URI storage for semantic tokens delta support.
+class _SemanticTokenState:
+    """Thread-safe semantic token result cache with bounded size."""
+
+    _MAX_CACHED = 32
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._counter = itertools.count(1)
+        self._results: dict[str, tuple[str, list[int]]] = {}
+
+    def next_id(self) -> str:
+        return str(next(self._counter))
+
+    def store(self, uri: str, result_id: str, data: list[int]) -> None:
+        with self._lock:
+            self._results[uri] = (result_id, data)
+            if len(self._results) > self._MAX_CACHED:
+                oldest = next(iter(self._results))
+                del self._results[oldest]
+
+    def get(self, uri: str) -> tuple[str, list[int]] | None:
+        with self._lock:
+            return self._results.get(uri)
+
+    def discard(self, uri: str) -> None:
+        with self._lock:
+            self._results.pop(uri, None)
+
+
+_semantic_tokens = _SemanticTokenState()
 
 
 @server.feature(
@@ -467,13 +497,13 @@ _semantic_token_result_counter: int = 0
     types.SemanticTokensRegistrationOptions(
         legend=SEMANTIC_TOKENS_LEGEND,
         full=types.SemanticTokensFullDelta(delta=True),
+        range=True,
         document_selector=_TCL_DOCUMENT_SELECTOR,
     ),
 )
 def on_semantic_tokens_full(
     params: types.SemanticTokensParams,
 ) -> types.SemanticTokens:
-    global _semantic_token_result_counter
     t0 = time.perf_counter()
     if not feature_config.semantic_tokens_enabled:
         return types.SemanticTokens(data=[])
@@ -506,10 +536,8 @@ def on_semantic_tokens_full(
     # Write back computed tokens to chunk cache.
     if state is not None and chunk_token_cache is not None:
         state.store_semantic_token_cache(chunk_token_cache)
-    # Store result for delta support (P8).
-    _semantic_token_result_counter += 1
-    result_id = str(_semantic_token_result_counter)
-    _semantic_token_results[uri] = (result_id, data)
+    result_id = _semantic_tokens.next_id()
+    _semantic_tokens.store(uri, result_id, data)
     elapsed_ms = (time.perf_counter() - t0) * 1000
     log.info(
         "[timing] semanticTokens/full %.0fms (cache=%s, analysis=%s, tokens=%d, lines=%d)",
@@ -526,7 +554,6 @@ def on_semantic_tokens_full(
 def on_semantic_tokens_delta(
     params: types.SemanticTokensDeltaParams,
 ) -> types.SemanticTokens | types.SemanticTokensDelta:
-    global _semantic_token_result_counter
     t0 = time.perf_counter()
     uri = params.text_document.uri
     previous_result_id = params.previous_result_id
@@ -535,7 +562,7 @@ def on_semantic_tokens_delta(
         return types.SemanticTokens(data=[])
 
     # Look up previous result for this URI.
-    prev = _semantic_token_results.get(uri)
+    prev = _semantic_tokens.get(uri)
     if prev is None or prev[0] != previous_result_id:
         # No matching previous result — fall back to full.
         log.info("[timing] semanticTokens/delta fallback to full (no prev result)")
@@ -545,32 +572,45 @@ def on_semantic_tokens_delta(
 
     old_data = prev[1]
 
-    # Compute fresh tokens.
+    # Compute fresh tokens.  When the chunk cache is fully populated
+    # (common after an incremental update), assemble tokens directly
+    # from the cache without running the full collection pipeline.
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
-    chunk_token_cache = None
-    chunk_line_ranges = None
+    new_data: list[int] | None = None
     if state is not None:
         cache_info = state.get_semantic_token_cache()
         if cache_info is not None:
             chunk_token_cache, chunk_line_ranges = cache_info
-    new_data = semantic_tokens_full(
-        source,
-        analysis=analysis,
-        is_bigip_conf=_is_bigip_conf(uri),
-        is_irules=_is_irules_source(uri),
-        is_apl=_is_apl_source(uri),
-        chunk_token_cache=chunk_token_cache,
-        chunk_line_ranges=chunk_line_ranges,
-    )
-    if state is not None and chunk_token_cache is not None:
-        state.store_semantic_token_cache(chunk_token_cache)
+            if all(entry is not None for entry in chunk_token_cache):
+                # Full cache hit — assemble from cached absolute tokens.
+                raw_tokens: list[tuple[int, int, int, int, int]] = []
+                for entry in chunk_token_cache:
+                    assert entry is not None
+                    raw_tokens.extend(entry)
+                new_data = _delta_encode(raw_tokens)
+    if new_data is None:
+        chunk_token_cache_2 = None
+        chunk_line_ranges_2 = None
+        if state is not None:
+            cache_info_2 = state.get_semantic_token_cache()
+            if cache_info_2 is not None:
+                chunk_token_cache_2, chunk_line_ranges_2 = cache_info_2
+        new_data = semantic_tokens_full(
+            source,
+            analysis=analysis,
+            is_bigip_conf=_is_bigip_conf(uri),
+            is_irules=_is_irules_source(uri),
+            is_apl=_is_apl_source(uri),
+            chunk_token_cache=chunk_token_cache_2,
+            chunk_line_ranges=chunk_line_ranges_2,
+        )
+        if state is not None and chunk_token_cache_2 is not None:
+            state.store_semantic_token_cache(chunk_token_cache_2)
 
-    # Store new result.
-    _semantic_token_result_counter += 1
-    result_id = str(_semantic_token_result_counter)
-    _semantic_token_results[uri] = (result_id, new_data)
+    result_id = _semantic_tokens.next_id()
+    _semantic_tokens.store(uri, result_id, new_data)
 
     # Compute edits.
     edits = compute_semantic_tokens_edits(old_data, new_data)
@@ -606,6 +646,52 @@ def on_semantic_tokens_delta(
         len(new_data),
     )
     return types.SemanticTokensDelta(edits=lsp_edits, result_id=result_id)
+
+
+@server.feature(types.TEXT_DOCUMENT_SEMANTIC_TOKENS_RANGE)
+def on_semantic_tokens_range(
+    params: types.SemanticTokensRangeParams,
+) -> types.SemanticTokens:
+    t0 = time.perf_counter()
+    if not feature_config.semantic_tokens_enabled:
+        return types.SemanticTokens(data=[])
+    uri = params.text_document.uri
+    r = params.range
+    source = _get_doc_source(uri)
+    state = workspace_state.get(uri)
+    analysis = state.analysis if state else None
+    chunk_token_cache = None
+    chunk_line_ranges = None
+    if state is not None:
+        cache_info = state.get_semantic_token_cache()
+        if cache_info is not None:
+            chunk_token_cache, chunk_line_ranges = cache_info
+    data = semantic_tokens_range(
+        source,
+        r.start.line,
+        r.start.character,
+        r.end.line,
+        r.end.character,
+        analysis=analysis,
+        is_bigip_conf=_is_bigip_conf(uri),
+        is_irules=_is_irules_source(uri),
+        is_apl=_is_apl_source(uri),
+        chunk_token_cache=chunk_token_cache,
+        chunk_line_ranges=chunk_line_ranges,
+    )
+    if state is not None and chunk_token_cache is not None:
+        state.store_semantic_token_cache(chunk_token_cache)
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    log.info(
+        "[timing] semanticTokens/range %.0fms (tokens=%d, range=%d:%d-%d:%d)",
+        elapsed_ms,
+        len(data) // 5,
+        r.start.line,
+        r.start.character,
+        r.end.line,
+        r.end.character,
+    )
+    return types.SemanticTokens(data=data)
 
 
 # Completion
@@ -2254,7 +2340,7 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
         )
         return
-    _semantic_token_results.pop(uri, None)
+    _semantic_tokens.discard(uri)
     workspace_state.close(uri)
     # If this file was also scanned in the background, revert to that entry
     # so cross-file references keep working after the file is closed.
