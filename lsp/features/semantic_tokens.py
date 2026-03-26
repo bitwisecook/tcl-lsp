@@ -2909,12 +2909,17 @@ def semantic_tokens_full(
     # Populate chunk cache if provided.
     # Use (line, col) boundaries so chunks sharing a line get non-overlapping
     # token sets (e.g. semicolon-separated commands on the same line).
+    # Binary search (bisect) gives O(chunks * log(tokens)) instead of
+    # O(chunks * tokens) — significant for large files with many chunks.
     if chunk_token_cache is not None and chunk_line_ranges is not None:
+        from bisect import bisect_left
+
+        keys = [(t[0], t[1]) for t in raw_tokens]
         for i, (sl, sc, el, ec) in enumerate(chunk_line_ranges):
             if i < len(chunk_token_cache) and chunk_token_cache[i] is None:
-                chunk_token_cache[i] = [
-                    tok for tok in raw_tokens if (sl, sc) <= (tok[0], tok[1]) < (el, ec)
-                ]
+                lo = bisect_left(keys, (sl, sc))
+                hi = bisect_left(keys, (el, ec))
+                chunk_token_cache[i] = raw_tokens[lo:hi]
 
     result = _delta_encode(raw_tokens)
     t_end = time.perf_counter()

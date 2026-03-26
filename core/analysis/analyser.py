@@ -7,7 +7,6 @@ detectable errors.
 
 from __future__ import annotations
 
-import copy
 import logging
 import re
 from dataclasses import dataclass, field
@@ -256,22 +255,24 @@ class Analyser:
     def snapshot(self) -> AnalyserSnapshot:
         """Capture the analyser state for later restoration.
 
-        The ``AnalysisResult`` and scope tree are deep-copied so that
-        the snapshot is fully independent.  ``_const_strings`` and
-        ``_regex_vars`` use ``id(scope)`` as keys — the ``scope_id_map``
-        records the mapping from the *live* scope ids to the *copied*
-        scope objects so ``restore`` can remap them.
+        Uses ``AnalysisResult.copy_for_snapshot()`` instead of
+        ``copy.deepcopy`` for dramatically better performance — frozen
+        dataclass items are shared by reference rather than copied.
+
+        ``_const_strings`` and ``_regex_vars`` use ``id(scope)`` as
+        keys — the ``scope_id_map`` records the mapping from the *live*
+        scope ids to the *copied* scope objects so ``restore`` can
+        remap them.
         """
-        result_copy = copy.deepcopy(self.result)
+        result_copy = self.result.copy_for_snapshot()
         # Build a mapping from old scope id → new (copied) scope object.
-        # The deep copy preserves structure; we walk both trees in parallel.
         scope_id_map: dict[int, Scope] = {}
         self._build_scope_id_map(self.result.global_scope, result_copy.global_scope, scope_id_map)
 
         return AnalyserSnapshot(
             result=result_copy,
             last_comment=self._last_comment,
-            const_strings=copy.deepcopy(self._const_strings),
+            const_strings={k: dict(v) for k, v in self._const_strings.items()},
             regex_vars=set(self._regex_vars),
             current_event=self._current_event,
             conditional_depth=self._conditional_depth,
@@ -281,12 +282,12 @@ class Analyser:
     def restore(self, snap: AnalyserSnapshot) -> None:
         """Restore analyser state from a snapshot.
 
-        The ``AnalysisResult`` is deep-copied from the snapshot so that
-        the snapshot can be reused across multiple incremental passes.
+        Uses ``AnalysisResult.copy_for_snapshot()`` instead of
+        ``copy.deepcopy`` for dramatically better performance.
         ``_const_strings`` and ``_regex_vars`` keys (which are scope ids)
         are remapped to the new scope objects' ids.
         """
-        self.result = copy.deepcopy(snap.result)
+        self.result = snap.result.copy_for_snapshot()
         self._current_scope = self.result.global_scope
         self._last_comment = snap.last_comment
         self._current_event = snap.current_event
@@ -310,7 +311,7 @@ class Analyser:
         self._const_strings = {}
         for old_sid, entries in snap.const_strings.items():
             new_sid = id_remap.get(old_sid, old_sid)
-            self._const_strings[new_sid] = copy.deepcopy(entries)
+            self._const_strings[new_sid] = dict(entries)
 
         # Remap _regex_vars
         self._regex_vars = set()
