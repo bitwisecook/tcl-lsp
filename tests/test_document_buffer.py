@@ -8,7 +8,6 @@ from core.common.document_buffer import (
 )
 from core.parsing.tokens import SourcePosition
 
-
 # compute_line_starts
 
 
