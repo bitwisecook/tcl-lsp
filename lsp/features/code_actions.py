@@ -761,7 +761,7 @@ def _ip_conversion_actions(
     line_text = lines[range_.start.line]
 
     # Extract word at cursor
-    col = range_.start.character
+    col = min(range_.start.character, len(line_text))
     start = col
     while start > 0 and line_text[start - 1] not in " \t;{}[]\"'":
         start -= 1
