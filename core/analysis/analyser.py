@@ -222,6 +222,8 @@ class AnalyserSnapshot:
     regex_vars: set[tuple[int, str]]
     current_event: str | None
     conditional_depth: int = 0
+    # Command aliases: alias_name -> (target_cmd, prepended_args).
+    command_aliases: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
     # Map from old scope id → scope object for scope identity reconstruction.
     scope_id_map: dict[int, Scope] = field(default_factory=dict)
 
@@ -251,6 +253,9 @@ class Analyser:
         self._conditional_depth: int = 0
         # Track body nesting depth for top-level-only command detection.
         self._body_depth: int = 0
+        # Command aliases: alias_name -> (target_cmd, prepended_args).
+        # Populated from ``interp alias {} name {} target ?arg ...?``.
+        self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
 
     def snapshot(self) -> AnalyserSnapshot:
         """Capture the analyser state for later restoration.
@@ -276,6 +281,7 @@ class Analyser:
             regex_vars=set(self._regex_vars),
             current_event=self._current_event,
             conditional_depth=self._conditional_depth,
+            command_aliases=dict(self._command_aliases),
             scope_id_map=scope_id_map,
         )
 
@@ -292,6 +298,7 @@ class Analyser:
         self._last_comment = snap.last_comment
         self._current_event = snap.current_event
         self._conditional_depth = snap.conditional_depth
+        self._command_aliases = dict(snap.command_aliases)
 
         # Remap scope ids: old_id → new scope's id
         # snap.scope_id_map maps id(original_live_scope) → copied_scope_in_snap.result.
@@ -1312,7 +1319,16 @@ class Analyser:
         if self._run_command_special_cases(cmd_name, args, arg_tokens, argv[0], scope):
             return
 
+        # Resolve command aliases for role-based argument analysis.
+        # For ``interp alias {} = {} expr``, calling ``= {$x+1}`` should
+        # analyse the argument as an expression (ArgRole.EXPR).
+        role_cmd, role_args = self._resolve_alias(cmd_name, args)
+        prepend_n = len(role_args) - len(args)
+
         resolved_sig = self._signature_for_command(cmd_name)
+        # If the command itself has no signature, try the alias target.
+        if resolved_sig is None and role_cmd != cmd_name:
+            resolved_sig = self._signature_for_command(role_cmd)
 
         # Arity checking for user-defined procs (needs ProcDef.params
         # with has_default info, which the IR doesn't carry).
@@ -1332,7 +1348,12 @@ class Analyser:
                     arg_tokens[0],
                 )
 
-        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.EXPR)):
+        # Use the resolved alias target for role-based lookups, then map
+        # indices back to the real args by subtracting the prepend offset.
+        for virtual_idx in sorted(arg_indices_for_role(role_cmd, role_args, ArgRole.EXPR)):
+            idx = virtual_idx - prepend_n
+            if idx < 0 or idx >= len(args):
+                continue
             expr_tok = arg_tokens[idx] if idx < len(arg_tokens) else None
             self._analyse_expr(args[idx], scope, expr_token=expr_tok)
 
@@ -1346,7 +1367,7 @@ class Analyser:
         is_conditional = cmd_name in ("if", "try")
         if is_conditional:
             self._conditional_depth += 1
-        for body in iter_body_arguments(cmd_name, args, arg_tokens):
+        for body in iter_body_arguments(role_cmd, role_args, arg_tokens, prepend_n=prepend_n):
             self._analyse_body(body.text, scope, body_token=body.token)
         if is_conditional:
             self._conditional_depth -= 1
@@ -1354,15 +1375,19 @@ class Analyser:
             self._current_event = prev_event
 
         if cmd_name not in ("set", "variable", "global", "incr"):
-            for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_NAME)):
+            for virtual_idx in sorted(arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_NAME)):
+                idx = virtual_idx - prepend_n
+                if idx < 0 or idx >= len(args):
+                    continue
                 tok = arg_tokens[idx] if idx < len(arg_tokens) else argv[0]
                 self._define_var(args[idx], tok, scope, warn_if_unused=False)
 
         # Record regex pattern arguments (regexp, regsub).
         # When the pattern position is a variable reference, look up its
         # constant value and also mark the defining `set` as a regex pattern.
-        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.PATTERN)):
-            if idx >= len(arg_tokens):
+        for virtual_idx in sorted(arg_indices_for_role(role_cmd, role_args, ArgRole.PATTERN)):
+            idx = virtual_idx - prepend_n
+            if idx < 0 or idx >= len(arg_tokens):
                 continue
             pat_tok = arg_tokens[idx]
             if pat_tok.type is TokenType.VAR:
@@ -1422,6 +1447,7 @@ class Analyser:
             return True
 
         self._handle_incr_command(cmd_name, args, arg_tokens, scope)
+        self._handle_interp_alias(cmd_name, args)
         return False
 
     def _handle_proc_command(
@@ -1654,6 +1680,45 @@ class Analyser:
     ) -> None:
         if cmd_name == "incr" and args and arg_tokens:
             self._define_var(args[0], arg_tokens[0], scope, warn_if_unused=True)
+
+    def _handle_interp_alias(self, cmd_name: str, args: list[str]) -> None:
+        """Detect ``interp alias {} srcToken {} targetCmd ?arg ...?``.
+
+        Records the alias so that argument roles (EXPR, BODY, etc.) from
+        the target command are applied when the alias is invoked.
+        """
+        # interp alias srcPath srcToken targetPath targetCmd ?arg ...?
+        # For current-interp aliases: interp alias {} name {} target ?args?
+        if cmd_name != "interp" or len(args) < 4:
+            return
+        if args[0] != "alias":
+            return
+        # args: ["alias", srcPath, srcToken, targetPath, targetCmd, ?arg ...?]
+        if len(args) < 5:
+            return
+        src_path = args[1]
+        alias_name = args[2]
+        target_path = args[3]
+        target_cmd = args[4]
+        prepended = tuple(args[5:])
+        # Only track aliases in the current interpreter (empty path).
+        if src_path not in ("", "{}") or target_path not in ("", "{}"):
+            return
+        self._command_aliases[alias_name] = (target_cmd, prepended)
+        self.result.command_aliases[alias_name] = (target_cmd, prepended)
+
+    def _resolve_alias(self, cmd_name: str, args: list[str]) -> tuple[str, list[str]]:
+        """Resolve a command alias to (target_cmd, effective_args).
+
+        If *cmd_name* is a known alias, returns the target command name
+        and the effective argument list (prepended args + original args).
+        Otherwise returns the original cmd_name and args unchanged.
+        """
+        alias = self._command_aliases.get(cmd_name)
+        if alias is None:
+            return cmd_name, args
+        target_cmd, prepended = alias
+        return target_cmd, list(prepended) + args
 
     def _handle_proc(
         self,

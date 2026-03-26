@@ -200,6 +200,17 @@ class _Lowerer:
         self.module = IRModule()
         self._in_namespace_eval = False
         self._when_counts: dict[str, int] = {}  # event -> occurrence count
+        # Command aliases: alias_name -> (target_cmd, prepended_args).
+        # Populated from ``interp alias {} name {} target ?arg ...?``.
+        self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
+
+    def expr_alias_names(self) -> frozenset[str]:
+        """Return names that are aliases for ``expr`` (no prepended args)."""
+        return frozenset(
+            name
+            for name, (target, prepended) in self._command_aliases.items()
+            if target == "expr" and not prepended
+        )
 
     def lower(self, source: str) -> IRModule:
         self.module.top_level = self._lower_script(source, namespace="::")
@@ -862,8 +873,40 @@ class _Lowerer:
         args = cmd.args
         arg_tokens = cmd.arg_tokens
 
+        # Detect ``interp alias {} name {} target ?args?`` and record
+        # the alias for resolving argument semantics of later calls.
+        if cmd_name == "interp" and len(args) >= 4 and args[0] == "alias":
+            src_path = args[1]
+            alias_name = args[2]
+            target_path = args[3]
+            if src_path in ("", "{}") and target_path in ("", "{}") and len(args) >= 5:
+                target_cmd = args[4]
+                prepended = tuple(args[5:])
+                self._command_aliases[alias_name] = (target_cmd, prepended)
+
         # Check for a registered lowering hook first.
         spec = REGISTRY.get_any(cmd_name)
+        # If the command itself has no lowering hook, try the alias target.
+        if (spec is None or spec.lowering is None) and cmd_name in self._command_aliases:
+            target, prepended = self._command_aliases[cmd_name]
+            target_spec = REGISTRY.get_any(target)
+            if target_spec is not None and target_spec.lowering is not None:
+                # Build a virtual command with the target name and
+                # prepended + real arguments for the lowering hook.
+                virtual_texts = [target, *prepended, *cmd.texts[1:]]
+                virtual_single = [True] * (1 + len(prepended)) + cmd.single_token_word[1:]
+                virtual = _Command(
+                    range=cmd.range,
+                    argv=cmd.argv,
+                    texts=virtual_texts,
+                    single_token_word=virtual_single,
+                    all_tokens=cmd.all_tokens,
+                    expand_word=cmd.expand_word,
+                )
+                result = target_spec.lowering(self, virtual)
+                if result is not None:
+                    return cast(IRStatement, result)
+                spec = target_spec
         if spec is not None and spec.lowering is not None:
             result = spec.lowering(self, cmd)
             if result is not None:
@@ -1014,9 +1057,17 @@ class _Lowerer:
                 )
 
             case _:
-                body_indices = arg_indices_for_role(cmd_name, args, ArgRole.BODY)
-                var_indices = arg_indices_for_role(cmd_name, args, ArgRole.VAR_NAME)
-                var_read_indices = arg_indices_for_role(cmd_name, args, ArgRole.VAR_READ)
+                # Resolve alias for arg role lookups.
+                role_cmd = cmd_name
+                role_args: list[str] | tuple[str, ...] = args
+                alias = self._command_aliases.get(cmd_name)
+                if alias is not None:
+                    target, prepended = alias
+                    role_cmd = target
+                    role_args = list(prepended) + list(args)
+                body_indices = arg_indices_for_role(role_cmd, list(role_args), ArgRole.BODY)
+                var_indices = arg_indices_for_role(role_cmd, list(role_args), ArgRole.VAR_NAME)
+                var_read_indices = arg_indices_for_role(role_cmd, list(role_args), ArgRole.VAR_READ)
                 if body_indices:
                     return IRBarrier(
                         range=cmd.range,
