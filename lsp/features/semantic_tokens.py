@@ -2435,6 +2435,7 @@ def _collect_tokens(
     source: str,
     body_token: Token | None = None,
     regex_positions: frozenset[tuple[int, int]] = frozenset(),
+    _line_starts: list[int] | None = None,
 ) -> None:
     """Collect semantic tokens from *source* into *tokens*.
 
@@ -2462,9 +2463,14 @@ def _collect_tokens(
             base_line=body_token.start.line,
             base_col=body_token.start.character + 1,
             virtual_insertions=vi,
+            line_starts=_line_starts,
         )
     else:
-        lexer = TclLexer(source, virtual_insertions=vi)
+        lexer = TclLexer(source, virtual_insertions=vi, line_starts=_line_starts)
+    # Share line_starts across recursive calls to avoid O(n) newline
+    # scanning per lexer instance.
+    if _line_starts is None:
+        _line_starts = lexer._line_starts
 
     # We need to track commands so we can identify BODY arguments.
     # Collect tokens per command, then emit them.
@@ -2561,7 +2567,13 @@ def _collect_tokens(
 
             if tok.type is TokenType.CMD:
                 # Always recurse into command substitutions
-                _collect_tokens(tokens, tok.text, body_token=tok, regex_positions=regex_positions)
+                _collect_tokens(
+                    tokens,
+                    tok.text,
+                    body_token=tok,
+                    regex_positions=regex_positions,
+                    _line_starts=_line_starts,
+                )
                 continue
 
             # Skip tokens already processed by _collect_switch_case_bodies.
@@ -2570,7 +2582,13 @@ def _collect_tokens(
 
             if tok.type is TokenType.STR and is_body and tok.text.strip():
                 # This is a body argument -- recurse instead of emitting as string
-                _collect_tokens(tokens, tok.text, body_token=tok, regex_positions=regex_positions)
+                _collect_tokens(
+                    tokens,
+                    tok.text,
+                    body_token=tok,
+                    regex_positions=regex_positions,
+                    _line_starts=_line_starts,
+                )
                 continue
 
             if tok.type is TokenType.STR and is_expr and tok.text.strip():

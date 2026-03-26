@@ -33,6 +33,7 @@ from core.parsing.tokens import Token
 
 # Lazy import to avoid circular dependencies at module load time.
 _style_diag_fn = None
+_style_diag_all_fn = None
 
 
 def _get_style_diag_fn():
@@ -43,6 +44,16 @@ def _get_style_diag_fn():
 
         _style_diag_fn = compute_style_diagnostics_for_range
     return _style_diag_fn
+
+
+def _get_style_diag_all_fn():
+    """Lazily import ``compute_all_style_diagnostics``."""
+    global _style_diag_all_fn
+    if _style_diag_all_fn is None:
+        from lsp.features.diagnostics import compute_all_style_diagnostics
+
+        _style_diag_all_fn = compute_all_style_diagnostics
+    return _style_diag_all_fn
 
 
 def _chunk_line_range(source: str, chunk: TopLevelChunk) -> tuple[int, int, int, int]:
@@ -64,6 +75,47 @@ def _chunk_line_range(source: str, chunk: TopLevelChunk) -> tuple[int, int, int,
     last_nl_end = end_prefix.rfind("\n")
     end_col = chunk.end_offset - (last_nl_end + 1)
     return start_line, start_col, end_line, end_col
+
+
+def _extract_chunk_ir(
+    compilation_unit: object | None,
+    chunks: list[TopLevelChunk],
+) -> list[tuple[tuple, dict]] | None:
+    """Extract per-chunk IR from an already-compiled ``IRModule``.
+
+    Returns a list parallel to *chunks* of ``(ir_stmts, ir_procs)`` tuples,
+    or ``None`` if the compilation unit / IR module is unavailable.  This
+    avoids redundant re-lowering of each chunk during cache building.
+    """
+    if compilation_unit is None:
+        return None
+    ir_module = getattr(compilation_unit, "ir_module", None)
+    if ir_module is None:
+        return None
+    top_stmts = ir_module.top_level.statements
+    all_procs = ir_module.procedures
+
+    result: list[tuple[tuple, dict]] = []
+    stmt_idx = 0
+    for chunk in chunks:
+        c_start = chunk.start_offset
+        c_end = chunk.end_offset
+        # Collect top-level statements whose range falls within this chunk.
+        chunk_stmts: list = []
+        while stmt_idx < len(top_stmts):
+            stmt = top_stmts[stmt_idx]
+            if stmt.range.start.offset >= c_end:
+                break
+            if stmt.range.start.offset >= c_start:
+                chunk_stmts.append(stmt)
+            stmt_idx += 1
+        # Collect procedures whose definition range falls within this chunk.
+        chunk_procs: dict = {}
+        for name, proc in all_procs.items():
+            if c_start <= proc.range.start.offset < c_end:
+                chunk_procs[name] = proc
+        result.append((tuple(chunk_stmts), chunk_procs))
+    return result
 
 
 log = logging.getLogger(__name__)
@@ -499,8 +551,12 @@ class DocumentState:
                     source,
                 )
 
-            # Compute style diagnostics for dirty chunks.
-            style_fn = _get_style_diag_fn()
+            # Compute style diagnostics once for the whole file, then
+            # partition by chunk using bisect.
+            from bisect import bisect_left, bisect_right
+
+            all_style_diags = _get_style_diag_all_fn()(source)
+            diag_lines = [d.range.start.line for d in all_style_diags]
 
             # Now process each dirty chunk and take snapshots.
             for i in range(dirty_idx, len(chunks)):
@@ -527,9 +583,11 @@ class DocumentState:
 
                         ir_stmts, ir_procs = lower_commands_to_ir(source, cmds)
 
-                # Style diagnostics for this chunk's line range.
+                # Partition pre-computed style diagnostics for this chunk.
                 start_line, _sc, end_line, _ec = _chunk_line_range(source, chunk)
-                style_diags = style_fn(source, start_line, end_line)
+                lo = bisect_left(diag_lines, start_line)
+                hi = bisect_right(diag_lines, end_line)
+                style_diags = all_style_diags[lo:hi]
 
                 # Extend chunk_caches to cover this index.
                 while len(chunk_caches) <= i:
@@ -586,11 +644,21 @@ class DocumentState:
         t_compile = time.perf_counter()
 
         self._update_proc_cache()
-        self.analysis = analyse(source, cu=self.compilation_unit)
+
+        # Analyse and build chunk caches in a single pass: process commands
+        # chunk-by-chunk, capturing snapshots at each boundary.  This avoids
+        # the old pattern of running analyse() then re-analysing per-chunk.
+        chunk_commands = [list(chunk.commands) for chunk in new_chunks]
+        analyser = Analyser()
+        self.analysis, chunk_snapshots = analyser.analyse_chunked(
+            source,
+            chunk_commands,
+            cu=self.compilation_unit,
+        )
         t_analyse = time.perf_counter()
 
-        # Build chunk caches for future incremental use.
-        self._build_full_chunk_caches(source, new_chunks)
+        # Build chunk caches using pre-built snapshots.
+        self._build_full_chunk_caches(source, new_chunks, chunk_snapshots)
         t_caches = time.perf_counter()
 
         n_procs = len(self.compilation_unit.procedures) if self.compilation_unit else 0
@@ -609,34 +677,61 @@ class DocumentState:
         self,
         source: str,
         chunks: list[TopLevelChunk],
+        chunk_snapshots: list[AnalyserSnapshot] | None = None,
     ) -> None:
-        """Build ``ChunkCache`` entries after a full rebuild."""
+        """Build ``ChunkCache`` entries after a full rebuild.
+
+        When *chunk_snapshots* is provided (from ``analyse_chunked``),
+        the snapshots are used directly — no re-analysis is performed.
+        """
         t0 = time.perf_counter()
         try:
-            from core.compiler.lowering import lower_commands_to_ir
+            from bisect import bisect_left, bisect_right
 
             caches: list[ChunkCache | None] = []
-            snapshot_analyser = Analyser()
-            snapshot_analyser._source = source
 
-            # Compute style diagnostics per chunk.
-            style_fn = _get_style_diag_fn()
+            # Compute style diagnostics once for the whole file, then
+            # partition by chunk using bisect (O(lines) + O(chunks×log(diags))
+            # instead of the old O(chunks×lines) approach).
+            all_style_diags = _get_style_diag_all_fn()(source)
+            diag_lines = [d.range.start.line for d in all_style_diags]
 
-            for chunk in chunks:
-                cmds = list(chunk.commands)
-                # Lower per-chunk IR.
-                ir_stmts, ir_procs = lower_commands_to_ir(source, cmds)
-                # Analyse commands for snapshot.
-                snapshot_analyser._analyse_commands_inner(
-                    cmds,
-                    snapshot_analyser._current_scope,
-                    source,
-                )
-                snap = snapshot_analyser.snapshot()
+            # Extract per-chunk IR from the already-compiled IRModule when
+            # available, avoiding redundant re-lowering of each chunk.
+            chunk_ir_map = _extract_chunk_ir(self.compilation_unit, chunks)
 
-                # Style diagnostics for this chunk's line range.
+            # Fall back to per-chunk analysis if no pre-built snapshots.
+            snapshot_analyser: Analyser | None = None
+            if chunk_snapshots is None:
+                snapshot_analyser = Analyser()
+                snapshot_analyser._source = source
+
+            for ci, chunk in enumerate(chunks):
+                # Use pre-extracted IR if available; fall back to lowering.
+                if chunk_ir_map is not None:
+                    ir_stmts, ir_procs = chunk_ir_map[ci]
+                else:
+                    from core.compiler.lowering import lower_commands_to_ir
+
+                    ir_stmts, ir_procs = lower_commands_to_ir(source, list(chunk.commands))
+
+                # Use pre-built snapshot or analyse this chunk for one.
+                if chunk_snapshots is not None:
+                    snap = chunk_snapshots[ci]
+                else:
+                    assert snapshot_analyser is not None
+                    snapshot_analyser._analyse_commands_inner(
+                        list(chunk.commands),
+                        snapshot_analyser._current_scope,
+                        source,
+                    )
+                    snap = snapshot_analyser.snapshot()
+
+                # Partition pre-computed style diagnostics for this chunk.
                 start_line, _sc, end_line, _ec = _chunk_line_range(source, chunk)
-                style_diags = style_fn(source, start_line, end_line)
+                lo = bisect_left(diag_lines, start_line)
+                hi = bisect_right(diag_lines, end_line)
+                style_diags = all_style_diags[lo:hi]
 
                 caches.append(
                     ChunkCache(
