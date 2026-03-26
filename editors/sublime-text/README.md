@@ -32,9 +32,9 @@ with a superset of its features across all Tcl dialects.
    Package Control for full language-server features
 
 **Python 3.10+** is required for LSP features. We recommend the latest
-stable Python (currently 3.13). Install via
+stable Python (currently 3.14). Install via
 [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-(`brew install python@3.13`) or
+(`brew install python@3.14`) or
 [python.org](https://www.python.org/downloads/).
 
 The `.sublime-package` bundles the server and all Python dependencies

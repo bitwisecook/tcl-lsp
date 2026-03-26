@@ -5,8 +5,8 @@ tcl-lsp works with Emacs via **eglot** (built-in since Emacs 29) or **lsp-mode**
 ## Prerequisites
 
 **Python 3.10+** is required. We recommend the latest stable Python
-(currently 3.13). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-(`brew install python@3.13`) or [python.org](https://www.python.org/downloads/).
+(currently 3.14). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
+(`brew install python@3.14`) or [python.org](https://www.python.org/downloads/).
 
 The `.pyz` zipapp bundles all Python dependencies internally — no
 `pip install` is needed. You only need a Python interpreter on your system.
@@ -25,7 +25,7 @@ python3 /path/to/tcl-lsp-server.pyz
 ```
 
 To point to a specific Python interpreter, use its full path as the first
-element of the command list (e.g. `"/opt/homebrew/bin/python3.13"`).
+element of the command list (e.g. `"/opt/homebrew/bin/python3.14"`).
 
 ## eglot (Emacs 29+)
 

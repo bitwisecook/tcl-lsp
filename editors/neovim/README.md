@@ -5,8 +5,8 @@ tcl-lsp works with Neovim's built-in LSP client. No plugin is required.
 ## Prerequisites
 
 **Python 3.10+** is required. We recommend the latest stable Python
-(currently 3.13). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-(`brew install python@3.13`) or [python.org](https://www.python.org/downloads/).
+(currently 3.14). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
+(`brew install python@3.14`) or [python.org](https://www.python.org/downloads/).
 
 The `.pyz` zipapp bundles all Python dependencies internally — no
 `pip install` is needed. You only need a Python interpreter on your system.
@@ -26,7 +26,7 @@ python3 /path/to/tcl-lsp-server.pyz
 
 To point to a specific Python interpreter, use the full path as the first
 element of `cmd` in your LSP config (e.g.
-`'/opt/homebrew/bin/python3.13'`).
+`'/opt/homebrew/bin/python3.14'`).
 
 ## Neovim 0.11+ (native LSP)
 

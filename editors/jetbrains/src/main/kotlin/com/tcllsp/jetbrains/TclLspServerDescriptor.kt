@@ -55,7 +55,7 @@ class TclLspServerDescriptor(project: Project) :
             } else {
                 "Tcl LSP: Python 3.10+ is required but was not found. " +
                 "The plugin bundles all Python dependencies, but a Python interpreter must be installed on your system. " +
-                "Install from https://www.python.org/downloads/ or via Homebrew (brew install python@3.13), " +
+                "Install from https://www.python.org/downloads/ or via Homebrew (brew install python@3.14), " +
                 "then set the path in Settings > Tools > Tcl Language Server. " +
                 "See https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite"
             }

@@ -6,8 +6,8 @@ IntelliJ Platform plugin providing Tcl language support via the [tcl-lsp](../../
 
 - IntelliJ IDEA Ultimate 2024.1+ (or other paid JetBrains IDE)
 - **Python 3.10+** — we recommend the latest stable Python (currently
-  3.13). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-  (`brew install python@3.13`) or
+  3.14). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
+  (`brew install python@3.14`) or
   [python.org](https://www.python.org/downloads/).
 
 The `.zip` plugin bundles the server and all Python dependencies

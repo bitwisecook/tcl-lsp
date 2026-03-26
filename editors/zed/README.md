@@ -32,8 +32,8 @@ or `#!/usr/bin/expect` are recognised as Tcl/Expect.
 ## Prerequisites
 
 - **Python 3.10+** — we recommend the latest stable Python (currently
-  3.13). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-  (`brew install python@3.13`) or
+  3.14). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
+  (`brew install python@3.14`) or
   [python.org](https://www.python.org/downloads/). The extension
   auto-discovers `python3.10`–`python3.15` on your PATH.
 - **Zed** — latest stable release
@@ -183,7 +183,7 @@ analysis tools to Zed's Agent panel:
 ## Troubleshooting
 
 **Python not found:** Ensure `python3` (3.10+) is on your PATH. The extension
-tries versioned binaries (`python3.13`, `python3.12`, etc.) before falling
+tries versioned binaries (`python3.14`, `python3.12`, etc.) before falling
 back to `python3`.
 
 **Server download fails:** Check your network connection. The extension

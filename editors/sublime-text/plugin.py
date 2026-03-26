@@ -128,7 +128,7 @@ def _discover_python():
     # type: () -> str
     """Find a suitable Python 3.10+ interpreter on PATH."""
     candidates = [
-        "python3.15", "python3.14", "python3.13", "python3.12",
+        "python3.15", "python3.14", "python3.14", "python3.12",
         "python3.11", "python3.10", "python3",
     ]
     for name in candidates:
@@ -245,7 +245,7 @@ try:
                     "The .sublime-package bundles all Python dependencies, "
                     "but a Python interpreter must be installed on your system.  "
                     "Install Python from https://www.python.org/downloads/ or "
-                    "via Homebrew (brew install python@3.13).  "
+                    "via Homebrew (brew install python@3.14).  "
                     "See https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md"
                     "#python-prerequisite for details."
                 ).format(python)

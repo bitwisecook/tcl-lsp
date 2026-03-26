@@ -24,7 +24,7 @@ const BUNDLED_MCP_BYTES: &[u8] =
 const PYTHON_CANDIDATES: &[&str] = &[
     "python3.15",
     "python3.14",
-    "python3.13",
+    "python3.14",
     "python3.12",
     "python3.11",
     "python3.10",
@@ -50,7 +50,7 @@ fn find_python(worktree: &zed::Worktree) -> Result<String> {
         "Python 3.10+ is required but was not found on PATH. \
          The extension bundles all Python dependencies, but a Python interpreter \
          must be installed on your system. Install from https://www.python.org/downloads/ \
-         or via Homebrew (brew install python@3.13), then restart Zed. \
+         or via Homebrew (brew install python@3.14), then restart Zed. \
          See https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite"
             .into(),
     )

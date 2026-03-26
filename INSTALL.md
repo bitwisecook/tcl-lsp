@@ -19,7 +19,7 @@ Each release publishes these artefacts:
 ## Python prerequisite
 
 tcl-lsp requires **Python 3.10 or newer**. We recommend installing the
-**latest stable Python** (currently 3.13) for the best performance and
+**latest stable Python** (currently 3.14) for the best performance and
 security updates.
 
 > **Bundled extensions (VS Code, Sublime Text, JetBrains):** The `.vsix`,
@@ -34,7 +34,7 @@ security updates.
 #### macOS (Homebrew — recommended)
 
 ```bash
-brew install python@3.13
+brew install python@3.14
 ```
 
 Homebrew installs to `/opt/homebrew/bin/python3` (Apple Silicon) or
@@ -85,7 +85,7 @@ you can tell the extension exactly which interpreter to use:
 | Zed | Discovered automatically from PATH |
 
 Set the value to the full path of your Python interpreter, e.g.
-`/opt/homebrew/bin/python3.13` or `C:\Python313\python.exe`.
+`/opt/homebrew/bin/python3.14` or `C:\Python313\python.exe`.
 When set to `"auto"` (the default for VS Code, Sublime Text, and
 JetBrains), the extension scans PATH and well-known locations for the
 highest available Python 3.10+ version.
@@ -118,7 +118,7 @@ Restart VS Code after installation. Settings are available under
 **Settings > Extensions > Tcl**.
 
 To use a specific Python interpreter, set **`tclLsp.pythonPath`** in
-VS Code settings to the full path (e.g. `/opt/homebrew/bin/python3.13`).
+VS Code settings to the full path (e.g. `/opt/homebrew/bin/python3.14`).
 The default `"auto"` scans PATH and well-known locations automatically.
 
 ---
@@ -170,7 +170,7 @@ To use a specific Python interpreter, set `python_path` in
 
 ```json
 {
-    "python_path": "/opt/homebrew/bin/python3.13"
+    "python_path": "/opt/homebrew/bin/python3.14"
 }
 ```
 
@@ -201,7 +201,7 @@ with guidance to install Python.
 
 Configure via **Settings > Tools > Tcl Language Server**. To use a
 specific Python interpreter, set the **Python path** field to the full
-path (e.g. `/opt/homebrew/bin/python3.13`).
+path (e.g. `/opt/homebrew/bin/python3.14`).
 
 ---
 
@@ -312,7 +312,7 @@ Or with lsp-mode:
 
 Replace `"python3"` with the full path to your Python 3.10+ interpreter
 if `python3` on your PATH is too old or absent (e.g.
-`"/opt/homebrew/bin/python3.13"`). Replace `/path/to/tcl-lsp-server.pyz`
+`"/opt/homebrew/bin/python3.14"`). Replace `/path/to/tcl-lsp-server.pyz`
 with the actual path where you saved the file.
 
 See [editors/emacs/README.md](editors/emacs/README.md) for settings and
@@ -348,7 +348,7 @@ language-servers = ["tcl-lsp"]
 ```
 
 Replace `"python3"` with the full path to your interpreter if needed
-(e.g. `"/opt/homebrew/bin/python3.13"`).
+(e.g. `"/opt/homebrew/bin/python3.14"`).
 
 ### Windows
 
