@@ -1290,3 +1290,39 @@ class TestW123UnresolvedCommand:
         upi = result.unknown_proc_info
         assert upi is not None
         assert "foo" in upi.dispatch_targets
+
+
+class TestSourceTargets:
+    """Verify that the analyser extracts ``source`` command targets."""
+
+    def test_literal_source(self):
+        result = analyse('source lib/utils.tcl')
+        assert len(result.source_targets) == 1
+        st = result.source_targets[0]
+        assert st.raw_path == "lib/utils.tcl"
+        assert st.is_literal is True
+
+    def test_variable_source_not_literal(self):
+        result = analyse('source $dir/utils.tcl')
+        assert len(result.source_targets) == 1
+        assert result.source_targets[0].is_literal is False
+
+    def test_cmd_subst_source_not_literal(self):
+        result = analyse('source [file join [file dirname [info script]] helper.tcl]')
+        assert len(result.source_targets) == 1
+        assert result.source_targets[0].is_literal is False
+
+    def test_source_with_encoding(self):
+        result = analyse('source -encoding utf-8 myfile.tcl')
+        assert len(result.source_targets) == 1
+        st = result.source_targets[0]
+        assert st.raw_path == "myfile.tcl"
+        assert st.is_literal is True
+
+    def test_multiple_sources(self):
+        source = "source a.tcl\nsource b.tcl\nsource $c"
+        result = analyse(source)
+        assert len(result.source_targets) == 3
+        assert result.source_targets[0].is_literal is True
+        assert result.source_targets[1].is_literal is True
+        assert result.source_targets[2].is_literal is False

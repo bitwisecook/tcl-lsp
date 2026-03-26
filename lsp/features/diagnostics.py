@@ -13,6 +13,7 @@ from core.analysis.semantic_model import (
     Diagnostic,
     Range,
     Severity,
+    WorkspaceDiagnosticContext,
 )
 from core.commands.registry import REGISTRY
 from core.common.codes import diag
@@ -459,10 +460,38 @@ def compute_all_style_diagnostics(
 # W120: command without package require
 
 
+def _inherited_packages(
+    uri: str | None,
+    ctx: WorkspaceDiagnosticContext,
+) -> frozenset[str]:
+    """Return packages inherited from files that ``source`` this file.
+
+    Walks the reverse source graph: for each file that includes *uri*
+    via ``source``, collect its ``package require`` names.  Falls back
+    to all workspace package names when the source graph is empty or
+    *uri* is unknown.
+    """
+    if not uri or not ctx.source_graph:
+        return ctx.workspace_package_names
+
+    # Reverse lookup: find all files whose source_graph includes uri.
+    inherited: set[str] = set()
+    for src_uri, targets in ctx.source_graph.items():
+        if uri in targets:
+            inherited.update(ctx.package_names_by_uri.get(src_uri, frozenset()))
+    # If nothing found in the graph, fall back to all workspace packages
+    # to avoid false positives for files not yet in the graph.
+    if not inherited:
+        return ctx.workspace_package_names
+    return frozenset(inherited)
+
+
 @diag("W120", "Command used without a corresponding `package require`.", section="warning")
 def _check_missing_package_require(
     result: AnalysisResult,
     suppressed: dict[int, frozenset[str]],
+    workspace_context: WorkspaceDiagnosticContext | None = None,
+    uri: str | None = None,
 ) -> list[Diagnostic]:
     """W120: Flag package-gated commands used without a ``package require``."""
     # Skip entirely when the dialect does not support ``package require``
@@ -471,7 +500,17 @@ def _check_missing_package_require(
     dialect = active_dialect()
     if REGISTRY.get("package", dialect) is None:
         return []
+    # When packages are loaded dynamically (variable/command substitution in
+    # ``package require``, ``load``, ``auto_path``, etc.) we cannot know which
+    # commands are available — suppress W120 entirely.
+    if result.has_dynamic_providers:
+        return []
     imported = result.active_package_names()
+    # Expand with packages from files that ``source`` this file (parent
+    # files in the dependency graph).  If no source graph is available,
+    # fall back to all workspace package names.
+    if workspace_context:
+        imported = imported | _inherited_packages(uri, workspace_context)
     seen: set[str] = set()
     diagnostics: list[Diagnostic] = []
     for inv in result.command_invocations:
@@ -535,6 +574,8 @@ def get_basic_diagnostics(
     disabled_optimisations: set[str] | None = None,
     line_length: int = 120,
     cached_style_diagnostics: list[types.Diagnostic] | None = None,
+    workspace_context: WorkspaceDiagnosticContext | None = None,
+    uri: str | None = None,
 ) -> tuple[list[types.Diagnostic], AnalysisResult, dict[int, frozenset[str]]]:
     """Return fast diagnostics: analysis warnings + style checks.
 
@@ -549,12 +590,26 @@ def get_basic_diagnostics(
 
     result = analysis if analysis is not None else analyse(source, cu=cu)
     suppressed = result.suppressed_lines
+
+    # Pre-compute workspace proc tail names for W123 filtering.
+    _ws_proc_tails: frozenset[str] | None = None
+    if workspace_context and workspace_context.workspace_proc_names:
+        _ws_proc_tails = frozenset(
+            qn.rsplit("::", 1)[-1] for qn in workspace_context.workspace_proc_names
+        )
+
     diags: list[types.Diagnostic] = []
     for d in result.diagnostics:
         if disabled_diagnostics and d.code in disabled_diagnostics:
             continue
         if suppressed and _is_suppressed(d.code, d.range.start.line, suppressed):
             continue
+        # W123: suppress if the unknown command is a workspace proc.
+        if d.code == "W123" and _ws_proc_tails is not None:
+            # Extract command name from message: "Unknown command 'foo'"
+            cmd = d.message.split("'")[1] if "'" in d.message else ""
+            if cmd in _ws_proc_tails:
+                continue
         diags.append(_to_lsp_diagnostic(d))
         if (
             optimiser_enabled
@@ -600,7 +655,7 @@ def get_basic_diagnostics(
 
     # W120: command without package require
     if not (disabled_diagnostics and "W120" in disabled_diagnostics):
-        for d in _check_missing_package_require(result, suppressed):
+        for d in _check_missing_package_require(result, suppressed, workspace_context, uri):
             diags.append(_to_lsp_diagnostic(d))
 
     return diags, result, suppressed
@@ -793,6 +848,7 @@ def get_diagnostics(
     disabled_optimisations: set[str] | None = None,
     uri: str | None = None,
     line_length: int = 120,
+    workspace_context: WorkspaceDiagnosticContext | None = None,
 ) -> list[types.Diagnostic]:
     """Analyse source and return all LSP diagnostics (basic + deep).
 
@@ -809,6 +865,8 @@ def get_diagnostics(
         disabled_diagnostics=disabled_diagnostics,
         disabled_optimisations=disabled_optimisations,
         line_length=line_length,
+        workspace_context=workspace_context,
+        uri=uri,
     )
     deep = get_deep_diagnostics(
         source,

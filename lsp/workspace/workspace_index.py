@@ -66,6 +66,8 @@ class WorkspaceIndex:
         self._irules_global_procs: dict[str, list[IndexEntry]] = {}
         # iRules: cross-file RULE_INIT variables, keyed by normalised var name
         self._irules_rule_init_vars: dict[str, list[RuleInitVarDef]] = {}
+        # Source dependency graph: uri -> set of resolved URIs that file sources
+        self._source_graph: dict[str, frozenset[str]] = {}
 
     def update(
         self,
@@ -299,3 +301,42 @@ class WorkspaceIndex:
         """Get the analysis result for a URI."""
         with self._lock:
             return self._per_uri.get(uri)
+
+    # ------------------------------------------------------------------
+    # Source dependency graph
+    # ------------------------------------------------------------------
+
+    def update_source_graph(self, uri: str, sourced_uris: frozenset[str]) -> None:
+        """Record which files *uri* ``source``-includes."""
+        with self._lock:
+            self._source_graph[uri] = sourced_uris
+
+    def transitive_sources(self, uri: str) -> frozenset[str]:
+        """Return all URIs transitively sourced by *uri*."""
+        with self._lock:
+            visited: set[str] = set()
+            stack = [uri]
+            while stack:
+                current = stack.pop()
+                if current in visited:
+                    continue
+                visited.add(current)
+                for dep in self._source_graph.get(current, frozenset()):
+                    if dep not in visited:
+                        stack.append(dep)
+            visited.discard(uri)
+            return frozenset(visited)
+
+    def reverse_dependents(self, uri: str) -> frozenset[str]:
+        """Return all URIs that transitively ``source`` *uri*."""
+        with self._lock:
+            result: set[str] = set()
+            for src_uri, targets in self._source_graph.items():
+                if uri in targets:
+                    result.add(src_uri)
+            return frozenset(result)
+
+    def source_graph_snapshot(self) -> dict[str, frozenset[str]]:
+        """Return an immutable copy of the source graph."""
+        with self._lock:
+            return dict(self._source_graph)

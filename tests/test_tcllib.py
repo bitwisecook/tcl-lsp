@@ -356,3 +356,117 @@ class TestTcllibDiagnostics:
         diags = get_diagnostics(source, disabled_diagnostics={"W120"})
         w120 = [d for d in diags if d.code == "W120"]
         assert len(w120) == 0
+
+    # Dynamic package require — issue #40
+
+    def test_no_w120_with_dynamic_package_require_variable(self):
+        """package require $pkg suppresses W120 (dynamic provider)."""
+        source = "package require $pkg\njson::json2dict $data"
+        diags = get_diagnostics(source)
+        w120 = [d for d in diags if d.code == "W120"]
+        assert len(w120) == 0
+
+    def test_no_w120_with_dynamic_package_require_cmd_subst(self):
+        """package require [get_pkg] suppresses W120."""
+        source = "package require [get_pkg]\njson::json2dict $data"
+        diags = get_diagnostics(source)
+        w120 = [d for d in diags if d.code == "W120"]
+        assert len(w120) == 0
+
+    def test_no_w120_with_foreach_dynamic_require(self):
+        """foreach loop with package require $p suppresses W120."""
+        source = (
+            "set packages {json base64}\n"
+            "foreach p $packages {\n"
+            "    package require $p\n"
+            "}\n"
+            "json::json2dict $data"
+        )
+        diags = get_diagnostics(source)
+        w120 = [d for d in diags if d.code == "W120"]
+        assert len(w120) == 0
+
+    def test_w120_still_works_with_static_require(self):
+        """Static package require continues to suppress W120 normally."""
+        source = "package require json\njson::json2dict $data"
+        diags = get_diagnostics(source)
+        w120 = [d for d in diags if d.code == "W120"]
+        assert len(w120) == 0
+
+
+# Workspace context — cross-file diagnostics
+
+
+class TestWorkspaceDiagnosticContext:
+    """Verify WorkspaceDiagnosticContext suppresses false positives."""
+
+    def test_w120_suppressed_by_workspace_package(self):
+        """W120 suppressed when package is required in another workspace file."""
+        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+
+        source = "json::json2dict $data"
+        ws_ctx = WorkspaceDiagnosticContext(
+            workspace_package_names=frozenset({"json"}),
+        )
+        diags = get_diagnostics(source, workspace_context=ws_ctx)
+        w120 = [d for d in diags if d.code == "W120"]
+        assert len(w120) == 0
+
+    def test_w120_still_emitted_without_workspace_package(self):
+        """W120 still fires when package is not in workspace context."""
+        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+
+        source = "json::json2dict $data"
+        ws_ctx = WorkspaceDiagnosticContext(
+            workspace_package_names=frozenset({"http"}),  # not json
+        )
+        diags = get_diagnostics(source, workspace_context=ws_ctx)
+        w120 = [d for d in diags if d.code == "W120"]
+        assert len(w120) == 1
+
+    def test_w123_suppressed_by_workspace_proc(self):
+        """W123 suppressed when command exists as a workspace proc."""
+        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+
+        source = "my_custom_proc arg1 arg2"
+        ws_ctx = WorkspaceDiagnosticContext(
+            workspace_proc_names=frozenset({"::my_custom_proc"}),
+        )
+        diags = get_diagnostics(source, workspace_context=ws_ctx)
+        w123 = [d for d in diags if d.code == "W123"]
+        assert len(w123) == 0
+
+    def test_w120_suppressed_by_source_graph_parent(self):
+        """W120 suppressed when parent file (via source graph) has the package."""
+        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+
+        source = "json::json2dict $data"
+        parent_uri = "file:///project/main.tcl"
+        child_uri = "file:///project/lib.tcl"
+        ws_ctx = WorkspaceDiagnosticContext(
+            workspace_package_names=frozenset({"json", "http"}),
+            package_names_by_uri={parent_uri: frozenset({"json"})},
+            source_graph={parent_uri: frozenset({child_uri})},
+        )
+        diags = get_diagnostics(source, workspace_context=ws_ctx, uri=child_uri)
+        w120 = [d for d in diags if d.code == "W120"]
+        assert len(w120) == 0
+
+    def test_w120_not_suppressed_by_unrelated_source_graph(self):
+        """W120 still fires when source graph exists but file is not sourced."""
+        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+
+        source = "json::json2dict $data"
+        parent_uri = "file:///project/main.tcl"
+        other_uri = "file:///project/other.tcl"
+        orphan_uri = "file:///project/orphan.tcl"
+        ws_ctx = WorkspaceDiagnosticContext(
+            workspace_package_names=frozenset({"json"}),
+            package_names_by_uri={parent_uri: frozenset({"json"})},
+            source_graph={parent_uri: frozenset({other_uri})},
+        )
+        # orphan_uri is not sourced by anyone — falls back to workspace packages
+        diags = get_diagnostics(source, workspace_context=ws_ctx, uri=orphan_uri)
+        w120 = [d for d in diags if d.code == "W120"]
+        # Falls back to workspace_package_names which includes json
+        assert len(w120) == 0

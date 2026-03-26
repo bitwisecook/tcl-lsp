@@ -72,6 +72,7 @@ from .semantic_model import (
     RegexPattern,
     Scope,
     Severity,
+    SourceTarget,
     UnknownProcInfo,
     VarDef,
 )
@@ -1307,6 +1308,19 @@ class Analyser:
                         pkg_version = args[3] if len(args) >= 4 else None
                     else:
                         pkg_version = args[2] if len(args) >= 3 else None
+                    # Detect dynamic package names (variable or command
+                    # substitution).  When the name is not a static
+                    # literal we cannot know which packages are loaded,
+                    # so mark the file as having dynamic providers.
+                    pkg_arg_idx = 2 if args[0] == "-exact" else 1
+                    if pkg_arg_idx < len(arg_tokens):
+                        _pt = arg_tokens[pkg_arg_idx]
+                        if (
+                            _pt.type in (TokenType.VAR, TokenType.CMD)
+                            or "$" in pkg_name
+                            or "[" in pkg_name
+                        ):
+                            self.result.has_dynamic_providers = True
                     self.result.package_requires.append(
                         PackageRequire(
                             name=pkg_name,
@@ -1337,6 +1351,26 @@ class Analyser:
             self.result.has_dynamic_providers = True
         elif cmd_name == "namespace" and len(args) >= 2 and args[0] == "import":
             self.result.has_dynamic_providers = True
+
+        # Record source command targets for cross-file dependency tracking.
+        if cmd_name == "source" and args:
+            # Skip -encoding flag: source ?-encoding enc? fileName
+            file_idx = 2 if args[0] == "-encoding" and len(args) >= 3 else 0
+            if file_idx < len(args) and file_idx < len(arg_tokens):
+                _st = arg_tokens[file_idx]
+                _path = args[file_idx]
+                _is_lit = (
+                    _st.type not in (TokenType.VAR, TokenType.CMD)
+                    and "$" not in _path
+                    and "[" not in _path
+                )
+                self.result.source_targets.append(
+                    SourceTarget(
+                        raw_path=_path,
+                        range=range_from_token(_st),
+                        is_literal=_is_lit,
+                    )
+                )
 
         # W002 and built-in arity (E001-E003, W001) are now emitted by
         # the IR-based _arity_checks in compiler_checks.py.

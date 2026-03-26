@@ -201,6 +201,15 @@ class PackageProvide:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceTarget:
+    """A ``source`` command target observed during analysis."""
+
+    raw_path: str  # literal path text (may contain substitutions)
+    range: Range
+    is_literal: bool  # False if path contains $ or [ substitutions
+
+
+@dataclass(frozen=True, slots=True)
 class PackageContext:
     """Packages active in a file, with confidence levels.
 
@@ -234,6 +243,23 @@ class Confidence(Enum):
     DEFINITE = auto()  # unconditional package require
     PROBABLE = auto()  # conditional require (if/catch guard)
     UNKNOWN = auto()  # dynamic provider detected
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceDiagnosticContext:
+    """Immutable cross-file context for diagnostics.
+
+    Built once per diagnostic cycle from the workspace index on the
+    event-loop thread, then passed to diagnostic functions running in
+    background threads.  Frozen to guarantee thread safety.
+    """
+
+    workspace_proc_names: frozenset[str] = field(default_factory=frozenset)
+    workspace_package_names: frozenset[str] = field(default_factory=frozenset)
+    # Per-URI package names (for cross-file source graph resolution).
+    package_names_by_uri: dict[str, frozenset[str]] = field(default_factory=dict)
+    # Source dependency graph: uri -> set of URIs that file sources.
+    source_graph: dict[str, frozenset[str]] = field(default_factory=dict)
 
 
 # Stub command definition from structured comments
@@ -325,6 +351,7 @@ class AnalysisResult:
     package_requires: list[PackageRequire] = field(default_factory=list)
     package_provides: list[PackageProvide] = field(default_factory=list)
     has_dynamic_providers: bool = False  # True if load/auto_path detected
+    source_targets: list[SourceTarget] = field(default_factory=list)
     stub_commands: list[StubCommandDef] = field(default_factory=list)
     stub_expr_defs: list[StubExprDef] = field(default_factory=list)
     # Command aliases: maps qualified alias_name (e.g. ``::=``) to
@@ -366,6 +393,7 @@ class AnalysisResult:
             package_requires=list(self.package_requires),
             package_provides=list(self.package_provides),
             has_dynamic_providers=self.has_dynamic_providers,
+            source_targets=list(self.source_targets),
             stub_commands=list(self.stub_commands),
             stub_expr_defs=list(self.stub_expr_defs),
             command_aliases=dict(self.command_aliases),

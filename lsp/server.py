@@ -1703,6 +1703,34 @@ def _publish_diags_to_client(
     )
 
 
+def _build_workspace_diagnostic_context():
+    """Build a frozen snapshot of cross-file context for diagnostics.
+
+    Must be called on the event-loop thread where ``workspace_index``
+    reads are safe.  The returned object is immutable and can be passed
+    to background threads.
+    """
+    from core.analysis.semantic_model import WorkspaceDiagnosticContext
+
+    # Collect per-URI and global package names across the workspace.
+    ws_pkg_names: set[str] = set()
+    pkg_by_uri: dict[str, frozenset[str]] = {}
+    for pkg_uri in workspace_index.all_uris():
+        analysis = workspace_index.get_analysis(pkg_uri)
+        if analysis is not None:
+            names = analysis.active_package_names()
+            ws_pkg_names.update(names)
+            if names:
+                pkg_by_uri[pkg_uri] = names
+
+    return WorkspaceDiagnosticContext(
+        workspace_proc_names=frozenset(workspace_index.all_proc_names()),
+        workspace_package_names=frozenset(ws_pkg_names),
+        package_names_by_uri=pkg_by_uri,
+        source_graph=workspace_index.source_graph_snapshot(),
+    )
+
+
 def _update_workspace_index(uri: str, source: str, state: object) -> None:
     """Update workspace index after a stable analysis."""
     from .workspace.document_state import DocumentState
@@ -1712,6 +1740,18 @@ def _update_workspace_index(uri: str, source: str, state: object) -> None:
     if not state.analysis or state.has_partial_commands:
         return
     workspace_index.update(uri, state.analysis, EntrySource.OPEN)
+    # Update source dependency graph.
+    if state.analysis.source_targets:
+        from core.analysis.source_resolver import resolve_source_target
+
+        script_path = uri_to_path(uri) or ""
+        ws_roots = list(background_scanner._workspace_roots)
+        sourced: set[str] = set()
+        for st in state.analysis.source_targets:
+            resolved = resolve_source_target(st.raw_path, st.is_literal, script_path, ws_roots)
+            if resolved:
+                sourced.add(path_to_uri(resolved))
+        workspace_index.update_source_graph(uri, frozenset(sourced))
     if _is_irules_source(uri):
         if state.analysis.all_procs:
             workspace_index.update_irules_globals(
@@ -1743,6 +1783,7 @@ def _publish_diagnostics_sync(
     partial_mode = state.has_partial_commands
 
     if feature_config.diagnostics_enabled:
+        ws_ctx = _build_workspace_diagnostic_context()
         diagnostics = get_diagnostics(
             source,
             analysis=state.analysis,
@@ -1755,6 +1796,7 @@ def _publish_diagnostics_sync(
             disabled_optimisations=feature_config.disabled_optimisations,
             uri=uri,
             line_length=feature_config.line_length,
+            workspace_context=ws_ctx,
         )
     else:
         diagnostics = []
@@ -1866,6 +1908,10 @@ async def _publish_diagnostics(
             line_length=line_length,
         )
 
+        # Snapshot workspace context for cross-file diagnostics.
+        # Built on the event loop where workspace_index reads are safe.
+        ws_ctx = _build_workspace_diagnostic_context()
+
         def _phase1():
             """Run CPU-heavy diagnostics in a thread to keep the event loop free."""
             return get_basic_diagnostics(
@@ -1877,6 +1923,8 @@ async def _publish_diagnostics(
                 disabled_optimisations=disabled_optimisations,
                 line_length=line_length,
                 cached_style_diagnostics=cached_style,
+                workspace_context=ws_ctx,
+                uri=uri,
             )
 
         t_phase1 = time.perf_counter()
