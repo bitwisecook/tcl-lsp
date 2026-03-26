@@ -78,3 +78,15 @@ def expr_alias_names(aliases: CommandAliasMap) -> frozenset[str]:
                 if short:
                     result.add(short)
     return frozenset(result)
+
+
+def lookup_alias_for_word(
+    word: str, aliases: CommandAliasMap
+) -> tuple[str, tuple[str, ...]] | None:
+    """Find an alias entry matching a bare command word.
+
+    Tries ``::word`` (global qualified form).  Returns
+    ``(target_cmd, prepended_args)`` or ``None``.
+    """
+    qualified = normalise_qualified_name(word)
+    return aliases.get(qualified)

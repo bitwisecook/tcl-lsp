@@ -7,6 +7,7 @@ from lsprotocol import types
 from core.analysis.analyser import analyse
 from core.analysis.proc_lookup import find_proc_by_reference
 from core.analysis.semantic_model import AnalysisResult, ProcDef
+from core.common.alias import lookup_alias_for_word
 from core.commands.registry import REGISTRY
 from core.commands.registry.models import CommandSpec
 from core.commands.registry.runtime import SIGNATURES, SubcommandSig
@@ -230,13 +231,22 @@ def get_signature_help(
     # Active parameter is the argument index (word_index 1 = first arg = param 0)
     active_param = word_index - 1
 
+    # Resolve alias to target command for signature lookup.
+    resolved_command = command
+    if analysis.command_aliases:
+        alias_info = lookup_alias_for_word(command, analysis.command_aliases)
+        if alias_info is not None:
+            target_cmd, prepended = alias_info
+            resolved_command = target_cmd
+            active_param = max(0, active_param - len(prepended))
+
     # Check user-defined procs first
-    proc_match = find_proc_by_reference(analysis, command)
+    proc_match = find_proc_by_reference(analysis, resolved_command)
     if proc_match is not None:
         _qname, proc_def = proc_match
         return _proc_signature_help(proc_def, active_param)
 
     # Built-in command
     return _builtin_signature_help(
-        command, args, active_param, active_packages=analysis.active_package_names()
+        resolved_command, args, active_param, active_packages=analysis.active_package_names()
     )

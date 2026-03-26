@@ -856,6 +856,9 @@ def _classify_token(tok_type: TokenType, text: str, *, is_command_name: bool) ->
                     return _TYPE_INDEX["keyword"]
                 if text in _OPERATORS:
                     return _TYPE_INDEX["operator"]
+                # Command aliases (interp alias) also land here as
+                # "function" — this is correct since they are user-defined,
+                # matching proc styling.
                 return _TYPE_INDEX["function"]
             # Check if it's a number
             try:
