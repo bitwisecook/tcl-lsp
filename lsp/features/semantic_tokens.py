@@ -3004,6 +3004,83 @@ def semantic_tokens_full(
     return result
 
 
+def precompute_chunk_tokens(
+    source: str,
+    chunk_line_ranges: list[tuple[int, int, int, int]],
+    analysis: AnalysisResult | None = None,
+    *,
+    is_bigip_conf: bool = False,
+    is_irules: bool = False,
+    is_apl: bool = False,
+) -> list[list[tuple[int, int, int, int, int]]]:
+    """Pre-compute per-chunk semantic tokens in the background thread.
+
+    Runs the same ``_collect_tokens`` pass as ``semantic_tokens_full``
+    but partitions the result into per-chunk absolute-position token
+    lists suitable for storing in ``ChunkCache.semantic_tokens_abs``.
+
+    This eliminates the redundant full-document lex that would otherwise
+    happen when the editor requests semantic tokens before the background
+    analysis finishes, or on the ``workspace/semanticTokens/refresh``
+    that follows the analysis pass.
+    """
+    from bisect import bisect_left
+
+    t0 = time.perf_counter()
+
+    regex_positions: frozenset[tuple[int, int]] = frozenset()
+    if analysis is not None:
+        regex_positions = analysis.regex_position_set
+
+    raw_tokens: list[tuple[int, int, int, int, int]] = []
+    base_tokens: list[tuple[int, int, int, int, int]] = []
+    _collect_tokens(base_tokens, source, regex_positions=regex_positions)
+
+    if is_bigip_conf:
+        embedded_tokens: list[tuple[int, int, int, int, int]] = []
+        body_ranges = _collect_embedded_tcl_tokens(
+            embedded_tokens, source, regex_positions=regex_positions
+        )
+        if body_ranges:
+            body_ranges.sort()
+            _range_starts = [s for s, _e in body_ranges]
+            _range_ends = [e for _s, e in body_ranges]
+
+            def _in_body(line: int) -> bool:
+                idx = bisect_right(_range_starts, line) - 1
+                return idx >= 0 and line <= _range_ends[idx]
+
+            base_tokens = [tok for tok in base_tokens if not _in_body(tok[0])]
+        raw_tokens.extend(base_tokens)
+        raw_tokens.extend(embedded_tokens)
+        _collect_bigip_tokens(raw_tokens, source)
+        _collect_bigip_embedded_irules_object_tokens(raw_tokens, source)
+    else:
+        raw_tokens.extend(base_tokens)
+    if is_irules:
+        _collect_irules_object_tokens(raw_tokens, source)
+    if is_apl:
+        _collect_apl_tokens(raw_tokens, source)
+
+    raw_tokens.sort(key=lambda t: (t[0], t[1]))
+
+    # Partition into per-chunk lists using binary search.
+    keys = [(t[0], t[1]) for t in raw_tokens]
+    chunk_tokens: list[list[tuple[int, int, int, int, int]]] = []
+    for sl, sc, el, ec in chunk_line_ranges:
+        lo = bisect_left(keys, (sl, sc))
+        hi = bisect_left(keys, (el, ec))
+        chunk_tokens.append(raw_tokens[lo:hi])
+
+    log.info(
+        "[timing] precompute_chunk_tokens %.0fms (tokens=%d, chunks=%d)",
+        (time.perf_counter() - t0) * 1000,
+        len(raw_tokens),
+        len(chunk_line_ranges),
+    )
+    return chunk_tokens
+
+
 def _delta_encode(raw_tokens: list[tuple[int, int, int, int, int]]) -> list[int]:
     """Convert absolute-position tokens to LSP delta-encoded format.
 

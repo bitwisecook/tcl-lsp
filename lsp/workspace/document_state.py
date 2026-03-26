@@ -43,6 +43,7 @@ from core.parsing.tokens import Token
 # Lazy import to avoid circular dependencies at module load time.
 _style_diag_fn = None
 _style_diag_all_fn = None
+_precompute_chunk_tokens_fn = None
 
 
 def _get_style_diag_fn():
@@ -63,6 +64,16 @@ def _get_style_diag_all_fn():
 
         _style_diag_all_fn = compute_all_style_diagnostics
     return _style_diag_all_fn
+
+
+def _get_precompute_chunk_tokens_fn():
+    """Lazily import ``precompute_chunk_tokens``."""
+    global _precompute_chunk_tokens_fn
+    if _precompute_chunk_tokens_fn is None:
+        from lsp.features.semantic_tokens import precompute_chunk_tokens
+
+        _precompute_chunk_tokens_fn = precompute_chunk_tokens
+    return _precompute_chunk_tokens_fn
 
 
 def _chunk_line_range(
@@ -712,6 +723,7 @@ class DocumentState:
                 ir_module,
                 compilation_unit,
                 line_length=line_length,
+                analysis=analysis,
             )
         t_caches = time.perf_counter()
 
@@ -751,12 +763,16 @@ class DocumentState:
         compilation_unit: CompilationUnit | None,
         *,
         line_length: int = 120,
+        analysis: AnalysisResult | None = None,
     ) -> None:
         """Build ``ChunkCache`` entries for dirty chunks using pre-built snapshots.
 
         Unlike the old ``_rebuild_chunk_caches_for_dirty``, this does **not**
         re-run the analyser — it uses snapshots captured by ``analyse_chunked``
         during the single analysis pass.
+
+        When *analysis* is provided, semantic tokens are pre-computed for
+        dirty chunks so the next ``semanticTokens/full`` gets a cache hit.
         """
         try:
             from bisect import bisect_left, bisect_right
@@ -798,6 +814,28 @@ class DocumentState:
                     analyser_snapshot_after=snap,
                     style_diagnostics=style_diags,
                     style_line_length=line_length,
+                )
+
+            # Pre-compute semantic tokens for dirty chunks so the next
+            # semanticTokens/full request gets a cache hit.
+            try:
+                chunk_line_ranges = [_chunk_line_range(buf, c) for c in chunks]
+                uri_lower = self.uri.lower()
+                is_irules = uri_lower.endswith(".irul") or uri_lower.endswith(".irule")
+                chunk_toks = _get_precompute_chunk_tokens_fn()(
+                    source,
+                    chunk_line_ranges,
+                    analysis=analysis,
+                    is_irules=is_irules,
+                )
+                for ci in range(dirty_idx, len(chunks)):
+                    cc = chunk_caches[ci] if ci < len(chunk_caches) else None
+                    if cc is not None and ci < len(chunk_toks):
+                        cc.semantic_tokens_abs = chunk_toks[ci]
+            except Exception:
+                log.debug(
+                    "document_state: semantic token precompute failed (dirty)",
+                    exc_info=True,
                 )
         except Exception:
             log.debug(
@@ -857,12 +895,16 @@ class DocumentState:
         t_analyse = time.perf_counter()
 
         # Build chunk caches using pre-built snapshots.
+        # Pass analysis so semantic tokens are pre-computed per chunk,
+        # eliminating the redundant full-document lex on the first
+        # semanticTokens/full request.
         chunk_caches = self._build_full_chunk_caches(
             source,
             new_chunks,
             chunk_snapshots,
             compilation_unit,
             line_length=line_length,
+            analysis=analysis,
         )
         t_caches = time.perf_counter()
 
@@ -898,11 +940,16 @@ class DocumentState:
         compilation_unit: CompilationUnit | None,
         *,
         line_length: int = 120,
+        analysis: AnalysisResult | None = None,
     ) -> list[ChunkCache | None]:
         """Build ``ChunkCache`` entries after a full rebuild.
 
         When *chunk_snapshots* is provided (from ``analyse_chunked``),
         the snapshots are used directly — no re-analysis is performed.
+
+        When *analysis* is provided, semantic tokens are pre-computed
+        for each chunk so that the first ``semanticTokens/full`` request
+        after analysis gets a full cache hit without re-lexing.
 
         Returns the list of chunk caches (does not write to ``self``).
         """
@@ -965,6 +1012,26 @@ class DocumentState:
                         style_diagnostics=style_diags,
                         style_line_length=line_length,
                     )
+                )
+            # Pre-compute semantic tokens per chunk so the first
+            # semanticTokens/full request gets a full cache hit.
+            try:
+                chunk_line_ranges = [_chunk_line_range(buf, c) for c in chunks]
+                uri_lower = self.uri.lower()
+                is_irules = uri_lower.endswith(".irul") or uri_lower.endswith(".irule")
+                chunk_toks = _get_precompute_chunk_tokens_fn()(
+                    source,
+                    chunk_line_ranges,
+                    analysis=analysis,
+                    is_irules=is_irules,
+                )
+                for ci, cc in enumerate(caches):
+                    if cc is not None and ci < len(chunk_toks):
+                        cc.semantic_tokens_abs = chunk_toks[ci]
+            except Exception:
+                log.debug(
+                    "document_state: semantic token precompute failed",
+                    exc_info=True,
                 )
             result = caches
         except Exception:
