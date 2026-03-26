@@ -368,6 +368,12 @@ class TestExprRefactorCodeActions:
 class TestTaintQuickFixes:
     """Code actions for taint diagnostics — wrapping and '--' insertion."""
 
+    def setup_method(self):
+        configure_signatures(dialect="f5-irules")
+
+    def teardown_method(self):
+        configure_signatures(dialect="tcl8.6")
+
     def _fix_actions(
         self,
         source: str,

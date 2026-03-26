@@ -77,6 +77,7 @@ class BackgroundScanner:
         self._workspace_roots: list[str] = []
         self._bigip_configs: dict[str, BigipConfig] = {}  # uri -> BigipConfig
         self._apl_models: dict[str, AplModel] = {}  # uri -> AplModel
+        self._auto_index_entries: dict[str, str] = {}  # proc_name -> abs path
 
     def configure(
         self,
@@ -93,11 +94,14 @@ class BackgroundScanner:
 
         Returns a list of ``(full_path, ext)`` pairs for Tcl files.
         BIG-IP config files are parsed eagerly (they're lightweight).
+        tclIndex files are parsed to discover additional source files.
         """
         self._cached.clear()
         self._bigip_configs.clear()
+        self._auto_index_entries.clear()
         all_dirs = self._workspace_roots + self._library_paths
         result: list[tuple[str, str]] = []
+        seen_paths: set[str] = set()
 
         for dir_path in all_dirs:
             expanded = os.path.expanduser(dir_path)
@@ -105,8 +109,17 @@ class BackgroundScanner:
                 log.warning("Scanner: directory not found: %s", dir_path)
                 continue
             for root, _dirs, files in os.walk(expanded):
+                # Parse tclIndex files to discover auto-loaded proc mappings.
+                files_lower = {f.lower(): f for f in files}
+                if "tclindex" in files_lower:
+                    tcl_index_path = os.path.join(root, files_lower["tclindex"])
+                    self._parse_auto_index(tcl_index_path, result, seen_paths)
+
                 for fname in files:
                     fname_lower = fname.lower()
+                    # Skip tclIndex itself — it is metadata, not Tcl code.
+                    if fname_lower == "tclindex":
+                        continue
                     # Check for BIG-IP configuration files
                     if fname_lower in _BIGIP_CONF_NAMES:
                         full_path = os.path.join(root, fname)
@@ -114,13 +127,39 @@ class BackgroundScanner:
                         continue
                     # APL presentation files (extensionless)
                     if fname_lower in _APL_NAMES:
-                        result.append((os.path.join(root, fname), ".apl"))
+                        full_path = os.path.join(root, fname)
+                        if full_path not in seen_paths:
+                            seen_paths.add(full_path)
+                            result.append((full_path, ".apl"))
                         continue
                     ext = os.path.splitext(fname)[1].lower()
                     if ext not in TCL_EXTENSIONS:
                         continue
-                    result.append((os.path.join(root, fname), ext))
+                    full_path = os.path.join(root, fname)
+                    if full_path not in seen_paths:
+                        seen_paths.add(full_path)
+                        result.append((full_path, ext))
         return result
+
+    def _parse_auto_index(
+        self,
+        tcl_index_path: str,
+        result: list[tuple[str, str]],
+        seen_paths: set[str],
+    ) -> None:
+        """Parse a tclIndex file and register its proc->file mappings."""
+        from core.packages.auto_index import parse_tcl_index
+
+        entries = parse_tcl_index(tcl_index_path)
+        for entry in entries:
+            self._auto_index_entries[entry.proc_name] = entry.source_file
+            # Ensure referenced files are included in the scan list.
+            if entry.source_file not in seen_paths:
+                seen_paths.add(entry.source_file)
+                ext = os.path.splitext(entry.source_file)[1].lower()
+                if not ext:
+                    ext = ".tcl"
+                result.append((entry.source_file, ext))
 
     def analyse_one(self, full_path: str, ext: str) -> ScanResult | None:
         """Analyse a single file and cache the result."""
@@ -201,6 +240,11 @@ class BackgroundScanner:
         """Re-scan a single file (e.g. after a filesystem change)."""
         ext = os.path.splitext(file_path)[1].lower()
         return self._analyse_file(file_path, ext)
+
+    @property
+    def auto_index_entries(self) -> dict[str, str]:
+        """Return proc_name -> source_file mappings from tclIndex files."""
+        return dict(self._auto_index_entries)
 
     def has_cached(self, uri: str) -> bool:
         return uri in self._cached

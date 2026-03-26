@@ -11,9 +11,11 @@ information is not reaching a downstream pass.
 Every Tcl command is defined as a `CommandDef` subclass whose `spec()`
 classmethod returns a `CommandSpec`.  The `@register` decorator adds
 definitions to a dialect's registry list, and the singleton
-`CommandRegistry` merges all dialects into a unified lookup table.  Registry
-metadata drives IR lowering, SCCP, GVN, taint, side-effects, diagnostics,
-and code completion.
+`CommandRegistry` merges specs into a unified lookup table.  Core specs
+(Tcl, stdlib, tcllib) are always present; dialect-specific packs (Tk,
+iRules, iApps, EDA, Expect) are loaded lazily on first access for that
+dialect.  Registry metadata drives IR lowering, SCCP, GVN, taint,
+side-effects, diagnostics, and code completion.
 
 Source: [`core/commands/registry/models.py`](../../../core/commands/registry/models.py),
 [`core/commands/registry/_base.py`](../../../core/commands/registry/_base.py),
@@ -146,6 +148,30 @@ a command expects.  Used by type inference and shimmer detection.
 `KeywordCompletion(keyword, detail, snippet)` — for commands with
 keyword-delimited structure (`if`, `try`, `switch`).
 
+### Lazy dialect loading
+
+`CommandRegistry.build_default()` loads only core specs (Tcl, stdlib,
+tcllib).  Dialect-specific packs are loaded on demand:
+
+1. **Trigger** — any public method that accepts `dialect` calls
+   `_ensure_dialect_loaded(dialect)`, which delegates to
+   `load_dialect_specs(dialect)`.
+2. **Loader dispatch** — `_DIALECT_TO_LOADERS` maps each dialect to the
+   loader keys it needs (e.g. `"synopsys-eda-tcl"` needs `"tk"`,
+   `"sdc-base"`, and `"synopsys-eda-tcl"`).  Each key resolves via
+   `_DIALECT_LOADER_SPECS` to a `(module_name, func_name)` pair loaded
+   with `importlib.import_module`.
+3. **Merge** — new specs are merged into `specs_by_name` and package
+   indexes are updated.
+4. **Invalidation** — trait indexes and all derived caches (command names,
+   event commands, legality, filtered registries) are rebuilt.  The
+   `_on_specs_loaded` callback notifies `runtime.py` to clear its
+   `@lru_cache` functions, rebuild role/type hints, and merge taint hints.
+
+**Contract**: any new public `CommandRegistry` method that takes a
+`dialect` parameter must call `self._ensure_dialect_loaded(dialect)` before
+accessing `specs_by_name`.
+
 ### How registry feeds the compiler
 
 | Stage | Registry fields used |
@@ -171,7 +197,9 @@ Higher levels override lower ones for the matched invocation form.
 ## Decision rule
 
 - To add a new command: create a `CommandDef` subclass in the appropriate
-  dialect package, implement `spec()`, and use `@register`.
+  dialect package, implement `spec()`, and use `@register`.  For a new
+  dialect pack, add an entry to `_DIALECT_LOADER_SPECS` and
+  `_DIALECT_TO_LOADERS` in `command_registry.py`.
 - To add taint tracking: implement `taint_hints()` on the `CommandDef`.
 - To add special lowering: set `lowering` on the `CommandSpec` or `SubCommand`.
 - If arity validation fails to fire, check that `ValidationSpec.arity` is

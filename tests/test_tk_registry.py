@@ -76,6 +76,7 @@ class TestTkRegistry:
 class TestCommandsForPackages:
     def setup_method(self):
         self.registry = CommandRegistry.build_default()
+        self.registry.load_dialect_specs("tcl8.6")
 
     def test_no_tk_without_package(self):
         names = set(self.registry.commands_for_packages(frozenset()))

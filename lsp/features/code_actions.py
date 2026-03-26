@@ -980,9 +980,6 @@ _TAINT_WRAP_FIXES: dict[str, tuple[str, str]] = {
     "T103": ("Wrap ${var} with [regex::quote]", "regex::quote"),
 }
 
-# Encoder commands for T106 (double-encoding) code action — derived from registry.
-_T106_ENCODERS = tuple(taint_double_encode_map().keys())
-
 # Template proc definitions for helpers the code actions suggest.
 # Keyed by proc name; value is the complete proc source (with trailing \n\n).
 _HELPER_PROC_TEMPLATES: dict[str, str] = {
@@ -1140,7 +1137,7 @@ def _taint_quick_fix_actions(
     if code == "T106":
         # Search for [encoder_name $var] or [encoder_name ${var}] in the line
         # and offer to replace with just $var.
-        for encoder in _T106_ENCODERS:
+        for encoder in taint_double_encode_map():
             for vref in (f"${var_name}", f"${{{var_name}}}"):
                 pattern = f"[{encoder} {vref}]"
                 idx = line_text.find(pattern)

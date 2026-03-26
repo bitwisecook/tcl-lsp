@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import importlib
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -9,15 +12,6 @@ if TYPE_CHECKING:
     from ...compiler.side_effects import SideEffect
     from .models import CodegenHook, CommandHandler, LoweringHook, SubcommandHandler
 
-from .eda_cadence import cadence_command_specs
-from .eda_mentor import mentor_command_specs
-from .eda_quartus import quartus_command_specs
-from .eda_sdc_base import sdc_base_command_specs
-from .eda_synopsys import synopsys_command_specs
-from .eda_xilinx import xilinx_command_specs
-from .expect import expect_command_specs
-from .iapps import iapps_command_specs
-from .irules import irules_command_specs
 from .models import (
     ArgumentValueSpec,
     CommandLegality,
@@ -31,7 +25,6 @@ from .stdlib import stdlib_command_specs
 from .taint_sink_info import _EMPTY_TAINT_SINK_INFO, TaintSinkInfo
 from .tcl import tcl_command_specs
 from .tcllib import tcllib_command_specs
-from .tk import tk_command_specs
 
 
 class ResolvedTerminator(NamedTuple):
@@ -66,29 +59,59 @@ _BOOLEAN_TRAITS: tuple[str, ...] = (
 )
 
 
-def _all_command_specs() -> tuple:
-    """Return command specs from all built-in command catalogs.
+def _core_command_specs() -> tuple[CommandSpec, ...]:
+    """Return command specs needed by every dialect.
 
-    Class-per-command Tcl specs first, then stdlib (package-gated),
-    then tcllib library commands, then package-based packs (Tk),
-    then dialect packs (irules, iapps).  Later entries override
-    earlier ones for the same command name within a dialect.
+    Tcl core, stdlib (package-gated), and tcllib (namespace-scoped).
+    Dialect-specific packs (Tk, iRules, iApps, EDA, Expect) are loaded
+    on demand via :meth:`CommandRegistry.load_dialect_specs`.
     """
-    return (
-        tcl_command_specs()
-        + stdlib_command_specs()
-        + tcllib_command_specs()
-        + tk_command_specs()
-        + irules_command_specs()
-        + iapps_command_specs()
-        + sdc_base_command_specs()
-        + synopsys_command_specs()
-        + cadence_command_specs()
-        + xilinx_command_specs()
-        + quartus_command_specs()
-        + mentor_command_specs()
-        + expect_command_specs()
-    )
+    return tcl_command_specs() + stdlib_command_specs() + tcllib_command_specs()
+
+
+# Lazy dialect spec loaders.  Each key maps to a (module_name, func_name)
+# pair resolved relative to this package via importlib.
+_DIALECT_LOADER_SPECS: dict[str, tuple[str, str]] = {
+    "tk": ("tk", "tk_command_specs"),
+    "f5-irules": ("irules", "irules_command_specs"),
+    "f5-iapps": ("iapps", "iapps_command_specs"),
+    "sdc-base": ("eda_sdc_base", "sdc_base_command_specs"),
+    "synopsys-eda-tcl": ("eda_synopsys", "synopsys_command_specs"),
+    "cadence-eda-tcl": ("eda_cadence", "cadence_command_specs"),
+    "xilinx-eda-tcl": ("eda_xilinx", "xilinx_command_specs"),
+    "intel-quartus-eda-tcl": ("eda_quartus", "quartus_command_specs"),
+    "mentor-eda-tcl": ("eda_mentor", "mentor_command_specs"),
+    "expect": ("expect", "expect_command_specs"),
+}
+
+
+def _load_dialect_pack(key: str) -> tuple[CommandSpec, ...]:
+    """Import and call the spec factory for *key*."""
+    mod_name, func_name = _DIALECT_LOADER_SPECS[key]
+    mod = importlib.import_module(f".{mod_name}", __package__)
+    return getattr(mod, func_name)()
+
+
+# Dialect -> loader keys needed.  Core Tcl specs are always loaded.
+_DIALECT_TO_LOADERS: dict[str, tuple[str, ...]] = {
+    "tcl8.4": ("tk",),
+    "tcl8.5": ("tk",),
+    "tcl8.6": ("tk",),
+    "tcl9.0": ("tk",),
+    "f5-irules": ("f5-irules",),
+    "f5-iapps": ("f5-iapps",),
+    "f5-tmsh": ("f5-iapps",),
+    "f5-bigip": ("f5-iapps",),
+    "synopsys-eda-tcl": ("tk", "sdc-base", "synopsys-eda-tcl"),
+    "cadence-eda-tcl": ("tk", "sdc-base", "cadence-eda-tcl"),
+    "xilinx-eda-tcl": ("tk", "sdc-base", "xilinx-eda-tcl"),
+    "intel-quartus-eda-tcl": ("tk", "sdc-base", "intel-quartus-eda-tcl"),
+    "mentor-eda-tcl": ("tk", "sdc-base", "mentor-eda-tcl"),
+    "expect": ("tk", "expect"),
+}
+
+# Callback set by runtime.py to invalidate derived caches after spec loading.
+_on_specs_loaded: Callable[[list[str]], None] | None = None
 
 
 @dataclass(slots=True)
@@ -137,6 +160,12 @@ class CommandRegistry:
         "CommandRegistry",
     ] = field(default_factory=dict, init=False, repr=False)
 
+    # Loader keys that have already been applied to this registry.
+    _loaded_loaders: set[str] = field(default_factory=set, init=False, repr=False)
+
+    # Serialises dialect loading so concurrent threads cannot double-merge.
+    _load_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+
     def __post_init__(self) -> None:
         self._trait_indexes = self._build_trait_indexes()
 
@@ -164,9 +193,14 @@ class CommandRegistry:
             return names
         return frozenset()
 
+    def _ensure_dialect_loaded(self, dialect: str | None) -> None:
+        """Auto-load specs for *dialect* if not already loaded."""
+        if dialect is not None and dialect in _DIALECT_TO_LOADERS:
+            self.load_dialect_specs(dialect)
+
     @classmethod
     def build_default(cls) -> "CommandRegistry":
-        specs = _all_command_specs()
+        specs = _core_command_specs()
         by_name: dict[str, list[CommandSpec]] = {}
         for spec in specs:
             if spec.name not in by_name:
@@ -195,6 +229,68 @@ class CommandRegistry:
             _command_to_required_package=cmd_to_req_pkg,
             _standalone_handlers={},
         )
+
+    def load_dialect_specs(self, dialect: str) -> bool:
+        """Load command specs for *dialect* if not already loaded.
+
+        Returns ``True`` if new specs were added to the registry.
+        Thread-safe: concurrent callers are serialised by ``_load_lock``.
+        """
+        loader_keys = _DIALECT_TO_LOADERS.get(dialect, ())
+        # Fast path: avoid acquiring the lock when nothing needs loading.
+        if not any(k not in self._loaded_loaders for k in loader_keys):
+            return False
+
+        with self._load_lock:
+            # Re-check under lock (another thread may have loaded in the meantime).
+            needed = [k for k in loader_keys if k not in self._loaded_loaders]
+            if not needed:
+                return False
+
+            new_specs: list[CommandSpec] = []
+            for key in needed:
+                if key in _DIALECT_LOADER_SPECS:
+                    new_specs.extend(_load_dialect_pack(key))
+                self._loaded_loaders.add(key)
+
+            if not new_specs:
+                return False
+
+            # Merge new specs into specs_by_name (mutable dict of tuples).
+            by_name: dict[str, list[CommandSpec]] = {}
+            for spec in new_specs:
+                by_name.setdefault(spec.name, []).append(spec)
+
+            for name, spec_list in by_name.items():
+                existing = self.specs_by_name.get(name)
+                if existing is not None:
+                    self.specs_by_name[name] = existing + tuple(spec_list)
+                else:
+                    self.specs_by_name[name] = tuple(spec_list)
+
+            # Update package indexes for newly loaded specs.
+            for spec in new_specs:
+                if spec.tcllib_package:
+                    pkg = spec.tcllib_package
+                    existing_cmds = self._tcllib_packages.get(pkg, frozenset())
+                    self._tcllib_packages[pkg] = existing_cmds | {spec.name}
+                    self._tcllib_command_to_package[spec.name] = pkg
+                if spec.required_package:
+                    self._command_to_required_package[spec.name] = spec.required_package
+
+            # Invalidate all derived caches.
+            self._trait_indexes = self._build_trait_indexes()
+            self._command_names_cache.clear()
+            self._event_command_cache.clear()
+            self._legality_cache.clear()
+            self._filtered_cache.clear()
+
+            # Notify runtime.py to rebuild its derived data (only for the
+            # global singleton, not for test-local registry copies).
+            if _on_specs_loaded is not None and self is REGISTRY:
+                _on_specs_loaded(needed)
+
+            return True
 
     # Handler back-registration
 
@@ -286,6 +382,7 @@ class CommandRegistry:
         Results are cached — the static registry never changes within a
         session, so context changes (package edits) produce a new key.
         """
+        self._ensure_dialect_loaded(dialect)
         key = (dialect, active_packages or None)
         cached = self._filtered_cache.get(key)
         if cached is not None:
@@ -318,6 +415,7 @@ class CommandRegistry:
         dialect: str | None = None,
         active_packages: frozenset[str] | None = None,
     ) -> CommandSpec | None:
+        self._ensure_dialect_loaded(dialect)
         specs = self.specs_by_name.get(name)
         if specs is None:
             return None
@@ -518,6 +616,7 @@ class CommandRegistry:
         dialect: str | None = None,
         active_packages: frozenset[str] | None = None,
     ) -> ValidationSpec | None:
+        self._ensure_dialect_loaded(dialect)
         specs = self.specs_by_name.get(name)
         if specs is None:
             return None
@@ -536,6 +635,7 @@ class CommandRegistry:
         dialect: str | None = None,
         active_packages: frozenset[str] | None = None,
     ) -> tuple[str, ...]:
+        self._ensure_dialect_loaded(dialect)
         packages = self._normalise_package_set(active_packages)
         cache_key = (dialect, packages)
         cached = self._command_names_cache.get(cache_key)
@@ -592,14 +692,17 @@ class CommandRegistry:
 
     def is_dynamic_barrier(self, name: str, dialect: str | None = None) -> bool:
         """Check if the command creates a dynamic barrier (eval, uplevel, etc.)."""
+        self._ensure_dialect_loaded(dialect)
         return self._any_spec_has(name, "creates_dynamic_barrier")
 
     def has_loop_body(self, name: str, dialect: str | None = None) -> bool:
         """Check if the command has a loop body (for, while, foreach)."""
+        self._ensure_dialect_loaded(dialect)
         return self._any_spec_has(name, "has_loop_body")
 
     def never_inline_body(self, name: str, dialect: str | None = None) -> bool:
         """Check if the command's body should never be formatted inline."""
+        self._ensure_dialect_loaded(dialect)
         return self._any_spec_has(name, "never_inline_body")
 
     def resolve_option_terminator(
@@ -674,14 +777,17 @@ class CommandRegistry:
 
     def dynamic_barrier_commands(self, dialect: str | None = None) -> frozenset[str]:
         """Return all commands that create dynamic barriers."""
+        self._ensure_dialect_loaded(dialect)
         return self._trait_names("creates_dynamic_barrier")
 
     def loop_body_commands(self, dialect: str | None = None) -> frozenset[str]:
         """Return all commands that have loop bodies."""
+        self._ensure_dialect_loaded(dialect)
         return self._trait_names("has_loop_body")
 
     def never_inline_body_commands(self, dialect: str | None = None) -> frozenset[str]:
         """Return all commands whose bodies should never be formatted inline."""
+        self._ensure_dialect_loaded(dialect)
         return self._trait_names("never_inline_body")
 
     # Purity / CSE
@@ -743,6 +849,7 @@ class CommandRegistry:
         explicitly carries the active dialect.
         """
         filter_dialect = "f5-irules" if dialect == "irules" else dialect
+        self._ensure_dialect_loaded(filter_dialect)
 
         specs = self.specs_by_name.get(name, ())
         for spec in reversed(specs):
@@ -819,6 +926,7 @@ class CommandRegistry:
         Returns a :class:`TaintSinkInfo` with all relevant sink flags set.
         This avoids repeated ``specs_by_name`` lookups and dialect filtering.
         """
+        self._ensure_dialect_loaded(dialect)
         specs = self.specs_by_name.get(name, ())
         if not specs:
             return _EMPTY_TAINT_SINK_INFO
@@ -970,9 +1078,10 @@ class CommandRegistry:
         filtering.  Raises ``ValueError`` if *event* is non-None for
         a dialect that has no event concept.
 
-        Built on first access, invalidated only if registry changes
-        (which doesn't happen after startup).
+        Built on first access; the cache is invalidated when
+        ``load_dialect_specs`` expands the registry.
         """
+        self._ensure_dialect_loaded(dialect)
         if event is not None and dialect not in self._EVENT_AWARE_DIALECTS:
             raise ValueError(
                 f"dialect {dialect!r} has no event concept; event={event!r} is not valid"
@@ -1056,6 +1165,7 @@ class CommandRegistry:
         Materialises ``(event, command) -> legal`` for every known event,
         allowing O(1) lookup from diagnostics and completions.
         """
+        self._ensure_dialect_loaded(dialect)
         cached = self._legality_cache.get(dialect)
         if cached is not None:
             return cached

@@ -7,6 +7,7 @@ semantics needed by analysis/formatting/compiler passes.
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Iterator
 from dataclasses import dataclass
 from functools import lru_cache
@@ -100,10 +101,59 @@ def _type_hints_from_registry() -> dict[str, CommandTypeHint | SubcommandTypeHin
 TYPE_HINTS: dict[str, CommandTypeHint | SubcommandTypeHint] = _type_hints_from_registry()
 
 # Taint hints from class-per-command definitions.
-from .irules import irules_taint_hints as _irules_taint_hints  # noqa: E402
+# Tcl core taint hints are always available; dialect-specific hints are
+# merged lazily when the dialect is first loaded.
 from .tcl import tcl_taint_hints as _tcl_taint_hints  # noqa: E402
 
-TAINT_HINTS: dict[str, TaintHint] = {**_tcl_taint_hints(), **_irules_taint_hints()}
+TAINT_HINTS: dict[str, TaintHint] = {**_tcl_taint_hints()}
+
+# Taint hint loaders: (module_name, func_name) for dialects that provide
+# taint hints.  Loaded lazily via importlib, mirroring the command spec
+# loader pattern in command_registry.py.
+_TAINT_HINT_LOADER_SPECS: dict[str, tuple[str, str]] = {
+    "f5-irules": ("irules", "irules_taint_hints"),
+}
+
+# Loader keys whose taint hints have already been merged.
+_loaded_taint_loaders: set[str] = set()
+
+
+def _merge_taint_hints_for_loaders(loader_keys: list[str]) -> None:
+    """Merge taint hints for newly loaded dialect packs."""
+    for key in loader_keys:
+        if key in _loaded_taint_loaders:
+            continue
+        spec = _TAINT_HINT_LOADER_SPECS.get(key)
+        if spec is not None:
+            mod_name, func_name = spec
+            mod = importlib.import_module(f".{mod_name}", __package__)
+            TAINT_HINTS.update(getattr(mod, func_name)())
+        _loaded_taint_loaders.add(key)
+
+
+def _invalidate_runtime_caches(loader_keys: list[str]) -> None:
+    """Rebuild derived data after the registry has been expanded."""
+    _merge_taint_hints_for_loaders(loader_keys)
+    global _ROLE_HINTS
+    _ROLE_HINTS = _role_hints_from_registry()
+    TYPE_HINTS.clear()
+    TYPE_HINTS.update(_type_hints_from_registry())
+    canonical_list_commands.cache_clear()
+    taint_transform_map.cache_clear()
+    taint_double_encode_map.cache_clear()
+    taint_sink_safe_colours.cache_clear()
+    regex_pattern_commands.cache_clear()
+    storage_type_commands.cache_clear()
+    normalized_flag_commands.cache_clear()
+    variable_writing_commands.cache_clear()
+    loop_list_header_commands.cache_clear()
+    scope_alias_commands.cache_clear()
+    options_with_value.cache_clear()
+
+    # Also clear the parser's known-command cache.
+    from ...parsing.known_commands import known_command_names
+
+    known_command_names.cache_clear()
 
 
 # Commands that return TclType.LIST but do NOT produce canonical list
@@ -532,6 +582,11 @@ def configure_signatures(
     if next_dialect == _active_dialect and next_extra == _active_extra_commands and SIGNATURES:
         return False
 
+    # Ensure dialect-specific command specs are loaded before building
+    # signatures.  Taint hints are merged automatically via the
+    # _on_specs_loaded callback when new specs are loaded.
+    REGISTRY.load_dialect_specs(next_dialect)
+
     new_signatures = _build_signatures(
         next_dialect,
         extra_commands=next_extra,
@@ -911,6 +966,12 @@ def iter_body_arguments(
             continue
         yield BodyArgument(index=idx, text=args[idx], token=arg_tokens[idx])
 
+
+# Register the cache-invalidation callback so that
+# CommandRegistry.load_dialect_specs() can notify us.
+import core.commands.registry.command_registry as _cmd_reg  # noqa: E402
+
+_cmd_reg._on_specs_loaded = _invalidate_runtime_caches
 
 # Initialize runtime signatures for default profile.
 configure_signatures(dialect="tcl8.6", extra_commands=[])

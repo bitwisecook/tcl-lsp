@@ -427,10 +427,6 @@ def _find_cmd_tokens_in_text(
     return result
 
 
-# Derived from registry: commands with loop_list_header=True.
-_FOREACH_LIKE_CMDS = loop_list_header_commands()
-
-
 def _cmd_tokens_from_statement(
     ir_stmt,
     source: str,
@@ -447,7 +443,7 @@ def _cmd_tokens_from_statement(
     # but those are evaluated exactly once before the loop, not on each
     # iteration, so they must not be flagged as loop-invariant candidates.
     if isinstance(ir_stmt, IRCall) and ir_stmt.defs and ct is None:
-        if not ir_stmt.args or ir_stmt.command in _FOREACH_LIKE_CMDS:
+        if not ir_stmt.args or ir_stmt.command in loop_list_header_commands():
             return []
 
     # Fall back to lexing the source range.
