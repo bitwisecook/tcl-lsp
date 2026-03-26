@@ -330,6 +330,36 @@ class Analyser:
         for old_child, new_child in zip(old_scope.children, new_scope.children):
             Analyser._build_scope_id_map(old_child, new_child, mapping)
 
+    def analyse_chunked(
+        self,
+        source: str,
+        chunk_commands: list[list[SegmentedCommand]],
+        *,
+        cu: CompilationUnit | None = None,
+    ) -> tuple[AnalysisResult, list[AnalyserSnapshot]]:
+        """Analyse commands chunk-by-chunk and capture per-chunk snapshots.
+
+        Returns the final ``AnalysisResult`` and a list of
+        ``AnalyserSnapshot`` objects (one per chunk, taken after each
+        chunk's commands are processed).  This avoids the need for a
+        separate snapshot-building pass after analysis.
+        """
+        self._source = source
+        # Pre-scan for inline stubs (same as analyse()).
+        cmd_stubs, expr_stubs = scan_source_for_stubs(source)
+        self.result.stub_commands.extend(cmd_stubs)
+        self.result.stub_expr_defs.extend(expr_stubs)
+        self._check_stub_shadows()
+
+        snapshots: list[AnalyserSnapshot] = []
+        for cmds in chunk_commands:
+            self._analyse_commands_inner(cmds, self._current_scope, source)
+            snapshots.append(self.snapshot())
+        self._emit_variable_usage_diagnostics()
+        self._emit_cfg_ssa_diagnostics(source, cu=cu)
+        self._dedupe_diagnostics()
+        return self.result, snapshots
+
     def analyse_commands(
         self,
         source: str,

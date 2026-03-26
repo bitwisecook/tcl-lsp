@@ -79,6 +79,7 @@ class TclLexer:
         base_line: int = 0,
         base_col: int = 0,
         virtual_insertions: dict[int, str] | None = None,
+        line_starts: list[int] | None = None,
     ) -> None:
         self.text = text
         self._len = len(text)
@@ -106,12 +107,16 @@ class TclLexer:
         self._has_virtuals: bool = bool(self._virtuals)
         # Pending synthetic SEP token for iRules }{ word boundary.
         self._pending_sep: Token | None = None
-        # Line index for _pos_at() — built eagerly.
-        starts = [0]
-        for i, ch in enumerate(text):
-            if ch == "\n":
-                starts.append(i + 1)
-        self._line_starts: list[int] = starts
+        # Line index for _pos_at().  Shared across lexer instances for the
+        # same source to avoid O(n) newline scanning per instance.
+        if line_starts is not None:
+            self._line_starts: list[int] = line_starts
+        else:
+            starts = [0]
+            for i, ch in enumerate(text):
+                if ch == "\n":
+                    starts.append(i + 1)
+            self._line_starts = starts
 
     @property
     def remaining(self) -> int:

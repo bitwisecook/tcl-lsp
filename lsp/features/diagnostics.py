@@ -418,6 +418,34 @@ def compute_style_diagnostics_for_range(
     return diags
 
 
+def compute_all_style_diagnostics(
+    source: str,
+    *,
+    disabled_diagnostics: set[str] | None = None,
+    line_length: int = 120,
+) -> list[types.Diagnostic]:
+    """Compute W111/W112/W115 style diagnostics for the entire file.
+
+    Returns LSP-format diagnostics sorted by start line.  Callers that
+    need per-chunk partitioning should use :func:`bisect` on the result
+    rather than calling :func:`compute_style_diagnostics_for_range`
+    once per chunk (which re-scans the full source each time).
+    """
+    diags: list[types.Diagnostic] = []
+    lines = source.split("\n")
+    if not (disabled_diagnostics and "W111" in disabled_diagnostics):
+        for d in _check_line_length(source, line_length, lines=lines):
+            diags.append(_to_lsp_diagnostic(d))
+    if not (disabled_diagnostics and "W112" in disabled_diagnostics):
+        for d in _check_trailing_whitespace(source, lines=lines):
+            diags.append(_to_lsp_diagnostic(d))
+    if not (disabled_diagnostics and "W115" in disabled_diagnostics):
+        for d in _check_comment_continuation(source, lines=lines):
+            diags.append(_to_lsp_diagnostic(d))
+    # Already sorted by start line because _check_* iterate lines in order.
+    return diags
+
+
 # W120: command without package require
 
 
