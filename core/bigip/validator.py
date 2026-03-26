@@ -27,7 +27,7 @@ import re
 
 from ..analysis.semantic_model import Diagnostic, Range, Severity
 from ..common.codes import diag
-from ..common.source_map import SourceMap
+from ..common.document_buffer import DocumentBuffer
 from ..parsing.tokens import SourcePosition
 from .model import BigipConfig, BigipRule, ProfileType
 
@@ -110,7 +110,7 @@ _SSL_COMMANDS_RE = re.compile(
 )
 
 
-def _range_from_match(source_map: SourceMap, match: re.Match, group: int = 0) -> Range:
+def _range_from_match(source_map: DocumentBuffer, match: re.Match, group: int = 0) -> Range:
     """Create a Range from a regex match."""
     start = match.start(group)
     end = match.end(group)
@@ -145,7 +145,7 @@ def _check_irule_data_groups(rule: BigipRule, config: BigipConfig) -> list[Diagn
     diagnostics: list[Diagnostic] = []
     if not rule.source:
         return diagnostics
-    source_map = SourceMap(rule.source)
+    source_map = DocumentBuffer.from_source(rule.source)
 
     for m, dg_name in _iter_class_dg_references(rule.source):
         if config.resolve_data_group(dg_name) is None:
@@ -165,7 +165,7 @@ def _check_irule_pools(rule: BigipRule, config: BigipConfig) -> list[Diagnostic]
     diagnostics: list[Diagnostic] = []
     if not rule.source:
         return diagnostics
-    source_map = SourceMap(rule.source)
+    source_map = DocumentBuffer.from_source(rule.source)
 
     for m in _POOL_CMD_RE.finditer(rule.source):
         pool_name = _clean_name(m.group(1))
@@ -188,7 +188,7 @@ def _check_irule_snatpools(rule: BigipRule, config: BigipConfig) -> list[Diagnos
     diagnostics: list[Diagnostic] = []
     if not rule.source:
         return diagnostics
-    source_map = SourceMap(rule.source)
+    source_map = DocumentBuffer.from_source(rule.source)
 
     for m in _SNATPOOL_CMD_RE.finditer(rule.source):
         sp_name = _clean_name(m.group(1))

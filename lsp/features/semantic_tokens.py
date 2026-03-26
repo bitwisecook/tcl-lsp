@@ -32,8 +32,8 @@ from core.commands.registry.runtime import (
     skip_options,
 )
 from core.common.dialect import active_dialect
-from core.common.ranges import position_from_relative
-from core.common.source_map import SourceMap
+from core.common.document_buffer import DocumentBuffer
+from core.common.ranges import position_from_offset
 from core.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from core.parsing.known_commands import known_command_names
 from core.parsing.lexer import TclLexer
@@ -596,13 +596,11 @@ def _collect_bigip_embedded_irules_object_tokens(
 ) -> None:
     """Collect semantic tokens for object refs inside embedded ``ltm rule`` bodies."""
     seen: set[tuple[int, int, int, int, int]] = set()
-    source_map = SourceMap(source)
+    buf = DocumentBuffer.from_source(source)
     for rule in find_embedded_rules(source):
         rule_module = "gtm" if rule.header.startswith("gtm ") else "ltm"
-        body_start = source_map.offset_to_position(rule.body_start_offset - 1)
-        body_end = source_map.offset_to_position(
-            max(rule.body_end_offset - 1, rule.body_start_offset - 1)
-        )
+        body_start = buf.offset_to_position(rule.body_start_offset - 1)
+        body_end = buf.offset_to_position(max(rule.body_end_offset - 1, rule.body_start_offset - 1))
         for ref in extract_irules_object_references(
             rule.body,
             rule_module=rule_module,
@@ -789,15 +787,13 @@ def _collect_embedded_tcl_tokens(
     tokenised so the caller can filter overlapping tokens from the
     whole-file pass.
     """
-    source_map = SourceMap(source)
+    buf = DocumentBuffer.from_source(source)
     body_ranges: list[tuple[int, int]] = []
 
     # Embedded iRules (ltm rule / gtm rule)
     for rule in find_embedded_rules(source):
-        body_start = source_map.offset_to_position(rule.body_start_offset - 1)
-        body_end = source_map.offset_to_position(
-            max(rule.body_end_offset - 1, rule.body_start_offset - 1)
-        )
+        body_start = buf.offset_to_position(rule.body_start_offset - 1)
+        body_end = buf.offset_to_position(max(rule.body_end_offset - 1, rule.body_start_offset - 1))
         body_ranges.append((body_start.line, body_end.line))
         body_token = Token(
             type=TokenType.STR,
@@ -817,8 +813,8 @@ def _collect_embedded_tcl_tokens(
 
     # Embedded iApp sections (implementation / presentation)
     for section in find_embedded_iapp_sections(source):
-        sec_start = source_map.offset_to_position(section.body_start_offset - 1)
-        sec_end = source_map.offset_to_position(
+        sec_start = buf.offset_to_position(section.body_start_offset - 1)
+        sec_end = buf.offset_to_position(
             max(section.body_end_offset - 1, section.body_start_offset - 1)
         )
         body_ranges.append((sec_start.line, sec_end.line))
@@ -952,6 +948,9 @@ def _emit_namespace_qualified(
     tok: Token,
     type_idx: int,
     modifiers: int = 0,
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> None:
     """Split ``NS::cmd`` into a namespace token and a command token."""
     text = tok.text
@@ -959,13 +958,11 @@ def _emit_namespace_qualified(
     ns_part = text[: idx + 2]
     cmd_part = text[idx + 2 :]
 
-    base_offset, base_line, base_col = token_content_base(tok)
-    ns_start = position_from_relative(
-        text,
-        0,
-        base_line=base_line,
-        base_col=base_col,
-        base_offset=base_offset,
+    base_offset, _base_line, _base_col = token_content_base(tok)
+    ns_start = position_from_offset(
+        base_offset + 0,
+        line_starts,
+        source_len,
     )
     _append_text_token(
         out,
@@ -975,12 +972,10 @@ def _emit_namespace_qualified(
         modifiers=modifiers,
     )
     if cmd_part:
-        cmd_start = position_from_relative(
-            text,
-            idx + 2,
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        cmd_start = position_from_offset(
+            base_offset + idx + 2,
+            line_starts,
+            source_len,
         )
         _append_text_token(
             out,
@@ -994,6 +989,9 @@ def _emit_namespace_qualified(
 def _emit_string_with_escapes(
     out: list[tuple[int, int, int, int, int]],
     tok: Token,
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> bool:
     """Sub-tokenize an ESC token to highlight backslash escape sequences.
 
@@ -1004,17 +1002,15 @@ def _emit_string_with_escapes(
     if not matches:
         return False
 
-    base_offset, base_line, base_col = token_content_base(tok)
+    base_offset, _base_line, _base_col = token_content_base(tok)
     pos = 0
 
     for match in matches:
         if match.start() > pos:
-            before_start = position_from_relative(
-                text,
-                pos,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            before_start = position_from_offset(
+                base_offset + pos,
+                line_starts,
+                source_len,
             )
             _append_text_token(
                 out,
@@ -1022,12 +1018,10 @@ def _emit_string_with_escapes(
                 text=text[pos : match.start()],
                 type_idx=_TYPE_INDEX["string"],
             )
-        esc_start = position_from_relative(
-            text,
-            match.start(),
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        esc_start = position_from_offset(
+            base_offset + match.start(),
+            line_starts,
+            source_len,
         )
         _append_text_token(
             out,
@@ -1038,12 +1032,10 @@ def _emit_string_with_escapes(
         pos = match.end()
 
     if pos < len(text):
-        rest_start = position_from_relative(
-            text,
-            pos,
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        rest_start = position_from_offset(
+            base_offset + pos,
+            line_starts,
+            source_len,
         )
         _append_text_token(
             out,
@@ -1059,16 +1051,15 @@ def _collect_expression_tokens(
     expr_text: str,
     owner_token: Token,
     regex_positions: frozenset[tuple[int, int]] = frozenset(),
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> None:
     """Collect semantic tokens from an expression argument."""
     if owner_token.type is TokenType.STR:
         base_offset = owner_token.start.offset + 1
-        base_line = owner_token.start.line
-        base_col = owner_token.start.character + 1
     else:
         base_offset = owner_token.start.offset
-        base_line = owner_token.start.line
-        base_col = owner_token.start.character
 
     prev_op_text = ""
     for expr_tok in tokenise_expr(expr_text, dialect=active_dialect()):
@@ -1077,19 +1068,15 @@ def _collect_expression_tokens(
 
         if expr_tok.type is ExprTokenType.COMMAND and len(expr_tok.text) >= 2:
             cmd_text = expr_tok.text[1:-1]
-            cmd_start = position_from_relative(
-                expr_text,
-                expr_tok.start,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            cmd_start = position_from_offset(
+                base_offset + expr_tok.start,
+                line_starts,
+                source_len,
             )
-            cmd_end = position_from_relative(
-                expr_text,
-                expr_tok.end,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            cmd_end = position_from_offset(
+                base_offset + expr_tok.end,
+                line_starts,
+                source_len,
             )
             synthetic = Token(type=TokenType.CMD, text=cmd_text, start=cmd_start, end=cmd_end)
             _collect_tokens(out, cmd_text, body_token=synthetic, regex_positions=regex_positions)
@@ -1113,19 +1100,15 @@ def _collect_expression_tokens(
                 inner = str_text
                 inner_offset = expr_tok.start
 
-            inner_start = position_from_relative(
-                expr_text,
-                inner_offset,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            inner_start = position_from_offset(
+                base_offset + inner_offset,
+                line_starts,
+                source_len,
             )
-            inner_end = position_from_relative(
-                expr_text,
-                inner_offset + len(inner) - 1,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            inner_end = position_from_offset(
+                base_offset + inner_offset + len(inner) - 1,
+                line_starts,
+                source_len,
             )
             synthetic = Token(
                 type=TokenType.STR,
@@ -1134,7 +1117,9 @@ def _collect_expression_tokens(
                 end=inner_end,
             )
             if prev_op_text == "matches_glob":
-                if not _collect_glob_pattern_tokens(out, synthetic):
+                if not _collect_glob_pattern_tokens(
+                    out, synthetic, line_starts=line_starts, source_len=source_len
+                ):
                     _append_text_token(
                         out,
                         start=inner_start,
@@ -1142,15 +1127,13 @@ def _collect_expression_tokens(
                         type_idx=_TYPE_INDEX["string"],
                     )
             else:
-                _emit_regex_token(out, synthetic)
+                _emit_regex_token(out, synthetic, line_starts=line_starts, source_len=source_len)
             # Emit surrounding delimiters (quotes only; braces are syntax)
             if len(str_text) >= 2 and str_text[0] == '"':
-                quote_start = position_from_relative(
-                    expr_text,
-                    expr_tok.start,
-                    base_line=base_line,
-                    base_col=base_col,
-                    base_offset=base_offset,
+                quote_start = position_from_offset(
+                    base_offset + expr_tok.start,
+                    line_starts,
+                    source_len,
                 )
                 _append_text_token(
                     out,
@@ -1158,12 +1141,10 @@ def _collect_expression_tokens(
                     text='"',
                     type_idx=_TYPE_INDEX["string"],
                 )
-                end_quote_start = position_from_relative(
-                    expr_text,
-                    expr_tok.start + len(str_text) - 1,
-                    base_line=base_line,
-                    base_col=base_col,
-                    base_offset=base_offset,
+                end_quote_start = position_from_offset(
+                    base_offset + expr_tok.start + len(str_text) - 1,
+                    line_starts,
+                    source_len,
                 )
                 _append_text_token(
                     out,
@@ -1185,12 +1166,10 @@ def _collect_expression_tokens(
         modifiers = 0
         if expr_tok.type is ExprTokenType.FUNCTION:
             modifiers = 1 << _MOD_INDEX["defaultLibrary"]
-        start = position_from_relative(
-            expr_text,
-            expr_tok.start,
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        start = position_from_offset(
+            base_offset + expr_tok.start,
+            line_starts,
+            source_len,
         )
         _append_text_token(
             out,
@@ -1328,6 +1307,9 @@ _REGEX_PART_RE = re.compile(
 def _collect_regex_pattern_tokens(
     out: list[tuple[int, int, int, int, int]],
     tok: Token,
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> bool:
     """Sub-tokenize a regex pattern into its components.
 
@@ -1342,18 +1324,16 @@ def _collect_regex_pattern_tokens(
         # No metacharacters — just a literal. Emit as single regexp token.
         return False
 
-    base_offset, base_line, base_col = token_content_base(tok)
+    base_offset, _base_line, _base_col = token_content_base(tok)
     pos_in_text = 0
 
     for match in matches:
         # Literal text before this metacharacter
         if match.start() > pos_in_text:
-            before_start = position_from_relative(
-                text,
-                pos_in_text,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            before_start = position_from_offset(
+                base_offset + pos_in_text,
+                line_starts,
+                source_len,
             )
             _append_text_token(
                 out,
@@ -1363,12 +1343,10 @@ def _collect_regex_pattern_tokens(
             )
 
         matched = match.group()
-        meta_start = position_from_relative(
-            text,
-            match.start(),
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        meta_start = position_from_offset(
+            base_offset + match.start(),
+            line_starts,
+            source_len,
         )
 
         # Classify the component using dedicated ARE token types
@@ -1419,12 +1397,10 @@ def _collect_regex_pattern_tokens(
 
     # Remaining literal text
     if pos_in_text < len(text):
-        rest_start = position_from_relative(
-            text,
-            pos_in_text,
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        rest_start = position_from_offset(
+            base_offset + pos_in_text,
+            line_starts,
+            source_len,
         )
         _append_text_token(
             out,
@@ -1439,9 +1415,12 @@ def _collect_regex_pattern_tokens(
 def _emit_regex_token(
     out: list[tuple[int, int, int, int, int]],
     tok: Token,
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> None:
     """Emit semantic tokens for a regex pattern, with sub-tokenization."""
-    if _collect_regex_pattern_tokens(out, tok):
+    if _collect_regex_pattern_tokens(out, tok, line_starts=line_starts, source_len=source_len):
         return
     # Fallback: emit as a single regexp token
     rendered = f"{{{tok.text}}}" if tok.type is TokenType.STR else tok.text
@@ -1458,6 +1437,9 @@ def _collect_switch_case_bodies(
     args: list[str],
     arg_tokens: list[Token],
     regex_positions: frozenset[tuple[int, int]] = frozenset(),
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> set[int]:
     """Collect body tokens for switch braced case-list form.
 
@@ -1494,7 +1476,7 @@ def _collect_switch_case_bodies(
                 if args[j] != "default" and j < len(arg_tokens):
                     tok = arg_tokens[j]
                     if tok.type is not TokenType.VAR:
-                        _emit_regex_token(out, tok)
+                        _emit_regex_token(out, tok, line_starts=line_starts, source_len=source_len)
                 j += 2
         return set()
 
@@ -1518,7 +1500,9 @@ def _collect_switch_case_bodies(
         # Emit regex token for pattern in braced case list
         if is_regexp and elements[idx] != "default":
             if idx < len(element_tokens):
-                _emit_regex_token(out, element_tokens[idx])
+                _emit_regex_token(
+                    out, element_tokens[idx], line_starts=line_starts, source_len=source_len
+                )
         body = elements[idx + 1]
         body_tok = element_tokens[idx + 1]
         if body != "-" and body_tok.type is TokenType.STR and body.strip():
@@ -1645,6 +1629,9 @@ _SPRINTF_RE = re.compile(
 def _collect_sprintf_format_spec_tokens(
     out: list[tuple[int, int, int, int, int]],
     spec_token: Token,
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> bool:
     """Tokenise format/scan specifiers inside a format word."""
     if spec_token.type not in (TokenType.STR, TokenType.ESC):
@@ -1655,14 +1642,12 @@ def _collect_sprintf_format_spec_tokens(
     if not matches:
         return False
 
-    base_offset, base_line, base_col = token_content_base(spec_token)
+    base_offset, _base_line, _base_col = token_content_base(spec_token)
     pos_in_text = 0
 
     for match in matches:
         if match.start() > pos_in_text:
-            before_start = position_from_relative(
-                text, pos_in_text, base_line=base_line, base_col=base_col, base_offset=base_offset
-            )
+            before_start = position_from_offset(base_offset + pos_in_text, line_starts, source_len)
             _append_text_token(
                 out,
                 start=before_start,
@@ -1675,9 +1660,7 @@ def _collect_sprintf_format_spec_tokens(
         def emit_part(end: int, tidx: int) -> None:
             nonlocal pos
             if end > pos:
-                part_pos = position_from_relative(
-                    text, pos, base_line=base_line, base_col=base_col, base_offset=base_offset
-                )
+                part_pos = position_from_offset(base_offset + pos, line_starts, source_len)
                 _append_text_token(out, start=part_pos, text=text[pos:end], type_idx=tidx)
                 pos = end
 
@@ -1725,9 +1708,7 @@ def _collect_sprintf_format_spec_tokens(
         pos_in_text = match.end()
 
     if pos_in_text < len(text):
-        rest_start = position_from_relative(
-            text, pos_in_text, base_line=base_line, base_col=base_col, base_offset=base_offset
-        )
+        rest_start = position_from_offset(base_offset + pos_in_text, line_starts, source_len)
         _append_text_token(
             out, start=rest_start, text=text[pos_in_text:], type_idx=_TYPE_INDEX["string"]
         )
@@ -1758,6 +1739,9 @@ _CLOCK_FORMAT_RE = re.compile(r"%(?:[EO])?[aAbBcCdDeEgGhHIjJklmMNOpPqQsSuUVwWxXy
 def _collect_clock_format_spec_tokens(
     out: list[tuple[int, int, int, int, int]],
     spec_token: Token,
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> bool:
     """Tokenise clock format specifiers inside a format word."""
     if spec_token.type not in (TokenType.STR, TokenType.ESC):
@@ -1768,17 +1752,15 @@ def _collect_clock_format_spec_tokens(
     if not matches:
         return False
 
-    base_offset, base_line, base_col = token_content_base(spec_token)
+    base_offset, _base_line, _base_col = token_content_base(spec_token)
     pos_in_text = 0
 
     for match in matches:
         if match.start() > pos_in_text:
-            before_start = position_from_relative(
-                text,
-                pos_in_text,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            before_start = position_from_offset(
+                base_offset + pos_in_text,
+                line_starts,
+                source_len,
             )
             _append_text_token(
                 out,
@@ -1788,12 +1770,10 @@ def _collect_clock_format_spec_tokens(
             )
 
         # Emit the % as clockPercent
-        pct_pos = position_from_relative(
-            text,
-            match.start(),
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        pct_pos = position_from_offset(
+            base_offset + match.start(),
+            line_starts,
+            source_len,
         )
         _append_text_token(
             out,
@@ -1808,12 +1788,10 @@ def _collect_clock_format_spec_tokens(
             off = match.start() + 1
             if spec_text[0] in ("E", "O") and len(spec_text) > 1:
                 # Emit locale modifier separately
-                mod_start = position_from_relative(
-                    text,
-                    off,
-                    base_line=base_line,
-                    base_col=base_col,
-                    base_offset=base_offset,
+                mod_start = position_from_offset(
+                    base_offset + off,
+                    line_starts,
+                    source_len,
                 )
                 _append_text_token(
                     out,
@@ -1825,12 +1803,10 @@ def _collect_clock_format_spec_tokens(
                 spec_text = spec_text[1:]
             # Emit the specifier letter
             if spec_text:
-                spec_start = position_from_relative(
-                    text,
-                    off,
-                    base_line=base_line,
-                    base_col=base_col,
-                    base_offset=base_offset,
+                spec_start = position_from_offset(
+                    base_offset + off,
+                    line_starts,
+                    source_len,
                 )
                 _append_text_token(
                     out,
@@ -1842,12 +1818,10 @@ def _collect_clock_format_spec_tokens(
         pos_in_text = match.end()
 
     if pos_in_text < len(text):
-        rest_start = position_from_relative(
-            text,
-            pos_in_text,
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        rest_start = position_from_offset(
+            base_offset + pos_in_text,
+            line_starts,
+            source_len,
         )
         _append_text_token(
             out,
@@ -1901,6 +1875,9 @@ _REGSUB_BACKREF_RE = re.compile(r"\\([0-9&])")
 def _collect_regsub_subspec_tokens(
     out: list[tuple[int, int, int, int, int]],
     spec_token: Token,
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> bool:
     """Tokenise regsub substitution spec backreferences."""
     if spec_token.type not in (TokenType.STR, TokenType.ESC):
@@ -1911,17 +1888,15 @@ def _collect_regsub_subspec_tokens(
     if not matches:
         return False
 
-    base_offset, base_line, base_col = token_content_base(spec_token)
+    base_offset, _base_line, _base_col = token_content_base(spec_token)
     pos_in_text = 0
 
     for match in matches:
         if match.start() > pos_in_text:
-            before_start = position_from_relative(
-                text,
-                pos_in_text,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            before_start = position_from_offset(
+                base_offset + pos_in_text,
+                line_starts,
+                source_len,
             )
             _append_text_token(
                 out,
@@ -1930,12 +1905,10 @@ def _collect_regsub_subspec_tokens(
                 type_idx=_TYPE_INDEX["string"],
             )
 
-        ref_start = position_from_relative(
-            text,
-            match.start(),
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        ref_start = position_from_offset(
+            base_offset + match.start(),
+            line_starts,
+            source_len,
         )
         ref_char = match.group(1)
         # \& and \0 = whole match → operator; \1-\9 = capture group → number
@@ -1949,12 +1922,10 @@ def _collect_regsub_subspec_tokens(
         pos_in_text = match.end()
 
     if pos_in_text < len(text):
-        rest_start = position_from_relative(
-            text,
-            pos_in_text,
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        rest_start = position_from_offset(
+            base_offset + pos_in_text,
+            line_starts,
+            source_len,
         )
         _append_text_token(
             out,
@@ -2008,6 +1979,9 @@ _GLOB_META_RE = re.compile(
 def _collect_glob_pattern_tokens(
     out: list[tuple[int, int, int, int, int]],
     spec_token: Token,
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> bool:
     """Tokenise glob pattern metacharacters."""
     if spec_token.type not in (TokenType.STR, TokenType.ESC):
@@ -2018,17 +1992,15 @@ def _collect_glob_pattern_tokens(
     if not matches:
         return False
 
-    base_offset, base_line, base_col = token_content_base(spec_token)
+    base_offset, _base_line, _base_col = token_content_base(spec_token)
     pos_in_text = 0
 
     for match in matches:
         if match.start() > pos_in_text:
-            before_start = position_from_relative(
-                text,
-                pos_in_text,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            before_start = position_from_offset(
+                base_offset + pos_in_text,
+                line_starts,
+                source_len,
             )
             _append_text_token(
                 out,
@@ -2037,12 +2009,10 @@ def _collect_glob_pattern_tokens(
                 type_idx=_TYPE_INDEX["string"],
             )
 
-        meta_start = position_from_relative(
-            text,
-            match.start(),
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        meta_start = position_from_offset(
+            base_offset + match.start(),
+            line_starts,
+            source_len,
         )
         matched = match.group()
         if matched.startswith("\\"):
@@ -2060,12 +2030,10 @@ def _collect_glob_pattern_tokens(
         pos_in_text = match.end()
 
     if pos_in_text < len(text):
-        rest_start = position_from_relative(
-            text,
-            pos_in_text,
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        rest_start = position_from_offset(
+            base_offset + pos_in_text,
+            line_starts,
+            source_len,
         )
         _append_text_token(
             out,
@@ -2106,12 +2074,15 @@ def _option_arg_indices(cmd_name: str, argv_texts: list[str]) -> set[int]:
 def _collect_binary_format_spec_tokens(
     out: list[tuple[int, int, int, int, int]],
     spec_token: Token,
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
 ) -> bool:
     """Tokenise binary format/scan specifiers inside a format word."""
     if spec_token.type not in (TokenType.STR, TokenType.ESC):
         return False
 
-    base_offset, base_line, base_col = token_content_base(spec_token)
+    base_offset, _base_line, _base_col = token_content_base(spec_token)
     text = spec_token.text
     i = 0
     emitted = False
@@ -2126,12 +2097,10 @@ def _collect_binary_format_spec_tokens(
         while i < len(text) and text[i].isdigit():
             i += 1
         if i > count_start:
-            count_pos = position_from_relative(
-                text,
-                count_start,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            count_pos = position_from_offset(
+                base_offset + count_start,
+                line_starts,
+                source_len,
             )
             _append_text_token(
                 out,
@@ -2149,12 +2118,10 @@ def _collect_binary_format_spec_tokens(
             i += 1
             continue
 
-        spec_pos = position_from_relative(
-            text,
-            i,
-            base_line=base_line,
-            base_col=base_col,
-            base_offset=base_offset,
+        spec_pos = position_from_offset(
+            base_offset + i,
+            line_starts,
+            source_len,
         )
         _append_text_token(
             out,
@@ -2172,12 +2139,10 @@ def _collect_binary_format_spec_tokens(
             and spec in _BINARY_INT_SPECIFIERS
             and active_dialect() not in ("tcl8.4", "f5")
         ):
-            mod_pos = position_from_relative(
-                text,
-                i,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            mod_pos = position_from_offset(
+                base_offset + i,
+                line_starts,
+                source_len,
             )
             _append_text_token(
                 out,
@@ -2189,12 +2154,10 @@ def _collect_binary_format_spec_tokens(
             i += 1
 
         if i < len(text) and text[i] == "*":
-            star_pos = position_from_relative(
-                text,
-                i,
-                base_line=base_line,
-                base_col=base_col,
-                base_offset=base_offset,
+            star_pos = position_from_offset(
+                base_offset + i,
+                line_starts,
+                source_len,
             )
             _append_text_token(
                 out,
@@ -2540,7 +2503,12 @@ def _collect_tokens(
         skip_body_indices: set[int] = set()
         if cmd_name == "switch":
             skip_body_indices = _collect_switch_case_bodies(
-                tokens, argv_texts[1:], argv[1:], regex_positions=regex_positions
+                tokens,
+                argv_texts[1:],
+                argv[1:],
+                regex_positions=regex_positions,
+                line_starts=_line_starts,
+                source_len=len(source),
             )
             # Activate E101 recovery if the switch parsed as Form 1
             # (explicit pattern/body pairs, not a single braced body).
@@ -2599,7 +2567,14 @@ def _collect_tokens(
                 continue
 
             if tok.type is TokenType.STR and is_expr and tok.text.strip():
-                _collect_expression_tokens(tokens, tok.text, tok, regex_positions=regex_positions)
+                _collect_expression_tokens(
+                    tokens,
+                    tok.text,
+                    tok,
+                    regex_positions=regex_positions,
+                    line_starts=_line_starts,
+                    source_len=len(source),
+                )
                 continue
 
             if (
@@ -2652,7 +2627,9 @@ def _collect_tokens(
                 and arg_idx < len(argv)
                 and tok is argv[arg_idx]
             ):
-                if _collect_binary_format_spec_tokens(tokens, tok):
+                if _collect_binary_format_spec_tokens(
+                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                ):
                     continue
 
             if (
@@ -2661,7 +2638,9 @@ def _collect_tokens(
                 and arg_idx < len(argv)
                 and tok is argv[arg_idx]
             ):
-                if _collect_sprintf_format_spec_tokens(tokens, tok):
+                if _collect_sprintf_format_spec_tokens(
+                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                ):
                     continue
 
             if (
@@ -2670,7 +2649,9 @@ def _collect_tokens(
                 and arg_idx < len(argv)
                 and tok is argv[arg_idx]
             ):
-                if _collect_clock_format_spec_tokens(tokens, tok):
+                if _collect_clock_format_spec_tokens(
+                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                ):
                     continue
 
             if (
@@ -2679,7 +2660,9 @@ def _collect_tokens(
                 and arg_idx < len(argv)
                 and tok is argv[arg_idx]
             ):
-                if _collect_regsub_subspec_tokens(tokens, tok):
+                if _collect_regsub_subspec_tokens(
+                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                ):
                     continue
 
             # string map mapping list: alternate pair colours.
@@ -2701,7 +2684,9 @@ def _collect_tokens(
                 and tok is argv[arg_idx]
                 and tok.type in (TokenType.ESC, TokenType.STR)
             ):
-                if _collect_glob_pattern_tokens(tokens, tok):
+                if _collect_glob_pattern_tokens(
+                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                ):
                     continue
 
             # Variable name arguments (e.g. the "a" in "set a foo") get
@@ -2719,7 +2704,7 @@ def _collect_tokens(
             # Regex pattern arguments (e.g. the pattern in "regexp {pat} str")
             # get highlighted as the "regexp" semantic token type.
             if is_pattern and tok.type in (TokenType.ESC, TokenType.STR):
-                _emit_regex_token(tokens, tok)
+                _emit_regex_token(tokens, tok, line_starts=_line_starts, source_len=len(source))
                 continue
 
             # Analysis-driven regex override: when the analyser has
@@ -2797,12 +2782,21 @@ def _collect_tokens(
             # Namespace-qualified command names: split into namespace + command
             # (but never split comment tokens — they should remain atomic)
             if is_cmd_name and "::" in tok.text and tok.type is not TokenType.COMMENT:
-                _emit_namespace_qualified(tokens, tok, type_idx, modifiers)
+                _emit_namespace_qualified(
+                    tokens,
+                    tok,
+                    type_idx,
+                    modifiers,
+                    line_starts=_line_starts,
+                    source_len=len(source),
+                )
                 continue
 
             # Escape sequences in string-classified ESC tokens
             if type_idx == _TYPE_INDEX["string"] and tok.type is TokenType.ESC and "\\" in tok.text:
-                if _emit_string_with_escapes(tokens, tok):
+                if _emit_string_with_escapes(
+                    tokens, tok, line_starts=_line_starts, source_len=len(source)
+                ):
                     continue
 
             _append_text_token(

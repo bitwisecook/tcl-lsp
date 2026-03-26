@@ -18,6 +18,7 @@ from typing import Any
 from core.analysis.analyser import Analyser, AnalyserSnapshot, AnalysisResult, analyse
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect
+from core.common.document_buffer import DocumentBuffer
 from core.compiler.compilation_unit import CompilationUnit, FunctionUnit, compile_source
 from core.compiler.interprocedural import ProcLocalSummary
 from core.compiler.ir import IRProcedure, IRStatement
@@ -56,25 +57,15 @@ def _get_style_diag_all_fn():
     return _style_diag_all_fn
 
 
-def _chunk_line_range(source: str, chunk: TopLevelChunk) -> tuple[int, int, int, int]:
-    """Return ``(start_line, start_col, end_line, end_col)`` for a chunk.
+def _chunk_line_range(
+    buf: DocumentBuffer,
+    chunk: TopLevelChunk,
+) -> tuple[int, int, int, int]:
+    """O(log n) chunk line range using ``DocumentBuffer``.
 
-    Uses ``(line, col)`` positions (not just line numbers) so that
-    semicolon-separated chunks sharing the same line get non-overlapping
-    boundaries and can be cached independently.
-
-    ``end_col`` points one past the last character of the chunk (exclusive).
+    Returns ``(start_line, start_col, end_line, end_col)`` for a chunk.
     """
-    prefix = source[: chunk.start_offset]
-    start_line = prefix.count("\n")
-    last_nl = prefix.rfind("\n")
-    start_col = chunk.start_offset - (last_nl + 1)
-
-    end_prefix = source[: chunk.end_offset]
-    end_line = end_prefix.count("\n")
-    last_nl_end = end_prefix.rfind("\n")
-    end_col = chunk.end_offset - (last_nl_end + 1)
-    return start_line, start_col, end_line, end_col
+    return buf.chunk_line_range(chunk.start_offset, chunk.end_offset)
 
 
 def _extract_chunk_ir(
@@ -176,7 +167,7 @@ class DocumentState:
     chunks: list[TopLevelChunk] = field(default_factory=list)
     has_partial_commands: bool = False
     file_profiles: frozenset[str] = field(default_factory=frozenset)
-    _lines: list[str] | None = field(default=None, repr=False)
+    _buffer: DocumentBuffer | None = field(default=None, repr=False)
     _proc_cache: dict[tuple[str, int], FunctionUnit] = field(
         default_factory=dict,
         repr=False,
@@ -199,11 +190,20 @@ class DocumentState:
     )
 
     @property
+    def buffer(self) -> DocumentBuffer:
+        """Shared position infrastructure for the current source text.
+
+        Lazily created on first access; invalidated whenever ``source``
+        changes (by setting ``_buffer = None``).
+        """
+        if self._buffer is None or self._buffer.source is not self.source:
+            self._buffer = DocumentBuffer.from_source(self.source, self.version)
+        return self._buffer
+
+    @property
     def lines(self) -> list[str]:
         """Source split into lines, cached for the lifetime of the current source."""
-        if self._lines is None:
-            self._lines = self.source.split("\n")
-        return self._lines
+        return self.buffer.lines
 
     def get_cached_style_diagnostics(
         self,
@@ -260,12 +260,13 @@ class DocumentState:
 
         cache: list[list[tuple[int, int, int, int, int]] | None] = []
         ranges: list[tuple[int, int, int, int]] = []
+        buf = self.buffer
         for i, cc in enumerate(self._chunk_caches):
             if cc is None:
                 cache.append(None)
             else:
                 cache.append(cc.semantic_tokens_abs)
-            ranges.append(_chunk_line_range(self.source, self.chunks[i]))
+            ranges.append(_chunk_line_range(buf, self.chunks[i]))
         return cache, ranges
 
     def store_semantic_token_cache(
@@ -327,7 +328,7 @@ class DocumentState:
         new_chunks = segment_top_level_chunks(source)
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
         self.source = source
-        self._lines = None
+        self._buffer = None  # invalidate — will be rebuilt lazily
         self.version = version
         self.chunks = new_chunks
         self.has_partial_commands = has_partial
@@ -374,7 +375,7 @@ class DocumentState:
             if dirty_idx >= len(new_chunks) and dirty_idx >= len(self.chunks):
                 # All chunks match — source is semantically identical.
                 self.source = source
-                self._lines = None
+                self._buffer = None
                 self.version = version
                 # Invalidate per-chunk caches when offsets may have shifted
                 # (e.g. whitespace changes between commands).  Token ranges
@@ -435,7 +436,7 @@ class DocumentState:
         self.chunks = new_chunks
         self.has_partial_commands = has_partial
         self.source = source
-        self._lines = None
+        self._buffer = None
         self.version = version
         self.file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
@@ -587,6 +588,7 @@ class DocumentState:
             # partition by chunk using bisect.
             from bisect import bisect_left, bisect_right
 
+            buf = self.buffer
             all_style_diags = _get_style_diag_all_fn()(source)
             diag_lines = [d.range.start.line for d in all_style_diags]
 
@@ -616,7 +618,7 @@ class DocumentState:
                         ir_stmts, ir_procs = lower_commands_to_ir(source, cmds)
 
                 # Partition pre-computed style diagnostics for this chunk.
-                start_line, _sc, end_line, _ec = _chunk_line_range(source, chunk)
+                start_line, _sc, end_line, _ec = _chunk_line_range(buf, chunk)
                 lo = bisect_left(diag_lines, start_line)
                 hi = bisect_right(diag_lines, end_line)
                 style_diags = all_style_diags[lo:hi]
@@ -651,7 +653,7 @@ class DocumentState:
         self.has_partial_commands = has_partial
 
         self.source = source
-        self._lines = None
+        self._buffer = None
         self.version = version
         self.file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
@@ -720,6 +722,7 @@ class DocumentState:
         try:
             from bisect import bisect_left, bisect_right
 
+            buf = self.buffer
             caches: list[ChunkCache | None] = []
 
             # Compute style diagnostics once for the whole file, then
@@ -760,7 +763,7 @@ class DocumentState:
                     snap = snapshot_analyser.snapshot()
 
                 # Partition pre-computed style diagnostics for this chunk.
-                start_line, _sc, end_line, _ec = _chunk_line_range(source, chunk)
+                start_line, _sc, end_line, _ec = _chunk_line_range(buf, chunk)
                 lo = bisect_left(diag_lines, start_line)
                 hi = bisect_right(diag_lines, end_line)
                 style_diags = all_style_diags[lo:hi]

@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 
 from ..analysis.semantic_model import Range
-from ..common.source_map import SourceMap
+from ..common.document_buffer import DocumentBuffer
 
 # Match:  ltm rule /Common/name {  or  gtm rule /Common/name {
 _RULE_HEADER_RE = re.compile(
@@ -37,7 +37,7 @@ class EmbeddedRule:
 
 def find_embedded_rules(source: str) -> list[EmbeddedRule]:
     """Find all ``ltm rule`` and ``gtm rule`` blocks in *source*."""
-    source_map = SourceMap(source)
+    source_map = DocumentBuffer.from_source(source)
     rules: list[EmbeddedRule] = []
     for m in _RULE_HEADER_RE.finditer(source):
         header = m.group(1)

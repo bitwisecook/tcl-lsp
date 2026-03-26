@@ -25,7 +25,7 @@ import re
 from dataclasses import dataclass
 
 from ..analysis.semantic_model import Range
-from ..common.source_map import SourceMap
+from ..common.document_buffer import DocumentBuffer
 from .model import (
     BigipConfig,
     BigipDataGroup,
@@ -212,7 +212,7 @@ def _parse_properties(body: str) -> dict[str, str]:
     return {key: prop.value for key, prop in _parse_properties_with_spans(body).items()}
 
 
-def _range_from_token_offsets(source_map: SourceMap, start: int, end_exclusive: int) -> Range:
+def _range_from_token_offsets(source_map: DocumentBuffer, start: int, end_exclusive: int) -> Range:
     """Create an inclusive range from token offsets."""
     end = max(start, end_exclusive - 1)
     return source_map.range_from_offsets(start, end)
@@ -277,7 +277,7 @@ def _parse_list_block(braced: str) -> list[str]:
     return items
 
 
-def _range_from_offsets(source_map: SourceMap, start: int, end: int) -> Range:
+def _range_from_offsets(source_map: DocumentBuffer, start: int, end: int) -> Range:
     return source_map.range_from_offsets(start, end)
 
 
@@ -412,7 +412,7 @@ def _parse_data_group(
     full_path: str,
     body: str,
     kind: DataGroupType,
-    source_map: SourceMap,
+    source_map: DocumentBuffer,
     block: _Block,
 ) -> BigipDataGroup:
     """Parse a ``ltm data-group internal|external`` block."""
@@ -437,7 +437,7 @@ def _parse_pool(
     module: str,
     full_path: str,
     body: str,
-    source_map: SourceMap,
+    source_map: DocumentBuffer,
     block: _Block,
 ) -> BigipPool:
     """Parse a ``ltm pool`` block."""
@@ -462,7 +462,7 @@ def _parse_pool(
 
 
 def _parse_virtual(
-    full_path: str, body: str, source_map: SourceMap, block: _Block
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipVirtualServer:
     """Parse a ``ltm virtual`` block."""
     props_with_spans = _parse_properties_with_spans(body)
@@ -525,7 +525,7 @@ def _parse_virtual(
     )
 
 
-def _parse_node(full_path: str, body: str, source_map: SourceMap, block: _Block) -> BigipNode:
+def _parse_node(full_path: str, body: str, source_map: DocumentBuffer, block: _Block) -> BigipNode:
     props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
     return BigipNode(
@@ -537,7 +537,7 @@ def _parse_node(full_path: str, body: str, source_map: SourceMap, block: _Block)
 
 
 def _parse_profile(
-    full_path: str, profile_type_str: str, source_map: SourceMap, block: _Block
+    full_path: str, profile_type_str: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipProfile:
     name = full_path.rsplit("/", 1)[-1]
     return BigipProfile(
@@ -549,7 +549,7 @@ def _parse_profile(
 
 
 def _parse_monitor(
-    full_path: str, monitor_type: str, source_map: SourceMap, block: _Block
+    full_path: str, monitor_type: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipMonitor:
     name = full_path.rsplit("/", 1)[-1]
     return BigipMonitor(
@@ -561,7 +561,7 @@ def _parse_monitor(
 
 
 def _parse_snatpool(
-    full_path: str, body: str, source_map: SourceMap, block: _Block
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSnatPool:
     props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
@@ -578,7 +578,7 @@ def _parse_snatpool(
 
 
 def _parse_persistence(
-    full_path: str, persistence_type: str, source_map: SourceMap, block: _Block
+    full_path: str, persistence_type: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipPersistence:
     name = full_path.rsplit("/", 1)[-1]
     return BigipPersistence(
@@ -589,7 +589,7 @@ def _parse_persistence(
     )
 
 
-def _parse_rule(full_path: str, body: str, source_map: SourceMap, block: _Block) -> BigipRule:
+def _parse_rule(full_path: str, body: str, source_map: DocumentBuffer, block: _Block) -> BigipRule:
     name = full_path.rsplit("/", 1)[-1]
     return BigipRule(
         name=name,
@@ -610,7 +610,7 @@ def parse_bigip_conf(source: str) -> BigipConfig:
     """
     config = BigipConfig()
     blocks = _extract_blocks(source)
-    source_map = SourceMap(source)
+    source_map = DocumentBuffer.from_source(source)
 
     for block in blocks:
         generic = _parse_generic_header(block.header)

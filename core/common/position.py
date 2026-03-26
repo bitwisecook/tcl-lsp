@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from ..analysis.semantic_model import Range
 from ..parsing.tokens import Token
-from .source_map import SourceMap
+from .document_buffer import DocumentBuffer
 
 if TYPE_CHECKING:
     from ..parsing.command_segmenter import SegmentedCommand
@@ -61,4 +61,4 @@ def find_token_in_command(
 
 def offset_at_position(source: str, line: int, character: int) -> int:
     """Convert an LSP (*line*, *character*) position to a byte offset."""
-    return SourceMap(source).position_to_offset(line, character)
+    return DocumentBuffer.from_source(source).position_to_offset(line, character)
