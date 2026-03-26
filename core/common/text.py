@@ -6,6 +6,7 @@ Used by the analyser (W123 unknown command suggestions) and the compiler
 
 from __future__ import annotations
 
+import heapq
 from collections.abc import Iterable
 
 
@@ -36,8 +37,6 @@ def suggest_similar(
 
     Returns up to *max_suggestions* candidates within *max_distance*.
     """
-    scored = sorted(
-        ((name, edit_distance(attempted, name)) for name in candidates),
-        key=lambda x: x[1],
-    )
-    return [name for name, dist in scored[:max_suggestions] if dist <= max_distance]
+    scored = ((edit_distance(attempted, name), name) for name in candidates)
+    smallest = heapq.nsmallest(max_suggestions, scored)
+    return [name for dist, name in smallest if dist <= max_distance]

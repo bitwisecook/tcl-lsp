@@ -33,7 +33,7 @@ from ..common.naming import (
 from ..common.ranges import position_from_relative, range_from_token
 from ..compiler.cfg import CFGBranch, CFGFunction
 from ..compiler.compilation_unit import CompilationUnit, FunctionUnit, ensure_compilation_unit
-from ..compiler.compiler_checks import run_compiler_checks
+from ..compiler.compiler_checks import iter_ir_statements, run_compiler_checks
 from ..compiler.core_analyses import FunctionAnalysis
 from ..compiler.ir import (
     IRAssignConst,
@@ -41,7 +41,6 @@ from ..compiler.ir import (
     IRBarrier,
     IRCall,
     IRProcedure,
-    IRScript,
     IRStatement,
     IRSwitch,
     when_event_name,
@@ -262,6 +261,8 @@ class Analyser:
         self._conditional_depth: int = 0
         # Track body nesting depth for top-level-only command detection.
         self._body_depth: int = 0
+        # Guard against double W123 emission across analyse_commands/analyse_irule_event.
+        self._unresolved_commands_emitted: bool = False
 
     def snapshot(self) -> AnalyserSnapshot:
         """Capture the analyser state for later restoration.
@@ -1275,10 +1276,15 @@ class Analyser:
                         )
                     )
 
-        # Detect dynamic providers: load command or auto_path manipulation.
+        # Detect dynamic providers: commands that create or load commands
+        # at runtime, making static command resolution unreliable.
         if cmd_name == "load":
             self.result.has_dynamic_providers = True
-        elif cmd_name == "set" and args and args[0] == "auto_path":
+        elif cmd_name in ("set", "lappend") and args and args[0] == "auto_path":
+            self.result.has_dynamic_providers = True
+        elif cmd_name == "rename":
+            self.result.has_dynamic_providers = True
+        elif cmd_name == "namespace" and len(args) >= 2 and args[0] == "import":
             self.result.has_dynamic_providers = True
 
         # W002 and built-in arity (E001-E003, W001) are now emitted by
@@ -1726,7 +1732,9 @@ class Analyser:
                 pass  # trait inference is best-effort
 
         # Detect user-defined ``unknown`` proc and extract dispatch info.
-        if proc_name == "unknown" or qualified == "::unknown":
+        # Handle both bare ``unknown`` and qualified forms like ``::tcl::unknown``.
+        norm_qualified = qualified.lstrip(":")
+        if proc_name == "unknown" or norm_qualified in ("unknown", "tcl::unknown"):
             self._extract_unknown_proc_info(body, params)
 
     # ------------------------------------------------------------------
@@ -1775,48 +1783,40 @@ class Analyser:
         has_exec = False
         has_auto_load = False
         case_insensitive = False
+        has_pattern_dispatch = False
 
-        def _walk_stmts(script: IRScript) -> None:
-            nonlocal chains_original, has_exec, has_auto_load, case_insensitive
-
-            for stmt in script.statements:
-                if isinstance(stmt, IRSwitch):
-                    # Check if the switch subject references the first param.
-                    subj = stmt.subject
-                    if f"${first_param}" in subj or "${" + first_param + "}" in subj:
-                        # Check for case-insensitive pattern:
-                        # ``[string tolower $cmd]`` or ``[string toupper $cmd]``
-                        if "string tolower" in subj or "string toupper" in subj:
-                            case_insensitive = True
+        for stmt in iter_ir_statements(ir_module.top_level):
+            if isinstance(stmt, IRSwitch):
+                subj = stmt.subject
+                if f"${first_param}" in subj or "${" + first_param + "}" in subj:
+                    if "string tolower" in subj or "string toupper" in subj:
+                        case_insensitive = True
+                    if stmt.mode == "exact":
                         for arm in stmt.arms:
                             if arm.pattern != "default":
                                 dispatch_targets.add(arm.pattern)
-                            if arm.body is not None:
-                                _walk_stmts(arm.body)
-                        if stmt.default_body is not None:
-                            _walk_stmts(stmt.default_body)
+                    else:
+                        has_pattern_dispatch = True
 
-                elif isinstance(stmt, IRCall):
-                    cmd = stmt.command
-                    if cmd in self._CHAIN_TARGETS:
-                        chains_original = True
-                    elif cmd == "exec":
-                        has_exec = True
-                    elif cmd == "auto_load":
-                        has_auto_load = True
+            elif isinstance(stmt, IRCall):
+                cmd = stmt.command
+                if cmd in self._CHAIN_TARGETS:
+                    chains_original = True
+                elif cmd == "exec":
+                    has_exec = True
+                elif cmd == "auto_load":
+                    has_auto_load = True
 
-                elif isinstance(stmt, IRBarrier):
-                    # Barriers from eval/uplevel — check the command name.
-                    if stmt.command in self._CHAIN_TARGETS:
-                        chains_original = True
-
-        _walk_stmts(ir_module.top_level)
+            elif isinstance(stmt, IRBarrier):
+                if stmt.command in self._CHAIN_TARGETS:
+                    chains_original = True
 
         self.result.unknown_proc_info = UnknownProcInfo(
             dispatch_targets=frozenset(dispatch_targets),
             chains_original=chains_original,
             empty_stub=False,
             case_insensitive=case_insensitive,
+            has_pattern_dispatch=has_pattern_dispatch,
             has_exec=has_exec,
             has_auto_load=has_auto_load,
         )
@@ -1835,6 +1835,10 @@ class Analyser:
         analyser always emits the diagnostic; filtering is done
         downstream by the LSP layer via ``disabled_diagnostics``.
         """
+        if self._unresolved_commands_emitted:
+            return
+        self._unresolved_commands_emitted = True
+
         from ..common.text import suggest_similar
 
         dialect = active_dialect()
@@ -1851,12 +1855,21 @@ class Analyser:
         upi = self.result.unknown_proc_info
         # If unknown handler is opaque, suppress all W123.
         if upi is not None and (
-            upi.chains_original or upi.has_exec or upi.has_auto_load or upi.case_insensitive
+            upi.chains_original
+            or upi.has_exec
+            or upi.has_auto_load
+            or upi.case_insensitive
+            or upi.has_pattern_dispatch
         ):
             return
 
-        # If dynamic providers detected (load, auto_path), suppress all.
+        # If dynamic providers detected (load, rename, namespace import, etc.),
+        # suppress all.
         if self.result.has_dynamic_providers:
+            return
+
+        # If package require is present, external commands may be loaded.
+        if self.result.package_requires:
             return
 
         dispatch_targets = upi.dispatch_targets if upi is not None else frozenset()

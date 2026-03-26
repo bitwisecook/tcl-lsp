@@ -852,3 +852,95 @@ class TestW123UnresolvedCommand:
     def test_no_unknown_proc_info_by_default(self):
         result = analyse("set x 1")
         assert result.unknown_proc_info is None
+
+    # --- new suppression patterns ---
+
+    def test_package_require_suppresses(self):
+        diags = self._w123("package require Tk\nbutton .b -text hi")
+        assert len(diags) == 0
+
+    def test_rename_suppresses(self):
+        diags = self._w123("rename puts myputs\nmyputs hello")
+        assert len(diags) == 0
+
+    def test_namespace_import_suppresses(self):
+        diags = self._w123("namespace import ::foo::*\nbar arg")
+        assert len(diags) == 0
+
+    def test_lappend_auto_path_suppresses(self):
+        diags = self._w123("lappend auto_path /opt/mylib\nmycmd arg")
+        assert len(diags) == 0
+
+    # --- unknown proc edge cases ---
+
+    def test_unknown_if_else_chains_original(self):
+        """Chain detection inside if/else body (not just top-level)."""
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                if {$cmd eq "foo"} {
+                    puts foo
+                } else {
+                    _original_unknown $cmd {*}$args
+                }
+            }
+            baz x
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 0
+        result = analyse(source)
+        assert result.unknown_proc_info is not None
+        assert result.unknown_proc_info.chains_original
+
+    def test_multiple_unknown_procs_last_wins(self):
+        """Second ``proc unknown`` definition overwrites the first."""
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                _original_unknown $cmd {*}$args
+            }
+            proc unknown {cmd args} {
+                switch $cmd {
+                    foo { puts foo }
+                }
+            }
+            foo x
+            baz y
+        """)
+        result = analyse(source)
+        upi = result.unknown_proc_info
+        assert upi is not None
+        # Second definition does not chain — it only dispatches foo.
+        assert not upi.chains_original
+        assert "foo" in upi.dispatch_targets
+        diags = [d for d in result.diagnostics if d.code == "W123"]
+        assert any("baz" in d.message for d in diags)
+
+    def test_unknown_switch_glob_suppresses(self):
+        """switch -glob in unknown handler suppresses W123 entirely."""
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                switch -glob $cmd {
+                    fo* { puts foo }
+                }
+            }
+            foobar x
+        """)
+        result = analyse(source)
+        upi = result.unknown_proc_info
+        assert upi is not None
+        assert upi.has_pattern_dispatch
+        diags = [d for d in result.diagnostics if d.code == "W123"]
+        assert len(diags) == 0
+
+    def test_tcl_unknown_qualified(self):
+        """``proc ::tcl::unknown`` is recognised as the unknown handler."""
+        source = textwrap.dedent("""\
+            proc ::tcl::unknown {cmd args} {
+                switch $cmd {
+                    foo { puts foo }
+                }
+            }
+        """)
+        result = analyse(source)
+        upi = result.unknown_proc_info
+        assert upi is not None
+        assert "foo" in upi.dispatch_targets

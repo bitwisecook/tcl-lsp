@@ -8,7 +8,7 @@ false positives.
 
 ## Surface
 
-lsp, all-editors
+lsp, vscode, jetbrains (other editors via XDG config)
 
 ## How to use
 
@@ -19,12 +19,14 @@ lsp, all-editors
 
 ### Recognised `unknown` proc patterns
 
-When the analyser encounters `proc unknown {cmd args} { ... }`, it inspects
-the body and adjusts W123 behaviour accordingly:
+When the analyser encounters `proc unknown {cmd args} { ... }` (or the
+qualified form `proc ::tcl::unknown ...`), it inspects the body and adjusts
+W123 behaviour accordingly:
 
 | Pattern | Example | Effect |
 |---------|---------|--------|
-| **switch dispatch** | `switch $cmd { foo {...} bar {...} }` | `foo`, `bar` are treated as known commands |
+| **switch -exact dispatch** | `switch $cmd { foo {...} bar {...} }` | `foo`, `bar` are treated as known commands |
+| **switch -glob/-regexp** | `switch -glob $cmd { fo* {...} }` | Conservative: W123 suppressed entirely |
 | **Empty stub** | `proc unknown {args} {}` | Nothing resolves; W123 fires for all unknown commands |
 | **Chain to original** | `_original_unknown $cmd {*}$args` | Conservative: W123 suppressed entirely |
 | **auto\_load** | `auto_load $cmd` | Conservative: W123 suppressed entirely |
@@ -33,7 +35,8 @@ the body and adjusts W123 behaviour accordingly:
 
 ### Other suppression mechanisms
 
-- **Dynamic providers**: If `load` or `auto_path` manipulation is detected, W123 is suppressed for the entire file.
+- **Dynamic providers**: If `load`, `set auto_path`, `lappend auto_path`, `rename`, or `namespace import` is detected, W123 is suppressed for the entire file.
+- **Package require**: If any `package require` is present, W123 is suppressed (external packages may define commands).
 - **Dialect stubs**: Commands declared via `# tcl-lsp: stub` are treated as known. See [Dialect Stubs](../kcs-dialect-stubs.md).
 - **User-defined procs**: Any `proc` defined in the file (or sourced via packages) is a known command.
 - **Namespace-qualified names**: Commands containing `::` are skipped (may come from `namespace import`).
@@ -57,7 +60,7 @@ and `unknown` dispatch targets.
 
 ## Failure modes
 
-- False positives in codebases using `interp alias`, `namespace import *`, or other dynamic command creation not detected by the gating logic.
+- False positives in codebases using `interp alias` or other dynamic command creation not detected by the gating logic.
 - Forward-defined `unknown` proc in a sourced file (cross-file) is not detected — analysis is single-file.
 
 ## Test anchors

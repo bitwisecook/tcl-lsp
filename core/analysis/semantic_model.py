@@ -267,6 +267,8 @@ class UnknownProcInfo:
     """Body is empty — nothing resolves at all."""
     case_insensitive: bool = False
     """Normalises case before dispatch (all known commands are valid)."""
+    has_pattern_dispatch: bool = False
+    """Uses glob or regexp switch dispatch — opaque match semantics."""
     has_exec: bool = False
     """Calls ``exec`` — opaque external dispatch."""
     has_auto_load: bool = False
