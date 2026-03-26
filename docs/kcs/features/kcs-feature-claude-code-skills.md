@@ -2,7 +2,7 @@
 
 ## Summary
 
-22 slash-command skills for Claude Code providing iRules, Tcl, and Tk development assistance.
+21 slash-command skills for Claude Code providing iRules, Tcl, and Tk development assistance.
 
 ## Surface
 
@@ -53,12 +53,6 @@ In Claude Code, type the skill name:
 | Skill | Description |
 |-------|-------------|
 | `/tk-create` | Create a Tk GUI application |
-
-### Repository
-
-| Skill | Description |
-|-------|-------------|
-| `/code-review` | Comprehensive code review of pending changes |
 
 ### Meta
 
