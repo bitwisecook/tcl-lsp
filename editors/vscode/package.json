@@ -3600,6 +3600,12 @@
             "default": true,
             "markdownDescription": "**H300:** Possible paste error — repeated assignment to same variable with same value.",
             "order": 0
+          },
+          "tclLsp.diagnostics.W123": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "**W123:** Unresolved command — not found in registry, user procs, or `unknown` handler.",
+            "order": 1
           }
         }
       },

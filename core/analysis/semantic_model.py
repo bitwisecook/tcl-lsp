@@ -249,6 +249,30 @@ class StubExprDef:
     range: Range = field(default_factory=Range.zero)
 
 
+@dataclass(frozen=True, slots=True)
+class UnknownProcInfo:
+    """Analysis result from a user-defined ``unknown`` proc.
+
+    When the analyser encounters ``proc unknown {cmd args} { ... }``, it
+    inspects the body to determine which commands the handler can resolve.
+    This information gates the W123 (unresolved command) diagnostic so
+    that commands handled by ``unknown`` are not false-positived.
+    """
+
+    dispatch_targets: frozenset[str] = frozenset()
+    """Command names explicitly dispatched (e.g. switch arm labels)."""
+    chains_original: bool = False
+    """Calls a renamed original ``unknown`` (e.g. ``_original_unknown``)."""
+    empty_stub: bool = False
+    """Body is empty — nothing resolves at all."""
+    case_insensitive: bool = False
+    """Normalises case before dispatch (all known commands are valid)."""
+    has_exec: bool = False
+    """Calls ``exec`` — opaque external dispatch."""
+    has_auto_load: bool = False
+    """Calls ``auto_load`` — dynamic package loading."""
+
+
 # Analysis result
 @dataclass
 class AnalysisResult:
@@ -268,6 +292,7 @@ class AnalysisResult:
     has_dynamic_providers: bool = False  # True if load/auto_path detected
     stub_commands: list[StubCommandDef] = field(default_factory=list)
     stub_expr_defs: list[StubExprDef] = field(default_factory=list)
+    unknown_proc_info: UnknownProcInfo | None = None
 
     def find_proc(self, name: str) -> ProcDef | None:
         """Look up a proc by name, trying qualified and bare forms."""

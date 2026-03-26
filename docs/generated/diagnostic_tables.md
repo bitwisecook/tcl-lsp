@@ -45,6 +45,7 @@
 | W308 | security | `subst` without `-nocommands` — risk of unintended command execution. | ✓ |
 | W309 | security | `eval`/`uplevel` with `subst` — double substitution risk. | ✓ |
 | H300 | hint | Possible paste error — repeated assignment to same variable with same value. | ✓ |
+| W123 | hint | Unresolved command — not found in registry, user procs, or `unknown` handler. | ✗ |
 | S100 | shimmer | Single shimmer outside a loop — object internal representation changed. | ✓ |
 | S101 | shimmer | Shimmer inside a loop body — per-iteration representation conversion cost. | ✓ |
 | S102 | shimmer | Variable oscillates between two types across loop iterations. | ✓ |
