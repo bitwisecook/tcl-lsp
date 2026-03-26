@@ -22,6 +22,26 @@ python3 scripts/perf_semantic_tokens.py /path/to/tcllib/modules/
 python3 scripts/perf_semantic_tokens.py --json /path/to/practcl.tcl
 ```
 
+**Delta benchmark** (measures delta vs full after a single-line edit):
+
+```bash
+# Single file — compare full vs delta timing
+python3 scripts/perf_semantic_tokens.py --delta /path/to/practcl.tcl
+
+# JSON output
+python3 scripts/perf_semantic_tokens.py --delta --json /path/to/practcl.tcl
+```
+
+**Range benchmark** (measures range vs full for a visible viewport):
+
+```bash
+# Default viewport (50 lines)
+python3 scripts/perf_semantic_tokens.py --range /path/to/practcl.tcl
+
+# Custom viewport size
+python3 scripts/perf_semantic_tokens.py --range --visible-lines 100 /path/to/practcl.tcl
+```
+
 **Profiling** (per-phase CPU breakdown with cProfile):
 
 ```bash

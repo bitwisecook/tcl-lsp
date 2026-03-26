@@ -20,16 +20,24 @@ Semantic tokens add highlighting for constructs the TextMate grammar cannot hand
 ## Performance and caching
 
 - **Delta encoding**: The server advertises `textDocument/semanticTokens/full/delta`. After the first full response, editors request deltas — only the changed portion of the token array is sent.  If the delta would be larger than a full response, the server falls back to full automatically.
-- **Per-chunk token cache**: Tokens are cached per top-level chunk (command).  After an edit, only dirty chunks are recomputed; unchanged chunks reuse cached absolute-position tokens.
+- **Range support**: The server advertises `textDocument/semanticTokens/range`. Editors can request tokens for only the visible viewport, reducing payload size for large files.
+- **Per-chunk token cache**: Tokens are cached per top-level chunk (command).  After an edit, only dirty chunks are recomputed; unchanged chunks reuse cached absolute-position tokens.  When all chunks are cached, delta requests skip the entire collection pipeline and assemble directly from cache.
 - **Fast source path**: On `didChange`, `update_source_quick()` updates source text and chunks on the event loop before yielding, so queued semantic-token requests can be served immediately with the new source — even before analysis completes.  A `workspace/semanticTokens/refresh` notification is sent after analysis finishes so editors re-request tokens with analysis enrichment (e.g. regex variable positions).
 - **`DocumentBuffer`**: All position conversions (offset-to-line/col, chunk line ranges) go through the shared `DocumentBuffer`, which caches the line-starts index and provides O(log n) lookups via `bisect`.
+- **Thread safety**: Semantic token result caching uses a bounded, thread-safe store (`_SemanticTokenState`) with automatic eviction. Per-document chunk caches are protected by `DocumentState._lock`.
+
+## Editor integration
+
+- **VS Code**: `vscode-languageclient` auto-negotiates delta when the server advertises it. No extra configuration needed.
+- **Neovim**: The built-in LSP client (`vim.lsp.semantic_tokens`) supports delta natively.
+- **Other editors**: Any LSP client that advertises `requests.full.delta` in its capabilities will receive delta responses.
 
 ## File-path anchors
 
 - `lsp/features/semantic_tokens.py`
 - `core/common/document_buffer.py`
 - `lsp/workspace/document_state.py` — chunk cache storage and `update_source_quick()`
-- `lsp/server.py` — `on_semantic_tokens_full`, `on_semantic_tokens_delta`
+- `lsp/server.py` — `on_semantic_tokens_full`, `on_semantic_tokens_delta`, `on_semantic_tokens_range`
 
 ## Failure modes
 

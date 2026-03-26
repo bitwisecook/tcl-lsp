@@ -231,7 +231,7 @@ def _initialize(client: LspBenchClient) -> None:
                 "textDocument": {
                     "semanticTokens": {
                         "dynamicRegistration": False,
-                        "requests": {"full": True},
+                        "requests": {"full": {"delta": True}, "range": True},
                         "tokenTypes": [],
                         "tokenModifiers": [],
                         "formats": ["relative"],
@@ -371,6 +371,215 @@ def benchmark_file(
     }
 
 
+def benchmark_file_delta(
+    server_dir: str,
+    file_path: str,
+    *,
+    latency_ms: float = 0.0,
+) -> dict:
+    """Benchmark delta semantic tokens after a single-line edit.
+
+    Opens the file, requests full tokens, applies a trivial edit,
+    then requests delta tokens and compares timing and size.
+    """
+    abs_path = os.path.abspath(file_path)
+    if not os.path.isfile(abs_path):
+        raise FileNotFoundError(f"File not found: {abs_path}")
+    with open(abs_path, encoding="utf-8", errors="replace") as f:
+        content = f.read()
+
+    n_lines = content.count("\n") + 1
+    uri = f"file://{abs_path}"
+    latency_s = latency_ms / 1000.0
+
+    client = LspBenchClient(server_dir, latency_s=latency_s)
+    client.start()
+    try:
+        _initialize(client)
+
+        # Open document.
+        client.send_notification(
+            "textDocument/didOpen",
+            {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "tcl",
+                    "version": 1,
+                    "text": content,
+                },
+            },
+        )
+        time.sleep(0.01)
+
+        # Full request — establishes baseline and result ID.
+        t_full_start = time.perf_counter()
+        full_result = client.send_request(
+            "textDocument/semanticTokens/full",
+            {"textDocument": {"uri": uri}},
+        )
+        t_full_end = time.perf_counter()
+
+        full_data = full_result.get("data", []) if full_result else []
+        result_id = full_result.get("resultId", "") if full_result else ""
+        n_full_tokens = len(full_data) // 5
+
+        if not result_id:
+            return {
+                "file": file_path,
+                "error": "Server did not return resultId — delta not supported",
+            }
+
+        # Apply a trivial edit: insert a comment at line 0.
+        edit_text = "# perf-edit\n"
+        client.send_notification(
+            "textDocument/didChange",
+            {
+                "textDocument": {"uri": uri, "version": 2},
+                "contentChanges": [
+                    {
+                        "range": {
+                            "start": {"line": 0, "character": 0},
+                            "end": {"line": 0, "character": 0},
+                        },
+                        "text": edit_text,
+                    }
+                ],
+            },
+        )
+        time.sleep(0.05)
+
+        # Delta request.
+        t_delta_start = time.perf_counter()
+        delta_result = client.send_request(
+            "textDocument/semanticTokens/full/delta",
+            {
+                "textDocument": {"uri": uri},
+                "previousResultId": result_id,
+            },
+        )
+        t_delta_end = time.perf_counter()
+
+        # Delta may return edits or full data.
+        delta_edits = delta_result.get("edits", []) if delta_result else []
+        delta_data = delta_result.get("data", None) if delta_result else None
+        is_full_fallback = delta_data is not None
+
+        time.sleep(0.2)
+        timing_lines = client.get_timing_lines()
+        timing_lines.extend(client.get_stderr_timing_lines())
+
+        return {
+            "file": file_path,
+            "lines": n_lines,
+            "latency_ms": latency_ms,
+            "full_tokens": n_full_tokens,
+            "full_ms": round((t_full_end - t_full_start) * 1000, 1),
+            "delta_ms": round((t_delta_end - t_delta_start) * 1000, 1),
+            "delta_edits": len(delta_edits),
+            "delta_ints": sum(len(e.get("data", [])) for e in delta_edits),
+            "full_fallback": is_full_fallback,
+            "speedup": round(
+                (t_full_end - t_full_start) / max(t_delta_end - t_delta_start, 0.0001),
+                1,
+            ),
+            "timing_log": timing_lines,
+        }
+    finally:
+        client.shutdown()
+
+
+def benchmark_file_range(
+    server_dir: str,
+    file_path: str,
+    *,
+    latency_ms: float = 0.0,
+    visible_lines: int = 50,
+) -> dict:
+    """Benchmark range semantic tokens for a visible viewport.
+
+    Opens the file, requests range tokens for the first *visible_lines*
+    lines, and compares to a full request.
+    """
+    abs_path = os.path.abspath(file_path)
+    if not os.path.isfile(abs_path):
+        raise FileNotFoundError(f"File not found: {abs_path}")
+    with open(abs_path, encoding="utf-8", errors="replace") as f:
+        content = f.read()
+
+    n_lines = content.count("\n") + 1
+    uri = f"file://{abs_path}"
+    latency_s = latency_ms / 1000.0
+
+    client = LspBenchClient(server_dir, latency_s=latency_s)
+    client.start()
+    try:
+        _initialize(client)
+
+        client.send_notification(
+            "textDocument/didOpen",
+            {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "tcl",
+                    "version": 1,
+                    "text": content,
+                },
+            },
+        )
+        time.sleep(0.01)
+
+        # Full request for baseline.
+        t_full_start = time.perf_counter()
+        full_result = client.send_request(
+            "textDocument/semanticTokens/full",
+            {"textDocument": {"uri": uri}},
+        )
+        t_full_end = time.perf_counter()
+
+        full_data = full_result.get("data", []) if full_result else []
+        n_full_tokens = len(full_data) // 5
+
+        # Range request for visible viewport.
+        end_line = min(visible_lines, n_lines - 1)
+        t_range_start = time.perf_counter()
+        range_result = client.send_request(
+            "textDocument/semanticTokens/range",
+            {
+                "textDocument": {"uri": uri},
+                "range": {
+                    "start": {"line": 0, "character": 0},
+                    "end": {"line": end_line, "character": 0},
+                },
+            },
+        )
+        t_range_end = time.perf_counter()
+
+        range_data = range_result.get("data", []) if range_result else []
+        n_range_tokens = len(range_data) // 5
+
+        time.sleep(0.2)
+        timing_lines = client.get_timing_lines()
+        timing_lines.extend(client.get_stderr_timing_lines())
+
+        return {
+            "file": file_path,
+            "lines": n_lines,
+            "visible_lines": end_line,
+            "latency_ms": latency_ms,
+            "full_tokens": n_full_tokens,
+            "full_ms": round((t_full_end - t_full_start) * 1000, 1),
+            "range_tokens": n_range_tokens,
+            "range_ms": round((t_range_end - t_range_start) * 1000, 1),
+            "speedup": round(
+                (t_full_end - t_full_start) / max(t_range_end - t_range_start, 0.0001),
+                1,
+            ),
+            "timing_log": timing_lines,
+        }
+    finally:
+        client.shutdown()
+
+
 def collect_tcl_files(path: str, max_files: int = 50) -> list[str]:
     """Collect .tcl and .irul files from a directory."""
     p = Path(path)
@@ -415,6 +624,52 @@ def _print_human(result: dict) -> None:
     print()
 
 
+def _print_delta(result: dict) -> None:
+    """Print a delta benchmark result in human-readable form."""
+    if "error" in result:
+        print(f"\n  {result['file']}: {result['error']}")
+        return
+    print(f"\n{'=' * 60}")
+    print(f"  File: {result['file']}")
+    print(f"  Lines: {result['lines']}")
+    print(f"  Full tokens: {result['full_tokens']}")
+    print(f"{'=' * 60}")
+    print(f"\n  Full request:  {result['full_ms']:.1f}ms")
+    print(f"  Delta request: {result['delta_ms']:.1f}ms")
+    print(f"  Speedup:       {result['speedup']:.1f}x")
+    if result.get("full_fallback"):
+        print("  (server fell back to full response)")
+    else:
+        print(f"  Delta edits:   {result['delta_edits']}")
+        print(f"  Delta ints:    {result['delta_ints']} (vs {result['full_tokens'] * 5} full)")
+    tl = result.get("timing_log", [])
+    if tl:
+        print(f"\n  Timing trace ({len(tl)} entries):")
+        for line in tl:
+            print(f"    {line.strip()}")
+    print()
+
+
+def _print_range(result: dict) -> None:
+    """Print a range benchmark result in human-readable form."""
+    if "error" in result:
+        print(f"\n  {result['file']}: {result['error']}")
+        return
+    print(f"\n{'=' * 60}")
+    print(f"  File: {result['file']}")
+    print(f"  Lines: {result['lines']} (visible: {result['visible_lines']})")
+    print(f"{'=' * 60}")
+    print(f"\n  Full request:  {result['full_ms']:.1f}ms ({result['full_tokens']} tokens)")
+    print(f"  Range request: {result['range_ms']:.1f}ms ({result['range_tokens']} tokens)")
+    print(f"  Speedup:       {result['speedup']:.1f}x")
+    tl = result.get("timing_log", [])
+    if tl:
+        print(f"\n  Timing trace ({len(tl)} entries):")
+        for line in tl:
+            print(f"    {line.strip()}")
+    print()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Benchmark time-to-semantic-tokens for the Tcl LSP server.",
@@ -442,6 +697,22 @@ def main() -> None:
         help="Output results as JSON",
     )
     parser.add_argument(
+        "--delta",
+        action="store_true",
+        help="Benchmark delta tokens after a single-line edit",
+    )
+    parser.add_argument(
+        "--range",
+        action="store_true",
+        help="Benchmark range tokens for the visible viewport",
+    )
+    parser.add_argument(
+        "--visible-lines",
+        type=int,
+        default=50,
+        help="Number of visible lines for --range mode (default: 50)",
+    )
+    parser.add_argument(
         "--server-dir",
         default=None,
         help="Path to tcl-lsp server directory (auto-detected if omitted)",
@@ -462,17 +733,37 @@ def main() -> None:
     results: list[dict] = []
     for fpath in all_files:
         if not args.json:
-            print(f"Benchmarking: {fpath} ...", file=sys.stderr)
+            mode = "delta" if args.delta else "range" if args.range else "full"
+            print(f"Benchmarking ({mode}): {fpath} ...", file=sys.stderr)
         try:
-            result = benchmark_file(
-                server_dir,
-                fpath,
-                latency_ms=args.latency_ms,
-                iterations=args.iterations,
-            )
+            if args.delta:
+                result = benchmark_file_delta(
+                    server_dir,
+                    fpath,
+                    latency_ms=args.latency_ms,
+                )
+            elif args.range:
+                result = benchmark_file_range(
+                    server_dir,
+                    fpath,
+                    latency_ms=args.latency_ms,
+                    visible_lines=args.visible_lines,
+                )
+            else:
+                result = benchmark_file(
+                    server_dir,
+                    fpath,
+                    latency_ms=args.latency_ms,
+                    iterations=args.iterations,
+                )
             results.append(result)
             if not args.json:
-                _print_human(result)
+                if args.delta:
+                    _print_delta(result)
+                elif args.range:
+                    _print_range(result)
+                else:
+                    _print_human(result)
         except Exception as e:
             print(f"ERROR benchmarking {fpath}: {e}", file=sys.stderr)
             results.append({"file": fpath, "error": str(e)})
