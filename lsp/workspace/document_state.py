@@ -11,6 +11,7 @@ reused and only dirty chunks are re-processed.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -176,6 +177,7 @@ class DocumentState:
     has_partial_commands: bool = False
     file_profiles: frozenset[str] = field(default_factory=frozenset)
     _buffer: DocumentBuffer | None = field(default=None, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     _proc_cache: dict[tuple[str, int], FunctionUnit] = field(
         default_factory=dict,
         repr=False,
@@ -331,7 +333,7 @@ class DocumentState:
         so that semantic token requests can be served immediately with
         the new source text (without analysis enrichment).
         """
-        if self.analysis is not None and source == self.source:
+        if source == self.source and (version is None or version == self.version):
             return False  # unchanged
         new_chunks = segment_top_level_chunks(source)
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
@@ -354,6 +356,7 @@ class DocumentState:
         version: int | None = None,
         *,
         force_reanalyse: bool = False,
+        line_length: int = 120,
     ) -> None:
         """Re-analyse if the source has changed.
 
@@ -368,68 +371,71 @@ class DocumentState:
         point onwards.  Procedure-level caching avoids recomputing SSA
         and dataflow analysis for procs whose source text has not changed.
         """
-        t0 = time.perf_counter()
-        new_chunks = segment_top_level_chunks(source)
-        t_seg = time.perf_counter()
-        has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
+        with self._lock:
+            t0 = time.perf_counter()
+            new_chunks = segment_top_level_chunks(source)
+            t_seg = time.perf_counter()
+            has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
 
-        if not force_reanalyse and self.analysis is not None:
-            if source == self.source:
-                log.debug(
-                    "[timing] document update %.0fms (unchanged)", (time.perf_counter() - t0) * 1000
-                )
-                return
-            dirty_idx = find_first_dirty_chunk(self.chunks, new_chunks)
-            if dirty_idx >= len(new_chunks) and dirty_idx >= len(self.chunks):
-                # All chunks match — source is semantically identical.
-                self.source = source
-                self._buffer = None
-                self.version = version
-                # Invalidate per-chunk caches when offsets may have shifted
-                # (e.g. whitespace changes between commands).  Token ranges
-                # and diagnostic positions are offset-dependent, so stale
-                # caches would produce incorrect results.
-                if self.chunks != new_chunks:
-                    self._chunk_caches = []
-                self.chunks = new_chunks
-                self.has_partial_commands = has_partial
-                log.debug(
-                    "[timing] document update %.0fms (all chunks match)",
-                    (time.perf_counter() - t0) * 1000,
-                )
-                return
+            if not force_reanalyse and self.analysis is not None:
+                if source == self.source:
+                    log.debug(
+                        "[timing] document update %.0fms (unchanged)",
+                        (time.perf_counter() - t0) * 1000,
+                    )
+                    return
+                dirty_idx = find_first_dirty_chunk(self.chunks, new_chunks)
+                if dirty_idx >= len(new_chunks) and dirty_idx >= len(self.chunks):
+                    # All chunks match — source is semantically identical.
+                    self.source = source
+                    self._buffer = None
+                    self.version = version
+                    # Invalidate per-chunk caches when offsets may have shifted
+                    # (e.g. whitespace changes between commands).  Token ranges
+                    # and diagnostic positions are offset-dependent, so stale
+                    # caches would produce incorrect results.
+                    if self.chunks != new_chunks:
+                        self._chunk_caches = []
+                    self.chunks = new_chunks
+                    self.has_partial_commands = has_partial
+                    log.debug(
+                        "[timing] document update %.0fms (all chunks match)",
+                        (time.perf_counter() - t0) * 1000,
+                    )
+                    return
 
-            # Incremental path: try to reuse cached artefacts.
-            try:
-                self._update_incremental(
-                    source,
-                    version,
-                    new_chunks,
-                    has_partial,
-                    dirty_idx,
-                )
-                log.info(
-                    "[timing] document update %.0fms (incremental, dirty=%d/%d, segment=%.0fms)",
-                    (time.perf_counter() - t0) * 1000,
-                    dirty_idx,
-                    len(new_chunks),
-                    (t_seg - t0) * 1000,
-                )
-                return
-            except Exception:
-                log.debug(
-                    "document_state: incremental update failed, falling back to full rebuild",
-                    exc_info=True,
-                )
-                # Fall through to full rebuild.
+                # Incremental path: try to reuse cached artefacts.
+                try:
+                    self._update_incremental(
+                        source,
+                        version,
+                        new_chunks,
+                        has_partial,
+                        dirty_idx,
+                        line_length=line_length,
+                    )
+                    log.info(
+                        "[timing] document update %.0fms (incremental, dirty=%d/%d, segment=%.0fms)",
+                        (time.perf_counter() - t0) * 1000,
+                        dirty_idx,
+                        len(new_chunks),
+                        (t_seg - t0) * 1000,
+                    )
+                    return
+                except Exception:
+                    log.debug(
+                        "document_state: incremental update failed, falling back to full rebuild",
+                        exc_info=True,
+                    )
+                    # Fall through to full rebuild.
 
-        self._update_full(source, version, new_chunks, has_partial)
-        log.info(
-            "[timing] document update %.0fms (full rebuild, %d chunks, segment=%.0fms)",
-            (time.perf_counter() - t0) * 1000,
-            len(new_chunks),
-            (t_seg - t0) * 1000,
-        )
+            self._update_full(source, version, new_chunks, has_partial, line_length=line_length)
+            log.info(
+                "[timing] document update %.0fms (full rebuild, %d chunks, segment=%.0fms)",
+                (time.perf_counter() - t0) * 1000,
+                len(new_chunks),
+                (t_seg - t0) * 1000,
+            )
 
     def _update_incremental(
         self,
@@ -438,6 +444,8 @@ class DocumentState:
         new_chunks: list[TopLevelChunk],
         has_partial: bool,
         dirty_idx: int,
+        *,
+        line_length: int = 120,
     ) -> None:
         """Incremental update: reuse cached artefacts for clean chunks."""
         t0 = time.perf_counter()
@@ -537,6 +545,7 @@ class DocumentState:
                 dirty_idx,
                 dirty_snapshots,
                 ir_module,
+                line_length=line_length,
             )
             self._chunk_caches = new_chunk_caches
         t_caches = time.perf_counter()
@@ -562,6 +571,8 @@ class DocumentState:
         dirty_idx: int,
         dirty_snapshots: list[AnalyserSnapshot],
         ir_module: object | None,
+        *,
+        line_length: int = 120,
     ) -> None:
         """Build ``ChunkCache`` entries for dirty chunks using pre-built snapshots.
 
@@ -573,7 +584,7 @@ class DocumentState:
             from bisect import bisect_left, bisect_right
 
             buf = self.buffer
-            all_style_diags = _get_style_diag_all_fn()(source)
+            all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
             diag_lines = [d.range.start.line for d in all_style_diags]
 
             # Extract per-chunk IR from the IR module when available.
@@ -608,6 +619,7 @@ class DocumentState:
                     procedures=ir_procs,
                     analyser_snapshot_after=snap,
                     style_diagnostics=style_diags,
+                    style_line_length=line_length,
                 )
         except Exception:
             log.debug(
@@ -621,6 +633,8 @@ class DocumentState:
         version: int | None,
         new_chunks: list[TopLevelChunk],
         has_partial: bool,
+        *,
+        line_length: int = 120,
     ) -> None:
         """Full rebuild — no incremental reuse."""
         t0 = time.perf_counter()
@@ -667,7 +681,7 @@ class DocumentState:
         t_analyse = time.perf_counter()
 
         # Build chunk caches using pre-built snapshots.
-        self._build_full_chunk_caches(source, new_chunks, chunk_snapshots)
+        self._build_full_chunk_caches(source, new_chunks, chunk_snapshots, line_length=line_length)
         t_caches = time.perf_counter()
 
         n_procs = len(self.compilation_unit.procedures) if self.compilation_unit else 0
@@ -687,6 +701,8 @@ class DocumentState:
         source: str,
         chunks: list[TopLevelChunk],
         chunk_snapshots: list[AnalyserSnapshot] | None = None,
+        *,
+        line_length: int = 120,
     ) -> None:
         """Build ``ChunkCache`` entries after a full rebuild.
 
@@ -703,7 +719,7 @@ class DocumentState:
             # Compute style diagnostics once for the whole file, then
             # partition by chunk using bisect (O(lines) + O(chunks×log(diags))
             # instead of the old O(chunks×lines) approach).
-            all_style_diags = _get_style_diag_all_fn()(source)
+            all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
             diag_lines = [d.range.start.line for d in all_style_diags]
 
             # Extract per-chunk IR from the already-compiled IRModule when
@@ -750,6 +766,7 @@ class DocumentState:
                         procedures=ir_procs,
                         analyser_snapshot_after=snap,
                         style_diagnostics=style_diags,
+                        style_line_length=line_length,
                     )
                 )
             self._chunk_caches = caches

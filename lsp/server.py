@@ -1817,7 +1817,13 @@ async def _publish_diagnostics(
     t_update = time.perf_counter()
     did_analyse = needs_analysis or force_reanalyse
     if did_analyse:
-        await asyncio.to_thread(state.update, source, version, force_reanalyse=force_reanalyse)
+        await asyncio.to_thread(
+            state.update,
+            source,
+            version,
+            force_reanalyse=force_reanalyse,
+            line_length=line_length,
+        )
         # If the document changed while we were analysing in the background
         # thread, bail — a newer _publish_diagnostics coroutine will handle it.
         if state.version != version:
