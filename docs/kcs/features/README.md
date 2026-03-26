@@ -30,6 +30,7 @@ Every file must follow this structure so the help parser can extract metadata:
 ## LSP features
 
 - [kcs-feature-diagnostics.md](kcs-feature-diagnostics.md)
+- [kcs-feature-unknown-command-resolution.md](kcs-feature-unknown-command-resolution.md)
 - [kcs-feature-unused-variables.md](kcs-feature-unused-variables.md)
 - [kcs-feature-completions.md](kcs-feature-completions.md)
 - [kcs-feature-hover.md](kcs-feature-hover.md)

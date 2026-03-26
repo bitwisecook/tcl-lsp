@@ -26,6 +26,7 @@ from ..commands.registry.runtime import (
 from ..common.codes import diag
 from ..common.dialect import active_dialect
 from ..common.ranges import position_from_relative, range_from_token
+from ..common.text import suggest_similar as _suggest_similar_impl
 from ..parsing.argv import widen_argv_tokens_to_word_spans
 from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
 from ..parsing.lexer import TclLexer
@@ -54,82 +55,50 @@ diag("E004", "Invalid argument count.", section="error", internal=True)
 diag("W302", "`catch` without result variable — errors are silently swallowed.", section="security")
 
 
-def _edit_distance(a: str, b: str) -> int:
-    """Compute Levenshtein edit distance between two strings."""
-    if len(a) < len(b):
-        return _edit_distance(b, a)
-    if not b:
-        return len(a)
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a):
-        curr = [i + 1]
-        for j, cb in enumerate(b):
-            cost = 0 if ca == cb else 1
-            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + cost))
-        prev = curr
-    return prev[-1]
-
-
-def _suggest_subcommands(
-    attempted: str,
-    available: dict[str, CommandSig],
-    max_suggestions: int = 3,
-    max_distance: int = 3,
-) -> list[str]:
-    """Suggest similar subcommands ranked by edit distance."""
-    if not available:
-        return []
-    candidates = sorted(
-        ((name, _edit_distance(attempted, name)) for name in available),
-        key=lambda x: x[1],
-    )
-    return [name for name, dist in candidates[:max_suggestions] if dist <= max_distance]
-
-
-def _iter_statements(script: IRScript):
+def iter_ir_statements(script: IRScript):
     """Yield every IR statement, recursing into structured bodies."""
     for stmt in script.statements:
         yield stmt
 
         if isinstance(stmt, IRIf):
             for clause in stmt.clauses:
-                yield from _iter_statements(clause.body)
+                yield from iter_ir_statements(clause.body)
             if stmt.else_body is not None:
-                yield from _iter_statements(stmt.else_body)
+                yield from iter_ir_statements(stmt.else_body)
             continue
 
         if isinstance(stmt, IRFor):
-            yield from _iter_statements(stmt.init)
-            yield from _iter_statements(stmt.body)
-            yield from _iter_statements(stmt.next)
+            yield from iter_ir_statements(stmt.init)
+            yield from iter_ir_statements(stmt.body)
+            yield from iter_ir_statements(stmt.next)
             continue
 
         if isinstance(stmt, IRSwitch):
             for arm in stmt.arms:
                 if arm.body is not None:
-                    yield from _iter_statements(arm.body)
+                    yield from iter_ir_statements(arm.body)
             if stmt.default_body is not None:
-                yield from _iter_statements(stmt.default_body)
+                yield from iter_ir_statements(stmt.default_body)
             continue
 
         if isinstance(stmt, IRWhile):
-            yield from _iter_statements(stmt.body)
+            yield from iter_ir_statements(stmt.body)
             continue
 
         if isinstance(stmt, IRForeach):
-            yield from _iter_statements(stmt.body)
+            yield from iter_ir_statements(stmt.body)
             continue
 
         if isinstance(stmt, IRCatch):
-            yield from _iter_statements(stmt.body)
+            yield from iter_ir_statements(stmt.body)
             continue
 
         if isinstance(stmt, IRTry):
-            yield from _iter_statements(stmt.body)
+            yield from iter_ir_statements(stmt.body)
             for handler in stmt.handlers:
-                yield from _iter_statements(handler.body)
+                yield from iter_ir_statements(handler.body)
             if stmt.finally_body is not None:
-                yield from _iter_statements(stmt.finally_body)
+                yield from iter_ir_statements(stmt.finally_body)
 
 
 def _switch_list_body_index(args: list[str]) -> int | None:
@@ -547,7 +516,7 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
             _check_arity(cmd_name, args, sig, cmd_token_range, diagnostics)
 
     def _walk_ir(script: IRScript) -> None:
-        for stmt in _iter_statements(script):
+        for stmt in iter_ir_statements(script):
             _check_statement(stmt)
 
     _walk_ir(ir_module.top_level)
@@ -584,7 +553,9 @@ def _check_arity(
             if sig.allow_unknown:
                 return
             msg = f"Unknown subcommand '{sub_name}' for '{cmd_name}'"
-            suggestions = _suggest_subcommands(sub_name, sig.subcommands)
+            suggestions = _suggest_similar_impl(
+                sub_name, sig.subcommands, max_suggestions=3, max_distance=3
+            )
             if suggestions:
                 msg += f"; did you mean '{suggestions[0]}'?"
             diagnostics.append(
@@ -651,9 +622,9 @@ def run_compiler_checks(
             return []
 
     stmts: list[IRStatement] = []
-    stmts.extend(_iter_statements(ir_module.top_level))
+    stmts.extend(iter_ir_statements(ir_module.top_level))
     for proc in ir_module.procedures.values():
-        stmts.extend(_iter_statements(proc.body))
+        stmts.extend(iter_ir_statements(proc.body))
     stmts.sort(key=lambda s: (s.range.start.offset, s.range.end.offset))
 
     runner = _CompilerCheckRunner(source)

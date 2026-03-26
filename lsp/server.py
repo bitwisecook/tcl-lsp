@@ -19,7 +19,7 @@ from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import configure_signatures, is_irules_dialect
-from core.common.codes import diagnostic_codes, optimisation_codes
+from core.common.codes import default_disabled_diagnostics, diagnostic_codes, optimisation_codes
 from core.common.document_buffer import DocumentBuffer
 from core.common.lsp import to_lsp_location
 from core.common.user_config import (
@@ -98,7 +98,10 @@ class FeatureConfig:
     selection_range_enabled: bool = True
 
     # Per-code diagnostic filters -- codes present here are *disabled*.
-    disabled_diagnostics: set[str] = field(default_factory=set)
+    # Initialised from codes with ``default=False`` (opt-in diagnostics).
+    disabled_diagnostics: set[str] = field(
+        default_factory=lambda: set(default_disabled_diagnostics())
+    )
 
     # Optimiser master switch + per-code filters.
     optimiser_enabled: bool = True
@@ -2617,11 +2620,14 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     # Per-diagnostic-code filters  (tclLsp.diagnostics.W100 etc.)
     diagnostics_section = tcl_settings.get("diagnostics")
     if isinstance(diagnostics_section, dict):
-        new_disabled: set[str] = set()
+        new_disabled: set[str] = set(default_disabled_diagnostics())
         for code in _ALL_DIAGNOSTIC_CODES:
             val = diagnostics_section.get(code)
-            if isinstance(val, bool) and not val:
-                new_disabled.add(code)
+            if isinstance(val, bool):
+                if not val:
+                    new_disabled.add(code)
+                else:
+                    new_disabled.discard(code)
         if new_disabled != feature_config.disabled_diagnostics:
             feature_config.disabled_diagnostics = new_disabled
             changed = True

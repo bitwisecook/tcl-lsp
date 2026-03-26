@@ -277,6 +277,12 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W123",
+    section: "hint",
+    description: "Unresolved command — not found in registry, user procs, or `unknown` handler.",
+    defaultEnabled: false,
+  },
+  {
     code: "S100",
     section: "shimmer",
     description: "Single shimmer outside a loop — object internal representation changed.",

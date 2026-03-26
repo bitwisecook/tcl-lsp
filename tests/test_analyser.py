@@ -996,3 +996,297 @@ class TestInterpAlias:
         # alias should still be present since we don't track deletions.
         assert "::myalias" in result.command_aliases
         assert result.command_aliases["::myalias"] == ("list", ())
+
+
+class TestW123UnresolvedCommand:
+    """W123: Unresolved command detection and unknown proc analysis."""
+
+    @staticmethod
+    def _w123(source: str) -> list:
+        result = analyse(source)
+        return [d for d in result.diagnostics if d.code == "W123"]
+
+    def test_unknown_command_emits_w123(self):
+        diags = self._w123("mycommand a b c")
+        assert len(diags) == 1
+        assert "mycommand" in diags[0].message
+
+    def test_known_builtin_no_w123(self):
+        diags = self._w123("set x 1")
+        assert len(diags) == 0
+
+    def test_user_proc_no_w123(self):
+        diags = self._w123("proc mycommand {x} { puts $x }\nmycommand hello")
+        assert len(diags) == 0
+
+    def test_forward_defined_proc_no_w123(self):
+        """Proc defined after usage should still suppress W123."""
+        diags = self._w123("mycommand hello\nproc mycommand {x} { puts $x }")
+        assert len(diags) == 0
+
+    def test_namespace_qualified_skipped(self):
+        diags = self._w123("::myns::cmd arg1")
+        assert len(diags) == 0
+
+    def test_variable_command_skipped(self):
+        diags = self._w123("set cmd puts\n$cmd hello")
+        # $cmd starts with $, should be skipped
+        assert all("$cmd" not in d.message for d in diags)
+
+    def test_dynamic_providers_suppress(self):
+        diags = self._w123("load mylib.so\nmycommand arg1")
+        assert len(diags) == 0
+
+    def test_stub_command_no_w123(self):
+        source = textwrap.dedent("""\
+            # tcl-lsp: stubs-begin
+            # tcl-lsp: stub mycommand {arg1 arg2}
+            # tcl-lsp: stubs-end
+            mycommand x y
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 0
+
+    # --- unknown proc analysis ---
+
+    def test_unknown_proc_switch_dispatch(self):
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                switch $cmd {
+                    foo { puts foo }
+                    bar { puts bar }
+                }
+            }
+            foo x
+            bar y
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 0
+
+    def test_unknown_proc_switch_dispatch_unhandled(self):
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                switch $cmd {
+                    foo { puts foo }
+                }
+            }
+            foo x
+            baz y
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 1
+        assert "baz" in diags[0].message
+
+    def test_unknown_proc_empty_stub(self):
+        source = textwrap.dedent("""\
+            proc unknown {args} {}
+            mycommand arg1
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 1
+        assert "mycommand" in diags[0].message
+
+    def test_unknown_proc_chains_original_suppresses(self):
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                _original_unknown $cmd {*}$args
+            }
+            mycommand arg1
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 0
+
+    def test_unknown_proc_auto_load_suppresses(self):
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                auto_load $cmd
+            }
+            mycommand arg1
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 0
+
+    def test_unknown_proc_exec_suppresses(self):
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                exec $cmd {*}$args
+            }
+            mycommand arg1
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 0
+
+    # --- did you mean? ---
+
+    def test_did_you_mean_suggestion(self):
+        diags = self._w123("putz hello")
+        assert len(diags) == 1
+        assert "puts" in diags[0].message
+        assert diags[0].fixes
+        assert diags[0].fixes[0].new_text == "puts"
+
+    def test_no_suggestion_for_distant_name(self):
+        diags = self._w123("xyzzyplugh arg1")
+        assert len(diags) == 1
+        assert "did you mean" not in diags[0].message
+
+    # --- unknown_proc_info on result ---
+
+    def test_unknown_proc_info_populated(self):
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                switch $cmd {
+                    foo { puts foo }
+                    bar { puts bar }
+                }
+            }
+        """)
+        result = analyse(source)
+        upi = result.unknown_proc_info
+        assert upi is not None
+        assert "foo" in upi.dispatch_targets
+        assert "bar" in upi.dispatch_targets
+        assert not upi.empty_stub
+        assert not upi.chains_original
+
+    def test_unknown_proc_info_empty_stub(self):
+        result = analyse("proc unknown {args} {}")
+        upi = result.unknown_proc_info
+        assert upi is not None
+        assert upi.empty_stub
+
+    def test_no_unknown_proc_info_by_default(self):
+        result = analyse("set x 1")
+        assert result.unknown_proc_info is None
+
+    # --- new suppression patterns ---
+
+    def test_package_require_suppresses(self):
+        diags = self._w123("package require Tk\nbutton .b -text hi")
+        assert len(diags) == 0
+
+    def test_rename_suppresses(self):
+        diags = self._w123("rename puts myputs\nmyputs hello")
+        assert len(diags) == 0
+
+    def test_namespace_import_suppresses(self):
+        diags = self._w123("namespace import ::foo::*\nbar arg")
+        assert len(diags) == 0
+
+    def test_lappend_auto_path_suppresses(self):
+        diags = self._w123("lappend auto_path /opt/mylib\nmycmd arg")
+        assert len(diags) == 0
+
+    # --- unknown proc edge cases ---
+
+    def test_unknown_if_else_chains_original(self):
+        """Chain detection inside if/else body (not just top-level)."""
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                if {$cmd eq "foo"} {
+                    puts foo
+                } else {
+                    _original_unknown $cmd {*}$args
+                }
+            }
+            baz x
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 0
+        result = analyse(source)
+        assert result.unknown_proc_info is not None
+        assert result.unknown_proc_info.chains_original
+
+    def test_multiple_unknown_procs_last_wins(self):
+        """Second ``proc unknown`` definition overwrites the first."""
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                _original_unknown $cmd {*}$args
+            }
+            proc unknown {cmd args} {
+                switch $cmd {
+                    foo { puts foo }
+                }
+            }
+            foo x
+            baz y
+        """)
+        result = analyse(source)
+        upi = result.unknown_proc_info
+        assert upi is not None
+        # Second definition does not chain — it only dispatches foo.
+        assert not upi.chains_original
+        assert "foo" in upi.dispatch_targets
+        diags = [d for d in result.diagnostics if d.code == "W123"]
+        assert any("baz" in d.message for d in diags)
+
+    def test_unknown_switch_glob_suppresses(self):
+        """switch -glob in unknown handler suppresses W123 entirely."""
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                switch -glob $cmd {
+                    fo* { puts foo }
+                }
+            }
+            foobar x
+        """)
+        result = analyse(source)
+        upi = result.unknown_proc_info
+        assert upi is not None
+        assert upi.has_pattern_dispatch
+        diags = [d for d in result.diagnostics if d.code == "W123"]
+        assert len(diags) == 0
+
+    # --- alias integration ---
+
+    def test_alias_command_no_w123(self):
+        """Commands defined via interp alias should not trigger W123."""
+        diags = self._w123("interp alias {} = {} expr\n= {1 + 2}")
+        assert len(diags) == 0
+
+    def test_alias_in_did_you_mean(self):
+        """Alias names should appear in 'did you mean?' suggestions."""
+        source = textwrap.dedent("""\
+            interp alias {} myput {} puts stdout
+            myptu hello
+        """)
+        diags = self._w123(source)
+        assert len(diags) == 1
+        assert "myput" in diags[0].message
+
+    def test_unknown_proc_lowering_failure_suppresses(self):
+        """When IR lowering of the unknown proc body fails, treat as opaque."""
+        from unittest.mock import patch
+
+        source = textwrap.dedent("""\
+            proc unknown {cmd args} {
+                switch $cmd {
+                    foo { puts foo }
+                }
+            }
+            baz x
+        """)
+        with patch(
+            "core.compiler.lowering.lower_to_ir",
+            side_effect=RuntimeError("lowering failed"),
+        ):
+            result = analyse(source)
+        upi = result.unknown_proc_info
+        assert upi is not None
+        assert upi.chains_original  # opaque — suppresses W123
+        diags = [d for d in result.diagnostics if d.code == "W123"]
+        assert len(diags) == 0
+
+    def test_tcl_unknown_qualified(self):
+        """``proc ::tcl::unknown`` is recognised as the unknown handler."""
+        source = textwrap.dedent("""\
+            proc ::tcl::unknown {cmd args} {
+                switch $cmd {
+                    foo { puts foo }
+                }
+            }
+        """)
+        result = analyse(source)
+        upi = result.unknown_proc_info
+        assert upi is not None
+        assert "foo" in upi.dispatch_targets

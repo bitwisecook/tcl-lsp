@@ -1406,6 +1406,7 @@ Use `# noqa: *` to suppress all diagnostics on a line.
 | W120 | Package-gated command used without `package require` | Insert `package require` |
 | W121 | Subnet mask has non-contiguous bits | Replace with nearest valid mask |
 | W122 | Mistyped IPv4 address (octet > 255 or leading zero) | |
+| W123 | Unknown command — not found in registry, user procs, or `unknown` handler (opt-in) | Replace with suggestion |
 | W200 | Binary format modifier requires newer Tcl | |
 | W201 | Manual path concatenation (use `file join`) | Rewrite as `[file join]` |
 

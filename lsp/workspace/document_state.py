@@ -26,6 +26,7 @@ from typing import Any
 from core.analysis.analyser import Analyser, AnalyserSnapshot, AnalysisResult
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect
+from core.common.codes import default_disabled_diagnostics
 from core.common.document_buffer import DocumentBuffer
 from core.compiler.compilation_unit import CompilationUnit, FunctionUnit, compile_source
 from core.compiler.interprocedural import ProcLocalSummary
@@ -650,7 +651,7 @@ class DocumentState:
         dirty_chunk_commands = [list(chunk.commands) for chunk in new_chunks[dirty_idx:]]
 
         if restore_snapshot is not None:
-            analyser = Analyser()
+            analyser = Analyser(disabled_diagnostics=default_disabled_diagnostics())
             analyser.restore(restore_snapshot)
             analysis, dirty_snapshots = analyser.analyse_chunked(
                 source,
@@ -660,7 +661,7 @@ class DocumentState:
             )
         else:
             # No snapshot to restore from — full chunked analysis.
-            analyser = Analyser()
+            analyser = Analyser(disabled_diagnostics=default_disabled_diagnostics())
             analysis, dirty_snapshots = analyser.analyse_chunked(
                 source,
                 dirty_chunk_commands,
@@ -819,7 +820,7 @@ class DocumentState:
         # chunk-by-chunk, capturing snapshots at each boundary.  This avoids
         # the old pattern of running analyse() then re-analysing per-chunk.
         chunk_commands = [list(chunk.commands) for chunk in new_chunks]
-        analyser = Analyser()
+        analyser = Analyser(disabled_diagnostics=default_disabled_diagnostics())
         analysis, chunk_snapshots = analyser.analyse_chunked(
             source,
             chunk_commands,

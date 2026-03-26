@@ -118,6 +118,7 @@ class TclLspSettingsPanel {
 
     // Diagnostics — Hints
     private val diagH300 = JBCheckBox("H300: Possible paste error")
+    private val diagW123 = JBCheckBox("W123: Unresolved command")
 
     // Diagnostics — Shimmer
     private val diagS100 = JBCheckBox("S100: Single shimmer outside a loop")
@@ -316,7 +317,7 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostics — Hints"))
         val diagHintPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagH300,
+            diagH300, diagW123,
         ).forEach { diagHintPanel.add(it) }
         builder.addComponent(diagHintPanel)
 
@@ -496,6 +497,7 @@ class TclLspSettingsPanel {
             diagW308.isSelected != s.diagnosticW308 ||
             diagW309.isSelected != s.diagnosticW309 ||
             diagH300.isSelected != s.diagnosticH300 ||
+            diagW123.isSelected != s.diagnosticW123 ||
             diagS100.isSelected != s.diagnosticS100 ||
             diagS101.isSelected != s.diagnosticS101 ||
             diagS102.isSelected != s.diagnosticS102 ||
@@ -677,6 +679,7 @@ class TclLspSettingsPanel {
         s.diagnosticW308 = diagW308.isSelected
         s.diagnosticW309 = diagW309.isSelected
         s.diagnosticH300 = diagH300.isSelected
+        s.diagnosticW123 = diagW123.isSelected
         s.diagnosticS100 = diagS100.isSelected
         s.diagnosticS101 = diagS101.isSelected
         s.diagnosticS102 = diagS102.isSelected
@@ -855,6 +858,7 @@ class TclLspSettingsPanel {
         diagW308.isSelected = s.diagnosticW308
         diagW309.isSelected = s.diagnosticW309
         diagH300.isSelected = s.diagnosticH300
+        diagW123.isSelected = s.diagnosticW123
         diagS100.isSelected = s.diagnosticS100
         diagS101.isSelected = s.diagnosticS101
         diagS102.isSelected = s.diagnosticS102

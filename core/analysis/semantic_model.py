@@ -282,6 +282,32 @@ class StubExprDef:
     range: Range = field(default_factory=Range.zero)
 
 
+@dataclass(frozen=True, slots=True)
+class UnknownProcInfo:
+    """Analysis result from a user-defined ``unknown`` proc.
+
+    When the analyser encounters ``proc unknown {cmd args} { ... }``, it
+    inspects the body to determine which commands the handler can resolve.
+    This information gates the W123 (unresolved command) diagnostic so
+    that commands handled by ``unknown`` are not false-positived.
+    """
+
+    dispatch_targets: frozenset[str] = frozenset()
+    """Command names explicitly dispatched (e.g. switch arm labels)."""
+    chains_original: bool = False
+    """Calls a renamed original ``unknown`` (e.g. ``_original_unknown``)."""
+    empty_stub: bool = False
+    """Body is empty — nothing resolves at all."""
+    case_insensitive: bool = False
+    """Normalises case before dispatch (all known commands are valid)."""
+    has_pattern_dispatch: bool = False
+    """Uses glob or regexp switch dispatch — opaque match semantics."""
+    has_exec: bool = False
+    """Calls ``exec`` — opaque external dispatch."""
+    has_auto_load: bool = False
+    """Calls ``auto_load`` — dynamic package loading."""
+
+
 # Analysis result
 @dataclass
 class AnalysisResult:
@@ -305,6 +331,7 @@ class AnalysisResult:
     # (target_cmd, prepended_args).  Populated from
     # ``interp alias {} name {} target ?arg ...?`` statements.
     command_aliases: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
+    unknown_proc_info: UnknownProcInfo | None = None
 
     def copy_for_snapshot(self) -> AnalysisResult:
         """Create an independent copy suitable for analyser snapshots.
@@ -342,6 +369,7 @@ class AnalysisResult:
             stub_commands=list(self.stub_commands),
             stub_expr_defs=list(self.stub_expr_defs),
             command_aliases=dict(self.command_aliases),
+            unknown_proc_info=self.unknown_proc_info,
         )
 
     def find_proc(self, name: str) -> ProcDef | None:

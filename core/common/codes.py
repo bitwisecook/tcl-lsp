@@ -167,6 +167,15 @@ def diagnostic_codes() -> frozenset[str]:
     )
 
 
+def default_disabled_diagnostics() -> frozenset[str]:
+    """Diagnostic codes that are opt-in (``default=False``)."""
+    return frozenset(
+        c
+        for c, info in _registry.items()
+        if info.kind is CodeKind.DIAGNOSTIC and not info.internal and not info.default
+    )
+
+
 def optimisation_codes() -> frozenset[str]:
     """All registered optimisation codes."""
     return frozenset(c for c, info in _registry.items() if info.kind is CodeKind.OPTIMISATION)
