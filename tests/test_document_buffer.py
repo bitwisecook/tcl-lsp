@@ -1,18 +1,15 @@
-"""Tests for DocumentBuffer, EditDescriptor, and update_line_starts."""
+"""Tests for DocumentBuffer and compute_line_starts."""
 
 from __future__ import annotations
 
 from core.common.document_buffer import (
     DocumentBuffer,
-    EditDescriptor,
     compute_line_starts,
-    update_line_starts,
 )
 from core.parsing.tokens import SourcePosition
 
-# ---------------------------------------------------------------------------
+
 # compute_line_starts
-# ---------------------------------------------------------------------------
 
 
 class TestComputeLineStarts:
@@ -39,9 +36,7 @@ class TestComputeLineStarts:
         assert compute_line_starts("a\r\nb\r\n") == (0, 3, 6)
 
 
-# ---------------------------------------------------------------------------
 # DocumentBuffer.from_source
-# ---------------------------------------------------------------------------
 
 
 class TestDocumentBufferFromSource:
@@ -50,7 +45,6 @@ class TestDocumentBufferFromSource:
         assert buf.source == "hello\nworld"
         assert buf.version == 1
         assert buf.line_starts == (0, 6)
-        assert buf.edit is None
 
     def test_empty(self):
         buf = DocumentBuffer.from_source("")
@@ -64,9 +58,7 @@ class TestDocumentBufferFromSource:
         assert buf.lines is lines  # same object
 
 
-# ---------------------------------------------------------------------------
 # offset_to_position
-# ---------------------------------------------------------------------------
 
 
 class TestOffsetToPosition:
@@ -120,9 +112,7 @@ class TestOffsetToPosition:
         assert pos == SourcePosition(line=2, character=3, offset=15)
 
 
-# ---------------------------------------------------------------------------
 # position_to_offset
-# ---------------------------------------------------------------------------
 
 
 class TestPositionToOffset:
@@ -163,9 +153,7 @@ class TestPositionToOffset:
             assert back == offset, f"roundtrip failed at offset {offset}"
 
 
-# ---------------------------------------------------------------------------
 # offset_to_line_col
-# ---------------------------------------------------------------------------
 
 
 class TestOffsetToLineCol:
@@ -177,9 +165,7 @@ class TestOffsetToLineCol:
         assert buf.offset_to_line_col(8) == (1, 2)
 
 
-# ---------------------------------------------------------------------------
 # chunk_line_range
-# ---------------------------------------------------------------------------
 
 
 class TestChunkLineRange:
@@ -219,9 +205,7 @@ class TestChunkLineRange:
             assert new == old, f"chunk {chunk}: old={old}, new={new}"
 
 
-# ---------------------------------------------------------------------------
 # range_from_offsets
-# ---------------------------------------------------------------------------
 
 
 class TestRangeFromOffsets:
@@ -248,190 +232,7 @@ class TestRangeFromOffsets:
         assert r.end.line == 0
 
 
-# ---------------------------------------------------------------------------
-# EditDescriptor
-# ---------------------------------------------------------------------------
-
-
-class TestEditDescriptor:
-    def test_delta_insert(self):
-        ed = EditDescriptor(start_offset=5, old_length=0, new_length=3)
-        assert ed.delta == 3
-
-    def test_delta_delete(self):
-        ed = EditDescriptor(start_offset=5, old_length=3, new_length=0)
-        assert ed.delta == -3
-
-    def test_delta_replace(self):
-        ed = EditDescriptor(start_offset=5, old_length=3, new_length=5)
-        assert ed.delta == 2
-
-
-# ---------------------------------------------------------------------------
-# update_line_starts
-# ---------------------------------------------------------------------------
-
-
-class TestUpdateLineStarts:
-    def _verify_incremental(self, old_source: str, new_source: str, edit: EditDescriptor):
-        """Verify incremental update matches full recompute."""
-        old_starts = compute_line_starts(old_source)
-        incremental = update_line_starts(old_starts, edit, new_source)
-        expected = compute_line_starts(new_source)
-        assert incremental == expected, (
-            f"Mismatch:\n  old_source={old_source!r}\n  new_source={new_source!r}\n"
-            f"  edit={edit}\n  incremental={incremental}\n  expected={expected}"
-        )
-
-    def test_insert_at_start(self):
-        self._verify_incremental(
-            "hello\nworld",
-            "X\nhello\nworld",
-            EditDescriptor(start_offset=0, old_length=0, new_length=2),
-        )
-
-    def test_insert_at_end(self):
-        self._verify_incremental(
-            "hello\nworld",
-            "hello\nworld\n",
-            EditDescriptor(start_offset=11, old_length=0, new_length=1),
-        )
-
-    def test_insert_in_middle(self):
-        self._verify_incremental(
-            "hello\nworld",
-            "hello\nX\nworld",
-            EditDescriptor(start_offset=6, old_length=0, new_length=2),
-        )
-
-    def test_delete_newline(self):
-        self._verify_incremental(
-            "hello\nworld",
-            "helloworld",
-            EditDescriptor(start_offset=5, old_length=1, new_length=0),
-        )
-
-    def test_delete_at_start(self):
-        self._verify_incremental(
-            "abc\ndef\nghi",
-            "def\nghi",
-            EditDescriptor(start_offset=0, old_length=4, new_length=0),
-        )
-
-    def test_replace_with_newline(self):
-        self._verify_incremental(
-            "hello world",
-            "hello\nworld",
-            EditDescriptor(start_offset=5, old_length=1, new_length=1),
-        )
-
-    def test_replace_newline_with_space(self):
-        self._verify_incremental(
-            "hello\nworld",
-            "hello world",
-            EditDescriptor(start_offset=5, old_length=1, new_length=1),
-        )
-
-    def test_multiline_insert(self):
-        self._verify_incremental(
-            "abc",
-            "abc\n1\n2\n3",
-            EditDescriptor(start_offset=3, old_length=0, new_length=6),
-        )
-
-    def test_multiline_delete(self):
-        self._verify_incremental(
-            "a\nb\nc\nd",
-            "a\nd",
-            EditDescriptor(start_offset=2, old_length=4, new_length=0),
-        )
-
-    def test_replace_multiline(self):
-        self._verify_incremental(
-            "line1\nline2\nline3",
-            "line1\nNEW\nline3",
-            EditDescriptor(start_offset=6, old_length=5, new_length=3),
-        )
-
-    def test_empty_to_content(self):
-        self._verify_incremental(
-            "",
-            "hello\nworld",
-            EditDescriptor(start_offset=0, old_length=0, new_length=11),
-        )
-
-    def test_content_to_empty(self):
-        self._verify_incremental(
-            "hello\nworld",
-            "",
-            EditDescriptor(start_offset=0, old_length=11, new_length=0),
-        )
-
-    def test_single_char_insert_middle_of_line(self):
-        self._verify_incremental(
-            "set x 1",
-            "set xx 1",
-            EditDescriptor(start_offset=4, old_length=0, new_length=1),
-        )
-
-    def test_single_char_delete(self):
-        self._verify_incremental(
-            "set x 1",
-            "set  1",
-            EditDescriptor(start_offset=4, old_length=1, new_length=0),
-        )
-
-    def test_insert_newline_at_end_of_file(self):
-        self._verify_incremental(
-            "proc foo {}",
-            "proc foo {}\n",
-            EditDescriptor(start_offset=11, old_length=0, new_length=1),
-        )
-
-    def test_rapid_typing_simulation(self):
-        """Simulate typing 'abc\\n' character by character."""
-        source = "set x 1\n"
-        for i, ch in enumerate("abc\n"):
-            new_source = source[: 8 + i] + ch + source[8 + i :]
-            edit = EditDescriptor(start_offset=8 + i, old_length=0, new_length=1)
-            self._verify_incremental(source, new_source, edit)
-            source = new_source
-
-
-# ---------------------------------------------------------------------------
-# DocumentBuffer.updated
-# ---------------------------------------------------------------------------
-
-
-class TestDocumentBufferUpdated:
-    def test_with_edit(self):
-        old = DocumentBuffer.from_source("hello\nworld", version=1)
-        edit = EditDescriptor(start_offset=5, old_length=1, new_length=1)
-        new = DocumentBuffer.updated(old, "hello world", new_version=2, edit=edit)
-        assert new.source == "hello world"
-        assert new.version == 2
-        assert new.line_starts == compute_line_starts("hello world")
-
-    def test_without_edit(self):
-        old = DocumentBuffer.from_source("hello\nworld")
-        new = DocumentBuffer.updated(old, "completely different\ntext")
-        assert new.line_starts == compute_line_starts("completely different\ntext")
-
-    def test_incremental_matches_full(self):
-        """Multiple edits produce same line_starts as full recompute."""
-        source = "proc foo {bar} {\n    set x 1\n    return $x\n}\n"
-        buf = DocumentBuffer.from_source(source)
-
-        # Insert a line
-        new_source = "proc foo {bar} {\n    set y 0\n    set x 1\n    return $x\n}\n"
-        edit = EditDescriptor(start_offset=18, old_length=0, new_length=12)
-        buf2 = DocumentBuffer.updated(buf, new_source, edit=edit)
-        assert buf2.line_starts == compute_line_starts(new_source)
-
-
-# ---------------------------------------------------------------------------
 # Compatibility with old _chunk_line_range
-# ---------------------------------------------------------------------------
 
 
 class TestChunkLineRangeCompat:
@@ -477,9 +278,7 @@ class TestChunkLineRangeCompat:
             assert new == old
 
 
-# ---------------------------------------------------------------------------
 # Integration with DocumentState
-# ---------------------------------------------------------------------------
 
 
 class TestDocumentStateBuffer:
