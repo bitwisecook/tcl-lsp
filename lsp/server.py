@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 import re
 import threading
@@ -462,7 +463,8 @@ SEMANTIC_TOKENS_LEGEND = types.SemanticTokensLegend(
 # Per-URI storage for semantic tokens delta support (P8).
 # Maps URI → (result_id, flat token data).
 _semantic_token_results: dict[str, tuple[str, list[int]]] = {}
-_semantic_token_result_counter: int = 0
+# Thread-safe counter — pygls may dispatch handlers concurrently.
+_semantic_token_result_counter = itertools.count(1)
 
 
 @server.feature(
@@ -476,7 +478,6 @@ _semantic_token_result_counter: int = 0
 def on_semantic_tokens_full(
     params: types.SemanticTokensParams,
 ) -> types.SemanticTokens:
-    global _semantic_token_result_counter
     t0 = time.perf_counter()
     if not feature_config.semantic_tokens_enabled:
         return types.SemanticTokens(data=[])
@@ -510,8 +511,7 @@ def on_semantic_tokens_full(
     if state is not None and chunk_token_cache is not None:
         state.store_semantic_token_cache(chunk_token_cache)
     # Store result for delta support (P8).
-    _semantic_token_result_counter += 1
-    result_id = str(_semantic_token_result_counter)
+    result_id = str(next(_semantic_token_result_counter))
     _semantic_token_results[uri] = (result_id, data)
     elapsed_ms = (time.perf_counter() - t0) * 1000
     log.info(
@@ -529,7 +529,6 @@ def on_semantic_tokens_full(
 def on_semantic_tokens_delta(
     params: types.SemanticTokensDeltaParams,
 ) -> types.SemanticTokens | types.SemanticTokensDelta:
-    global _semantic_token_result_counter
     t0 = time.perf_counter()
     uri = params.text_document.uri
     previous_result_id = params.previous_result_id
@@ -571,8 +570,7 @@ def on_semantic_tokens_delta(
         state.store_semantic_token_cache(chunk_token_cache)
 
     # Store new result.
-    _semantic_token_result_counter += 1
-    result_id = str(_semantic_token_result_counter)
+    result_id = str(next(_semantic_token_result_counter))
     _semantic_token_results[uri] = (result_id, new_data)
 
     # Compute edits.

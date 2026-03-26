@@ -231,9 +231,13 @@ class DocumentState:
     )
 
     # -- Property accessors delegating to the snapshot ----------------
-    # These provide backward-compatible access for existing handler code
-    # while guaranteeing that each snapshot read is atomic (single
-    # attribute load from ``_snap``).
+    # Getters provide atomic reads (single attribute load from ``_snap``).
+    # **Setters are NOT thread-safe** — they mutate the live snapshot
+    # without going through the lock-protected swap path.  They exist
+    # only for test/script convenience and MUST NOT be called from
+    # request handlers or background threads.  Production code should
+    # use ``update()`` / ``update_source_quick()`` which build and swap
+    # a complete ``_StateSnapshot`` atomically.
 
     @property
     def snap(self) -> _StateSnapshot:
@@ -260,7 +264,11 @@ class DocumentState:
     def tokens(self) -> list[Token]:
         snap = self._snap
         if snap.tokens is None:
-            snap.tokens = TclLexer(snap.source).tokenise_all()
+            with self._lock:
+                # Double-checked locking: re-read after acquiring lock.
+                snap = self._snap
+                if snap.tokens is None:
+                    snap.tokens = TclLexer(snap.source).tokenise_all()
         return snap.tokens
 
     @tokens.setter
@@ -1102,8 +1110,8 @@ class WorkspaceState:
             state.update(source, version, force_reanalyse=force_reanalyse, line_length=line_length)
         else:
             # Lightweight open: store source and version without analysis.
-            state.source = source
-            state.version = version
+            # Swap a fresh snapshot so no mutable setter touches a live one.
+            state._snap = _StateSnapshot(source=source, version=version)
         self._documents[uri] = state
         return state
 

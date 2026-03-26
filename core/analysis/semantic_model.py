@@ -365,6 +365,9 @@ class AnalysisResult:
     _regex_position_set: frozenset[tuple[int, int]] | None = field(
         default=None, repr=False, compare=False
     )
+    # Bare-name index for O(1) proc lookup fallback, built eagerly
+    # by ``_ensure_bare_name_index`` to avoid thread-unsafe lazy init.
+    _bare_name_index: dict[str, ProcDef] | None = field(default=None, repr=False, compare=False)
 
     @property
     def regex_position_set(self) -> frozenset[tuple[int, int]]:
@@ -428,22 +431,31 @@ class AnalysisResult:
             unknown_proc_info=self.unknown_proc_info,
         )
 
+    def _ensure_bare_name_index(self) -> dict[str, ProcDef]:
+        """Build or return the bare-name → ProcDef index.
+
+        Called once; subsequent accesses use the cached dict.
+        Thread-safe because the index is a dict (atomic pointer swap
+        under the GIL) and the result is idempotent.
+        """
+        idx = self._bare_name_index
+        if idx is None:
+            idx = {}
+            for pd in self.all_procs.values():
+                idx.setdefault(pd.name, pd)
+            self._bare_name_index = idx
+        return idx
+
     def find_proc(self, name: str) -> ProcDef | None:
         """Look up a proc by name, trying qualified and bare forms.
 
-        Uses a lazily built bare-name index for O(1) amortised lookup
-        instead of O(P) linear scan.
+        Uses a bare-name index for O(1) amortised lookup instead of
+        O(P) linear scan.
         """
         result = self.all_procs.get(f"::{name}") or self.all_procs.get(name)
         if result is not None:
             return result
-        # Build bare-name index lazily on first miss.
-        if not hasattr(self, "_bare_name_index"):
-            idx: dict[str, ProcDef] = {}
-            for pd in self.all_procs.values():
-                idx.setdefault(pd.name, pd)
-            self._bare_name_index = idx
-        return self._bare_name_index.get(name)
+        return self._ensure_bare_name_index().get(name)
 
     def active_package_names(self) -> frozenset[str]:
         """Return the set of package names imported via ``package require``."""
