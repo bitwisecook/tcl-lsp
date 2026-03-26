@@ -26,6 +26,7 @@ from ..commands.registry.runtime import (
 from ..common.codes import diag
 from ..common.dialect import active_dialect
 from ..common.ranges import position_from_relative, range_from_token
+from ..common.text import suggest_similar as _suggest_similar_impl
 from ..parsing.argv import widen_argv_tokens_to_word_spans
 from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
 from ..parsing.lexer import TclLexer
@@ -54,22 +55,6 @@ diag("E004", "Invalid argument count.", section="error", internal=True)
 diag("W302", "`catch` without result variable — errors are silently swallowed.", section="security")
 
 
-def _edit_distance(a: str, b: str) -> int:
-    """Compute Levenshtein edit distance between two strings."""
-    if len(a) < len(b):
-        return _edit_distance(b, a)
-    if not b:
-        return len(a)
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a):
-        curr = [i + 1]
-        for j, cb in enumerate(b):
-            cost = 0 if ca == cb else 1
-            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + cost))
-        prev = curr
-    return prev[-1]
-
-
 def _suggest_subcommands(
     attempted: str,
     available: dict[str, CommandSig],
@@ -79,11 +64,12 @@ def _suggest_subcommands(
     """Suggest similar subcommands ranked by edit distance."""
     if not available:
         return []
-    candidates = sorted(
-        ((name, _edit_distance(attempted, name)) for name in available),
-        key=lambda x: x[1],
+    return _suggest_similar_impl(
+        attempted,
+        available,
+        max_suggestions=max_suggestions,
+        max_distance=max_distance,
     )
-    return [name for name, dist in candidates[:max_suggestions] if dist <= max_distance]
 
 
 def _iter_statements(script: IRScript):

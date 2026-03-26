@@ -90,13 +90,23 @@ def _is_suppressed(
     return codes is _NOQA_ALL or "*" in codes or code in codes
 
 
+# Maps diagnostic codes to documentation URLs.
+_DIAGNOSTIC_DOCS: dict[str, str] = {
+    "W123": "https://tcl-lsp.dev/docs/kcs/unknown-command-resolution",
+}
+
+
 def _to_lsp_diagnostic(d: Diagnostic) -> types.Diagnostic:
+    code_desc = None
+    if d.code and d.code in _DIAGNOSTIC_DOCS:
+        code_desc = types.CodeDescription(href=_DIAGNOSTIC_DOCS[d.code])
     return types.Diagnostic(
         range=to_lsp_range(d.range),
         message=d.message,
         severity=_SEVERITY_MAP.get(d.severity, types.DiagnosticSeverity.Error),
         source="tcl-lsp",
         code=d.code or None,
+        code_description=code_desc,
     )
 
 

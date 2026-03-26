@@ -680,7 +680,8 @@ proc safe {x} {
 """
         result = analyse(source)
         # Filter to just W-codes (ignore E-codes from arity etc.)
-        w_diags = [d for d in result.diagnostics if d.code.startswith("W")]
+        # Exclude W123 (opt-in, default=False) which fires for risky_op.
+        w_diags = [d for d in result.diagnostics if d.code.startswith("W") and d.code != "W123"]
         assert len(w_diags) == 0
 
     def test_security_critical_patterns(self):
@@ -724,7 +725,8 @@ source {lib/utils.tcl}
 eval {set a 1}
 """
         result = analyse(source)
-        w_diags = [d for d in result.diagnostics if d.code.startswith("W")]
+        # Exclude W123 (opt-in, default=False) which fires for risky.
+        w_diags = [d for d in result.diagnostics if d.code.startswith("W") and d.code != "W123"]
         assert len(w_diags) == 0
 
     def test_nested_bodies_checked(self):

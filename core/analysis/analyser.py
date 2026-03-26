@@ -38,9 +38,12 @@ from ..compiler.core_analyses import FunctionAnalysis
 from ..compiler.ir import (
     IRAssignConst,
     IRAssignValue,
+    IRBarrier,
     IRCall,
     IRProcedure,
+    IRScript,
     IRStatement,
+    IRSwitch,
     when_event_name,
 )
 from ..parsing.argv import widen_argv_tokens_to_word_spans
@@ -70,6 +73,7 @@ from .semantic_model import (
     RegexPattern,
     Scope,
     Severity,
+    UnknownProcInfo,
     VarDef,
 )
 from .stub_comments import scan_source_for_stubs
@@ -120,6 +124,12 @@ diag(
     "IRULE5005",
     "Direct proc invocation without `call` — use `call proc_name`.",
     section="irules",
+)
+diag(
+    "W123",
+    "Unresolved command — not found in registry, user procs, or `unknown` handler.",
+    section="hint",
+    default=False,
 )
 
 # Short names: d = Diagnostic, m = regex Match, r = Range,
@@ -399,6 +409,7 @@ class Analyser:
         self._source = source
         self._analyse_commands_inner(commands, self._current_scope, source)
         if finalise:
+            self._emit_unresolved_command_diagnostics()
             self._emit_variable_usage_diagnostics()
             self._emit_cfg_ssa_diagnostics(source, cu=cu)
             self._dedupe_diagnostics()
@@ -540,6 +551,7 @@ class Analyser:
         self.result.stub_expr_defs.extend(expr_stubs)
         self._check_stub_shadows()
         self._analyse_body(source, self._current_scope)
+        self._emit_unresolved_command_diagnostics()
         self._emit_variable_usage_diagnostics()
         self._emit_cfg_ssa_diagnostics(source, cu=cu)
         self._dedupe_diagnostics()
@@ -1844,6 +1856,203 @@ class Analyser:
                 proc_def.param_traits = infer_param_traits(param_names, body)
             except Exception:
                 pass  # trait inference is best-effort
+
+        # Detect user-defined ``unknown`` proc and extract dispatch info.
+        if proc_name == "unknown" or qualified == "::unknown":
+            self._extract_unknown_proc_info(body, params)
+
+    # ------------------------------------------------------------------
+    # Unknown proc body analysis
+    # ------------------------------------------------------------------
+
+    _CHAIN_TARGETS = frozenset(
+        {
+            "_original_unknown",
+            "_orig_unknown",
+            "::tcl::unknown",
+            "tcl::unknown",
+            "original_unknown",
+        }
+    )
+
+    def _extract_unknown_proc_info(
+        self,
+        body: str,
+        params: list[ParamDef],
+    ) -> None:
+        """Analyse the body of a user-defined ``unknown`` proc.
+
+        Extracts dispatch targets (switch arm labels), detects chaining
+        to the original handler, auto_load, exec, and case-insensitive
+        dispatch patterns.  The result is stored as
+        ``self.result.unknown_proc_info``.
+        """
+        if not body or not body.strip():
+            self.result.unknown_proc_info = UnknownProcInfo(empty_stub=True)
+            return
+
+        first_param = params[0].name if params else "cmd"
+
+        try:
+            from ..compiler.lowering import lower_to_ir
+
+            ir_module = lower_to_ir(body)
+        except Exception:
+            # If lowering fails, be conservative — assume unknown can
+            # resolve anything.
+            return
+
+        dispatch_targets: set[str] = set()
+        chains_original = False
+        has_exec = False
+        has_auto_load = False
+        case_insensitive = False
+
+        def _walk_stmts(script: IRScript) -> None:
+            nonlocal chains_original, has_exec, has_auto_load, case_insensitive
+
+            for stmt in script.statements:
+                if isinstance(stmt, IRSwitch):
+                    # Check if the switch subject references the first param.
+                    subj = stmt.subject
+                    if f"${first_param}" in subj or "${" + first_param + "}" in subj:
+                        # Check for case-insensitive pattern:
+                        # ``[string tolower $cmd]`` or ``[string toupper $cmd]``
+                        if "string tolower" in subj or "string toupper" in subj:
+                            case_insensitive = True
+                        for arm in stmt.arms:
+                            if arm.pattern != "default":
+                                dispatch_targets.add(arm.pattern)
+                            if arm.body is not None:
+                                _walk_stmts(arm.body)
+                        if stmt.default_body is not None:
+                            _walk_stmts(stmt.default_body)
+
+                elif isinstance(stmt, IRCall):
+                    cmd = stmt.command
+                    if cmd in self._CHAIN_TARGETS:
+                        chains_original = True
+                    elif cmd == "exec":
+                        has_exec = True
+                    elif cmd == "auto_load":
+                        has_auto_load = True
+
+                elif isinstance(stmt, IRBarrier):
+                    # Barriers from eval/uplevel — check the command name.
+                    if stmt.command in self._CHAIN_TARGETS:
+                        chains_original = True
+
+        _walk_stmts(ir_module.top_level)
+
+        self.result.unknown_proc_info = UnknownProcInfo(
+            dispatch_targets=frozenset(dispatch_targets),
+            chains_original=chains_original,
+            empty_stub=False,
+            case_insensitive=case_insensitive,
+            has_exec=has_exec,
+            has_auto_load=has_auto_load,
+        )
+
+    # ------------------------------------------------------------------
+    # W123 — unresolved command (post-analysis pass)
+    # ------------------------------------------------------------------
+
+    def _emit_unresolved_command_diagnostics(self) -> None:
+        """Emit W123 for commands that cannot be resolved.
+
+        Runs as a post-analysis pass so that all procs (including
+        forward-defined ``unknown``) are already collected.
+
+        W123 is ``default=False`` (opt-in in editor settings).  The
+        analyser always emits the diagnostic; filtering is done
+        downstream by the LSP layer via ``disabled_diagnostics``.
+        """
+        from ..common.text import suggest_similar
+
+        dialect = active_dialect()
+        registry_names = frozenset(REGISTRY.command_names(dialect))
+        stub_names = frozenset(s.name for s in self.result.stub_commands)
+
+        # Build candidate pool for "did you mean?" suggestions.
+        proc_tail_names: set[str] = set()
+        for qname in self.result.all_procs:
+            tail = qname.rsplit("::", 1)[-1]
+            if tail:
+                proc_tail_names.add(tail)
+
+        upi = self.result.unknown_proc_info
+        # If unknown handler is opaque, suppress all W123.
+        if upi is not None and (
+            upi.chains_original or upi.has_exec or upi.has_auto_load or upi.case_insensitive
+        ):
+            return
+
+        # If dynamic providers detected (load, auto_path), suppress all.
+        if self.result.has_dynamic_providers:
+            return
+
+        dispatch_targets = upi.dispatch_targets if upi is not None else frozenset()
+
+        candidates: set[str] = set()
+        candidates.update(registry_names)
+        candidates.update(proc_tail_names)
+        candidates.update(stub_names)
+        candidates.update(dispatch_targets)
+
+        for inv in self.result.command_invocations:
+            cmd_name = inv.name
+
+            # Skip commands already resolved to a registry entry.
+            if cmd_name in registry_names:
+                continue
+
+            # Skip commands resolved to a user-defined proc.
+            if inv.resolved_qualified_name is not None:
+                continue
+
+            # Skip namespace-qualified commands (could be imported).
+            if "::" in cmd_name:
+                continue
+
+            # Skip variable/substitution commands (W307 covers those).
+            if cmd_name.startswith("$") or cmd_name.startswith("["):
+                continue
+
+            # Skip stub commands.
+            if cmd_name in stub_names:
+                continue
+
+            # Skip commands explicitly handled by unknown dispatch.
+            if cmd_name in dispatch_targets:
+                continue
+
+            # Skip if known as a proc tail name (e.g. forward-defined proc).
+            if cmd_name in proc_tail_names:
+                continue
+
+            # Build suggestion.
+            msg = f"Unknown command '{cmd_name}'"
+            suggestions = suggest_similar(cmd_name, candidates, max_suggestions=1, max_distance=2)
+            fixes: tuple[CodeFix, ...] = ()
+            if suggestions:
+                msg += f"; did you mean '{suggestions[0]}'?"
+                fixes = (
+                    CodeFix(
+                        range=inv.range,
+                        new_text=suggestions[0],
+                        description=f"Replace with '{suggestions[0]}'",
+                    ),
+                )
+
+            self.result.diagnostics.append(
+                Diagnostic(
+                    range=inv.range,
+                    message=msg,
+                    severity=Severity.HINT,
+                    code="W123",
+                    fixes=fixes,
+                )
+            )
 
     def _handle_set(
         self,

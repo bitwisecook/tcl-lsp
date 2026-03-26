@@ -52,8 +52,16 @@ class TestLSPDiagnostics:
         assert len(result) >= 3
 
     def test_unknown_command_no_diagnostic(self):
-        result = get_diagnostics("mycommand arg1 arg2")
+        # W123 is default=False — when disabled, unknown commands produce no diagnostic.
+        result = get_diagnostics("mycommand arg1 arg2", disabled_diagnostics={"W123"})
         assert len(result) == 0
+
+    def test_unknown_command_w123_when_enabled(self):
+        # When W123 is not disabled, unknown commands emit a hint.
+        result = get_diagnostics("mycommand arg1 arg2")
+        w123 = [d for d in result if d.code == "W123"]
+        assert len(w123) == 1
+        assert w123[0].severity == types.DiagnosticSeverity.Hint
 
     def test_w100_is_paired_with_optimisation_hint(self):
         result = get_diagnostics("expr $x + 1")
