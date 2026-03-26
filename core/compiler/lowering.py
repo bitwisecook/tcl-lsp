@@ -205,12 +205,43 @@ class _Lowerer:
         self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
 
     def expr_alias_names(self) -> frozenset[str]:
-        """Return names that are aliases for ``expr`` (no prepended args)."""
-        return frozenset(
-            name
-            for name, (target, prepended) in self._command_aliases.items()
-            if target == "expr" and not prepended
-        )
+        """Return names that are aliases for ``expr`` (no prepended args).
+
+        Returns both the qualified keys (``::=``) and stripped short
+        names (``=``) so callers that match against bare command words
+        get a hit.
+        """
+        result: set[str] = set()
+        for name, (target, prepended) in self._command_aliases.items():
+            if target == "expr" and not prepended:
+                result.add(name)
+                # Also add the short (unqualified) form for callers
+                # that match against bare command names.
+                if name.startswith("::"):
+                    short = name.rsplit("::", 1)[-1]
+                    if short:
+                        result.add(short)
+        return frozenset(result)
+
+    def _resolve_alias(self, cmd_name: str, namespace: str) -> tuple[str, tuple[str, ...]] | None:
+        """Look up a command alias, namespace-aware.
+
+        ``interp alias`` creates interpreter-wide (global) commands,
+        so aliases are stored under their fully-qualified name.  The
+        lookup mirrors Tcl's command resolution: try the current
+        namespace first, then fall back to global (``::``).
+        """
+        if cmd_name.startswith("::"):
+            return self._command_aliases.get(_normalise_qualified_name(cmd_name))
+
+        # Unqualified — try current namespace, then global.
+        if namespace != "::":
+            candidate = _normalise_qualified_name(f"{namespace}::{cmd_name}")
+            alias = self._command_aliases.get(candidate)
+            if alias is not None:
+                return alias
+
+        return self._command_aliases.get(_normalise_qualified_name(f"::{cmd_name}"))
 
     def lower(self, source: str) -> IRModule:
         self.module.top_level = self._lower_script(source, namespace="::")
@@ -875,6 +906,8 @@ class _Lowerer:
 
         # Detect ``interp alias {} name {} target ?args?`` and record
         # the alias for resolving argument semantics of later calls.
+        # Alias names are stored fully-qualified (``::name``) because
+        # ``interp alias`` creates interpreter-wide commands.
         if cmd_name == "interp" and len(args) >= 4 and args[0] == "alias":
             src_path = args[1]
             alias_name = args[2]
@@ -882,13 +915,15 @@ class _Lowerer:
             if src_path in ("", "{}") and target_path in ("", "{}") and len(args) >= 5:
                 target_cmd = args[4]
                 prepended = tuple(args[5:])
-                self._command_aliases[alias_name] = (target_cmd, prepended)
+                qualified = _normalise_qualified_name(alias_name) if alias_name else alias_name
+                self._command_aliases[qualified] = (target_cmd, prepended)
 
         # Check for a registered lowering hook first.
         spec = REGISTRY.get_any(cmd_name)
         # If the command itself has no lowering hook, try the alias target.
-        if (spec is None or spec.lowering is None) and cmd_name in self._command_aliases:
-            target, prepended = self._command_aliases[cmd_name]
+        alias_entry = self._resolve_alias(cmd_name, namespace) if spec is None or spec.lowering is None else None
+        if alias_entry is not None:
+            target, prepended = alias_entry
             target_spec = REGISTRY.get_any(target)
             if target_spec is not None and target_spec.lowering is not None:
                 # Build a virtual command with the target name and
@@ -1060,9 +1095,9 @@ class _Lowerer:
                 # Resolve alias for arg role lookups.
                 role_cmd = cmd_name
                 role_args: list[str] | tuple[str, ...] = args
-                alias = self._command_aliases.get(cmd_name)
-                if alias is not None:
-                    target, prepended = alias
+                fallback_alias = self._resolve_alias(cmd_name, namespace)
+                if fallback_alias is not None:
+                    target, prepended = fallback_alias
                     role_cmd = target
                     role_args = list(prepended) + list(args)
                 body_indices = arg_indices_for_role(role_cmd, list(role_args), ArgRole.BODY)

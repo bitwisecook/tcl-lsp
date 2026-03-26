@@ -723,17 +723,17 @@ class TestUnusedProcParameters:
 class TestInterpAlias:
     def test_alias_recorded(self):
         result = analyse("interp alias {} = {} expr")
-        assert "=" in result.command_aliases
-        assert result.command_aliases["="] == ("expr", ())
+        assert "::=" in result.command_aliases
+        assert result.command_aliases["::="] == ("expr", ())
 
     def test_alias_with_prepended_args(self):
         result = analyse("interp alias {} myput {} puts stdout")
-        assert "myput" in result.command_aliases
-        assert result.command_aliases["myput"] == ("puts", ("stdout",))
+        assert "::myput" in result.command_aliases
+        assert result.command_aliases["::myput"] == ("puts", ("stdout",))
 
     def test_alias_non_current_interp_not_recorded(self):
         result = analyse("interp alias child = {} expr")
-        assert "=" not in result.command_aliases
+        assert "::=" not in result.command_aliases
 
     def test_alias_expr_analysis(self):
         """Standalone expr alias call should have its argument analysed as expr."""
@@ -753,6 +753,54 @@ class TestInterpAlias:
             proc foo {x} {
                 myeval { set y 1 }
                 return $x
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_alias_qualified_name(self):
+        """Alias with ``::`` prefix is normalised and resolved."""
+        result = analyse("interp alias {} ::myexpr {} expr")
+        assert "::myexpr" in result.command_aliases
+
+    def test_alias_resolved_from_namespace(self):
+        """Alias created as ``::math::=`` resolves inside ``namespace eval math``."""
+        source = textwrap.dedent("""\
+            interp alias {} ::math::= {} expr
+            namespace eval math {
+                proc calc {x y} {
+                    set result [= {$x + $y}]
+                    return $result
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_alias_global_fallback(self):
+        """Unqualified alias resolves from any namespace via global fallback."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            namespace eval utils {
+                proc calc {x y} {
+                    set result [= {$x + $y}]
+                    return $result
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_alias_explicit_global_call(self):
+        """Calling ``::=`` resolves the alias registered as ``=``."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            proc calc {x y} {
+                set result [::= {$x + $y}]
+                return $result
             }
         """)
         result = analyse(source)

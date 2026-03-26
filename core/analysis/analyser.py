@@ -1322,7 +1322,7 @@ class Analyser:
         # Resolve command aliases for role-based argument analysis.
         # For ``interp alias {} = {} expr``, calling ``= {$x+1}`` should
         # analyse the argument as an expression (ArgRole.EXPR).
-        role_cmd, role_args = self._resolve_alias(cmd_name, args)
+        role_cmd, role_args = self._resolve_alias(cmd_name, args, scope)
         prepend_n = len(role_args) - len(args)
 
         resolved_sig = self._signature_for_command(cmd_name)
@@ -1686,6 +1686,9 @@ class Analyser:
 
         Records the alias so that argument roles (EXPR, BODY, etc.) from
         the target command are applied when the alias is invoked.
+
+        Alias names are stored in fully-qualified form (``::name``)
+        because ``interp alias`` creates interpreter-wide commands.
         """
         # interp alias srcPath srcToken targetPath targetCmd ?arg ...?
         # For current-interp aliases: interp alias {} name {} target ?args?
@@ -1704,21 +1707,74 @@ class Analyser:
         # Only track aliases in the current interpreter (empty path).
         if src_path not in ("", "{}") or target_path not in ("", "{}"):
             return
-        self._command_aliases[alias_name] = (target_cmd, prepended)
-        self.result.command_aliases[alias_name] = (target_cmd, prepended)
+        # Normalise to fully-qualified name — interp alias always
+        # creates a global command in the target interpreter.
+        qualified = _normalise_qualified_name(alias_name) if alias_name else alias_name
+        self._command_aliases[qualified] = (target_cmd, prepended)
+        self.result.command_aliases[qualified] = (target_cmd, prepended)
 
-    def _resolve_alias(self, cmd_name: str, args: list[str]) -> tuple[str, list[str]]:
+    @staticmethod
+    def _namespace_from_scope(scope: Scope) -> str:
+        """Derive the current namespace string from a scope chain."""
+        parts: list[str] = []
+        s: Scope | None = scope
+        while s is not None:
+            if s.kind == "namespace":
+                parts.append(s.name)
+            s = s.parent
+        if not parts:
+            return "::"
+        parts.reverse()
+        # Build the namespace path — each part may itself be relative
+        # or absolute, so join them the same way the lowerer does.
+        ns = "::"
+        for p in parts:
+            if p.startswith("::"):
+                ns = _normalise_qualified_name(p)
+            else:
+                ns = _normalise_qualified_name(f"{ns}::{p}")
+        return ns
+
+    def _resolve_alias(
+        self, cmd_name: str, args: list[str], scope: Scope | None = None
+    ) -> tuple[str, list[str]]:
         """Resolve a command alias to (target_cmd, effective_args).
 
         If *cmd_name* is a known alias, returns the target command name
         and the effective argument list (prepended args + original args).
         Otherwise returns the original cmd_name and args unchanged.
+
+        Lookup order mirrors Tcl's command resolution: first try the
+        fully-qualified name in the current namespace, then fall back
+        to the global namespace (``::``).
         """
-        alias = self._command_aliases.get(cmd_name)
-        if alias is None:
+        # Try exact qualified form first.
+        if cmd_name.startswith("::"):
+            qualified = _normalise_qualified_name(cmd_name)
+            alias = self._command_aliases.get(qualified)
+            if alias is not None:
+                target_cmd, prepended = alias
+                return target_cmd, list(prepended) + args
             return cmd_name, args
-        target_cmd, prepended = alias
-        return target_cmd, list(prepended) + args
+
+        # Unqualified name — try current namespace, then global.
+        if scope is not None:
+            ns = self._namespace_from_scope(scope)
+            if ns != "::":
+                candidate = _normalise_qualified_name(f"{ns}::{cmd_name}")
+                alias = self._command_aliases.get(candidate)
+                if alias is not None:
+                    target_cmd, prepended = alias
+                    return target_cmd, list(prepended) + args
+
+        # Fall back to global namespace.
+        global_name = _normalise_qualified_name(f"::{cmd_name}")
+        alias = self._command_aliases.get(global_name)
+        if alias is not None:
+            target_cmd, prepended = alias
+            return target_cmd, list(prepended) + args
+
+        return cmd_name, args
 
     def _handle_proc(
         self,

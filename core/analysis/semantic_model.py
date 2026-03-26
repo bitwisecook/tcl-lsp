@@ -301,8 +301,9 @@ class AnalysisResult:
     has_dynamic_providers: bool = False  # True if load/auto_path detected
     stub_commands: list[StubCommandDef] = field(default_factory=list)
     stub_expr_defs: list[StubExprDef] = field(default_factory=list)
-    # Command aliases: maps alias_name -> (target_cmd, prepended_args).
-    # Populated from ``interp alias {} name {} target ?arg ...?`` statements.
+    # Command aliases: maps qualified alias_name (e.g. ``::=``) to
+    # (target_cmd, prepended_args).  Populated from
+    # ``interp alias {} name {} target ?arg ...?`` statements.
     command_aliases: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
 
     def copy_for_snapshot(self) -> AnalysisResult:
