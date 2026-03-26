@@ -1298,6 +1298,11 @@ proc calculate {x y} {
 }
 ```
 
+Alias information is also used by LSP features: **hover** shows the target
+command's documentation, **completion** offers aliases as candidates,
+**go-to-definition** follows aliases to the target proc, and
+**signature help** shows the target's parameter hints.
+
 See [KCS: Command alias resolution](docs/kcs/kcs-command-alias-resolution.md)
 for details.
 
