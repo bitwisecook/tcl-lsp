@@ -58,6 +58,10 @@ def test_directive_case_insensitive():
     assert detect_dialect_from_source("# TCL-DIALECT: tcl9.0\nset x 1\n") == "tcl9.0"
 
 
+def test_directive_crlf_line_endings():
+    assert detect_dialect_from_source("# tcl-dialect: tcl8.4\r\nset x 1\r\n") == "tcl8.4"
+
+
 def test_directive_unknown_dialect_ignored():
     assert detect_dialect_from_source("# tcl-dialect: unknown\nset x 1\n") is None
 

@@ -651,7 +651,7 @@ class DocumentState:
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        self._tokens = None  # invalidate — rebuilt lazily on access
+        self._snap._tokens = None  # invalidate — rebuilt lazily on access
         t_tok = time.perf_counter()
 
         # Build chunk IR cache: reuse cached entries for clean chunks,
@@ -879,7 +879,7 @@ class DocumentState:
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        self._tokens = None  # invalidate — rebuilt lazily on access
+        self._snap._tokens = None  # invalidate — rebuilt lazily on access
         t_tok = time.perf_counter()
 
         prev_proc_cache = dict(self._proc_cache)

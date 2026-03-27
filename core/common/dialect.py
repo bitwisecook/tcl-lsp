@@ -64,7 +64,7 @@ def detect_dialect_from_source(source: str) -> str | None:
     for line in lines[:DIALECT_DIRECTIVE_SCAN_LINES]:
         m = _DIALECT_DIRECTIVE_RE.match(line)
         if m:
-            candidate = m.group(1).lower()
+            candidate = m.group(1).strip().lower()
             if candidate in KNOWN_DIALECTS:
                 return candidate
 
