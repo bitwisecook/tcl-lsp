@@ -804,17 +804,17 @@ class TestErrorCases:
 
     def test_backslash_newline_after_close_brace_no_warning(self):
         """``{}\\<newline>`` — backslash-newline after close-brace is valid continuation."""
-        toks, warnings = lex_with_warnings("{hello}\\\n world")
+        _, warnings = lex_with_warnings("{hello}\\\n world")
         assert not any("extra characters after close-brace" in msg for _, msg in warnings)
 
     def test_backslash_newline_after_close_brace_strict(self):
         """``{}\\<newline>`` — strict mode should not raise for line continuation."""
-        toks = lex_strict("{hello}\\\n world")
-        assert len(toks) > 0
+        result = lex_strict("{hello}\\\n world")
+        assert len(result) > 0
 
     def test_backslash_non_newline_after_close_brace_warns(self):
         """``{hello}\\world`` — backslash NOT followed by newline still warns."""
-        toks, warnings = lex_with_warnings("{hello}\\world")
+        _, warnings = lex_with_warnings("{hello}\\world")
         assert any("extra characters after close-brace" in msg for _, msg in warnings)
 
     def test_spicegentcl_testtemplate_pattern(self):
@@ -824,49 +824,49 @@ class TestErrorCases:
             "{Resistor new 1 netp netm -r 1e3 -tc1 1 -ac 1e6 -temp 25}\\\n"
             "        {r1 netp netm 1e3 tc1=1 ac=1e6 temp=25}"
         )
-        toks, warnings = lex_with_warnings(source)
+        _, warnings = lex_with_warnings(source)
         assert not any("extra characters after close-brace" in msg for _, msg in warnings)
 
     def test_multiple_backslash_continuations_after_braces(self):
         """Multiple ``}\\<newline>`` continuations on consecutive lines."""
         source = "cmd {arg1}\\\n        {arg2}\\\n        {arg3}"
-        toks, warnings = lex_with_warnings(source)
+        _, warnings = lex_with_warnings(source)
         assert not any("extra characters after close-brace" in msg for _, msg in warnings)
 
     def test_empty_braces_backslash_continuation(self):
         """``{}\\<newline>`` — empty braces followed by continuation."""
         source = "cmd {}\\\n        {arg}"
-        toks, warnings = lex_with_warnings(source)
+        _, warnings = lex_with_warnings(source)
         assert not any("extra characters after close-brace" in msg for _, msg in warnings)
 
     def test_backslash_crlf_after_close_brace_no_warning(self):
         """``}\\<CR><LF>`` — Windows line ending after backslash is valid."""
-        toks, warnings = lex_with_warnings("{hello}\\\r\n world")
+        _, warnings = lex_with_warnings("{hello}\\\r\n world")
         assert not any("extra characters after close-brace" in msg for _, msg in warnings)
 
     def test_backslash_cr_after_close_brace_no_warning(self):
         """``}\\<CR>`` — classic Mac line ending after backslash is valid."""
-        toks, warnings = lex_with_warnings("{hello}\\\r world")
+        _, warnings = lex_with_warnings("{hello}\\\r world")
         assert not any("extra characters after close-brace" in msg for _, msg in warnings)
 
     def test_backslash_newline_after_close_quote_no_warning(self):
         """``"hello"\\<newline>`` — backslash-newline after close-quote is valid."""
-        toks, warnings = lex_with_warnings('"hello"\\\n world')
+        _, warnings = lex_with_warnings('"hello"\\\n world')
         assert not any("extra characters after close-quote" in msg for _, msg in warnings)
 
     def test_backslash_crlf_after_close_quote_no_warning(self):
         """``"hello"\\<CR><LF>`` — Windows line ending after close-quote is valid."""
-        toks, warnings = lex_with_warnings('"hello"\\\r\n world')
+        _, warnings = lex_with_warnings('"hello"\\\r\n world')
         assert not any("extra characters after close-quote" in msg for _, msg in warnings)
 
     def test_backslash_cr_after_close_quote_no_warning(self):
         """``"hello"\\<CR>`` — classic Mac line ending after close-quote is valid."""
-        toks, warnings = lex_with_warnings('"hello"\\\r world')
+        _, warnings = lex_with_warnings('"hello"\\\r world')
         assert not any("extra characters after close-quote" in msg for _, msg in warnings)
 
     def test_backslash_non_newline_after_close_quote_warns(self):
         """``"hello"\\world`` — backslash NOT followed by newline still warns."""
-        toks, warnings = lex_with_warnings('"hello"\\world')
+        _, warnings = lex_with_warnings('"hello"\\world')
         assert any("extra characters after close-quote" in msg for _, msg in warnings)
 
     def test_unclosed_braced_var_warns(self):

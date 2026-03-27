@@ -715,11 +715,7 @@ class TclLexer:
                     self._col = col
                     # After closing quote, next char must be separator or EOF.
                     if pos < _len and text[pos] not in _AFTER_CLOSE_QUOTE:
-                        if (
-                            text[pos] == "\\"
-                            and pos + 1 < _len
-                            and text[pos + 1] in ("\n", "\r")
-                        ):
+                        if text[pos] == "\\" and pos + 1 < _len and text[pos + 1] in ("\n", "\r"):
                             pass  # backslash-newline is a valid line continuation
                         elif _strict_quoting():
                             raise TclParseError("extra characters after close-quote")
