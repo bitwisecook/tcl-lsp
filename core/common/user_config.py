@@ -1,4 +1,14 @@
-"""User-level configuration from ``~/.config/tcl-lsp/config.ini``.
+"""User-level configuration stored in a platform-native config file.
+
+The config file location follows platform conventions:
+
+- **Linux / BSD / WSL2**: ``~/.config/tcl-lsp/config.ini``
+  (or ``$XDG_CONFIG_HOME/tcl-lsp/config.ini``)
+- **macOS**: ``~/Library/Application Support/tcl-lsp/config.ini``
+- **Windows** (native): ``%APPDATA%\\tcl-lsp\\config.ini``
+- **MSYS2 / Cygwin**: ``~/.config/tcl-lsp/config.ini`` (XDG convention)
+
+Setting ``$XDG_CONFIG_HOME`` always takes precedence on every platform.
 
 Uses Python's built-in :mod:`configparser` module (INI format).
 
@@ -61,16 +71,47 @@ from __future__ import annotations
 import configparser
 import logging
 import os
+import sys
 from pathlib import Path
 
 log = logging.getLogger(__name__)
 
 
+def _is_posix_compat_windows() -> bool:
+    """Detect MSYS2, Cygwin, or similar POSIX compatibility layers on Windows."""
+    if sys.platform in ("msys", "cygwin"):
+        return True
+    # Native Windows Python running inside an MSYS2 shell.
+    if sys.platform == "win32" and os.environ.get("MSYSTEM"):
+        return True
+    return False
+
+
 def _config_dir() -> Path:
-    """Return the config directory, respecting ``$XDG_CONFIG_HOME``."""
+    """Return the config directory using platform-native conventions.
+
+    ``$XDG_CONFIG_HOME`` always takes precedence when set.  Otherwise:
+
+    - **Linux / BSD / WSL2**: ``~/.config/tcl-lsp``
+    - **macOS**: ``~/Library/Application Support/tcl-lsp``
+    - **Windows** (native): ``%APPDATA%/tcl-lsp``
+    - **MSYS2 / Cygwin**: ``~/.config/tcl-lsp``
+    """
     xdg = os.environ.get("XDG_CONFIG_HOME")
     if xdg:
         return Path(xdg) / "tcl-lsp"
+
+    # Native Windows (not MSYS2/Cygwin) → %APPDATA%
+    if sys.platform == "win32" and not _is_posix_compat_windows():
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            return Path(appdata) / "tcl-lsp"
+
+    # macOS → ~/Library/Application Support
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "tcl-lsp"
+
+    # Linux, BSD, WSL2, MSYS2, Cygwin — XDG default
     return Path.home() / ".config" / "tcl-lsp"
 
 
@@ -138,7 +179,7 @@ def _parse_bool(value: str) -> bool | None:
 def get_all_settings(
     config: configparser.ConfigParser | None = None,
 ) -> dict:
-    """Build a settings dict from all XDG config sections.
+    """Build a settings dict from all config file sections.
 
     The returned dict uses the same shape as ``_extract_tcl_lsp_settings``
     output in the LSP server, so it can be passed directly to
@@ -250,7 +291,7 @@ def save_settings_to_config(
     only_non_default: bool = True,
     defaults: dict | None = None,
 ) -> str:
-    """Write a settings dict to ``~/.config/tcl-lsp/config.ini``.
+    """Write a settings dict to the platform-native config file.
 
     When *only_non_default* is ``True`` (the default), only settings that
     differ from *defaults* are written.  This keeps the file minimal.

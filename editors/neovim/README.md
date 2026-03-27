@@ -106,10 +106,27 @@ Settings are sent under the `tclLsp` namespace. Key options:
 
 See the top-level README for the full list of formatting, diagnostic, and optimiser settings.
 
-## Configurable Settings
+## Configuration File
 
-tcl-lsp supports per-diagnostic, optimiser, shimmer, and XC diagnostic
-toggles. These can be configured via `~/.config/tcl-lsp/config.ini` (XDG
-config), which works across all editors. See
-[docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for the
-full reference.
+tcl-lsp reads a platform-native configuration file for editor-agnostic
+defaults (diagnostics, optimiser, shimmer, features, formatting):
+
+| Platform | Default path |
+|----------|-------------|
+| Linux / BSD / WSL2 | `~/.config/tcl-lsp/config.ini` |
+| macOS | `~/Library/Application Support/tcl-lsp/config.ini` |
+| Windows | `%APPDATA%\tcl-lsp\config.ini` |
+| MSYS2 / Cygwin | `~/.config/tcl-lsp/config.ini` |
+
+`$XDG_CONFIG_HOME` overrides the default on every platform.
+
+Settings from the config file are applied as baseline defaults.  Neovim
+`settings` passed via `lspconfig.setup()` or `vim.lsp.start()` override
+the config file — so you can set shared defaults in the config file and
+project-specific overrides in your Neovim config.
+
+Use the `tcl-lsp.exportConfig` command via `workspace/executeCommand` to
+write current settings to the config file.
+
+See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+the full reference.

@@ -984,9 +984,10 @@ class DocumentState:
             all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
             diag_lines = [d.range.start.line for d in all_style_diags]
 
-            # Pre-compute semantic tokens for the whole file, then partition
-            # by chunk using bisect — same approach as style diagnostics.
-            # This ensures the first semanticTokens/full request after
+            # Semantic tokens are pre-computed per chunk later via
+            # ``precompute_chunk_tokens()``; we avoid an additional full-file
+            # precompute here to prevent duplicate work.
+
             # Extract per-chunk IR from the already-compiled IRModule when
             # available, avoiding redundant re-lowering of each chunk.
             chunk_ir_map = _extract_chunk_ir(compilation_unit, chunks)

@@ -1,17 +1,70 @@
-# KCS: XDG Configuration File Reference
+# KCS: Configuration File Reference
 
 ## Summary
 
-tcl-lsp reads user-level settings from an INI-format file at
-`~/.config/tcl-lsp/config.ini` (respecting `$XDG_CONFIG_HOME`).  These
-settings provide baseline defaults that editor settings override.
+tcl-lsp reads user-level settings from an INI-format configuration file.
+The file location follows platform-native conventions so it sits where
+users expect application config to live on each OS.  These settings
+provide baseline defaults that editor settings override.
+
+## File Location
+
+| Platform | Default path | Override |
+|----------|-------------|----------|
+| **Linux / BSD / WSL2** | `~/.config/tcl-lsp/config.ini` | `$XDG_CONFIG_HOME/tcl-lsp/config.ini` |
+| **macOS** | `~/Library/Application Support/tcl-lsp/config.ini` | `$XDG_CONFIG_HOME/tcl-lsp/config.ini` |
+| **Windows** (native) | `%APPDATA%\tcl-lsp\config.ini` | `$XDG_CONFIG_HOME/tcl-lsp/config.ini` |
+| **MSYS2 / Cygwin** | `~/.config/tcl-lsp/config.ini` | `$XDG_CONFIG_HOME/tcl-lsp/config.ini` |
+
+Setting `$XDG_CONFIG_HOME` always takes precedence on every platform.
+
+### How platform is detected
+
+- **MSYS2**: `sys.platform == "msys"`, or `sys.platform == "win32"` with the
+  `MSYSTEM` environment variable set (e.g. `MSYSTEM=UCRT64`).  Treated as a
+  POSIX environment — uses XDG conventions.
+- **Cygwin**: `sys.platform == "cygwin"`.  Uses XDG conventions.
+- **WSL2**: Reports `sys.platform == "linux"`.  Uses XDG conventions.
+- **Native Windows**: `sys.platform == "win32"` without `MSYSTEM`.  Uses
+  `%APPDATA%`.
 
 ## Precedence
 
+Settings are applied in layers — later sources override earlier ones:
+
 1. **Built-in defaults** — hardcoded in `FeatureConfig` and `FormatterConfig`
-2. **XDG config.ini** — loaded on server initialisation
+2. **Config file** — loaded on server initialisation
 3. **Editor settings** — received via `workspace/didChangeConfiguration` or
-   `workspace/configuration`; always win over XDG config
+   `workspace/configuration`; always win over the config file
+
+This means you can set sensible defaults in the config file and then
+fine-tune per-project in your editor.
+
+### Interaction with editor settings
+
+| Editor | How editor settings are sent | Overrides config file? |
+|--------|------------------------------|----------------------|
+| **VS Code** | `settings.json` → `tclLsp.*` namespace | Yes |
+| **Neovim** | `lspconfig.setup({ settings = { tclLsp = { ... } } })` | Yes |
+| **Zed** | `settings.json` → `lsp.tcl-lsp.settings.tclLsp` | Yes |
+| **Helix** | `languages.toml` → `[language-server.tcl-lsp.config.tclLsp]` | Yes |
+| **Emacs** | `eglot-workspace-configuration` / `lsp-mode` | Yes |
+| **Sublime Text** | LSP Settings → `settings.tclLsp` | Yes |
+| **JetBrains** | Settings → Tools → Tcl Language Server | Yes |
+
+The config file is ideal for settings you want everywhere (e.g. disabling
+a noisy diagnostic), while editor settings are best for workspace-specific
+overrides (e.g. a different indent size for one project).
+
+### Syncing settings across editors
+
+Run the **"Tcl: Export Settings to Config File"** command in VS Code
+(or send `tcl-lsp.exportConfig` via `workspace/executeCommand` from any
+editor) to write the current editor settings to the config file.  Only
+non-default values are written, keeping the file minimal.
+
+This lets you configure in one editor and have the same defaults apply
+in all others.  Editor-specific overrides still take precedence.
 
 ## File Format
 
@@ -87,13 +140,6 @@ Toggle individual LSP features.  All default to `true`.
 |-----|------|---------|-------------|
 | `line_length` | int | `120` | W111 line-length threshold |
 
-## Exporting Settings
-
-Use the **"Tcl: Export Settings to XDG Config"** command in VS Code
-(or `tcl-lsp.exportConfig` via LSP `workspace/executeCommand`) to write
-the current editor settings to `config.ini`.  Only non-default values
-are written, keeping the file minimal.
-
 ## Example
 
 ```ini
@@ -120,5 +166,7 @@ line_length = 100
 ## Implementation
 
 - Config loading: `core/common/user_config.py`
+- Platform detection: `_config_dir()` and `_is_posix_compat_windows()`
 - Server integration: `lsp/server.py` → `on_initialized()`
 - Export command: `lsp/server.py` → `_export_config()`
+- CLI config: `explorer/tcl_cli.py` → `_config_file_paths()`

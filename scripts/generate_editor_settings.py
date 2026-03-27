@@ -559,7 +559,7 @@ def _build_vscode_diagnostic_sections() -> list[dict]:
                     "Regex patterns for generic `static::` variable names (IRULE4002). "
                     "Each pattern is matched case-insensitively against the bare name "
                     "after stripping `static::`. Also configurable via "
-                    "`~/.config/tcl-lsp/config.ini`."
+                    "the tcl-lsp config file (see docs/kcs/kcs-xdg-config.md)."
                 ),
                 "order": len(diags),
             }

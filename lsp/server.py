@@ -2431,18 +2431,18 @@ def on_initialized(params: types.InitializedParams) -> None:
     """After client initialization, scan workspace for Tcl files."""
     from core.common.dialect import active_dialect
 
-    # Load user config from ~/.config/tcl-lsp/config.ini.
+    # Load user config from the platform-native config file.
     user_config = load_user_config()
 
-    # Apply XDG settings as baseline defaults.  Editor settings received
-    # later via ``didChangeConfiguration`` will override these.
-    xdg_settings = get_all_settings(user_config)
-    if xdg_settings:
-        formatting = xdg_settings.get("formatting")
+    # Apply config-file settings as baseline defaults.  Editor settings
+    # received later via ``didChangeConfiguration`` will override these.
+    config_settings = get_all_settings(user_config)
+    if config_settings:
+        formatting = config_settings.get("formatting")
         if isinstance(formatting, dict) and formatting:
             global formatter_config
             formatter_config = FormatterConfig.from_dict(_normalise_formatter_settings(formatting))
-        _apply_feature_settings(xdg_settings)
+        _apply_feature_settings(config_settings)
 
     process_start = getattr(server, "_process_start_time", None)
     if process_start is not None:
@@ -2559,7 +2559,7 @@ def _switch_dialect(dialect: str) -> dict:
 
 
 def _export_config() -> dict:
-    """Export the current effective settings to the XDG config file."""
+    """Export the current effective settings to the config file."""
 
     # Build the current effective settings dict.
     settings: dict[str, object] = {}

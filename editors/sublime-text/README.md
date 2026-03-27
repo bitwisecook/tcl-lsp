@@ -235,10 +235,27 @@ This package is a drop-in replacement for
 
 AGPL-3.0-or-later — see [LICENSE](../../LICENSE) for details.
 
-## Configurable Settings
+## Configuration File
 
-tcl-lsp supports per-diagnostic, optimiser, shimmer, and XC diagnostic
-toggles. These can be configured via `~/.config/tcl-lsp/config.ini` (XDG
-config), which works across all editors. See
-[docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for the
-full reference.
+tcl-lsp reads a platform-native configuration file for editor-agnostic
+defaults (diagnostics, optimiser, shimmer, features, formatting):
+
+| Platform | Default path |
+|----------|-------------|
+| Linux / BSD / WSL2 | `~/.config/tcl-lsp/config.ini` |
+| macOS | `~/Library/Application Support/tcl-lsp/config.ini` |
+| Windows | `%APPDATA%\tcl-lsp\config.ini` |
+| MSYS2 / Cygwin | `~/.config/tcl-lsp/config.ini` |
+
+`$XDG_CONFIG_HOME` overrides the default on every platform.
+
+Settings from the config file are applied as baseline defaults.  Sublime
+Text LSP settings (`Preferences > Package Settings > Tcl > LSP Settings`)
+override the config file — so you can set shared defaults in the config
+file and per-project overrides in Sublime Text.
+
+Use the `tcl-lsp.exportConfig` command via `workspace/executeCommand` to
+write current settings to the config file.
+
+See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+the full reference.
