@@ -44,3 +44,7 @@ py.extension_module('_tcl_lsp_native',
 if get_option('tests')
   subdir('tests')
 endif
+
+if get_option('fuzz')
+  subdir('fuzz')
+endif

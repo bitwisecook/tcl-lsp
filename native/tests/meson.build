@@ -12,5 +12,5 @@ foreach name, src : test_sources
   exe = executable(name, src,
     dependencies: [catch2_dep, tcl_lsp_dep],
   )
-  test(name, exe)
+  test(name, exe, suite: 'tcl-lsp')
 endforeach

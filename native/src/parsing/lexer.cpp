@@ -179,7 +179,7 @@ void TclLexer::report_error_at(const SourcePosition& pos, const std::string& mes
     warnings_.emplace_back(pos, message);
 }
 
-// --- Parse methods ---
+// Parse methods
 
 void TclLexer::parse_sep() {
     start_ = pos_;
