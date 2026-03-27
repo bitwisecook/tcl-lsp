@@ -1238,9 +1238,7 @@ def analyse_function(
 
     from .taint import taint_propagation  # late import to avoid circular dependency
 
-    inferred_taints = taint_propagation(
-        cfg, ssa, executable_blocks, executable_edges, rendered_props=rendered
-    )
+    inferred_taints = taint_propagation(cfg, ssa, executable_blocks, executable_edges)
 
     live_in, live_out = _liveness(cfg, ssa)
     dead = _dead_stores(

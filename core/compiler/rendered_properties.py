@@ -36,7 +36,7 @@ from .ir import (
     IRCall,
     IRIncr,
 )
-from .ssa import SSAFunction, SSAValueKey
+from .ssa import SSAFunction, SSAStatement, SSAValueKey
 from .value_shapes import is_pure_var_ref, parse_command_substitution
 
 
@@ -144,7 +144,7 @@ def _render_esc_text(text: str) -> str:
     return backslash_subst(text) if "\\" in text else text
 
 
-def _has_double_escape(raw: str, rendered: str) -> bool:
+def _has_double_escape(rendered: str) -> bool:
     """Detect double-escaping: rendered text still contains escape sequences.
 
     If after rendering ``\\n`` -> newline, the result still contains
@@ -233,7 +233,7 @@ def _evaluate_rendered_props_for_value(value: str) -> RenderedValueProps:
             may |= RenderedProperties.HAS_CRLF
         if "\x00" in rendered:
             may |= RenderedProperties.HAS_NULL
-        if is_esc and _has_double_escape(raw_text, rendered):
+        if is_esc and _has_double_escape(rendered):
             may |= RenderedProperties.HAS_DOUBLE_ESCAPE
 
         if not leading_resolved and rendered:
@@ -278,10 +278,15 @@ def _evaluate_rendered_props_for_const(value: str) -> RenderedValueProps:
 
 def _evaluate_rendered_def(
     stmt: object,
-    ssa_stmt: object,
+    ssa_stmt: SSAStatement,
     props: dict[SSAValueKey, RenderedValueProps],
 ) -> RenderedValueProps:
-    """Determine rendered properties of a variable definition."""
+    """Determine rendered properties of a variable definition.
+
+    For pure variable references (``set x $y``), the properties of the
+    source SSA value are propagated via the ``props`` dict and the SSA
+    ``uses`` map, enabling copy propagation through the lattice.
+    """
     match stmt:
         case IRAssignConst(value=value):
             return _evaluate_rendered_props_for_const(
@@ -289,6 +294,14 @@ def _evaluate_rendered_def(
             )
 
         case IRAssignValue(value=value):
+            # Copy propagation: if the value is a pure variable ref,
+            # inherit the source variable's rendered properties.
+            stripped = value.strip()
+            if is_pure_var_ref(stripped) and ssa_stmt.uses:
+                for use_name, use_ver in ssa_stmt.uses.items():
+                    src = props.get((use_name, use_ver))
+                    if src is not None:
+                        return src
             return _evaluate_rendered_props_for_value(value)
 
         case IRAssignExpr():

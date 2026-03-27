@@ -1435,7 +1435,7 @@ Use `# noqa: *` to suppress all diagnostics on a line.
 | W122 | Mistyped IPv4 address (octet > 255 or leading zero) | |
 | W123 | Unknown command — not found in registry, user procs, or `unknown` handler (opt-in) | Replace with suggestion |
 | W200 | Binary format modifier requires newer Tcl | |
-| W201 | Manual path concatenation (use `file join`) | Rewrite as `[file join]` |
+| W201 | Manual path concatenation — uses rendered value properties and taint suppression (use `file join`) | Rewrite as `[file join]` |
 
 ### Warnings -- Variables
 
@@ -1498,9 +1498,16 @@ through assignments, string interpolation, and phi nodes.  Commands that
 produce fixed-type results (e.g. `string length`, `llength`) act as
 sanitisers.
 
-Taint colours carry value properties (e.g. `PATH_PREFIXED` for values
-starting with `/`).  At join points, colours are intersected so only
-properties shared by all paths survive -- this suppresses false positives.
+Taint colours carry value properties (e.g. `PATH_NORMALISED` for values
+normalised via `file normalize`, `PATH_JOINED` for values assembled via
+`file join`).  At join points, colours are intersected so only properties
+shared by all paths survive -- this suppresses false positives.
+
+The **Rendered Value Properties** pass (`core/compiler/rendered_properties.py`)
+runs before taint propagation and computes per-SSA-value string content
+properties after Tcl backslash substitution.  This enables precise detection
+of path separators (resolving escape sequences like `\x2f` to `/` before
+checking) and is used by the W201 path concatenation diagnostic.
 
 | Code | Severity | Description | Quick-fix |
 |------|----------|-------------|-----------|

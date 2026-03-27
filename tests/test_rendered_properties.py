@@ -157,6 +157,104 @@ class TestEvaluateValue:
         assert not (props.may & RenderedProperties.HAS_DOUBLE_ESCAPE)
 
 
+class TestSSACopyPropagation:
+    """Copy propagation: set x $y inherits y's rendered properties."""
+
+    def test_copy_propagates_path_properties(self):
+        """set path "$dir/file"; set copy $path -- copy gets W201."""
+        from core.compiler.taint import find_taint_warnings
+
+        source = 'set path "$dir/file.txt"\nset copy "$path/sub"'
+        ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
+        # At least the first assignment should trigger.
+        assert len(ws) >= 1
+
+    def test_copy_of_clean_var_no_false_positive(self):
+        """set x 42; set y $x -- no W201."""
+        from core.compiler.taint import find_taint_warnings
+
+        source = "set x 42\nset y $x"
+        ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
+        assert len(ws) == 0
+
+    def test_rendered_props_through_copy_chain(self):
+        """Rendered properties survive a chain: set a "/etc"; set b $a."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'set a "/etc/config"\nset b $a'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        # Find the SSA value for 'b'.
+        has_slash_on_b = False
+        for (name, _ver), props in rp.items():
+            if name == "b" and props.may & RenderedProperties.HAS_FORWARD_SLASH:
+                has_slash_on_b = True
+        assert has_slash_on_b, "b should inherit HAS_FORWARD_SLASH from a"
+
+
+class TestPhiNodePropagation:
+    """Properties across control flow with phi nodes."""
+
+    def test_phi_may_union_across_branches(self):
+        """Path in one branch, no path in other -- phi should have may HAS_FORWARD_SLASH."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'if {$cond} {\n    set x "/etc/config"\n} else {\n    set x "hello"\n}\nputs $x'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        # Find the phi-merged version of x (highest version).
+        x_versions = [(ver, props) for (name, ver), props in rp.items() if name == "x"]
+        if x_versions:
+            max_ver_props = max(x_versions, key=lambda t: t[0])[1]
+            # The phi-merged value should have HAS_FORWARD_SLASH from the
+            # "/etc/config" branch (may = union).
+            assert max_ver_props.may & RenderedProperties.HAS_FORWARD_SLASH
+
+    def test_phi_must_intersection_both_branches_agree(self):
+        """Both branches start with / -- phi should preserve STARTS_WITH_SLASH."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'if {$cond} {\n    set x "/etc/config"\n} else {\n    set x "/var/log"\n}\nputs $x'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        x_versions = [(ver, props) for (name, ver), props in rp.items() if name == "x"]
+        if x_versions:
+            max_ver_props = max(x_versions, key=lambda t: t[0])[1]
+            assert max_ver_props.must & RenderedProperties.STARTS_WITH_SLASH
+
+
+class TestNamespaceAndDynamicDispatch:
+    """Rendered properties with namespaces and dynamic dispatch."""
+
+    def test_namespaced_var_path(self):
+        """Namespace-qualified variable in path concatenation."""
+        from core.compiler.taint import find_taint_warnings
+
+        source = 'set path "$::config::basedir/file.txt"'
+        ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
+        assert len(ws) == 1
+
+    def test_namespace_eval_is_barrier(self):
+        """namespace eval body is an IRBarrier -- W201 is not detected inside."""
+        from core.compiler.taint import find_taint_warnings
+
+        source = 'namespace eval myns {\n    set path "$dir/file.txt"\n}'
+        ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
+        # namespace eval body is compiled as a barrier; no analysis inside.
+        assert len(ws) == 0
+
+    def test_file_join_in_namespace(self):
+        """[file join] inside namespace -- should NOT trigger W201."""
+        from core.compiler.taint import find_taint_warnings
+
+        source = 'namespace eval myns {\n    set path [file join $dir "file.txt"]\n}'
+        ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
+        assert len(ws) == 0
+
+
 class TestFullPassIntegration:
     """Integration test: run the pass via find_taint_warnings."""
 

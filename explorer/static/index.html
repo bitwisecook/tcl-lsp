@@ -751,6 +751,7 @@ puts $x"></textarea>
         <div class="tab" data-tab="cfg-post">SSA+Analysis</div>
         <div class="tab" data-tab="interproc">Interproc</div>
         <div class="tab" data-tab="types">Types</div>
+        <div class="tab" data-tab="rendered">Rendered</div>
         <div class="tab" data-tab="dataflow">Data Flow</div>
         <div class="tab" data-tab="opt">Optimiser</div>
         <div class="tab" data-tab="gvn">GVN</div>
@@ -771,6 +772,7 @@ puts $x"></textarea>
         <div class="tab-pane" id="pane-cfg-post"></div>
         <div class="tab-pane" id="pane-interproc"></div>
         <div class="tab-pane" id="pane-types"></div>
+        <div class="tab-pane" id="pane-rendered"></div>
         <div class="tab-pane" id="pane-dataflow"></div>
         <div class="tab-pane" id="pane-opt"></div>
         <div class="tab-pane" id="pane-gvn"></div>
@@ -967,6 +969,7 @@ function renderAll() {
   renderCfgPost();
   renderInterproc();
   renderTypes();
+  renderRendered();
   renderDataFlow();
   renderOpt();
   renderGvn();
@@ -988,6 +991,7 @@ function updateBadges() {
     'cfg-post': data.cfgPostSsa.length,
     'interproc': data.interprocedural.length,
     'types': data.types.reduce((n, f) => n + f.entries.length, 0),
+    'rendered': (data.renderedProperties||[]).reduce((n, f) => n + f.entries.length, 0),
     'opt': data.optimisations.length,
     'gvn': data.gvn.length,
     'shimmer': data.shimmer.length,

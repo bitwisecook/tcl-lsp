@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 from ...commands.registry.runtime import (
     canonical_list_commands,
@@ -33,9 +32,6 @@ from ._lattice import (
     _taint_source_colour,
     taint_join,
 )
-
-if TYPE_CHECKING:
-    from ..rendered_properties import RenderedValueProps
 
 _CallReturnProvider = Callable[
     [str, tuple[str, ...], tuple[TaintLattice, ...], str | None],
@@ -463,7 +459,6 @@ def taint_propagation(
     *,
     param_taints: dict[str, TaintLattice] | None = None,
     call_return_provider: _CallReturnProvider | None = None,
-    rendered_props: dict[SSAValueKey, "RenderedValueProps"] | None = None,
 ) -> dict[SSAValueKey, TaintLattice]:
     """Run taint propagation over the SSA graph.
 
