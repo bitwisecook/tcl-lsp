@@ -5217,7 +5217,12 @@ namespace eval ::itest::cmd {
     }
 
 
-    # tcltest:: stubs (15 commands)
+    # tcltest:: stubs (41 commands)
+
+    proc tcltest_bytestring {args} {
+        ::itest::log_decision tcltest bytestring $args
+        return ""
+    }
 
     proc tcltest_cleanupTests {args} {
         ::itest::log_decision tcltest cleanupTests $args
@@ -5234,8 +5239,23 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc tcltest_debug {args} {
+        ::itest::log_decision tcltest debug $args
+        return ""
+    }
+
     proc tcltest_errorChannel {args} {
         ::itest::log_decision tcltest errorChannel $args
+        return ""
+    }
+
+    proc tcltest_errorFile {args} {
+        ::itest::log_decision tcltest errorFile $args
+        return ""
+    }
+
+    proc tcltest_getMatchingFiles {args} {
+        ::itest::log_decision tcltest getMatchingFiles $args
         return ""
     }
 
@@ -5244,8 +5264,28 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc tcltest_limitConstraints {args} {
+        ::itest::log_decision tcltest limitConstraints $args
+        return ""
+    }
+
+    proc tcltest_loadFile {args} {
+        ::itest::log_decision tcltest loadFile $args
+        return ""
+    }
+
+    proc tcltest_loadScript {args} {
+        ::itest::log_decision tcltest loadScript $args
+        return ""
+    }
+
     proc tcltest_loadTestedCommands {args} {
         ::itest::log_decision tcltest loadTestedCommands $args
+        return ""
+    }
+
+    proc tcltest_mainThread {args} {
+        ::itest::log_decision tcltest mainThread $args
         return ""
     }
 
@@ -5259,8 +5299,43 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc tcltest_match {args} {
+        ::itest::log_decision tcltest match $args
+        return ""
+    }
+
+    proc tcltest_matchDirectories {args} {
+        ::itest::log_decision tcltest matchDirectories $args
+        return ""
+    }
+
+    proc tcltest_matchFiles {args} {
+        ::itest::log_decision tcltest matchFiles $args
+        return ""
+    }
+
+    proc tcltest_normalizeMsg {args} {
+        ::itest::log_decision tcltest normalizeMsg $args
+        return ""
+    }
+
+    proc tcltest_normalizePath {args} {
+        ::itest::log_decision tcltest normalizePath $args
+        return ""
+    }
+
     proc tcltest_outputChannel {args} {
         ::itest::log_decision tcltest outputChannel $args
+        return ""
+    }
+
+    proc tcltest_outputFile {args} {
+        ::itest::log_decision tcltest outputFile $args
+        return ""
+    }
+
+    proc tcltest_preserveCore {args} {
+        ::itest::log_decision tcltest preserveCore $args
         return ""
     }
 
@@ -5274,8 +5349,43 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc tcltest_restoreState {args} {
+        ::itest::log_decision tcltest restoreState $args
+        return ""
+    }
+
     proc tcltest_runAllTests {args} {
         ::itest::log_decision tcltest runAllTests $args
+        return ""
+    }
+
+    proc tcltest_saveState {args} {
+        ::itest::log_decision tcltest saveState $args
+        return ""
+    }
+
+    proc tcltest_singleProcess {args} {
+        ::itest::log_decision tcltest singleProcess $args
+        return ""
+    }
+
+    proc tcltest_skip {args} {
+        ::itest::log_decision tcltest skip $args
+        return ""
+    }
+
+    proc tcltest_skipDirectories {args} {
+        ::itest::log_decision tcltest skipDirectories $args
+        return ""
+    }
+
+    proc tcltest_skipFiles {args} {
+        ::itest::log_decision tcltest skipFiles $args
+        return ""
+    }
+
+    proc tcltest_temporaryDirectory {args} {
+        ::itest::log_decision tcltest temporaryDirectory $args
         return ""
     }
 
@@ -5289,8 +5399,28 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc tcltest_testsDirectory {args} {
+        ::itest::log_decision tcltest testsDirectory $args
+        return ""
+    }
+
+    proc tcltest_threadReap {args} {
+        ::itest::log_decision tcltest threadReap $args
+        return ""
+    }
+
+    proc tcltest_verbose {args} {
+        ::itest::log_decision tcltest verbose $args
+        return ""
+    }
+
     proc tcltest_viewFile {args} {
         ::itest::log_decision tcltest viewFile $args
+        return ""
+    }
+
+    proc tcltest_workingDirectory {args} {
+        ::itest::log_decision tcltest workingDirectory $args
         return ""
     }
 
@@ -5430,7 +5560,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # Top-level stubs (196 commands)
+    # Top-level stubs (301 commands)
 
     proc cmd_accumulate {args} {
         ::itest::log_decision toplevel accumulate $args
@@ -5682,6 +5812,11 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc cmd_gettimes {args} {
+        ::itest::log_decision toplevel gettimes $args
+        return ""
+    }
+
     proc cmd_global {args} {
         ::itest::log_decision toplevel global $args
         return ""
@@ -5842,6 +5977,11 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc cmd_lgen {args} {
+        ::itest::log_decision toplevel lgen $args
+        return ""
+    }
+
     proc cmd_lindex {args} {
         ::itest::log_decision toplevel lindex $args
         return ""
@@ -5932,6 +6072,11 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc cmd_lstring {args} {
+        ::itest::log_decision toplevel lstring $args
+        return ""
+    }
+
     proc cmd_matchclass {args} {
         ::itest::log_decision toplevel matchclass $args
         return ""
@@ -5974,6 +6119,11 @@ namespace eval ::itest::cmd {
 
     proc cmd_nodes {args} {
         ::itest::log_decision toplevel nodes $args
+        return ""
+    }
+
+    proc cmd_noop {args} {
+        ::itest::log_decision toplevel noop $args
         return ""
     }
 
@@ -6252,6 +6402,511 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc cmd_testapplylambda {args} {
+        ::itest::log_decision toplevel testapplylambda $args
+        return ""
+    }
+
+    proc cmd_testappverifierpresent {args} {
+        ::itest::log_decision toplevel testappverifierpresent $args
+        return ""
+    }
+
+    proc cmd_testasync {args} {
+        ::itest::log_decision toplevel testasync $args
+        return ""
+    }
+
+    proc cmd_testbigdata {args} {
+        ::itest::log_decision toplevel testbigdata $args
+        return ""
+    }
+
+    proc cmd_testbignumobj {args} {
+        ::itest::log_decision toplevel testbignumobj $args
+        return ""
+    }
+
+    proc cmd_testbooleanobj {args} {
+        ::itest::log_decision toplevel testbooleanobj $args
+        return ""
+    }
+
+    proc cmd_testbumpinterpepoch {args} {
+        ::itest::log_decision toplevel testbumpinterpepoch $args
+        return ""
+    }
+
+    proc cmd_testbytestring {args} {
+        ::itest::log_decision toplevel testbytestring $args
+        return ""
+    }
+
+    proc cmd_testchannel {args} {
+        ::itest::log_decision toplevel testchannel $args
+        return ""
+    }
+
+    proc cmd_testchannelevent {args} {
+        ::itest::log_decision toplevel testchannelevent $args
+        return ""
+    }
+
+    proc cmd_testcmdinfo {args} {
+        ::itest::log_decision toplevel testcmdinfo $args
+        return ""
+    }
+
+    proc cmd_testcmdtoken {args} {
+        ::itest::log_decision toplevel testcmdtoken $args
+        return ""
+    }
+
+    proc cmd_testcmdtrace {args} {
+        ::itest::log_decision toplevel testcmdtrace $args
+        return ""
+    }
+
+    proc cmd_testconcatobj {args} {
+        ::itest::log_decision toplevel testconcatobj $args
+        return ""
+    }
+
+    proc cmd_testcpuid {args} {
+        ::itest::log_decision toplevel testcpuid $args
+        return ""
+    }
+
+    proc cmd_testcreatecommand {args} {
+        ::itest::log_decision toplevel testcreatecommand $args
+        return ""
+    }
+
+    proc cmd_testdcall {args} {
+        ::itest::log_decision toplevel testdcall $args
+        return ""
+    }
+
+    proc cmd_testdel {args} {
+        ::itest::log_decision toplevel testdel $args
+        return ""
+    }
+
+    proc cmd_testdelassocdata {args} {
+        ::itest::log_decision toplevel testdelassocdata $args
+        return ""
+    }
+
+    proc cmd_testdoubledigits {args} {
+        ::itest::log_decision toplevel testdoubledigits $args
+        return ""
+    }
+
+    proc cmd_testdoubleobj {args} {
+        ::itest::log_decision toplevel testdoubleobj $args
+        return ""
+    }
+
+    proc cmd_testdstring {args} {
+        ::itest::log_decision toplevel testdstring $args
+        return ""
+    }
+
+    proc cmd_testencoding {args} {
+        ::itest::log_decision toplevel testencoding $args
+        return ""
+    }
+
+    proc cmd_testevalex {args} {
+        ::itest::log_decision toplevel testevalex $args
+        return ""
+    }
+
+    proc cmd_testevalobjv {args} {
+        ::itest::log_decision toplevel testevalobjv $args
+        return ""
+    }
+
+    proc cmd_testevent {args} {
+        ::itest::log_decision toplevel testevent $args
+        return ""
+    }
+
+    proc cmd_testexithandler {args} {
+        ::itest::log_decision toplevel testexithandler $args
+        return ""
+    }
+
+    proc cmd_testexitmainloop {args} {
+        ::itest::log_decision toplevel testexitmainloop $args
+        return ""
+    }
+
+    proc cmd_testexprdouble {args} {
+        ::itest::log_decision toplevel testexprdouble $args
+        return ""
+    }
+
+    proc cmd_testexprdoubleobj {args} {
+        ::itest::log_decision toplevel testexprdoubleobj $args
+        return ""
+    }
+
+    proc cmd_testexprlong {args} {
+        ::itest::log_decision toplevel testexprlong $args
+        return ""
+    }
+
+    proc cmd_testexprlongobj {args} {
+        ::itest::log_decision toplevel testexprlongobj $args
+        return ""
+    }
+
+    proc cmd_testexprparser {args} {
+        ::itest::log_decision toplevel testexprparser $args
+        return ""
+    }
+
+    proc cmd_testexprstring {args} {
+        ::itest::log_decision toplevel testexprstring $args
+        return ""
+    }
+
+    proc cmd_testfevent {args} {
+        ::itest::log_decision toplevel testfevent $args
+        return ""
+    }
+
+    proc cmd_testfile {args} {
+        ::itest::log_decision toplevel testfile $args
+        return ""
+    }
+
+    proc cmd_testfilelink {args} {
+        ::itest::log_decision toplevel testfilelink $args
+        return ""
+    }
+
+    proc cmd_testfilesystem {args} {
+        ::itest::log_decision toplevel testfilesystem $args
+        return ""
+    }
+
+    proc cmd_testfindfirst {args} {
+        ::itest::log_decision toplevel testfindfirst $args
+        return ""
+    }
+
+    proc cmd_testfindlast {args} {
+        ::itest::log_decision toplevel testfindlast $args
+        return ""
+    }
+
+    proc cmd_testfstildeexpand {args} {
+        ::itest::log_decision toplevel testfstildeexpand $args
+        return ""
+    }
+
+    proc cmd_testgetassocdata {args} {
+        ::itest::log_decision toplevel testgetassocdata $args
+        return ""
+    }
+
+    proc cmd_testgetindexfromobjstruct {args} {
+        ::itest::log_decision toplevel testgetindexfromobjstruct $args
+        return ""
+    }
+
+    proc cmd_testgetint {args} {
+        ::itest::log_decision toplevel testgetint $args
+        return ""
+    }
+
+    proc cmd_testgetintforindex {args} {
+        ::itest::log_decision toplevel testgetintforindex $args
+        return ""
+    }
+
+    proc cmd_testgetplatform {args} {
+        ::itest::log_decision toplevel testgetplatform $args
+        return ""
+    }
+
+    proc cmd_testgetunichar {args} {
+        ::itest::log_decision toplevel testgetunichar $args
+        return ""
+    }
+
+    proc cmd_testgetvarfullname {args} {
+        ::itest::log_decision toplevel testgetvarfullname $args
+        return ""
+    }
+
+    proc cmd_testhandlecount {args} {
+        ::itest::log_decision toplevel testhandlecount $args
+        return ""
+    }
+
+    proc cmd_testhashsystemhash {args} {
+        ::itest::log_decision toplevel testhashsystemhash $args
+        return ""
+    }
+
+    proc cmd_testindexobj {args} {
+        ::itest::log_decision toplevel testindexobj $args
+        return ""
+    }
+
+    proc cmd_testinterpdelete {args} {
+        ::itest::log_decision toplevel testinterpdelete $args
+        return ""
+    }
+
+    proc cmd_testinterpresolver {args} {
+        ::itest::log_decision toplevel testinterpresolver $args
+        return ""
+    }
+
+    proc cmd_testintobj {args} {
+        ::itest::log_decision toplevel testintobj $args
+        return ""
+    }
+
+    proc cmd_testlink {args} {
+        ::itest::log_decision toplevel testlink $args
+        return ""
+    }
+
+    proc cmd_testlinkarray {args} {
+        ::itest::log_decision toplevel testlinkarray $args
+        return ""
+    }
+
+    proc cmd_testlistobj {args} {
+        ::itest::log_decision toplevel testlistobj $args
+        return ""
+    }
+
+    proc cmd_testlistrep {args} {
+        ::itest::log_decision toplevel testlistrep $args
+        return ""
+    }
+
+    proc cmd_testlocale {args} {
+        ::itest::log_decision toplevel testlocale $args
+        return ""
+    }
+
+    proc cmd_testlongsize {args} {
+        ::itest::log_decision toplevel testlongsize $args
+        return ""
+    }
+
+    proc cmd_testlutil {args} {
+        ::itest::log_decision toplevel testlutil $args
+        return ""
+    }
+
+    proc cmd_testmainthread {args} {
+        ::itest::log_decision toplevel testmainthread $args
+        return ""
+    }
+
+    proc cmd_testmsb {args} {
+        ::itest::log_decision toplevel testmsb $args
+        return ""
+    }
+
+    proc cmd_testnrelevels {args} {
+        ::itest::log_decision toplevel testnrelevels $args
+        return ""
+    }
+
+    proc cmd_testnreunwind {args} {
+        ::itest::log_decision toplevel testnreunwind $args
+        return ""
+    }
+
+    proc cmd_testnumutfchars {args} {
+        ::itest::log_decision toplevel testnumutfchars $args
+        return ""
+    }
+
+    proc cmd_testobj {args} {
+        ::itest::log_decision toplevel testobj $args
+        return ""
+    }
+
+    proc cmd_testpanic {args} {
+        ::itest::log_decision toplevel testpanic $args
+        return ""
+    }
+
+    proc cmd_testparseargs {args} {
+        ::itest::log_decision toplevel testparseargs $args
+        return ""
+    }
+
+    proc cmd_testparser {args} {
+        ::itest::log_decision toplevel testparser $args
+        return ""
+    }
+
+    proc cmd_testparsevar {args} {
+        ::itest::log_decision toplevel testparsevar $args
+        return ""
+    }
+
+    proc cmd_testparsevarname {args} {
+        ::itest::log_decision toplevel testparsevarname $args
+        return ""
+    }
+
+    proc cmd_testpreferstable {args} {
+        ::itest::log_decision toplevel testpreferstable $args
+        return ""
+    }
+
+    proc cmd_testprint {args} {
+        ::itest::log_decision toplevel testprint $args
+        return ""
+    }
+
+    proc cmd_testpurebytesobj {args} {
+        ::itest::log_decision toplevel testpurebytesobj $args
+        return ""
+    }
+
+    proc cmd_testregexp {args} {
+        ::itest::log_decision toplevel testregexp $args
+        return ""
+    }
+
+    proc cmd_testreturn {args} {
+        ::itest::log_decision toplevel testreturn $args
+        return ""
+    }
+
+    proc cmd_testsaveresult {args} {
+        ::itest::log_decision toplevel testsaveresult $args
+        return ""
+    }
+
+    proc cmd_testservicemode {args} {
+        ::itest::log_decision toplevel testservicemode $args
+        return ""
+    }
+
+    proc cmd_testset2 {args} {
+        ::itest::log_decision toplevel testset2 $args
+        return ""
+    }
+
+    proc cmd_testsetassocdata {args} {
+        ::itest::log_decision toplevel testsetassocdata $args
+        return ""
+    }
+
+    proc cmd_testsetbytearraylength {args} {
+        ::itest::log_decision toplevel testsetbytearraylength $args
+        return ""
+    }
+
+    proc cmd_testseterr {args} {
+        ::itest::log_decision toplevel testseterr $args
+        return ""
+    }
+
+    proc cmd_testseterrorcode {args} {
+        ::itest::log_decision toplevel testseterrorcode $args
+        return ""
+    }
+
+    proc cmd_testsetmainloop {args} {
+        ::itest::log_decision toplevel testsetmainloop $args
+        return ""
+    }
+
+    proc cmd_testsetnoerr {args} {
+        ::itest::log_decision toplevel testsetnoerr $args
+        return ""
+    }
+
+    proc cmd_testsetobjerrorcode {args} {
+        ::itest::log_decision toplevel testsetobjerrorcode $args
+        return ""
+    }
+
+    proc cmd_testsetplatform {args} {
+        ::itest::log_decision toplevel testsetplatform $args
+        return ""
+    }
+
+    proc cmd_testsimplefilesystem {args} {
+        ::itest::log_decision toplevel testsimplefilesystem $args
+        return ""
+    }
+
+    proc cmd_testsize {args} {
+        ::itest::log_decision toplevel testsize $args
+        return ""
+    }
+
+    proc cmd_testsocket {args} {
+        ::itest::log_decision toplevel testsocket $args
+        return ""
+    }
+
+    proc cmd_teststaticlibrary {args} {
+        ::itest::log_decision toplevel teststaticlibrary $args
+        return ""
+    }
+
+    proc cmd_teststaticpkg {args} {
+        ::itest::log_decision toplevel teststaticpkg $args
+        return ""
+    }
+
+    proc cmd_teststringbytes {args} {
+        ::itest::log_decision toplevel teststringbytes $args
+        return ""
+    }
+
+    proc cmd_teststringobj {args} {
+        ::itest::log_decision toplevel teststringobj $args
+        return ""
+    }
+
+    proc cmd_testtranslatefilename {args} {
+        ::itest::log_decision toplevel testtranslatefilename $args
+        return ""
+    }
+
+    proc cmd_testuniclass {args} {
+        ::itest::log_decision toplevel testuniclass $args
+        return ""
+    }
+
+    proc cmd_testupvar {args} {
+        ::itest::log_decision toplevel testupvar $args
+        return ""
+    }
+
+    proc cmd_testutfnext {args} {
+        ::itest::log_decision toplevel testutfnext $args
+        return ""
+    }
+
+    proc cmd_testutfprev {args} {
+        ::itest::log_decision toplevel testutfprev $args
+        return ""
+    }
+
+    proc cmd_testwrongnumargs {args} {
+        ::itest::log_decision toplevel testwrongnumargs $args
+        return ""
+    }
+
     proc cmd_text {args} {
         ::itest::log_decision toplevel text $args
         return ""
@@ -6414,4 +7069,4 @@ namespace eval ::itest::cmd {
 
 }
 
-# Total stub mocks generated: 1194
+# Total stub mocks generated: 1325

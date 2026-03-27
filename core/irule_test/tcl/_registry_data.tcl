@@ -115,7 +115,7 @@ namespace eval ::tmm::expr_ops {
 namespace eval ::itest::cmd {
 
     # All f5-irules namespaced commands (NS::subcommand).
-    # Count: 1057
+    # Count: 1083
 
     variable _gen_namespaced_commands {
         # AAA::
@@ -1409,21 +1409,47 @@ namespace eval ::itest::cmd {
         {tcl::tm::roots}
 
         # tcltest::
+        {tcltest::bytestring}
         {tcltest::cleanupTests}
         {tcltest::configure}
         {tcltest::customMatch}
+        {tcltest::debug}
         {tcltest::errorChannel}
+        {tcltest::errorFile}
+        {tcltest::getMatchingFiles}
         {tcltest::interpreter}
+        {tcltest::limitConstraints}
+        {tcltest::loadFile}
+        {tcltest::loadScript}
         {tcltest::loadTestedCommands}
+        {tcltest::mainThread}
         {tcltest::makeDirectory}
         {tcltest::makeFile}
+        {tcltest::match}
+        {tcltest::matchDirectories}
+        {tcltest::matchFiles}
+        {tcltest::normalizeMsg}
+        {tcltest::normalizePath}
         {tcltest::outputChannel}
+        {tcltest::outputFile}
+        {tcltest::preserveCore}
         {tcltest::removeDirectory}
         {tcltest::removeFile}
+        {tcltest::restoreState}
         {tcltest::runAllTests}
+        {tcltest::saveState}
+        {tcltest::singleProcess}
+        {tcltest::skip}
+        {tcltest::skipDirectories}
+        {tcltest::skipFiles}
+        {tcltest::temporaryDirectory}
         {tcltest::test}
         {tcltest::testConstraint}
+        {tcltest::testsDirectory}
+        {tcltest::threadReap}
+        {tcltest::verbose}
         {tcltest::viewFile}
+        {tcltest::workingDirectory}
 
         # textutil::
         {textutil::adjust}
@@ -1461,7 +1487,7 @@ namespace eval ::itest::cmd {
     }
 
     # All f5-irules top-level commands.
-    # Count: 210
+    # Count: 315
 
     variable _gen_toplevel_commands {
         accumulate
@@ -1519,6 +1545,7 @@ namespace eval ::itest::cmd {
         forward
         frame
         getfield
+        gettimes
         global
         grab
         grid
@@ -1551,6 +1578,7 @@ namespace eval ::itest::cmd {
         labelframe
         lappend
         lasthop
+        lgen
         lindex
         link_qos
         linsert
@@ -1570,6 +1598,7 @@ namespace eval ::itest::cmd {
         lsearch
         lset
         lsort
+        lstring
         matchclass
         md4
         md5
@@ -1580,6 +1609,7 @@ namespace eval ::itest::cmd {
         nexthop
         node
         nodes
+        noop
         ntohl
         ntohs
         option
@@ -1641,6 +1671,107 @@ namespace eval ::itest::cmd {
         tcl_wordBreakAfter
         tcl_wordBreakBefore
         tcpdump
+        testapplylambda
+        testappverifierpresent
+        testasync
+        testbigdata
+        testbignumobj
+        testbooleanobj
+        testbumpinterpepoch
+        testbytestring
+        testchannel
+        testchannelevent
+        testcmdinfo
+        testcmdtoken
+        testcmdtrace
+        testconcatobj
+        testcpuid
+        testcreatecommand
+        testdcall
+        testdel
+        testdelassocdata
+        testdoubledigits
+        testdoubleobj
+        testdstring
+        testencoding
+        testevalex
+        testevalobjv
+        testevent
+        testexithandler
+        testexitmainloop
+        testexprdouble
+        testexprdoubleobj
+        testexprlong
+        testexprlongobj
+        testexprparser
+        testexprstring
+        testfevent
+        testfile
+        testfilelink
+        testfilesystem
+        testfindfirst
+        testfindlast
+        testfstildeexpand
+        testgetassocdata
+        testgetindexfromobjstruct
+        testgetint
+        testgetintforindex
+        testgetplatform
+        testgetunichar
+        testgetvarfullname
+        testhandlecount
+        testhashsystemhash
+        testindexobj
+        testinterpdelete
+        testinterpresolver
+        testintobj
+        testlink
+        testlinkarray
+        testlistobj
+        testlistrep
+        testlocale
+        testlongsize
+        testlutil
+        testmainthread
+        testmsb
+        testnrelevels
+        testnreunwind
+        testnumutfchars
+        testobj
+        testpanic
+        testparseargs
+        testparser
+        testparsevar
+        testparsevarname
+        testpreferstable
+        testprint
+        testpurebytesobj
+        testregexp
+        testreturn
+        testsaveresult
+        testservicemode
+        testset2
+        testsetassocdata
+        testsetbytearraylength
+        testseterr
+        testseterrorcode
+        testsetmainloop
+        testsetnoerr
+        testsetobjerrorcode
+        testsetplatform
+        testsimplefilesystem
+        testsize
+        testsocket
+        teststaticlibrary
+        teststaticpkg
+        teststringbytes
+        teststringobj
+        testtranslatefilename
+        testuniclass
+        testupvar
+        testutfnext
+        testutfprev
+        testwrongnumargs
         text
         timing
         tk

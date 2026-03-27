@@ -1350,3 +1350,121 @@ class TestAplSemanticTokens:
         # The [tmsh::get_config ...] should produce Tcl tokens
         assert "aplSection" in token_types
         assert "aplFieldType" in token_types
+
+
+class TestTcltestHighlighting:
+    """Tests for tcltest package command highlighting (issue #61).
+
+    Verifies that tcltest commands are highlighted as keywords both when
+    used with full namespace qualification and as bare names after
+    ``namespace import ::tcltest::*``.
+    """
+
+    _DL_BIT = 1 << SEMANTIC_TOKEN_MODIFIERS.index("defaultLibrary")
+
+    def test_tcltest_qualified_test_keyword(self):
+        """``tcltest::test`` is split into namespace + keyword tokens."""
+        source = "tcltest::test mytest {desc}"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        ns_tokens = [t for t in tokens if t["type"] == "namespace"]
+        kw_tokens = [t for t in tokens if t["type"] == "keyword"]
+        assert len(ns_tokens) == 1
+        assert ns_tokens[0]["length"] == len("tcltest::")
+        assert any(t["length"] == len("test") for t in kw_tokens)
+
+    def test_tcltest_qualified_cleanup_keyword(self):
+        """``tcltest::cleanupTests`` is split into namespace + keyword."""
+        source = "tcltest::cleanupTests"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        ns_tokens = [t for t in tokens if t["type"] == "namespace"]
+        kw_tokens = [t for t in tokens if t["type"] == "keyword"]
+        assert len(ns_tokens) == 1
+        assert len(kw_tokens) == 1
+        assert kw_tokens[0]["length"] == len("cleanupTests")
+
+    def test_bare_test_after_namespace_import(self):
+        """Bare ``test`` is keyword after ``namespace import ::tcltest::*``."""
+        source = "package require tcltest\nnamespace import ::tcltest::*\ntest mytest {desc}"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        # Find the 'test' token on line 2
+        test_tok = [t for t in tokens if t["line"] == 2 and t["char"] == 0]
+        assert len(test_tok) == 1
+        assert test_tok[0]["type"] == "keyword"
+        assert test_tok[0]["length"] == len("test")
+        assert test_tok[0]["modifiers"] & self._DL_BIT
+
+    def test_bare_cleanup_after_namespace_import(self):
+        """Bare ``cleanupTests`` is keyword after namespace import."""
+        source = "package require tcltest\nnamespace import ::tcltest::*\ncleanupTests"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        cleanup_tok = [t for t in tokens if t["line"] == 2 and t["char"] == 0]
+        assert len(cleanup_tok) == 1
+        assert cleanup_tok[0]["type"] == "keyword"
+        assert cleanup_tok[0]["length"] == len("cleanupTests")
+
+    def test_bare_test_constraint_keyword(self):
+        """Bare ``testConstraint`` is keyword."""
+        source = "testConstraint unix 1"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["length"] == len("testConstraint")
+
+    def test_bare_make_file_keyword(self):
+        """Bare ``makeFile`` is keyword."""
+        source = 'makeFile "contents" test.txt'
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["length"] == len("makeFile")
+
+    def test_multiple_tcltest_commands_in_file(self):
+        """Full test file pattern with multiple tcltest commands."""
+        source = (
+            "package require tcltest\n"
+            "namespace import ::tcltest::*\n"
+            "testConstraint unix 1\n"
+            "test mytest-1.0 {basic test} -body {\n"
+            "    set x 1\n"
+            "} -result 1\n"
+            "cleanupTests"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        # testConstraint on line 2
+        tc_tok = [t for t in tokens if t["line"] == 2 and t["char"] == 0]
+        assert tc_tok[0]["type"] == "keyword"
+        # test on line 3
+        test_tok = [t for t in tokens if t["line"] == 3 and t["char"] == 0]
+        assert test_tok[0]["type"] == "keyword"
+        assert test_tok[0]["length"] == len("test")
+        # cleanupTests on line 6
+        cleanup = [t for t in tokens if t["line"] == 6 and t["char"] == 0]
+        assert cleanup[0]["type"] == "keyword"
+        assert cleanup[0]["length"] == len("cleanupTests")
+
+    def test_tcltest_body_option_value_is_string(self):
+        """Value of ``-body`` is treated as a string token."""
+        source = "tcltest::test mytest {desc} -body { set x 1 } -result 1"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        # The -body value is a brace-delimited string
+        str_tokens = [t for t in tokens if t["type"] == "string"]
+        assert len(str_tokens) >= 1
+
+    def test_c_test_command_highlighted(self):
+        """C test binary commands like ``testchannel`` are keywords."""
+        source = "testchannel open"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["length"] == len("testchannel")
+
+    def test_c_test_command_testobj(self):
+        """``testobj`` from tclTest.c is highlighted as keyword."""
+        source = "testobj freeallvars"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["length"] == len("testobj")
+
+    def test_deprecated_accessor_highlighted(self):
+        """Deprecated accessor ``verbose`` is highlighted as keyword."""
+        source = "verbose {body error}"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["length"] == len("verbose")
