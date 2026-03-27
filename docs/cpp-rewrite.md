@@ -184,3 +184,40 @@ These will show their real benefit in Phase 2+ when the lexer stays entirely
 in C++ and these types are passed by value within C++ without crossing the
 Python boundary.
 
+### LSP server baseline (pre-rewrite)
+
+Captured via `scripts/perf_track.py bench` (3 iterations, median). These are
+the end-to-end LSP timings before any native code is wired in, serving as the
+reference point for measuring rewrite impact.
+
+**Open-to-tokens (OTT)** — wall-clock from `didOpen` to `semanticTokens/full` response:
+
+| File | Lines | Tokens | OTT | sem_tokens | Diags | Opts |
+|---|---|---|---|---|---|---|
+| irules_tcp | 139 | 265 | 116 ms | 39 ms | 1 | 1 |
+| long_code | 539 | 1,557 | 302 ms | 137 ms | 92 | 18 |
+| references | 350 | 368 | 107 ms | 36 ms | 0 | 1 |
+
+**Server-side timing breakdown** (from `[timing]` log lines):
+
+| Phase | irules_tcp | long_code | references |
+|---|---|---|---|
+| `collect_files` | 25 ms | 26 ms | 26 ms |
+| `workspace_state.update` | ~0 ms | ~0 ms | ~0 ms |
+| `semantic_tokens_full` | 39 ms | 137 ms | 36 ms |
+
+The `workspace_state.update` shows ~0ms here because the benchmarking client
+sends `semanticTokens/full` before the background analysis completes — the
+semantic tokens code path handles this gracefully by doing a synchronous
+analysis. The total `semantic_tokens_full` time therefore includes the
+tokenisation and analysis that would normally be in the background update.
+
+Stored in `perf_history.sqlite3` as version `cpp-phase1-baseline`. Re-run
+after each phase to track impact:
+
+```bash
+python3 scripts/perf_track.py bench --version "cpp-phase2-lexer"
+python3 scripts/perf_track.py list
+python3 scripts/perf_track.py graph  # generates docs/perf/*.png
+```
+
