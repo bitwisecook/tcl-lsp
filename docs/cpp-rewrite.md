@@ -121,3 +121,55 @@ behaviour, benchmark comparisons).
 
 Both test suites must pass at every step. The pytest suite is not removed until
 all Python is gone.
+
+## Benchmark results
+
+Each phase records timing and memory measurements. Run with:
+
+```bash
+# Python-only baseline:
+PYTHONPATH=. python3 scripts/bench_native_types.py
+
+# With C++ native module:
+PYTHONPATH=builddir/native:. python3 scripts/bench_native_types.py
+```
+
+### Phase 1: Core types (SourcePosition, Range, DocumentBuffer)
+
+Test corpus: 230KB Tcl source, 10,000 lines. 100K iterations per operation.
+
+**DocumentBuffer** (where computation lives — the big wins):
+
+| Operation | Python | C++ | Speedup |
+|---|---|---|---|
+| `from_source` (230KB) | 71.1 ms | 138.9 µs | **512x** |
+| `offset_to_position` | 5.5 µs | 1.3 µs | **4.2x** |
+| `position_to_offset` | 7.5 µs | 1.1 µs | **6.8x** |
+| `range_from_offsets` | 16.7 µs | 1.3 µs | **12.8x** |
+| `chunk_line_range` | 6.0 µs | 1.3 µs | **4.6x** |
+
+**Value types** (pybind11 wrapping overhead dominates at Python boundary):
+
+| Operation | Python | C++ | Note |
+|---|---|---|---|
+| SourcePosition create | 2.3 µs | 3.0 µs | pybind11 wrapper cost |
+| Range create | 1.9 µs | 2.5 µs | pybind11 wrapper cost |
+| Range.zero() | 4.3 µs | 1.1 µs | 3.9x (avoids dataclass init) |
+
+**Memory** (Python `tracemalloc` — C++ heap allocations invisible):
+
+| Metric | Python | C++ |
+|---|---|---|
+| 10x large buffer (Python-tracked) | 3.89 MB | 992 B |
+
+Note: the C++ DocumentBuffer allocates on the C++ heap which `tracemalloc`
+cannot see. The 992B is only the pybind11 wrapper objects. True C++ memory
+usage is ~230KB per buffer (source string + line starts vector), comparable
+to Python but without the per-object overhead of Python's allocator.
+
+**Key insight**: The value types (SourcePosition, Range) show no speedup
+when accessed from Python because pybind11 wrapper creation dominates.
+These will show their real benefit in Phase 2+ when the lexer stays entirely
+in C++ and these types are passed by value within C++ without crossing the
+Python boundary.
+
