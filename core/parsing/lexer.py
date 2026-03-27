@@ -520,7 +520,9 @@ class TclLexer:
                         self._line = line
                         self._col = col
                         if pos < _len and text[pos] not in _AFTER_CLOSE_BRACE:
-                            if TclLexer.irules_brace_separator and text[pos] == "{":
+                            if text[pos] == "\\" and pos + 1 < _len and text[pos + 1] == "\n":
+                                pass  # backslash-newline is a valid line continuation
+                            elif TclLexer.irules_brace_separator and text[pos] == "{":
                                 sep_pos = self._position()
                                 self._pending_sep = Token(
                                     type=TokenType.SEP,
@@ -589,7 +591,13 @@ class TclLexer:
                     self._end = self.pos - 1
                     self._advance()  # skip closing '}'
                     if self.remaining and self._cur() not in _AFTER_CLOSE_BRACE:
-                        if TclLexer.irules_brace_separator and self._cur() == "{":
+                        if (
+                            self._cur() == "\\"
+                            and self.remaining >= 2
+                            and self.text[self.pos + 1] == "\n"
+                        ):
+                            pass  # backslash-newline is a valid line continuation
+                        elif TclLexer.irules_brace_separator and self._cur() == "{":
                             # iRules treats }{ as a word boundary — inject a
                             # zero-width SEP so the segmenter sees two words.
                             sep_pos = self._position()
@@ -703,11 +711,14 @@ class TclLexer:
                     self._col = col
                     # After closing quote, next char must be separator or EOF.
                     if pos < _len and text[pos] not in _AFTER_CLOSE_QUOTE:
-                        if _strict_quoting():
+                        if text[pos] == "\\" and pos + 1 < _len and text[pos + 1] == "\n":
+                            pass  # backslash-newline is a valid line continuation
+                        elif _strict_quoting():
                             raise TclParseError("extra characters after close-quote")
-                        self.warnings.append(
-                            (self._position(), "extra characters after close-quote")
-                        )
+                        else:
+                            self.warnings.append(
+                                (self._position(), "extra characters after close-quote")
+                            )
                     return
                 # Advance past current char.
                 if ch == "\n":
@@ -766,14 +777,21 @@ class TclLexer:
                     self.insidequote = False
                     # After closing quote, next char must be separator or EOF
                     if self.remaining and self._cur() not in _AFTER_CLOSE_QUOTE:
-                        if _strict_quoting():
+                        if (
+                            self._cur() == "\\"
+                            and self.remaining >= 2
+                            and self.text[self.pos + 1] == "\n"
+                        ):
+                            pass  # backslash-newline is a valid line continuation
+                        elif _strict_quoting():
                             raise TclParseError("extra characters after close-quote")
-                        self.warnings.append(
-                            (
-                                self._position(),
-                                "extra characters after close-quote",
+                        else:
+                            self.warnings.append(
+                                (
+                                    self._position(),
+                                    "extra characters after close-quote",
+                                )
                             )
-                        )
                     return
             self._advance()
 
