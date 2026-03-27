@@ -348,18 +348,6 @@ class DocumentState:
         self._snap.deep_diag_result = value
 
     @property
-    def tokens(self) -> list[Token]:
-        """Flat token list, lazily computed on first access.
-
-        Most of the LSP pipeline works from chunks and commands rather
-        than the flat token list, so deferring tokenisation avoids
-        redundant O(n) work on every edit.
-        """
-        if self._tokens is None:
-            self._tokens = TclLexer(self.source).tokenise_all()
-        return self._tokens
-
-    @property
     def buffer(self) -> DocumentBuffer:
         """Shared position infrastructure for the current source text.
 

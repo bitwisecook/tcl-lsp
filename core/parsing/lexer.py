@@ -10,15 +10,13 @@ from .tokens import SourcePosition, Token, TokenType
 _bisect_right = bisect.bisect_right
 
 # Pre-computed character class sets for O(1) membership testing in the
-# lexer hot path.  Using frozenset instead of sequential == checks gives
-# ~2x speedup for the 7-character separator class (measured).
+# lexer hot path.  Using frozenset instead of sequential == checks
+# eliminates 5-7 chained comparisons per token (measured ~2x speedup).
 _SEP_CHARS = frozenset((" ", "\t", "\r", "\x0b", "\x0c"))
 _EOL_CHARS = frozenset(("\n", ";"))
 _SEPARATOR_CHARS = frozenset((" ", "\t", "\n", "\r", "\x0b", "\x0c", ";"))
 _AFTER_CLOSE_BRACE = frozenset((" ", "\t", "\n", "\r", "\x0b", "\x0c", ";"))
 _AFTER_CLOSE_QUOTE = frozenset((" ", "\t", "\n", "\r", "\x0b", "\x0c", ";", "]"))
-_IDENT_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")
-
 # Thread-local storage for lexer flags that are modified during VM compilation.
 # These must be thread-local because the VM runs in daemon threads and
 # concurrent threads modifying class-level flags corrupt each other's state.
@@ -423,7 +421,7 @@ class TclLexer:
         # Accept alnum, underscore, :: (namespace separator)
         while self.remaining:
             ch = self._cur()
-            if ch in _IDENT_CHARS:
+            if ch.isalnum() or ch == "_":
                 self._advance()
             elif ch == ":" and self.pos + 1 < _len and self.text[self.pos + 1] == ":":
                 self._advance(2)  # skip '::'

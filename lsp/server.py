@@ -499,7 +499,7 @@ def on_semantic_tokens_full(
             )
         else:
             cache_status = "no_cache"
-    ls = list(state.buffer.line_starts) if state is not None else None
+    ls = state.buffer.line_starts if state is not None else None
     data = semantic_tokens_full(
         source,
         analysis=analysis,
@@ -562,7 +562,7 @@ def on_semantic_tokens_delta(
         cache_info = state.get_semantic_token_cache()
         if cache_info is not None:
             chunk_token_cache, chunk_line_ranges = cache_info
-    ls = list(state.buffer.line_starts) if state is not None else None
+    ls = state.buffer.line_starts if state is not None else None
     new_data = semantic_tokens_full(
         source,
         analysis=analysis,
@@ -1889,18 +1889,6 @@ async def _publish_diagnostics(
         uri,
         len(state.buffer.line_starts),
     )
-
-    # Staleness check: if the document was edited while analysis was
-    # running in the thread, a newer _publish_diagnostics call has
-    # already updated the source.  Bail out to avoid publishing
-    # diagnostics for stale text and doing redundant work.
-    if state.version != version:
-        log.info(
-            "[timing] _publish_diagnostics abandoned (stale: have v%s, want v%s)",
-            state.version,
-            version,
-        )
-        return
 
     partial_mode = state.has_partial_commands
 

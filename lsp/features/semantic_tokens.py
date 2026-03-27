@@ -2903,7 +2903,7 @@ def semantic_tokens_full(
     is_apl: bool = False,
     chunk_token_cache: list[list[tuple[int, int, int, int, int]] | None] | None = None,
     chunk_line_ranges: list[tuple[int, int, int, int]] | None = None,
-    line_starts: list[int] | None = None,
+    line_starts: list[int] | tuple[int, ...] | None = None,
 ) -> list[int]:
     """Produce the flat list of 5-int encoded semantic tokens for the source.
 

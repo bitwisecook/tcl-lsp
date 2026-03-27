@@ -545,9 +545,11 @@ def _extract_protocol_namespace(command: str) -> str | None:
 
 
 # LRU cache for classify_side_effects when no callee_summary is
-# provided (the common case).  Keyed on (command, args, dialect,
-# subcommand).  Avoids repeated registry lookups for identical
-# command invocations across procedures.
+# Fixed-size memoisation cache for side-effect classification when no
+# callee_summary is provided (the common case).  Keyed on (command,
+# args, dialect, subcommand).  Avoids repeated registry lookups for
+# identical command invocations across procedures.  Not LRU — once
+# full, new entries are simply not cached until the next compilation.
 _side_effect_cache: dict[tuple, CommandSideEffects] = {}
 _SIDE_EFFECT_CACHE_MAX = 2048
 
