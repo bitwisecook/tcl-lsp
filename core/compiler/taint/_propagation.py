@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from ...commands.registry.runtime import (
     canonical_list_commands,
@@ -32,6 +33,9 @@ from ._lattice import (
     _taint_source_colour,
     taint_join,
 )
+
+if TYPE_CHECKING:
+    from ..rendered_properties import RenderedValueProps
 
 _CallReturnProvider = Callable[
     [str, tuple[str, ...], tuple[TaintLattice, ...], str | None],
@@ -197,13 +201,24 @@ def _evaluate_command_subst_taint(
 
 
 def _leading_literal_prefix_char(value: str) -> str | None:
-    """Return the leading literal char of *value* or ``None`` for dynamic start."""
+    """Return the leading literal char of *value* or ``None`` for dynamic start.
+
+    ESC tokens are rendered via ``backslash_subst()`` so that escape
+    sequences like ``\\x2f`` (``/``) are correctly resolved.
+    """
+    from ...parsing.substitution import backslash_subst as _bss
+
     lexer = TclLexer(value)
     while True:
         tok = lexer.get_token()
         if tok is None or tok.type is TokenType.EOL:
             return None
-        if tok.type in (TokenType.ESC, TokenType.STR):
+        if tok.type is TokenType.ESC:
+            rendered = _bss(tok.text) if "\\" in tok.text else tok.text
+            if rendered:
+                return rendered[0]
+            continue
+        if tok.type is TokenType.STR:
             if tok.text:
                 return tok.text[0]
             continue
@@ -212,13 +227,23 @@ def _leading_literal_prefix_char(value: str) -> str | None:
 
 
 def _literal_contains_crlf(value: str) -> bool:
-    """Return True when any literal fragment in *value* contains CR/LF."""
+    """Return True when any rendered literal fragment in *value* contains CR/LF.
+
+    ESC tokens are rendered via ``backslash_subst()`` so that escape
+    sequences like ``\\n`` are correctly resolved to actual newlines.
+    """
+    from ...parsing.substitution import backslash_subst as _bss
+
     lexer = TclLexer(value)
     while True:
         tok = lexer.get_token()
         if tok is None or tok.type is TokenType.EOL:
             return False
-        if tok.type in (TokenType.ESC, TokenType.STR):
+        if tok.type is TokenType.ESC:
+            rendered = _bss(tok.text) if "\\" in tok.text else tok.text
+            if "\r" in rendered or "\n" in rendered:
+                return True
+        elif tok.type is TokenType.STR:
             if "\r" in tok.text or "\n" in tok.text:
                 return True
 
@@ -438,6 +463,7 @@ def taint_propagation(
     *,
     param_taints: dict[str, TaintLattice] | None = None,
     call_return_provider: _CallReturnProvider | None = None,
+    rendered_props: dict[SSAValueKey, "RenderedValueProps"] | None = None,
 ) -> dict[SSAValueKey, TaintLattice]:
     """Run taint propagation over the SSA graph.
 

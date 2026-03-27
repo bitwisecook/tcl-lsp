@@ -335,6 +335,7 @@ def _solve_interprocedural_taints(cu: CompilationUnit) -> _InterprocTaintResult:
         top_exec,
         top_edges,
         call_return_provider=provider,
+        rendered_props=cu.top_level.analysis.rendered_props,
     )
 
     entry_taints: dict[str, dict[str, TaintLattice]] = {
@@ -403,6 +404,7 @@ def _solve_interprocedural_taints(cu: CompilationUnit) -> _InterprocTaintResult:
             edges,
             param_taints=entry_taints[qname],
             call_return_provider=provider,
+            rendered_props=fu.analysis.rendered_props,
         )
         proc_taints[qname] = taints
 

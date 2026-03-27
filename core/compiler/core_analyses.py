@@ -76,6 +76,7 @@ from .var_refs import VarReferenceScanner
 if TYPE_CHECKING:
     from .def_use import DefUseResult
     from .memory_ssa import MemorySSAFunction
+    from .rendered_properties import RenderedValueProps
     from .taint import TaintLattice
 
 _RETURN_VAR_SCANNER = VarReferenceScanner()
@@ -190,6 +191,7 @@ class FunctionAnalysis:
     read_before_set: tuple[ReadBeforeSet, ...] = ()
     unused_variables: tuple[UnusedVariable, ...] = ()
     unused_params: tuple[str, ...] = ()
+    rendered_props: dict[SSAValueKey, "RenderedValueProps"] = field(default_factory=dict)
     def_use_chains: "DefUseResult | None" = None
     memory_ssa: "MemorySSAFunction | None" = None
 
@@ -1230,9 +1232,15 @@ def analyse_function(
     )
     inferred_types = _type_propagation(cfg, ssa, values, executable_blocks, executable_edges)
 
+    from .rendered_properties import rendered_properties_propagation
+
+    rendered = rendered_properties_propagation(cfg, ssa, executable_blocks, executable_edges)
+
     from .taint import taint_propagation  # late import to avoid circular dependency
 
-    inferred_taints = taint_propagation(cfg, ssa, executable_blocks, executable_edges)
+    inferred_taints = taint_propagation(
+        cfg, ssa, executable_blocks, executable_edges, rendered_props=rendered
+    )
 
     live_in, live_out = _liveness(cfg, ssa)
     dead = _dead_stores(
@@ -1295,6 +1303,7 @@ def analyse_function(
         values=values,
         types=inferred_types,
         taints=inferred_taints,
+        rendered_props=rendered,
         read_before_set=rbs,
         unused_variables=unused,
         unused_params=unused_p,

@@ -57,6 +57,7 @@ def find_taint_warnings(
             cu.top_level.ssa,
             solved.top_taints,
             top_exec,
+            rendered_props=cu.top_level.analysis.rendered_props,
         )
     )
 
@@ -93,6 +94,7 @@ def find_taint_warnings(
                 fu.ssa,
                 proc_taints,
                 executable,
+                rendered_props=fu.analysis.rendered_props,
             )
         )
 
