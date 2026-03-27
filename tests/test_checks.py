@@ -344,27 +344,106 @@ class TestStringCompareInExpr:
 # W201: Path concatenation
 
 
+def _taint_diag_with_code(source: str, code: str):
+    """Return all taint warnings matching a specific code."""
+    from core.compiler.taint import find_taint_warnings
+
+    return [w for w in find_taint_warnings(source) if w.code == code]
+
+
 class TestPathConcatenation:
-    """W201 -- manual path concatenation instead of file join."""
+    """W201 -- manual path concatenation instead of file join.
+
+    W201 now runs in the taint system (core/compiler/taint/_path_concat.py),
+    so tests use _taint_diag_with_code() instead of _diag_with_code().
+    """
+
+    # True positives
 
     def test_set_with_path_and_var(self):
-        diags = _diag_with_code('set path "$dir/file.txt"', "W201")
+        diags = _taint_diag_with_code('set path "$dir/file.txt"', "W201")
         assert len(diags) == 1
         assert "file join" in diags[0].message.lower()
 
     def test_set_literal_path_clean(self):
-        diags = _diag_with_code('set path "/etc/config"', "W201")
+        diags = _taint_diag_with_code('set path "/etc/config"', "W201")
         assert len(diags) == 0
 
     def test_set_no_path_clean(self):
-        diags = _diag_with_code("set x 42", "W201")
+        diags = _taint_diag_with_code("set x 42", "W201")
         assert len(diags) == 0
 
     def test_path_concatenation_has_fix_for_simple_case(self):
-        diags = _diag_with_code('set path "$dir/file.txt"', "W201")
+        diags = _taint_diag_with_code('set path "$dir/file.txt"', "W201")
         assert len(diags) == 1
         assert len(diags[0].fixes) == 1
-        assert diags[0].fixes[0].new_text == "[file join $dir file.txt]"
+        assert diags[0].fixes[0].new_text == "[file join ${dir} file.txt]"
+
+    # Issue #59 false positives (verbatim from screenshots)
+
+    def test_issue59_join_newline_escape(self):
+        """Screenshot 1: generalClasses.tcl -- [join ... \\n]."""
+        diags = _taint_diag_with_code(r"set paramDefStr [join $paramDefList \n]", "W201")
+        assert len(diags) == 0
+
+    def test_issue59_expr_division(self):
+        """Screenshot 2: inverter_optimization.tcl -- [= {1.0/$var}]."""
+        diags = _taint_diag_with_code(r"set inpPeriod [= {1.0/$inpFreq}]", "W201")
+        assert len(diags) == 0
+
+    def test_issue59_measure_multiline(self):
+        """Screenshot 3: inverter_optimization.tcl -- nested cmd subst."""
+        source = (
+            "set psupplyFinal [measure -xname time "
+            "-data [dcreate time [dget $dataDict time] "
+            "instantPower $instantPower] "
+            '-rms "-vec instantPower"]'
+        )
+        diags = _taint_diag_with_code(source, "W201")
+        assert len(diags) == 0
+
+    # Additional false-positive coverage
+
+    def test_join_with_slash_separator_clean(self):
+        """[join ... "/"] -- slash is a join separator, not a path."""
+        diags = _taint_diag_with_code('set result [join [list $a $b] "/"]', "W201")
+        assert len(diags) == 0
+
+    def test_set_with_tab_escape_clean(self):
+        """\\t escape in value is not a path separator."""
+        diags = _taint_diag_with_code(r'set line "$name\t$value"', "W201")
+        assert len(diags) == 0
+
+    def test_set_with_newline_escape_in_string_clean(self):
+        """\\n escape in double-quoted string is not a path separator."""
+        diags = _taint_diag_with_code(r'set msg "$greeting\n$farewell"', "W201")
+        assert len(diags) == 0
+
+    def test_nested_cmd_subst_clean(self):
+        """Nested command substitution -- not path concatenation."""
+        diags = _taint_diag_with_code(
+            "set result [measure -data [dget $dataDict time] $instantPower]",
+            "W201",
+        )
+        assert len(diags) == 0
+
+    # file normalize / file join suppression
+
+    def test_wrapped_in_file_normalize_clean(self):
+        """Value wrapped in [file normalize] -- already normalised."""
+        diags = _taint_diag_with_code(r'set path [file normalize "$dir/file.txt"]', "W201")
+        assert len(diags) == 0
+
+    def test_file_join_value_clean(self):
+        """Value using [file join] -- already proper path construction."""
+        diags = _taint_diag_with_code('set path [file join $dir "file.txt"]', "W201")
+        assert len(diags) == 0
+
+    def test_normalize_next_line_suppresses(self):
+        """Path concatenation followed by file normalize of same var."""
+        source = 'set path "$dir/file.txt"\nset path [file normalize $path]'
+        diags = _taint_diag_with_code(source, "W201")
+        assert len(diags) == 0
 
 
 # W300: source with variable path

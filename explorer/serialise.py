@@ -469,6 +469,32 @@ def _serialise_taint_tracking(snapshots: list[FunctionSnapshot]) -> list[dict]:
     return out
 
 
+def _serialise_rendered_properties(snapshots: list[FunctionSnapshot]) -> list[dict]:
+    out = []
+    for snap in snapshots:
+        entries = []
+        for (name, ver), rp in sorted(snap.analysis.rendered_props.items()):
+            may_flags = [
+                f.name for f in type(rp.may).__members__.values() if f in rp.may and f.value
+            ]
+            must_flags = [
+                f.name for f in type(rp.must).__members__.values() if f in rp.must and f.value
+            ]
+            if not may_flags and not must_flags:
+                continue
+            entries.append(
+                {
+                    "variable": name,
+                    "version": ver,
+                    "may": may_flags,
+                    "must": must_flags,
+                }
+            )
+        if entries:
+            out.append({"name": snap.name, "entries": entries})
+    return out
+
+
 # Annotations (source callouts)
 
 
@@ -716,6 +742,7 @@ def serialise_result(result: CompilerExplorerResult) -> dict:
         "gvn": _serialise_gvn(result.gvn_warnings),
         "taintWarnings": _serialise_taint(result.taint_warnings),
         "taintTracking": _serialise_taint_tracking(result.snapshots),
+        "renderedProperties": _serialise_rendered_properties(result.snapshots),
         "irulesFlow": _serialise_irules_flow(result.irules_flow_warnings),
         "eventOrder": _serialise_event_order(result.event_order),
         "dataflow": dataflow_graph_to_dict(result.dataflow_graph)

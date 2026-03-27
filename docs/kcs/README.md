@@ -87,6 +87,7 @@ This folder contains small, searchable Knowledge-Centered Service (KCS) notes.
 - [compiler/kcs-def-use-chains.md](compiler/kcs-def-use-chains.md) — def-use chain construction and consumer contracts.
 - [compiler/kcs-memory-ssa.md](compiler/kcs-memory-ssa.md) — memory-SSA, alias detection, and versioned memory operations.
 - [compiler/kcs-dataflow-graph.md](compiler/kcs-dataflow-graph.md) — data-flow graph extraction, serialisation, and consumer contracts.
+- [compiler/kcs-rendered-value-properties.md](compiler/kcs-rendered-value-properties.md) — string content analysis over SSA (may/must lattice).
 - [compiler/kcs-taint-analysis.md](compiler/kcs-taint-analysis.md) — sources, sinks, colours, and propagation.
 - [compiler/kcs-interprocedural-analysis.md](compiler/kcs-interprocedural-analysis.md) — ProcSummary construction.
 - [compiler/kcs-optimisation-passes.md](compiler/kcs-optimisation-passes.md) — O100–O126 pass table and priorities.

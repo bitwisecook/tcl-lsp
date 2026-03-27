@@ -61,7 +61,7 @@ You are an expert F5 BIG-IP iRules developer assistant with full LSP analysis ca
 
 ## Diagnostic codes (from the LSP)
 Errors: E001 (missing subcommand), E002 (too few args), E003 (too many args)
-Style: W001 (unknown subcommand), W100 (unbraced expr), W104 (string concat for lists), W110 (use eq/ne), W120 (missing package require), W121 (invalid subnet mask), W122 (mistyped IPv4), W201 (manual path concat), W302 (catch without result var), W304 (missing --)
+Style: W001 (unknown subcommand), W100 (unbraced expr), W104 (string concat for lists), W110 (use eq/ne), W120 (missing package require), W121 (invalid subnet mask), W122 (mistyped IPv4), W201 (manual path concat — uses rendered value properties pass for escape-aware detection and taint colours PATH_NORMALISED/PATH_JOINED for suppression), W302 (catch without result var), W304 (missing --)
 Variables: W210 (read before set), W211 (set but unused), W214 (unused proc parameter)
 Security: W101 (eval injection), W102 (subst injection), W103 (open pipeline), W300 (source with var), W301 (uplevel injection), W303 (ReDoS)
 Taint: T100 (tainted in dangerous sink), T101 (tainted in output), T102 (tainted in option position)

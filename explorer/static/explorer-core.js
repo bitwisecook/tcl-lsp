@@ -389,6 +389,26 @@ function renderTypes() {
   pane.innerHTML=html;
 }
 
+// Rendered Properties
+function renderRendered() {
+  var pane=$('#pane-rendered');
+  var rp=data.renderedProperties||[];
+  if(!rp.length){pane.innerHTML='<div class="empty-state">No rendered value properties</div>';return;}
+  var html='';
+  for(var func of rp){
+    html+='<div class="proc-card">';
+    html+='<div class="proc-name">'+esc(func.name)+'</div>';
+    for(var e of func.entries){
+      var may=e.may.length?'may: '+e.may.join(', '):'';
+      var must=e.must.length?'must: '+e.must.join(', '):'';
+      var parts=[may,must].filter(function(x){return x;}).join(' | ');
+      html+='<div class="type-entry"><span class="type-var">'+esc(e.variable)+'#'+e.version+'</span><span class="type-val" style="color:var(--cyan)">'+esc(parts)+'</span></div>';
+    }
+    html+='</div>';
+  }
+  pane.innerHTML=html;
+}
+
 // Data Flow
 function renderDataFlow() {
   var pane=$('#pane-dataflow');
