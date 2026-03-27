@@ -161,6 +161,7 @@ for _cmds, _check in _CMD_CHECK_MAP:
 
 _UNIVERSAL_SET = frozenset(_UNIVERSAL_CHECKS)
 
+
 def run_all_checks(
     cmd_name: str,
     args: list[str],
