@@ -11,9 +11,14 @@ tool dialects.
 
 The core is being incrementally rewritten in modern C++ (C++23/26). See
 [`docs/cpp-rewrite.md`](docs/cpp-rewrite.md) for the design rationale,
-architecture, and phased plan. Key principle: the C++ is designed as idiomatic
-modern C++ — the pybind11 shim absorbs the impedance mismatch with Python, not
-the other way around.
+architecture, and phased plan. Key principles:
+
+- The C++ is designed as idiomatic modern C++ — the pybind11 shim absorbs the
+  impedance mismatch with Python, not the other way around.
+- **Every Python test must be ported to Catch2 as its layer is rewritten.**
+  No phase is complete until every pytest exercising that layer has a
+  corresponding C++ test. The Python tests remain as cross-validation until
+  all Python is gone.
 
 ## Repository layout
 

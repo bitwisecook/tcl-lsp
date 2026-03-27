@@ -196,6 +196,23 @@ bindings build only.
 
 ## Testing strategy
 
+**Every Python test must be ported to C++ as its layer is rewritten.** When a
+phase ports a Python module to C++, every pytest that exercises that module
+must get a corresponding Catch2 test. No exceptions — the C++ test suite must
+have at least the same coverage as the Python tests it replaces.
+
+The porting process for each phase:
+
+1. **Identify all pytest tests** that exercise the layer being ported. Use
+   `grep`, test markers, and import analysis to find every test.
+2. **Port each test to Catch2**, preserving the intent and edge cases. The
+   C++ test may use different assertions or structure, but must cover the
+   same behaviour.
+3. **Verify parity**: the C++ Catch2 tests and the Python pytest tests must
+   both pass against the same C++ implementation (via pybind11 shim).
+4. **The Python tests remain** until all Python is gone — they serve as a
+   cross-validation layer. But the C++ tests are the long-term owners.
+
 The full pytest suite is the source of truth throughout the rewrite. It
 exercises the C++ code through the pybind11 shim, validating that the native
 implementation is a correct drop-in replacement.
