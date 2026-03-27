@@ -44,7 +44,6 @@ from core.parsing.tokens import Token
 _style_diag_fn = None
 _style_diag_all_fn = None
 _precompute_chunk_tokens_fn = None
-_collect_tokens_fn = None
 
 
 def _get_style_diag_fn():
@@ -75,16 +74,6 @@ def _get_precompute_chunk_tokens_fn():
 
         _precompute_chunk_tokens_fn = precompute_chunk_tokens
     return _precompute_chunk_tokens_fn
-
-
-def _get_collect_tokens_fn():
-    """Lazily import ``_collect_tokens`` from semantic tokens."""
-    global _collect_tokens_fn
-    if _collect_tokens_fn is None:
-        from lsp.features.semantic_tokens import _collect_tokens
-
-        _collect_tokens_fn = _collect_tokens
-    return _collect_tokens_fn
 
 
 def _chunk_line_range(
@@ -356,18 +345,6 @@ class DocumentState:
     @_deep_diag_result.setter
     def _deep_diag_result(self, value: list[Any] | None) -> None:
         self._snap.deep_diag_result = value
-
-    @property
-    def tokens(self) -> list[Token]:
-        """Flat token list, lazily computed on first access.
-
-        Most of the LSP pipeline works from chunks and commands rather
-        than the flat token list, so deferring tokenisation avoids
-        redundant O(n) work on every edit.
-        """
-        if self._tokens is None:
-            self._tokens = TclLexer(self.source).tokenise_all()
-        return self._tokens
 
     @property
     def tokens(self) -> list[Token]:
@@ -1007,31 +984,9 @@ class DocumentState:
             all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
             diag_lines = [d.range.start.line for d in all_style_diags]
 
-            # Pre-compute semantic tokens for the whole file, then partition
-            # by chunk using bisect — same approach as style diagnostics.
-            # This ensures the first semanticTokens/full request after
-            # analysis is a full cache hit (~2ms) instead of re-lexing the
-            # entire file (~53-144ms).
-            all_sem_tokens: list[tuple[int, int, int, int, int]] = []
-            try:
-                regex_positions: frozenset[tuple[int, int]] = frozenset()
-                if self.analysis is not None and hasattr(self.analysis, "regex_patterns"):
-                    regex_positions = frozenset(
-                        (rp.range.start.line, rp.range.start.character)
-                        for rp in self.analysis.regex_patterns
-                    )
-                _collect_tokens = _get_collect_tokens_fn()
-                _collect_tokens(
-                    all_sem_tokens,
-                    source,
-                    regex_positions=regex_positions,
-                    _line_starts=list(buf.line_starts),
-                )
-                all_sem_tokens.sort(key=lambda t: (t[0], t[1]))
-            except Exception:
-                log.debug("document_state: semantic token pre-computation failed", exc_info=True)
-                all_sem_tokens = []
-            sem_tok_keys = [(t[0], t[1]) for t in all_sem_tokens] if all_sem_tokens else []
+            # Semantic tokens are pre-computed per chunk later via
+            # ``precompute_chunk_tokens()``; we avoid an additional full-file
+            # precompute here to prevent duplicate work.
 
             # Extract per-chunk IR from the already-compiled IRModule when
             # available, avoiding redundant re-lowering of each chunk.
@@ -1070,13 +1025,6 @@ class DocumentState:
                 hi = bisect_right(diag_lines, end_line)
                 style_diags = all_style_diags[lo:hi]
 
-                # Partition pre-computed semantic tokens for this chunk.
-                chunk_sem_tokens: list[tuple[int, int, int, int, int]] | None = None
-                if sem_tok_keys:
-                    st_lo = bisect_left(sem_tok_keys, (start_line, _sc))
-                    st_hi = bisect_left(sem_tok_keys, (end_line, _ec))
-                    chunk_sem_tokens = all_sem_tokens[st_lo:st_hi]
-
                 caches.append(
                     ChunkCache(
                         chunk_hash=chunk.source_hash,
@@ -1085,7 +1033,6 @@ class DocumentState:
                         analyser_snapshot_after=snap,
                         style_diagnostics=style_diags,
                         style_line_length=line_length,
-                        semantic_tokens_abs=chunk_sem_tokens,
                     )
                 )
             # Pre-compute semantic tokens per chunk so the first

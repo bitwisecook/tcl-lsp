@@ -2436,13 +2436,13 @@ def on_initialized(params: types.InitializedParams) -> None:
 
     # Apply config-file settings as baseline defaults.  Editor settings
     # received later via ``didChangeConfiguration`` will override these.
-    xdg_settings = get_all_settings(user_config)
-    if xdg_settings:
-        formatting = xdg_settings.get("formatting")
+    config_settings = get_all_settings(user_config)
+    if config_settings:
+        formatting = config_settings.get("formatting")
         if isinstance(formatting, dict) and formatting:
             global formatter_config
             formatter_config = FormatterConfig.from_dict(_normalise_formatter_settings(formatting))
-        _apply_feature_settings(xdg_settings)
+        _apply_feature_settings(config_settings)
 
     process_start = getattr(server, "_process_start_time", None)
     if process_start is not None:

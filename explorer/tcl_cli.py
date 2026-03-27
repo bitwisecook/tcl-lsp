@@ -227,9 +227,7 @@ def _config_file_paths() -> list[Path]:
     xdg = os.environ.get("XDG_CONFIG_HOME")
     if xdg:
         global_dir = Path(xdg)
-    elif sys.platform == "win32" and not (
-        sys.platform in ("msys", "cygwin") or os.environ.get("MSYSTEM")
-    ):
+    elif sys.platform == "win32" and not os.environ.get("MSYSTEM"):
         appdata = os.environ.get("APPDATA")
         global_dir = Path(appdata) if appdata else Path.home() / ".config"
     elif sys.platform == "darwin":
