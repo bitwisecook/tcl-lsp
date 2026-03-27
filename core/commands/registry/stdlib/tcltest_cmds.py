@@ -15,7 +15,6 @@ from ..models import CommandSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
 from ._base import register
 
-_PKG = "tcltest"
 _SOURCE = "Tcl test binary (tclTest.c)"
 
 # (command_name, one-line summary) for all C test commands.
@@ -132,7 +131,7 @@ _C_TEST_COMMANDS: tuple[tuple[str, str], ...] = (
 def _make_spec(cmd_name: str, summary: str) -> CommandSpec:
     return CommandSpec(
         name=cmd_name,
-        required_package=_PKG,
+        warn_missing_import=False,
         hover=HoverSnippet(
             summary=summary,
             synopsis=(cmd_name,),

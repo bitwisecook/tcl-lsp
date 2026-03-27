@@ -611,7 +611,7 @@ class TcltestNormalizeMsg(CommandDef):
             name="tcltest::normalizeMsg",
             required_package=_PKG,
             hover=HoverSnippet(
-                summary="Normalise an error message for comparison (lowcase, strip trailing newline).",
+                summary="Normalise an error message for comparison (lowercase, strip trailing newline).",
                 synopsis=("tcltest::normalizeMsg msg",),
                 source=_SOURCE_DEPR,
             ),
