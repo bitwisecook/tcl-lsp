@@ -4,11 +4,6 @@ from __future__ import annotations
 
 from core.common.codes import opt
 
-from ...common.naming import (
-    normalise_var_name as _normalise_var_name,
-)
-from ...parsing.lexer import TclLexer
-from ...parsing.tokens import TokenType
 from ..cfg import CFGBranch, CFGReturn
 from ..execution_intent import EscapeClass, FunctionExecutionIntent, SideEffectClass
 from ..expr_ast import vars_in_expr_node
@@ -61,20 +56,21 @@ def _is_adce_removable_statement(
 
 
 def _return_use_versions(term, exit_versions: dict[str, int]) -> set[tuple[str, int]]:
-    if not isinstance(term, CFGReturn) or term.value is None:
+    if not isinstance(term, CFGReturn):
         return set()
     uses: set[tuple[str, int]] = set()
-    lexer = TclLexer(term.value)
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-        if tok.type is not TokenType.VAR:
-            continue
-        name = _normalise_var_name(tok.text)
-        ver = exit_versions.get(name, 0)
-        if ver > 0:
-            uses.add((name, ver))
+    if term.value is not None:
+        from ..var_refs import VarReferenceScanner
+
+        for name in VarReferenceScanner().scan_script(term.value):
+            ver = exit_versions.get(name, 0)
+            if ver > 0:
+                uses.add((name, ver))
+    if term.expr is not None:
+        for name in vars_in_expr_node(term.expr):
+            ver = exit_versions.get(name, 0)
+            if ver > 0:
+                uses.add((name, ver))
     return uses
 
 
