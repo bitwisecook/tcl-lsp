@@ -11,8 +11,8 @@ every SSA value after Tcl escape rendering via ``backslash_subst()``.
 This means escape sequences like ``\n``, ``\t``, ``\xNN`` are correctly
 resolved *before* checking for path separators.
 
-Suppression uses the **taint lattice** (``PATH_NORMALISED`` colour) and
-a forward-scan for ``[file normalize $var]`` in the same basic block.
+Suppression uses the **taint lattice** (``PATH_NORMALISED`` / ``PATH_JOINED``
+colours) and a forward-scan for ``[file normalize $var]`` in the same block.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from ...analysis.checks._helpers import _build_file_join_fix
 from ...analysis.semantic_model import CodeFix
 from ...commands.registry.taint_hints import TaintColour
 from ...common.codes import diag
+from ...common.ranges import range_from_token
 from ..cfg import CFGFunction
 from ..ir import IRAssignValue
 from ..ssa import SSAFunction, SSAValueKey
@@ -120,11 +121,11 @@ def _find_path_concat_warnings(
                         if rp.may & RenderedProperties.HAS_INTERPOLATION:
                             has_interpolation = True
 
-                # Check taint lattice for PATH_NORMALISED suppression.
+                # Check taint lattice for PATH_NORMALISED / PATH_JOINED suppression.
                 if taints is not None:
                     taint_val = taints.get(key)
                     if taint_val is not None and bool(
-                        taint_val.colour & TaintColour.PATH_NORMALISED
+                        taint_val.colour & (TaintColour.PATH_NORMALISED | TaintColour.PATH_JOINED)
                     ):
                         path_normalised = True
 
@@ -145,13 +146,19 @@ def _find_path_concat_warnings(
             if suppressed:
                 continue
 
+            # Derive the range from the value token when available,
+            # falling back to the full statement range.
+            value_range = stmt.range
+            if stmt.tokens is not None and len(stmt.tokens.argv) >= 3:
+                value_range = range_from_token(stmt.tokens.argv[2])
+
             # Build optional code fix.
             fixes: tuple[CodeFix, ...] = ()
             replacement = _build_file_join_fix(stmt.value)
             if replacement is not None:
                 fixes = (
                     CodeFix(
-                        range=stmt.range,
+                        range=value_range,
                         new_text=replacement,
                         description="Rewrite as [file join ...]",
                     ),
@@ -159,7 +166,7 @@ def _find_path_concat_warnings(
 
             warnings.append(
                 TaintWarning(
-                    range=stmt.range,
+                    range=value_range,
                     variable=var_name,
                     sink_command="set",
                     code="W201",
