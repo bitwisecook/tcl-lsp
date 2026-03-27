@@ -499,6 +499,7 @@ def on_semantic_tokens_full(
             )
         else:
             cache_status = "no_cache"
+    ls = list(state.buffer.line_starts) if state is not None else None
     data = semantic_tokens_full(
         source,
         analysis=analysis,
@@ -507,6 +508,7 @@ def on_semantic_tokens_full(
         is_apl=_is_apl_source(uri),
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
+        line_starts=ls,
     )
     # Write back computed tokens to chunk cache.
     if state is not None and chunk_token_cache is not None:
@@ -560,6 +562,7 @@ def on_semantic_tokens_delta(
         cache_info = state.get_semantic_token_cache()
         if cache_info is not None:
             chunk_token_cache, chunk_line_ranges = cache_info
+    ls = list(state.buffer.line_starts) if state is not None else None
     new_data = semantic_tokens_full(
         source,
         analysis=analysis,
@@ -568,6 +571,7 @@ def on_semantic_tokens_delta(
         is_apl=_is_apl_source(uri),
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
+        line_starts=ls,
     )
     if state is not None and chunk_token_cache is not None:
         state.store_semantic_token_cache(chunk_token_cache)

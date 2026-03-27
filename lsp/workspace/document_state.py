@@ -823,6 +823,13 @@ class DocumentState:
                 hi = bisect_right(diag_lines, end_line)
                 style_diags = all_style_diags[lo:hi]
 
+                # Partition pre-computed semantic tokens for this chunk.
+                chunk_sem_tokens: list[tuple[int, int, int, int, int]] | None = None
+                if sem_tok_keys:
+                    st_lo = bisect_left(sem_tok_keys, (start_line, _sc))
+                    st_hi = bisect_left(sem_tok_keys, (end_line, _ec))
+                    chunk_sem_tokens = all_sem_tokens[st_lo:st_hi]
+
                 # Extend chunk_caches to cover this index.
                 while len(chunk_caches) <= i:
                     chunk_caches.append(None)
@@ -986,6 +993,32 @@ class DocumentState:
             all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
             diag_lines = [d.range.start.line for d in all_style_diags]
 
+            # Pre-compute semantic tokens for the whole file, then partition
+            # by chunk using bisect — same approach as style diagnostics.
+            # This ensures the first semanticTokens/full request after
+            # analysis is a full cache hit (~2ms) instead of re-lexing the
+            # entire file (~53-144ms).
+            all_sem_tokens: list[tuple[int, int, int, int, int]] = []
+            try:
+                regex_positions: frozenset[tuple[int, int]] = frozenset()
+                if self.analysis is not None and hasattr(self.analysis, "regex_patterns"):
+                    regex_positions = frozenset(
+                        (rp.range.start.line, rp.range.start.character)
+                        for rp in self.analysis.regex_patterns
+                    )
+                _collect_tokens = _get_collect_tokens_fn()
+                _collect_tokens(
+                    all_sem_tokens,
+                    source,
+                    regex_positions=regex_positions,
+                    _line_starts=list(buf.line_starts),
+                )
+                all_sem_tokens.sort(key=lambda t: (t[0], t[1]))
+            except Exception:
+                log.debug("document_state: semantic token pre-computation failed", exc_info=True)
+                all_sem_tokens = []
+            sem_tok_keys = [(t[0], t[1]) for t in all_sem_tokens] if all_sem_tokens else []
+
             # Extract per-chunk IR from the already-compiled IRModule when
             # available, avoiding redundant re-lowering of each chunk.
             chunk_ir_map = _extract_chunk_ir(compilation_unit, chunks)
@@ -1022,6 +1055,13 @@ class DocumentState:
                 lo = bisect_left(diag_lines, start_line)
                 hi = bisect_right(diag_lines, end_line)
                 style_diags = all_style_diags[lo:hi]
+
+                # Partition pre-computed semantic tokens for this chunk.
+                chunk_sem_tokens: list[tuple[int, int, int, int, int]] | None = None
+                if sem_tok_keys:
+                    st_lo = bisect_left(sem_tok_keys, (start_line, _sc))
+                    st_hi = bisect_left(sem_tok_keys, (end_line, _ec))
+                    chunk_sem_tokens = all_sem_tokens[st_lo:st_hi]
 
                 caches.append(
                     ChunkCache(

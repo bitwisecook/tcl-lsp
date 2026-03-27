@@ -2903,6 +2903,7 @@ def semantic_tokens_full(
     is_apl: bool = False,
     chunk_token_cache: list[list[tuple[int, int, int, int, int]] | None] | None = None,
     chunk_line_ranges: list[tuple[int, int, int, int]] | None = None,
+    line_starts: list[int] | None = None,
 ) -> list[int]:
     """Produce the flat list of 5-int encoded semantic tokens for the source.
 
@@ -2940,7 +2941,7 @@ def semantic_tokens_full(
     raw_tokens: list[tuple[int, int, int, int, int]] = []
     base_tokens: list[tuple[int, int, int, int, int]] = []
     t_collect = time.perf_counter()
-    _collect_tokens(base_tokens, source, regex_positions=regex_positions)
+    _collect_tokens(base_tokens, source, regex_positions=regex_positions, _line_starts=line_starts)
     t_after_collect = time.perf_counter()
     if is_bigip_conf:
         # Run full Tcl tokenisation on embedded iRule/iApp bodies.
