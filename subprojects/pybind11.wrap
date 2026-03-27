@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://github.com/pybind/pybind11.git
+revision = v2.13.6
+depth = 1
+
+[provide]
+dependency_names = pybind11

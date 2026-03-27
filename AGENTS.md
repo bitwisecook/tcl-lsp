@@ -7,6 +7,14 @@ tcl-lsp is a Tcl Language Server Protocol implementation written in Python
 Gradle/Kotlin (JetBrains). It supports Tcl 8.4–9.0, F5 iRules/iApps, and EDA
 tool dialects.
 
+## C++ rewrite
+
+The core is being incrementally rewritten in modern C++ (C++23/26). See
+[`docs/cpp-rewrite.md`](docs/cpp-rewrite.md) for the design rationale,
+architecture, and phased plan. Key principle: the C++ is designed as idiomatic
+modern C++ — the pybind11 shim absorbs the impedance mismatch with Python, not
+the other way around.
+
 ## Repository layout
 
 ```

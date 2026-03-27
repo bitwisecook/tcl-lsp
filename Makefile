@@ -36,6 +36,10 @@
 #   make coverage      Generate all coverage reports (Python + VS Code)
 #   make coverage-py   Run Python tests with coverage (HTML + XML in tmp/coverage/python/)
 #   make coverage-ext  Run VS Code extension tests with coverage (HTML in tmp/coverage/vscode/)
+#   make native-setup  Configure the C++ native build (Meson + Clang)
+#   make native-build  Build the C++ native module
+#   make native-test   Run C++ unit tests
+#   make native-clean  Remove C++ build artifacts
 #   make clean         Remove build artifacts
 #   make distclean     Remove build artifacts and node_modules
 #
@@ -119,7 +123,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated native-setup native-build native-test native-clean .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -801,7 +805,22 @@ clean-screenshots: ## Remove captured screenshots
 
 # Cleanup
 
-clean: ## Remove build artifacts
+# C++ native module (Meson build)
+NATIVE_BUILDDIR := builddir
+
+native-setup: ## Configure the C++ native build (Meson + Clang)
+	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR) --wipe 2>/dev/null || CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR)
+
+native-build: ## Build the C++ native module
+	meson compile -C $(NATIVE_BUILDDIR)
+
+native-test: ## Run C++ unit tests
+	meson test -C $(NATIVE_BUILDDIR) --suite tcl-lsp --print-errorlogs
+
+native-clean: ## Remove C++ build artifacts
+	rm -rf $(NATIVE_BUILDDIR)
+
+clean: native-clean ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
 	rm -rf $(OUT_DIR)
 	rm -f  $(BUILD_INFO)
