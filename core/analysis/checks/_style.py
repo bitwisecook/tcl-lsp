@@ -26,7 +26,6 @@ from ...parsing.expr_parser import parse_expr
 from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 from ._helpers import (
-    _build_file_join_fix,
     _first_arg_name,
     _first_positional_without_terminator,
     _first_token_is_braced,
@@ -37,7 +36,6 @@ from ._helpers import (
     _last_literal_set_value_for_var,
     _parse_subst_flags,
     _pos_in_cmd_text,
-    _reconstruct_word_from_tokens,
     _resolve_option_terminator_profile,
     _rewrite_string_compare_ops,
     _unset_name_args,
@@ -493,64 +491,7 @@ def check_exec_not_captured(
     return []
 
 
-# W201: Possible path concatenation instead of file join
-
-_PATH_CONCAT_RE = re.compile(r"[/\\]")
-
-
-@diag("W201", "Manual path concatenation — use `file join` instead.", section="warning")
-def check_path_concatenation(
-    cmd_name: str,
-    args: list[str],
-    arg_tokens: list[Token],
-    all_tokens: list[Token],
-    source: str,
-) -> list[Diagnostic]:
-    """W201: Warn when set uses string concatenation with path separators.
-
-    Manual path construction with "/" or "\\" is fragile across platforms.
-    Use [file join] instead.
-    """
-    if cmd_name != "set":
-        return []
-    if len(args) < 2 or len(arg_tokens) < 2:
-        return []
-
-    # Check if the value contains both path separators and a variable.
-    val_text = args[1]
-    reconstructed = _reconstruct_word_from_tokens(all_tokens[2:]) if len(all_tokens) > 2 else ""
-    if reconstructed:
-        val_text = reconstructed
-    val_tok = arg_tokens[1]
-
-    has_slash = "/" in val_text or "\\" in val_text
-    has_var = "$" in val_text or any(tok.type is TokenType.VAR for tok in all_tokens[2:])
-
-    if has_slash and has_var:
-        fixes: tuple[CodeFix, ...] = ()
-        replacement = _build_file_join_fix(val_text)
-        if replacement is not None:
-            fixes = (
-                CodeFix(
-                    range=range_from_token(val_tok),
-                    new_text=replacement,
-                    description="Rewrite as [file join ...]",
-                ),
-            )
-        return [
-            Diagnostic(
-                range=range_from_token(val_tok),
-                message=(
-                    "Possible manual path concatenation. Use [file join] "
-                    "for portable path construction."
-                ),
-                severity=Severity.HINT,
-                code="W201",
-                fixes=fixes,
-            )
-        ]
-
-    return []
+# W201: Moved to core/compiler/taint/_path_concat.py (taint-system integration).
 
 
 # W304: Missing option terminator (--) on option-bearing commands

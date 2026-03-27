@@ -18,6 +18,7 @@ from core.common.position import find_command_at_position, offset_at_position
 from core.common.ranges import position_from_relative
 from core.compiler.irules_flow import DATA_EVENT_REQUIREMENTS, find_irules_flow_warnings
 from core.compiler.optimiser import demorgan_transform, invert_expression
+from core.compiler.taint import find_taint_warnings
 from core.parsing.command_segmenter import segment_commands
 from core.parsing.lexer import TclLexer
 from core.parsing.tokens import Token, TokenType
@@ -112,6 +113,12 @@ def get_code_actions(
         if fw.fixes:
             key = (fw.code, fw.range.start.line, fw.range.start.character)
             fix_lookup.setdefault(key, []).extend(fw.fixes)
+
+    # Collect fixes from taint warnings (W201 path concatenation, etc.)
+    for tw in find_taint_warnings(source):
+        if tw.fixes:
+            key = (tw.code, tw.range.start.line, tw.range.start.character)
+            fix_lookup.setdefault(key, []).extend(tw.fixes)
 
     # W112 trailing-whitespace fixes (source-level, not from analyser).
     for d in _check_trailing_whitespace(source, lines=lines):
