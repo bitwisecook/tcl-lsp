@@ -378,6 +378,42 @@ class TestUnescapeTracking:
         )
         assert z_double, "z should have DOUBLE_UNESCAPED (URI::decode then subst)"
 
+    def test_http_uri_normalized_sets_fully_normalised(self):
+        """[HTTP::uri -normalized] is FULLY_NORMALISED, not WAS_UNESCAPED."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = "set uri [HTTP::uri -normalized]"
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        uri_normalised = any(
+            props.may & RenderedProperties.FULLY_NORMALISED
+            for (name, _ver), props in rp.items()
+            if name == "uri"
+        )
+        uri_unescaped = any(
+            props.may & RenderedProperties.WAS_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "uri"
+        )
+        assert uri_normalised, "uri should have FULLY_NORMALISED"
+        assert not uri_unescaped, "uri should NOT have WAS_UNESCAPED"
+
+    def test_normalized_then_decode_not_double(self):
+        """[URI::decode [HTTP::uri -normalized]] is NOT DOUBLE_UNESCAPED."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = "set uri [HTTP::uri -normalized]\nset decoded [URI::decode $uri]"
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        decoded_double = any(
+            props.may & RenderedProperties.DOUBLE_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "decoded"
+        )
+        assert not decoded_double, "decoding a -normalized value should NOT be DOUBLE_UNESCAPED"
+
     def test_b64decode_sets_was_unescaped(self):
         """[b64decode $x] should have WAS_UNESCAPED."""
         from core.compiler.compilation_unit import ensure_compilation_unit

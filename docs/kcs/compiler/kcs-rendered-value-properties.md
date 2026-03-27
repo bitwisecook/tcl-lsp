@@ -52,6 +52,7 @@ of simple boolean domains (cf. Costantini, Ferrara & Cortesi 2011).
 | `HAS_NULL` | may | Rendered text contains `\x00` / `\0` |
 | `WAS_UNESCAPED` | may (provenance) | Value passed through `subst` / `encoding convertfrom` |
 | `DOUBLE_UNESCAPED` | may (provenance) | Value was already `WAS_UNESCAPED` then unescaped again |
+| `FULLY_NORMALISED` | may (provenance) | Value fully canonical — no residual encoding (e.g. `-normalized`) |
 | `STARTS_WITH_SLASH` | must | First rendered literal char is `/` |
 | `STARTS_WITH_DASH` | must | First rendered literal char is `-` |
 
@@ -92,14 +93,20 @@ Copy propagation (`set b $a`) inherits `WAS_UNESCAPED` from the source,
 so a chain like `set a [subst $x]; set b $a; set c [subst $b]` correctly
 tags `c` with `DOUBLE_UNESCAPED`.
 
-Unescape commands:
+Unescape commands (`WAS_UNESCAPED`):
 - `subst` — Tcl backslash/variable/command substitution
 - `URI::decode` — percent-decoding
 - `decode_uri` — legacy alias for `URI::decode`
 - `b64decode` — base64 decoding
 - `encoding convertfrom` — byte-to-string decoding
+
+Normalised getters (`FULLY_NORMALISED`):
 - `HTTP::uri -normalized`, `HTTP::path -normalized`,
-  `HTTP::query -normalized` — return fully URI-decoded values
+  `HTTP::query -normalized` — return fully URI-decoded values with no
+  residual encoding.  Still tainted (HTTP input) but encoding-safe.
+
+`FULLY_NORMALISED` suppresses `DOUBLE_UNESCAPED` escalation: decoding a
+fully normalised value is harmless since there is nothing left to decode.
 
 ### Pipeline placement
 

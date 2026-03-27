@@ -56,8 +56,9 @@ class RenderedProperties(Flag):
     HAS_INTERPOLATION = auto()  # value contains $var or [cmd]
     HAS_DOUBLE_ESCAPE = auto()  # rendered text contains already-escaped sequences
     HAS_NULL = auto()  # rendered text contains \\x00 / \\0
-    WAS_UNESCAPED = auto()  # value passed through subst / regsub / encoding convertfrom
+    WAS_UNESCAPED = auto()  # value passed through subst / URI::decode / b64decode etc.
     DOUBLE_UNESCAPED = auto()  # value was already WAS_UNESCAPED then unescaped again
+    FULLY_NORMALISED = auto()  # value fully canonical — no residual encoding (e.g. -normalized)
 
     # --- "must" properties (intersection at joins) ---
     STARTS_WITH_SLASH = auto()  # first rendered literal char is '/'
@@ -75,7 +76,11 @@ _MAY_MASK = (
 )
 # Provenance bits are NOT in _MAY_MASK — they are only set explicitly
 # by unescape commands and propagated through copies/phis.
-_PROVENANCE_MASK = RenderedProperties.WAS_UNESCAPED | RenderedProperties.DOUBLE_UNESCAPED
+_PROVENANCE_MASK = (
+    RenderedProperties.WAS_UNESCAPED
+    | RenderedProperties.DOUBLE_UNESCAPED
+    | RenderedProperties.FULLY_NORMALISED
+)
 _MUST_MASK = RenderedProperties.STARTS_WITH_SLASH | RenderedProperties.STARTS_WITH_DASH
 _ALL_MUST = _MUST_MASK  # bottom: assume all must-props until disproven
 
@@ -136,19 +141,28 @@ _UNESCAPE_COMMANDS = frozenset(
     }
 )
 _UNESCAPE_ENCODING_SUBS = frozenset({"convertfrom"})
-# HTTP getter forms with -normalized perform URI-decoding on the result.
-_UNESCAPE_HTTP_GETTERS = frozenset({"HTTP::uri", "HTTP::path", "HTTP::query"})
+# HTTP getter forms with -normalized return fully canonical values with
+# all encoding resolved — these are SAFE (like file normalize), not
+# "unescaped".  They guarantee no residual encoding remains.
+_NORMALISED_HTTP_GETTERS = frozenset({"HTTP::uri", "HTTP::path", "HTTP::query"})
 
 
 def _is_unescape_command(cmd: str, args: tuple[str, ...] | list[str]) -> bool:
-    """Return True if the command performs unescaping / decoding."""
+    """Return True if the command performs partial unescaping / decoding.
+
+    Does NOT include -normalized getters — those produce fully canonical
+    values with no residual encoding (safe, like ``file normalize``).
+    """
     if cmd in _UNESCAPE_COMMANDS:
         return True
     if cmd == "encoding" and args and args[0] in _UNESCAPE_ENCODING_SUBS:
         return True
-    if cmd in _UNESCAPE_HTTP_GETTERS and "-normalized" in args:
-        return True
     return False
+
+
+def _is_normalised_getter(cmd: str, args: tuple[str, ...] | list[str]) -> bool:
+    """Return True if the command returns a fully normalised (no encoding) value."""
+    return cmd in _NORMALISED_HTTP_GETTERS and "-normalized" in args
 
 
 def _cmd_may_return_path(cmd_text: str) -> bool:
@@ -220,9 +234,13 @@ def _evaluate_rendered_props_for_value(value: str) -> RenderedValueProps:
         elif cmd == "info" and args and args[0] in _PATH_RETURNING_INFO_SUBS:
             may |= RenderedProperties.HAS_FORWARD_SLASH
         # Track unescape provenance for subst, URI::decode, b64decode,
-        # encoding convertfrom, HTTP::uri/path/query -normalized.
+        # encoding convertfrom.
         if _is_unescape_command(cmd, args):
             may |= RenderedProperties.WAS_UNESCAPED
+        # -normalized getters produce fully canonical values (no residual
+        # encoding).  Still tainted (HTTP input) but encoding-safe.
+        if _is_normalised_getter(cmd, args):
+            may |= RenderedProperties.FULLY_NORMALISED
         return RenderedValueProps(may=may, must=must)
 
     may = RenderedProperties.NONE
@@ -341,10 +359,16 @@ def _evaluate_rendered_def(
             # Escalate to DOUBLE_UNESCAPED: if the value itself is an
             # unescape command (WAS_UNESCAPED) and any SSA input was
             # already WAS_UNESCAPED, the result is doubly unescaped.
+            # Exception: FULLY_NORMALISED inputs have no residual encoding,
+            # so decoding them again is harmless (not a double-unescape).
             if base.may & RenderedProperties.WAS_UNESCAPED and ssa_stmt.uses:
                 for use_name, use_ver in ssa_stmt.uses.items():
                     src = props.get((use_name, use_ver))
-                    if src is not None and src.may & RenderedProperties.WAS_UNESCAPED:
+                    if (
+                        src is not None
+                        and src.may & RenderedProperties.WAS_UNESCAPED
+                        and not (src.may & RenderedProperties.FULLY_NORMALISED)
+                    ):
                         return RenderedValueProps(
                             may=base.may | RenderedProperties.DOUBLE_UNESCAPED,
                             must=base.must,
@@ -366,18 +390,25 @@ def _evaluate_rendered_def(
             )
 
         case IRCall(command=cmd, args=args):
+            # -normalized getters: fully canonical, no residual encoding.
+            if _is_normalised_getter(cmd, args):
+                return RenderedValueProps(
+                    may=_MAY_MASK | RenderedProperties.FULLY_NORMALISED,
+                    must=RenderedProperties.NONE,
+                )
             # Track unescape provenance across SSA.
             if _is_unescape_command(cmd, args):
-                # Merge input argument properties and tag with WAS_UNESCAPED.
-                # If any input was already WAS_UNESCAPED, escalate to
-                # DOUBLE_UNESCAPED (double subst is almost always a bug).
                 input_may = RenderedProperties.NONE
                 for _use_name, _use_ver in ssa_stmt.uses.items():
                     src = props.get((_use_name, _use_ver))
                     if src is not None:
                         input_may |= src.may
                 result_may = _MAY_MASK | RenderedProperties.WAS_UNESCAPED
-                if input_may & RenderedProperties.WAS_UNESCAPED:
+                # Escalate unless input was FULLY_NORMALISED (nothing left
+                # to decode, so the second decode is harmless).
+                if input_may & RenderedProperties.WAS_UNESCAPED and not (
+                    input_may & RenderedProperties.FULLY_NORMALISED
+                ):
                     result_may |= RenderedProperties.DOUBLE_UNESCAPED
                 return RenderedValueProps(may=result_may, must=RenderedProperties.NONE)
             # Generic command: conservative.
