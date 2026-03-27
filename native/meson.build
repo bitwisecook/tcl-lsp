@@ -17,9 +17,26 @@ tcl_lsp_dep = declare_dependency(
 )
 
 # pybind11 extension module installed into core/ package.
+# The bindings are temporary shim code — relax warnings that fire inside
+# pybind11 headers (especially under GCC, which is more aggressive about
+# -Warray-bounds in template-heavy code).  Our own C++ code in the core
+# library and tests still builds with full -Werror.
+binding_args = []
+if meson.get_compiler('cpp').get_id() == 'gcc'
+  # GCC produces false positives in pybind11 template-heavy code involving
+  # std::vector and std::initializer_list operations.  These are well-known
+  # upstream issues (pybind11#4412, GCC bugzilla#106247).
+  binding_args += [
+    '-Wno-array-bounds',
+    '-Wno-stringop-overflow',
+    '-Wno-stringop-overread',
+  ]
+endif
+
 py.extension_module('_tcl_lsp_native',
   'bindings/core_types.cpp',
   dependencies: [pybind11_dep, tcl_lsp_dep],
+  cpp_args: binding_args,
   subdir: 'core',
   install: true,
 )

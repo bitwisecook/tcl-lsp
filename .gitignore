@@ -59,6 +59,8 @@ core/help/kcs_help.db
 
 # C++ native build (Meson)
 builddir/
+builddir-asan/
+builddir-tsan/
 subprojects/catch2/
 subprojects/pybind11/
 *.so
