@@ -290,13 +290,12 @@ def _immediate_dominators(
         if not strict:
             idom[bn] = None
             continue
-        candidate: str | None = None
-        for dc in strict:
-            dominated_by_other = any(dc in dom[o] for o in strict if o != dc)
-            if not dominated_by_other:
-                candidate = dc
-                break
-        idom[bn] = candidate
+        # The immediate dominator is the strict dominator closest to bn
+        # in the dominator tree — equivalently, the one with the largest
+        # dominator set (since dominators form a chain from entry to bn).
+        # Using max(|dom[dc]|) is O(|strict|) instead of the previous
+        # O(|strict|²) nested membership test.
+        idom[bn] = max(strict, key=lambda dc: len(dom[dc]))
     return idom
 
 

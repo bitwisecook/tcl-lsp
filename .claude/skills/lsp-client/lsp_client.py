@@ -161,8 +161,10 @@ class LspClient:
         self._request_id = 0
         self._pending: dict[int, dict] = {}  # id -> {"event": Event, "result": ...}
         self._notifications: list[dict] = []
+        self._stderr_lines: list[str] = []
         self._lock = threading.Lock()
         self._reader_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
         self._running = False
 
     def start(self) -> None:
@@ -177,6 +179,8 @@ class LspClient:
         self._running = True
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
+        self._stderr_thread = threading.Thread(target=self._stderr_loop, daemon=True)
+        self._stderr_thread.start()
 
     def _send(self, data: dict) -> None:
         """Send a JSON-RPC message with Content-Length framing."""
@@ -282,6 +286,60 @@ class LspClient:
         # Timeout — return whatever we have
         with self._lock:
             return [n for n in self._notifications if n.get("method") == method]
+
+    def _stderr_loop(self) -> None:
+        """Background thread: capture server stderr lines."""
+        assert self.process and self.process.stderr
+        for raw in self.process.stderr:
+            try:
+                line = raw.decode("utf-8", errors="replace").rstrip("\n\r")
+                with self._lock:
+                    self._stderr_lines.append(line)
+            except Exception:
+                break
+
+    def get_stderr_lines(self) -> list[str]:
+        """Return all captured stderr lines."""
+        with self._lock:
+            return list(self._stderr_lines)
+
+    def get_timing_lines(self) -> list[str]:
+        """Return ``[timing]`` lines from stderr and ``window/logMessage`` notifications."""
+        lines: list[str] = []
+        with self._lock:
+            for ln in self._stderr_lines:
+                if "[timing]" in ln:
+                    lines.append(ln)
+            for n in self._notifications:
+                if n.get("method") == "window/logMessage":
+                    msg = n.get("params", {}).get("message", "")
+                    if "[timing]" in msg:
+                        lines.append(msg)
+        return lines
+
+    def get_log_messages(self, *, level: int | None = None) -> list[str]:
+        """Return ``window/logMessage`` notification messages.
+
+        *level*: optional filter — 1=Error, 2=Warning, 3=Info, 4=Log.
+        """
+        messages: list[str] = []
+        with self._lock:
+            for n in self._notifications:
+                if n.get("method") != "window/logMessage":
+                    continue
+                params = n.get("params", {})
+                if level is not None and params.get("type") != level:
+                    continue
+                messages.append(params.get("message", ""))
+        return messages
+
+    def clear_timing(self) -> None:
+        """Clear collected stderr lines and notifications for fresh measurement."""
+        with self._lock:
+            self._stderr_lines.clear()
+            self._notifications = [
+                n for n in self._notifications if n.get("method") != "window/logMessage"
+            ]
 
     def shutdown(self) -> None:
         """Cleanly shut down the server."""
@@ -1114,6 +1172,142 @@ def cmd_all(client: LspClient, uri: str, content: str) -> None:
     cmd_optimize(client, uri, content)
 
 
+_TIMING_RE = re.compile(r"\[timing\]\s+(\S+)\s+([\d.]+)ms")
+
+
+def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1) -> None:
+    """Benchmark time-to-semantic-tokens and collect server timing breakdown."""
+    n_lines = content.count("\n") + 1
+    print("=== Benchmark ===")
+    print(f"  File: {uri.split('/')[-1]}")
+    print(f"  Lines: {n_lines}, Size: {len(content)} bytes")
+    print(f"  Iterations: {iterations}")
+    print()
+
+    for i in range(iterations):
+        client.clear_timing()
+        # Close and re-open to force a full rebuild.
+        if i > 0:
+            client.send_notification(
+                "textDocument/didClose",
+                {"textDocument": {"uri": uri}},
+            )
+            time.sleep(0.1)
+            client.send_notification(
+                "textDocument/didOpen",
+                {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "tcl",
+                        "version": i + 1,
+                        "text": content,
+                    }
+                },
+            )
+            time.sleep(0.01)
+
+        t0 = time.perf_counter()
+        result = client.send_request(
+            "textDocument/semanticTokens/full",
+            {"textDocument": {"uri": uri}},
+        )
+        t1 = time.perf_counter()
+
+        data = result.get("data", []) if result else []
+        n_tokens = len(data) // 5
+        wall_ms = (t1 - t0) * 1000
+
+        # Wait for timing logs to arrive.
+        time.sleep(0.3)
+
+        timing_lines = client.get_timing_lines()
+        server_timings: dict[str, float] = {}
+        for line in timing_lines:
+            m = _TIMING_RE.search(line)
+            if m:
+                server_timings[m.group(1)] = float(m.group(2))
+
+        print(f"  Iteration {i + 1}:")
+        print(f"    Wall clock (request → response): {wall_ms:.1f}ms")
+        print(f"    Tokens: {n_tokens}")
+        if server_timings:
+            print("    Server timings:")
+            for label, ms in sorted(server_timings.items()):
+                print(f"      {label}: {ms:.0f}ms")
+        print()
+
+    # Also show a simulated edit benchmark if we have >1 iteration.
+    if iterations > 1:
+        lines = content.split("\n")
+        if len(lines) > 10:
+            lines[len(lines) // 2] = lines[len(lines) // 2] + " ;# bench-edit"
+            edited = "\n".join(lines)
+            client.clear_timing()
+            client.send_notification(
+                "textDocument/didChange",
+                {
+                    "textDocument": {"uri": uri, "version": iterations + 10},
+                    "contentChanges": [{"text": edited}],
+                },
+            )
+            time.sleep(0.01)
+            t0 = time.perf_counter()
+            client.send_request(
+                "textDocument/semanticTokens/full",
+                {"textDocument": {"uri": uri}},
+            )
+            t1 = time.perf_counter()
+            time.sleep(0.3)
+            timing_lines = client.get_timing_lines()
+            server_timings = {}
+            for line in timing_lines:
+                m = _TIMING_RE.search(line)
+                if m:
+                    server_timings[m.group(1)] = float(m.group(2))
+            print("  After mid-file edit:")
+            print(f"    Wall clock: {(t1 - t0) * 1000:.1f}ms")
+            if server_timings:
+                print("    Server timings:")
+                for label, ms in sorted(server_timings.items()):
+                    print(f"      {label}: {ms:.0f}ms")
+            print()
+
+
+def cmd_logs(client: LspClient, uri: str, *, timing_only: bool = False) -> None:
+    """Collect and display server logs and timing information."""
+    # Wait for logs to accumulate.
+    time.sleep(0.5)
+
+    if timing_only:
+        lines = client.get_timing_lines()
+        print(f"=== Timing Logs ({len(lines)} entries) ===")
+        for line in lines:
+            print(f"  {line.strip()}")
+    else:
+        stderr = client.get_stderr_lines()
+        log_msgs = client.get_log_messages()
+        print(f"=== Server Stderr ({len(stderr)} lines) ===")
+        for line in stderr:
+            print(f"  {line}")
+        print()
+        print(f"=== Log Messages ({len(log_msgs)} entries) ===")
+        for msg in log_msgs:
+            print(f"  {msg}")
+
+    # Always show timing summary at end.
+    timing_lines = client.get_timing_lines()
+    if timing_lines:
+        print()
+        print("=== Timing Summary ===")
+        timings: dict[str, float] = {}
+        for line in timing_lines:
+            m = _TIMING_RE.search(line)
+            if m:
+                timings[m.group(1)] = float(m.group(2))
+        for label, ms in sorted(timings.items()):
+            print(f"  {label}: {ms:.0f}ms")
+
+
 # CLI
 
 
@@ -1207,6 +1401,20 @@ examples:
     )
     p.add_argument("file", help="Tcl file to analyze")
 
+    # bench
+    p = sub.add_parser(
+        "bench", help="Benchmark time-to-semantic-tokens with server timing breakdown"
+    )
+    p.add_argument("file", help="Tcl file to benchmark")
+    p.add_argument(
+        "--iterations", type=int, default=1, help="Number of benchmark iterations (default: 1)"
+    )
+
+    # logs
+    p = sub.add_parser("logs", help="Collect and display server logs and timing information")
+    p.add_argument("file", help="Tcl file to open (triggers server processing)")
+    p.add_argument("--timing-only", action="store_true", help="Show only [timing] entries")
+
     args = parser.parse_args()
 
     # Find server
@@ -1285,6 +1493,10 @@ examples:
                     cmd_context(client, uri, content)
                 case "all":
                     cmd_all(client, uri, content)
+                case "bench":
+                    cmd_bench(client, uri, content, iterations=args.iterations)
+                case "logs":
+                    cmd_logs(client, uri, timing_only=args.timing_only)
 
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)

@@ -60,6 +60,7 @@ EXPLORER_STATIC := $(EXPLORER_DIR)/static
 
 # Build output — everything generated goes under build/
 BUILD_DIR  := $(ROOT)build
+KCS_DB     := core/help/kcs_help.db
 
 # Tools
 UV       := uv
@@ -85,12 +86,30 @@ FULL_VERSION     := $(VERSION)
 BUILD_TIMESTAMP := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Derived paths
-VSIX_FILE := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION).vsix
-LICENSE_SRC := $(ROOT)LICENSE
+VSIX_FILE      := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION).vsix
+LICENSE_SRC    := $(ROOT)LICENSE
+README_SRC     := $(ROOT)README.md
+SCREENSHOT_DIR := $(ROOT)docs/screenshots
+SCREENSHOTS    := $(wildcard $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif)
+VSCE_PUBLISHER := bitwisecook
 
 # Build-info files (generated, gitignored)
 BUILD_INFO      := $(ROOT)lsp/_build_info.py
 BUILD_INFO_JSON := $(EXPLORER_STATIC)/build_info.json
+
+# Zipapps
+ZIPAPP_TCL     := $(BUILD_DIR)/tcl-$(VERSION).pyz
+ZIPAPP_CLI     := $(BUILD_DIR)/tcl-lsp-explorer-cli-$(VERSION).pyz
+ZIPAPP_GUI     := $(BUILD_DIR)/tcl-lsp-explorer-gui-$(VERSION).pyz
+ZIPAPP_GUI_CDN := $(BUILD_DIR)/tcl-lsp-explorer-gui-cdn-$(VERSION).pyz
+ZIPAPP_LSP     := $(BUILD_DIR)/tcl-lsp-server-$(VERSION).pyz
+ZIPAPP_AI      := $(BUILD_DIR)/tcl-lsp-ai-$(VERSION).pyz
+ZIPAPP_MCP     := $(BUILD_DIR)/tcl-lsp-mcp-server-$(VERSION).pyz
+ZIPAPP_WASM    := $(BUILD_DIR)/tcl-wasm-compiler-$(VERSION).pyz
+CLAUDE_SKILLS  := $(BUILD_DIR)/tcl-lsp-claude-skills-$(VERSION).zip
+
+# Parallelism
+NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 # Find all Python source files for dependency tracking
 PY_SRCS  := $(shell find $(LSP_DIR) $(PYCORE_DIR) $(EXPLORER_DIR) -name '*.py' -not -path '*__pycache__*' -not -name '_build_info.py')
@@ -111,8 +130,6 @@ install: package-vsix ## Build and install the .vsix into VS Code
 	@echo "==> Installing VS Code extension"
 	$(VSCODE) --install-extension $(VSIX_FILE) --force
 
-VSCE_PUBLISHER := bitwisecook
-
 publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
 	@echo "==> Verifying VS Code Marketplace credentials"
 	@if ! $(VSCE) verify-pat $(VSCE_PUBLISHER) 2>/dev/null; then \
@@ -122,10 +139,6 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
 	fi
 	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
 	cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE)
-
-README_SRC     := $(ROOT)README.md
-SCREENSHOT_DIR := $(ROOT)docs/screenshots
-SCREENSHOTS    := $(wildcard $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif)
 
 $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(BUILD_INFO) $(ROOT)scripts/build_zipapp.py $(ROOT)scripts/zipapp_lsp_main.py
 	@echo "==> Preparing VSIX staging directory"
@@ -284,8 +297,6 @@ coverage-ext: compile $(NPM_STAMP) ## Run VS Code extension tests with coverage 
 _prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings
 _prep-pr-tests: test-py test-opt
 _prep-pr-smoke: smoke-zipapps smoke-vsix
-
-NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 prep-pr: format ## Fast pre-PR gate (format + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
@@ -521,17 +532,6 @@ explorer-build-cdn: $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler exp
 	@ls -lh $(EXPLORER_CDN_DIR)/
 
 # Zipapp targets
-
-ZIPAPP_TCL     := $(BUILD_DIR)/tcl-$(VERSION).pyz
-ZIPAPP_CLI     := $(BUILD_DIR)/tcl-lsp-explorer-cli-$(VERSION).pyz
-ZIPAPP_GUI     := $(BUILD_DIR)/tcl-lsp-explorer-gui-$(VERSION).pyz
-ZIPAPP_GUI_CDN := $(BUILD_DIR)/tcl-lsp-explorer-gui-cdn-$(VERSION).pyz
-ZIPAPP_LSP     := $(BUILD_DIR)/tcl-lsp-server-$(VERSION).pyz
-ZIPAPP_AI      := $(BUILD_DIR)/tcl-lsp-ai-$(VERSION).pyz
-ZIPAPP_MCP     := $(BUILD_DIR)/tcl-lsp-mcp-server-$(VERSION).pyz
-ZIPAPP_WASM    := $(BUILD_DIR)/tcl-wasm-compiler-$(VERSION).pyz
-CLAUDE_SKILLS  := $(BUILD_DIR)/tcl-lsp-claude-skills-$(VERSION).zip
-KCS_DB         := core/help/kcs_help.db
 
 zipapps: zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm ## Build all zipapps
 
@@ -784,6 +784,7 @@ clean: ## Remove build artifacts
 	rm -rf $(OUT_DIR)
 	rm -f  $(BUILD_INFO)
 	rm -f  $(BUILD_INFO_JSON)
+	rm -f  $(KCS_DB)
 	rm -rf $(PYODIDE_DIR)
 	rm -f  $(EXPLORER_STATIC)/*.whl
 	rm -f  $(MERMAID_JS)

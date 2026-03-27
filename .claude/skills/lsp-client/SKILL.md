@@ -3,7 +3,8 @@ name: lsp-client
 description: >
   Use when verifying Tcl LSP server behavior: semantic tokens, diagnostics,
   formatting, hover, completion, definition, references, code actions,
-  optimizations, document symbols, diagram extraction, or event/command registry lookups.
+  optimizations, document symbols, diagram extraction, event/command registry
+  lookups, or benchmarking server performance and collecting timing logs.
   Tests the server directly over JSON-RPC without VS Code.
 allowed-tools: Bash, Read
 ---
@@ -44,6 +45,8 @@ The script auto-detects the `tcl-lsp/` server directory.  Override with
 | `command-info` | `<COMMAND_NAME>` | Show iRules command registry metadata (no file needed) |
 | `context` | `<file.tcl>` | Build context pack: diagnostics + symbols + event metadata |
 | `all` | `<file.tcl>` | Run semantic-tokens + diagnostics + symbols + format + optimize together |
+| `bench` | `<file.tcl> [--iterations N]` | Benchmark time-to-semantic-tokens with server timing breakdown |
+| `logs` | `<file.tcl> [--timing-only]` | Collect and display server logs and timing information |
 
 All line/col arguments are **0-based**, matching the LSP protocol.
 
@@ -146,6 +149,37 @@ Shows the markdown content the editor would display on hover.
 ### Completions
 Shows label, kind (Keyword, Function, Variable), and detail.
 
+### Bench
+Measures wall-clock time from request to semantic token response, plus
+server-side timing breakdown from `[timing]` log entries:
+```
+=== Benchmark ===
+  File: 09_long_code.tcl
+  Lines: 540, Size: 15208 bytes
+  Iterations: 3
+
+  Iteration 1:
+    Wall clock (request → response): 445.1ms
+    Tokens: 1557
+    Server timings:
+      _build_full_chunk_caches: 1ms
+      semantic_tokens_full: 200ms
+      semanticTokens/full: 200ms
+      workspace_state.update: 459ms
+
+  After mid-file edit:
+    Wall clock: 180.5ms
+    Server timings:
+      workspace_state.update: 150ms
+```
+Use `--iterations N` to run multiple open/close cycles for reliable medians.
+The edit benchmark simulates a mid-file change to measure incremental
+update performance.
+
+### Logs
+Shows server stderr and `window/logMessage` notifications. Use `--timing-only`
+to filter to just `[timing]` entries for performance analysis.
+
 ## When to Use
 
 - After changing semantic token logic, verify tokens are correct
@@ -158,6 +192,8 @@ Shows label, kind (Keyword, Function, Variable), and detail.
 - Use `context` to build rich LSP context for AI skill consumption
 - Use `diagram` to extract structured flow data for Mermaid generation
 - Use `event-info` / `command-info` to look up iRules registry metadata
+- After performance changes, use `bench` to measure time-to-semantic-tokens
+- Use `logs --timing-only` to see the server-side timing breakdown
 
 ## Example Invocations
 
@@ -172,6 +208,8 @@ python3 .claude/skills/lsp-client/lsp_client.py event-info HTTP_REQUEST
 python3 .claude/skills/lsp-client/lsp_client.py command-info HTTP::uri
 python3 .claude/skills/lsp-client/lsp_client.py context tcl-lsp/samples/for_screenshots/ai-scene.irul
 python3 .claude/skills/lsp-client/lsp_client.py all tcl-lsp/samples/for_screenshots/03-completions.tcl
+python3 .claude/skills/lsp-client/lsp_client.py bench tcl-lsp/samples/tcl/09_long_code.tcl --iterations 3
+python3 .claude/skills/lsp-client/lsp_client.py logs tcl-lsp/samples/tcl/09_long_code.tcl --timing-only
 ```
 
 $ARGUMENTS
