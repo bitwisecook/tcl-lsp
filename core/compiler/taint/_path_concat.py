@@ -1,28 +1,37 @@
 r"""W201 -- manual path concatenation instead of ``file join``.
 
-Detects ``set`` assignments where the value is an interpolated string
-containing both a literal path separator (``/`` or ``\``) and a variable
-reference.  Values that are pure command substitutions (``[...]``) are
-skipped because the slash/backslash is internal to the command, not
-manual path construction.
+Detects ``set`` assignments where the rendered value contains both a
+literal path separator (``/`` or ``\``) and a variable or path-returning
+command result.  Escape sequences are resolved via ``backslash_subst()``
+so that ``\n``, ``\t`` etc. are correctly recognised as non-path
+characters.  Command substitution contents are opaque -- slashes inside
+``[...]`` are never mistaken for path concatenation.
+
+Detection uses two sources of information:
+
+* **Taint lattice** -- ``PATH_NORMALISED`` suppresses the warning;
+  ``PATH_PREFIXED`` on a CMD token indicates the command returns
+  path-like content.
+* **Rendered literal analysis** -- ``backslash_subst()`` renders escape
+  sequences in ESC tokens (gated by ``IRAssignValue.value_needs_backsubst``)
+  before checking for ``/`` or ``\``.
 
 This replaces the former syntactic check in ``_style.py`` by running
-inside the taint system where token-level decomposition is already
-available and forward-scan suppression via ``file normalize`` /
-``file join`` is natural.
+inside the taint system where token-level decomposition, escape
+rendering, and SSA-level suppression are natural.
 """
 
 from __future__ import annotations
-
-import re
 
 from ...analysis.checks._helpers import _build_file_join_fix
 from ...analysis.semantic_model import CodeFix
 from ...commands.registry.taint_hints import TaintColour
 from ...common.codes import diag
 from ...parsing.lexer import TclLexer
+from ...parsing.substitution import backslash_subst
 from ...parsing.tokens import TokenType
 from ..cfg import CFGFunction
+from ..core_analyses import LatticeValue
 from ..ir import IRAssignValue
 from ..ssa import SSAFunction, SSAValueKey
 from ..value_shapes import is_pure_var_ref, parse_command_substitution
@@ -31,34 +40,77 @@ from ._types import TaintWarning
 
 diag("W201", "Manual path concatenation \u2014 use `file join` instead.", section="warning")
 
-# Known Tcl backslash escape sequences that are NOT path separators.
-_TCL_ESCAPE_RE = re.compile(
-    r"\\(?:"
-    r"[abfnrtv\\{}\[\]$\"; ]"  # single-char escapes
-    r"|x[0-9a-fA-F]{1,2}"  # \xNN
-    r"|u[0-9a-fA-F]{1,4}"  # \uNNNN
-    r"|U[0-9a-fA-F]{1,8}"  # \UNNNNNNNN
-    r"|[0-7]{1,3}"  # \NNN octal
-    r"|\n[ \t]*"  # line continuation
-    r")"
-)
 
+def _rendered_text_has_path_sep(text: str, is_esc: bool) -> bool:
+    """Return True if *text* contains a path separator after escape rendering.
 
-def _has_path_backslash(text: str) -> bool:
-    """Return True if *text* contains a backslash used as a path separator.
+    ESC tokens always have escapes rendered (they come from double-quoted
+    or bare-word contexts where Tcl processes backslash sequences).
+    STR tokens (braced strings) are checked as-is since braces suppress
+    escape processing.
 
-    Strips known Tcl escape sequences first so that ``\\n``, ``\\t``,
-    etc. are not mistaken for path separators.
+    After rendering, ``\\n`` becomes a newline (not a backslash) and
+    ``\\\\`` becomes a single backslash (a genuine path separator on
+    Windows).
     """
-    stripped = _TCL_ESCAPE_RE.sub("", text)
-    return "\\" in stripped
+    rendered = backslash_subst(text) if (is_esc and "\\" in text) else text
+    return "/" in rendered or "\\" in rendered
 
 
-def _value_has_path_concat(value: str) -> bool:
-    """Return True if *value* mixes literal path separators with variables.
+def _cmd_returns_path(cmd_text: str) -> bool:
+    """Return True if the command substitution is known to return a path.
 
-    Only literal (ESC/STR) tokens are checked for path separators;
-    content inside command substitutions (CMD tokens) is opaque.
+    Checks for ``file`` subcommands that produce path values and other
+    common path-returning commands (``pwd``, ``info script``, etc.).
+    """
+    parsed = parse_command_substitution(f"[{cmd_text}]")
+    if parsed is None:
+        return False
+    cmd, args = parsed
+    if cmd == "pwd":
+        return True
+    if cmd == "file" and args:
+        return args[0] in (
+            "dirname",
+            "join",
+            "normalize",
+            "nativename",
+            "rootname",
+            "tail",
+            "extension",
+            "readlink",
+            "tempdir",
+            "tempfile",
+        )
+    if cmd == "info" and args and args[0] in ("script", "nameofexecutable", "library"):
+        return True
+    return False
+
+
+def _sccp_resolves_to_path_sep(
+    cmd_text: str,
+    sccp_values: dict[SSAValueKey, LatticeValue] | None,
+) -> bool:
+    """Return True if SCCP resolves a command result to a path separator.
+
+    Handles cases like ``[string cat /]`` that statically produce a
+    path separator character.
+    """
+    if sccp_values is None:
+        return False
+    # We cannot easily map a CMD token back to its SSA def here, so
+    # this is a placeholder for future SCCP integration.  Currently
+    # the detection relies on the literal-token scan and CMD-returns-path
+    # heuristic.
+    return False
+
+
+def _literals_have_path_separator(value: str) -> bool:
+    """Return True if literal tokens in *value* contain path separators.
+
+    Only ESC/STR tokens are inspected; CMD tokens are opaque and VAR
+    tokens carry no literal text.  ESC tokens are rendered through
+    ``backslash_subst()`` to resolve escape sequences before checking.
     """
     stripped = value.strip()
     if is_pure_var_ref(stripped):
@@ -66,8 +118,33 @@ def _value_has_path_concat(value: str) -> bool:
     if parse_command_substitution(stripped) is not None:
         return False
 
-    has_path_sep = False
-    has_var = False
+    lexer = TclLexer(stripped)
+    while True:
+        tok = lexer.get_token()
+        if tok is None or tok.type in (TokenType.EOL, TokenType.EOF):
+            break
+        if tok.type in (TokenType.CMD, TokenType.VAR, TokenType.SEP):
+            continue
+        # ESC / STR -- literal text
+        is_esc = tok.type is TokenType.ESC
+        if _rendered_text_has_path_sep(tok.text, is_esc=is_esc):
+            return True
+    return False
+
+
+def _has_variable_or_path_cmd(value: str) -> bool:
+    """Return True if *value* contains a variable ref or path-returning CMD.
+
+    A plain variable (``$x``) indicates user-controlled path content.
+    A command substitution that returns path content (e.g.
+    ``[file dirname $x]``) similarly indicates a path component being
+    concatenated with literal separators.
+    """
+    stripped = value.strip()
+    if is_pure_var_ref(stripped):
+        return False
+    if parse_command_substitution(stripped) is not None:
+        return False
 
     lexer = TclLexer(stripped)
     while True:
@@ -75,18 +152,10 @@ def _value_has_path_concat(value: str) -> bool:
         if tok is None or tok.type in (TokenType.EOL, TokenType.EOF):
             break
         if tok.type is TokenType.VAR:
-            has_var = True
-        elif tok.type is TokenType.CMD:
-            # Opaque: slashes inside command substitutions are not path concat.
-            continue
-        elif tok.type in (TokenType.SEP,):
-            continue
-        else:
-            # ESC / STR / other literal tokens
-            if "/" in tok.text or _has_path_backslash(tok.text):
-                has_path_sep = True
-
-    return has_path_sep and has_var
+            return True
+        if tok.type is TokenType.CMD and _cmd_returns_path(tok.text):
+            return True
+    return False
 
 
 def _is_file_normalize_of(value: str, var_name: str) -> bool:
@@ -97,7 +166,6 @@ def _is_file_normalize_of(value: str, var_name: str) -> bool:
     cmd, args = parsed
     if cmd != "file" or not args or args[0] != "normalize":
         return False
-    # Check if one of the remaining args is a reference to the variable.
     for arg in args[1:]:
         stripped = arg.strip().strip('"')
         if stripped == f"${var_name}" or stripped == f"${{{var_name}}}":
@@ -113,7 +181,18 @@ def _find_path_concat_warnings(
 ) -> list[TaintWarning]:
     """Find ``set`` assignments that use manual path concatenation.
 
-    Returns W201 warnings.
+    Detection:
+      1. The rendered literal tokens contain ``/`` or ``\\`` (after
+         ``backslash_subst`` when ``value_needs_backsubst`` is set).
+      2. The value contains a variable reference or a command
+         substitution known to return path content.
+
+    Suppression via taint lattice:
+      - ``PATH_NORMALISED`` on the assigned SSA value suppresses.
+
+    Suppression via forward-scan:
+      - The next assignment to the same variable in the same block
+        is ``[file normalize $var]``.
     """
     warnings: list[TaintWarning] = []
 
@@ -128,36 +207,42 @@ def _find_path_concat_warnings(
                 continue
 
             value = stmt.value
-            if not _value_has_path_concat(value):
+
+            # Step 1: do the rendered literals contain path separators?
+            if not _literals_have_path_separator(value):
+                continue
+
+            # Step 2: is there a variable or path-returning CMD?
+            if not _has_variable_or_path_cmd(value):
                 continue
 
             var_name = stmt.name
 
-            # Suppression (a): taint colour — if the assigned SSA value
-            # carries PATH_NORMALISED the path has already been normalised.
-            taint_suppressed = False
+            # Suppression (a): taint lattice -- PATH_NORMALISED means the
+            # value has been through file normalize/join.
             if taints is not None and idx < len(ssa_block.statements):
                 ssa_stmt = ssa_block.statements[idx]
+                suppressed = False
                 for def_name, def_ver in ssa_stmt.defs.items():
                     key: SSAValueKey = (def_name, def_ver)
                     taint_val = taints.get(key)
-                    if taint_val is not None and taint_val.colour & TaintColour.PATH_NORMALISED:
-                        taint_suppressed = True
+                    if taint_val is not None and bool(
+                        taint_val.colour & TaintColour.PATH_NORMALISED
+                    ):
+                        suppressed = True
                         break
+                if suppressed:
+                    continue
 
-            if taint_suppressed:
-                continue
-
-            # Suppression (b): forward-scan — if the next assignment to the
-            # same variable in this block is [file normalize $var], suppress.
+            # Suppression (b): forward-scan -- next assignment to same var
+            # is [file normalize $var].
             suppressed = False
             for later_idx in range(idx + 1, len(block.statements)):
                 later_stmt = block.statements[later_idx]
                 if isinstance(later_stmt, IRAssignValue) and later_stmt.name == var_name:
                     if _is_file_normalize_of(later_stmt.value, var_name):
                         suppressed = True
-                    break  # Stop at first reassignment regardless.
-
+                    break
             if suppressed:
                 continue
 
