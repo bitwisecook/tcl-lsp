@@ -546,6 +546,42 @@ def get_completions(
                     )
                 )
 
+        # OO class names in command position
+        for _qname, class_def in analysis.all_classes.items():
+            name = class_def.name
+            if partial and not name.startswith(partial):
+                continue
+            existing_labels = {item.label for item in items}
+            if name not in existing_labels:
+                items.append(
+                    types.CompletionItem(
+                        label=name,
+                        kind=types.CompletionItemKind.Class,
+                        detail=class_def.qualified_name,
+                        sort_text=f"0_{name}",
+                    )
+                )
+
+        # OO method completion after `my` inside method bodies
+        scope = find_scope_at_line(analysis.global_scope, line)
+        if context_cmd == "my" and scope.kind == "method" and scope.parent:
+            parent_scope = scope.parent
+            for _qname, class_def in analysis.all_classes.items():
+                if class_def.name == parent_scope.name or class_def.qualified_name == parent_scope.name:
+                    for meth_name, meth_def in class_def.methods.items():
+                        if partial and not meth_name.startswith(partial):
+                            continue
+                        params = " ".join(p.name for p in meth_def.params)
+                        items.append(
+                            types.CompletionItem(
+                                label=meth_name,
+                                kind=types.CompletionItemKind.Method,
+                                detail=f"({params})" if params else "()",
+                                sort_text=f"0_{meth_name}",
+                            )
+                        )
+                    break
+
         # Context-aware snippet templates
         if formatter_config is not None:
             scope = find_scope_at_line(analysis.global_scope, line)

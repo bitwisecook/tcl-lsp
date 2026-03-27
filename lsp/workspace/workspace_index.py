@@ -11,7 +11,7 @@ import threading
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from core.analysis.semantic_model import AnalysisResult, ProcDef, Range, Scope, VarDef
+from core.analysis.semantic_model import AnalysisResult, ClassDef, ProcDef, Range, Scope, VarDef
 
 
 class EntrySource(Enum):
@@ -68,6 +68,9 @@ class WorkspaceIndex:
         self._irules_rule_init_vars: dict[str, list[RuleInitVarDef]] = {}
         # Source dependency graph: uri -> set of resolved URIs that file sources
         self._source_graph: dict[str, frozenset[str]] = {}
+        # Class index: qualified_name -> list of (uri, ClassDef)
+        self._classes: dict[str, list[tuple[str, ClassDef]]] = {}
+        self._class_tail_index: dict[str, set[str]] = {}  # simple_name -> {qualified_names}
 
     def update(
         self,
@@ -90,6 +93,12 @@ class WorkspaceIndex:
                 self._tail_index.setdefault(tail, set()).add(qname)
                 qnames_for_uri.add(qname)
             self._uri_to_qnames[uri] = qnames_for_uri
+
+            # Index classes
+            for qname, class_def in result.all_classes.items():
+                self._classes.setdefault(qname, []).append((uri, class_def))
+                tail = qname.rsplit("::", 1)[-1]
+                self._class_tail_index.setdefault(tail, set()).add(qname)
 
     def remove(self, uri: str) -> None:
         """Remove all entries for a URI."""
@@ -117,6 +126,18 @@ class WorkspaceIndex:
                         self._tail_index[tail].discard(qname)
                         if not self._tail_index[tail]:
                             del self._tail_index[tail]
+        # Clean up classes
+        if old:
+            for qname in old.all_classes:
+                if qname in self._classes:
+                    self._classes[qname] = [(u, c) for u, c in self._classes[qname] if u != uri]
+                    if not self._classes[qname]:
+                        del self._classes[qname]
+                        tail = qname.rsplit("::", 1)[-1]
+                        if tail in self._class_tail_index:
+                            self._class_tail_index[tail].discard(qname)
+                            if not self._class_tail_index[tail]:
+                                del self._class_tail_index[tail]
         # RULE_INIT vars: small enough that linear scan is fine
         for vname in list(self._irules_rule_init_vars):
             self._irules_rule_init_vars[vname] = [
@@ -221,6 +242,25 @@ class WorkspaceIndex:
             if qname in procs:
                 results.extend(procs[qname])
         return results
+
+    def find_class(self, name: str) -> list[tuple[str, ClassDef]]:
+        """Find class definitions by qualified or simple name."""
+        with self._lock:
+            if name in self._classes:
+                return list(self._classes[name])
+            qualified = f"::{name}"
+            if qualified in self._classes:
+                return list(self._classes[qualified])
+            results: list[tuple[str, ClassDef]] = []
+            for qname in self._class_tail_index.get(name, ()):
+                if qname in self._classes:
+                    results.extend(self._classes[qname])
+            return results
+
+    def all_class_names(self) -> list[str]:
+        """Return all known class qualified names."""
+        with self._lock:
+            return list(self._classes.keys())
 
     def all_proc_names(self) -> list[str]:
         """Return all known proc qualified names."""

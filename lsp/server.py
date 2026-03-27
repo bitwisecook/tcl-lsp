@@ -66,6 +66,11 @@ from .features.semantic_tokens import (
     semantic_tokens_full,
 )
 from .features.signature_help import get_signature_help
+from .features.type_hierarchy import (
+    prepare_type_hierarchy,
+    subtypes as get_subtypes,
+    supertypes as get_supertypes,
+)
 from .features.symbol_resolution import find_word_at_position
 from .features.workspace_symbols import get_workspace_symbols
 from .workspace.document_state import WorkspaceState
@@ -927,6 +932,50 @@ def on_outgoing_calls(
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
     return get_outgoing_calls(item, source, uri, analysis=analysis)
+
+
+# Type hierarchy
+
+
+@server.feature(types.TEXT_DOCUMENT_PREPARE_TYPE_HIERARCHY)
+def on_prepare_type_hierarchy(
+    params: types.TypeHierarchyPrepareParams,
+) -> list[types.TypeHierarchyItem]:
+    uri = params.text_document.uri
+    source = _get_doc_source(uri)
+    state = workspace_state.get(uri)
+    analysis = state.analysis if state else None
+    return prepare_type_hierarchy(
+        source,
+        uri,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
+    )
+
+
+@server.feature(types.TYPE_HIERARCHY_SUPERTYPES)
+def on_supertypes(
+    params: types.TypeHierarchySupertypesParams,
+) -> list[types.TypeHierarchyItem]:
+    item = params.item
+    uri = item.uri
+    source = _get_doc_source(uri)
+    state = workspace_state.get(uri)
+    analysis = state.analysis if state else None
+    return get_supertypes(item, analysis=analysis, source=source)
+
+
+@server.feature(types.TYPE_HIERARCHY_SUBTYPES)
+def on_subtypes(
+    params: types.TypeHierarchySubtypesParams,
+) -> list[types.TypeHierarchyItem]:
+    item = params.item
+    uri = item.uri
+    source = _get_doc_source(uri)
+    state = workspace_state.get(uri)
+    analysis = state.analysis if state else None
+    return get_subtypes(item, analysis=analysis, source=source)
 
 
 # Document links

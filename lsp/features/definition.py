@@ -54,6 +54,24 @@ def get_definition(
         _qname, proc_def = proc_match
         return [to_lsp_location(uri, proc_def.name_range)]
 
+    # Check for class definition
+    for _qname, class_def in analysis.all_classes.items():
+        if class_def.name == word or class_def.qualified_name == word or class_def.qualified_name == f"::{word}":
+            return [to_lsp_location(uri, class_def.name_range)]
+
+    # Check for method definition — if inside a class body, resolve method names
+    scope = find_scope_at_line(analysis.global_scope, line)
+    if scope.kind == "method" and scope.parent:
+        parent_scope = scope.parent
+        for _qname, class_def in analysis.all_classes.items():
+            if class_def.name == parent_scope.name or class_def.qualified_name == parent_scope.name:
+                # Check if word is a method in this class (for `my method` calls)
+                if word in class_def.methods:
+                    return [to_lsp_location(uri, class_def.methods[word].name_range)]
+                if word in class_def.class_methods:
+                    return [to_lsp_location(uri, class_def.class_methods[word].name_range)]
+                break
+
     # Check if word is a command alias — follow to target proc definition.
     if analysis.command_aliases:
         alias_info = lookup_alias_for_word(word, analysis.command_aliases)

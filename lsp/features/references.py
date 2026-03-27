@@ -62,10 +62,34 @@ def get_references(
         refs = [var_def.definition_range, *var_def.references]
         return [to_lsp_location(uri, r) for r in refs]
 
-    # Check for proc references
+    # Check for class/method references
     word = find_word_at_position(source, line, character)
     if not word:
         return []
+
+    # Check for class name references
+    for _qname, class_def in analysis.all_classes.items():
+        if class_def.name == word or class_def.qualified_name == word or class_def.qualified_name == f"::{word}":
+            locations: list[types.Location] = []
+            if include_declaration:
+                locations.append(to_lsp_location(uri, class_def.name_range))
+            # Find references in superclass/mixin declarations of other classes
+            for _other_qname, other_class in analysis.all_classes.items():
+                if class_def.name in other_class.superclasses or class_def.qualified_name in other_class.superclasses:
+                    locations.append(to_lsp_location(uri, other_class.name_range))
+                if class_def.name in other_class.mixins or class_def.qualified_name in other_class.mixins:
+                    locations.append(to_lsp_location(uri, other_class.name_range))
+            # Find references in command invocations
+            for invocation in analysis.command_invocations:
+                if invocation.name == class_def.name or invocation.name == class_def.qualified_name:
+                    loc = to_lsp_location(uri, invocation.range)
+                    if not any(
+                        existing.range.start.line == loc.range.start.line
+                        and existing.range.start.character == loc.range.start.character
+                        for existing in locations
+                    ):
+                        locations.append(loc)
+            return locations
 
     proc_match = find_proc_by_reference(analysis, word)
     if proc_match is not None:
