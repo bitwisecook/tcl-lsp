@@ -839,9 +839,29 @@ class TestErrorCases:
         toks, warnings = lex_with_warnings(source)
         assert not any("extra characters after close-brace" in msg for _, msg in warnings)
 
+    def test_backslash_crlf_after_close_brace_no_warning(self):
+        """``}\\<CR><LF>`` — Windows line ending after backslash is valid."""
+        toks, warnings = lex_with_warnings("{hello}\\\r\n world")
+        assert not any("extra characters after close-brace" in msg for _, msg in warnings)
+
+    def test_backslash_cr_after_close_brace_no_warning(self):
+        """``}\\<CR>`` — classic Mac line ending after backslash is valid."""
+        toks, warnings = lex_with_warnings("{hello}\\\r world")
+        assert not any("extra characters after close-brace" in msg for _, msg in warnings)
+
     def test_backslash_newline_after_close_quote_no_warning(self):
         """``"hello"\\<newline>`` — backslash-newline after close-quote is valid."""
         toks, warnings = lex_with_warnings('"hello"\\\n world')
+        assert not any("extra characters after close-quote" in msg for _, msg in warnings)
+
+    def test_backslash_crlf_after_close_quote_no_warning(self):
+        """``"hello"\\<CR><LF>`` — Windows line ending after close-quote is valid."""
+        toks, warnings = lex_with_warnings('"hello"\\\r\n world')
+        assert not any("extra characters after close-quote" in msg for _, msg in warnings)
+
+    def test_backslash_cr_after_close_quote_no_warning(self):
+        """``"hello"\\<CR>`` — classic Mac line ending after close-quote is valid."""
+        toks, warnings = lex_with_warnings('"hello"\\\r world')
         assert not any("extra characters after close-quote" in msg for _, msg in warnings)
 
     def test_backslash_non_newline_after_close_quote_warns(self):
