@@ -136,24 +136,56 @@ New edits cancel in-flight analysis. Semantic tokens are always the priority.
 
 ## Code quality tooling
 
-Three tools enforce C++ code quality, all wired into `make prep-pr`:
+Seven layers of analysis catch bugs at different levels — all wired into
+`make prep-pr` (except Valgrind, which is a periodic deep-check):
+
+### Static analysis (compile-time)
 
 | Tool | Purpose | Config file |
 |---|---|---|
 | **clang-format 18** | Code formatting (LLVM-based, 100 col, 4-space indent) | `.clang-format` |
 | **clang-tidy 18** | Linting, modernization, bug detection | `.clang-tidy` |
 | **cppcheck 2.13+** | Additional static analysis (different bug patterns) | `.cppcheck-suppress` |
+| **Clang Static Analyzer** | Path-sensitive analysis (null deref, dead stores, logic) | — |
 
-**Warning policy**: Pure C++ code (`native/src/`, `native/include/`, `native/tests/`)
-must build with zero warnings. The pybind11 bindings (`native/bindings/`) are
-excluded from clang-tidy and cppcheck since they are temporary shim code.
+### Runtime analysis (sanitizers)
 
-Makefile targets:
-- `make format-cpp` — auto-format all C++ files
-- `make lint-cpp` — run clang-tidy + cppcheck + format check
-- `make native-test` — run Catch2 unit tests
-- `make format` — includes `format-cpp` alongside Python and TypeScript
-- `make prep-pr` — includes `lint-cpp` and `native-test` in the CI gate
+| Tool | Catches | Notes |
+|---|---|---|
+| **AddressSanitizer (ASan)** | Buffer overflow, use-after-free, stack overflow, leaks | Runs every PR |
+| **UndefinedBehaviourSanitizer (UBSan)** | Signed overflow, null deref, alignment, shift errors | Combined with ASan |
+| **ThreadSanitizer (TSan)** | Data races, deadlocks, thread-safety bugs | Separate build (incompatible with ASan) |
+| **Valgrind memcheck** | Uninitialised reads, invalid access, leaks | Periodic deep check (`make native-valgrind`) |
+
+### Compiler hardening flags
+
+The Meson build enables these unconditionally (see `meson.build`):
+- `-fstack-protector-strong` — stack buffer overflow detection
+- `-D_FORTIFY_SOURCE=2` — fortified libc functions (memcpy, strcpy bounds checking)
+- `-D_GLIBCXX_ASSERTIONS` — libstdc++ bounds checking (operator[], iterators)
+- `-Wconversion`, `-Wsign-compare` — catch implicit narrowing/sign issues
+- `-Wnull-dereference`, `-Wformat=2` — null safety and format string security
+- `-Wvla`, `-Wdouble-promotion`, `-Wimplicit-fallthrough` — common C++ pitfalls
+
+### Warning policy
+
+Pure C++ code (`native/src/`, `native/include/`, `native/tests/`) must build
+with zero warnings under `-Werror`. The pybind11 bindings (`native/bindings/`)
+are excluded from clang-tidy and cppcheck since they are temporary shim code.
+GCC-specific false positives in pybind11 template code are suppressed in the
+bindings build only.
+
+### Makefile targets
+
+| Target | In prep-pr? | Purpose |
+|---|---|---|
+| `make format-cpp` | via `make format` | Auto-format all C++ files |
+| `make lint-cpp` | Yes | clang-tidy + cppcheck + format check |
+| `make native-test` | Yes | Catch2 unit tests (normal build) |
+| `make native-test-asan` | Yes | Tests under ASan + UBSan |
+| `make native-test-tsan` | Yes | Tests under TSan |
+| `make native-scan-build` | Yes | Clang Static Analyzer |
+| `make native-valgrind` | No | Valgrind memcheck (periodic use) |
 
 ## Branch strategy
 
