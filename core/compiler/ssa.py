@@ -99,15 +99,32 @@ def _vars_in_script(source: str) -> frozenset[str]:
     return _VAR_REF_SCANNER.scan_script(source)
 
 
+_TCLTEST_BODY_OPTIONS = frozenset({"-setup", "-body", "-cleanup"})
+
+
 def _structural_body_indices(command: str, args: tuple[str, ...]) -> set[int]:
     """Return BODY arg indices that should be excluded from local statement uses.
 
     We only exclude handler-style bodies that are lowered/analyzed separately.
     Dynamic evaluation commands like ``eval`` still need their args treated as
     ordinary dataflow inputs (for taint and read-before-set tracking).
+
+    ``tcltest::test`` (and bare ``test`` after ``namespace import``) bodies
+    are excluded because the LSP does not inline them — variable references
+    inside the braced scripts would otherwise appear as top-level
+    reads-before-set (false W210).
     """
     if command in ("when", "proc"):
         return arg_indices_for_role(command, list(args), ArgRole.BODY)
+    if command in ("test", "tcltest::test"):
+        # test name description ?option value ...?
+        indices: set[int] = set()
+        i = 2
+        while i < len(args) - 1:
+            if args[i] in _TCLTEST_BODY_OPTIONS:
+                indices.add(i + 1)
+            i += 2
+        return indices
     return set()
 
 

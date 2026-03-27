@@ -21,6 +21,24 @@ _SOURCE_V1 = "Tcl stdlib tcltest package (v1 compat)"
 
 # Primary functional commands
 
+_TCLTEST_BODY_OPTIONS = frozenset({"-setup", "-body", "-cleanup"})
+
+
+def _test_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Resolve argument roles for ``tcltest::test``.
+
+    Syntax: test name description ?option value ...?
+    Options whose values are Tcl script bodies: -setup, -body, -cleanup.
+    """
+    roles: dict[int, ArgRole] = {}
+    # Skip name (0) and description (1), then scan option-value pairs.
+    i = 2
+    while i < len(args) - 1:
+        if args[i] in _TCLTEST_BODY_OPTIONS:
+            roles[i + 1] = ArgRole.BODY
+        i += 2
+    return roles
+
 
 @register
 class TcltestTest(CommandDef):
@@ -64,6 +82,7 @@ class TcltestTest(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(2)),
+            arg_role_resolver=_test_arg_roles,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE,
