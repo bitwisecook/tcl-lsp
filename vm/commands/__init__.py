@@ -31,6 +31,7 @@ def register_builtins() -> None:
         list_cmds,
         math_cmds,
         namespace_cmds,
+        oo_cmds,
         package_cmds,
         proc_cmds,
         regexp_cmds,
@@ -58,3 +59,4 @@ def register_builtins() -> None:
     encoding_cmds.register()
     trace_cmds.register()
     clock_cmds.register()
+    oo_cmds.register()

@@ -270,6 +270,9 @@ class CallFrame:
         "_globals",
         "_declared",
         "_interp",
+        "_oo_self",
+        "_oo_class",
+        "_oo_method",
     )
 
     def __init__(
@@ -295,6 +298,10 @@ class CallFrame:
         # Names declared via ``variable`` but not yet initialised.
         # These appear in ``info vars`` but ``info exists`` returns 0.
         self._declared: set[str] = set()
+        # OO context — set when executing a method body
+        self._oo_self: str | None = None
+        self._oo_class: str | None = None
+        self._oo_method: str | None = None
         # Optional interpreter reference for firing variable traces.
         self._interp = interp
 
