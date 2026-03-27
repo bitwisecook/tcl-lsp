@@ -216,8 +216,50 @@ Stored in `perf_history.sqlite3` as version `cpp-phase1-baseline`. Re-run
 after each phase to track impact:
 
 ```bash
-python3 scripts/perf_track.py bench --version "cpp-phase2-lexer"
+python3 scripts/perf_track.py bench --version "cpp-phaseN-label"
 python3 scripts/perf_track.py list
 python3 scripts/perf_track.py graph  # generates docs/perf/*.png
 ```
+
+### Phase 2: Lexer + Token Types
+
+**Lexer tokenisation** (Python `TclLexer` vs C++ `NativeTclLexer`):
+
+| Source | Size | Tokens | Python | C++ | Speedup |
+|---|---|---|---|---|---|
+| Small (1 line) | 22 B | 6 | 21.5 µs | 2.3 µs | **9.4x** |
+| Medium (200 lines) | 2 KB | 606 | 2.25 ms | 175 µs | **12.8x** |
+| Complex (800 lines) | 20 KB | 681 | 4.57 ms | 254 µs | **18.0x** |
+| Large (10K lines) | 230 KB | 60,000 | 217 ms | 19.6 ms | **11.0x** |
+
+Run with:
+
+```bash
+PYTHONPATH=builddir/native:. python3 scripts/bench_lexer.py
+```
+
+**Key insights**:
+- The C++ lexer delivers 9-18x speedup across all source sizes
+- Best speedup (18x) on realistic complex Tcl code — the fast-path
+  character scanning in C++ eliminates Python's per-character overhead
+- Token counts match exactly between Python and C++ implementations
+- The pybind11 boundary cost (creating ~60K Python Token objects for the
+  large test) accounts for most of the C++ time; the raw C++ tokenisation
+  is significantly faster than what the boundary cost shows
+- The real benefit will be seen in Phase 3+ when the segmenter consumes
+  tokens entirely in C++ without crossing the Python boundary
+
+**LSP server timings** (Phase 2, stored as `cpp-phase2-lexer`):
+
+| File | Lines | Tokens | OTT |
+|---|---|---|---|
+| irules_tcp | 139 | 265 | 113 ms |
+| long_code | 539 | 1,557 | 252 ms |
+| references | 350 | 368 | 99 ms |
+
+Note: These timings are similar to baseline because the native lexer is
+not yet wired into the LSP pipeline — it's exposed as `NativeTclLexer` in
+the native module but the Python code still uses its own `TclLexer`. The
+speedup will be visible once the segmenter and semantic tokens code path
+call the native lexer.
 
