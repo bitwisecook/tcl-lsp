@@ -4,6 +4,7 @@
 #include "tcl_lsp/core/source_position.hpp"
 #include "tcl_lsp/core/range.hpp"
 #include "tcl_lsp/core/document_buffer.hpp"
+#include "tcl_lsp/core/memory_stats.hpp"
 
 namespace py = pybind11;
 using namespace tcl_lsp;
@@ -111,4 +112,22 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
             auto [sl, sc, el, ec] = buf.chunk_line_range(start, end);
             return py::make_tuple(sl, sc, el, ec);
         }, py::arg("start_offset"), py::arg("end_offset"));
+
+    // MemoryStats — C++ heap memory snapshot via mallinfo2().
+    py::class_<MemoryStats>(m, "MemoryStats")
+        .def_readonly("arena_bytes", &MemoryStats::arena_bytes)
+        .def_readonly("mmap_bytes", &MemoryStats::mmap_bytes)
+        .def_readonly("used_bytes", &MemoryStats::used_bytes)
+        .def_readonly("free_bytes", &MemoryStats::free_bytes)
+        .def_readonly("total_allocated", &MemoryStats::total_allocated)
+        .def("__repr__", [](const MemoryStats& s) {
+            return "MemoryStats(arena=" + std::to_string(s.arena_bytes)
+                 + ", mmap=" + std::to_string(s.mmap_bytes)
+                 + ", used=" + std::to_string(s.used_bytes)
+                 + ", free=" + std::to_string(s.free_bytes)
+                 + ", total=" + std::to_string(s.total_allocated) + ")";
+        });
+
+    m.def("memory_stats", &memory_stats,
+          "Query C++ heap memory usage (mallinfo2 on Linux).");
 }

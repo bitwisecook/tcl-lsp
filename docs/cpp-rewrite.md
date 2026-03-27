@@ -138,34 +138,45 @@ PYTHONPATH=builddir/native:. python3 scripts/bench_native_types.py
 
 Test corpus: 230KB Tcl source, 10,000 lines. 100K iterations per operation.
 
+Memory tracked via three complementary methods:
+- **tracemalloc**: Python heap only (blind to C++ allocations)
+- **mallinfo2**: C++ heap only (Linux, via pybind11-exposed `memory_stats()`)
+- **RSS delta**: Process-level (captures both heaps)
+
 **DocumentBuffer** (where computation lives — the big wins):
 
 | Operation | Python | C++ | Speedup |
 |---|---|---|---|
-| `from_source` (230KB) | 71.1 ms | 138.9 µs | **512x** |
-| `offset_to_position` | 5.5 µs | 1.3 µs | **4.2x** |
-| `position_to_offset` | 7.5 µs | 1.1 µs | **6.8x** |
-| `range_from_offsets` | 16.7 µs | 1.3 µs | **12.8x** |
-| `chunk_line_range` | 6.0 µs | 1.3 µs | **4.6x** |
+| `from_source` (230KB) | 6.1 ms | 188 µs | **33x** |
+| `offset_to_position` | 1.0 µs | 445 ns | **2.3x** |
+| `position_to_offset` | 548 ns | 227 ns | **2.4x** |
+| `range_from_offsets` | 2.7 µs | 443 ns | **6.1x** |
+| `chunk_line_range` | 1.0 µs | 331 ns | **3.0x** |
 
 **Value types** (pybind11 wrapping overhead dominates at Python boundary):
 
 | Operation | Python | C++ | Note |
 |---|---|---|---|
-| SourcePosition create | 2.3 µs | 3.0 µs | pybind11 wrapper cost |
-| Range create | 1.9 µs | 2.5 µs | pybind11 wrapper cost |
-| Range.zero() | 4.3 µs | 1.1 µs | 3.9x (avoids dataclass init) |
+| SourcePosition create | 469 ns | 713 ns | pybind11 wrapper cost |
+| Range create | 1.1 µs | 1.4 µs | pybind11 wrapper cost |
 
-**Memory** (Python `tracemalloc` — C++ heap allocations invisible):
+**Memory** (10x large buffers, 230KB each):
 
 | Metric | Python | C++ |
 |---|---|---|
-| 10x large buffer (Python-tracked) | 3.89 MB | 992 B |
+| Python heap (tracemalloc) | 3.89 MB | 944 B |
+| C++ heap delta (mallinfo2) | 782 KB | 2.63 MB |
+| Total in-process | ~4.67 MB | ~2.63 MB |
 
-Note: the C++ DocumentBuffer allocates on the C++ heap which `tracemalloc`
-cannot see. The 992B is only the pybind11 wrapper objects. True C++ memory
-usage is ~230KB per buffer (source string + line starts vector), comparable
-to Python but without the per-object overhead of Python's allocator.
+The C++ buffers use more C++ heap than Python's C heap overhead because each
+buffer owns a `std::string` copy and a `vector<int32_t>` line-starts index.
+Python's overhead is split across its own heap (3.89 MB for the objects) plus
+C-level allocations for the underlying string/tuple data (782 KB).
+
+Total memory per buffer is comparable (~260 KB C++ vs ~467 KB Python), but
+the C++ version has no per-object Python overhead (no refcount, no type
+pointer, no `__dict__`, no slots metadata). This difference compounds as
+more types move to C++ in later phases.
 
 **Key insight**: The value types (SourcePosition, Range) show no speedup
 when accessed from Python because pybind11 wrapper creation dominates.
