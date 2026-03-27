@@ -71,11 +71,14 @@ from .static_loops import (
 from .tcl_expr_eval import eval_tcl_expr
 from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
+from .var_refs import VarReferenceScanner
 
 if TYPE_CHECKING:
     from .def_use import DefUseResult
     from .memory_ssa import MemorySSAFunction
     from .taint import TaintLattice
+
+_RETURN_VAR_SCANNER = VarReferenceScanner()
 
 
 def _expr_has_command(node: ExprNode) -> bool:
@@ -768,18 +771,12 @@ def _liveness(
 
 
 def _vars_in_return(value: str) -> set[str]:
-    """Extract variable names from a return value string using the lexer."""
-    result: set[str] = set()
-    lexer = TclLexer(value)
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-        if tok.type is TokenType.VAR:
-            name = _normalise_var_name(tok.text)
-            if name:
-                result.add(name)
-    return result
+    """Extract variable names from a return value string.
+
+    Uses ``VarReferenceScanner`` so that command substitutions like
+    ``[string length $x]`` are recursed into correctly.
+    """
+    return set(_RETURN_VAR_SCANNER.scan_script(value))
 
 
 def _collect_used_names(
@@ -807,9 +804,12 @@ def _collect_used_names(
         term = cfg.blocks[bn].terminator
         if isinstance(term, CFGBranch):
             used_names.update(vars_in_expr_node(term.condition))
-        if include_return_vars and isinstance(term, CFGReturn) and term.value is not None:
-            for name in _vars_in_return(term.value):
-                used_names.add(name)
+        if include_return_vars and isinstance(term, CFGReturn):
+            if term.value is not None:
+                for name in _vars_in_return(term.value):
+                    used_names.add(name)
+            if term.expr is not None:
+                used_names.update(vars_in_expr_node(term.expr))
 
     for bn, block in ssa.blocks.items():
         if bn not in considered:

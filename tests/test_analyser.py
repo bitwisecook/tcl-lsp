@@ -997,6 +997,76 @@ class TestInterpAlias:
         assert "::myalias" in result.command_aliases
         assert result.command_aliases["::myalias"] == ("list", ())
 
+    # return [expr/alias {...}] — issue #42 reopened
+    def test_return_expr_braced_no_w214(self):
+        """return [expr {$x + 1}] should not produce W214."""
+        source = "proc foo {x} { return [expr {$x + 1}] }"
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_return_expr_alias_no_w214(self):
+        """Issue #42 reopened: return [= {2*$width+2*$length}] with alias."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            proc pdPsCalc {width length} {
+                return [= {2*$width+2*$length}]
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_return_cmd_subst_no_w214(self):
+        """return [string length $x] should not produce W214."""
+        source = "proc foo {x} { return [string length $x] }"
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_issue_42_original_example(self):
+        """Full original example from issue #42 — moveKeyInDict."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            proc moveKeyInDict {dict key relPos} {
+                set keys [dkeys $dict]
+                set index [lsearch -exact $keys $key]
+                set newIndex [= {$index+$relPos}]
+                set prevKey [@ $keys $newIndex]
+                set newKeysOrder [lreplace [lreplace $keys $index $index $prevKey] $newIndex $newIndex $key]
+                foreach key $newKeysOrder {
+                    dict append newDict $key [dget $dict $key]
+                }
+                return $newDict
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_issue_42_reopened_example(self):
+        """Reopened example from issue #42 — pdPsCalc."""
+        source = textwrap.dedent("""\
+            interp alias {} = {} expr
+            set scriptPath [file dirname [file normalize [info script]]]
+            proc pdPsCalc {width length} {
+                return [= {2*$width+2*$length}]
+            }
+            set vSupply 2.0
+            set inpFreq 850e6
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_return_unused_param_still_warns(self):
+        """Truly unused param should still produce W214 with return."""
+        source = "proc foo {x y} { return [expr {$x + 1}] }"
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 1
+        assert "y" in w214[0].message
+
 
 class TestW123UnresolvedCommand:
     """W123: Unresolved command detection and unknown proc analysis."""

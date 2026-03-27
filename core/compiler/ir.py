@@ -100,6 +100,7 @@ class IRCall:
 class IRReturn:
     range: Range
     value: str | None = None
+    expr: ExprNode | None = None
 
 
 @dataclass(frozen=True, slots=True)

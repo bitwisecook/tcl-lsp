@@ -148,8 +148,11 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                 for name in call_defs:
                     vars_found.add(name)
                     reads_own_def.add(name)
-        case IRReturn(value=value) if value is not None:
-            vars_found |= _vars_in_word(value)
+        case IRReturn(value=value, expr=expr):
+            if value is not None:
+                vars_found |= _vars_in_word(value)
+            if expr is not None:
+                vars_found |= _vars_in_expr(expr)
         case IRBarrier(command=command, args=args):
             vars_found |= _vars_in_word(command)
             body_indices = _structural_body_indices(command, args)

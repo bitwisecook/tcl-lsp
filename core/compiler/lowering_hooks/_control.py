@@ -27,6 +27,12 @@ def lower_expr(lowerer: object, cmd: _Command) -> object | None:
 
 def lower_return(lowerer: object, cmd: _Command) -> object | None:
     """Lower ``return`` to IRReturn or IRBarrier for options."""
+    from ...common.alias import CommandAliasMap
+    from ...common.alias import expr_alias_names as _expr_alias_names
+    from ...parsing.command_shapes import extract_single_expr_argument
+    from ...parsing.expr_parser import parse_expr as _parse_expr
+    from ...parsing.tokens import TokenType
+
     args = cmd.args
     if args and args[0].startswith("-"):
         return IRBarrier(
@@ -37,7 +43,16 @@ def lower_return(lowerer: object, cmd: _Command) -> object | None:
             tokens=cmd.cmd_tokens,
         )
     value = args[0] if args else None
-    return IRReturn(range=cmd.range, value=value)
+    expr = None
+    if value is not None and cmd.arg_single_token and cmd.arg_single_token[0]:
+        tok = cmd.arg_tokens[0]
+        if tok.type is TokenType.CMD:
+            aliases: CommandAliasMap = getattr(lowerer, "_command_aliases", {})
+            alias_names = _expr_alias_names(aliases)
+            expr_arg = extract_single_expr_argument(tok.text, expr_aliases=alias_names or None)
+            if expr_arg is not None:
+                expr = _parse_expr(expr_arg)
+    return IRReturn(range=cmd.range, value=value, expr=expr)
 
 
 def register() -> None:
