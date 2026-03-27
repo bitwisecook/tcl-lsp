@@ -1,5 +1,6 @@
-#include <catch2/catch_test_macros.hpp>
 #include "tcl_lsp/core/range.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 #include <unordered_set>
 
@@ -44,7 +45,7 @@ TEST_CASE("Range usable in unordered_set", "[range]") {
     std::unordered_set<Range, Range::Hash> ranges;
     ranges.insert(Range{SourcePosition{0, 0, 0}, SourcePosition{1, 0, 10}});
     ranges.insert(Range{SourcePosition{2, 0, 20}, SourcePosition{3, 0, 30}});
-    ranges.insert(Range{SourcePosition{0, 0, 0}, SourcePosition{1, 0, 10}});  // duplicate
+    ranges.insert(Range{SourcePosition{0, 0, 0}, SourcePosition{1, 0, 10}}); // duplicate
 
     CHECK(ranges.size() == 2);
 }

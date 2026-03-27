@@ -9,7 +9,7 @@ namespace {
 
 auto compute_line_starts(std::string_view source) -> std::vector<int32_t> {
     std::vector<int32_t> starts;
-    starts.reserve(source.size() / 40 + 1);  // rough estimate: ~40 chars/line
+    starts.reserve(source.size() / 40 + 1); // rough estimate: ~40 chars/line
     starts.push_back(0);
     for (int32_t i = 0; i < static_cast<int32_t>(source.size()); ++i) {
         if (source[static_cast<std::size_t>(i)] == '\n') {
@@ -19,19 +19,16 @@ auto compute_line_starts(std::string_view source) -> std::vector<int32_t> {
     return starts;
 }
 
-}  // namespace
+} // namespace
 
-DocumentBuffer::DocumentBuffer(
-    std::string source,
-    std::optional<int> version,
-    std::vector<int32_t> line_starts)
-    : source_(std::move(source))
-    , version_(version)
-    , line_starts_(std::move(line_starts)) {}
+DocumentBuffer::DocumentBuffer(std::string source,
+                               std::optional<int> version,
+                               std::vector<int32_t> line_starts)
+    : source_(std::move(source)), version_(version), line_starts_(std::move(line_starts)) {}
 
 auto DocumentBuffer::from_source(std::string source, std::optional<int> version) -> DocumentBuffer {
     auto line_starts = compute_line_starts(source);
-    return DocumentBuffer(std::move(source), version, std::move(line_starts));
+    return {std::move(source), version, std::move(line_starts)};
 }
 
 auto DocumentBuffer::source() const noexcept -> std::string_view {
@@ -48,7 +45,7 @@ auto DocumentBuffer::lines() const -> std::span<const std::string_view> {
         result.reserve(line_starts_.size());
         for (std::size_t i = 0; i < line_starts_.size(); ++i) {
             auto start = static_cast<std::size_t>(line_starts_[i]);
-            std::size_t end;
+            std::size_t end = 0;
             if (i + 1 < line_starts_.size()) {
                 // Exclude the trailing '\n'.
                 end = static_cast<std::size_t>(line_starts_[i + 1]) - 1;
@@ -82,13 +79,12 @@ auto DocumentBuffer::position_to_offset(int32_t line, int32_t character) const -
     if (line_starts_.empty()) {
         return 0;
     }
-    auto safe_line = std::clamp(line, int32_t{0},
-                                static_cast<int32_t>(line_starts_.size()) - 1);
+    auto safe_line = std::clamp(line, int32_t{0}, static_cast<int32_t>(line_starts_.size()) - 1);
     auto line_start = line_starts_[static_cast<std::size_t>(safe_line)];
 
-    int32_t line_end;
+    int32_t line_end = 0;
     if (static_cast<std::size_t>(safe_line) + 1 < line_starts_.size()) {
-        line_end = line_starts_[static_cast<std::size_t>(safe_line) + 1] - 1;  // exclude '\n'
+        line_end = line_starts_[static_cast<std::size_t>(safe_line) + 1] - 1; // exclude '\n'
     } else {
         line_end = static_cast<int32_t>(source_.size());
     }
@@ -121,4 +117,4 @@ auto DocumentBuffer::chunk_line_range(int32_t start_offset, int32_t end_offset) 
     return {sl, sc, el, ec};
 }
 
-}  // namespace tcl_lsp
+} // namespace tcl_lsp

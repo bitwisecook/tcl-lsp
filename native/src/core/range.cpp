@@ -13,4 +13,4 @@ auto to_string(const Range& r) -> std::string {
     return "Range(start=" + to_string(r.start) + ", end=" + to_string(r.end) + ")";
 }
 
-}  // namespace tcl_lsp
+} // namespace tcl_lsp

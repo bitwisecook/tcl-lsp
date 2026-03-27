@@ -15,9 +15,9 @@ auto SourcePosition::Hash::operator()(const SourcePosition& p) const noexcept ->
 }
 
 auto to_string(const SourcePosition& p) -> std::string {
-    return "SourcePosition(line=" + std::to_string(p.line)
-         + ", character=" + std::to_string(p.character)
-         + ", offset=" + std::to_string(p.offset) + ")";
+    return "SourcePosition(line=" + std::to_string(p.line) +
+           ", character=" + std::to_string(p.character) + ", offset=" + std::to_string(p.offset) +
+           ")";
 }
 
-}  // namespace tcl_lsp
+} // namespace tcl_lsp

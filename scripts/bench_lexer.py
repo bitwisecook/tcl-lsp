@@ -17,7 +17,7 @@ import time
 
 # Detect native module availability.
 try:
-    from _tcl_lsp_native import NativeTclLexer, LexerConfig
+    from _tcl_lsp_native import NativeTclLexer
 
     HAS_NATIVE = True
 except ImportError:
@@ -26,12 +26,13 @@ except ImportError:
 from core.parsing.lexer import TclLexer as PyTclLexer
 
 # Test sources of varying sizes.
-SMALL_SOURCE = 'set x [expr {$a + $b}]'
-MEDIUM_SOURCE = SMALL_SOURCE + '\n' * 100 + 'puts "hello $name"\n' * 100
-LARGE_SOURCE = 'set x [expr {$a + $b}]\n' * 10_000  # ~230KB, 10K lines
+SMALL_SOURCE = "set x [expr {$a + $b}]"
+MEDIUM_SOURCE = SMALL_SOURCE + "\n" * 100 + 'puts "hello $name"\n' * 100
+LARGE_SOURCE = "set x [expr {$a + $b}]\n" * 10_000  # ~230KB, 10K lines
 
 # Realistic Tcl code with varied token types.
-COMPLEX_SOURCE = """
+COMPLEX_SOURCE = (
+    """
 # Configuration
 package require http 2.7
 namespace eval ::myapp {
@@ -74,7 +75,9 @@ foreach {key val} [array get ::env] {
         dict set ::myapp::config [string tolower $name] $val
     }
 }
-""" * 20  # ~20KB, varied tokens
+"""
+    * 20
+)  # ~20KB, varied tokens
 
 
 def _fmt_ns(ns: float) -> str:
@@ -152,7 +155,9 @@ def main():
             py_toks = PyTclLexer(source).tokenise_all()
             native_toks = NativeTclLexer(source).tokenise_all()
             match = len(py_toks) == len(native_toks)
-            print(f"  {label}: Python={len(py_toks)}, Native={len(native_toks)} {'OK' if match else 'MISMATCH!'}")
+            print(
+                f"  {label}: Python={len(py_toks)}, Native={len(native_toks)} {'OK' if match else 'MISMATCH!'}"
+            )
 
         # Benchmark native lexer.
         print("\n--- Native lexer ---")
@@ -171,7 +176,9 @@ def main():
             py_ns = py_results[label]
             native_ns = native_results[label]
             speedup = py_ns / native_ns if native_ns > 0 else float("inf")
-            print(f"  {label:<35s} {_fmt_ns(py_ns):>10s} {_fmt_ns(native_ns):>10s} {speedup:>9.1f}x")
+            print(
+                f"  {label:<35s} {_fmt_ns(py_ns):>10s} {_fmt_ns(native_ns):>10s} {speedup:>9.1f}x"
+            )
 
     else:
         print("\n[Native module not available — run with PYTHONPATH=builddir/native:.]")

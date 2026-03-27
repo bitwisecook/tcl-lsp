@@ -1,0 +1,18 @@
+// cppcheck suppression file for tcl-lsp C++ code.
+// Suppress pybind11 binding noise — those files are shim code.
+*:native/bindings/*
+// Suppress Catch2 / subproject noise.
+*:subprojects/*
+// missingIncludeSystem: we don't need cppcheck to verify system headers exist.
+missingIncludeSystem
+// unusedFunction: public API used from pybind11 bindings and tests, not visible
+// to cppcheck when scanning only the source directory.
+unusedFunction
+// shadowFunction: local variables caching member state in hot loops intentionally
+// shadow public accessor methods (e.g., local `pos` vs `pos()` accessor).
+shadowFunction
+// redundantAssignment: backslash-newline continuation intentionally reassigns col
+// after incrementing it (the increment was for the backslash, the reset for newline).
+redundantAssignment:native/src/parsing/lexer.cpp
+// unmatchedSuppression: wildcard suppressions for bindings/subprojects above.
+unmatchedSuppression

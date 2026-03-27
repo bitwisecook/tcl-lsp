@@ -1,5 +1,6 @@
-#include <catch2/catch_test_macros.hpp>
 #include "tcl_lsp/core/source_position.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 #include <unordered_set>
 
@@ -47,7 +48,7 @@ TEST_CASE("SourcePosition usable in unordered_set", "[source_position]") {
     std::unordered_set<SourcePosition, SourcePosition::Hash> positions;
     positions.insert({0, 0, 0});
     positions.insert({1, 5, 10});
-    positions.insert({0, 0, 0});  // duplicate
+    positions.insert({0, 0, 0}); // duplicate
 
     CHECK(positions.size() == 2);
 }
