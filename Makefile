@@ -119,7 +119,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -643,6 +643,16 @@ $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 	@echo "Built: $(JB_PLUGIN)"
 	@ls -lh $(JB_PLUGIN)
 
+publish-jetbrains: jetbrains ## Publish JetBrains plugin to JetBrains Marketplace
+	@echo "==> Verifying JetBrains Marketplace credentials"
+	@if [ -z "$$JETBRAINS_TOKEN" ]; then \
+		echo "error: JETBRAINS_TOKEN environment variable is not set"; \
+		echo "       Create a token at https://plugins.jetbrains.com/author/me/tokens"; \
+		exit 1; \
+	fi
+	@echo "==> Publishing JetBrains plugin to Marketplace"
+	cd $(JB_DIR) && ./gradlew publishPlugin
+
 # Sublime Text package
 
 ST_DIR      := $(ROOT)editors/sublime-text
@@ -681,6 +691,11 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
 	@echo "Built: $(ST_PACKAGE)"
 	@echo "       $(BUILD_DIR)/Tcl.sublime-package  (ready to install)"
 	@ls -lh $(ST_PACKAGE)
+
+publish-sublime: sublime ## Publish Sublime Text package (via GitHub Release)
+	@echo "==> Sublime Text package built: $(ST_PACKAGE)"
+	@echo "    Package Control picks up new versions from GitHub Releases automatically."
+	@echo "    Ensure the GitHub Release for this tag includes the .sublime-package artifact."
 
 # Zed extension
 
@@ -724,6 +739,11 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY
 	@echo "Built: $(ZED_ARCHIVE)"
 	@ls -lh $(ZED_ARCHIVE)
 
+publish-zed: zed ## Publish Zed extension (via GitHub Release)
+	@echo "==> Zed extension built: $(ZED_ARCHIVE)"
+	@echo "    Zed extensions are published via https://github.com/zed-industries/extensions"
+	@echo "    Ensure the GitHub Release for this tag includes the .zip artifact."
+
 # Release
 
 release: package-vsix zipapp-cli zipapp-tcl zipapp-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed ## Build all release artifacts (parity with tagged CI release jobs)
@@ -732,6 +752,8 @@ release: package-vsix zipapp-cli zipapp-tcl zipapp-gui-cdn zipapp-lsp claude-ski
 
 release-tag: ## Bump version, annotated-tag, and push (V=x.y.z)
 	@bash $(ROOT)scripts/release.sh $(V)
+
+publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
 
 # KCS help database
 
