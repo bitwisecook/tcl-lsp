@@ -32,7 +32,6 @@ import os
 import sqlite3
 import subprocess
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -84,7 +83,8 @@ def _git_sha() -> str:
     try:
         return subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],
-            cwd=str(PROJECT_DIR), text=True,
+            cwd=str(PROJECT_DIR),
+            text=True,
         ).strip()
     except Exception:
         return "unknown"
@@ -95,7 +95,8 @@ def _git_version_label() -> str:
     try:
         desc = subprocess.check_output(
             ["git", "describe", "--tags", "--always", "--dirty=-dev"],
-            cwd=str(PROJECT_DIR), text=True,
+            cwd=str(PROJECT_DIR),
+            text=True,
         ).strip()
         return desc
     except Exception:
@@ -111,13 +112,24 @@ def _run_bench(server_dir: str, file_path: str, iterations: int = 2) -> dict | N
     try:
         result = subprocess.run(
             [
-                "uv", "run", "--directory", server_dir, "--no-dev",
-                "python", perf_script,
-                "--iterations", str(iterations),
-                "--json", "--server-dir", server_dir,
+                "uv",
+                "run",
+                "--directory",
+                server_dir,
+                "--no-dev",
+                "python",
+                perf_script,
+                "--iterations",
+                str(iterations),
+                "--json",
+                "--server-dir",
+                server_dir,
                 abs_file,
             ],
-            capture_output=True, text=True, timeout=180, cwd=server_dir,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            cwd=server_dir,
         )
         if result.returncode != 0:
             return None
@@ -140,10 +152,20 @@ def _count_diagnostics(server_dir: str, file_path: str) -> tuple[int, int]:
             return 0, 0
         result = subprocess.run(
             [
-                "uv", "run", "--directory", server_dir, "--no-dev",
-                "python", lsp_client, "diagnostics", os.path.abspath(file_path),
+                "uv",
+                "run",
+                "--directory",
+                server_dir,
+                "--no-dev",
+                "python",
+                lsp_client,
+                "diagnostics",
+                os.path.abspath(file_path),
             ],
-            capture_output=True, text=True, timeout=60, cwd=server_dir,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=server_dir,
         )
         if result.returncode != 0:
             return 0, 0
@@ -220,7 +242,8 @@ def store_results(results: list[dict]) -> None:
     """Store benchmark results in the SQLite database."""
     db = get_db()
     for row in results:
-        db.execute("""
+        db.execute(
+            """
             INSERT INTO runs (version, git_sha, timestamp, file_label, file_path,
                               lines, tokens, open_to_tokens_ms, request_to_response_ms,
                               update_ms, semantic_tokens_ms, diagnostics, optimisations,
@@ -229,7 +252,9 @@ def store_results(results: list[dict]) -> None:
                     :lines, :tokens, :open_to_tokens_ms, :request_to_response_ms,
                     :update_ms, :semantic_tokens_ms, :diagnostics, :optimisations,
                     :memory_mb, :raw_json)
-        """, row)
+        """,
+            row,
+        )
     db.commit()
     db.close()
     print(f"  Stored {len(results)} results in {DB_PATH}")
@@ -242,6 +267,7 @@ def render_graphs(output_dir: str | None = None) -> list[str]:
     """
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         import seaborn as sns
@@ -321,14 +347,22 @@ def render_graphs(output_dir: str | None = None) -> list[str]:
         offset = (fi - len(file_labels) / 2 + 0.5) * bar_width
         bars = ax.bar(
             [x + offset for x in x_positions],
-            values, bar_width,
-            label=fl, color=palette[fi], edgecolor="white", linewidth=0.5,
+            values,
+            bar_width,
+            label=fl,
+            color=palette[fi],
+            edgecolor="white",
+            linewidth=0.5,
         )
         for bar, val in zip(bars, values):
             if val > 0:
                 ax.text(
-                    bar.get_x() + bar.get_width() / 2, bar.get_height() + 5,
-                    f"{val:.0f}", ha="center", va="bottom", fontsize=7,
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 5,
+                    f"{val:.0f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
                 )
 
     ax.set_xlabel("Version")
@@ -358,22 +392,32 @@ def render_graphs(output_dir: str | None = None) -> list[str]:
         offset = (fi - len(file_labels) / 2 + 0.5) * bar_width
         ax.bar(
             [x + offset for x in x_positions],
-            update_vals, bar_width,
+            update_vals,
+            bar_width,
             label=f"{fl} — analysis" if fi == 0 else "",
-            color=palette[fi], alpha=0.7, edgecolor="white", linewidth=0.5,
+            color=palette[fi],
+            alpha=0.7,
+            edgecolor="white",
+            linewidth=0.5,
         )
         ax.bar(
             [x + offset for x in x_positions],
-            sem_vals, bar_width,
+            sem_vals,
+            bar_width,
             bottom=update_vals,
             label=f"{fl} — sem tokens" if fi == 0 else "",
-            color=palette[fi], alpha=0.4, edgecolor="white", linewidth=0.5,
+            color=palette[fi],
+            alpha=0.4,
+            edgecolor="white",
+            linewidth=0.5,
             hatch="//",
         )
 
     ax.set_xlabel("Version")
     ax.set_ylabel("Time (ms)")
-    ax.set_title("Pipeline Breakdown: Analysis + Semantic Token Generation", fontweight="bold", fontsize=14)
+    ax.set_title(
+        "Pipeline Breakdown: Analysis + Semantic Token Generation", fontweight="bold", fontsize=14
+    )
     ax.set_xticks(x_positions)
     ax.set_xticklabels(versions, rotation=30, ha="right")
     ax.set_ylim(bottom=0)
@@ -388,8 +432,12 @@ def render_graphs(output_dir: str | None = None) -> list[str]:
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
     for fi, fl in enumerate(file_labels):
-        diag_vals = [data_by_file.get(fl, {}).get(v, {}).get("diagnostics", 0) or 0 for v in versions]
-        opt_vals = [data_by_file.get(fl, {}).get(v, {}).get("optimisations", 0) or 0 for v in versions]
+        diag_vals = [
+            data_by_file.get(fl, {}).get(v, {}).get("diagnostics", 0) or 0 for v in versions
+        ]
+        opt_vals = [
+            data_by_file.get(fl, {}).get(v, {}).get("optimisations", 0) or 0 for v in versions
+        ]
         ax1.plot(versions, diag_vals, marker="o", label=fl, color=palette[fi], linewidth=2)
         ax2.plot(versions, opt_vals, marker="s", label=fl, color=palette[fi], linewidth=2)
 
@@ -439,12 +487,16 @@ def render_graphs(output_dir: str | None = None) -> list[str]:
     print(f"  Generated {path4}")
 
     # Graph 5: Peak memory usage
-    mem_rows = db2.execute("""
+    mem_rows = (
+        db2.execute("""
         SELECT version, peak_rss_mb FROM memory_usage
         WHERE peak_rss_mb > 0
         GROUP BY version
         ORDER BY version
-    """).fetchall() if db2 else []
+    """).fetchall()
+        if db2
+        else []
+    )
     if mem_rows:
         mem_versions = []
         mem_values = []
@@ -461,11 +513,22 @@ def render_graphs(output_dir: str | None = None) -> list[str]:
             mem_versions, mem_values = zip(*sorted_pairs) if sorted_pairs else ([], [])
 
             fig, ax = plt.subplots(figsize=(10, 5))
-            bars = ax.bar(mem_versions, mem_values, color=sns.color_palette("husl", len(mem_versions)),
-                          edgecolor="white", linewidth=0.5)
+            bars = ax.bar(
+                mem_versions,
+                mem_values,
+                color=sns.color_palette("husl", len(mem_versions)),
+                edgecolor="white",
+                linewidth=0.5,
+            )
             for bar, val in zip(bars, mem_values):
-                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
-                        f"{val:.0f}", ha="center", va="bottom", fontsize=9)
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 0.5,
+                    f"{val:.0f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=9,
+                )
             ax.set_xlabel("Version")
             ax.set_ylabel("Peak RSS (MB)")
             ax.set_title("Server Peak Memory Usage (idle)", fontweight="bold", fontsize=14)
@@ -496,7 +559,9 @@ def list_results() -> None:
     if not rows:
         print("No data in database.")
         return
-    print(f"{'Version':<25s} {'File':<30s} {'OTT':>6s} {'Upd':>6s} {'Sem':>6s} {'Tok':>5s} {'Diag':>5s} {'Opt':>4s}")
+    print(
+        f"{'Version':<25s} {'File':<30s} {'OTT':>6s} {'Upd':>6s} {'Sem':>6s} {'Tok':>5s} {'Diag':>5s} {'Opt':>4s}"
+    )
     print("-" * 110)
     for r in rows:
         print(
@@ -537,7 +602,7 @@ def main() -> None:
         list_results()
 
     elif args.command == "all":
-        print(f"Benchmarking current branch...")
+        print("Benchmarking current branch...")
         results = bench_version(iterations=args.iterations)
         if results:
             store_results(results)

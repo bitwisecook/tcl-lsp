@@ -1178,7 +1178,7 @@ _TIMING_RE = re.compile(r"\[timing\]\s+(\S+)\s+([\d.]+)ms")
 def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1) -> None:
     """Benchmark time-to-semantic-tokens and collect server timing breakdown."""
     n_lines = content.count("\n") + 1
-    print(f"=== Benchmark ===")
+    print("=== Benchmark ===")
     print(f"  File: {uri.split('/')[-1]}")
     print(f"  Lines: {n_lines}, Size: {len(content)} bytes")
     print(f"  Iterations: {iterations}")
@@ -1231,7 +1231,7 @@ def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1)
         print(f"    Wall clock (request → response): {wall_ms:.1f}ms")
         print(f"    Tokens: {n_tokens}")
         if server_timings:
-            print(f"    Server timings:")
+            print("    Server timings:")
             for label, ms in sorted(server_timings.items()):
                 print(f"      {label}: {ms:.0f}ms")
         print()
@@ -1264,10 +1264,10 @@ def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1)
                 m = _TIMING_RE.search(line)
                 if m:
                     server_timings[m.group(1)] = float(m.group(2))
-            print(f"  After mid-file edit:")
+            print("  After mid-file edit:")
             print(f"    Wall clock: {(t1 - t0) * 1000:.1f}ms")
             if server_timings:
-                print(f"    Server timings:")
+                print("    Server timings:")
                 for label, ms in sorted(server_timings.items()):
                     print(f"      {label}: {ms:.0f}ms")
             print()
@@ -1298,7 +1298,7 @@ def cmd_logs(client: LspClient, uri: str, *, timing_only: bool = False) -> None:
     timing_lines = client.get_timing_lines()
     if timing_lines:
         print()
-        print(f"=== Timing Summary ===")
+        print("=== Timing Summary ===")
         timings: dict[str, float] = {}
         for line in timing_lines:
             m = _TIMING_RE.search(line)
@@ -1402,7 +1402,9 @@ examples:
     p.add_argument("file", help="Tcl file to analyze")
 
     # bench
-    p = sub.add_parser("bench", help="Benchmark time-to-semantic-tokens with server timing breakdown")
+    p = sub.add_parser(
+        "bench", help="Benchmark time-to-semantic-tokens with server timing breakdown"
+    )
     p.add_argument("file", help="Tcl file to benchmark")
     p.add_argument(
         "--iterations", type=int, default=1, help="Number of benchmark iterations (default: 1)"

@@ -567,13 +567,19 @@ def classify_side_effects(
         if cached is not None:
             return cached
         result = _classify_side_effects_impl(
-            command, args, dialect=dialect, subcommand=subcommand,
+            command,
+            args,
+            dialect=dialect,
+            subcommand=subcommand,
         )
         if len(_side_effect_cache) < _SIDE_EFFECT_CACHE_MAX:
             _side_effect_cache[cache_key] = result
         return result
     return _classify_side_effects_impl(
-        command, args, dialect=dialect, subcommand=subcommand,
+        command,
+        args,
+        dialect=dialect,
+        subcommand=subcommand,
         callee_summary=callee_summary,
     )
 

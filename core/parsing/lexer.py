@@ -17,11 +17,7 @@ _EOL_CHARS = frozenset(("\n", ";"))
 _SEPARATOR_CHARS = frozenset((" ", "\t", "\n", "\r", "\x0b", "\x0c", ";"))
 _AFTER_CLOSE_BRACE = frozenset((" ", "\t", "\n", "\r", "\x0b", "\x0c", ";"))
 _AFTER_CLOSE_QUOTE = frozenset((" ", "\t", "\n", "\r", "\x0b", "\x0c", ";", "]"))
-_IDENT_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyz"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "_0123456789"
-)
+_IDENT_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")
 
 # Thread-local storage for lexer flags that are modified during VM compilation.
 # These must be thread-local because the VM runs in daemon threads and
