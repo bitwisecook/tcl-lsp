@@ -36,6 +36,7 @@ be invoked from source (`uv run python -m server`) or as a standalone zipapp
 `.iapp`, `.iappimpl`, `.impl`, `.apl`, `.exp`, plus shebang detection for
 `#!/usr/bin/tclsh`, `#!/usr/bin/wish`, and `#!/usr/bin/expect`.
 Files named `presentation` (no extension) are auto-detected as APL.
+Per-file `# tcl-dialect:` comment directives pin a specific dialect.
 
 ### VS Code
 
@@ -1225,6 +1226,32 @@ validation rules keyed by dialect.  Switching the dialect profile changes
 which commands are known, which are deprecated, and which event/layer
 constraints apply.
 
+### Automatic dialect detection
+
+The dialect is selected automatically using the following priority chain
+(highest to lowest):
+
+1. **Editor language ID** -- opening a file as `tcl-irule`, `tcl8.4`, etc.
+   selects the matching dialect immediately.
+2. **File extension** -- `.irul`/`.irule` → `f5-irules`,
+   `.iapp`/`.iappimpl`/`.impl` → `f5-iapps`, `.exp` → `expect`.
+3. **Comment directive** -- a `# tcl-dialect: <dialect>` comment in the
+   first 5 lines of a file pins the dialect for that file:
+
+   ```tcl
+   # tcl-dialect: tcl8.4
+   set x 1
+   ```
+4. **Shebang** -- `#!/usr/bin/env tclsh8.5` selects `tcl8.5`;
+   `#!/usr/bin/expect` selects `expect`.
+5. **User setting** -- the `tclLsp.dialect` configuration value acts as the
+   default for files that have no per-file hint.
+6. **Hardcoded fallback** -- `tcl8.6` when nothing else matches.
+
+Per-file hints (directive, shebang, extension) always take priority over
+the global setting, so different files in the same workspace can target
+different Tcl versions without manual switching.
+
 | Dialect | Description |
 |---------|-------------|
 | `tcl8.4` | Tcl 8.4 core commands |
@@ -1944,7 +1971,7 @@ Server/runtime settings are available through the `tclLsp.*` namespace.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `dialect` | `tcl8.6` | Command/signature profile (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `synopsys-eda-tcl`, `cadence-eda-tcl`, `xilinx-eda-tcl`, `intel-quartus-eda-tcl`, `mentor-eda-tcl`, `expect`) |
+| `dialect` | `tcl8.6` | Default dialect for files without a shebang or `# tcl-dialect:` comment directive. Per-file hints take priority. |
 | `extraCommands` | `[]` | Extra command names treated as known varargs commands |
 | `libraryPaths` | `[]` | Additional directories to scan for Tcl packages and libraries |
 
