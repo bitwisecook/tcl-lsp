@@ -96,4 +96,12 @@ suite("Dialect Detection", () => {
     );
     assert.ok(labels.includes("spawn"), 'Expected "spawn" completion for .exp file');
   });
+
+  test("uses # tcl-dialect: comment directive for Tcl version", async () => {
+    const uri = getDocUri("dialect-directive84.tcl");
+    await activate(uri);
+
+    const labels = await completionLabels(uri, new vscode.Position(1, 2));
+    assert.ok(!labels.includes("try"), 'Did not expect "try" completion for tcl-dialect tcl8.4');
+  });
 });

@@ -2937,7 +2937,7 @@
               "Mentor/Siemens EDA commands (ModelSim, Questa, Calibre)",
               "Expect (automate interactive programs)"
             ],
-            "description": "Command/signature profile used for diagnostics, completion, and hover.",
+            "description": "Default dialect for files without a shebang or ``# tcl-dialect:`` comment directive. Per-file hints (shebang, comment directive, file extension) take priority over this setting.",
             "order": 2
           },
           "tclLsp.extraCommands": {

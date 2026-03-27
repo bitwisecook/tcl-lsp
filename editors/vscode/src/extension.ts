@@ -520,8 +520,10 @@ export async function activate(context: ExtensionContext) {
       if (!isTclLanguage(e.document.languageId)) {
         return;
       }
-      const touchesFirstLine = e.contentChanges.some((change) => change.range.start.line === 0);
-      if (touchesFirstLine) {
+      const touchesDirectiveLines = e.contentChanges.some(
+        (change) => change.range.start.line < DIALECT_DIRECTIVE_SCAN_LINES,
+      );
+      if (touchesDirectiveLines) {
         void applyDialectForDocument(e.document);
       }
       explorerDocChanged();
@@ -750,17 +752,24 @@ async function selectDialect(): Promise<void> {
   }
 }
 
+/** Regex for the ``# tcl-dialect: <dialect>`` per-file directive. */
+const DIALECT_DIRECTIVE_RE = /^#\s*tcl-dialect:\s*(\S+)/i;
+
+/** Maximum number of lines to scan for a ``# tcl-dialect:`` directive. */
+const DIALECT_DIRECTIVE_SCAN_LINES = 5;
+
 function detectDialectFromDocument(document: TextDocument): string {
+  // 1. Language ID from editor (highest priority — unambiguous).
   const langDialect = LANGUAGE_ID_DIALECTS[document.languageId];
   if (langDialect) {
     return langDialect;
   }
 
+  // 2. File extension for non-Tcl file types.
   const fileName = document.fileName.toLowerCase();
   const extensionMatch = fileName.match(/(\.[^./\\]+)$/);
   const extension = extensionMatch ? extensionMatch[1] : "";
 
-  let dialect = DEFAULT_DIALECT;
   switch (extension) {
     case ".irul":
     case ".irule":
@@ -771,17 +780,21 @@ function detectDialectFromDocument(document: TextDocument): string {
       return "f5-iapps";
     case ".exp":
       return "expect";
-    case ".tcl":
-    case ".tk":
-    case ".itcl":
-    case ".tm":
-      dialect = DEFAULT_DIALECT;
-      break;
-    default:
-      dialect = DEFAULT_DIALECT;
-      break;
   }
 
+  // 3. Comment directive ``# tcl-dialect: <dialect>`` in the first few lines.
+  const scanLines = Math.min(document.lineCount, DIALECT_DIRECTIVE_SCAN_LINES);
+  for (let i = 0; i < scanLines; i++) {
+    const directiveMatch = document.lineAt(i).text.match(DIALECT_DIRECTIVE_RE);
+    if (directiveMatch) {
+      const candidate = directiveMatch[1].toLowerCase();
+      if (candidate in DIALECT_LABELS) {
+        return candidate;
+      }
+    }
+  }
+
+  // 4. Shebang detection.
   if (document.lineCount > 0) {
     const firstLine = document.lineAt(0).text;
     if (/^#!.*\bexpect\b/i.test(firstLine)) {
@@ -791,12 +804,19 @@ function detectDialectFromDocument(document: TextDocument): string {
     if (shebangMatch) {
       const versionDialect = TCL_VERSION_DIALECTS[shebangMatch[1]];
       if (versionDialect) {
-        dialect = versionDialect;
+        return versionDialect;
       }
     }
   }
 
-  return dialect;
+  // 5. User's configured default dialect (tclLsp.dialect setting).
+  const configured = workspace.getConfiguration("tclLsp").get<string>("dialect", "");
+  if (configured && configured in DIALECT_LABELS) {
+    return configured;
+  }
+
+  // 6. Hardcoded fallback.
+  return DEFAULT_DIALECT;
 }
 
 export async function setServerDialect(dialect: string): Promise<void> {

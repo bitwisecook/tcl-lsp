@@ -1864,8 +1864,9 @@ async def _publish_diagnostics(
     disabled_optimisations = set(feature_config.disabled_optimisations)
 
     # Full analysis: compile, analyse, build chunk caches.
-    # Run in a background thread so the event loop stays responsive for
-    # hover, completion, and semantic-token requests during analysis.
+    # Run in a background thread so the event loop stays responsive —
+    # semantic token requests can be served with syntax-only tokens
+    # (from update_source_quick above) while analysis runs.
     t_update = time.perf_counter()
     did_analyse = needs_analysis or force_reanalyse
     if did_analyse:
@@ -1876,11 +1877,6 @@ async def _publish_diagnostics(
             force_reanalyse=force_reanalyse,
             line_length=line_length,
         )
-        # If the document changed while we were analysing in the background
-        # thread, bail — a newer _publish_diagnostics coroutine will handle it.
-        if state.version != version:
-            log.info("[timing] workspace_state.update stale (version changed), bailing")
-            return
     update_ms = (time.perf_counter() - t_update) * 1000
     log.info(
         "[timing] workspace_state.update %.0fms (quick=%.0fms, uri=%s, lines=%d)",
@@ -1889,6 +1885,18 @@ async def _publish_diagnostics(
         uri,
         len(state.buffer.line_starts),
     )
+
+    # Staleness check: if the document was edited while analysis was
+    # running in the thread, a newer _publish_diagnostics call has
+    # already updated the source.  Bail out to avoid publishing
+    # diagnostics for stale text and doing redundant work.
+    if state.version != version:
+        log.info(
+            "[timing] _publish_diagnostics abandoned (stale: have v%s, want v%s)",
+            state.version,
+            version,
+        )
+        return
 
     partial_mode = state.has_partial_commands
 
@@ -2229,21 +2237,28 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
         analyse=False,
     )
 
-    # Auto-detect dialect from the editor's language selection when the
-    # user hasn't explicitly configured one.
-    if (
-        not feature_config.dialect_explicitly_set
-        and not is_irules_dialect()
-        and _is_irules_source(uri)
-    ):
-        log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
-        configure_signatures(dialect="f5-irules")
-        server.window_show_message(
-            types.ShowMessageParams(
-                type=types.MessageType.Info,
-                message="Switched to iRules dialect for F5 iRules support.",
+    # Auto-detect dialect when the user hasn't explicitly configured one.
+    if not feature_config.dialect_explicitly_set:
+        if not is_irules_dialect() and _is_irules_source(uri):
+            log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
+            configure_signatures(dialect="f5-irules")
+            server.window_show_message(
+                types.ShowMessageParams(
+                    type=types.MessageType.Info,
+                    message="Switched to iRules dialect for F5 iRules support.",
+                )
             )
-        )
+        else:
+            from core.common.dialect import detect_dialect_from_source
+
+            source_dialect = detect_dialect_from_source(params.text_document.text)
+            if source_dialect:
+                changed = configure_signatures(dialect=source_dialect)
+                if changed:
+                    log.info(
+                        "Auto-switched to %s dialect (detected from source)",
+                        source_dialect,
+                    )
 
     if _is_bigip_conf(uri):
         _publish_bigip_diagnostics(

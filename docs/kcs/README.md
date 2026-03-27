@@ -42,6 +42,7 @@ This folder contains small, searchable Knowledge-Centered Service (KCS) notes.
 
 ## Configuration
 
+- [kcs-dialect-detection.md](kcs-dialect-detection.md) — Dialect detection priority chain: editor selection, file extension, comment directive, shebang, and user setting.
 - [kcs-xdg-config.md](kcs-xdg-config.md) — XDG config file reference (`~/.config/tcl-lsp/config.ini`): sections, keys, precedence, and export command.
 
 ## Compiler architecture decomposition
