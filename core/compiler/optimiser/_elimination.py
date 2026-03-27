@@ -14,9 +14,12 @@ from ..ir import (
     IRCall,
     IRIncr,
 )
+from ..var_refs import VarReferenceScanner
 from ._expr_simplify import _expr_has_command_subst
 from ._pattern_recognition import _statement_delete_rewrite_range, _statement_rewrite_context
 from ._types import Optimisation, PassContext
+
+_RETURN_VAR_SCANNER = VarReferenceScanner()
 
 # O-code registrations for codes primarily emitted from this module
 opt("O107", "Eliminate unreachable dead code.")
@@ -60,9 +63,7 @@ def _return_use_versions(term, exit_versions: dict[str, int]) -> set[tuple[str, 
         return set()
     uses: set[tuple[str, int]] = set()
     if term.value is not None:
-        from ..var_refs import VarReferenceScanner
-
-        for name in VarReferenceScanner().scan_script(term.value):
+        for name in _RETURN_VAR_SCANNER.scan_script(term.value):
             ver = exit_versions.get(name, 0)
             if ver > 0:
                 uses.add((name, ver))

@@ -71,11 +71,14 @@ from .static_loops import (
 from .tcl_expr_eval import eval_tcl_expr
 from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
+from .var_refs import VarReferenceScanner
 
 if TYPE_CHECKING:
     from .def_use import DefUseResult
     from .memory_ssa import MemorySSAFunction
     from .taint import TaintLattice
+
+_RETURN_VAR_SCANNER = VarReferenceScanner()
 
 
 def _expr_has_command(node: ExprNode) -> bool:
@@ -773,9 +776,7 @@ def _vars_in_return(value: str) -> set[str]:
     Uses ``VarReferenceScanner`` so that command substitutions like
     ``[string length $x]`` are recursed into correctly.
     """
-    from .var_refs import VarReferenceScanner
-
-    return set(VarReferenceScanner().scan_script(value))
+    return set(_RETURN_VAR_SCANNER.scan_script(value))
 
 
 def _collect_used_names(
