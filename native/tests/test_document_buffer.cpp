@@ -1,5 +1,6 @@
-#include <catch2/catch_test_macros.hpp>
 #include "tcl_lsp/core/document_buffer.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 using tcl_lsp::DocumentBuffer;
 using tcl_lsp::SourcePosition;

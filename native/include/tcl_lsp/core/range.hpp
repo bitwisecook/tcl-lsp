@@ -12,9 +12,7 @@ struct Range {
     SourcePosition start;
     SourcePosition end;
 
-    static constexpr auto zero() noexcept -> Range {
-        return {{0, 0, 0}, {0, 0, 0}};
-    }
+    static constexpr auto zero() noexcept -> Range { return {{0, 0, 0}, {0, 0, 0}}; }
 
     auto operator<=>(const Range&) const = default;
 
@@ -25,4 +23,4 @@ struct Range {
 
 auto to_string(const Range& r) -> std::string;
 
-}  // namespace tcl_lsp
+} // namespace tcl_lsp

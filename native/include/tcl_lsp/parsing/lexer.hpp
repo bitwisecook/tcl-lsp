@@ -39,32 +39,31 @@ struct LexerConfig {
 //   - backslash-newline continuation
 //   - COMMENT token type
 class TclLexer {
-public:
+  public:
+    ~TclLexer() = default;
     TclLexer(const TclLexer&) = delete;
     TclLexer& operator=(const TclLexer&) = delete;
     TclLexer(TclLexer&& other) noexcept;
     TclLexer& operator=(TclLexer&& other) noexcept;
 
     // Construct from string_view (caller must ensure text outlives lexer).
-    explicit TclLexer(
-        std::string_view text,
-        LexerConfig config = {},
-        int32_t base_offset = 0,
-        int32_t base_line = 0,
-        int32_t base_col = 0,
-        std::unordered_map<int32_t, char> virtual_insertions = {},
-        const std::vector<int32_t>* shared_line_starts = nullptr);
+    explicit TclLexer(std::string_view text,
+                      LexerConfig config = {},
+                      int32_t base_offset = 0,
+                      int32_t base_line = 0,
+                      int32_t base_col = 0,
+                      std::unordered_map<int32_t, char> virtual_insertions = {},
+                      const std::vector<int32_t>* shared_line_starts = nullptr);
 
     // Construct from owned string (lexer takes ownership, safe for Python bindings).
-    explicit TclLexer(
-        std::string text,
-        LexerConfig config,
-        int32_t base_offset,
-        int32_t base_line,
-        int32_t base_col,
-        std::unordered_map<int32_t, char> virtual_insertions,
-        const std::vector<int32_t>* shared_line_starts,
-        struct OwningTag);
+    explicit TclLexer(std::string text,
+                      LexerConfig config,
+                      int32_t base_offset,
+                      int32_t base_line,
+                      int32_t base_col,
+                      std::unordered_map<int32_t, char> virtual_insertions,
+                      const std::vector<int32_t>* shared_line_starts,
+                      struct OwningTag);
 
     // Return the next token, or std::nullopt at EOF.
     [[nodiscard]] auto get_token() -> std::optional<Token>;
@@ -82,8 +81,8 @@ public:
     [[nodiscard]] auto insidequote() const noexcept -> bool { return insidequote_; }
 
     // Non-fatal warnings collected in non-strict mode.
-    [[nodiscard]] auto warnings() const noexcept
-        -> const std::vector<std::pair<SourcePosition, std::string>>& {
+    [[nodiscard]] auto
+    warnings() const noexcept -> const std::vector<std::pair<SourcePosition, std::string>>& {
         return warnings_;
     }
 
@@ -95,7 +94,7 @@ public:
         return line_starts_;
     }
 
-private:
+  private:
     // Character at current position (respects virtual insertions).
     [[nodiscard]] auto cur() const -> char;
 
@@ -130,20 +129,20 @@ private:
     static constexpr auto is_sep_char(char ch) -> bool {
         return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\x0b' || ch == '\x0c';
     }
-    static constexpr auto is_eol_char(char ch) -> bool {
-        return ch == '\n' || ch == ';';
-    }
+
+    static constexpr auto is_eol_char(char ch) -> bool { return ch == '\n' || ch == ';'; }
+
     static constexpr auto is_separator_char(char ch) -> bool {
         return is_sep_char(ch) || is_eol_char(ch);
     }
-    static constexpr auto is_after_close_brace(char ch) -> bool {
-        return is_separator_char(ch);
-    }
+
+    static constexpr auto is_after_close_brace(char ch) -> bool { return is_separator_char(ch); }
+
     static constexpr auto is_after_close_quote(char ch) -> bool {
         return is_separator_char(ch) || ch == ']';
     }
 
-    std::string owned_text_;    // Owned copy (used when constructed with string)
+    std::string owned_text_; // Owned copy (used when constructed with string)
     std::string_view text_;
     int32_t len_;
     int32_t pos_ = 0;
@@ -172,4 +171,4 @@ private:
     std::vector<int32_t> line_starts_;
 };
 
-}  // namespace tcl_lsp
+} // namespace tcl_lsp

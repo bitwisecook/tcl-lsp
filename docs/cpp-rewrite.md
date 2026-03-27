@@ -39,6 +39,38 @@ Concretely:
 The shim handles conversions: `string_view` → Python `str`, `std::expected` →
 Python exception, C++ value types → Python objects with `__hash__`/`__eq__`.
 
+### Naming conventions
+
+The C++ code uses idiomatic C++ naming — **not** a mirror of the Python names.
+The Python is going away; the C++ must stand on its own as a clean, readable
+codebase. The pybind11 shim translates between C++ and Python names where they
+differ.
+
+| Element | C++ convention | Example |
+|---|---|---|
+| Types / classes | `CamelCase` | `SourcePosition`, `TclLexer` |
+| Functions / methods | `lower_case` | `next_token()`, `offset_to_position()` |
+| Variables / members | `lower_case` | `line_starts_`, `expand_syntax` |
+| Private members | `lower_case_` (trailing `_`) | `source_`, `version_` |
+| Enum constants | `UPPER_CASE` | `TokenType::ESC`, `TokenType::CMD` |
+| Namespaces | `lower_case` | `tcl_lsp` |
+| Constants | `lower_case` or `UPPER_CASE` | context-dependent |
+| Files | `lower_case.hpp` / `.cpp` | `source_position.hpp`, `lexer.cpp` |
+
+When a Python name doesn't match C++ conventions, the shim maps it:
+
+```cpp
+// C++ (clean, idiomatic)
+auto TclLexer::next_token() -> std::expected<Token, LexError>;
+
+// pybind11 shim (maps to Python interface)
+cls.def("next_token", &TclLexer::next_token);  // same name here
+cls.def("tokenize_all", ...);  // shim may rename if Python expects different name
+```
+
+The key rule: **design the C++ API first for C++ consumers**, then adapt
+in the shim. Never compromise C++ naming to match Python conventions.
+
 ## Architecture
 
 ### Layered rewrite, bottom-up
@@ -101,6 +133,27 @@ New edits cancel in-flight analysis. Semantic tokens are always the priority.
 | Testing | Catch2 (C++) + pytest (Python) | Catch2 for C++ unit tests; full pytest suite validates through pybind11 shim |
 | Async | stdexec (P2300) | Standard-track sender/receiver model for composable async |
 | Package mgmt | Meson WrapDB | pybind11, Catch2 available; stdexec via cmake subproject wrap |
+
+## Code quality tooling
+
+Three tools enforce C++ code quality, all wired into `make prep-pr`:
+
+| Tool | Purpose | Config file |
+|---|---|---|
+| **clang-format 18** | Code formatting (LLVM-based, 100 col, 4-space indent) | `.clang-format` |
+| **clang-tidy 18** | Linting, modernization, bug detection | `.clang-tidy` |
+| **cppcheck 2.13+** | Additional static analysis (different bug patterns) | `.cppcheck-suppress` |
+
+**Warning policy**: Pure C++ code (`native/src/`, `native/include/`, `native/tests/`)
+must build with zero warnings. The pybind11 bindings (`native/bindings/`) are
+excluded from clang-tidy and cppcheck since they are temporary shim code.
+
+Makefile targets:
+- `make format-cpp` — auto-format all C++ files
+- `make lint-cpp` — run clang-tidy + cppcheck + format check
+- `make native-test` — run Catch2 unit tests
+- `make format` — includes `format-cpp` alongside Python and TypeScript
+- `make prep-pr` — includes `lint-cpp` and `native-test` in the CI gate
 
 ## Branch strategy
 

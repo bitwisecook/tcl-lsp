@@ -1,6 +1,6 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/parsing/lexer.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <string>
@@ -9,11 +9,11 @@
 using namespace tcl_lsp;
 
 // Helper: tokenise, optionally filtering out SEP/EOL tokens.
-static auto tokens(std::string_view source, bool include_sep = false)
-    -> std::vector<Token> {
+static auto tokens(std::string_view source, bool include_sep = false) -> std::vector<Token> {
     TclLexer lexer(source);
     auto all = lexer.tokenise_all();
-    if (include_sep) return all;
+    if (include_sep)
+        return all;
     std::vector<Token> result;
     for (auto& t : all) {
         if (t.type != TokenType::SEP && t.type != TokenType::EOL) {
@@ -26,14 +26,16 @@ static auto tokens(std::string_view source, bool include_sep = false)
 static auto texts(std::string_view source) -> std::vector<std::string> {
     auto toks = tokens(source);
     std::vector<std::string> result;
-    for (auto& t : toks) result.push_back(t.text);
+    for (auto& t : toks)
+        result.push_back(t.text);
     return result;
 }
 
 static auto types(std::string_view source) -> std::vector<TokenType> {
     auto toks = tokens(source);
     std::vector<TokenType> result;
-    for (auto& t : toks) result.push_back(t.type);
+    for (auto& t : toks)
+        result.push_back(t.type);
     return result;
 }
 
@@ -99,7 +101,8 @@ TEST_CASE("Semicolon separator", "[lexer]") {
     auto toks = tokens("set a 1; set b 2", true);
     bool has_eol = false;
     for (auto& t : toks) {
-        if (t.type == TokenType::EOL) has_eol = true;
+        if (t.type == TokenType::EOL)
+            has_eol = true;
     }
     CHECK(has_eol);
 }
@@ -178,7 +181,8 @@ TEST_CASE("Multiline positions", "[lexer]") {
     auto toks = tokens("set x 1\nset y 2");
     std::vector<Token> sets;
     for (auto& t : toks) {
-        if (t.text == "set") sets.push_back(t);
+        if (t.text == "set")
+            sets.push_back(t);
     }
     REQUIRE(sets.size() == 2);
     CHECK(sets[1].start.line == 1);
@@ -189,7 +193,8 @@ TEST_CASE("Var position", "[lexer]") {
     auto toks = tokens("set x $y");
     std::vector<Token> vars;
     for (auto& t : toks) {
-        if (t.type == TokenType::VAR) vars.push_back(t);
+        if (t.type == TokenType::VAR)
+            vars.push_back(t);
     }
     REQUIRE(vars.size() == 1);
     CHECK(vars[0].start.offset == 6);
@@ -200,7 +205,8 @@ TEST_CASE("Cmd position", "[lexer]") {
     auto toks = tokens("set x [+ 1 2]");
     std::vector<Token> cmds;
     for (auto& t : toks) {
-        if (t.type == TokenType::CMD) cmds.push_back(t);
+        if (t.type == TokenType::CMD)
+            cmds.push_back(t);
     }
     REQUIRE(cmds.size() == 1);
     CHECK(cmds[0].text == "+ 1 2");
@@ -251,8 +257,10 @@ TEST_CASE("String interpolation", "[lexer]") {
     auto toks = tokens("\"hello $name, result is [+ 1 2]!\"");
     bool has_var = false, has_cmd = false;
     for (auto& t : toks) {
-        if (t.type == TokenType::VAR) has_var = true;
-        if (t.type == TokenType::CMD) has_cmd = true;
+        if (t.type == TokenType::VAR)
+            has_var = true;
+        if (t.type == TokenType::CMD)
+            has_cmd = true;
     }
     CHECK(has_var);
     CHECK(has_cmd);
@@ -291,12 +299,14 @@ TEST_CASE("Sep does not consume newline", "[lexer]") {
     auto toks = tokens("set a {body}    \nset b val", true);
     bool has_eol = false;
     for (auto& t : toks) {
-        if (t.type == TokenType::EOL) has_eol = true;
+        if (t.type == TokenType::EOL)
+            has_eol = true;
     }
     CHECK(has_eol);
     int set_count = 0;
     for (auto& t : toks) {
-        if (t.type == TokenType::ESC && t.text == "set") set_count++;
+        if (t.type == TokenType::ESC && t.text == "set")
+            set_count++;
     }
     CHECK(set_count == 2);
 }
@@ -346,7 +356,8 @@ TEST_CASE("Expand syntax recognized", "[lexer]") {
     auto toks = tokens("{*}$list");
     bool has_expand = false;
     for (auto& t : toks) {
-        if (t.type == TokenType::EXPAND) has_expand = true;
+        if (t.type == TokenType::EXPAND)
+            has_expand = true;
     }
     CHECK(has_expand);
 }
@@ -358,7 +369,8 @@ TEST_CASE("Expand syntax disabled", "[lexer]") {
     // Should be parsed as a braced string {*} followed by $list.
     bool has_str = false;
     for (auto& t : toks) {
-        if (t.type == TokenType::STR && t.text == "*") has_str = true;
+        if (t.type == TokenType::STR && t.text == "*")
+            has_str = true;
     }
     CHECK(has_str);
 }
@@ -371,7 +383,8 @@ TEST_CASE("iRules brace separator injects SEP", "[lexer]") {
     auto toks = lexer.tokenise_all();
     bool has_sep = false;
     for (auto& t : toks) {
-        if (t.type == TokenType::SEP) has_sep = true;
+        if (t.type == TokenType::SEP)
+            has_sep = true;
     }
     CHECK(has_sep);
 }
@@ -384,7 +397,10 @@ TEST_CASE("Base offset shifts positions", "[lexer]") {
     // First content token should have base offset applied.
     Token* puts_tok = nullptr;
     for (auto& t : toks) {
-        if (t.text == "puts") { puts_tok = &t; break; }
+        if (t.text == "puts") {
+            puts_tok = &t;
+            break;
+        }
     }
     REQUIRE(puts_tok != nullptr);
     CHECK(puts_tok->start.offset == 100);
@@ -400,7 +416,8 @@ TEST_CASE("Virtual insertion closes bracket", "[lexer]") {
     auto toks = lexer.tokenise_all();
     bool has_cmd = false;
     for (auto& t : toks) {
-        if (t.type == TokenType::CMD) has_cmd = true;
+        if (t.type == TokenType::CMD)
+            has_cmd = true;
     }
     CHECK(has_cmd);
     CHECK(lexer.warnings().empty());

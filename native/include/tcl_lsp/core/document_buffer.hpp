@@ -20,10 +20,9 @@ namespace tcl_lsp {
 // via a precomputed line-starts index. Replaces scattered source.split("\n")
 // and ad-hoc SourceMap construction in Python.
 class DocumentBuffer {
-public:
-    static auto from_source(
-        std::string source,
-        std::optional<int> version = std::nullopt) -> DocumentBuffer;
+  public:
+    static auto from_source(std::string source,
+                            std::optional<int> version = std::nullopt) -> DocumentBuffer;
 
     [[nodiscard]] auto source() const noexcept -> std::string_view;
     [[nodiscard]] auto version() const noexcept -> std::optional<int>;
@@ -47,8 +46,10 @@ public:
     [[nodiscard]] auto chunk_line_range(int32_t start_offset, int32_t end_offset) const
         -> std::tuple<int32_t, int32_t, int32_t, int32_t>;
 
-private:
-    DocumentBuffer(std::string source, std::optional<int> version, std::vector<int32_t> line_starts);
+  private:
+    DocumentBuffer(std::string source,
+                   std::optional<int> version,
+                   std::vector<int32_t> line_starts);
 
     std::string source_;
     std::optional<int> version_;
@@ -56,4 +57,4 @@ private:
     mutable std::optional<std::vector<std::string_view>> lines_cache_;
 };
 
-}  // namespace tcl_lsp
+} // namespace tcl_lsp

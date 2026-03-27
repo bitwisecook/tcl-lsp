@@ -123,7 +123,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated native-setup native-build native-test native-clean .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts format-cpp lint-cpp typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated native-setup native-build native-test native-clean .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -201,7 +201,7 @@ test: test-py test-ext ## Run all tests (Python + VS Code extension)
 
 lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
 
-format: format-py format-ts ## Format Python and TypeScript code
+format: format-py format-ts format-cpp ## Format Python, TypeScript, and C++ code
 
 test-py: $(UV_STAMP) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
 	@echo "==> Running Python tests"
@@ -298,8 +298,8 @@ coverage-ext: compile $(NPM_STAMP) ## Run VS Code extension tests with coverage 
 	@echo "VS Code extension coverage report: $(COV_DIR)/vscode/index.html"
 
 # Phase targets for parallel prep-pr execution
-_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings
-_prep-pr-tests: test-py test-opt
+_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings lint-cpp
+_prep-pr-tests: test-py test-opt native-test
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
 prep-pr: format ## Fast pre-PR gate (format + lint + typecheck + fast tests, no UI/smoke)
@@ -808,6 +808,13 @@ clean-screenshots: ## Remove captured screenshots
 # C++ native module (Meson build)
 NATIVE_BUILDDIR := builddir
 
+# C++ source file lists for formatting/linting (excludes pybind11 bindings).
+CPP_SOURCES := $(wildcard native/src/core/*.cpp native/src/parsing/*.cpp)
+CPP_HEADERS := $(wildcard native/include/tcl_lsp/core/*.hpp native/include/tcl_lsp/parsing/*.hpp)
+CPP_TESTS := $(wildcard native/tests/*.cpp)
+CPP_BINDINGS := $(wildcard native/bindings/*.cpp)
+CPP_ALL := $(CPP_SOURCES) $(CPP_HEADERS) $(CPP_TESTS) $(CPP_BINDINGS)
+
 native-setup: ## Configure the C++ native build (Meson + Clang)
 	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR) --wipe 2>/dev/null || CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR)
 
@@ -819,6 +826,20 @@ native-test: ## Run C++ unit tests
 
 native-clean: ## Remove C++ build artifacts
 	rm -rf $(NATIVE_BUILDDIR)
+
+format-cpp: ## Format C++ code with clang-format
+	@echo "==> Formatting C++ code with clang-format"
+	clang-format -i $(CPP_ALL)
+
+lint-cpp: ## Lint C++ code with clang-tidy and cppcheck
+	@echo "==> Linting C++ with clang-tidy (core + parsing)"
+	clang-tidy -p $(NATIVE_BUILDDIR) $(CPP_SOURCES) --warnings-as-errors='*'
+	@echo "==> Static analysis with cppcheck"
+	cppcheck --enable=all --std=c++23 --error-exitcode=1 \
+		--suppressions-list=.cppcheck-suppress --inline-suppr \
+		-I native/include native/src/
+	@echo "==> Checking clang-format compliance"
+	clang-format --dry-run -Werror $(CPP_ALL)
 
 clean: native-clean ## Remove build artifacts
 	rm -rf $(BUILD_DIR)

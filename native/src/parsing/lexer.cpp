@@ -6,26 +6,15 @@
 namespace tcl_lsp {
 
 TclLexer::TclLexer(TclLexer&& other) noexcept
-    : owned_text_(std::move(other.owned_text_))
-    , text_(owned_text_.empty() ? other.text_ : std::string_view(owned_text_))
-    , len_(other.len_)
-    , pos_(other.pos_)
-    , config_(other.config_)
-    , base_offset_(other.base_offset_)
-    , base_line_(other.base_line_)
-    , base_col_(other.base_col_)
-    , line_(other.line_)
-    , col_(other.col_)
-    , start_(other.start_)
-    , end_(other.end_)
-    , type_(other.type_)
-    , at_command_start_(other.at_command_start_)
-    , insidequote_(other.insidequote_)
-    , warnings_(std::move(other.warnings_))
-    , virtuals_(std::move(other.virtuals_))
-    , has_virtuals_(other.has_virtuals_)
-    , pending_sep_(std::move(other.pending_sep_))
-    , line_starts_(std::move(other.line_starts_)) {}
+    : owned_text_(std::move(other.owned_text_)),
+      text_(owned_text_.empty() ? other.text_ : std::string_view(owned_text_)), len_(other.len_),
+      pos_(other.pos_), config_(other.config_), base_offset_(other.base_offset_),
+      base_line_(other.base_line_), base_col_(other.base_col_), line_(other.line_),
+      col_(other.col_), start_(other.start_), end_(other.end_), type_(other.type_),
+      at_command_start_(other.at_command_start_), insidequote_(other.insidequote_),
+      warnings_(std::move(other.warnings_)), virtuals_(std::move(other.virtuals_)),
+      has_virtuals_(other.has_virtuals_), pending_sep_(std::move(other.pending_sep_)),
+      line_starts_(std::move(other.line_starts_)) {}
 
 TclLexer& TclLexer::operator=(TclLexer&& other) noexcept {
     if (this != &other) {
@@ -53,27 +42,19 @@ TclLexer& TclLexer::operator=(TclLexer&& other) noexcept {
     return *this;
 }
 
-TclLexer::TclLexer(
-    std::string text,
-    LexerConfig config,
-    int32_t base_offset,
-    int32_t base_line,
-    int32_t base_col,
-    std::unordered_map<int32_t, char> virtual_insertions,
-    const std::vector<int32_t>* shared_line_starts,
-    OwningTag)
-    : owned_text_(std::move(text))
-    , text_(owned_text_)
-    , len_(static_cast<int32_t>(text_.size()))
-    , config_(config)
-    , base_offset_(base_offset)
-    , base_line_(base_line)
-    , base_col_(base_col)
-    , line_(base_line)
-    , col_(base_col)
-    , virtuals_(std::move(virtual_insertions))
-    , has_virtuals_(!virtuals_.empty()) {
-    if (shared_line_starts) {
+TclLexer::TclLexer(std::string text,
+                   LexerConfig config,
+                   int32_t base_offset,
+                   int32_t base_line,
+                   int32_t base_col,
+                   std::unordered_map<int32_t, char> virtual_insertions,
+                   const std::vector<int32_t>* shared_line_starts,
+                   OwningTag)
+    : owned_text_(std::move(text)), text_(owned_text_), len_(static_cast<int32_t>(text_.size())),
+      config_(config), base_offset_(base_offset), base_line_(base_line), base_col_(base_col),
+      line_(base_line), col_(base_col), virtuals_(std::move(virtual_insertions)),
+      has_virtuals_(!virtuals_.empty()) {
+    if (shared_line_starts != nullptr) {
         line_starts_ = *shared_line_starts;
     } else {
         line_starts_.push_back(0);
@@ -85,25 +66,17 @@ TclLexer::TclLexer(
     }
 }
 
-TclLexer::TclLexer(
-    std::string_view text,
-    LexerConfig config,
-    int32_t base_offset,
-    int32_t base_line,
-    int32_t base_col,
-    std::unordered_map<int32_t, char> virtual_insertions,
-    const std::vector<int32_t>* shared_line_starts)
-    : text_(text)
-    , len_(static_cast<int32_t>(text.size()))
-    , config_(config)
-    , base_offset_(base_offset)
-    , base_line_(base_line)
-    , base_col_(base_col)
-    , line_(base_line)
-    , col_(base_col)
-    , virtuals_(std::move(virtual_insertions))
-    , has_virtuals_(!virtuals_.empty()) {
-    if (shared_line_starts) {
+TclLexer::TclLexer(std::string_view text,
+                   LexerConfig config,
+                   int32_t base_offset,
+                   int32_t base_line,
+                   int32_t base_col,
+                   std::unordered_map<int32_t, char> virtual_insertions,
+                   const std::vector<int32_t>* shared_line_starts)
+    : text_(text), len_(static_cast<int32_t>(text.size())), config_(config),
+      base_offset_(base_offset), base_line_(base_line), base_col_(base_col), line_(base_line),
+      col_(base_col), virtuals_(std::move(virtual_insertions)), has_virtuals_(!virtuals_.empty()) {
+    if (shared_line_starts != nullptr) {
         line_starts_ = *shared_line_starts;
     } else {
         line_starts_.push_back(0);
@@ -117,15 +90,18 @@ TclLexer::TclLexer(
 
 auto TclLexer::remaining() const -> int32_t {
     auto r = len_ - pos_;
-    if (r > 0) return r;
-    if (has_virtuals_ && virtuals_.contains(pos_)) return 1;
+    if (r > 0)
+        return r;
+    if (has_virtuals_ && virtuals_.contains(pos_))
+        return 1;
     return 0;
 }
 
 auto TclLexer::cur() const -> char {
     if (has_virtuals_) {
         auto it = virtuals_.find(pos_);
-        if (it != virtuals_.end()) return it->second;
+        if (it != virtuals_.end())
+            return it->second;
     }
     return text_[static_cast<std::size_t>(pos_)];
 }
@@ -136,7 +112,8 @@ void TclLexer::advance(int32_t n) {
             auto it = virtuals_.find(pos_);
             if (it != virtuals_.end()) {
                 virtuals_.erase(it);
-                if (virtuals_.empty()) has_virtuals_ = false;
+                if (virtuals_.empty())
+                    has_virtuals_ = false;
                 continue;
             }
             if (pos_ < len_) {
@@ -181,10 +158,11 @@ auto TclLexer::pos_at(int32_t offset) const -> SourcePosition {
 }
 
 auto TclLexer::token_text() const -> std::string {
-    if (end_ < start_) return "";
-    return std::string(text_.substr(
-        static_cast<std::size_t>(start_),
-        static_cast<std::size_t>(end_ - start_ + 1)));
+    if (end_ < start_)
+        return "";
+    auto length = end_ - start_ + 1;
+    return std::string(
+        text_.substr(static_cast<std::size_t>(start_), static_cast<std::size_t>(length)));
 }
 
 void TclLexer::report_error(const std::string& message) {
@@ -242,7 +220,7 @@ void TclLexer::parse_eol() {
         line_ = line;
         col_ = col;
     } else {
-        while (remaining() && is_separator_char(cur())) {
+        while (remaining() != 0 && is_separator_char(cur())) {
             advance();
         }
     }
@@ -255,7 +233,7 @@ void TclLexer::parse_command() {
     int32_t level = 1;
     int32_t blevel = 0;
     bool in_quotes = false;
-    advance();  // skip opening '['
+    advance(); // skip opening '['
     start_ = pos_;
 
     if (!has_virtuals_) {
@@ -275,7 +253,8 @@ void TclLexer::parse_command() {
                 pos += 1;
             } else if (ch == ']' && blevel == 0 && !in_quotes) {
                 level -= 1;
-                if (level == 0) break;
+                if (level == 0)
+                    break;
                 col += 1;
                 pos += 1;
             } else if (ch == '\\') {
@@ -293,8 +272,10 @@ void TclLexer::parse_command() {
             } else if (ch == '$' && !in_quotes && blevel == 0) {
                 // ${...} inside command — scan for matching }.
                 if (pos + 1 < len_ && text_[static_cast<std::size_t>(pos + 1)] == '{') {
-                    col += 1; pos += 1;  // skip $
-                    col += 1; pos += 1;  // skip {
+                    col += 1;
+                    pos += 1; // skip $
+                    col += 1;
+                    pos += 1; // skip {
                     while (pos < len_ && text_[static_cast<std::size_t>(pos)] != '}') {
                         if (text_[static_cast<std::size_t>(pos)] == '\n') {
                             line += 1;
@@ -327,7 +308,8 @@ void TclLexer::parse_command() {
                 col += 1;
                 pos += 1;
             } else if (ch == '}' && !in_quotes) {
-                if (blevel) blevel -= 1;
+                if (blevel != 0)
+                    blevel -= 1;
                 col += 1;
                 pos += 1;
             } else {
@@ -347,7 +329,8 @@ void TclLexer::parse_command() {
     } else {
         // Slow path — virtual insertion support.
         while (true) {
-            if (!remaining()) break;
+            if (!remaining())
+                break;
             auto ch = cur();
             if (ch == '"' && blevel == 0) {
                 in_quotes = !in_quotes;
@@ -355,13 +338,14 @@ void TclLexer::parse_command() {
                 level += 1;
             } else if (ch == ']' && blevel == 0 && !in_quotes) {
                 level -= 1;
-                if (level == 0) break;
+                if (level == 0)
+                    break;
             } else if (ch == '\\') {
                 advance();
             } else if (ch == '$' && !in_quotes && blevel == 0) {
                 if (pos_ + 1 < len_ && text_[static_cast<std::size_t>(pos_ + 1)] == '{') {
-                    advance();  // skip $
-                    advance();  // skip {
+                    advance(); // skip $
+                    advance(); // skip {
                     while (remaining() && cur() != '}') {
                         advance();
                     }
@@ -372,7 +356,8 @@ void TclLexer::parse_command() {
             } else if (ch == '{' && !in_quotes) {
                 blevel += 1;
             } else if (ch == '}' && !in_quotes) {
-                if (blevel) blevel -= 1;
+                if (blevel != 0)
+                    blevel -= 1;
             }
             advance();
         }
@@ -389,11 +374,11 @@ void TclLexer::parse_command() {
 
 void TclLexer::parse_var() {
     auto dollar_pos = position();
-    advance();  // skip '$'
+    advance(); // skip '$'
 
     // Handle ${name} form.
     if (remaining() && cur() == '{') {
-        advance();  // skip '{'
+        advance(); // skip '{'
         start_ = pos_;
         while (remaining() && cur() != '}') {
             advance();
@@ -401,7 +386,7 @@ void TclLexer::parse_var() {
         end_ = pos_ - 1;
         type_ = TokenType::VAR;
         if (remaining()) {
-            advance();  // skip '}'
+            advance(); // skip '}'
         } else {
             report_error_at(dollar_pos, "missing close-brace for variable name");
         }
@@ -412,11 +397,12 @@ void TclLexer::parse_var() {
     // Accept alnum, underscore, :: (namespace separator).
     while (remaining()) {
         auto ch = cur();
-        if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-            (ch >= '0' && ch <= '9') || ch == '_') {
+        if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') ||
+            ch == '_') {
             advance();
-        } else if (ch == ':' && pos_ + 1 < len_ && text_[static_cast<std::size_t>(pos_ + 1)] == ':') {
-            advance(2);  // skip '::'
+        } else if (ch == ':' && pos_ + 1 < len_ &&
+                   text_[static_cast<std::size_t>(pos_ + 1)] == ':') {
+            advance(2); // skip '::'
         } else {
             break;
         }
@@ -435,8 +421,8 @@ void TclLexer::parse_var() {
             } else if (ch == '$' && pos_ + 1 < len_ &&
                        text_[static_cast<std::size_t>(pos_ + 1)] == '{') {
                 // ${...} inside array index — scan for matching }.
-                advance();  // skip $
-                advance();  // skip {
+                advance(); // skip $
+                advance(); // skip {
                 while (remaining() && cur() != '}') {
                     advance();
                 }
@@ -450,7 +436,7 @@ void TclLexer::parse_var() {
             }
         }
         if (remaining()) {
-            advance();  // skip closing ')'
+            advance(); // skip closing ')'
         } else {
             report_error("missing )");
         }
@@ -472,7 +458,7 @@ void TclLexer::parse_var() {
 
 void TclLexer::parse_brace() {
     int32_t level = 1;
-    advance();  // skip opening '{'
+    advance(); // skip opening '{'
     start_ = pos_;
 
     if (!has_virtuals_) {
@@ -495,7 +481,8 @@ void TclLexer::parse_brace() {
                     pos += 1;
                 }
                 continue;
-            } else if (ch == '}') {
+            }
+            if (ch == '}') {
                 level -= 1;
                 if (level == 0) {
                     end_ = pos - 1;
@@ -505,16 +492,14 @@ void TclLexer::parse_brace() {
                     line_ = line;
                     col_ = col;
                     if (pos < len_ && !is_after_close_brace(text_[static_cast<std::size_t>(pos)])) {
-                        if (text_[static_cast<std::size_t>(pos)] == '\\' &&
-                            pos + 1 < len_ &&
+                        if (text_[static_cast<std::size_t>(pos)] == '\\' && pos + 1 < len_ &&
                             (text_[static_cast<std::size_t>(pos + 1)] == '\n' ||
                              text_[static_cast<std::size_t>(pos + 1)] == '\r')) {
                             // backslash-newline is a valid line continuation
                         } else if (config_.irules_brace_separator &&
                                    text_[static_cast<std::size_t>(pos)] == '{') {
                             auto sep_pos = position();
-                            pending_sep_ = Token{
-                                TokenType::SEP, "", sep_pos, sep_pos, false};
+                            pending_sep_ = Token{TokenType::SEP, "", sep_pos, sep_pos, false};
                         } else {
                             report_error("extra characters after close-brace");
                         }
@@ -559,7 +544,7 @@ void TclLexer::parse_brace() {
             level -= 1;
             if (level == 0) {
                 end_ = pos_ - 1;
-                advance();  // skip closing '}'
+                advance(); // skip closing '}'
                 if (remaining() && !is_after_close_brace(cur())) {
                     if (cur() == '\\' && remaining() >= 2 &&
                         (text_[static_cast<std::size_t>(pos_ + 1)] == '\n' ||
@@ -567,8 +552,7 @@ void TclLexer::parse_brace() {
                         // backslash-newline is a valid line continuation
                     } else if (config_.irules_brace_separator && cur() == '{') {
                         auto sep_pos = position();
-                        pending_sep_ = Token{
-                            TokenType::SEP, "", sep_pos, sep_pos, false};
+                        pending_sep_ = Token{TokenType::SEP, "", sep_pos, sep_pos, false};
                     } else {
                         report_error("extra characters after close-brace");
                     }
@@ -585,21 +569,19 @@ void TclLexer::parse_brace() {
 
 void TclLexer::parse_expand() {
     start_ = pos_;
-    advance(3);  // skip '{*}'
-    end_ = start_;  // zero-width
+    advance(3);    // skip '{*}'
+    end_ = start_; // zero-width
     type_ = TokenType::EXPAND;
 }
 
 void TclLexer::parse_string() {
-    bool newword = (type_ == TokenType::SEP || type_ == TokenType::EOL ||
-                    type_ == TokenType::STR || type_ == TokenType::EXPAND);
+    const bool newword = (type_ == TokenType::SEP || type_ == TokenType::EOL ||
+                          type_ == TokenType::STR || type_ == TokenType::EXPAND);
     if (newword && remaining() && cur() == '{') {
         // Check for {*} expansion prefix (Tcl 8.5+).
-        if (config_.expand_syntax &&
-            pos_ + 2 < len_ &&
+        if (config_.expand_syntax && pos_ + 2 < len_ &&
             text_[static_cast<std::size_t>(pos_ + 1)] == '*' &&
-            text_[static_cast<std::size_t>(pos_ + 2)] == '}' &&
-            pos_ + 3 < len_ &&
+            text_[static_cast<std::size_t>(pos_ + 2)] == '}' && pos_ + 3 < len_ &&
             !is_separator_char(text_[static_cast<std::size_t>(pos_ + 3)])) {
             parse_expand();
             return;
@@ -659,8 +641,7 @@ void TclLexer::parse_string() {
                 line_ = line;
                 col_ = col;
                 if (pos < len_ && !is_after_close_quote(text_[static_cast<std::size_t>(pos)])) {
-                    if (text_[static_cast<std::size_t>(pos)] == '\\' &&
-                        pos + 1 < len_ &&
+                    if (text_[static_cast<std::size_t>(pos)] == '\\' && pos + 1 < len_ &&
                         (text_[static_cast<std::size_t>(pos + 1)] == '\n' ||
                          text_[static_cast<std::size_t>(pos + 1)] == '\r')) {
                         // backslash-newline is a valid line continuation
@@ -739,7 +720,7 @@ void TclLexer::parse_string() {
 }
 
 void TclLexer::parse_comment() {
-    start_ = pos_;  // include the '#'
+    start_ = pos_; // include the '#'
 
     if (!has_virtuals_) {
         auto pos = pos_;
@@ -760,21 +741,21 @@ void TclLexer::parse_comment() {
                         col = 0;
                         pos += 1;
                         continue;
+                    }
+                    col += 1;
+                    pos += 1;
+                    if (text_[static_cast<std::size_t>(pos)] == '\n') {
+                        line += 1;
+                        col = 0;
                     } else {
                         col += 1;
-                        pos += 1;
-                        if (text_[static_cast<std::size_t>(pos)] == '\n') {
-                            line += 1;
-                            col = 0;
-                        } else {
-                            col += 1;
-                        }
-                        pos += 1;
-                        continue;
                     }
+                    pos += 1;
+                    continue;
                 }
             }
-            if (ch == '\n') break;
+            if (ch == '\n')
+                break;
             col += 1;
             pos += 1;
         }
@@ -790,17 +771,17 @@ void TclLexer::parse_comment() {
                 if (next_pos < len_) {
                     auto next_ch = text_[static_cast<std::size_t>(next_pos)];
                     if (next_ch == '\n') {
-                        advance();  // skip backslash
-                        advance();  // skip newline
-                        continue;
-                    } else {
-                        advance();  // skip backslash
-                        advance();  // skip escaped char
+                        advance(); // skip backslash
+                        advance(); // skip newline
                         continue;
                     }
+                    advance(); // skip backslash
+                    advance(); // skip escaped char
+                    continue;
                 }
             }
-            if (ch == '\n') break;
+            if (ch == '\n')
+                break;
             advance();
         }
     }
@@ -833,7 +814,7 @@ auto TclLexer::get_token() -> std::optional<Token> {
         auto start_pos = SourcePosition{line_, col_, pos_ + base_offset_};
 
         // Get current character for dispatch.
-        char ch;
+        char ch = '\0';
         if (has_virtuals_) {
             auto it = virtuals_.find(pos_);
             ch = (it != virtuals_.end()) ? it->second : text_[static_cast<std::size_t>(pos_)];
@@ -866,8 +847,7 @@ auto TclLexer::get_token() -> std::optional<Token> {
         auto end_pos = pos_at(end_offset);
 
         // Track command-start position for comment detection.
-        if (type_ != TokenType::SEP && type_ != TokenType::EOL &&
-            type_ != TokenType::COMMENT) {
+        if (type_ != TokenType::SEP && type_ != TokenType::EOL && type_ != TokenType::COMMENT) {
             at_command_start_ = false;
         }
 
@@ -883,4 +863,4 @@ auto TclLexer::tokenise_all() -> std::vector<Token> {
     return tokens;
 }
 
-}  // namespace tcl_lsp
+} // namespace tcl_lsp

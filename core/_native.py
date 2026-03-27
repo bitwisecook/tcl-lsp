@@ -7,9 +7,11 @@ code has not been built).
 """
 
 try:
-    from _tcl_lsp_native import DocumentBuffer  # type: ignore[import-not-found]
-    from _tcl_lsp_native import Range  # type: ignore[import-not-found]
-    from _tcl_lsp_native import SourcePosition  # type: ignore[import-not-found]
+    from _tcl_lsp_native import (  # type: ignore[import-not-found]
+        DocumentBuffer,
+        Range,
+        SourcePosition,
+    )
 
     NATIVE = True
 except ImportError:

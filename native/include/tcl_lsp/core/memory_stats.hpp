@@ -18,4 +18,4 @@ struct MemoryStats {
 // Query the C heap allocator for current memory stats.
 auto memory_stats() -> MemoryStats;
 
-}  // namespace tcl_lsp
+} // namespace tcl_lsp

@@ -1,6 +1,6 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/parsing/token.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 using namespace tcl_lsp;
 
@@ -17,18 +17,14 @@ TEST_CASE("TokenType to_string", "[token]") {
 }
 
 TEST_CASE("Token equality", "[token]") {
-    auto a = Token{TokenType::ESC, "hello",
-                   {0, 0, 0}, {0, 4, 4}, false};
-    auto b = Token{TokenType::ESC, "hello",
-                   {0, 0, 0}, {0, 4, 4}, false};
-    auto c = Token{TokenType::VAR, "hello",
-                   {0, 0, 0}, {0, 4, 4}, false};
+    auto a = Token{TokenType::ESC, "hello", {0, 0, 0}, {0, 4, 4}, false};
+    auto b = Token{TokenType::ESC, "hello", {0, 0, 0}, {0, 4, 4}, false};
+    auto c = Token{TokenType::VAR, "hello", {0, 0, 0}, {0, 4, 4}, false};
     CHECK(a == b);
     CHECK_FALSE(a == c);
 }
 
 TEST_CASE("Token to_string", "[token]") {
-    auto t = Token{TokenType::VAR, "foo",
-                   {0, 0, 0}, {0, 2, 2}, false};
+    auto t = Token{TokenType::VAR, "foo", {0, 0, 0}, {0, 2, 2}, false};
     CHECK(to_string(t) == "Token(VAR, \"foo\")");
 }

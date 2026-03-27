@@ -1,0 +1,79 @@
+---
+# clang-format 18 configuration for tcl-lsp C++ code.
+# Style: LLVM-derived, tuned for modern C++23 readability.
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+IndentCaseLabels: false
+NamespaceIndentation: None
+IndentPPDirectives: AfterHash
+
+# Braces
+BreakBeforeBraces: Attach
+Cpp11BracedListStyle: true
+
+# Line width
+ColumnLimit: 100
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignOperands: Align
+AlignTrailingComments: true
+
+# Arguments / parameters
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortEnumsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: Inline
+AllowShortLoopsOnASingleLine: false
+BinPackArguments: false
+BinPackParameters: false
+
+# Includes
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Project headers first
+  - Regex: '^"tcl_lsp/'
+    Priority: 1
+  # Catch2 / test headers
+  - Regex: '^<catch2/'
+    Priority: 2
+  # pybind11
+  - Regex: '^<pybind11/'
+    Priority: 3
+  # Standard library
+  - Regex: '^<'
+    Priority: 4
+
+# Spacing
+SpaceAfterCStyleCast: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyBlock: false
+SpacesInAngles: Never
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Modern C++ preferences
+FixNamespaceComments: true
+CompactNamespaces: false
+EmptyLineAfterAccessModifier: Never
+EmptyLineBeforeAccessModifier: Always
+SeparateDefinitionBlocks: Always
+
+# Trailing return types (auto fn() -> T)
+AlwaysBreakAfterReturnType: None
+
+# Pointer/reference alignment
+PointerAlignment: Left
+ReferenceAlignment: Left
+...
