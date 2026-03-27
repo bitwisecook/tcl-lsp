@@ -451,6 +451,8 @@ class TestTcltestW210:
     def test_tcltest_bare_test_no_w210(self):
         """Bare ``test`` (after namespace import) should also be handled."""
         source = textwrap.dedent("""\
+            package require tcltest
+            namespace import ::tcltest::*
             test mytest {description} -setup {
                 set data [list 1 2 3]
             } -body {
@@ -496,6 +498,18 @@ class TestTcltestW210:
         body_vars = {"freq", "s11", "s11Mag", "s11Re", "s11Im", "result"}
         false_positives = [d for d in diags if any(v in d.message for v in body_vars)]
         assert len(false_positives) == 0
+
+    def test_tcltest_legacy_positional_no_w210(self):
+        """Legacy positional form: test name desc ?constraints? body result."""
+        source = textwrap.dedent("""\
+            tcltest::test mytest {description} {
+                set x 1
+                return $x
+            } {1}
+        """)
+        diags = _diag_with_code(source, "W210")
+        x_diags = [d for d in diags if "x" in d.message]
+        assert len(x_diags) == 0
 
     def test_tcltest_top_level_var_still_warns(self):
         """A genuine top-level read-before-set should still trigger W210."""
