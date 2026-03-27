@@ -425,6 +425,105 @@ class TestReadBeforeSet:
         assert len(diags) >= 2
 
 
+# W210: tcltest::test body arguments
+
+
+class TestTcltestW210:
+    """W210 must not fire for variables referenced inside tcltest body args.
+
+    Variables inside ``-setup``, ``-body``, and ``-cleanup`` braced scripts
+    should not leak into the top-level SSA as reads-before-set.
+    """
+
+    def test_tcltest_setup_body_no_w210(self):
+        """Variable set in -setup and used in -body should not trigger W210."""
+        source = textwrap.dedent("""\
+            tcltest::test mytest {description} -setup {
+                set x 1
+            } -body {
+                puts $x
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        x_diags = [d for d in diags if "x" in d.message]
+        assert len(x_diags) == 0
+
+    def test_tcltest_bare_test_no_w210(self):
+        """Bare ``test`` (after namespace import) should also be handled."""
+        source = textwrap.dedent("""\
+            package require tcltest
+            namespace import ::tcltest::*
+            test mytest {description} -setup {
+                set data [list 1 2 3]
+            } -body {
+                return $data
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        data_diags = [d for d in diags if "data" in d.message]
+        assert len(data_diags) == 0
+
+    def test_tcltest_cleanup_no_w210(self):
+        """Variables referenced inside -cleanup should not trigger W210."""
+        source = textwrap.dedent("""\
+            test mytest {description} -setup {
+                set f [open /tmp/x w]
+            } -body {
+                puts $f hello
+            } -cleanup {
+                close $f
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        f_diags = [d for d in diags if "'f'" in d.message]
+        assert len(f_diags) == 0
+
+    def test_tcltest_lmap_in_setup_no_w210(self):
+        """Complex lmap pattern from issue #62 should not trigger W210."""
+        source = textwrap.dedent("""\
+            test mytest {filter test} -setup {
+                set freq [list 1 2 3]
+                set s11 [list {0.1 0.2} {0.3 0.4}]
+                set s11Mag [lmap s11Re [lmap val $s11 {lindex $val 0}] \\
+                                s11Im [lmap val $s11 {lindex $val 1}] \\
+                                {expr {sqrt($s11Re**2+$s11Im**2)}}]
+            } -body {
+                lappend result [lmap freqVal $freq {format "%.3e" $freqVal}]
+                lappend result [lmap s11MagVal $s11Mag {format "%.3e" $s11MagVal}]
+                return $result
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        # None of freq, s11, s11Mag, s11Re, s11Im, result should appear
+        body_vars = {"freq", "s11", "s11Mag", "s11Re", "s11Im", "result"}
+        false_positives = [d for d in diags if any(v in d.message for v in body_vars)]
+        assert len(false_positives) == 0
+
+    def test_tcltest_legacy_positional_no_w210(self):
+        """Legacy positional form: test name desc ?constraints? body result."""
+        source = textwrap.dedent("""\
+            tcltest::test mytest {description} {
+                set x 1
+                return $x
+            } {1}
+        """)
+        diags = _diag_with_code(source, "W210")
+        x_diags = [d for d in diags if "x" in d.message]
+        assert len(x_diags) == 0
+
+    def test_tcltest_top_level_var_still_warns(self):
+        """A genuine top-level read-before-set should still trigger W210."""
+        source = textwrap.dedent("""\
+            puts $undefined_var
+            test mytest {description} -body {
+                return ok
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        undef_diags = [d for d in diags if "undefined_var" in d.message]
+        assert len(undef_diags) >= 1
+
+
 # W210: foreach_in_collection loop variable
 
 

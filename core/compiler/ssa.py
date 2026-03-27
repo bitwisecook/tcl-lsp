@@ -27,6 +27,7 @@ from ..common.naming import normalise_var_name as _normalise_var_name
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, CFGTerminator
 from .expr_ast import ExprNode, vars_in_expr_node
 from .ir import (
+    CommandTokens,
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -99,15 +100,70 @@ def _vars_in_script(source: str) -> frozenset[str]:
     return _VAR_REF_SCANNER.scan_script(source)
 
 
-def _structural_body_indices(command: str, args: tuple[str, ...]) -> set[int]:
+_TCLTEST_BODY_OPTIONS = frozenset({"-setup", "-body", "-cleanup"})
+
+
+def _is_braced_arg(tokens: CommandTokens | None, arg_index: int) -> bool:
+    """Return True when argument *arg_index* is a braced literal (STR token).
+
+    When token info is unavailable, conservatively returns True so that
+    the body is still excluded (the common case is braced scripts).
+    """
+    if tokens is None:
+        return True
+    # tokens.argv includes the command name at index 0; args are 1-based.
+    tok_index = arg_index + 1
+    if tok_index >= len(tokens.argv):
+        return True
+    from ..parsing.tokens import TokenType
+
+    return tokens.argv[tok_index].type is TokenType.STR
+
+
+def _structural_body_indices(
+    command: str,
+    args: tuple[str, ...],
+    tokens: CommandTokens | None = None,
+) -> set[int]:
     """Return BODY arg indices that should be excluded from local statement uses.
 
-    We only exclude handler-style bodies that are lowered/analyzed separately.
+    We only exclude handler-style bodies that are lowered/analysed separately.
     Dynamic evaluation commands like ``eval`` still need their args treated as
     ordinary dataflow inputs (for taint and read-before-set tracking).
+
+    ``tcltest::test`` (and bare ``test`` after ``namespace import``) bodies
+    are excluded because the LSP does not inline them — variable references
+    inside the braced scripts would otherwise appear as top-level
+    reads-before-set (false W210).
+
+    To avoid dropping real top-level reads when the body is passed via
+    substitution (e.g. ``-body $script``), we only exclude arguments that
+    are literal/braced script words.  Non-literal body arguments are still
+    scanned for substitutions.
     """
     if command in ("when", "proc"):
-        return arg_indices_for_role(command, list(args), ArgRole.BODY)
+        candidate_indices = arg_indices_for_role(command, list(args), ArgRole.BODY)
+        return {
+            idx for idx in candidate_indices if 0 <= idx < len(args) and _is_braced_arg(tokens, idx)
+        }
+    if command in ("test", "tcltest::test"):
+        # Option form: test name description ?option value ...?
+        indices: set[int] = set()
+        has_body_option = False
+        i = 2
+        while i < len(args) - 1:
+            if args[i] in _TCLTEST_BODY_OPTIONS:
+                value_idx = i + 1
+                has_body_option = True
+                if _is_braced_arg(tokens, value_idx):
+                    indices.add(value_idx)
+            i += 2
+        # Legacy positional form: test name desc ?constraints? body result
+        if not has_body_option and len(args) >= 4:
+            body_index = len(args) - 2
+            if _is_braced_arg(tokens, body_index):
+                indices.add(body_index)
+        return indices
     return set()
 
 
@@ -132,10 +188,15 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
             if amount is not None:
                 vars_found |= _vars_in_word(amount)
         case IRCall(
-            command=command, args=args, defs=call_defs, reads=call_reads, reads_own_defs=rod
+            command=command,
+            args=args,
+            defs=call_defs,
+            reads=call_reads,
+            reads_own_defs=rod,
+            tokens=call_tokens,
         ):
             vars_found |= _vars_in_word(command)
-            body_indices = _structural_body_indices(command, args)
+            body_indices = _structural_body_indices(command, args, call_tokens)
             for idx, arg in enumerate(args):
                 if idx in body_indices:
                     continue
@@ -153,9 +214,9 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                 vars_found |= _vars_in_word(value)
             if expr is not None:
                 vars_found |= _vars_in_expr(expr)
-        case IRBarrier(command=command, args=args):
+        case IRBarrier(command=command, args=args, tokens=barrier_tokens):
             vars_found |= _vars_in_word(command)
-            body_indices = _structural_body_indices(command, args)
+            body_indices = _structural_body_indices(command, args, barrier_tokens)
             for idx, arg in enumerate(args):
                 if idx in body_indices:
                     continue
