@@ -260,6 +260,15 @@ def render_graphs(output_dir: str | None = None) -> list[str]:
     """).fetchall()
     db.close()
 
+    # Separate connection for memory table (may not exist in old databases).
+    db2 = None
+    try:
+        db2 = sqlite3.connect(str(DB_PATH))
+        db2.row_factory = sqlite3.Row
+        db2.execute("SELECT 1 FROM memory_usage LIMIT 1")
+    except Exception:
+        db2 = None
+
     if not rows:
         print("No data in database. Run 'bench' first.")
         return []
@@ -428,6 +437,49 @@ def render_graphs(output_dir: str | None = None) -> list[str]:
     plt.close(fig)
     generated.append(path4)
     print(f"  Generated {path4}")
+
+    # Graph 5: Peak memory usage
+    mem_rows = db2.execute("""
+        SELECT version, peak_rss_mb FROM memory_usage
+        WHERE peak_rss_mb > 0
+        GROUP BY version
+        ORDER BY version
+    """).fetchall() if db2 else []
+    if mem_rows:
+        mem_versions = []
+        mem_values = []
+        for r in mem_rows:
+            if r["version"] in versions:
+                mem_versions.append(r["version"])
+                mem_values.append(r["peak_rss_mb"])
+        if mem_versions:
+            # Sort by the same order as the main version list
+            sorted_pairs = sorted(
+                zip(mem_versions, mem_values),
+                key=lambda p: _version_sort_key(p[0]),
+            )
+            mem_versions, mem_values = zip(*sorted_pairs) if sorted_pairs else ([], [])
+
+            fig, ax = plt.subplots(figsize=(10, 5))
+            bars = ax.bar(mem_versions, mem_values, color=sns.color_palette("husl", len(mem_versions)),
+                          edgecolor="white", linewidth=0.5)
+            for bar, val in zip(bars, mem_values):
+                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
+                        f"{val:.0f}", ha="center", va="bottom", fontsize=9)
+            ax.set_xlabel("Version")
+            ax.set_ylabel("Peak RSS (MB)")
+            ax.set_title("Server Peak Memory Usage (idle)", fontweight="bold", fontsize=14)
+            ax.set_ylim(bottom=0)
+            ax.tick_params(axis="x", rotation=30)
+            fig.tight_layout()
+            path5 = os.path.join(output_dir, "memory.png")
+            fig.savefig(path5, dpi=150)
+            plt.close(fig)
+            generated.append(path5)
+            print(f"  Generated {path5}")
+
+    if db2:
+        db2.close()
 
     return generated
 
