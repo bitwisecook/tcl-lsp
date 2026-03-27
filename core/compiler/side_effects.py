@@ -544,7 +544,41 @@ def _extract_protocol_namespace(command: str) -> str | None:
     return None
 
 
+# LRU cache for classify_side_effects when no callee_summary is
+# provided (the common case).  Keyed on (command, args, dialect,
+# subcommand).  Avoids repeated registry lookups for identical
+# command invocations across procedures.
+_side_effect_cache: dict[tuple, CommandSideEffects] = {}
+_SIDE_EFFECT_CACHE_MAX = 2048
+
+
 def classify_side_effects(
+    command: str,
+    args: tuple[str, ...] = (),
+    *,
+    dialect: str | None = None,
+    subcommand: str | None = None,
+    callee_summary: object | None = None,
+) -> CommandSideEffects:
+    # Fast cache lookup for the common case (no callee_summary).
+    if callee_summary is None:
+        cache_key = (command, args, dialect, subcommand)
+        cached = _side_effect_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        result = _classify_side_effects_impl(
+            command, args, dialect=dialect, subcommand=subcommand,
+        )
+        if len(_side_effect_cache) < _SIDE_EFFECT_CACHE_MAX:
+            _side_effect_cache[cache_key] = result
+        return result
+    return _classify_side_effects_impl(
+        command, args, dialect=dialect, subcommand=subcommand,
+        callee_summary=callee_summary,
+    )
+
+
+def _classify_side_effects_impl(
     command: str,
     args: tuple[str, ...] = (),
     *,
