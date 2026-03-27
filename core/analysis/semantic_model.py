@@ -110,6 +110,57 @@ class ProcDef:
     param_traits: dict[str, frozenset[ProcArgTrait]] = field(default_factory=dict)
 
 
+# OO method definition
+@dataclass(frozen=True, slots=True)
+class MethodDef:
+    """A method defined within a TclOO class."""
+
+    name: str
+    params: list[ParamDef]
+    name_range: Range
+    body_range: Range
+    visibility: str = "public"  # "public" | "private" | "unexported"
+    kind: str = "method"  # "method" | "classmethod" | "forward" | "constructor" | "destructor"
+    doc: str = ""
+    param_traits: dict[str, frozenset[ProcArgTrait]] = field(default_factory=dict)
+
+
+# OO property definition
+@dataclass(frozen=True, slots=True)
+class PropertyDef:
+    """A configurable property on a TclOO class."""
+
+    name: str
+    name_range: Range
+    kind: str = "readwrite"  # "readable" | "writable" | "readwrite"
+    has_getter: bool = False
+    has_setter: bool = False
+
+
+# OO class definition
+@dataclass
+class ClassDef:
+    """A TclOO class extracted from source analysis."""
+
+    name: str  # simple name
+    qualified_name: str  # e.g. "::shapes::Point"
+    name_range: Range  # range of class name in source
+    body_range: Range  # range of definition body
+    metaclass: str = "oo::class"  # "oo::class"|"oo::configurable"|"oo::abstract"|"oo::singleton"
+    superclasses: list[str] = field(default_factory=list)
+    mixins: list[str] = field(default_factory=list)
+    methods: dict[str, MethodDef] = field(default_factory=dict)
+    class_methods: dict[str, MethodDef] = field(default_factory=dict)
+    constructors: list[MethodDef] = field(default_factory=list)
+    destructor: MethodDef | None = None
+    variables: list[str] = field(default_factory=list)
+    properties: dict[str, PropertyDef] = field(default_factory=dict)
+    filters: list[str] = field(default_factory=list)
+    exports: set[str] = field(default_factory=set)
+    unexports: set[str] = field(default_factory=set)
+    doc: str = ""
+
+
 # Scope
 @dataclass
 class Scope:
@@ -121,6 +172,7 @@ class Scope:
     body_range: Range | None = None
     variables: dict[str, VarDef] = field(default_factory=dict)
     procs: dict[str, ProcDef] = field(default_factory=dict)
+    classes: dict[str, ClassDef] = field(default_factory=dict)
     children: list[Scope] = field(default_factory=list)
 
     def _copy_tree(self, parent: Scope | None = None) -> Scope:
@@ -152,6 +204,7 @@ class Scope:
                 )
                 for k, v in self.procs.items()
             },
+            classes=dict(self.classes),  # ClassDef is mutable but shared is fine for snapshots
         )
         new.children = [child._copy_tree(parent=new) for child in self.children]
         return new
@@ -341,6 +394,7 @@ class AnalysisResult:
 
     global_scope: Scope = field(default_factory=lambda: Scope(kind="global", name="::"))
     all_procs: dict[str, ProcDef] = field(default_factory=dict)
+    all_classes: dict[str, ClassDef] = field(default_factory=dict)
     all_variables: dict[str, VarDef] = field(default_factory=dict)
     diagnostics: list[Diagnostic] = field(default_factory=list)
     # Inline suppression: line -> set of suppressed diagnostic codes.
@@ -416,6 +470,7 @@ class AnalysisResult:
         return AnalysisResult(
             global_scope=new_scope,
             all_procs=new_procs,
+            all_classes=self.all_classes.copy(),
             all_variables=new_vars,
             diagnostics=self.diagnostics[:],
             suppressed_lines=self.suppressed_lines.copy(),

@@ -411,7 +411,11 @@ class TestControlFlow:
             }
         """)
         result = analyse(source)
-        assert "message" in result.global_scope.variables
+        # Method body variables live in the method's own scope, not global
+        assert "::Dog" in result.all_classes
+        method_scope = result.global_scope.children[0]
+        assert method_scope.name == "Dog::bark"
+        assert "message" in method_scope.variables
 
 
 class TestFixtures:
@@ -1396,3 +1400,234 @@ class TestSourceTargets:
         assert result.source_targets[0].is_literal is True
         assert result.source_targets[1].is_literal is True
         assert result.source_targets[2].is_literal is False
+
+
+class TestTclOOClassExtraction:
+    """Tests for TclOO class definition extraction."""
+
+    def test_class_create_basic(self):
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                method bark {} { return "woof" }
+            }
+        """)
+        result = analyse(source)
+        assert "::Dog" in result.all_classes
+        cd = result.all_classes["::Dog"]
+        assert cd.name == "Dog"
+        assert cd.metaclass == "oo::class"
+        assert "bark" in cd.methods
+        assert cd.methods["bark"].kind == "method"
+
+    def test_class_superclass(self):
+        source = textwrap.dedent("""\
+            oo::class create Animal {
+                method speak {} { error "abstract" }
+            }
+            oo::class create Dog {
+                superclass Animal
+                method bark {} { return "woof" }
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Dog"]
+        assert cd.superclasses == ["Animal"]
+
+    def test_class_variables(self):
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                variable name breed
+                constructor {n b} { set name $n; set breed $b }
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Dog"]
+        assert cd.variables == ["name", "breed"]
+        assert len(cd.constructors) == 1
+        assert cd.constructors[0].kind == "constructor"
+        assert [p.name for p in cd.constructors[0].params] == ["n", "b"]
+
+    def test_class_method_params(self):
+        source = textwrap.dedent("""\
+            oo::class create Calc {
+                method add {a b} { expr {$a + $b} }
+            }
+        """)
+        result = analyse(source)
+        md = result.all_classes["::Calc"].methods["add"]
+        assert [p.name for p in md.params] == ["a", "b"]
+
+    def test_class_destructor(self):
+        source = textwrap.dedent("""\
+            oo::class create Conn {
+                destructor { close $fd }
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Conn"]
+        assert cd.destructor is not None
+        assert cd.destructor.kind == "destructor"
+
+    def test_class_mixins(self):
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                mixin Serializable Comparable
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Dog"]
+        assert cd.mixins == ["Serializable", "Comparable"]
+
+    def test_class_forward(self):
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                forward run ::dog::run_impl
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Dog"]
+        assert "run" in cd.methods
+        assert cd.methods["run"].kind == "forward"
+
+    def test_class_filter_export_unexport(self):
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                method bark {} {}
+                method internal {} {}
+                filter myfilter
+                export bark
+                unexport internal
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Dog"]
+        assert cd.filters == ["myfilter"]
+        assert "bark" in cd.exports
+        assert "internal" in cd.unexports
+
+    def test_oo_define_body_merges(self):
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                method bark {} { return "woof" }
+            }
+            oo::define Dog {
+                method fetch {item} { return $item }
+                classmethod count {} { return 0 }
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Dog"]
+        assert "bark" in cd.methods
+        assert "fetch" in cd.methods
+        assert "count" in cd.class_methods
+
+    def test_oo_define_inline(self):
+        source = 'oo::define Dog method sit {} { return "sitting" }'
+        result = analyse(source)
+        cd = result.all_classes["::Dog"]
+        assert "sit" in cd.methods
+
+    def test_oo_define_creates_partial_class(self):
+        """oo::define for an unseen class creates a partial ClassDef."""
+        source = textwrap.dedent("""\
+            oo::define MyClass {
+                method foo {} {}
+            }
+        """)
+        result = analyse(source)
+        assert "::MyClass" in result.all_classes
+        assert "foo" in result.all_classes["::MyClass"].methods
+
+    def test_configurable_metaclass(self):
+        source = textwrap.dedent("""\
+            oo::configurable create Point {
+                property x y
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Point"]
+        assert cd.metaclass == "oo::configurable"
+        assert "x" in cd.properties
+        assert "y" in cd.properties
+
+    def test_abstract_metaclass(self):
+        source = textwrap.dedent("""\
+            oo::abstract create Shape {
+                method area {} { error "abstract" }
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Shape"]
+        assert cd.metaclass == "oo::abstract"
+
+    def test_singleton_metaclass(self):
+        source = textwrap.dedent("""\
+            oo::singleton create Logger {
+                method log {msg} { puts $msg }
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Logger"]
+        assert cd.metaclass == "oo::singleton"
+
+    def test_method_body_variables_in_scope(self):
+        """Instance variables declared via class-level 'variable' are available in method bodies."""
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                variable name
+                constructor {n} { set name $n }
+                method bark {} { return $name }
+            }
+        """)
+        result = analyse(source)
+        # The method scope should have 'name' as a variable
+        bark_scope = [s for s in result.global_scope.children if s.name == "Dog::bark"]
+        assert len(bark_scope) == 1
+        assert "name" in bark_scope[0].variables
+
+    def test_classmethod_extraction(self):
+        source = textwrap.dedent("""\
+            oo::class create Counter {
+                classmethod instances {} { return 0 }
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Counter"]
+        assert "instances" in cd.class_methods
+        assert cd.class_methods["instances"].kind == "classmethod"
+
+    def test_private_method(self):
+        source = textwrap.dedent("""\
+            oo::class create Foo {
+                private method helper {} { return 1 }
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Foo"]
+        assert "helper" in cd.methods
+        assert cd.methods["helper"].visibility == "private"
+
+    def test_class_in_namespace(self):
+        source = textwrap.dedent("""\
+            namespace eval shapes {
+                oo::class create Circle {
+                    variable radius
+                    method area {} { expr {3.14 * $radius * $radius} }
+                }
+            }
+        """)
+        result = analyse(source)
+        assert "::shapes::Circle" in result.all_classes
+        cd = result.all_classes["::shapes::Circle"]
+        assert cd.variables == ["radius"]
+        assert "area" in cd.methods
+
+    def test_scope_on_class(self):
+        """ClassDef is registered on the enclosing scope."""
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                method bark {} {}
+            }
+        """)
+        result = analyse(source)
+        assert "Dog" in result.global_scope.classes

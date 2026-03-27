@@ -61,13 +61,16 @@ from ..parsing.tokens import SourcePosition, Token, TokenType
 from .proc_arg_traits import infer_param_traits
 from .semantic_model import (
     AnalysisResult,
+    ClassDef,
     CodeFix,
     CommandInvocation,
     Diagnostic,
+    MethodDef,
     PackageProvide,
     PackageRequire,
     ParamDef,
     ProcDef,
+    PropertyDef,
     Range,
     RegexPattern,
     Scope,
@@ -1494,6 +1497,10 @@ class Analyser:
         """
         if self._handle_proc_command(cmd_name, args, arg_tokens, scope):
             return True
+        if self._handle_oo_class_command(cmd_name, args, arg_tokens, scope):
+            return True
+        if self._handle_oo_define_command(cmd_name, args, arg_tokens, scope):
+            return True
 
         self._handle_set_command(cmd_name, args, arg_tokens, scope)
         self._handle_var_declaration_command(cmd_name, args, arg_tokens, scope)
@@ -1910,6 +1917,352 @@ class Analyser:
         norm_qualified = qualified.lstrip(":")
         if proc_name == "unknown" or norm_qualified in ("unknown", "tcl::unknown"):
             self._extract_unknown_proc_info(body, params)
+
+    # ------------------------------------------------------------------
+    # TclOO class extraction
+    # ------------------------------------------------------------------
+
+    _OO_METACLASSES = frozenset(
+        {"oo::class", "oo::configurable", "oo::abstract", "oo::singleton"}
+    )
+
+    def _handle_oo_class_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> bool:
+        """Handle ``oo::class create Name { body }`` and similar metaclass commands."""
+        if cmd_name not in self._OO_METACLASSES:
+            return False
+        # Expect: create Name ?body?  OR  new ?body?
+        if len(args) < 2:
+            return False
+        subcommand = args[0]
+        if subcommand not in ("create", "new", "createWithNamespace"):
+            return False
+        if subcommand == "create" and len(args) < 2:
+            return False
+
+        class_name = args[1]
+        body = args[2] if len(args) > 2 else ""
+        name_range = range_from_token(arg_tokens[1]) if len(arg_tokens) > 1 else Range.zero()
+        body_range = range_from_token(arg_tokens[2]) if len(arg_tokens) > 2 else name_range
+
+        # Determine qualified name
+        if scope.kind == "namespace":
+            qualified = f"::{scope.name}::{class_name}"
+        else:
+            qualified = f"::{class_name}"
+
+        preceding_doc = self._last_comment
+        self._last_comment = ""
+
+        class_def = ClassDef(
+            name=class_name,
+            qualified_name=qualified,
+            name_range=name_range,
+            body_range=body_range,
+            metaclass=cmd_name,
+            doc=preceding_doc,
+        )
+
+        if body:
+            self._parse_oo_definition_body(body, arg_tokens[2] if len(arg_tokens) > 2 else None, class_def, scope)
+
+        scope.classes[class_name] = class_def
+        self.result.all_classes[qualified] = class_def
+        return True
+
+    def _handle_oo_define_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> bool:
+        """Handle ``oo::define ClassName { body }`` and inline forms."""
+        if cmd_name != "oo::define":
+            return False
+        if len(args) < 2:
+            return False
+
+        class_name = args[0]
+        # Determine qualified name
+        if scope.kind == "namespace":
+            qualified = f"::{scope.name}::{class_name}"
+        else:
+            qualified = f"::{class_name}"
+
+        # Look up or create partial ClassDef
+        class_def = self.result.all_classes.get(qualified)
+        if class_def is None:
+            name_range = range_from_token(arg_tokens[0]) if arg_tokens else Range.zero()
+            class_def = ClassDef(
+                name=class_name,
+                qualified_name=qualified,
+                name_range=name_range,
+                body_range=name_range,
+            )
+            scope.classes[class_name] = class_def
+            self.result.all_classes[qualified] = class_def
+
+        # Distinguish body form from inline form.
+        # Inline: oo::define ClassName method name args body
+        # Body:   oo::define ClassName { method name args body; ... }
+        if len(args) >= 2:
+            _OO_DEFINE_SUBCMDS = {
+                "method", "classmethod", "constructor", "destructor",
+                "superclass", "mixin", "variable", "filter", "forward",
+                "export", "unexport", "property", "private",
+                "initialise", "initialize", "definitionnamespace",
+                "deletemethod", "renamemethod", "self",
+            }
+            if args[1] in _OO_DEFINE_SUBCMDS:
+                # Inline form
+                self._parse_oo_define_inline(args[1:], arg_tokens[1:] if len(arg_tokens) > 1 else [], class_def, scope)
+            else:
+                # Body form
+                body_tok = arg_tokens[1] if len(arg_tokens) > 1 else None
+                self._parse_oo_definition_body(args[1], body_tok, class_def, scope)
+        return True
+
+    def _parse_oo_definition_body(
+        self,
+        body: str,
+        body_token: Token | None,
+        class_def: ClassDef,
+        scope: Scope,
+    ) -> None:
+        """Parse the body of an oo::class create or oo::define block."""
+        commands, _ = segment_with_recovery(body, body_token)
+        for cmd in commands:
+            if not cmd.texts:
+                continue
+            subcmd = cmd.texts[0]
+            sub_args = cmd.texts[1:]
+            sub_tokens = cmd.argv[1:] if len(cmd.argv) > 1 else []
+
+            match subcmd:
+                case "superclass":
+                    class_def.superclasses = list(sub_args)
+                case "mixin":
+                    # Skip -append flag if present
+                    mixins = [a for a in sub_args if not a.startswith("-")]
+                    class_def.mixins = mixins
+                case "variable":
+                    class_def.variables = list(sub_args)
+                case "method":
+                    self._extract_method_def(sub_args, sub_tokens, class_def, scope, kind="method")
+                case "classmethod":
+                    self._extract_method_def(sub_args, sub_tokens, class_def, scope, kind="classmethod")
+                case "constructor":
+                    self._extract_method_def(
+                        sub_args, sub_tokens, class_def, scope,
+                        kind="constructor", synthetic_name="<constructor>",
+                    )
+                case "destructor":
+                    self._extract_method_def(
+                        sub_args, sub_tokens, class_def, scope,
+                        kind="destructor", synthetic_name="<destructor>",
+                    )
+                case "forward":
+                    if sub_args:
+                        fwd_name = sub_args[0]
+                        fwd_range = range_from_token(sub_tokens[0]) if sub_tokens else Range.zero()
+                        fwd_def = MethodDef(
+                            name=fwd_name,
+                            params=[],
+                            name_range=fwd_range,
+                            body_range=fwd_range,
+                            kind="forward",
+                        )
+                        class_def.methods[fwd_name] = fwd_def
+                case "filter":
+                    class_def.filters = list(sub_args)
+                case "export":
+                    class_def.exports.update(sub_args)
+                case "unexport":
+                    class_def.unexports.update(sub_args)
+                case "property":
+                    self._extract_property_defs(sub_args, sub_tokens, class_def)
+                case "private":
+                    # private wraps another definition subcommand
+                    if sub_args and sub_tokens:
+                        inner_subcmd = sub_args[0]
+                        inner_args = sub_args[1:]
+                        inner_tokens = sub_tokens[1:]
+                        if inner_subcmd in ("method", "classmethod"):
+                            self._extract_method_def(
+                                inner_args, inner_tokens, class_def, scope,
+                                kind=inner_subcmd, visibility="private",
+                            )
+                case "initialise" | "initialize":
+                    # initialise { body } — class-level initialisation script
+                    if sub_args:
+                        init_tok = sub_tokens[0] if sub_tokens else None
+                        self._analyse_body(sub_args[0], scope, body_token=init_tok)
+
+            # Also recurse into method/constructor/destructor bodies for
+            # variable tracking (handled inside _extract_method_def)
+
+    def _parse_oo_define_inline(
+        self,
+        args: list[str],
+        arg_tokens: list[Token],
+        class_def: ClassDef,
+        scope: Scope,
+    ) -> None:
+        """Handle inline oo::define form: ``oo::define Class method name args body``."""
+        if not args:
+            return
+        subcmd = args[0]
+        sub_args = args[1:]
+        sub_tokens = arg_tokens[1:] if len(arg_tokens) > 1 else []
+
+        match subcmd:
+            case "method" | "classmethod":
+                self._extract_method_def(sub_args, sub_tokens, class_def, scope, kind=subcmd)
+            case "superclass":
+                class_def.superclasses = list(sub_args)
+            case "mixin":
+                mixins = [a for a in sub_args if not a.startswith("-")]
+                class_def.mixins = mixins
+            case "variable":
+                class_def.variables = list(sub_args)
+            case "constructor":
+                self._extract_method_def(
+                    sub_args, sub_tokens, class_def, scope,
+                    kind="constructor", synthetic_name="<constructor>",
+                )
+            case "destructor":
+                self._extract_method_def(
+                    sub_args, sub_tokens, class_def, scope,
+                    kind="destructor", synthetic_name="<destructor>",
+                )
+            case "filter":
+                class_def.filters = list(sub_args)
+            case "export":
+                class_def.exports.update(sub_args)
+            case "unexport":
+                class_def.unexports.update(sub_args)
+
+    def _extract_method_def(
+        self,
+        args: list[str],
+        arg_tokens: list[Token],
+        class_def: ClassDef,
+        scope: Scope,
+        *,
+        kind: str = "method",
+        visibility: str = "public",
+        synthetic_name: str = "",
+    ) -> None:
+        """Extract a method/constructor/destructor definition from definition args."""
+        if kind in ("constructor", "destructor"):
+            # constructor argList body  /  destructor body
+            if kind == "constructor" and len(args) >= 2:
+                param_str = args[0]
+                body = args[1]
+                name_range = Range.zero()
+                body_range = range_from_token(arg_tokens[1]) if len(arg_tokens) > 1 else Range.zero()
+                params = _parse_param_list(param_str)
+            elif kind == "destructor" and len(args) >= 1:
+                param_str = ""
+                body = args[0]
+                name_range = Range.zero()
+                body_range = range_from_token(arg_tokens[0]) if arg_tokens else Range.zero()
+                params = []
+            else:
+                return
+            method_name = synthetic_name or kind
+        else:
+            # method name argList body  /  classmethod name argList body
+            if len(args) < 3:
+                return
+            method_name = args[0]
+            param_str = args[1]
+            body = args[2]
+            name_range = range_from_token(arg_tokens[0]) if arg_tokens else Range.zero()
+            body_range = range_from_token(arg_tokens[2]) if len(arg_tokens) > 2 else Range.zero()
+            params = _parse_param_list(param_str)
+
+        method_def = MethodDef(
+            name=method_name,
+            params=params,
+            name_range=name_range,
+            body_range=body_range,
+            visibility=visibility,
+            kind=kind,
+        )
+
+        match kind:
+            case "constructor":
+                class_def.constructors.append(method_def)
+            case "destructor":
+                class_def.destructor = method_def
+            case "classmethod":
+                class_def.class_methods[method_name] = method_def
+            case _:
+                class_def.methods[method_name] = method_def
+
+        # Recurse into the method body for variable analysis
+        method_scope = Scope(
+            kind="proc",
+            name=f"{class_def.name}::{method_name}",
+            parent=scope,
+            body_range=body_range,
+        )
+        scope.children.append(method_scope)
+
+        for p in params:
+            method_scope.variables[p.name] = VarDef(
+                name=p.name,
+                definition_range=name_range,
+                warn_if_unused=False,
+            )
+
+        # Instance variables declared via class-level 'variable' are
+        # available in all methods
+        for var_name in class_def.variables:
+            if var_name not in method_scope.variables:
+                method_scope.variables[var_name] = VarDef(
+                    name=var_name,
+                    definition_range=class_def.name_range,
+                    warn_if_unused=False,
+                )
+
+        saved_comment = self._last_comment
+        body_tok = arg_tokens[2] if len(arg_tokens) > 2 and kind not in ("constructor", "destructor") else None
+        if kind == "constructor" and len(arg_tokens) > 1:
+            body_tok = arg_tokens[1]
+        elif kind == "destructor" and arg_tokens:
+            body_tok = arg_tokens[0]
+        self._analyse_body(body, method_scope, body_token=body_tok)
+        self._last_comment = saved_comment
+
+    def _extract_property_defs(
+        self,
+        args: list[str],
+        arg_tokens: list[Token],
+        class_def: ClassDef,
+    ) -> None:
+        """Extract property definitions from a ``property`` subcommand."""
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg.startswith("-"):
+                # Skip option flags and their values (-get body, -set body, etc.)
+                i += 2  # skip flag + value
+                continue
+            # This is a property name
+            prop_range = range_from_token(arg_tokens[i]) if i < len(arg_tokens) else Range.zero()
+            class_def.properties[arg] = PropertyDef(
+                name=arg,
+                name_range=prop_range,
+            )
+            i += 1
 
     # ------------------------------------------------------------------
     # Unknown proc body analysis
