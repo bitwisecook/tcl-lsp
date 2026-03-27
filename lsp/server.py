@@ -2370,6 +2370,7 @@ def _warm_imports() -> None:
 _scan_lock = threading.Lock()
 
 
+
 def _run_background_scan() -> None:
     """Execute background scan in a daemon thread.
 
