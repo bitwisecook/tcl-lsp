@@ -56,6 +56,8 @@ class RenderedProperties(Flag):
     HAS_INTERPOLATION = auto()  # value contains $var or [cmd]
     HAS_DOUBLE_ESCAPE = auto()  # rendered text contains already-escaped sequences
     HAS_NULL = auto()  # rendered text contains \\x00 / \\0
+    WAS_UNESCAPED = auto()  # value passed through subst / regsub / encoding convertfrom
+    DOUBLE_UNESCAPED = auto()  # value was already WAS_UNESCAPED then unescaped again
 
     # --- "must" properties (intersection at joins) ---
     STARTS_WITH_SLASH = auto()  # first rendered literal char is '/'
@@ -71,6 +73,9 @@ _MAY_MASK = (
     | RenderedProperties.HAS_DOUBLE_ESCAPE
     | RenderedProperties.HAS_NULL
 )
+# Provenance bits are NOT in _MAY_MASK — they are only set explicitly
+# by unescape commands and propagated through copies/phis.
+_PROVENANCE_MASK = RenderedProperties.WAS_UNESCAPED | RenderedProperties.DOUBLE_UNESCAPED
 _MUST_MASK = RenderedProperties.STARTS_WITH_SLASH | RenderedProperties.STARTS_WITH_DASH
 _ALL_MUST = _MUST_MASK  # bottom: assume all must-props until disproven
 
@@ -118,6 +123,32 @@ _PATH_RETURNING_FILE_SUBS = frozenset(
     }
 )
 _PATH_RETURNING_INFO_SUBS = frozenset({"script", "nameofexecutable", "library"})
+
+# Commands that perform unescaping / decoding of string content.
+# A value that passes through one of these has been "unescaped" once;
+# passing through a second one is a double-unescape (almost always a bug).
+_UNESCAPE_COMMANDS = frozenset(
+    {
+        "subst",
+        "URI::decode",
+        "decode_uri",
+        "b64decode",
+    }
+)
+_UNESCAPE_ENCODING_SUBS = frozenset({"convertfrom"})
+# HTTP getter forms with -normalized perform URI-decoding on the result.
+_UNESCAPE_HTTP_GETTERS = frozenset({"HTTP::uri", "HTTP::path", "HTTP::query"})
+
+
+def _is_unescape_command(cmd: str, args: tuple[str, ...] | list[str]) -> bool:
+    """Return True if the command performs unescaping / decoding."""
+    if cmd in _UNESCAPE_COMMANDS:
+        return True
+    if cmd == "encoding" and args and args[0] in _UNESCAPE_ENCODING_SUBS:
+        return True
+    if cmd in _UNESCAPE_HTTP_GETTERS and "-normalized" in args:
+        return True
+    return False
 
 
 def _cmd_may_return_path(cmd_text: str) -> bool:
@@ -180,14 +211,18 @@ def _evaluate_rendered_props_for_value(value: str) -> RenderedValueProps:
     if parsed is not None:
         may = RenderedProperties.HAS_INTERPOLATION
         must = RenderedProperties.NONE
-        # If the command returns path content, set HAS_FORWARD_SLASH.
         cmd, args = parsed
+        # If the command returns path content, set HAS_FORWARD_SLASH.
         if cmd in _PATH_RETURNING_COMMANDS:
             may |= RenderedProperties.HAS_FORWARD_SLASH
         elif cmd == "file" and args and args[0] in _PATH_RETURNING_FILE_SUBS:
             may |= RenderedProperties.HAS_FORWARD_SLASH
         elif cmd == "info" and args and args[0] in _PATH_RETURNING_INFO_SUBS:
             may |= RenderedProperties.HAS_FORWARD_SLASH
+        # Track unescape provenance for subst, URI::decode, b64decode,
+        # encoding convertfrom, HTTP::uri/path/query -normalized.
+        if _is_unescape_command(cmd, args):
+            may |= RenderedProperties.WAS_UNESCAPED
         return RenderedValueProps(may=may, must=must)
 
     may = RenderedProperties.NONE
@@ -302,7 +337,19 @@ def _evaluate_rendered_def(
                     src = props.get((use_name, use_ver))
                     if src is not None:
                         return src
-            return _evaluate_rendered_props_for_value(value)
+            base = _evaluate_rendered_props_for_value(value)
+            # Escalate to DOUBLE_UNESCAPED: if the value itself is an
+            # unescape command (WAS_UNESCAPED) and any SSA input was
+            # already WAS_UNESCAPED, the result is doubly unescaped.
+            if base.may & RenderedProperties.WAS_UNESCAPED and ssa_stmt.uses:
+                for use_name, use_ver in ssa_stmt.uses.items():
+                    src = props.get((use_name, use_ver))
+                    if src is not None and src.may & RenderedProperties.WAS_UNESCAPED:
+                        return RenderedValueProps(
+                            may=base.may | RenderedProperties.DOUBLE_UNESCAPED,
+                            must=base.must,
+                        )
+            return base
 
         case IRAssignExpr():
             # Expression results are numeric -- no path separators.
@@ -318,7 +365,21 @@ def _evaluate_rendered_def(
                 must=RenderedProperties.NONE,
             )
 
-        case IRCall():
+        case IRCall(command=cmd, args=args):
+            # Track unescape provenance across SSA.
+            if _is_unescape_command(cmd, args):
+                # Merge input argument properties and tag with WAS_UNESCAPED.
+                # If any input was already WAS_UNESCAPED, escalate to
+                # DOUBLE_UNESCAPED (double subst is almost always a bug).
+                input_may = RenderedProperties.NONE
+                for _use_name, _use_ver in ssa_stmt.uses.items():
+                    src = props.get((_use_name, _use_ver))
+                    if src is not None:
+                        input_may |= src.may
+                result_may = _MAY_MASK | RenderedProperties.WAS_UNESCAPED
+                if input_may & RenderedProperties.WAS_UNESCAPED:
+                    result_may |= RenderedProperties.DOUBLE_UNESCAPED
+                return RenderedValueProps(may=result_may, must=RenderedProperties.NONE)
             # Generic command: conservative.
             return _TOP
 

@@ -255,6 +255,145 @@ class TestNamespaceAndDynamicDispatch:
         assert len(ws) == 0
 
 
+class TestUnescapeTracking:
+    """WAS_UNESCAPED / DOUBLE_UNESCAPED provenance across SSA."""
+
+    def test_subst_sets_was_unescaped(self):
+        """[subst $x] result should have WAS_UNESCAPED."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'set x "hello"\nset y [subst $x]'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        y_unescaped = any(
+            props.may & RenderedProperties.WAS_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "y"
+        )
+        assert y_unescaped, "y should have WAS_UNESCAPED after [subst]"
+
+    def test_double_subst_sets_double_unescaped(self):
+        """[subst [subst $x]] or chained subst should have DOUBLE_UNESCAPED."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'set x "hello"\nset y [subst $x]\nset z [subst $y]'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        z_double = any(
+            props.may & RenderedProperties.DOUBLE_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "z"
+        )
+        assert z_double, "z should have DOUBLE_UNESCAPED after second [subst]"
+
+    def test_single_subst_no_double_unescaped(self):
+        """Single [subst] should NOT have DOUBLE_UNESCAPED."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'set x "hello"\nset y [subst $x]'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        y_double = any(
+            props.may & RenderedProperties.DOUBLE_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "y"
+        )
+        assert not y_double, "y should NOT have DOUBLE_UNESCAPED after single [subst]"
+
+    def test_non_subst_command_no_was_unescaped(self):
+        """[string length $x] should NOT have WAS_UNESCAPED."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'set x "hello"\nset y [string length $x]'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        y_unescaped = any(
+            props.may & RenderedProperties.WAS_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "y"
+        )
+        assert not y_unescaped, "y should NOT have WAS_UNESCAPED for string length"
+
+    def test_copy_propagates_was_unescaped(self):
+        """set a [subst $x]; set b $a -- b inherits WAS_UNESCAPED."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'set x "hello"\nset a [subst $x]\nset b $a'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        b_unescaped = any(
+            props.may & RenderedProperties.WAS_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "b"
+        )
+        assert b_unescaped, "b should inherit WAS_UNESCAPED from a via copy"
+
+    def test_copy_then_subst_is_double(self):
+        """set a [subst $x]; set b $a; set c [subst $b] -- c is DOUBLE_UNESCAPED."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'set x "hello"\nset a [subst $x]\nset b $a\nset c [subst $b]'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        c_double = any(
+            props.may & RenderedProperties.DOUBLE_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "c"
+        )
+        assert c_double, "c should have DOUBLE_UNESCAPED via a→b→c chain"
+
+    def test_uri_decode_sets_was_unescaped(self):
+        """[URI::decode $x] should have WAS_UNESCAPED."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'set x "%2Fpath"\nset y [URI::decode $x]'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        y_unescaped = any(
+            props.may & RenderedProperties.WAS_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "y"
+        )
+        assert y_unescaped, "y should have WAS_UNESCAPED after [URI::decode]"
+
+    def test_uri_decode_then_subst_is_double(self):
+        """[URI::decode $x] then [subst $y] -- double unescape."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'set x "%2Fpath"\nset y [URI::decode $x]\nset z [subst $y]'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        z_double = any(
+            props.may & RenderedProperties.DOUBLE_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "z"
+        )
+        assert z_double, "z should have DOUBLE_UNESCAPED (URI::decode then subst)"
+
+    def test_b64decode_sets_was_unescaped(self):
+        """[b64decode $x] should have WAS_UNESCAPED."""
+        from core.compiler.compilation_unit import ensure_compilation_unit
+
+        source = 'set x "aGVsbG8="\nset y [b64decode $x]'
+        cu = ensure_compilation_unit(source)
+        assert cu is not None
+        rp = cu.top_level.analysis.rendered_props
+        y_unescaped = any(
+            props.may & RenderedProperties.WAS_UNESCAPED
+            for (name, _ver), props in rp.items()
+            if name == "y"
+        )
+        assert y_unescaped, "y should have WAS_UNESCAPED after [b64decode]"
+
+
 class TestFullPassIntegration:
     """Integration test: run the pass via find_taint_warnings."""
 

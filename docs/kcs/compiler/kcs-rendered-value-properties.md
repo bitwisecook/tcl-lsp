@@ -50,6 +50,8 @@ of simple boolean domains (cf. Costantini, Ferrara & Cortesi 2011).
 | `HAS_INTERPOLATION` | may | Value contains `$var` or `[cmd]` |
 | `HAS_DOUBLE_ESCAPE` | may | Rendered text contains already-escaped sequences |
 | `HAS_NULL` | may | Rendered text contains `\x00` / `\0` |
+| `WAS_UNESCAPED` | may (provenance) | Value passed through `subst` / `encoding convertfrom` |
+| `DOUBLE_UNESCAPED` | may (provenance) | Value was already `WAS_UNESCAPED` then unescaped again |
 | `STARTS_WITH_SLASH` | must | First rendered literal char is `/` |
 | `STARTS_WITH_DASH` | must | First rendered literal char is `-` |
 
@@ -68,6 +70,36 @@ This means:
 For pure variable references (`set x $y`), the pass propagates properties
 from the source SSA value via the `uses` map on `SSAStatement`.  If `y`
 has `HAS_FORWARD_SLASH`, `x` inherits it after the copy.
+
+### Unescape provenance tracking
+
+The `WAS_UNESCAPED` and `DOUBLE_UNESCAPED` bits are **provenance** properties
+(not in `_MAY_MASK`).  They are only set explicitly by unescape commands and
+propagated through copies and phi joins.  Generic unknown commands do NOT
+get these bits.
+
+Detection works at two levels:
+
+1. **`_evaluate_rendered_props_for_value()`**: when the value is a pure
+   command substitution calling `subst` or `encoding convertfrom`, sets
+   `WAS_UNESCAPED` on the result.
+
+2. **`_evaluate_rendered_def()`**: after computing the base result, checks
+   whether any SSA input already has `WAS_UNESCAPED`.  If the command itself
+   is also an unescape command, escalates to `DOUBLE_UNESCAPED`.
+
+Copy propagation (`set b $a`) inherits `WAS_UNESCAPED` from the source,
+so a chain like `set a [subst $x]; set b $a; set c [subst $b]` correctly
+tags `c` with `DOUBLE_UNESCAPED`.
+
+Unescape commands:
+- `subst` — Tcl backslash/variable/command substitution
+- `URI::decode` — percent-decoding
+- `decode_uri` — legacy alias for `URI::decode`
+- `b64decode` — base64 decoding
+- `encoding convertfrom` — byte-to-string decoding
+- `HTTP::uri -normalized`, `HTTP::path -normalized`,
+  `HTTP::query -normalized` — return fully URI-decoded values
 
 ### Pipeline placement
 
