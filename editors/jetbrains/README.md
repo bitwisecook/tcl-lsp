@@ -88,3 +88,25 @@ cd editors/jetbrains
 # Or via the top-level Makefile
 make jetbrains
 ```
+
+## Configuration File
+
+tcl-lsp reads a platform-native configuration file for editor-agnostic
+defaults (diagnostics, optimiser, shimmer, features, formatting):
+
+| Platform | Default path |
+|----------|-------------|
+| Linux / BSD / WSL2 | `~/.config/tcl-lsp/config.ini` |
+| macOS | `~/Library/Application Support/tcl-lsp/config.ini` |
+| Windows | `%APPDATA%\tcl-lsp\config.ini` |
+| MSYS2 / Cygwin | `~/.config/tcl-lsp/config.ini` |
+
+`$XDG_CONFIG_HOME` overrides the default on every platform.
+
+Settings from the config file are applied as baseline defaults.  JetBrains
+IDE settings (Settings → Tools → Tcl Language Server) override the config
+file — so you can set shared defaults in the config file and per-project
+overrides in the IDE.
+
+See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+the full reference.

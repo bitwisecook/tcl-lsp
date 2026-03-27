@@ -2058,17 +2058,25 @@ All diagnostic codes can be toggled individually via
 | **H** | H100+ | Hints |
 | **IRULE** | IRULE1001–IRULE5005 | iRules-specific diagnostics |
 
-### XDG Configuration File
+### Configuration File
 
-Settings can be stored in an INI file at
-`~/.config/tcl-lsp/config.ini` (or `$XDG_CONFIG_HOME/tcl-lsp/config.ini`
-if `$XDG_CONFIG_HOME` is set). This is useful for editor-agnostic defaults
-that apply across all workspaces.
+Settings can be stored in an INI file that follows platform-native
+conventions.  This is useful for editor-agnostic defaults that apply
+across all workspaces and editors.
+
+| Platform | Default path |
+|----------|-------------|
+| **Linux / BSD / WSL2** | `~/.config/tcl-lsp/config.ini` |
+| **macOS** | `~/Library/Application Support/tcl-lsp/config.ini` |
+| **Windows** | `%APPDATA%\tcl-lsp\config.ini` |
+| **MSYS2 / Cygwin** | `~/.config/tcl-lsp/config.ini` |
+
+Setting `$XDG_CONFIG_HOME` overrides the default on every platform.
 
 **Precedence** (applied in order — later entries override earlier):
 
 1. Built-in defaults
-2. XDG config file
+2. Config file
 3. Editor settings (VS Code `settings.json`, Neovim `lspconfig`, etc.)
 
 The file uses INI format with section names matching the `tclLsp.*`
@@ -2092,16 +2100,17 @@ indent_size = 2
 ```
 
 See [`docs/kcs/kcs-xdg-config.md`](docs/kcs/kcs-xdg-config.md) for the
-full reference.
+full reference, including how settings interact with each editor.
 
 ### Export Settings
 
-In **VS Code**, run the command **"Tcl: Export Settings to XDG Config"**
+In **VS Code**, run the command **"Tcl: Export Settings to Config File"**
 from the command palette. For other editors, send the
 `tcl-lsp.exportConfig` request via `workspace/executeCommand`.
 
 Only non-default values are written, keeping the generated config file
-minimal.
+minimal.  This lets you configure in one editor and have the same
+defaults apply everywhere.
 
 ### Example
 

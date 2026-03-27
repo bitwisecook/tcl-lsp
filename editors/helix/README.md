@@ -51,10 +51,24 @@ indentSize = 4
 maxLineLength = 120
 ```
 
-## Configurable Settings
+## Configuration File
 
-tcl-lsp supports per-diagnostic, optimiser, shimmer, and XC diagnostic
-toggles. These can be configured via `~/.config/tcl-lsp/config.ini` (XDG
-config), which works across all editors. See
-[docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for the
-full reference.
+tcl-lsp reads a platform-native configuration file for editor-agnostic
+defaults (diagnostics, optimiser, shimmer, features, formatting):
+
+| Platform | Default path |
+|----------|-------------|
+| Linux / BSD / WSL2 | `~/.config/tcl-lsp/config.ini` |
+| macOS | `~/Library/Application Support/tcl-lsp/config.ini` |
+| Windows | `%APPDATA%\tcl-lsp\config.ini` |
+| MSYS2 / Cygwin | `~/.config/tcl-lsp/config.ini` |
+
+`$XDG_CONFIG_HOME` overrides the default on every platform.
+
+Settings from the config file are applied as baseline defaults.  Helix
+`config` settings in `languages.toml` override the config file — so you
+can set shared defaults in the config file and per-project overrides in
+Helix.
+
+See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+the full reference.

@@ -212,9 +212,30 @@ class _CliConfig:
 
 
 def _config_file_paths() -> list[Path]:
-    """Return INI config paths in read-order (global first, local last)."""
+    """Return INI config paths in read-order (global first, local last).
+
+    The global config follows platform-native conventions (same logic as
+    ``core.common.user_config._config_dir``):
+
+    - Linux / BSD / WSL2: ``~/.config/tcl.ini``
+    - macOS: ``~/Library/Application Support/tcl.ini``
+    - Windows (native): ``%APPDATA%/tcl.ini``
+    - MSYS2 / Cygwin: ``~/.config/tcl.ini``
+
+    ``$XDG_CONFIG_HOME`` always takes precedence when set.
+    """
     xdg = os.environ.get("XDG_CONFIG_HOME")
-    global_dir = Path(xdg) if xdg else Path.home() / ".config"
+    if xdg:
+        global_dir = Path(xdg)
+    elif sys.platform == "win32" and not (
+        sys.platform in ("msys", "cygwin") or os.environ.get("MSYSTEM")
+    ):
+        appdata = os.environ.get("APPDATA")
+        global_dir = Path(appdata) if appdata else Path.home() / ".config"
+    elif sys.platform == "darwin":
+        global_dir = Path.home() / "Library" / "Application Support"
+    else:
+        global_dir = Path.home() / ".config"
     paths = [global_dir / "tcl.ini"]
     local = Path.cwd() / ".tcl.ini"
     if local.is_file():
