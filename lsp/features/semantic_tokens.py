@@ -3024,7 +3024,7 @@ def precompute_chunk_tokens(
     analysis finishes, or on the ``workspace/semanticTokens/refresh``
     that follows the analysis pass.
     """
-    from bisect import bisect_left
+    from bisect import bisect_left, bisect_right
 
     t0 = time.perf_counter()
 
