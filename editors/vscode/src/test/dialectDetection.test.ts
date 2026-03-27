@@ -101,7 +101,13 @@ suite("Dialect Detection", () => {
     const uri = getDocUri("dialect-directive84.tcl");
     await activate(uri);
 
-    const labels = await completionLabels(uri, new vscode.Position(1, 2));
+    // Dialect detection sends a config notification asynchronously;
+    // poll until the server reflects the tcl8.4 dialect (no "try").
+    const labels = await waitForCompletions(
+      uri,
+      new vscode.Position(1, 2),
+      (l) => !l.includes("try"),
+    );
     assert.ok(!labels.includes("try"), 'Did not expect "try" completion for tcl-dialect tcl8.4');
   });
 });
