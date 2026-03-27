@@ -1864,8 +1864,9 @@ async def _publish_diagnostics(
     disabled_optimisations = set(feature_config.disabled_optimisations)
 
     # Full analysis: compile, analyse, build chunk caches.
-    # Run in a background thread so the event loop stays responsive for
-    # hover, completion, and semantic-token requests during analysis.
+    # Run in a background thread so the event loop stays responsive —
+    # semantic token requests can be served with syntax-only tokens
+    # (from update_source_quick above) while analysis runs.
     t_update = time.perf_counter()
     did_analyse = needs_analysis or force_reanalyse
     if did_analyse:
@@ -1876,11 +1877,6 @@ async def _publish_diagnostics(
             force_reanalyse=force_reanalyse,
             line_length=line_length,
         )
-        # If the document changed while we were analysing in the background
-        # thread, bail — a newer _publish_diagnostics coroutine will handle it.
-        if state.version != version:
-            log.info("[timing] workspace_state.update stale (version changed), bailing")
-            return
     update_ms = (time.perf_counter() - t_update) * 1000
     log.info(
         "[timing] workspace_state.update %.0fms (quick=%.0fms, uri=%s, lines=%d)",
@@ -1889,6 +1885,18 @@ async def _publish_diagnostics(
         uri,
         len(state.buffer.line_starts),
     )
+
+    # Staleness check: if the document was edited while analysis was
+    # running in the thread, a newer _publish_diagnostics call has
+    # already updated the source.  Bail out to avoid publishing
+    # diagnostics for stale text and doing redundant work.
+    if state.version != version:
+        log.info(
+            "[timing] _publish_diagnostics abandoned (stale: have v%s, want v%s)",
+            state.version,
+            version,
+        )
+        return
 
     partial_mode = state.has_partial_commands
 

@@ -105,9 +105,10 @@ def _extract_chunk_ir(
     top_stmts = ir_module.top_level.statements
     all_procs = ir_module.procedures
 
-    # Sort procedures by start offset for O(S + P + C) sliding-window
-    # extraction instead of O(C × P).
-    sorted_procs = sorted(all_procs.items(), key=lambda p: p[1].range.start.offset)
+    # Sort procedures by start offset for a single-pass merge with
+    # chunks — O(procs*log(procs) + chunks + procs) instead of the
+    # old O(chunks * procs) nested scan.
+    sorted_procs = sorted(all_procs.items(), key=lambda kv: kv[1].range.start.offset)
 
     result: list[tuple[tuple, dict]] = []
     stmt_idx = 0
@@ -191,9 +192,7 @@ class _StateSnapshot:
 
     source: str = ""
     version: int | None = None
-    # Lazily computed on first access via DocumentState.tokens to
-    # avoid an O(source_len) lexer pass on every incremental update.
-    tokens: list[Token] | None = None
+    _tokens: list[Token] | None = field(default=None, repr=False)
     analysis: AnalysisResult | None = None
     compilation_unit: CompilationUnit | None = None
     chunks: list[TopLevelChunk] = field(default_factory=list)
@@ -263,17 +262,17 @@ class DocumentState:
     @property
     def tokens(self) -> list[Token]:
         snap = self._snap
-        if snap.tokens is None:
+        if snap._tokens is None:
             with self._lock:
                 # Double-checked locking: re-read after acquiring lock.
                 snap = self._snap
-                if snap.tokens is None:
-                    snap.tokens = TclLexer(snap.source).tokenise_all()
-        return snap.tokens
+                if snap._tokens is None:
+                    snap._tokens = TclLexer(snap.source).tokenise_all()
+        return snap._tokens
 
     @tokens.setter
     def tokens(self, value: list[Token]) -> None:
-        self._snap.tokens = value
+        self._snap._tokens = value
 
     @property
     def analysis(self) -> AnalysisResult | None:
@@ -346,6 +345,18 @@ class DocumentState:
     @_deep_diag_result.setter
     def _deep_diag_result(self, value: list[Any] | None) -> None:
         self._snap.deep_diag_result = value
+
+    @property
+    def tokens(self) -> list[Token]:
+        """Flat token list, lazily computed on first access.
+
+        Most of the LSP pipeline works from chunks and commands rather
+        than the flat token list, so deferring tokenisation avoids
+        redundant O(n) work on every edit.
+        """
+        if self._tokens is None:
+            self._tokens = TclLexer(self.source).tokenise_all()
+        return self._tokens
 
     @property
     def buffer(self) -> DocumentBuffer:
@@ -569,7 +580,7 @@ class DocumentState:
                 new_snap = _StateSnapshot(
                     source=source,
                     version=version,
-                    tokens=old_snap.tokens,
+                    _tokens=old_snap._tokens,
                     analysis=old_snap.analysis,
                     compilation_unit=old_snap.compilation_unit,
                     chunks=new_chunks,
@@ -640,8 +651,7 @@ class DocumentState:
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        # Tokens are computed lazily on first access via DocumentState.tokens,
-        # avoiding an O(source_len) lexer pass when no handler needs them.
+        self._tokens = None  # invalidate — rebuilt lazily on access
         t_tok = time.perf_counter()
 
         # Build chunk IR cache: reuse cached entries for clean chunks,
@@ -869,7 +879,7 @@ class DocumentState:
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        # Tokens are computed lazily on first access via DocumentState.tokens.
+        self._tokens = None  # invalidate — rebuilt lazily on access
         t_tok = time.perf_counter()
 
         prev_proc_cache = dict(self._proc_cache)
