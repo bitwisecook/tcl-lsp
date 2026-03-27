@@ -121,27 +121,42 @@ _MOD_INDEX = {name: i for i, name in enumerate(SEMANTIC_TOKEN_MODIFIERS)}
 # Commands recognised as keywords for highlighting.
 # Built from the registry at import time, plus language keywords and TclOO
 # definition-context words that aren't standalone commands.
-_KEYWORDS = frozenset(REGISTRY.command_names()) | frozenset(
-    {
-        # Control-flow words that appear as arguments, not standalone commands
-        "else",
-        "elseif",
-        # TclOO definition-context keywords (valid inside oo::define bodies)
-        "constructor",
-        "destructor",
-        "method",
-        "my",
-        "next",
-        "self",
-        "forward",
-        "mixin",
-        "filter",
-        "superclass",
-        "renamemethod",
-        "deletemethod",
-        "export",
-        "unexport",
-    }
+# Bare tail names (e.g. "test" from "tcltest::test") are included for
+# packages that are conventionally imported unqualified via
+# ``namespace import ::pkg::*``.  Only packages in this allowlist get
+# tail-name promotion to avoid false-positive keyword highlights.
+_REGISTRY_NAMES = frozenset(REGISTRY.command_names())
+_IMPORTED_UNQUALIFIED_NAMESPACES = frozenset({"tcltest", "msgcat"})
+_KEYWORD_TAILS = frozenset(
+    name.rsplit("::", 1)[-1]
+    for name in _REGISTRY_NAMES
+    if "::" in name and name.rsplit("::", 1)[0] in _IMPORTED_UNQUALIFIED_NAMESPACES
+)
+_KEYWORDS = (
+    _REGISTRY_NAMES
+    | _KEYWORD_TAILS
+    | frozenset(
+        {
+            # Control-flow words that appear as arguments, not standalone commands
+            "else",
+            "elseif",
+            # TclOO definition-context keywords (valid inside oo::define bodies)
+            "constructor",
+            "destructor",
+            "method",
+            "my",
+            "next",
+            "self",
+            "forward",
+            "mixin",
+            "filter",
+            "superclass",
+            "renamemethod",
+            "deletemethod",
+            "export",
+            "unexport",
+        }
+    )
 )
 
 # Prefix math/comparison operators

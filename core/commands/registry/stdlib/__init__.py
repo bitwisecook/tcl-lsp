@@ -21,6 +21,7 @@ from . import (
     platform_,  # noqa: F401
     safe_,  # noqa: F401
     tcltest,  # noqa: F401
+    tcltest_cmds,  # noqa: F401
     tm,  # noqa: F401
     utilities,  # noqa: F401
 )
