@@ -375,6 +375,8 @@ class Analyser:
         restored from a snapshot that already includes earlier stubs.
         """
         self._source = source
+        self._unresolved_commands_emitted = False
+        self._ns_cache.clear()
         if not skip_stubs:
             # Pre-scan for inline stubs (same as analyse()).
             cmd_stubs, expr_stubs = scan_source_for_stubs(source)
@@ -411,6 +413,8 @@ class Analyser:
         ``False`` when only building a partial snapshot.
         """
         self._source = source
+        self._unresolved_commands_emitted = False
+        self._ns_cache.clear()
         self._analyse_commands_inner(commands, self._current_scope, source)
         if finalise:
             self._emit_unresolved_command_diagnostics()
@@ -549,6 +553,8 @@ class Analyser:
     ) -> AnalysisResult:
         """Analyse a full source string."""
         self._source = source
+        self._unresolved_commands_emitted = False
+        self._ns_cache.clear()
         # Pre-scan for inline stubs blocks (independent of Tcl parsing).
         cmd_stubs, expr_stubs = scan_source_for_stubs(source)
         self.result.stub_commands.extend(cmd_stubs)

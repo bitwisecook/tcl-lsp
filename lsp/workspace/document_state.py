@@ -43,6 +43,7 @@ from core.parsing.tokens import Token
 # Lazy import to avoid circular dependencies at module load time.
 _style_diag_fn = None
 _style_diag_all_fn = None
+_precompute_chunk_tokens_fn = None
 
 
 def _get_style_diag_fn():
@@ -63,6 +64,16 @@ def _get_style_diag_all_fn():
 
         _style_diag_all_fn = compute_all_style_diagnostics
     return _style_diag_all_fn
+
+
+def _get_precompute_chunk_tokens_fn():
+    """Lazily import ``precompute_chunk_tokens``."""
+    global _precompute_chunk_tokens_fn
+    if _precompute_chunk_tokens_fn is None:
+        from lsp.features.semantic_tokens import precompute_chunk_tokens
+
+        _precompute_chunk_tokens_fn = precompute_chunk_tokens
+    return _precompute_chunk_tokens_fn
 
 
 def _chunk_line_range(
@@ -180,7 +191,9 @@ class _StateSnapshot:
 
     source: str = ""
     version: int | None = None
-    tokens: list[Token] = field(default_factory=list)
+    # Lazily computed on first access via DocumentState.tokens to
+    # avoid an O(source_len) lexer pass on every incremental update.
+    tokens: list[Token] | None = None
     analysis: AnalysisResult | None = None
     compilation_unit: CompilationUnit | None = None
     chunks: list[TopLevelChunk] = field(default_factory=list)
@@ -218,9 +231,13 @@ class DocumentState:
     )
 
     # -- Property accessors delegating to the snapshot ----------------
-    # These provide backward-compatible access for existing handler code
-    # while guaranteeing that each snapshot read is atomic (single
-    # attribute load from ``_snap``).
+    # Getters provide atomic reads (single attribute load from ``_snap``).
+    # **Setters are NOT thread-safe** — they mutate the live snapshot
+    # without going through the lock-protected swap path.  They exist
+    # only for test/script convenience and MUST NOT be called from
+    # request handlers or background threads.  Production code should
+    # use ``update()`` / ``update_source_quick()`` which build and swap
+    # a complete ``_StateSnapshot`` atomically.
 
     @property
     def snap(self) -> _StateSnapshot:
@@ -245,7 +262,14 @@ class DocumentState:
 
     @property
     def tokens(self) -> list[Token]:
-        return self._snap.tokens
+        snap = self._snap
+        if snap.tokens is None:
+            with self._lock:
+                # Double-checked locking: re-read after acquiring lock.
+                snap = self._snap
+                if snap.tokens is None:
+                    snap.tokens = TclLexer(snap.source).tokenise_all()
+        return snap.tokens
 
     @tokens.setter
     def tokens(self, value: list[Token]) -> None:
@@ -459,18 +483,36 @@ class DocumentState:
         the new source text (without analysis enrichment).
 
         Builds a new ``_StateSnapshot`` and swaps it atomically.
+        Chunk caches for unchanged chunks are carried forward so that
+        semantic token requests between the quick update and the full
+        ``update()`` can reuse cached tokens instead of recomputing
+        the entire document.
         """
         old = self._snap
         if source == old.source and (version is None or version == old.version):
             return False  # unchanged
         new_chunks = segment_top_level_chunks(source)
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
-        # Build a fresh snapshot with cleared analysis/caches.
+        # Carry forward chunk caches for unchanged chunks so that
+        # semantic token requests can serve cached tokens immediately.
+        old_caches = old.chunk_caches
+        new_caches: list[ChunkCache | None] = []
+        if old_caches:
+            dirty_idx = find_first_dirty_chunk(old.chunks, new_chunks)
+            for i, chunk in enumerate(new_chunks):
+                if i < dirty_idx and i < len(old_caches):
+                    cc = old_caches[i]
+                    if cc is not None and cc.chunk_hash == chunk.source_hash:
+                        new_caches.append(cc)
+                        continue
+                new_caches.append(None)
         self._snap = _StateSnapshot(
             source=source,
             version=version,
             chunks=new_chunks,
             has_partial_commands=has_partial,
+            chunk_caches=new_caches,
+            file_profiles=old.file_profiles,
         )
         return True
 
@@ -505,7 +547,12 @@ class DocumentState:
         # Snapshot the current state for incremental decisions.
         # This read is atomic (single attribute load under the GIL).
         old_snap = self._snap
-        new_chunks = segment_top_level_chunks(source)
+        # Reuse chunks from update_source_quick() when the source matches,
+        # avoiding a redundant O(source_len) lexer pass.
+        if source == old_snap.source and old_snap.chunks:
+            new_chunks = old_snap.chunks
+        else:
+            new_chunks = segment_top_level_chunks(source)
         t_seg = time.perf_counter()
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
 
@@ -593,7 +640,8 @@ class DocumentState:
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        tokens = TclLexer(source).tokenise_all()
+        # Tokens are computed lazily on first access via DocumentState.tokens,
+        # avoiding an O(source_len) lexer pass when no handler needs them.
         t_tok = time.perf_counter()
 
         # Build chunk IR cache: reuse cached entries for clean chunks,
@@ -683,14 +731,15 @@ class DocumentState:
                 ir_module,
                 compilation_unit,
                 line_length=line_length,
+                analysis=analysis,
             )
         t_caches = time.perf_counter()
 
         # Atomic swap: build and install the new snapshot.
+        # Tokens are left as None (lazy) — computed on first access.
         self._snap = _StateSnapshot(
             source=source,
             version=version,
-            tokens=tokens,
             analysis=analysis,
             compilation_unit=compilation_unit,
             chunks=new_chunks,
@@ -700,9 +749,8 @@ class DocumentState:
         )
 
         log.info(
-            "[timing] _update_incremental tokenise=%.0fms lower=%.0fms compile=%.0fms"
+            "[timing] _update_incremental lower=%.0fms compile=%.0fms"
             " analyse=%.0fms caches=%.0fms total=%.0fms (dirty=%d/%d)",
-            (t_tok - t0) * 1000,
             (t_lower - t_tok) * 1000,
             (t_compile - t_lower) * 1000,
             (t_analyse - t_compile) * 1000,
@@ -723,12 +771,16 @@ class DocumentState:
         compilation_unit: CompilationUnit | None,
         *,
         line_length: int = 120,
+        analysis: AnalysisResult | None = None,
     ) -> None:
         """Build ``ChunkCache`` entries for dirty chunks using pre-built snapshots.
 
         Unlike the old ``_rebuild_chunk_caches_for_dirty``, this does **not**
         re-run the analyser — it uses snapshots captured by ``analyse_chunked``
         during the single analysis pass.
+
+        When *analysis* is provided, semantic tokens are pre-computed for
+        dirty chunks so the next ``semanticTokens/full`` gets a cache hit.
         """
         try:
             from bisect import bisect_left, bisect_right
@@ -771,6 +823,28 @@ class DocumentState:
                     style_diagnostics=style_diags,
                     style_line_length=line_length,
                 )
+
+            # Pre-compute semantic tokens for dirty chunks so the next
+            # semanticTokens/full request gets a cache hit.
+            try:
+                chunk_line_ranges = [_chunk_line_range(buf, c) for c in chunks]
+                uri_lower = self.uri.lower()
+                is_irules = uri_lower.endswith(".irul") or uri_lower.endswith(".irule")
+                chunk_toks = _get_precompute_chunk_tokens_fn()(
+                    source,
+                    chunk_line_ranges,
+                    analysis=analysis,
+                    is_irules=is_irules,
+                )
+                for ci in range(dirty_idx, len(chunks)):
+                    cc = chunk_caches[ci] if ci < len(chunk_caches) else None
+                    if cc is not None and ci < len(chunk_toks):
+                        cc.semantic_tokens_abs = chunk_toks[ci]
+            except Exception:
+                log.debug(
+                    "document_state: semantic token precompute failed (dirty)",
+                    exc_info=True,
+                )
         except Exception:
             log.debug(
                 "document_state: failed to build chunk caches for dirty region",
@@ -795,7 +869,7 @@ class DocumentState:
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        tokens = TclLexer(source).tokenise_all()
+        # Tokens are computed lazily on first access via DocumentState.tokens.
         t_tok = time.perf_counter()
 
         prev_proc_cache = dict(self._proc_cache)
@@ -829,20 +903,24 @@ class DocumentState:
         t_analyse = time.perf_counter()
 
         # Build chunk caches using pre-built snapshots.
+        # Pass analysis so semantic tokens are pre-computed per chunk,
+        # eliminating the redundant full-document lex on the first
+        # semanticTokens/full request.
         chunk_caches = self._build_full_chunk_caches(
             source,
             new_chunks,
             chunk_snapshots,
             compilation_unit,
             line_length=line_length,
+            analysis=analysis,
         )
         t_caches = time.perf_counter()
 
         # Atomic swap: install the new snapshot.
+        # Tokens left as None (lazy) — computed on first access.
         self._snap = _StateSnapshot(
             source=source,
             version=version,
-            tokens=tokens,
             analysis=analysis,
             compilation_unit=compilation_unit,
             chunks=new_chunks,
@@ -853,9 +931,8 @@ class DocumentState:
 
         n_procs = len(compilation_unit.procedures) if compilation_unit else 0
         log.info(
-            "[timing] _update_full tokenise=%.0fms compile=%.0fms analyse=%.0fms"
+            "[timing] _update_full compile=%.0fms analyse=%.0fms"
             " chunk_caches=%.0fms total=%.0fms (procs=%d)",
-            (t_tok - t0) * 1000,
             (t_compile - t_tok) * 1000,
             (t_analyse - t_compile) * 1000,
             (t_caches - t_analyse) * 1000,
@@ -871,11 +948,16 @@ class DocumentState:
         compilation_unit: CompilationUnit | None,
         *,
         line_length: int = 120,
+        analysis: AnalysisResult | None = None,
     ) -> list[ChunkCache | None]:
         """Build ``ChunkCache`` entries after a full rebuild.
 
         When *chunk_snapshots* is provided (from ``analyse_chunked``),
         the snapshots are used directly — no re-analysis is performed.
+
+        When *analysis* is provided, semantic tokens are pre-computed
+        for each chunk so that the first ``semanticTokens/full`` request
+        after analysis gets a full cache hit without re-lexing.
 
         Returns the list of chunk caches (does not write to ``self``).
         """
@@ -938,6 +1020,26 @@ class DocumentState:
                         style_diagnostics=style_diags,
                         style_line_length=line_length,
                     )
+                )
+            # Pre-compute semantic tokens per chunk so the first
+            # semanticTokens/full request gets a full cache hit.
+            try:
+                chunk_line_ranges = [_chunk_line_range(buf, c) for c in chunks]
+                uri_lower = self.uri.lower()
+                is_irules = uri_lower.endswith(".irul") or uri_lower.endswith(".irule")
+                chunk_toks = _get_precompute_chunk_tokens_fn()(
+                    source,
+                    chunk_line_ranges,
+                    analysis=analysis,
+                    is_irules=is_irules,
+                )
+                for ci, cc in enumerate(caches):
+                    if cc is not None and ci < len(chunk_toks):
+                        cc.semantic_tokens_abs = chunk_toks[ci]
+            except Exception:
+                log.debug(
+                    "document_state: semantic token precompute failed",
+                    exc_info=True,
                 )
             result = caches
         except Exception:
@@ -1008,8 +1110,8 @@ class WorkspaceState:
             state.update(source, version, force_reanalyse=force_reanalyse, line_length=line_length)
         else:
             # Lightweight open: store source and version without analysis.
-            state.source = source
-            state.version = version
+            # Swap a fresh snapshot so no mutable setter touches a live one.
+            state._snap = _StateSnapshot(source=source, version=version)
         self._documents[uri] = state
         return state
 

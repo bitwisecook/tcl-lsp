@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 import re
 import threading
@@ -462,7 +463,9 @@ SEMANTIC_TOKENS_LEGEND = types.SemanticTokensLegend(
 # Per-URI storage for semantic tokens delta support (P8).
 # Maps URI → (result_id, flat token data).
 _semantic_token_results: dict[str, tuple[str, list[int]]] = {}
-_semantic_token_result_counter: int = 0
+_semantic_token_results_lock = threading.Lock()
+# Thread-safe counter — pygls may dispatch handlers concurrently.
+_semantic_token_result_counter = itertools.count(1)
 
 
 @server.feature(
@@ -476,7 +479,6 @@ _semantic_token_result_counter: int = 0
 def on_semantic_tokens_full(
     params: types.SemanticTokensParams,
 ) -> types.SemanticTokens:
-    global _semantic_token_result_counter
     t0 = time.perf_counter()
     if not feature_config.semantic_tokens_enabled:
         return types.SemanticTokens(data=[])
@@ -510,9 +512,9 @@ def on_semantic_tokens_full(
     if state is not None and chunk_token_cache is not None:
         state.store_semantic_token_cache(chunk_token_cache)
     # Store result for delta support (P8).
-    _semantic_token_result_counter += 1
-    result_id = str(_semantic_token_result_counter)
-    _semantic_token_results[uri] = (result_id, data)
+    result_id = str(next(_semantic_token_result_counter))
+    with _semantic_token_results_lock:
+        _semantic_token_results[uri] = (result_id, data)
     elapsed_ms = (time.perf_counter() - t0) * 1000
     log.info(
         "[timing] semanticTokens/full %.0fms (cache=%s, analysis=%s, tokens=%d, lines=%d)",
@@ -529,7 +531,6 @@ def on_semantic_tokens_full(
 def on_semantic_tokens_delta(
     params: types.SemanticTokensDeltaParams,
 ) -> types.SemanticTokens | types.SemanticTokensDelta:
-    global _semantic_token_result_counter
     t0 = time.perf_counter()
     uri = params.text_document.uri
     previous_result_id = params.previous_result_id
@@ -538,7 +539,8 @@ def on_semantic_tokens_delta(
         return types.SemanticTokens(data=[])
 
     # Look up previous result for this URI.
-    prev = _semantic_token_results.get(uri)
+    with _semantic_token_results_lock:
+        prev = _semantic_token_results.get(uri)
     if prev is None or prev[0] != previous_result_id:
         # No matching previous result — fall back to full.
         log.info("[timing] semanticTokens/delta fallback to full (no prev result)")
@@ -571,9 +573,9 @@ def on_semantic_tokens_delta(
         state.store_semantic_token_cache(chunk_token_cache)
 
     # Store new result.
-    _semantic_token_result_counter += 1
-    result_id = str(_semantic_token_result_counter)
-    _semantic_token_results[uri] = (result_id, new_data)
+    result_id = str(next(_semantic_token_result_counter))
+    with _semantic_token_results_lock:
+        _semantic_token_results[uri] = (result_id, new_data)
 
     # Compute edits.
     edits = compute_semantic_tokens_edits(old_data, new_data)
@@ -2305,7 +2307,8 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
         )
         return
-    _semantic_token_results.pop(uri, None)
+    with _semantic_token_results_lock:
+        _semantic_token_results.pop(uri, None)
     workspace_state.close(uri)
     # If this file was also scanned in the background, revert to that entry
     # so cross-file references keep working after the file is closed.

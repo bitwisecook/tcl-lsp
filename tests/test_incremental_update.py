@@ -407,10 +407,11 @@ class TestSemanticTokenCaching:
         assert full_data == data_with_cache
         assert full_data == data_from_cache
 
-    def test_incremental_edit_invalidates_dirty_chunk_tokens(self):
-        """After an incremental edit, dirty chunks should have no cached tokens."""
+    def test_incremental_edit_recomputes_dirty_chunk_tokens(self):
+        """After an incremental edit, dirty chunks get fresh pre-computed tokens."""
         source1 = "set x 10\nset y 20\nset z 30\n"
-        source2 = "set x 10\nset y 20\nset z 99\n"
+        # Use a 3-digit number so the token length differs from "30" (2 chars).
+        source2 = "set x 10\nset y 20\nset z 999\n"
         state = DocumentState(uri="test")
         state.update(source1)
 
@@ -427,8 +428,9 @@ class TestSemanticTokenCaching:
             chunk_line_ranges=chunk_line_ranges,
         )
         state.store_semantic_token_cache(chunk_token_cache)
+        old_chunk2_tokens = chunk_token_cache[2]
 
-        # Now edit — dirty chunk (index 2) should lose its token cache.
+        # Now edit — dirty chunk (index 2) gets fresh pre-computed tokens.
         state.update(source2)
         cache_info2 = state.get_semantic_token_cache()
         assert cache_info2 is not None
@@ -436,8 +438,10 @@ class TestSemanticTokenCaching:
         # First two chunks should still have cached tokens.
         assert chunk_token_cache2[0] is not None
         assert chunk_token_cache2[1] is not None
-        # Third chunk was dirty — its cache should be None.
-        assert chunk_token_cache2[2] is None
+        # Third chunk was dirty — it should have fresh tokens (pre-computed
+        # during the background update), not the old ones.
+        assert chunk_token_cache2[2] is not None
+        assert chunk_token_cache2[2] != old_chunk2_tokens
 
 
 class TestDeepDiagnosticCaching:
