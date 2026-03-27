@@ -1885,6 +1885,19 @@ async def _publish_diagnostics(
         uri,
         len(state.buffer.line_starts),
     )
+
+    # Staleness check: if the document was edited while analysis was
+    # running in the thread, a newer _publish_diagnostics call has
+    # already updated the source.  Bail out to avoid publishing
+    # diagnostics for stale text and doing redundant work.
+    if state.version != version:
+        log.info(
+            "[timing] _publish_diagnostics abandoned (stale: have v%s, want v%s)",
+            state.version,
+            version,
+        )
+        return
+
     partial_mode = state.has_partial_commands
 
     # After analysis completes, ask the client to re-request semantic
@@ -1894,10 +1907,6 @@ async def _publish_diagnostics(
             server.workspace_semantic_tokens_refresh(None)
         except Exception:
             pass  # client may not support refresh
-
-    # Yield the event loop after the full update so queued requests
-    # can be dispatched with analysis-enriched state.
-    await asyncio.sleep(0)
 
     if not diagnostics_enabled:
         basic_diags: list[types.Diagnostic] = []
@@ -2326,6 +2335,31 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
 # Workspace scanning
 
 
+def _warm_imports() -> None:
+    """Eagerly import heavy modules to eliminate cold-start latency.
+
+    The ``lsp.features.diagnostics`` module transitively imports
+    ``lsprotocol.types`` which compiles hundreds of attrs classes on
+    first load (~500ms).  By triggering these imports during server
+    initialisation (in a daemon thread, concurrent with workspace
+    scanning), the first ``didOpen``/``didChange`` avoids paying this
+    cost on the hot path.
+    """
+    t0 = time.perf_counter()
+    try:
+        # These imports trigger the heavy attrs class compilation in
+        # lsprotocol.types and the diagnostic/compiler pipelines.
+        import core.analysis.analyser  # noqa: F811, F401
+        import core.compiler.compilation_unit  # noqa: F811, F401
+        import lsp.features.diagnostics  # noqa: F811, F401
+        import lsp.features.semantic_tokens  # noqa: F811, F401
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log.info("[timing] import warming %.0fms", elapsed_ms)
+    except Exception:
+        log.debug("Import warming failed (non-fatal)", exc_info=True)
+
+
 _scan_lock = threading.Lock()
 
 
@@ -2436,6 +2470,12 @@ def on_initialized(params: types.InitializedParams) -> None:
         roots.append(ws.root_path)
     background_scanner.configure(workspace_roots=roots)
     threading.Thread(target=_run_background_scan, daemon=True).start()
+
+    # Eagerly import heavy modules in a background thread so that the
+    # first didOpen/didChange does not pay the ~500ms import cost for
+    # lsprotocol.types, attrs class compilation, and the diagnostics
+    # module.  This runs concurrently with workspace scanning.
+    threading.Thread(target=_warm_imports, daemon=True).start()
 
     # Proactively pull editor settings so that clients using the pull model
     # (vscode-languageclient v10, JetBrains) have their settings applied
