@@ -38,6 +38,7 @@ class TclType(Enum):
     DICT = auto()
     BYTEARRAY = auto()
     NUMERIC = auto()  # abstract join of INT and DOUBLE
+    OBJECT = auto()  # TclOO object instance
 
 
 class TypeKind(Enum):
@@ -56,6 +57,7 @@ class TypeLattice:
     kind: TypeKind
     tcl_type: TclType | None = None
     from_type: TclType | None = None  # only for SHIMMERED
+    class_name: str | None = None  # only for OBJECT types
 
     @staticmethod
     def unknown() -> TypeLattice:
@@ -70,6 +72,11 @@ class TypeLattice:
         return TypeLattice(TypeKind.KNOWN, t)
 
     @staticmethod
+    def object_of(class_name: str) -> TypeLattice:
+        """Create a KNOWN OBJECT type for a specific class."""
+        return TypeLattice(TypeKind.KNOWN, TclType.OBJECT, class_name=class_name)
+
+    @staticmethod
     def shimmered(from_type: TclType, to_type: TclType) -> TypeLattice:
         a, b = sorted((from_type, to_type), key=lambda t: t.value)
         return TypeLattice(TypeKind.SHIMMERED, tcl_type=b, from_type=a)
@@ -80,6 +87,8 @@ class TypeLattice:
                 return "TypeLattice.UNKNOWN"
             case TypeKind.OVERDEFINED:
                 return "TypeLattice.OVERDEFINED"
+            case TypeKind.KNOWN if self.tcl_type is TclType.OBJECT:
+                return f"TypeLattice.object_of({self.class_name!r})"
             case TypeKind.KNOWN:
                 return f"TypeLattice.of({self.tcl_type!r})"
             case TypeKind.SHIMMERED:
@@ -117,6 +126,11 @@ def type_join(a: TypeLattice, b: TypeLattice) -> TypeLattice:
     if a.kind is TypeKind.KNOWN and b.kind is TypeKind.KNOWN:
         assert a.tcl_type is not None and b.tcl_type is not None
         if a.tcl_type is b.tcl_type:
+            # OBJECT types: same class → keep, different class → widen to generic OBJECT
+            if a.tcl_type is TclType.OBJECT:
+                if a.class_name == b.class_name:
+                    return a
+                return TypeLattice.of(TclType.OBJECT)
             return a
         # Check numeric promotion
         pair = frozenset({a.tcl_type, b.tcl_type})
