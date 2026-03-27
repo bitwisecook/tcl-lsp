@@ -39,7 +39,7 @@ static auto types(std::string_view source) -> std::vector<TokenType> {
     return result;
 }
 
-// --- Basic Tokens ---
+// Basic Tokens
 
 TEST_CASE("Simple command", "[lexer]") {
     CHECK(texts("puts hello") == std::vector<std::string>{"puts", "hello"});
@@ -123,7 +123,7 @@ TEST_CASE("Multiple commands", "[lexer]") {
     CHECK(texts("set x 42") == std::vector<std::string>{"set", "x", "42"});
 }
 
-// --- Extended variable forms ---
+// Extended variable forms
 
 TEST_CASE("Braced var", "[lexer]") {
     auto toks = tokens("${my var}");
@@ -160,7 +160,7 @@ TEST_CASE("Array with namespace", "[lexer]") {
     CHECK(toks[0].text == "ns::arr(key)");
 }
 
-// --- Positions ---
+// Positions
 
 TEST_CASE("First token at origin", "[lexer]") {
     auto toks = tokens("puts hello");
@@ -234,7 +234,7 @@ TEST_CASE("Multiline braced string", "[lexer]") {
     CHECK(toks[0].end.line == 1);
 }
 
-// --- Tcl constructs ---
+// Tcl constructs
 
 TEST_CASE("If else", "[lexer]") {
     auto t = texts("if {== 1 1} {puts yes} else {puts no}");
@@ -293,7 +293,7 @@ TEST_CASE("Switch", "[lexer]") {
     CHECK(t[0] == "switch");
 }
 
-// --- Trailing whitespace ---
+// Trailing whitespace
 
 TEST_CASE("Sep does not consume newline", "[lexer]") {
     auto toks = tokens("set a {body}    \nset b val", true);
@@ -323,7 +323,7 @@ TEST_CASE("Command after brace with trailing spaces", "[lexer]") {
     CHECK(has_table);
 }
 
-// --- Strict quoting mode ---
+// Strict quoting mode
 
 TEST_CASE("Strict mode raises on missing close-bracket", "[lexer]") {
     LexerConfig cfg{.strict_quoting = true};
@@ -350,7 +350,7 @@ TEST_CASE("Non-strict mode collects warnings", "[lexer]") {
     CHECK(lexer.warnings()[0].second == "missing close-bracket");
 }
 
-// --- Expand syntax ---
+// Expand syntax
 
 TEST_CASE("Expand syntax recognized", "[lexer]") {
     auto toks = tokens("{*}$list");
@@ -375,7 +375,7 @@ TEST_CASE("Expand syntax disabled", "[lexer]") {
     CHECK(has_str);
 }
 
-// --- iRules brace separator ---
+// iRules brace separator
 
 TEST_CASE("iRules brace separator injects SEP", "[lexer]") {
     LexerConfig cfg{.irules_brace_separator = true};
@@ -389,7 +389,7 @@ TEST_CASE("iRules brace separator injects SEP", "[lexer]") {
     CHECK(has_sep);
 }
 
-// --- Base offset support ---
+// Base offset support
 
 TEST_CASE("Base offset shifts positions", "[lexer]") {
     TclLexer lexer("puts", {}, /*base_offset=*/100, /*base_line=*/5, /*base_col=*/10);
@@ -408,7 +408,7 @@ TEST_CASE("Base offset shifts positions", "[lexer]") {
     CHECK(puts_tok->start.character == 10);
 }
 
-// --- Virtual insertions ---
+// Virtual insertions
 
 TEST_CASE("Virtual insertion closes bracket", "[lexer]") {
     std::unordered_map<int32_t, char> vi = {{6, ']'}};

@@ -61,6 +61,8 @@ core/help/kcs_help.db
 builddir/
 builddir-asan/
 builddir-tsan/
+builddir-fuzz/
+builddir-cfi/
 subprojects/catch2/
 subprojects/pybind11/
 *.so

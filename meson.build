@@ -75,6 +75,16 @@ endif
 
 add_project_arguments(hardening_args, language: 'cpp')
 
+# Control Flow Integrity (CFI): validates indirect call targets match expected
+# type signatures.  Catches vtable corruption, type confusion, and ROP gadgets.
+# Requires clang + LTO + compiler-rt.
+if get_option('cfi')
+  cfi_args = ['-fsanitize=cfi', '-fvisibility=hidden']
+  cfi_link_args = ['-fsanitize=cfi', '-flto']
+  add_project_arguments(cfi_args, language: 'cpp')
+  add_project_link_arguments(cfi_link_args, language: 'cpp')
+endif
+
 py = import('python').find_installation(pure: false)
 pybind11_dep = dependency('pybind11')
 

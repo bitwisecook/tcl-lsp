@@ -1,1 +1,3 @@
 option('tests', type: 'boolean', value: true, description: 'Build and run C++ tests')
+option('fuzz', type: 'boolean', value: false, description: 'Build fuzz targets (requires clang + libFuzzer)')
+option('cfi', type: 'boolean', value: false, description: 'Enable Control Flow Integrity (requires clang + LTO + compiler-rt)')
