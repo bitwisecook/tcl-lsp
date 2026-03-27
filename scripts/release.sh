@@ -17,27 +17,34 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Platform-portable in-place sed (macOS needs -i '', GNU sed needs -i)
+if [[ "$(uname)" == "Darwin" ]]; then
+    sedi() { sed -i '' "$@"; }
+else
+    sedi() { sed -i "$@"; }
+fi
+
 # Bump version in source files
 echo "==> Bumping version to $V"
 
 # pyproject.toml
-sed -i '' "s/^version = \".*\"/version = \"$V\"/" "$ROOT/pyproject.toml"
+sedi "s/^version = \".*\"/version = \"$V\"/" "$ROOT/pyproject.toml"
 
 # editors/vscode/package.json (package-lock.json is gitignored, updated by npm install)
-sed -i '' "s/\"version\": \".*\"/\"version\": \"$V\"/" "$ROOT/editors/vscode/package.json"
+sedi "s/\"version\": \".*\"/\"version\": \"$V\"/" "$ROOT/editors/vscode/package.json"
 
 # explorer/static/worker.js (wheel filename)
-sed -i '' "s/tcl_lsp-.*-py3-none-any\.whl/tcl_lsp-$V-py3-none-any.whl/" "$ROOT/explorer/static/worker.js"
+sedi "s/tcl_lsp-.*-py3-none-any\.whl/tcl_lsp-$V-py3-none-any.whl/" "$ROOT/explorer/static/worker.js"
 
 # editors/zed/Cargo.toml + Cargo.lock (tcl-lsp-zed entry only)
-sed -i '' "s/^version = \".*\"/version = \"$V\"/" "$ROOT/editors/zed/Cargo.toml"
-sed -i '' '/^name = "tcl-lsp-zed"/{n;s/^version = ".*"/version = "'"$V"'"/;}' "$ROOT/editors/zed/Cargo.lock"
+sedi "s/^version = \".*\"/version = \"$V\"/" "$ROOT/editors/zed/Cargo.toml"
+sedi '/^name = "tcl-lsp-zed"/{n;s/^version = ".*"/version = "'"$V"'"/;}' "$ROOT/editors/zed/Cargo.lock"
 
 # editors/zed/extension.toml
-sed -i '' "s/^version = \".*\"/version = \"$V\"/" "$ROOT/editors/zed/extension.toml"
+sedi "s/^version = \".*\"/version = \"$V\"/" "$ROOT/editors/zed/extension.toml"
 
 # editors/jetbrains/gradle.properties (pluginVersion=X.Y.Z-...)
-sed -i '' "s/^pluginVersion=.*/pluginVersion=$V/" "$ROOT/editors/jetbrains/gradle.properties"
+sedi "s/^pluginVersion=.*/pluginVersion=$V/" "$ROOT/editors/jetbrains/gradle.properties"
 
 # Note: server/server.py version comes from git describe at build time
 # via server/_build_info.py — no source file update needed.

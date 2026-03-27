@@ -49,6 +49,10 @@ intellijPlatform {
     }
 
     buildSearchableOptions = false
+
+    publishing {
+        token = providers.environmentVariable("JETBRAINS_TOKEN")
+    }
 }
 
 tasks {
