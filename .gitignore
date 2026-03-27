@@ -67,4 +67,3 @@ subprojects/pybind11/
 # Local build artefacts
 tmp/
 editors/jetbrains/.intellijPlatform/
-perf_history.sqlite3
