@@ -5,6 +5,8 @@
 #include "tcl_lsp/core/range.hpp"
 #include "tcl_lsp/core/document_buffer.hpp"
 #include "tcl_lsp/core/memory_stats.hpp"
+#include "tcl_lsp/parsing/token.hpp"
+#include "tcl_lsp/parsing/lexer.hpp"
 
 namespace py = pybind11;
 using namespace tcl_lsp;
@@ -130,4 +132,118 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
 
     m.def("memory_stats", &memory_stats,
           "Query C++ heap memory usage (mallinfo2 on Linux).");
+
+    // TokenType — enum matching Python's TokenType.
+    py::enum_<TokenType>(m, "TokenType")
+        .value("ESC", TokenType::ESC)
+        .value("STR", TokenType::STR)
+        .value("CMD", TokenType::CMD)
+        .value("VAR", TokenType::VAR)
+        .value("SEP", TokenType::SEP)
+        .value("EOL", TokenType::EOL)
+        .value("EOF", TokenType::EOF_)
+        .value("COMMENT", TokenType::COMMENT)
+        .value("EXPAND", TokenType::EXPAND);
+
+    // Token — immutable value type matching the Python frozen dataclass.
+    py::class_<Token>(m, "Token")
+        .def(py::init([](TokenType type, const std::string& text,
+                         const SourcePosition& start, const SourcePosition& end,
+                         bool in_quote) {
+            return Token{type, text, start, end, in_quote};
+        }),
+             py::arg("type"), py::arg("text"),
+             py::arg("start"), py::arg("end"),
+             py::arg("in_quote") = false)
+        .def_readonly("type", &Token::type)
+        .def_readonly("text", &Token::text)
+        .def_readonly("start", &Token::start)
+        .def_readonly("end", &Token::end)
+        .def_readonly("in_quote", &Token::in_quote)
+        .def("__eq__", [](const Token& a, const Token& b) {
+            return a == b;
+        })
+        .def("__repr__", [](const Token& t) {
+            return to_string(t);
+        });
+
+    // TclParseError — maps to Python exception.
+    py::register_exception<TclParseError>(m, "TclParseError", PyExc_RuntimeError);
+
+    // LexerConfig — configuration flags for the lexer.
+    py::class_<LexerConfig>(m, "LexerConfig")
+        .def(py::init<>())
+        .def(py::init([](bool strict_quoting, bool expand_syntax,
+                         bool irules_brace_separator) {
+            return LexerConfig{strict_quoting, expand_syntax, irules_brace_separator};
+        }),
+             py::arg("strict_quoting") = false,
+             py::arg("expand_syntax") = true,
+             py::arg("irules_brace_separator") = false)
+        .def_readwrite("strict_quoting", &LexerConfig::strict_quoting)
+        .def_readwrite("expand_syntax", &LexerConfig::expand_syntax)
+        .def_readwrite("irules_brace_separator", &LexerConfig::irules_brace_separator);
+
+    // TclLexer — the main lexer class.
+    py::class_<TclLexer>(m, "NativeTclLexer")
+        .def(py::init([](const std::string& text,
+                         LexerConfig config,
+                         int32_t base_offset,
+                         int32_t base_line,
+                         int32_t base_col,
+                         py::object virtual_insertions,
+                         py::object line_starts_obj) {
+            // Convert Python dict to C++ map.
+            std::unordered_map<int32_t, char> vi;
+            if (!virtual_insertions.is_none()) {
+                auto dict = virtual_insertions.cast<py::dict>();
+                for (auto& [k, v] : dict) {
+                    auto offset = k.cast<int32_t>();
+                    auto ch_str = v.cast<std::string>();
+                    if (!ch_str.empty()) {
+                        vi[offset] = ch_str[0];
+                    }
+                }
+            }
+
+            // Convert Python list/tuple of line starts if provided.
+            std::vector<int32_t>* ls_ptr = nullptr;
+            std::vector<int32_t> ls_vec;
+            if (!line_starts_obj.is_none()) {
+                auto ls_list = line_starts_obj.cast<py::sequence>();
+                ls_vec.reserve(static_cast<std::size_t>(py::len(ls_list)));
+                for (auto item : ls_list) {
+                    ls_vec.push_back(item.cast<int32_t>());
+                }
+                ls_ptr = &ls_vec;
+            }
+
+            return TclLexer(std::string(text), config, base_offset, base_line, base_col,
+                            std::move(vi), ls_ptr, OwningTag{});
+        }),
+             py::arg("text"),
+             py::arg("config") = LexerConfig{},
+             py::arg("base_offset") = 0,
+             py::arg("base_line") = 0,
+             py::arg("base_col") = 0,
+             py::arg("virtual_insertions") = py::none(),
+             py::arg("line_starts") = py::none())
+        .def("get_token", &TclLexer::get_token)
+        .def("tokenise_all", &TclLexer::tokenise_all)
+        .def_property_readonly("remaining", &TclLexer::remaining)
+        .def_property_readonly("pos", &TclLexer::pos)
+        .def_property_readonly("insidequote", &TclLexer::insidequote)
+        .def_property_readonly("warnings", [](const TclLexer& lexer) {
+            py::list result;
+            for (auto& [pos, msg] : lexer.warnings()) {
+                result.append(py::make_tuple(pos, msg));
+            }
+            return result;
+        })
+        .def_property_readonly("text", [](const TclLexer& lexer) {
+            return std::string(lexer.text());
+        })
+        .def_property_readonly("line_starts", [](const TclLexer& lexer) {
+            return lexer.line_starts();
+        });
 }

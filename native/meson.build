@@ -6,6 +6,8 @@ tcl_lsp_lib = static_library('tcl_lsp',
   'src/core/range.cpp',
   'src/core/document_buffer.cpp',
   'src/core/memory_stats.cpp',
+  'src/parsing/token.cpp',
+  'src/parsing/lexer.cpp',
   include_directories: tcl_lsp_inc,
 )
 
