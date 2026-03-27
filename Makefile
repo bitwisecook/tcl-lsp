@@ -60,6 +60,7 @@ EXPLORER_STATIC := $(EXPLORER_DIR)/static
 
 # Build output — everything generated goes under build/
 BUILD_DIR  := $(ROOT)build
+KCS_DB     := core/help/kcs_help.db
 
 # Tools
 UV       := uv
@@ -531,7 +532,6 @@ ZIPAPP_AI      := $(BUILD_DIR)/tcl-lsp-ai-$(VERSION).pyz
 ZIPAPP_MCP     := $(BUILD_DIR)/tcl-lsp-mcp-server-$(VERSION).pyz
 ZIPAPP_WASM    := $(BUILD_DIR)/tcl-wasm-compiler-$(VERSION).pyz
 CLAUDE_SKILLS  := $(BUILD_DIR)/tcl-lsp-claude-skills-$(VERSION).zip
-KCS_DB         := core/help/kcs_help.db
 
 zipapps: zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm ## Build all zipapps
 
