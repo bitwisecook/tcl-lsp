@@ -643,6 +643,12 @@ def _oo_define_body_indices(args: list[str]) -> set[int]:
         return {2}
     if subcommand == "method" and len(args) >= 5:
         return {4}
+    if subcommand == "classmethod" and len(args) >= 5:
+        return {4}  # oo::define Class classmethod name argList bodyScript
+    if subcommand in ("initialise", "initialize") and len(args) >= 3:
+        return {2}  # oo::define Class initialise script
+    if subcommand == "private" and len(args) >= 3:
+        return {2}  # oo::define Class private script
     if subcommand == "self" and len(args) >= 3:
         self_subcommand = args[2]
         if self_subcommand == "constructor" and len(args) >= 5:
@@ -662,6 +668,12 @@ def _oo_definition_body_indices(command: str, args: list[str]) -> set[int]:
         return {0}
     if command == "method" and len(args) >= 3:
         return {2}
+    if command == "classmethod" and len(args) >= 3:
+        return {2}  # classmethod name argList bodyScript
+    if command in ("initialise", "initialize") and len(args) >= 1:
+        return {0}  # initialise script
+    if command == "private" and len(args) >= 1:
+        return {0}  # private script (block form)
     if command == "self" and args:
         subcommand = args[0]
         if subcommand == "constructor" and len(args) >= 3:
@@ -857,7 +869,7 @@ def skip_options(
 def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[int]:
     """Return argument indices (0-based, after command name) for a role."""
     if role is ArgRole.BODY:
-        if command in ("oo::class", "oo::object"):
+        if command in ("oo::class", "oo::object", "oo::configurable", "oo::abstract", "oo::singleton"):
             return _oo_class_object_body_indices(args)
         if command in ("oo::define", "oo::objdefine"):
             return _oo_define_body_indices(args)

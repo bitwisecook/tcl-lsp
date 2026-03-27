@@ -397,6 +397,110 @@ class TestSemanticTokens:
         assert any(t["type"] == "keyword" and t["length"] == len("namespace") for t in tokens)
         assert any(t["type"] == "keyword" and t["length"] == len("eval") for t in tokens)
 
+    def test_oo_configurable_highlighted_as_keyword(self):
+        source = (
+            "oo::configurable create Point {\n"
+            "    property x y\n"
+            "    constructor args {\n"
+            "        my configure -x 0 -y 0\n"
+            "    }\n"
+            "    method report {} { return ok }\n"
+            "}"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "namespace" and t["length"] == len("oo::") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("configurable") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("property") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("constructor") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("method") for t in tokens)
+
+    def test_oo_abstract_highlighted_as_keyword(self):
+        source = "oo::abstract create Shape { method draw {} {} }"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "namespace" and t["length"] == len("oo::") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("abstract") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("method") for t in tokens)
+
+    def test_oo_singleton_highlighted_as_keyword(self):
+        source = "oo::singleton create Logger { method log {msg} { puts $msg } }"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "namespace" and t["length"] == len("oo::") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("singleton") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("puts") for t in tokens)
+
+    def test_property_keyword_in_oo_define_body(self):
+        source = "oo::define Dog { property name }"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "keyword" and t["length"] == len("property") for t in tokens)
+
+    def test_classmethod_keyword_and_body_recurses(self):
+        source = (
+            "oo::class create Foo {\n"
+            "    classmethod find args { return ok }\n"
+            "}"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "keyword" and t["length"] == len("classmethod") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("return") for t in tokens)
+        params = [t for t in tokens if t["type"] == "parameter"]
+        assert any(t["length"] == len("args") for t in params)
+
+    def test_classmethod_name_highlighted_as_definition(self):
+        source = "oo::class create Foo { classmethod bar {} { puts hi } }"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        definition_bit = 1 << 1  # SEMANTIC_TOKEN_MODIFIERS['definition']
+        assert any(
+            t["type"] == "function"
+            and t["length"] == len("bar")
+            and (t["modifiers"] & definition_bit) != 0
+            for t in tokens
+        )
+
+    def test_private_keyword_in_oo_define_body(self):
+        source = "oo::define Foo { private method secret {} { return 42 } }"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "keyword" and t["length"] == len("private") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("method") for t in tokens)
+
+    def test_initialise_keyword_and_body_recurses(self):
+        source = "oo::define Foo { initialise { set x 1 } }"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "keyword" and t["length"] == len("initialise") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("set") for t in tokens)
+
+    def test_nextto_highlighted_as_keyword(self):
+        source = (
+            "oo::class create Sub {\n"
+            "    superclass Base\n"
+            "    method foo {} { nextto Base }\n"
+            "}"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "keyword" and t["length"] == len("nextto") for t in tokens)
+
+    def test_callback_highlighted_as_keyword(self):
+        source = (
+            "oo::class create Foo {\n"
+            "    method setup {} { callback Notify }\n"
+            "}"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "keyword" and t["length"] == len("callback") for t in tokens)
+
+    def test_classvariable_highlighted_as_keyword(self):
+        source = (
+            "oo::class create Foo {\n"
+            "    method inc {} { classvariable count; incr count }\n"
+            "}"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "keyword" and t["length"] == len("classvariable") for t in tokens)
+
+    def test_oo_configurable_body_recurses(self):
+        source = "oo::configurable create Pt { property x; method r {} { puts ok } }"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "keyword" and t["length"] == len("puts") for t in tokens)
+
 
 class TestAnalysisDrivenRegexHighlighting:
     """Tests that the semantic token provider uses analysis regex_patterns

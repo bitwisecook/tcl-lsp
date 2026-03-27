@@ -70,11 +70,14 @@ from . import (
     lset,  # noqa: F401
     lsort_,  # noqa: F401
     namespace,  # noqa: F401
+    oo_abstract,  # noqa: F401
     oo_class,  # noqa: F401
+    oo_configurable,  # noqa: F401
     oo_copy,  # noqa: F401
     oo_define,  # noqa: F401
     oo_objdefine,  # noqa: F401
     oo_object,  # noqa: F401
+    oo_singleton,  # noqa: F401
     open_,  # noqa: F401
     package,  # noqa: F401
     parray,  # noqa: F401
