@@ -469,8 +469,12 @@ def _define_private(interp: TclInterp, args: list[str]) -> TclResult:
 def _define_self(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::define::self — apply definitions to the class object itself."""
     cls = getattr(interp, "_defining_class", None)
-    if cls is None:
-        raise TclError("this command may only be called from within the body of an oo::define command")
+    defining_frame = getattr(interp, "_defining_frame", None)
+    if cls is None or (defining_frame is not None and interp.current_frame is not defining_frame):
+        raise TclError(
+            "this command may only be called from within the context of "
+            "an ::oo::define or ::oo::objdefine command"
+        )
     oo = _get_oo_runtime(interp)
     obj = oo.objects.get(cls.qualified_name)
     if obj is None:
@@ -609,8 +613,10 @@ def _parse_class_body(
     saved_frame_ns = interp.current_frame.namespace
     saved_cls = getattr(interp, "_defining_class", None)
     saved_obj = getattr(interp, "_defining_object", None)
+    saved_define_frame = getattr(interp, "_defining_frame", None)
     interp._defining_class = cls
     interp._defining_object = None
+    interp._defining_frame = interp.current_frame
     interp.current_namespace = oo_define_ns
     interp.current_frame.namespace = oo_define_ns
     try:
@@ -620,6 +626,7 @@ def _parse_class_body(
         interp.current_frame.namespace = saved_frame_ns
         interp._defining_class = saved_cls
         interp._defining_object = saved_obj
+        interp._defining_frame = saved_define_frame
     return result
 
 
@@ -694,8 +701,10 @@ def _parse_objdefine_body(
     saved_frame_ns = interp.current_frame.namespace
     saved_cls = getattr(interp, "_defining_class", None)
     saved_obj = getattr(interp, "_defining_object", None)
+    saved_define_frame = getattr(interp, "_defining_frame", None)
     interp._defining_class = None
     interp._defining_object = obj
+    interp._defining_frame = interp.current_frame
     interp.current_namespace = objdefine_ns
     interp.current_frame.namespace = objdefine_ns
     try:
@@ -705,6 +714,7 @@ def _parse_objdefine_body(
         interp.current_frame.namespace = saved_frame_ns
         interp._defining_class = saved_cls
         interp._defining_object = saved_obj
+        interp._defining_frame = saved_define_frame
     return result
 
 
@@ -1115,15 +1125,25 @@ def _cmd_self(interp: TclInterp, args: list[str]) -> TclResult:
 
     # TIP #470: inside oo::define / oo::objdefine (not in a method),
     # ``self`` takes no subcommands — it just returns the class/object name.
+    # Only works when called directly in the define body frame (not from
+    # a nested proc), matching C Tcl behaviour.
     frame = interp.current_frame
     in_method = getattr(frame, "_oo_self", None) is not None
     if not in_method:
         defining_cls = getattr(interp, "_defining_class", None)
         defining_obj = getattr(interp, "_defining_object", None)
-        if defining_cls is not None or defining_obj is not None:
+        defining_frame = getattr(interp, "_defining_frame", None)
+        in_define = (defining_cls is not None or defining_obj is not None)
+        if in_define and frame is defining_frame:
             if args:
                 raise TclError('wrong # args: should be "self"')
             return TclResult(value=oo.self_name(interp))
+        if in_define and frame is not defining_frame:
+            # Inside define context but in a nested proc — self is not available
+            raise TclError(
+                "this command may only be called from within the context of "
+                "an ::oo::define or ::oo::objdefine command"
+            )
 
     if not args:
         return TclResult(value=oo.self_name(interp))
