@@ -1062,6 +1062,42 @@ def _register_class_command(
                 display_name=cmd_args[1],
             )
             return TclResult(value=obj_name)
+        if method == "createWithNamespace" and not is_unexported:
+            if len(cmd_args) < 3:
+                raise TclError(f'wrong # args: should be "{qualified} createWithNamespace name nsName ?arg ...?"')
+            create_name = cmd_args[1]
+            ns_name = cmd_args[2]
+            if not create_name:
+                raise TclError("object name must not be empty")
+            if not create_name.startswith("::"):
+                ns = interp.current_namespace.qualname
+                if ns == "::":
+                    create_name = f"::{create_name}"
+                else:
+                    create_name = f"{ns}::{create_name}"
+            while "::::" in create_name:
+                create_name = create_name.replace("::::", "::")
+            # Resolve and validate namespace
+            if not ns_name.startswith("::"):
+                cur_ns = interp.current_namespace.qualname
+                if cur_ns == "::":
+                    ns_name = f"::{ns_name}"
+                else:
+                    ns_name = f"{cur_ns}::{ns_name}"
+            from ..scope import resolve_namespace
+            if resolve_namespace(interp.root_namespace, ns_name) is not None:
+                raise TclError(f'can\'t create namespace "{ns_name}": already exists')
+            obj_name = oo.create_object(
+                interp, qualified, obj_name=create_name, args=cmd_args[3:],
+                display_name=cmd_args[1],
+            )
+            # Override the auto-generated namespace with the specified one
+            created_obj = oo.objects.get(obj_name)
+            if created_obj is not None:
+                created_obj.namespace = ns_name
+                # Re-register my/myclass in the new namespace
+                oo._register_object_command(interp, created_obj)
+            return TclResult(value=obj_name)
         if method == "destroy":
             # Destroy this class (and cascade to instances)
             if obj is not None:
@@ -1081,6 +1117,9 @@ def _register_class_command(
             for builtin in ("create", "new"):
                 if builtin not in obj.unexported_methods:
                     available.append(builtin)
+            # Add createWithNamespace if exported
+            if "createWithNamespace" in obj.exported_methods:
+                available.append("createWithNamespace")
             # Add instance methods (from self block / objdefine)
             for m_name, m_def in obj.instance_methods.items():
                 if m_name in obj.exported_methods:

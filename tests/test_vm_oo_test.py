@@ -63,7 +63,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-7.10",
     # oo-11.x: Class methods
     "oo-11.6.4",
-    "oo-11.7",
     "oo-11.8",
     # oo-12.x: Forward method edge cases
     # oo-13.x: Filter edge cases
@@ -83,7 +82,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-18.9",
     "oo-18.11",
     # oo-19.x: abstract class
-    "oo-19.2",
     "oo-19.4",
     # oo-20.x: singleton/abstract/tag
     # oo-21.x: readableproperties/writableproperties
