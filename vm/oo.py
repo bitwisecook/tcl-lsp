@@ -146,6 +146,8 @@ class OORuntime:
             class_name="::oo::class",
             namespace="::oo::object",
         )
+        # TIP 524: definition namespace configuration for root classes
+        root.instance_definition_namespace = "::oo::objdefine"
 
         # Register oo::class as the metaclass
         metaclass = TclOOClass(
@@ -153,6 +155,7 @@ class OORuntime:
             qualified_name="::oo::class",
             superclasses=["::oo::object"],
         )
+        metaclass.definition_namespace = "::oo::define"
         self.classes["::oo::class"] = metaclass
         self.objects["::oo::class"] = TclOOObject(
             name="::oo::class",

@@ -819,6 +819,28 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                 parts.append(f"{{{call_type} {mname} {cname} {impl_type}}}")
             return TclResult(value=" ".join(parts))
 
+        case "definitionnamespace":
+            if not rest:
+                raise TclError(
+                    'wrong # args: should be "info class definitionnamespace className ?kind?"'
+                )
+            if len(rest) > 2:
+                raise TclError(
+                    'wrong # args: should be "info class definitionnamespace className ?kind?"'
+                )
+            oo, cls = _resolve_class(interp, rest[0])
+            kind = rest[1] if len(rest) >= 2 else "-class"
+            if kind == "-class":
+                defns = getattr(cls, "definition_namespace", None) or ""
+                return TclResult(value=defns)
+            elif kind == "-instance":
+                defns = getattr(cls, "instance_definition_namespace", None) or ""
+                return TclResult(value=defns)
+            else:
+                raise TclError(
+                    f'bad kind "{kind}": must be -class or -instance'
+                )
+
         case _:
             return TclResult()
 
