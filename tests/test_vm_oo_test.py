@@ -80,7 +80,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-15.13.2",
     "oo-15.14",
     # oo-16.x: info object/class edge cases
-    "oo-16.16",
     # oo-17.x: definitionnamespace
     # oo-18.x: slot operations
     "oo-18.3a",

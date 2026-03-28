@@ -165,6 +165,38 @@ def _cmd_rename(interp: TclInterp, args: list[str]) -> TclResult:
             oo._destroy_object(interp, obj)
             return TclResult()
 
+    # OO integration: when renaming an object command, update the OO registry
+    if oo is not None and new_name:
+        qname = old_name if old_name.startswith("::") else f"::{old_name}"
+        obj = oo.objects.get(qname) or oo.objects.get(old_name)
+        if obj is not None:
+            new_qname = new_name if new_name.startswith("::") else f"::{new_name}"
+            # Update object registry
+            oo.objects.pop(obj.name, None)
+            old_obj_name = obj.name
+            obj.name = new_qname
+            oo.objects[new_qname] = obj
+            # Update class registry if this is a class
+            cls = oo.classes.get(old_obj_name)
+            if cls is not None:
+                oo.classes.pop(old_obj_name, None)
+                cls.name = new_qname.rsplit("::", 1)[-1]
+                cls.qualified_name = new_qname
+                oo.classes[new_qname] = cls
+                oo.invalidate_all_mro()
+            # Move runtime command
+            handler = interp._runtime_commands.pop(old_obj_name, None)
+            if handler is not None:
+                interp._runtime_commands[new_qname] = handler
+            short_old = old_obj_name.lstrip(":")
+            if short_old:
+                interp._runtime_commands.pop(short_old, None)
+            short_new = new_qname.lstrip(":")
+            if short_new and short_new != new_qname:
+                interp._runtime_commands[short_new] = handler
+            _fire_cmd_traces(interp, old_name, new_name)
+            return TclResult()
+
     # Check flat command registry
     handler = interp.lookup_command(old_name)
     if handler is not None:
