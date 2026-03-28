@@ -1216,6 +1216,17 @@ class OORuntime:
                 impl = "forward" if m.forward_target else "method"
                 chain.append(("method", method_name, class_qname, impl))
 
+        # Handle special methods: <constructor>, <destructor>
+        if method_name in ("<constructor>", "<destructor>"):
+            is_ctor = method_name == "<constructor>"
+            for class_qname in effective_mro:
+                ancestor = self.classes.get(class_qname)
+                if ancestor:
+                    target = ancestor.constructor if is_ctor else ancestor.destructor
+                    if target is not None:
+                        chain.append(("method", method_name, class_qname, "method"))
+            return chain
+
         # Instance method
         if method_name in obj.instance_methods:
             m = obj.instance_methods[method_name]

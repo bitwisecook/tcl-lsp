@@ -293,9 +293,6 @@ KNOWN_FAILURES_OO: set[str] = {
 
 KNOWN_FAILURES_OO_NEXT2: set[str] = {
     # oo-call-3.*: Error cases
-    "oo-call-3.1",
-    "oo-call-3.3",
-    "oo-call-3.4",
     # oo-nextto-*: nextto edge cases (error messages, interp)
     "oo-nextto-1.3",
     "oo-nextto-2.3",

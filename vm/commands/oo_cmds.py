@@ -928,8 +928,37 @@ def _cmd_self(interp: TclInterp, args: list[str]) -> TclResult:
         class_name = target_class if target_class else ""
         method_name = getattr(frame, "_oo_filter_method_name", "")
         return TclResult(value=f"{class_name} {method_name}")
+    if subcmd == "call":
+        # Return {callChain currentIndex} — the full call chain for the
+        # current method and the position of this method within it.
+        frame = interp.current_frame
+        obj_name = getattr(frame, "_oo_self", None)
+        method_name = getattr(frame, "_oo_method", None)
+        if obj_name is None or method_name is None:
+            raise TclError('"self call" may only be invoked from within a method')
+        obj = oo.objects.get(obj_name)
+        if obj is None:
+            raise TclError(f'object "{obj_name}" has been destroyed')
+        chain = oo.build_object_call_chain(obj, method_name)
+        # Format the chain
+        from vm.machine import _list_escape
+        chain_parts = []
+        for call_type, mname, cname, impl_type in chain:
+            chain_parts.append(f"{{{call_type} {mname} {cname} {impl_type}}}")
+        chain_str = " ".join(chain_parts)
+        # Find current position in chain
+        current_class = getattr(frame, "_oo_class", None)
+        position = 0
+        for i, (call_type, mname, cname, impl_type) in enumerate(chain):
+            if cname == current_class:
+                position = i
+                break
+            elif cname == "object" and current_class is None:
+                position = i
+                break
+        return TclResult(value=f"{{{chain_str}}} {position}")
     raise TclError(
-        f'unknown method "{subcmd}": must be caller, class, filter, method, namespace, object, or target'
+        f'unknown method "{subcmd}": must be call, caller, class, filter, method, namespace, object, or target'
     )
 
 
