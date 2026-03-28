@@ -124,7 +124,7 @@ auto AnalysisResult::copy_for_snapshot() const -> AnalysisResult {
             copy.all_procs_[proc.qualified_name] = &proc;
         }
         for (auto& [name, var] : scope.variables) {
-            copy.all_variables_[name] = &var;
+            copy.all_variables_[scope.name + "::" + name] = &var;
         }
     });
 

@@ -12,7 +12,6 @@ TEST_CASE("parse_param_list: simple params", "[param_list_parser]") {
     REQUIRE(params[2].name == "c");
     for (const auto& p : params) {
         REQUIRE(p.default_value.has_value() == false);
-        REQUIRE(p.default_value.has_value() == false);
     }
 }
 
