@@ -39,7 +39,7 @@ TEST_CASE("e203 brace recovery with de-indented command", "[recovery][e203]") {
     auto vt = detect_missing_brace_at_command(tok, "", 0, known);
     REQUIRE(vt.has_value());
     CHECK(vt->ch == '}');
-    CHECK(vt->diagnostic.code == "E203");
+    CHECK(vt->diagnostic.code == DiagCode::E203);
     CHECK(vt->diagnostic.message == "missing close-brace");
 }
 
@@ -63,7 +63,7 @@ TEST_CASE("e203 no recovery when no de-indented command", "[recovery][e203]") {
 TEST_CASE("e203 no heuristic fallback", "[recovery][e203]") {
     Token tok{TokenType::STR, "\nstuff", {0, 5, 5}, {1, 4, 10}};
     auto diag = detect_missing_brace_no_heuristic(tok, "", 0);
-    CHECK(diag.code == "E203");
+    CHECK(diag.code == DiagCode::E203);
     CHECK(diag.message == "missing close-brace");
     CHECK(diag.fixes.empty());
 }

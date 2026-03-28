@@ -206,7 +206,7 @@ auto detect_missing_bracket_at_comment(const Token& tok,
                 Diagnostic{
                     diag_range,
                     Severity::ERROR,
-                    "E201",
+                    DiagCode::E201,
                     "missing close-bracket",
                     {CodeFix{fix_range, "]", "Insert missing ']' before comment"}},
                 },
@@ -269,7 +269,7 @@ auto detect_missing_bracket_at_command(const Token& tok,
                 Diagnostic{
                     diag_range,
                     Severity::ERROR,
-                    "E201",
+                    DiagCode::E201,
                     "missing close-bracket",
                     {CodeFix{fix_range, "]", "Insert missing ']' before command"}},
                 },
@@ -322,7 +322,7 @@ auto detect_missing_bracket_at_brace(const Token& tok,
         Diagnostic{
             diag_range,
             Severity::ERROR,
-            "E201",
+            DiagCode::E201,
             "missing close-bracket",
             {CodeFix{fix_range, "]", "Insert missing ']' before '{'"}},
         },
@@ -334,7 +334,7 @@ auto detect_missing_bracket_no_heuristic(const Token& tok) -> Diagnostic {
     return Diagnostic{
         Range{tok.start, tok.start},
         Severity::ERROR,
-        "E201",
+        DiagCode::E201,
         "missing close-bracket",
         {},
     };
@@ -410,7 +410,7 @@ auto detect_missing_quote_at_newline(const Token& tok,
                 Diagnostic{
                     diag_range,
                     Severity::ERROR,
-                    "E202",
+                    DiagCode::E202,
                     "missing \"",
                     {CodeFix{fix_range, "\"", "Insert missing '\"' to close string"}},
                 },
@@ -430,7 +430,7 @@ auto detect_missing_quote_no_heuristic(const Token& tok,
     return Diagnostic{
         Range{tok.start, tok.start},
         Severity::ERROR,
-        "E202",
+        DiagCode::E202,
         "missing \"",
         {},
     };
@@ -536,7 +536,7 @@ auto detect_missing_brace_at_command(const Token& tok,
                     Diagnostic{
                         diag_range,
                         Severity::ERROR,
-                        "E203",
+                        DiagCode::E203,
                         "missing close-brace",
                         {CodeFix{fix_range, "}", "Insert missing '}' before command"}},
                     },
@@ -556,7 +556,7 @@ auto detect_missing_brace_no_heuristic(const Token& tok,
     return Diagnostic{
         Range{tok.start, tok.start},
         Severity::ERROR,
-        "E203",
+        DiagCode::E203,
         "missing close-brace",
         {},
     };
@@ -615,13 +615,13 @@ auto segment_with_recovery(std::string_view source,
                 message == "missing close-brace") {
                 continue;
             }
-            std::string code = "E200";
+            DiagCode code = DiagCode::E200;
             if (message == "extra characters after close-brace") {
-                code = "E204";
+                code = DiagCode::E204;
             } else if (message == "extra characters after close-quote") {
-                code = "E205";
+                code = DiagCode::E205;
             } else if (message == "missing close-brace for variable name") {
-                code = "E206";
+                code = DiagCode::E206;
             }
             diags.push_back(Diagnostic{Range{pos, pos}, Severity::ERROR, code, message, {}});
         }

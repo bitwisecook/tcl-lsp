@@ -35,7 +35,7 @@ TEST_CASE("e202 quote recovery produces ghost token", "[recovery][e202]") {
     auto vt = detect_missing_quote_at_newline(tok, "", 0, known);
     REQUIRE(vt.has_value());
     CHECK(vt->ch == '"');
-    CHECK(vt->diagnostic.code == "E202");
+    CHECK(vt->diagnostic.code == DiagCode::E202);
     CHECK(vt->diagnostic.message == "missing \"");
 }
 
@@ -65,7 +65,7 @@ TEST_CASE("e202 no known command no recovery", "[recovery][e202]") {
 TEST_CASE("e202 no heuristic fallback", "[recovery][e202]") {
     Token tok{TokenType::ESC, "\nstuff", {0, 6, 6}, {1, 4, 11}};
     auto diag = detect_missing_quote_no_heuristic(tok, "", 0);
-    CHECK(diag.code == "E202");
+    CHECK(diag.code == DiagCode::E202);
     CHECK(diag.message == "missing \"");
     CHECK(diag.fixes.empty());
 }
