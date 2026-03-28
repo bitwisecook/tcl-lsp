@@ -91,8 +91,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-16.x: info object/class edge cases
     "oo-16.16",
     # oo-17.x: definitionnamespace
-    "oo-17.15",
-    "oo-17.16",
     # oo-18.x: slot operations
     "oo-18.3a",
     "oo-18.3b",
@@ -158,7 +156,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-27.23",
     # oo-28.x: configurable (complex)
     # oo-29.x
-    "oo-29.1",
     # oo-30.x
     "oo-30.1",
     "oo-30.2",

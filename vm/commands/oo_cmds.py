@@ -1120,6 +1120,8 @@ def _cmd_self(interp: TclInterp, args: list[str]) -> TclResult:
         class_name = getattr(frame, "_oo_class", None)
         if class_name is None:
             raise TclError('"self class" may only be invoked from within a method')
+        if class_name.startswith("__instance__"):
+            raise TclError("method not defined by a class")
         return TclResult(value=class_name)
     if subcmd == "method":
         frame = interp.current_frame

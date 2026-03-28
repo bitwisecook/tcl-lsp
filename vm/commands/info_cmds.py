@@ -497,11 +497,14 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                             methods[bm] = "unexported"
                         else:
                             methods[bm] = bv
-            if private_flag:
-                # -private: show all methods including private
+            if all_flag and private_flag:
+                # -all -private: show everything
                 pass
+            elif private_flag:
+                # -private without -all: show public + unexported (not private)
+                methods = {k: v for k, v in methods.items() if v in ("public", "exported", "unexported")}
             elif all_flag:
-                # -all: show public methods (inherited + built-in public)
+                # -all without -private: show public methods (inherited + built-in public)
                 methods = {k: v for k, v in methods.items() if v in ("public", "exported")}
             else:
                 # Default: show only public/exported instance methods
@@ -747,11 +750,17 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                             methods_dict[bm] = "unexported"
                         else:
                             methods_dict[bm] = bv
-            if private_flag:
-                methods = [k for k, v in methods_dict.items()]
+            if all_flag and private_flag:
+                # -all -private: show everything
+                methods = list(methods_dict.keys())
+            elif private_flag:
+                # -private without -all: show public + unexported (not private)
+                methods = [k for k, v in methods_dict.items() if v in ("public", "exported", "unexported")]
             elif all_flag:
+                # -all without -private: show public methods (inherited + built-in public)
                 methods = [k for k, v in methods_dict.items() if v in ("public", "exported")]
             else:
+                # Default: show only public/exported
                 methods = [k for k, v in methods_dict.items() if v in ("public", "exported")]
             matched = sorted(m for m in methods if fnmatch.fnmatch(m, pattern))
             return TclResult(value=" ".join(_list_escape(m) for m in matched))

@@ -76,20 +76,34 @@ class TestOO37PrivateMethods:
             interp.eval("obj trySecret")
 
     def test_oo_37_5_private_visible_in_info_class_private(self) -> None:
-        """oo-37.5: info class methods -private shows private methods."""
+        """oo-37.5: info class methods -private shows unexported methods.
+
+        In C Tcl, ``-private`` without ``-all`` shows public + unexported
+        methods.  Truly private methods only appear with ``-all -private``.
+        """
         interp = TclInterp()
         interp.eval("""
             oo::class create Cls {
                 method pub {} {}
+                method Bar {} {}
                 private method priv {} {}
             }
         """)
-        # Without -private
+        # Without -private: only public
         result = interp.eval("info class methods Cls")
         assert "priv" not in result.value
-        # With -private
+        assert "pub" in result.value
+        assert "Bar" not in result.value  # uppercase = unexported
+        # With -private: public + unexported, but NOT private
         result = interp.eval("info class methods Cls -private")
+        assert "pub" in result.value
+        assert "Bar" in result.value  # unexported now visible
+        assert "priv" not in result.value  # truly private still hidden
+        # With -all -private: everything
+        result = interp.eval("info class methods Cls -all -private")
         assert "priv" in result.value
+        assert "pub" in result.value
+        assert "Bar" in result.value
 
 
 # ---------------------------------------------------------------------------
