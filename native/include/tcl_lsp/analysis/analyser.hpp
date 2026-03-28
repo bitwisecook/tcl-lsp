@@ -50,8 +50,6 @@ class Analyser {
     // Track whether we've already emitted W123 diagnostics.
     bool unresolved_commands_emitted_ = false;
 
-    // Namespace cache: scope ptr -> qualified namespace string.
-    std::unordered_map<Scope*, std::string> ns_cache_;
 
     // --- Analysis methods ---
     void analyse_body(std::string_view source, Scope* scope, const Token* body_token = nullptr);
