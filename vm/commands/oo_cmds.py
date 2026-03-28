@@ -948,7 +948,7 @@ def _cmd_next(interp: TclInterp, args: list[str]) -> TclResult:
 def _cmd_nextto(interp: TclInterp, args: list[str]) -> TclResult:
     """nextto className ?arg ...?"""
     if not args:
-        raise TclError('wrong # args: should be "nextto class ?arg ...?"')
+        raise TclError('wrong # args: should be "nextto class ?arg...?"')
     oo = _get_oo_runtime(interp)
     return oo.nextto_dispatch(interp, args[0], args[1:])
 

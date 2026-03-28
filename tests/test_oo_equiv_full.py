@@ -1191,7 +1191,7 @@ class TestOONext2:
             A create obj
         """,
         )
-        with pytest.raises(TclError, match="unknown class"):
+        with pytest.raises(TclError, match="is not a class"):
             interp.eval("obj m")
 
     def test_nextto_4_no_method_error(self) -> None:
@@ -1208,7 +1208,7 @@ class TestOONext2:
             B create obj
         """,
         )
-        with pytest.raises(TclError, match="not defined"):
+        with pytest.raises(TclError, match="no non-filter implementation"):
             interp.eval("obj m")
 
 

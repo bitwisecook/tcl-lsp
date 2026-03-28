@@ -44,7 +44,7 @@ def _cmd_namespace(interp: TclInterp, args: list[str]) -> TclResult:
             return _ns_export(interp, rest)
         case "import":
             return _ns_import(interp, rest)
-        case "exists":
+        case "exists" | "exist":
             return _ns_exists(interp, rest)
         case "children":
             return _ns_children(interp, rest)

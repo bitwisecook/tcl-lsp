@@ -1099,10 +1099,43 @@ class OORuntime:
 
         ancestor = self.classes.get(target_class)
         if ancestor is None:
-            raise TclError(f'unknown class "{target_class}"')
+            raise TclError(f'"{target_class}" is not a class')
+
+        # Validate that the target class is in the object's MRO
+        mro = self._effective_mro(obj)
+        if target_class not in mro:
+            short_name = target_class.lstrip(":")
+            raise TclError(
+                f'method has no non-filter implementation by "{short_name}"'
+            )
+
+        # Handle constructors and destructors specially
+        if method_name == "<constructor>":
+            if ancestor.constructor is None:
+                short_name = target_class.lstrip(":")
+                raise TclError(
+                    f'method has no non-filter implementation by "{short_name}"'
+                )
+            return self._invoke_method(
+                interp, obj, ancestor.constructor, args,
+                defining_class=target_class,
+            )
+        elif method_name == "<destructor>":
+            if ancestor.destructor is None:
+                short_name = target_class.lstrip(":")
+                raise TclError(
+                    f'method has no non-filter implementation by "{short_name}"'
+                )
+            return self._invoke_method(
+                interp, obj, ancestor.destructor, args,
+                defining_class=target_class,
+            )
 
         if method_name not in ancestor.methods:
-            raise TclError(f'method "{method_name}" is not defined on class "{target_class}"')
+            short_name = target_class.lstrip(":")
+            raise TclError(
+                f'method has no non-filter implementation by "{short_name}"'
+            )
 
         return self._invoke_method(
             interp,

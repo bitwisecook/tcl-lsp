@@ -298,13 +298,8 @@ KNOWN_FAILURES_OO_NEXT2: set[str] = {
     "oo-call-3.4",
     # oo-nextto-*: nextto edge cases (error messages, interp)
     "oo-nextto-1.3",
-    "oo-nextto-1.4",
-    "oo-nextto-2.2",
     "oo-nextto-2.3",
-    "oo-nextto-2.4",
     "oo-nextto-2.5",
-    "oo-nextto-2.6",
-    "oo-nextto-2.7",
     # next-tailcall-*: tailcall interaction (not implemented)
     "next-tailcall-constructor-1",
     "next-tailcall-destructor-1",
