@@ -75,17 +75,20 @@ auto rtrim(std::string_view sv) -> std::string_view {
 }
 
 // Detect all virtual tokens across all commands.
+// When known_commands is non-null, command-break heuristics are enabled.
 auto detect_all_virtual_tokens(const std::vector<SegmentedCommand>& commands,
                                std::string_view source,
-                               int32_t base_offset)
+                               int32_t base_offset,
+                               const std::unordered_set<std::string>* known_commands)
     -> std::pair<std::vector<VirtualToken>, std::vector<Diagnostic>> {
 
     std::vector<VirtualToken> virtuals;
     std::vector<Diagnostic> fallback_diags;
-    const std::unordered_set<std::string>* known_cmds_ptr = nullptr;
-    const std::unordered_set<std::string> known_cmds_storage;
-    // We lazily load known commands — but for C++ we require them to be passed.
-    // For the internal pipeline, we use an empty set as fallback.
+
+    // Empty set used when caller provides no known commands.
+    static const std::unordered_set<std::string> empty_set;
+    const auto& known_cmds =
+        (known_commands != nullptr && !known_commands->empty()) ? *known_commands : empty_set;
 
     for (const auto& cmd : commands) {
         for (const auto& tok : cmd.all_tokens) {
@@ -93,14 +96,8 @@ auto detect_all_virtual_tokens(const std::vector<SegmentedCommand>& commands,
             if (is_unterminated_cmd(tok, source, base_offset)) {
                 auto vt = detect_missing_bracket_at_comment(tok, source, base_offset);
                 if (!vt) {
-                    if (known_cmds_ptr == nullptr) {
-                        // In C++ we don't have access to the Python registry.
-                        // The known_commands set would be passed from the caller.
-                        // For internal use, use empty set.
-                        known_cmds_ptr = &known_cmds_storage;
-                    }
                     vt = detect_missing_bracket_at_command(
-                        tok, source, base_offset, *known_cmds_ptr);
+                        tok, source, base_offset, known_cmds);
                 }
                 if (!vt) {
                     vt = detect_missing_bracket_at_brace(tok, source, base_offset);
@@ -115,11 +112,8 @@ auto detect_all_virtual_tokens(const std::vector<SegmentedCommand>& commands,
 
             // E202: unterminated "
             if (is_suspicious_quote(tok, cmd, source, base_offset)) {
-                if (known_cmds_ptr == nullptr) {
-                    known_cmds_ptr = &known_cmds_storage;
-                }
                 auto vt =
-                    detect_missing_quote_at_newline(tok, source, base_offset, *known_cmds_ptr);
+                    detect_missing_quote_at_newline(tok, source, base_offset, known_cmds);
                 if (vt) {
                     virtuals.push_back(std::move(*vt));
                 } else {
@@ -131,11 +125,8 @@ auto detect_all_virtual_tokens(const std::vector<SegmentedCommand>& commands,
 
             // E203: unterminated {
             if (is_suspicious_str(tok, source, base_offset)) {
-                if (known_cmds_ptr == nullptr) {
-                    known_cmds_ptr = &known_cmds_storage;
-                }
                 auto vt =
-                    detect_missing_brace_at_command(tok, source, base_offset, *known_cmds_ptr);
+                    detect_missing_brace_at_command(tok, source, base_offset, known_cmds);
                 if (vt) {
                     virtuals.push_back(std::move(*vt));
                 } else {
@@ -586,7 +577,9 @@ auto is_unterminated_cmd(const Token& tok, std::string_view source, int32_t base
 
 // Compute virtual insertions for error recovery.
 auto compute_virtual_insertions(std::string_view source,
-                                const Token* body_token) -> std::unordered_map<int32_t, char> {
+                                const Token* body_token,
+                                const std::unordered_set<std::string>* known_commands)
+    -> std::unordered_map<int32_t, char> {
 
     auto commands = segment_commands(source, body_token);
     if (commands.empty()) {
@@ -594,7 +587,7 @@ auto compute_virtual_insertions(std::string_view source,
     }
 
     const int32_t base = base_offset_for(body_token);
-    auto [virtuals, _] = detect_all_virtual_tokens(commands, source, base);
+    auto [virtuals, _] = detect_all_virtual_tokens(commands, source, base, known_commands);
 
     if (virtuals.empty()) {
         return {};
@@ -608,7 +601,9 @@ auto compute_virtual_insertions(std::string_view source,
 }
 
 // Full recovery pipeline.
-auto segment_with_recovery(std::string_view source, const Token* body_token) -> RecoveryResult {
+auto segment_with_recovery(std::string_view source,
+                           const Token* body_token,
+                           const std::unordered_set<std::string>* known_commands) -> RecoveryResult {
     std::vector<std::pair<SourcePosition, std::string>> lexer_warnings;
     auto commands = segment_commands(source, body_token, nullptr, nullptr, &lexer_warnings);
 
@@ -640,7 +635,8 @@ auto segment_with_recovery(std::string_view source, const Token* body_token) -> 
     }
 
     const int32_t base = base_offset_for(body_token);
-    auto [virtuals, fallback_diags] = detect_all_virtual_tokens(commands, source, base);
+    auto [virtuals, fallback_diags] =
+        detect_all_virtual_tokens(commands, source, base, known_commands);
     auto warning_diags = warnings_to_diags(lexer_warnings);
 
     if (virtuals.empty()) {

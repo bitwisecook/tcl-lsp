@@ -88,13 +88,19 @@ is_unterminated_cmd(const Token& tok, std::string_view source, int32_t base_offs
 
 // Compute virtual token insertions for error recovery.
 // Does a first parse, detects imbalances, and returns the insertions dict.
-[[nodiscard]] auto
-compute_virtual_insertions(std::string_view source,
-                           const Token* body_token = nullptr) -> std::unordered_map<int32_t, char>;
+// When known_commands is provided, command-break heuristics are enabled.
+[[nodiscard]] auto compute_virtual_insertions(
+    std::string_view source,
+    const Token* body_token = nullptr,
+    const std::unordered_set<std::string>* known_commands = nullptr)
+    -> std::unordered_map<int32_t, char>;
 
 // Parse source, detect imbalances, re-parse with virtual tokens.
 // Returns (clean_commands, diagnostics).
-[[nodiscard]] auto segment_with_recovery(std::string_view source,
-                                         const Token* body_token = nullptr) -> RecoveryResult;
+// When known_commands is provided, command-break heuristics are enabled.
+[[nodiscard]] auto segment_with_recovery(
+    std::string_view source,
+    const Token* body_token = nullptr,
+    const std::unordered_set<std::string>* known_commands = nullptr) -> RecoveryResult;
 
 } // namespace tcl_lsp

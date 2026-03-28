@@ -46,7 +46,7 @@ except ImportError:
 import logging as _logging
 
 _log = _logging.getLogger(__name__)
-_log.info(
+_log.debug(
     "Native C++ acceleration: core_types=%s, segmenter=%s",
     NATIVE,
     NATIVE_SEGMENTER,
