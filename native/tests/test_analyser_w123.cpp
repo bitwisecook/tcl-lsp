@@ -48,7 +48,7 @@ static auto make_w123_registry() -> TestCommandRegistry {
 static auto w123_diags(const AnalysisResult& result) -> std::vector<Diagnostic> {
     std::vector<Diagnostic> out;
     for (const auto& d : result.diagnostics()) {
-        if (d.code == "W123") out.push_back(d);
+        if (d.code == DiagCode::W123) out.push_back(d);
     }
     return out;
 }

@@ -173,7 +173,7 @@ proc foo {x y} {
 })", &reg);
     std::vector<Diagnostic> w214;
     for (const auto& d : result.diagnostics()) {
-        if (d.code == "W214") w214.push_back(d);
+        if (d.code == DiagCode::W214) w214.push_back(d);
     }
     CHECK(w214.empty());
 }
@@ -189,7 +189,7 @@ namespace eval math {
 })", &reg);
     std::vector<Diagnostic> w214;
     for (const auto& d : result.diagnostics()) {
-        if (d.code == "W214") w214.push_back(d);
+        if (d.code == DiagCode::W214) w214.push_back(d);
     }
     CHECK(w214.empty());
 }
@@ -205,7 +205,7 @@ namespace eval utils {
 })", &reg);
     std::vector<Diagnostic> w214;
     for (const auto& d : result.diagnostics()) {
-        if (d.code == "W214") w214.push_back(d);
+        if (d.code == DiagCode::W214) w214.push_back(d);
     }
     CHECK(w214.empty());
 }

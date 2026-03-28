@@ -355,7 +355,7 @@ void Analyser::emit_unresolved_command_diagnostics() {
                 CodeFix{inv.range, best, "Replace with '" + best + "'"});
         }
 
-        emit_diagnostic(inv.range, Severity::HINT, "W123", msg, std::move(fixes));
+        emit_diagnostic(inv.range, Severity::HINT, DiagCode::W123, msg, std::move(fixes));
     }
 }
 
@@ -365,7 +365,7 @@ void Analyser::emit_unresolved_command_diagnostics() {
 
 void Analyser::dedupe_diagnostics() {
     struct Key {
-        std::string code;
+        DiagCode code;
         int32_t start_offset;
         int32_t end_offset;
         std::string message;
@@ -375,7 +375,7 @@ void Analyser::dedupe_diagnostics() {
 
         struct Hash {
             auto operator()(const Key& k) const noexcept -> std::size_t {
-                auto h = std::hash<std::string>{}(k.code);
+                auto h = std::hash<std::uint16_t>{}(static_cast<std::uint16_t>(k.code));
                 h ^= std::hash<int32_t>{}(k.start_offset) + 0x9e3779b9 + (h << 6) + (h >> 2);
                 h ^= std::hash<int32_t>{}(k.end_offset) + 0x9e3779b9 + (h << 6) + (h >> 2);
                 h ^= std::hash<std::string>{}(k.message) + 0x9e3779b9 + (h << 6) + (h >> 2);
@@ -387,7 +387,7 @@ void Analyser::dedupe_diagnostics() {
     // Collect E101 lines for redundant E002 suppression.
     std::unordered_set<int32_t> e101_lines;
     for (const auto& d : result_.diagnostics_) {
-        if (d.code == "E101") e101_lines.insert(d.range.start.line);
+        if (d.code == DiagCode::E101) e101_lines.insert(d.range.start.line);
     }
 
     std::unordered_set<Key, Key::Hash> seen;
@@ -395,22 +395,22 @@ void Analyser::dedupe_diagnostics() {
     for (auto& d : result_.diagnostics_) {
         Key key{d.code, d.range.start.offset, d.range.end.offset, d.message, d.severity};
         if (seen.contains(key)) continue;
-        if (d.code == "E002" && e101_lines.contains(d.range.start.line)) continue;
+        if (d.code == DiagCode::E002 && e101_lines.contains(d.range.start.line)) continue;
         seen.insert(key);
         deduped.push_back(std::move(d));
     }
     result_.diagnostics_ = std::move(deduped);
 }
 
-auto Analyser::is_diagnostic_suppressed(int32_t line, const std::string& code) const -> bool {
+auto Analyser::is_diagnostic_suppressed(int32_t line, DiagCode code) const -> bool {
     auto it = result_.suppressed_lines_.find(line);
     if (it == result_.suppressed_lines_.end()) return false;
-    return it->second.contains("*") || it->second.contains(code);
+    return it->second.contains("*") || it->second.contains(to_string(code));
 }
 
-void Analyser::emit_diagnostic(Range range, Severity severity, const std::string& code,
+void Analyser::emit_diagnostic(Range range, Severity severity, DiagCode code,
                                const std::string& message, std::vector<CodeFix> fixes) {
-    if (disabled_diagnostics_.contains(code)) return;
+    if (disabled_diagnostics_.contains(to_string(code))) return;
     if (is_diagnostic_suppressed(range.start.line, code)) return;
     result_.diagnostics_.push_back(
         Diagnostic{range, severity, code, message, std::move(fixes)});

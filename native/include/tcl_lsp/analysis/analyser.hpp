@@ -138,8 +138,8 @@ class Analyser {
     // --- Diagnostics ---
     void emit_unresolved_command_diagnostics();
     void dedupe_diagnostics();
-    auto is_diagnostic_suppressed(int32_t line, const std::string& code) const -> bool;
-    void emit_diagnostic(Range range, Severity severity, const std::string& code,
+    auto is_diagnostic_suppressed(int32_t line, DiagCode code) const -> bool;
+    void emit_diagnostic(Range range, Severity severity, DiagCode code,
                          const std::string& message, std::vector<CodeFix> fixes = {});
 
     // --- Expression analysis ---

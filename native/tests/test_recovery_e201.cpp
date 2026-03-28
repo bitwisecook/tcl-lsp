@@ -19,7 +19,7 @@ TEST_CASE("e201 comment break basic detection", "[recovery][e201]") {
     auto vt = detect_missing_bracket_at_comment(tok, "", 0);
     REQUIRE(vt.has_value());
     CHECK(vt->ch == ']');
-    CHECK(vt->diagnostic.code == "E201");
+    CHECK(vt->diagnostic.code == DiagCode::E201);
     CHECK(vt->diagnostic.message == "missing close-bracket");
 }
 
@@ -45,7 +45,7 @@ TEST_CASE("e201 command break basic recovery", "[recovery][e201]") {
     auto vt = detect_missing_bracket_at_command(tok, "", 0, known);
     REQUIRE(vt.has_value());
     CHECK(vt->ch == ']');
-    CHECK(vt->diagnostic.code == "E201");
+    CHECK(vt->diagnostic.code == DiagCode::E201);
 }
 
 TEST_CASE("e201 command break skips blank lines", "[recovery][e201]") {
@@ -77,7 +77,7 @@ TEST_CASE("e201 brace break basic", "[recovery][e201]") {
     auto vt = detect_missing_bracket_at_brace(tok, "", 0);
     REQUIRE(vt.has_value());
     CHECK(vt->ch == ']');
-    CHECK(vt->diagnostic.code == "E201");
+    CHECK(vt->diagnostic.code == DiagCode::E201);
 }
 
 TEST_CASE("e201 brace break codefix", "[recovery][e201]") {
@@ -97,7 +97,7 @@ TEST_CASE("e201 no brace break for valid cmd", "[recovery][e201]") {
 TEST_CASE("e201 no heuristic fallback", "[recovery][e201]") {
     Token tok{TokenType::CMD, "foo", {0, 5, 5}, {0, 8, 8}};
     auto diag = detect_missing_bracket_no_heuristic(tok);
-    CHECK(diag.code == "E201");
+    CHECK(diag.code == DiagCode::E201);
     CHECK(diag.message == "missing close-bracket");
     CHECK(diag.fixes.empty());
 }

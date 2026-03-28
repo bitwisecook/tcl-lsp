@@ -93,10 +93,10 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
             has_sig = true;
             auto nargs = static_cast<int32_t>(args.size());
             if (nargs < arity_opt->min) {
-                emit_diagnostic(range_from_token(cmd.argv[0]), Severity::ERROR, "E001",
+                emit_diagnostic(range_from_token(cmd.argv[0]), Severity::ERROR, DiagCode::E001,
                                 "Too few arguments for '" + cmd_name + "'");
             } else if (nargs > arity_opt->max) {
-                emit_diagnostic(range_from_token(cmd.argv[0]), Severity::ERROR, "E001",
+                emit_diagnostic(range_from_token(cmd.argv[0]), Severity::ERROR, DiagCode::E001,
                                 "Too many arguments for '" + cmd_name + "'");
             }
         }
@@ -159,7 +159,7 @@ auto Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) -> bool {
             shadow_name = normalised_qual;
         }
         if (!shadow_name.empty()) {
-            emit_diagnostic(name_range, Severity::WARNING, "W113",
+            emit_diagnostic(name_range, Severity::WARNING, DiagCode::W113,
                             "Procedure '" + proc_name + "' shadows built-in command");
         }
     }
@@ -201,7 +201,7 @@ auto Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) -> bool {
         if (!p.name.empty() && p.name[0] == '_') continue;
         auto it = proc_scope->variables.find(p.name);
         if (it != proc_scope->variables.end() && it->second.references.empty()) {
-            emit_diagnostic(name_range, Severity::HINT, "W214",
+            emit_diagnostic(name_range, Severity::HINT, DiagCode::W214,
                             "Parameter '" + p.name + "' of '" + proc_name +
                                 "' is unused");
         }
@@ -821,12 +821,12 @@ void Analyser::check_proc_call_arity(const ProcDef& proc_def,
     auto nargs = static_cast<int32_t>(args.size());
 
     if (nargs < required) {
-        emit_diagnostic(range_from_token(cmd_token), Severity::ERROR, "E002",
+        emit_diagnostic(range_from_token(cmd_token), Severity::ERROR, DiagCode::E002,
                         "Too few arguments for '" + proc_def.qualified_name +
                             "': expected at least " + std::to_string(required) +
                             ", got " + std::to_string(nargs));
     } else if (nargs > max_args) {
-        emit_diagnostic(range_from_token(cmd_token), Severity::ERROR, "E003",
+        emit_diagnostic(range_from_token(cmd_token), Severity::ERROR, DiagCode::E003,
                         "Too many arguments for '" + proc_def.qualified_name +
                             "': expected at most " + std::to_string(max_args) +
                             ", got " + std::to_string(nargs));
