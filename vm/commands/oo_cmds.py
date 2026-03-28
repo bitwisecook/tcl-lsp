@@ -333,14 +333,36 @@ def _define_superclass(interp: TclInterp, args: list[str]) -> TclResult:
         else:
             cls.superclasses = ["::oo::object"]
     else:
-        # Handle -append flag
+        oo = _get_oo_runtime(interp)
+        # Handle slot-style flags
         if args[0] == "-append":
             supers = list(args[1:])
             for s in supers:
-                if s not in cls.superclasses:
-                    cls.superclasses.append(s)
+                qn = s if s.startswith("::") else f"::{s}"
+                # Check for duplicate
+                existing = [
+                    (x if x.startswith("::") else f"::{x}")
+                    for x in cls.superclasses
+                ]
+                if qn in existing:
+                    raise TclError("class should only be a direct superclass once")
+                cls.superclasses.append(s)
         else:
+            # Check for duplicates in the new list
+            seen: set[str] = set()
+            for s in args:
+                qn = s if s.startswith("::") else f"::{s}"
+                if qn in seen:
+                    raise TclError("class should only be a direct superclass once")
+                seen.add(qn)
             cls.superclasses = list(args)
+        # Validate: no circular dependency (compute MRO and discard cache)
+        try:
+            cls.mro(oo.classes)
+        except Exception:
+            raise TclError("attempt to form circular dependency graph")
+        finally:
+            cls._mro_cache = None
     return TclResult()
 
 
