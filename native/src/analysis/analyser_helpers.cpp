@@ -160,8 +160,7 @@ auto Analyser::make_child_scope(ScopeKind kind, const std::string& name,
 }
 
 auto Analyser::namespace_from_scope(Scope* scope) -> std::string {
-    auto it = ns_cache_.find(scope);
-    if (it != ns_cache_.end()) return it->second;
+    if (!scope->cached_namespace.empty()) return scope->cached_namespace;
 
     std::vector<std::string> parts;
     auto* s = scope;
@@ -172,7 +171,7 @@ auto Analyser::namespace_from_scope(Scope* scope) -> std::string {
         s = s->parent;
     }
     if (parts.empty()) {
-        ns_cache_[scope] = "::";
+        scope->cached_namespace = "::";
         return "::";
     }
     std::reverse(parts.begin(), parts.end());
@@ -185,7 +184,7 @@ auto Analyser::namespace_from_scope(Scope* scope) -> std::string {
             ns = normalise_qualified(ns + "::" + p);
         }
     }
-    ns_cache_[scope] = ns;
+    scope->cached_namespace = ns;
     return ns;
 }
 

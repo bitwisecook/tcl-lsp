@@ -33,7 +33,6 @@ auto Analyser::analyse(std::string_view source) -> AnalysisResult {
     last_comment_.clear();
     command_aliases_.clear();
     unresolved_commands_emitted_ = false;
-    ns_cache_.clear();
 
     // Pre-scan for inline stub blocks.
     auto stubs = scan_source_for_stubs(source);
@@ -63,7 +62,6 @@ auto Analyser::analyse_commands(std::string_view source,
     last_comment_.clear();
     command_aliases_.clear();
     unresolved_commands_emitted_ = false;
-    ns_cache_.clear();
 
     analyse_commands_inner(commands, &result_.global_scope(), source);
     if (finalise) {

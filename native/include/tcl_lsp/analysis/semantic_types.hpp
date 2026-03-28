@@ -88,6 +88,9 @@ struct Scope {
     std::unordered_map<std::string, std::pair<std::string, Range>> const_strings;
     std::unordered_set<std::string> regex_vars;
 
+    // Cached namespace path for this scope (computed lazily by Analyser).
+    mutable std::string cached_namespace;
+
     Scope() = default;
     ~Scope() = default;
 
