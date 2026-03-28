@@ -127,7 +127,7 @@ New edits cancel in-flight analysis. Semantic tokens are always the priority.
 | Choice | Decision | Rationale |
 |---|---|---|
 | Language | C++23/26 | Latest standard features: `expected`, `ranges`, `format`, spaceship operator, `deducing this` |
-| Compilers | Clang 18+ and GCC 13+ | Dual-compiler requirement: all native code must build clean under both with `-Werror` |
+| Compilers | Clang 18+, GCC 13+, GCC 14+ | All native code must build clean under all three with `-Werror` and zero analyzer findings |
 | Build | Meson | Clean readable syntax, first-class pybind11 support, WrapDB for dependencies |
 | Bindings | pybind11 | Native Python extension, exposes C++ types directly to Python |
 | Testing | Catch2 (C++) + pytest (Python) | Catch2 for C++ unit tests; full pytest suite validates through pybind11 shim |
@@ -167,25 +167,76 @@ The Meson build enables these unconditionally (see `meson.build`):
 - `-Wnull-dereference`, `-Wformat=2` — null safety and format string security
 - `-Wvla`, `-Wdouble-promotion`, `-Wimplicit-fallthrough` — common C++ pitfalls
 
-### Warning policy
+### Dual-compiler requirement
 
-Pure C++ code (`native/src/`, `native/include/`, `native/tests/`) must build
-with zero warnings under `-Werror` on **both Clang 18+ and GCC 13+**. The
-pybind11 bindings (`native/bindings/`) are excluded from clang-tidy and
-cppcheck since they are temporary shim code. GCC-specific false positives
-in pybind11 template code are suppressed in the bindings build only.
+All native C++ code (`native/src/`, `native/include/`, `native/tests/`) must
+build with **zero warnings under `-Werror`** on all of:
+
+- **Clang 18+** — primary development compiler, source of clang-tidy/clang-format
+- **GCC 13** — baseline GCC, different warning heuristics and template diagnostics
+- **GCC 14** — latest available, adds `-fanalyzer` improvements and `-fhardened`
+
+The pybind11 bindings (`native/bindings/`) are temporary shim code — excluded
+from clang-tidy, cppcheck, and GCC's `-fanalyzer`. GCC-specific false
+positives in pybind11 template code are suppressed in the bindings build only.
+External libraries (Catch2, pybind11) are not our code and not analysed.
+
+### Installing prerequisites
+
+```bash
+# Ubuntu 24.04
+apt install clang-18 clang-format-18 clang-tidy-18 clang-tools-18 \
+  libclang-rt-18-dev gcc-13 g++-13 gcc-14 g++-14 cppcheck valgrind
+
+# Python (for pybind11 bindings — optional for pure C++ analysis)
+pip install pybind11 meson ninja
+```
 
 ### Makefile targets
+
+#### Clang 18 (primary)
 
 | Target | In prep-pr? | Purpose |
 |---|---|---|
 | `make format-cpp` | via `make format` | Auto-format all C++ files |
 | `make lint-cpp` | Yes | clang-tidy + cppcheck + format check |
-| `make native-test` | Yes | Catch2 unit tests (normal build) |
-| `make native-test-asan` | Yes | Tests under ASan + UBSan |
-| `make native-test-tsan` | Yes | Tests under TSan |
-| `make native-scan-build` | Yes | Clang Static Analyzer |
-| `make native-valgrind` | No | Valgrind memcheck (periodic use) |
+| `make native-test` | Yes | Catch2 unit tests (Clang, `-Werror`) |
+| `make native-test-asan` | Yes | Tests under Clang ASan + UBSan |
+| `make native-test-tsan` | Yes | Tests under Clang TSan |
+| `make native-scan-build` | Yes | Clang Static Analyzer (path-sensitive) |
+| `make native-test-cfi` | Yes* | Control Flow Integrity (requires compiler-rt) |
+| `make native-fuzz` | Yes* | libFuzzer harness (requires compiler-rt) |
+| `make native-valgrind` | No | Valgrind memcheck (periodic deep check) |
+
+*Only when `libclang-rt-18-dev` is installed.
+
+#### GCC 13 + GCC 14
+
+| Target | In prep-pr? | Purpose |
+|---|---|---|
+| `make native-test-gcc13` | Yes | Catch2 unit tests (GCC 13, `-Werror`) |
+| `make native-test-gcc14` | Yes | Catch2 unit tests (GCC 14, `-Werror`) |
+| `make native-test-gcc13-asan` | Yes | Tests under GCC 13 ASan + UBSan |
+| `make native-test-gcc14-asan` | Yes | Tests under GCC 14 ASan + UBSan |
+| `make native-gcc-analyze` | Yes | GCC static analyzer (`-fanalyzer`) |
+
+GCC targets auto-skip when the compiler isn't installed (prints a message, does
+not fail). The GCC `-fanalyzer` target uses the highest available GCC version
+(prefers 14 for its improved checks: infinite-loop detection, overlapping-buffer
+checks, enabled-by-default taint analysis).
+
+#### What each tool catches
+
+| Tool | Bug class | Unique value |
+|---|---|---|
+| **clang-tidy** | AST patterns, modernisation, const-correctness | Broadest lint coverage |
+| **cppcheck** | Different static patterns (useStlAlgorithm, etc.) | Catches what clang-tidy misses |
+| **Clang scan-build** | Path-sensitive: null deref, dead stores, logic | Execution path analysis |
+| **GCC -fanalyzer** | Path-sensitive: different model than scan-build | GCC-specific: taint, infinite loops |
+| **ASan + UBSan** | Runtime memory + undefined behaviour | Buffer overflows, use-after-free, signed overflow |
+| **TSan** | Runtime thread safety | Data races, deadlocks |
+| **Valgrind** | Runtime memory (no recompile needed) | Uninitialised reads, leaks |
+| **CFI** | Runtime control flow | vtable corruption, type confusion |
 
 ## Branch strategy
 
@@ -424,19 +475,26 @@ token injection.
 
 Plus 127 Python tests (75 segmenter + 52 recovery) passing through pybind11 shim.
 
-**Dual-compiler verification:**
+**Tri-compiler verification:**
 
-All native C++ code builds clean under both Clang 18 and GCC 13/14 with
-`-Werror` and all hardening flags. Both compilers pass all sanitiser suites:
+All native C++ code builds clean under Clang 18, GCC 13, and GCC 14 with
+`-Werror` and all hardening flags. All compilers pass their sanitiser suites:
 
 | Compiler | Build | ASan+UBSan | TSan | Valgrind |
 |---|---|---|---|---|
 | Clang 18 | clean | 16/16 | 16/16 | 16/16 |
-| GCC 13 | clean | 16/16 | 16/16 | — |
-| GCC 14 | clean | 16/16 | 16/16 | — |
+| GCC 13 | clean | 16/16 | — | — |
+| GCC 14 | clean | 16/16 | — | — |
 
-Static analysis: clang-tidy, cppcheck, clang-format, and Clang Static Analyzer
-(scan-build) all pass clean with zero warnings/bugs on our code.
+Static analysis — all clean on our code (shim and external libraries excluded):
+
+| Tool | Result |
+|---|---|
+| clang-tidy | 0 errors (5 NOLINT suppressions) |
+| cppcheck | 0 errors |
+| clang-format | compliant |
+| Clang scan-build | 0 bugs found |
+| GCC 14 -fanalyzer | 0 findings |
 
 **pybind11 bindings:**
 
