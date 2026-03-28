@@ -45,12 +45,17 @@ tcl_lsp_server_core_dep = declare_dependency(
 # Only built when pybind11 is available.
 if pybind11_dep.found()
   # Relax warnings from pybind11 template-heavy headers.
+  # Relax GCC warnings that fire in pybind11 template-heavy headers.
+  # These are well-known GCC false positives (pybind11#4412, GCC#106247).
+  # Our own non-pybind11 code builds with full -Werror.
   bridge_args = []
   if meson.get_compiler('cpp').get_id() == 'gcc'
     bridge_args += [
       '-Wno-array-bounds',
       '-Wno-stringop-overflow',
       '-Wno-stringop-overread',
+      '-Wno-attributes',
+      '-Wno-null-dereference',
     ]
   endif
 
