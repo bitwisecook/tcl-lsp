@@ -38,6 +38,64 @@ def _parse_method_params(
     return params, names, has_args
 
 
+_CLASS_BODY_SUBCMDS = (
+    "classmethod",
+    "constructor",
+    "definitionnamespace",
+    "deletemethod",
+    "destructor",
+    "export",
+    "filter",
+    "forward",
+    "method",
+    "mixin",
+    "private",
+    "renamemethod",
+    "self",
+    "superclass",
+    "unexport",
+    "variable",
+)
+
+_OBJDEFINE_SUBCMDS = (
+    "class",
+    "deletemethod",
+    "export",
+    "filter",
+    "forward",
+    "method",
+    "mixin",
+    "private",
+    "renamemethod",
+    "unexport",
+    "variable",
+)
+
+
+def _abbreviate(word: str, options: tuple[str, ...]) -> str:
+    """Resolve a possibly-abbreviated subcommand.
+
+    Returns the full subcommand name if *word* is an unambiguous prefix
+    of exactly one option.  Returns *word* unchanged otherwise (the
+    caller's ``match/case`` will fall through to the default branch).
+    """
+    matches = [o for o in options if o.startswith(word)]
+    if len(matches) == 1:
+        return matches[0]
+    return word
+
+
+def _default_method_visibility(name: str) -> str:
+    """Return the default visibility for a method name.
+
+    In C Tcl, methods whose names start with a lowercase ASCII letter
+    are exported (public) by default; all others are unexported.
+    """
+    if name and name[0].islower():
+        return "public"
+    return "unexported"
+
+
 def _parse_class_body(
     interp: TclInterp,
     cls: TclOOClass,
@@ -67,7 +125,7 @@ def _parse_class_body(
             i += 1
             continue
 
-        subcmd = parts[0]
+        subcmd = _abbreviate(parts[0], _CLASS_BODY_SUBCMDS)
         match subcmd:
             case "method":
                 if len(parts) < 4:
@@ -80,6 +138,7 @@ def _parse_class_body(
                     param_names=param_names,
                     body=method_body,
                     has_args=has_args,
+                    visibility=_default_method_visibility(name),
                 )
             case "classmethod":
                 if len(parts) < 4:
@@ -175,6 +234,24 @@ def _parse_class_body(
                         has_args=has_args,
                         visibility="private",
                     )
+            case "self":
+                # oo::define ClassName { self { method foo {} {...} } }
+                # Applies definitions to the class object itself.
+                if len(parts) >= 2:
+                    oo = _get_oo_runtime(interp)
+                    obj = oo.objects.get(cls.qualified_name)
+                    if obj is not None:
+                        # If a single block, parse as objdefine body
+                        # If multiple args, treat as single subcommand
+                        if len(parts) == 2:
+                            _parse_objdefine_body(interp, obj, parts[1])
+                        else:
+                            from ..machine import _list_escape
+
+                            reconstructed = " ".join(_list_escape(a) for a in parts[1:])
+                            _parse_objdefine_body(interp, obj, reconstructed)
+            case "definitionnamespace":
+                pass  # not yet implemented
             case _:
                 pass  # ignore unknown subcommands
 
@@ -206,7 +283,7 @@ def _parse_objdefine_body(
             i += 1
             continue
 
-        subcmd = parts[0]
+        subcmd = _abbreviate(parts[0], _OBJDEFINE_SUBCMDS)
         match subcmd:
             case "method":
                 if len(parts) < 4:
@@ -246,27 +323,25 @@ def _parse_objdefine_body(
                     obj.instance_methods[new_name] = method
             case "mixin":
                 mixin_args = parts[1:]
-                if not hasattr(obj, "instance_mixins"):
-                    obj.instance_mixins = []
                 if mixin_args and mixin_args[0] == "-append":
                     obj.instance_mixins.extend(mixin_args[1:])
                 else:
                     obj.instance_mixins = list(mixin_args)
             case "variable":
-                if not hasattr(obj, "instance_variables"):
-                    obj.instance_variables = []
                 obj.instance_variables.extend(parts[1:])
             case "filter":
-                if not hasattr(obj, "instance_filters"):
-                    obj.instance_filters = []
                 obj.instance_filters.extend(parts[1:])
             case "export":
                 for m in parts[1:]:
+                    obj.exported_methods.add(m)
+                    obj.unexported_methods.discard(m)
                     method = obj.instance_methods.get(m)
                     if method:
                         method.visibility = "public"
             case "unexport":
                 for m in parts[1:]:
+                    obj.unexported_methods.add(m)
+                    obj.exported_methods.discard(m)
                     method = obj.instance_methods.get(m)
                     if method:
                         method.visibility = "unexported"
@@ -488,6 +563,7 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
         raise TclError(f'"{src_name}" does not refer to an object')
 
     # Determine target name
+    oo._next_obj_id += 1
     if len(args) >= 2:
         tgt_name = args[1]
         if not tgt_name.startswith("::"):
@@ -497,18 +573,23 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
             else:
                 tgt_name = f"{ns}::{tgt_name}"
     else:
-        oo._next_obj_id += 1
         tgt_name = f"::oo::Obj{oo._next_obj_id}"
 
     import copy
 
     from ..oo import TclOOObject
 
+    tgt_ns = f"::oo::Obj{oo._next_obj_id}"
     tgt = TclOOObject(
         name=tgt_name,
         class_name=src.class_name,
-        namespace=tgt_name,
+        namespace=tgt_ns,
         instance_methods={k: copy.copy(v) for k, v in src.instance_methods.items()},
+        instance_mixins=list(src.instance_mixins),
+        instance_filters=list(src.instance_filters),
+        instance_variables=list(src.instance_variables),
+        exported_methods=set(src.exported_methods),
+        unexported_methods=set(src.unexported_methods),
         _vars=dict(src._vars),
         _arrays={k: dict(v) for k, v in src._arrays.items()},
     )

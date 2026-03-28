@@ -820,7 +820,7 @@ class TestSelfSubcommands:
             Cls create obj
         """)
         result = interp.eval("obj myNS")
-        assert "obj" in result.value
+        assert result.value.startswith("::oo::Obj")
 
     def test_self_caller(self) -> None:
         """self caller returns calling method's class and name."""

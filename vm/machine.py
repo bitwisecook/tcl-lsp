@@ -791,7 +791,8 @@ class BytecodeVM:
                         name = str(slot)
                     value = stack.pop() if stack else ""
                     old = frame.get_var(name, default="")
-                    new_val = (old + " " + value) if old else value
+                    escaped = _list_escape(value)
+                    new_val = (old + " " + escaped) if old else escaped
                     frame.set_var(name, new_val)
                     stack.append(new_val)
 
@@ -833,7 +834,8 @@ class BytecodeVM:
                     value = stack.pop() if stack else ""
                     name = _resolve_var_name(stack.pop()) if stack else ""
                     old = frame.get_var(name, default="")
-                    new_val = (old + " " + value) if old else value
+                    escaped = _list_escape(value)
+                    new_val = (old + " " + escaped) if old else escaped
                     frame.set_var(name, new_val)
                     stack.append(new_val)
 

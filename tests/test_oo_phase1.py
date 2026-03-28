@@ -448,7 +448,7 @@ class TestOO16InfoObject:
         interp = TclInterp()
         interp.eval("oo::object create myobj")
         result = interp.eval("info object namespace myobj")
-        assert "myobj" in result.value
+        assert result.value.startswith("::oo::Obj")
 
     def test_oo_16_info_object_methods_with_objdefine(self) -> None:
         """info object methods lists instance methods."""

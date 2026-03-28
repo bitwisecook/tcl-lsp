@@ -465,14 +465,14 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             if not rest:
                 raise TclError('wrong # args: should be "info object mixins objName"')
             oo, obj = _resolve_object(interp, rest[0])
-            instance_mixins = getattr(obj, "instance_mixins", [])
+            instance_mixins = obj.instance_mixins
             return TclResult(value=" ".join(_list_escape(m) for m in instance_mixins))
 
         case "variables":
             if not rest:
                 raise TclError('wrong # args: should be "info object variables objName"')
             oo, obj = _resolve_object(interp, rest[0])
-            instance_vars = getattr(obj, "instance_variables", [])
+            instance_vars = obj.instance_variables
             return TclResult(value=" ".join(_list_escape(v) for v in instance_vars))
 
         case "vars":
@@ -489,7 +489,7 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             if not rest:
                 raise TclError('wrong # args: should be "info object filters objName"')
             oo, obj = _resolve_object(interp, rest[0])
-            instance_filters = getattr(obj, "instance_filters", [])
+            instance_filters = obj.instance_filters
             return TclResult(value=" ".join(_list_escape(f) for f in instance_filters))
 
         case "definition":
@@ -528,6 +528,17 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             if method is None or method.forward_target is None:
                 raise TclError(f'unknown forward method "{method_name}"')
             return TclResult(value=" ".join(_list_escape(t) for t in method.forward_target))
+
+        case "call":
+            if len(rest) < 2:
+                raise TclError('wrong # args: should be "info object call objName methodName"')
+            oo, obj = _resolve_object(interp, rest[0])
+            method_name = rest[1]
+            chain = oo.build_object_call_chain(obj, method_name)
+            parts = []
+            for call_type, mname, cname, impl_type in chain:
+                parts.append(f"{{{call_type} {mname} {cname} {impl_type}}}")
+            return TclResult(value=" ".join(parts))
 
         case _:
             return TclResult()
@@ -732,6 +743,17 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
             if method is None or method.forward_target is None:
                 raise TclError(f'unknown forward method "{method_name}"')
             return TclResult(value=" ".join(_list_escape(t) for t in method.forward_target))
+
+        case "call":
+            if len(rest) < 2:
+                raise TclError('wrong # args: should be "info class call className methodName"')
+            oo, cls = _resolve_class(interp, rest[0])
+            method_name = rest[1]
+            chain = oo.build_class_call_chain(cls.qualified_name, method_name)
+            parts = []
+            for call_type, mname, cname, impl_type in chain:
+                parts.append(f"{{{call_type} {mname} {cname} {impl_type}}}")
+            return TclResult(value=" ".join(parts))
 
         case _:
             return TclResult()

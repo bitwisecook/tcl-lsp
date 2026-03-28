@@ -93,6 +93,11 @@ class TclOOObject:
     class_name: str
     namespace: str  # per-instance namespace
     instance_methods: dict[str, TclOOMethod] = field(default_factory=dict)
+    instance_mixins: list[str] = field(default_factory=list)
+    instance_filters: list[str] = field(default_factory=list)
+    instance_variables: list[str] = field(default_factory=list)
+    exported_methods: set[str] = field(default_factory=set)
+    unexported_methods: set[str] = field(default_factory=set)
     _vars: dict[str, str] = field(default_factory=dict)
     _arrays: dict[str, dict[str, str]] = field(default_factory=dict)
 
@@ -166,11 +171,12 @@ class OORuntime:
         if cls is None:
             raise TclError(f'unknown class "{class_name}"')
 
+        self._next_obj_id += 1
         if obj_name is None:
-            self._next_obj_id += 1
             obj_name = f"::oo::Obj{self._next_obj_id}"
 
-        ns = f"{obj_name}"
+        # Each object gets a unique internal namespace like C Tcl's ::oo::ObjN
+        ns = f"::oo::Obj{self._next_obj_id}"
         obj = TclOOObject(
             name=obj_name,
             class_name=class_name,
@@ -238,7 +244,7 @@ class OORuntime:
         result: list[str] = []
 
         # Instance filters
-        for f in getattr(obj, "instance_filters", []):
+        for f in obj.instance_filters:
             if f not in seen:
                 seen.add(f)
                 result.append(f)
@@ -289,7 +295,13 @@ class OORuntime:
             # Check visibility — unexported methods are not callable from
             # outside the object (only via ``my``).  Private methods
             # (TIP 500) are not callable via external dispatch at all.
-            if method.visibility in ("unexported", "private"):
+            # Object-level export/unexport overrides class-level visibility.
+            effective_vis = method.visibility
+            if method_name in obj.exported_methods:
+                effective_vis = "public"
+            elif method_name in obj.unexported_methods:
+                effective_vis = "unexported"
+            if effective_vis in ("unexported", "private"):
                 frame = interp.current_frame
                 caller_self = getattr(frame, "_oo_self", None)
                 if caller_self != obj.name:
@@ -366,9 +378,14 @@ class OORuntime:
             for class_qname in cls.mro(self.classes):
                 ancestor = self.classes.get(class_qname)
                 if ancestor:
-                    methods.update(
-                        m for m, md in ancestor.methods.items() if md.visibility == "public"
-                    )
+                    for m, md in ancestor.methods.items():
+                        # Object-level export overrides class visibility
+                        if m in obj.exported_methods:
+                            methods.add(m)
+                        elif m in obj.unexported_methods:
+                            continue
+                        elif md.visibility == "public":
+                            methods.add(m)
         return sorted(methods)
 
     def _invoke_with_filters(
@@ -476,8 +493,10 @@ class OORuntime:
                 frame.set_var(pname, default)
 
         if method.has_args:
+            from .machine import _list_escape
+
             remaining = args[len(all_params) :]
-            frame.set_var("args", " ".join(remaining))
+            frame.set_var("args", " ".join(_list_escape(a) for a in remaining))
 
         # Store context for `self`, `my`, `next` resolution
         frame._oo_self = obj.name
@@ -730,3 +749,88 @@ class OORuntime:
             args,
             defining_class=target_class,
         )
+
+    def build_object_call_chain(
+        self, obj: TclOOObject, method_name: str
+    ) -> list[tuple[str, str, str, str]]:
+        """Build the call chain for a method on an object.
+
+        Returns a list of ``(call_type, method_name, class_name, impl_type)``
+        tuples matching what ``info object call`` returns.
+        """
+        chain: list[tuple[str, str, str, str]] = []
+
+        # Collect filters
+        filters = self._collect_filters(obj)
+        for fname in filters:
+            fmethod, fclass = self.resolve_method(obj, fname)
+            if fmethod is not None:
+                impl = "forward" if fmethod.forward_target else "method"
+                chain.append(("filter", fname, fclass or obj.class_name, impl))
+
+        # Instance method
+        if method_name in obj.instance_methods:
+            m = obj.instance_methods[method_name]
+            impl = "forward" if m.forward_target else "method"
+            chain.append(("method", method_name, "object", impl))
+
+        # Walk MRO for class methods
+        cls = self.classes.get(obj.class_name)
+        if cls:
+            for class_qname in cls.mro(self.classes):
+                ancestor = self.classes.get(class_qname)
+                if ancestor and method_name in ancestor.methods:
+                    m = ancestor.methods[method_name]
+                    impl = "forward" if m.forward_target else "method"
+                    chain.append(("method", method_name, class_qname, impl))
+
+        # If no method found, add unknown handler
+        if not any(ct == "method" for ct, _, _, _ in chain):
+            chain.append(("unknown", "unknown", "::oo::object", '{core method: "unknown"}'))
+
+        return chain
+
+    def build_class_call_chain(
+        self, class_name: str, method_name: str
+    ) -> list[tuple[str, str, str, str]]:
+        """Build the call chain for a method on a class (no instance methods).
+
+        Returns a list of ``(call_type, method_name, class_name, impl_type)``
+        tuples matching what ``info class call`` returns.
+        """
+        cls = self.classes.get(class_name)
+        if cls is None:
+            return []
+
+        chain: list[tuple[str, str, str, str]] = []
+
+        # Class-level filters
+        for class_qname in cls.mro(self.classes):
+            ancestor = self.classes.get(class_qname)
+            if ancestor:
+                for fname in ancestor.filters:
+                    # Check if already in chain
+                    if not any(ct == "filter" and mn == fname for ct, mn, _, _ in chain):
+                        # Resolve filter method from MRO
+                        for cqn2 in cls.mro(self.classes):
+                            anc2 = self.classes.get(cqn2)
+                            if anc2 and fname in anc2.methods:
+                                fm = anc2.methods[fname]
+                                impl = "forward" if fm.forward_target else "method"
+                                chain.append(("filter", fname, cqn2, impl))
+                                break
+
+        # Walk MRO for the method
+        found = False
+        for class_qname in cls.mro(self.classes):
+            ancestor = self.classes.get(class_qname)
+            if ancestor and method_name in ancestor.methods:
+                m = ancestor.methods[method_name]
+                impl = "forward" if m.forward_target else "method"
+                chain.append(("method", method_name, class_qname, impl))
+                found = True
+
+        if not found:
+            chain.append(("unknown", "unknown", "::oo::object", '{core method: "unknown"}'))
+
+        return chain

@@ -878,7 +878,7 @@ class TestOO17InfoObject:
         interp = TclInterp()
         tcl_eval(interp, "oo::object create obj")
         result = tcl_eval(interp, "info object namespace obj")
-        assert "obj" in result
+        assert result.startswith("::oo::Obj")
 
     def test_oo_17_5_vars(self) -> None:
         """oo-17.5: info object vars lists set variables."""
@@ -1380,7 +1380,7 @@ class TestSelf:
         """,
         )
         result = tcl_eval(interp, "obj m")
-        assert "obj" in result
+        assert result.startswith("::oo::Obj")
 
 
 # ---------------------------------------------------------------------------
