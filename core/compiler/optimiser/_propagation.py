@@ -737,6 +737,13 @@ def optimise_load_forwarding(
     # Build statement rewrite ranges for deletion.
     range_by_stmt, next_start_by_stmt = _statement_rewrite_context(source, cfg)
 
+    # Build a set of source ranges already targeted by prior optimisation
+    # passes (pre-loop pattern recognition + statement-loop propagation).
+    # O127 must not emit rewrites that overlap with these.
+    rewritten_ranges: set[tuple[int, int]] = set()
+    for prior in ctx.optimisations:
+        rewritten_ranges.add((prior.range.start.offset, prior.range.end.offset))
+
     # Walk def-use chains looking for single-use, same-block forwarding candidates.
     for def_key, chain in du.chains.items():
         def_name, def_ver = def_key
@@ -787,24 +794,29 @@ def optimise_load_forwarding(
             continue
 
         # Skip definitions whose statement was already rewritten by
-        # SCCP/ICIP propagation (O100/O101/O102/O103).  The statement
-        # loop ran before O127 and may have folded command substitutions
-        # or propagated constants that the SCCP lattice (computed before
-        # the optimiser) couldn't see.  Emitting O127 here would produce
-        # overlapping rewrites.
+        # SCCP/ICIP propagation (O100/O101/O102/O103).
         if (def_block, def_idx) in ctx.propagated_expr_stmts:
             continue
 
-        # Similarly, skip definitions whose use was already consumed
-        # by constant propagation into a branch condition.
+        # Skip definitions whose use was already consumed by constant
+        # propagation into a branch condition.
         if def_key in ctx.propagated_branch_uses:
             continue
 
         # Skip the use-site statement if it was already rewritten by
-        # propagation — inlining into an already-folded statement
-        # would conflict.
+        # propagation.
         if (use_block, use_idx) in ctx.propagated_expr_stmts:
             continue
+
+        # Skip def statements already targeted by prior passes (O104,
+        # O114, O119, etc.) — their rewrites would conflict with the
+        # delete edit.
+        def_stmt_range = range_by_stmt.get((def_block, def_idx))
+        if def_stmt_range is not None:
+            def_start = def_stmt_range.start.offset
+            def_end = def_stmt_range.end.offset
+            if any(not (e < def_start or s > def_end) for s, e in rewritten_ranges):
+                continue
 
         # Skip cross-event variables.
         if def_name in ctx.cross_event_vars:
@@ -822,9 +834,9 @@ def optimise_load_forwarding(
 
         # Check intervening statements between def and use:
         # - No barriers (IRBarrier)
-        # - No side-effectful commands (using classify_side_effects)
+        # - No side-effectful commands or assignments with command
+        #   substitutions (IRCall, IRAssignValue/IRAssignExpr with [])
         # - No redefinition of any variable read by the expression
-        #   (SSA version integrity check)
         unsafe = False
         for between_idx in range(def_idx + 1, use_idx):
             if between_idx >= len(block.statements):
@@ -836,8 +848,19 @@ def optimise_load_forwarding(
                 unsafe = True
                 break
 
-            # Use the side-effect model to detect effectful commands
-            # that could observe or modify variable state.
+            # Assignments with command substitutions execute side effects;
+            # forwarding past them could reorder observable behaviour.
+            if isinstance(between_stmt, IRAssignValue) and "[" in between_stmt.value:
+                unsafe = True
+                break
+            if isinstance(between_stmt, IRAssignExpr):
+                from ._expr_simplify import _expr_has_command_subst
+
+                if _expr_has_command_subst(between_stmt.expr):
+                    unsafe = True
+                    break
+
+            # Use the side-effect model for command invocations.
             if isinstance(between_stmt, IRCall):
                 callee_summary = None
                 if ctx.interproc is not None:
@@ -862,8 +885,7 @@ def optimise_load_forwarding(
                     break
 
             # SSA version check: if any intervening statement redefines
-            # a variable that the expression reads, the reaching version
-            # at the use site would differ — inlining is unsafe.
+            # a variable that the expression reads, inlining is unsafe.
             between_ssa = ssa_block.statements[between_idx]
             if def_read_names & set(between_ssa.defs.keys()):
                 unsafe = True
@@ -871,7 +893,7 @@ def optimise_load_forwarding(
         if unsafe:
             continue
 
-        # Extract the full command text from source (including closing brackets).
+        # Extract the full command text from source.
         stmt_range = stmt.range
         full_stmt_range = _full_command_range(source, stmt_range) or stmt_range
         stmt_text = source[full_stmt_range.start.offset : full_stmt_range.end.offset + 1]
@@ -879,7 +901,8 @@ def optimise_load_forwarding(
         # Build the inline replacement: [set name value_expr]
         inline_text = f"[{stmt_text}]"
 
-        # Find the $var token in the use-site statement.
+        # Find the $var token in the use-site statement and verify
+        # intra-statement evaluation order safety.
         use_stmt = block.statements[use_idx]
         parsed = _tokens_for_statement(use_stmt, source)
         if parsed is None:
@@ -887,19 +910,31 @@ def optimise_load_forwarding(
 
         _, use_argv_tokens, use_argv_single = parsed
         var_token = None
+        has_earlier_effect = False
         for tidx, tok in enumerate(use_argv_tokens):
-            if tok.type is not TokenType.VAR:
-                continue
-            if _normalise_var_name(tok.text) != def_name:
-                continue
-            # Must be a single-token word — we cannot inline [set ...]
-            # into the middle of a string interpolation.
-            if tidx < len(use_argv_single) and not use_argv_single[tidx]:
-                continue
-            var_token = tok
-            break
+            if tok.type is TokenType.VAR and _normalise_var_name(tok.text) == def_name:
+                if tidx < len(use_argv_single) and not use_argv_single[tidx]:
+                    continue
+                var_token = tok
+                break
+            # Check for command substitutions or variable writes in tokens
+            # that appear BEFORE our $var.  These execute left-to-right in
+            # Tcl; inlining [set x ...] after them would change evaluation
+            # order if the inlined RHS reads state they modify.
+            if tok.type is TokenType.CMD:
+                has_earlier_effect = True
+            elif tok.type is TokenType.VAR:
+                # A $var by itself is a read, not a write — safe.
+                pass
 
         if var_token is None:
+            continue
+
+        # If there are command substitutions before $var in the use
+        # statement, the inlined expression might evaluate in a
+        # different context.  Skip unless the def expression has no
+        # reads (pure constant-like) — conservative but correct.
+        if has_earlier_effect and def_read_names:
             continue
 
         # Emit grouped rewrite: inline at use site + delete the set line.

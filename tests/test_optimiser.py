@@ -2319,6 +2319,42 @@ class TestLoadForwarding:
         _optimised, rewrites = optimise_source(source)
         assert not any(r.code == "O127" for r in rewrites)
 
+    def test_skip_when_pre_loop_pass_already_rewrites_def(self):
+        """If O114 (incr idiom) already targets the def, O127 must not conflict."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set x [expr {$x + 1}]
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        # O114 rewrites the set→incr. O127 should not also try to
+        # inline and delete the same statement.
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_use_site_with_earlier_cmd_subst(self):
+        """Inlining after an earlier command substitution can reorder effects."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set a 5
+                set x $a
+                return [list [set a 2] $x]
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        # [set a 2] executes before $x in the original; inlining would
+        # move $a evaluation after [set a 2], changing the result.
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_intervening_assign_with_cmd_subst(self):
+        """IRAssignValue with [cmd] between def and use is effectful."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set x [clock seconds]
+                set y [clock clicks]
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+
     def test_grouped_edits(self):
         """O127 inline + delete should share a group ID."""
         source = textwrap.dedent("""\
