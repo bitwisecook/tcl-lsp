@@ -8,11 +8,31 @@ project('lsp-framework', 'cpp',
   default_options: [
     'cpp_std=c++20',
     'warning_level=3',
-    'werror=false',
+    'werror=true',
   ],
 )
 
 cc = meson.get_compiler('cpp')
+
+# Match tcl-lsp hardening flags so lsp-framework is held to the same bar.
+hardening_args = []
+foreach flag : [
+  '-fstack-protector-strong',
+  '-Wimplicit-fallthrough',
+  '-Wconversion',
+  '-Wsign-compare',
+  '-Wvla',
+  '-Wdouble-promotion',
+  '-Wmissing-field-initializers',
+  '-Wnull-dereference',
+  '-Wformat=2',
+  '-Wunused-result',
+]
+  if cc.has_argument(flag)
+    hardening_args += flag
+  endif
+endforeach
+add_project_arguments(hardening_args, language: 'cpp')
 
 lsp_src = files(
   'lsp/connection.cpp',
