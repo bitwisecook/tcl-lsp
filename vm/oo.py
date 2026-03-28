@@ -393,11 +393,12 @@ class OORuntime:
             method_name = args[0]
             method_args = args[1:]
 
-            if method_name == "destroy":
-                return self._destroy_object(interp, obj)
-
             method, defining_class = self.resolve_method(obj, method_name)
-            if method is None:
+
+            # destroy is special: always available, but goes through filters
+            is_destroy = method_name == "destroy"
+
+            if method is None and not is_destroy:
                 # Try unknown method handler (skip the built-in one on oo::object)
                 unknown, unknown_class = self.resolve_method(obj, "unknown")
                 if unknown is not None and not unknown.body.startswith("__builtin_"):
@@ -418,34 +419,35 @@ class OORuntime:
                     f'object "{obj.name}" has no visible methods'
                 )
 
-            # Check visibility — unexported methods are not callable from
-            # outside the object (only via ``my``).  Private methods
-            # (TIP 500) are not callable via external dispatch at all.
-            # Object-level export/unexport overrides class-level visibility,
-            # and class-level export/unexport overrides method-level visibility.
-            effective_vis = method.visibility
-            # Check class-level export/unexport from MRO
-            cls_check = self.classes.get(obj.class_name)
-            if cls_check:
-                for class_qname in self._effective_mro(obj):
-                    ancestor = self.classes.get(class_qname)
-                    if ancestor:
-                        if method_name in ancestor.exported_methods:
-                            effective_vis = "public"
-                            break
-                        if method_name in ancestor.unexported_methods:
-                            effective_vis = "unexported"
-                            break
-            # Object-level overrides class-level
-            if method_name in obj.exported_methods:
-                effective_vis = "public"
-            elif method_name in obj.unexported_methods:
-                effective_vis = "unexported"
-            if effective_vis in ("unexported", "private"):
-                frame = interp.current_frame
-                caller_self = getattr(frame, "_oo_self", None)
-                if caller_self != obj.name:
-                    avail = self._available_methods(obj)
+            if not is_destroy:
+                # Check visibility — unexported methods are not callable from
+                # outside the object (only via ``my``).  Private methods
+                # (TIP 500) are not callable via external dispatch at all.
+                # Object-level export/unexport overrides class-level visibility,
+                # and class-level export/unexport overrides method-level visibility.
+                effective_vis = method.visibility
+                # Check class-level export/unexport from MRO
+                cls_check = self.classes.get(obj.class_name)
+                if cls_check:
+                    for class_qname in self._effective_mro(obj):
+                        ancestor = self.classes.get(class_qname)
+                        if ancestor:
+                            if method_name in ancestor.exported_methods:
+                                effective_vis = "public"
+                                break
+                            if method_name in ancestor.unexported_methods:
+                                effective_vis = "unexported"
+                                break
+                # Object-level overrides class-level
+                if method_name in obj.exported_methods:
+                    effective_vis = "public"
+                elif method_name in obj.unexported_methods:
+                    effective_vis = "unexported"
+                if effective_vis in ("unexported", "private"):
+                    frame = interp.current_frame
+                    caller_self = getattr(frame, "_oo_self", None)
+                    if caller_self != obj.name:
+                        avail = self._available_methods(obj)
                     if avail:
                         raise TclError(
                             f'unknown method "{method_name}": must be '
@@ -455,10 +457,10 @@ class OORuntime:
                         f'object "{obj.name}" has no visible methods'
                     )
 
-            # Check for filters — filters intercept all method calls except
-            # destroy and the filter methods themselves.
+            # Check for filters — filters intercept all method calls
+            # including destroy (but not the filter methods themselves).
             filters = self._collect_filters(obj)
-            if filters:
+            if filters and method_name not in [f for f in filters]:
                 # Build filter chain: resolve each filter name to a method
                 chain: list[tuple[TclOOMethod, str]] = []
                 for fname in filters:
@@ -466,6 +468,30 @@ class OORuntime:
                     if fmethod is not None:
                         chain.append((fmethod, fclass or obj.class_name))
                 if chain:
+                    if is_destroy:
+                        # For destroy, create a synthetic method that triggers destruction
+                        destroy_method = TclOOMethod(
+                            name="destroy",
+                            params=[],
+                            param_names=[],
+                            body="__builtin_destroy__",
+                            has_args=False,
+                            visibility="public",
+                        )
+                        result = self._invoke_with_filters(
+                            interp,
+                            obj,
+                            chain,
+                            0,
+                            method_name,
+                            method_args,
+                            destroy_method,
+                            None,
+                        )
+                        # After filters complete, actually destroy
+                        if obj.name in self.objects:
+                            self._destroy_object(interp, obj)
+                        return result
                     return self._invoke_with_filters(
                         interp,
                         obj,
@@ -476,6 +502,9 @@ class OORuntime:
                         method,
                         defining_class,
                     )
+
+            if is_destroy:
+                return self._destroy_object(interp, obj)
 
             return self._invoke_method(
                 interp, obj, method, method_args, defining_class=defining_class
@@ -853,6 +882,9 @@ class OORuntime:
                     )
                 raise TclError(f'unknown method "{method_name}"')
             raise TclError("no method name given")
+        elif name == "destroy":
+            # Called from filter chain's next → actual destroy
+            return TclResult()
         raise TclError(f'unknown builtin method "{name}"')
 
     def _destroy_object(self, interp: TclInterp, obj: TclOOObject) -> TclResult:
@@ -861,6 +893,12 @@ class OORuntime:
         If the object is a class, all its instances are destroyed first.
         """
         from .types import TclResult
+
+        # Re-entrancy guard: prevents infinite recursion when ``[self]
+        # destroy`` is called inside a destructor (Bug 2944404).  The
+        # flag only suppresses the destructor call — cleanup always runs.
+        already_destroying = getattr(obj, "_destroying", False)
+        obj._destroying = True
 
         # If this object is a class, destroy subclasses and instances first
         cls_def = self.classes.get(obj.name)
@@ -892,9 +930,10 @@ class OORuntime:
             self.classes.pop(cls_def.qualified_name, None)
             self.invalidate_all_mro()
 
+        # Run destructor (unless we're re-entering from inside the destructor)
         cls = self.classes.get(obj.class_name)
         dtor_error: TclError | None = None
-        if cls:
+        if cls and not already_destroying:
             dtor, dtor_class = self._resolve_destructor(cls)
             if dtor is not None:
                 try:

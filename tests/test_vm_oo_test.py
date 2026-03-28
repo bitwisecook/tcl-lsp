@@ -61,7 +61,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-3.5a",
     "oo-3.7",
     "oo-3.8",
-    "oo-3.9",
     # oo-4.x: Method dispatch edge cases
     "oo-4.9",
     # oo-6.x: oo::define edge cases
@@ -79,8 +78,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-11.7",
     "oo-11.8",
     # oo-12.x: Forward method edge cases
-    "oo-12.2",
-    "oo-12.3",
     "oo-12.7",
     "oo-12.8",
     # oo-13.x: Filter edge cases
