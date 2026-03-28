@@ -47,7 +47,7 @@ static auto make_w123_registry() -> TestCommandRegistry {
 // Helper: extract W123 diagnostics.
 static auto w123_diags(const AnalysisResult& result) -> std::vector<Diagnostic> {
     std::vector<Diagnostic> out;
-    for (const auto& d : result.diagnostics) {
+    for (const auto& d : result.diagnostics()) {
         if (d.code == "W123") out.push_back(d);
     }
     return out;
@@ -170,7 +170,7 @@ TEST_CASE("W123: no suggestion for distant name", "[analyser][w123]") {
 TEST_CASE("W123: unknown proc empty stub still warns", "[analyser][w123]") {
     auto reg = make_w123_registry();
     auto result = analyse("proc unknown {args} {}\nmycommand arg1", &reg);
-    auto upi = result.unknown_proc_info;
+    auto upi = result.unknown_proc_info();
     REQUIRE(upi.has_value());
     CHECK(upi->empty_stub == true);
     // Empty stub should not suppress W123.
@@ -185,14 +185,14 @@ TEST_CASE("W123: unknown proc info populated", "[analyser][w123]") {
         bar { puts bar }
     }
 })", &reg);
-    auto upi = result.unknown_proc_info;
+    auto upi = result.unknown_proc_info();
     REQUIRE(upi.has_value());
     CHECK_FALSE(upi->empty_stub);
 }
 
 TEST_CASE("W123: no unknown proc info by default", "[analyser][w123]") {
     auto result = analyse("set x 1");
-    CHECK_FALSE(result.unknown_proc_info.has_value());
+    CHECK_FALSE(result.unknown_proc_info().has_value());
 }
 
 // ---------------------------------------------------------------------------

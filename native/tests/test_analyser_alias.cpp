@@ -40,16 +40,16 @@ using AliasPair = std::pair<std::string, std::vector<std::string>>;
 
 TEST_CASE("alias: recorded", "[analyser][alias]") {
     auto result = analyse("interp alias {} = {} expr");
-    REQUIRE(result.command_aliases.contains("::="));
-    auto& [target, args] = result.command_aliases.at("::=");
+    REQUIRE(result.command_aliases().contains("::="));
+    auto& [target, args] = result.command_aliases().at("::=");
     CHECK(target == "expr");
     CHECK(args.empty());
 }
 
 TEST_CASE("alias: with prepended args", "[analyser][alias]") {
     auto result = analyse("interp alias {} myput {} puts stdout");
-    REQUIRE(result.command_aliases.contains("::myput"));
-    auto& [target, args] = result.command_aliases.at("::myput");
+    REQUIRE(result.command_aliases().contains("::myput"));
+    auto& [target, args] = result.command_aliases().at("::myput");
     CHECK(target == "puts");
     REQUIRE(args.size() == 1);
     CHECK(args[0] == "stdout");
@@ -57,39 +57,39 @@ TEST_CASE("alias: with prepended args", "[analyser][alias]") {
 
 TEST_CASE("alias: non-current interp not recorded", "[analyser][alias]") {
     auto result = analyse("interp alias child = {} expr");
-    CHECK_FALSE(result.command_aliases.contains("::="));
+    CHECK_FALSE(result.command_aliases().contains("::="));
 }
 
 TEST_CASE("alias: qualified name", "[analyser][alias]") {
     auto result = analyse("interp alias {} ::myexpr {} expr");
-    CHECK(result.command_aliases.contains("::myexpr"));
+    CHECK(result.command_aliases().contains("::myexpr"));
 }
 
 TEST_CASE("alias: chain not resolved transitively", "[analyser][alias]") {
     auto result = analyse("interp alias {} a {} b\ninterp alias {} b {} expr");
-    CHECK(result.command_aliases.at("::a").first == "b");
-    CHECK(result.command_aliases.at("::b").first == "expr");
+    CHECK(result.command_aliases().at("::a").first == "b");
+    CHECK(result.command_aliases().at("::b").first == "expr");
 }
 
 TEST_CASE("alias: redefinition overwrites", "[analyser][alias]") {
     auto result = analyse("interp alias {} myop {} expr\ninterp alias {} myop {} puts");
-    auto& [target, args] = result.command_aliases.at("::myop");
+    auto& [target, args] = result.command_aliases().at("::myop");
     CHECK(target == "puts");
 }
 
 TEST_CASE("alias: too few args no crash", "[analyser][alias]") {
     auto result = analyse("interp alias {} = {}");
-    CHECK_FALSE(result.command_aliases.contains("::="));
+    CHECK_FALSE(result.command_aliases().contains("::="));
 }
 
 TEST_CASE("alias: target in child interp not tracked", "[analyser][alias]") {
     auto result = analyse("interp alias {} myexpr child expr");
-    CHECK_FALSE(result.command_aliases.contains("::myexpr"));
+    CHECK_FALSE(result.command_aliases().contains("::myexpr"));
 }
 
 TEST_CASE("alias: query form no crash", "[analyser][alias]") {
     auto result = analyse("interp alias {} myexpr");
-    CHECK_FALSE(result.command_aliases.contains("::myexpr"));
+    CHECK_FALSE(result.command_aliases().contains("::myexpr"));
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ TEST_CASE("alias: expr analysis works", "[analyser][alias]") {
     auto reg = make_alias_registry();
     auto result = analyse("interp alias {} = {} expr\n= {1 + 2}", &reg);
     auto errors = std::vector<Diagnostic>{};
-    for (const auto& d : result.diagnostics) {
+    for (const auto& d : result.diagnostics()) {
         if (d.severity == Severity::ERROR) errors.push_back(d);
     }
     CHECK(errors.empty());
@@ -127,18 +127,18 @@ TEST_CASE("alias: file shortcuts", "[analyser][alias]") {
 interp alias {} mkdir {} file mkdir
 interp alias {} rm {} file delete -force)");
 
-    auto& cp = result.command_aliases.at("::cp");
+    auto& cp = result.command_aliases().at("::cp");
     CHECK(cp.first == "file");
     REQUIRE(cp.second.size() == 2);
     CHECK(cp.second[0] == "copy");
     CHECK(cp.second[1] == "-force");
 
-    auto& mkd = result.command_aliases.at("::mkdir");
+    auto& mkd = result.command_aliases().at("::mkdir");
     CHECK(mkd.first == "file");
     REQUIRE(mkd.second.size() == 1);
     CHECK(mkd.second[0] == "mkdir");
 
-    auto& rm = result.command_aliases.at("::rm");
+    auto& rm = result.command_aliases().at("::rm");
     CHECK(rm.first == "file");
     REQUIRE(rm.second.size() == 2);
     CHECK(rm.second[0] == "delete");
@@ -150,14 +150,14 @@ TEST_CASE("alias: deletion form preserves original", "[analyser][alias]") {
 interp alias {} myalias {})");
     // The deletion form (4 args) should not be detected as a new alias.
     // The original alias should still be present.
-    REQUIRE(result.command_aliases.contains("::myalias"));
-    CHECK(result.command_aliases.at("::myalias").first == "list");
+    REQUIRE(result.command_aliases().contains("::myalias"));
+    CHECK(result.command_aliases().at("::myalias").first == "list");
 }
 
 TEST_CASE("alias: safe interp not tracked", "[analyser][alias]") {
     auto result = analyse(R"(set i [interp create -safe]
 interp alias $i add {} ::api::add)");
-    CHECK_FALSE(result.command_aliases.contains("::add"));
+    CHECK_FALSE(result.command_aliases().contains("::add"));
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +172,7 @@ proc foo {x y} {
     return $result
 })", &reg);
     std::vector<Diagnostic> w214;
-    for (const auto& d : result.diagnostics) {
+    for (const auto& d : result.diagnostics()) {
         if (d.code == "W214") w214.push_back(d);
     }
     CHECK(w214.empty());
@@ -188,7 +188,7 @@ namespace eval math {
     }
 })", &reg);
     std::vector<Diagnostic> w214;
-    for (const auto& d : result.diagnostics) {
+    for (const auto& d : result.diagnostics()) {
         if (d.code == "W214") w214.push_back(d);
     }
     CHECK(w214.empty());
@@ -204,7 +204,7 @@ namespace eval utils {
     }
 })", &reg);
     std::vector<Diagnostic> w214;
-    for (const auto& d : result.diagnostics) {
+    for (const auto& d : result.diagnostics()) {
         if (d.code == "W214") w214.push_back(d);
     }
     CHECK(w214.empty());

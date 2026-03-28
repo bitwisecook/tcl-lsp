@@ -47,7 +47,7 @@ static auto make_diag_registry() -> TestCommandRegistry {
 // Helpers.
 static auto errors(const AnalysisResult& result) -> std::vector<Diagnostic> {
     std::vector<Diagnostic> out;
-    for (const auto& d : result.diagnostics) {
+    for (const auto& d : result.diagnostics()) {
         if (d.severity == Severity::ERROR) out.push_back(d);
     }
     return out;
@@ -56,7 +56,7 @@ static auto errors(const AnalysisResult& result) -> std::vector<Diagnostic> {
 static auto by_code(const AnalysisResult& result, const std::string& code)
     -> std::vector<Diagnostic> {
     std::vector<Diagnostic> out;
-    for (const auto& d : result.diagnostics) {
+    for (const auto& d : result.diagnostics()) {
         if (d.code == code) out.push_back(d);
     }
     return out;

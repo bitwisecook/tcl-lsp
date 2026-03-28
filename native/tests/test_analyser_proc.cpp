@@ -49,7 +49,7 @@ TEST_CASE("proc: no parameters", "[analyser][proc]") {
 
 TEST_CASE("proc: in all_procs with qualified name", "[analyser][proc]") {
     auto result = analyse("proc greet {name} { return $name }");
-    REQUIRE(result.all_procs.contains("::greet"));
+    REQUIRE(result.all_procs().contains("::greet"));
 }
 
 TEST_CASE("proc: doc from preceding comment", "[analyser][proc]") {
