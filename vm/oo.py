@@ -981,7 +981,12 @@ class OORuntime:
                         obj._vars[vname] = ns_frame._scalars[vname]
             return result
         elif name == "variable":
-            # Import object variables into the method's local scope
+            # Import object variables into the caller's local scope.
+            # This links the caller's local variable to obj._vars so that
+            # changes persist across method calls.
+            # When called via "my variable", this runs in its own frame but
+            # needs to affect the *caller's* frame (the method that called my).
+            caller = frame.parent if frame.parent is not None else frame
             for var_name in args:
                 if "::" in var_name:
                     raise TclError(
@@ -991,11 +996,19 @@ class OORuntime:
                     raise TclError(
                         f'can\'t define "{var_name}": name refers to an element in an array'
                     )
-                if var_name in obj._vars:
-                    frame.set_var(var_name, obj._vars[var_name])
+                # Add to the instance variable proxy on the caller's frame,
+                # so that reads/writes go directly through obj._vars.
+                proxy = getattr(caller, '_oo_instance_vars', None)
+                if proxy is not None:
+                    vars_dict, vars_set = proxy
+                    vars_set.add(var_name)
                 else:
-                    frame.set_var(var_name, "")
+                    caller._oo_instance_vars = (obj._vars, {var_name})
+                if var_name in obj._vars:
+                    caller._scalars[var_name] = obj._vars[var_name]
+                else:
                     obj._vars[var_name] = ""
+                    caller._scalars[var_name] = ""
             return TclResult()
         elif name == "varname":
             # Return the fully-qualified variable name
