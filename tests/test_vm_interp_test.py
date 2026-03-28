@@ -239,7 +239,6 @@ KNOWN_FAILURES_INTERP: set[str] = {
     "interp-29.6.8",
     "interp-29.6.9",
     "interp-30.1",
-    "interp-33.1",
     "interp-34.1",
     "interp-34.10",
     "interp-34.12",

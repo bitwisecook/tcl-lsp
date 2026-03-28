@@ -134,6 +134,8 @@ class TclInterp:
 
         # Variable traces: var_name -> list of (ops, script)
         self.variable_traces: dict[str, list[tuple[list[str], str]]] = {}
+        # Command traces: cmd_name -> list of (ops, script)
+        self.command_traces: dict[str, list[tuple[list[str], str]]] = {}
 
         # I/O channels
         self.channels: dict[str, TextIO] = {

@@ -35,8 +35,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-6.4",  # namespace export
     # namespace import
     "namespace-7.1",  # namespace import
-    "namespace-7.4",  # namespace import -force
-    "namespace-7.6",  # namespace import pattern
     "namespace-7.7",  # namespace import pattern
     "namespace-7.9",  # namespace import error
     # namespace forget
@@ -45,7 +43,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-8.4",  # namespace forget
     "namespace-8.5",  # namespace forget
     "namespace-8.6",  # namespace forget
-    "namespace-8.7",  # namespace forget
     # namespace which
     "namespace-9.1",  # namespace which
     "namespace-9.3",  # namespace which -command
@@ -68,7 +65,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-12.1",  # namespace origin
     # namespace parent
     "namespace-13.1",  # namespace parent
-    "namespace-13.2",  # namespace parent
     # namespace children
     "namespace-14.1",  # namespace children
     "namespace-14.2",  # namespace children
@@ -204,7 +200,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-48.3",  # ensemble + path
     # Interp alias + namespace
     "namespace-49.1",  # interp alias
-    "namespace-49.2",  # interp alias
     # TIP 314 — namespace ensemble compile
     "namespace-50.1",  # ensemble compile
     "namespace-50.2",  # ensemble compile
@@ -229,7 +224,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-51.12",  # ensemble rewrite
     "namespace-51.13",  # ensemble rewrite
     "namespace-51.14",  # ensemble rewrite
-    "namespace-51.16",  # ensemble rewrite
     "namespace-51.17",  # ensemble rewrite
     "namespace-51.18",  # ensemble rewrite
     # Ensemble deprecation
@@ -256,8 +250,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     # Ensemble compilation
     "namespace-55.2",  # ensemble compile
     # Namespace upvar + trace
-    "namespace-56.1",  # upvar + trace
-    "namespace-56.2",  # upvar + trace
     "namespace-56.3",  # upvar + trace
     "namespace-56.6",  # upvar + trace
     # Namespace path resolution

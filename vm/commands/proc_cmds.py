@@ -135,6 +135,16 @@ def _target_exists(interp: TclInterp, name: str) -> bool:
     return False
 
 
+def _fire_cmd_traces(interp: TclInterp, old_name: str, new_name: str) -> None:
+    """Fire command traces after a rename/delete."""
+    from .trace_cmds import fire_command_traces
+
+    fire_command_traces(interp, old_name, old_name, new_name)
+    # Also check with :: prefix
+    if not old_name.startswith("::"):
+        fire_command_traces(interp, f"::{old_name}", old_name, new_name)
+
+
 def _cmd_rename(interp: TclInterp, args: list[str]) -> TclResult:
     """rename oldName newName"""
     if len(args) != 2:
@@ -145,16 +155,23 @@ def _cmd_rename(interp: TclInterp, args: list[str]) -> TclResult:
     if new_name and _target_exists(interp, new_name):
         raise TclError(f'can\'t rename to "{new_name}": command already exists')
 
+    # OO integration: renaming an object command to "" triggers destruction
+    if not new_name and hasattr(interp, "oo") and interp.oo is not None:
+        # Check if old_name refers to an OO object
+        qname = old_name if old_name.startswith("::") else f"::{old_name}"
+        obj = interp.oo.objects.get(qname) or interp.oo.objects.get(old_name)
+        if obj is not None:
+            interp.oo._destroy_object(interp, obj)
+            return TclResult()
+
     # Check flat command registry
     handler = interp.lookup_command(old_name)
     if handler is not None:
         if new_name:
             interp.register_command(new_name, handler)
         interp.unregister_command(old_name)
-        # In Tcl, procs and commands share the same name space.
-        # Clean up any pre-registered proc with the same name so that
-        # ``rename unknown unknown.old`` also removes the proc.
         _cleanup_proc(interp, old_name, new_name)
+        _fire_cmd_traces(interp, old_name, new_name)
         return TclResult()
 
     # Check flat user procs
@@ -192,6 +209,7 @@ def _cmd_rename(interp: TclInterp, args: list[str]) -> TclResult:
         if def_ns is not None:
             def_ns._procs.pop(old_tail, None)
         interp.root_namespace._procs.pop(old_tail, None)
+        _fire_cmd_traces(interp, old_name, new_name)
         return TclResult()
 
     # Check namespace-qualified names: look in the target namespace

@@ -809,14 +809,23 @@ class OORuntime:
             from .scope import ensure_namespace
 
             script = " ".join(_list_escape(a) for a in args) if len(args) > 1 else (args[0] if args else "")
-            # Set frame namespace to the object's namespace
+            # Set frame AND interp namespace to the object's namespace
             obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
             old_ns = frame.namespace
+            old_interp_ns = interp.current_namespace
             frame.namespace = obj_ns
+            interp.current_namespace = obj_ns
             try:
-                return interp.eval(script)
+                result = interp.eval(script)
             finally:
                 frame.namespace = old_ns
+                interp.current_namespace = old_interp_ns
+                # Write back namespace variables to obj._vars so they persist
+                if hasattr(obj_ns, '_frame') and obj_ns._frame is not None:
+                    ns_frame = obj_ns._frame
+                    for vname in list(ns_frame._scalars.keys()):
+                        obj._vars[vname] = ns_frame._scalars[vname]
+            return result
         elif name == "variable":
             # Import object variables into the method's local scope
             for var_name in args:
@@ -892,6 +901,15 @@ class OORuntime:
                     self._invoke_method(interp, obj, dtor, [], defining_class=dtor_class)
                 except TclError as e:
                     dtor_error = e
+
+        # Fire command traces before removing the command
+        from .commands.trace_cmds import fire_command_traces
+
+        fire_command_traces(interp, obj.name, obj.name, "")
+        if obj.name.startswith("::"):
+            short = obj.name.rsplit("::", 1)[-1]
+            if short:
+                fire_command_traces(interp, short, obj.name, "")
 
         # Always remove object command and storage, even if destructor errored
         interp._runtime_commands.pop(obj.name, None)
