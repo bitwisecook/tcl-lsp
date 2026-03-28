@@ -36,7 +36,7 @@ from .commands import CommandHandler, register_builtins
 from .compiler import compile_script
 from .machine import BytecodeVM
 from .scope import CallFrame, Namespace, ensure_namespace, resolve_namespace
-from .types import ReturnCode, TclBreak, TclContinue, TclError, TclResult, TclReturn
+from .types import ReturnCode, TclBreak, TclContinue, TclError, TclResult, TclReturn, TclTailcall
 
 
 @dataclass
@@ -723,6 +723,11 @@ class TclInterp:
                 error_info=ret.error_info,
                 error_code=ret.error_code,
             ) from None
+        except TclTailcall as tc:
+            # tailcall: unwind this frame, then execute command in caller
+            self.current_frame = saved_frame
+            self.current_namespace = saved_ns
+            return self.invoke(tc.cmd, tc.args)
         finally:
             self.current_frame = saved_frame
             self.current_namespace = saved_ns

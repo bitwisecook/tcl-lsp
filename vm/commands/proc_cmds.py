@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ..types import ReturnCode, TclError, TclResult, TclReturn
+from ..types import ReturnCode, TclError, TclResult, TclReturn, TclTailcall
 
 if TYPE_CHECKING:
     from ..interp import TclInterp
@@ -287,6 +287,13 @@ def _cmd_apply(interp: TclInterp, args: list[str]) -> TclResult:
     return result
 
 
+def _cmd_tailcall(interp: TclInterp, args: list[str]) -> TclResult:
+    """tailcall command ?arg ...?"""
+    if not args:
+        raise TclError('wrong # args: should be "tailcall command ?arg ...?"')
+    raise TclTailcall(args[0], list(args[1:]))
+
+
 def register() -> None:
     """Register procedure commands."""
     from core.commands.registry import REGISTRY
@@ -298,3 +305,4 @@ def register() -> None:
     REGISTRY.register_handler("unknown", _cmd_unknown)
     REGISTRY.register_handler("throw", _cmd_throw)
     REGISTRY.register_handler("apply", _cmd_apply)
+    REGISTRY.register_handler("tailcall", _cmd_tailcall)

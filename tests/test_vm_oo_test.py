@@ -297,19 +297,6 @@ KNOWN_FAILURES_OO_NEXT2: set[str] = {
     "oo-nextto-1.3",
     "oo-nextto-2.3",
     "oo-nextto-2.5",
-    # next-tailcall-*: tailcall interaction (not implemented)
-    "next-tailcall-constructor-1",
-    "next-tailcall-destructor-1",
-    "next-tailcall-filter-1",
-    "next-tailcall-forward-1",
-    "next-tailcall-mixin-1",
-    "next-tailcall-objmixin-1",
-    "next-tailcall-simple-1",
-    "next-tailcall-simple-2",
-    "next-tailcall-simple-3",
-    "next-tailcall-simple-4",
-    "next-tailcall-superclass-1",
-    "next-tailcall-superclass-2",
 }
 
 

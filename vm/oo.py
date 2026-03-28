@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from core.analysis.mro import MROError, tcloo_linearise
 
-from .types import TclError, TclResult, TclReturn
+from .types import TclError, TclResult, TclReturn, TclTailcall
 
 if TYPE_CHECKING:
     from core.compiler.codegen import FunctionAsm
@@ -770,6 +770,7 @@ class OORuntime:
         # Execute method body
         old_frame = interp.current_frame
         interp.current_frame = frame
+        tailcall_pending: tuple[str, list[str]] | None = None
         try:
             # Handle built-in methods (eval, variable, varname, unknown)
             if method.body.startswith("__builtin_"):
@@ -778,6 +779,10 @@ class OORuntime:
                 result = interp.eval(method.body)
         except TclReturn as ret:
             result = TclResult(value=ret.value)
+        except TclTailcall as tc:
+            # tailcall: unwind this method frame, execute in caller
+            tailcall_pending = (tc.cmd, tc.args)
+            result = TclResult()
         finally:
             # Write back instance variables before restoring frame
             for var_name in all_vars:
@@ -786,6 +791,8 @@ class OORuntime:
                 except (TclError, KeyError):
                     pass  # variable was not set in this method invocation
             interp.current_frame = old_frame
+        if tailcall_pending is not None:
+            return interp.invoke(tailcall_pending[0], tailcall_pending[1])
         return result
 
     def _exec_builtin(
