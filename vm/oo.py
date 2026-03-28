@@ -462,6 +462,32 @@ class OORuntime:
             if short and short != obj.name:
                 interp._runtime_commands[short] = _obj_dispatch
 
+        # Register per-object `my` in the object's namespace, like C Tcl.
+        # This allows `[info object namespace $obj]::my methodName` to work.
+        oo_self = self
+
+        def _ns_my(interp: TclInterp, args: list[str]) -> TclResult:
+            if not args:
+                raise TclError('wrong # args: should be "my method ?arg ...?"')
+            method_name = args[0]
+            # For class objects, route create/new/destroy to the class command
+            if obj.name in oo_self.classes and method_name in ("create", "new", "destroy"):
+                cls_cmd = interp._runtime_commands.get(obj.name)
+                if cls_cmd is not None:
+                    saved = obj.unexported_methods.copy()
+                    obj.unexported_methods -= {"create", "new", "destroy"}
+                    try:
+                        return cls_cmd(interp, args)
+                    finally:
+                        obj.unexported_methods = saved
+            method, defining_class = oo_self.resolve_method(obj, method_name)
+            if method is None:
+                raise TclError(f'unknown method "{method_name}"')
+            return oo_self._invoke_method(interp, obj, method, args[1:], defining_class=defining_class)
+
+        ns_my_name = f"{obj.namespace}::my"
+        interp._runtime_commands[ns_my_name] = _ns_my
+
     def resolve_method(
         self, obj: TclOOObject, method_name: str
     ) -> tuple[TclOOMethod | None, str | None]:

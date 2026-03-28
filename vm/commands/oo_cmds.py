@@ -463,7 +463,17 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
     if len(args) >= 3:
         _parse_class_body(interp, cls, args[2])
 
-    # Register class as a command for `ClassName new` / `ClassName create`
+    _register_class_command(interp, oo, qualified, cls)
+
+    return TclResult(value=qualified)
+
+
+def _register_class_command(
+    interp: TclInterp, oo: OORuntime, qualified: str, cls: TclOOClass
+) -> None:
+    """Register the class command for `ClassName new` / `ClassName create`."""
+    name = cls.name
+
     def _class_cmd(interp: TclInterp, cmd_args: list[str]) -> TclResult:
         from ..oo import _format_method_list
 
@@ -548,8 +558,6 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
     # Also register short name
     if name != qualified:
         interp._runtime_commands[name] = _class_cmd
-
-    return TclResult(value=qualified)
 
 
 def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
@@ -687,7 +695,38 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
 
     import copy
 
-    from ..oo import TclOOObject
+    from ..oo import TclOOClass, TclOOObject
+
+    # If source is a class, create a new class copy
+    src_cls = oo.classes.get(src.name)
+    if src_cls is not None:
+        new_cls = TclOOClass(
+            name=tgt_name.rsplit("::", 1)[-1],
+            qualified_name=tgt_name,
+            superclasses=list(src_cls.superclasses),
+            methods={k: copy.copy(v) for k, v in src_cls.methods.items()},
+            class_methods={k: copy.copy(v) for k, v in src_cls.class_methods.items()},
+            constructor=copy.copy(src_cls.constructor) if src_cls.constructor else None,
+            destructor=copy.copy(src_cls.destructor) if src_cls.destructor else None,
+            mixins=list(src_cls.mixins),
+            filters=list(src_cls.filters),
+            variables=list(src_cls.variables),
+        )
+        oo.register_class(new_cls)
+        # Register the class command
+        _register_class_command(interp, oo, tgt_name, new_cls)
+        # Copy instance methods from the source object to the target
+        tgt = oo.objects.get(tgt_name)
+        if tgt is not None:
+            tgt.instance_methods = {k: copy.copy(v) for k, v in src.instance_methods.items()}
+            tgt.instance_mixins = list(src.instance_mixins)
+            tgt.instance_filters = list(src.instance_filters)
+            tgt.instance_variables = list(src.instance_variables)
+            tgt.exported_methods = set(src.exported_methods)
+            tgt.unexported_methods = set(src.unexported_methods)
+            tgt._vars = dict(src._vars)
+            tgt._arrays = {k: dict(v) for k, v in src._arrays.items()}
+        return TclResult(value=tgt_name)
 
     tgt_ns = f"::oo::Obj{oo._next_obj_id}"
     tgt = TclOOObject(

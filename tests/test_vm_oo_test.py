@@ -127,11 +127,7 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-14.10",
     # oo-15.x: oo::objdefine edge cases
     "oo-15.2",
-    "oo-15.3",
-    "oo-15.4",  # test isolation: foo stale from prior test
-    "oo-15.5",
     "oo-15.6",
-    "oo-15.7",
     "oo-15.8",
     "oo-15.9",
     "oo-15.10",
@@ -142,6 +138,7 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-15.15",
     # oo-16.x: info object/class edge cases
     "oo-16.6",
+    "oo-16.7",  # test isolation: foo stale from prior test
     "oo-16.8",
     "oo-16.10",
     "oo-16.11",

@@ -529,6 +529,11 @@ class TclInterp:
             if proc is not None:
                 return self._call_proc(proc, args)
 
+            # Check runtime commands by full qualified name (e.g. ::oo::Obj1::my)
+            handler = self._runtime_commands.get(cmd_name)
+            if handler is not None:
+                return handler(self, args)
+
             # Also try the tail as a built-in command (e.g. ::set → set)
             handler = self.lookup_command(tail)
             if handler is not None:
