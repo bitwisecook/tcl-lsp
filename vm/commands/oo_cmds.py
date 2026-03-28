@@ -307,6 +307,18 @@ def _parse_class_body(
                         has_args=has_args,
                         visibility="private",
                     )
+                elif len(parts) >= 2 and parts[1] == "variable":
+                    # private variable — same as variable but in private context
+                    cls.variables.extend(parts[2:])
+                elif len(parts) == 2:
+                    # private {block} — evaluate block as Tcl
+                    interp.eval(parts[1])
+                elif len(parts) >= 2:
+                    # private someCommand args... — evaluate as Tcl
+                    from ..machine import _list_escape
+
+                    cmd = " ".join(_list_escape(a) for a in parts[1:])
+                    interp.eval(cmd)
             case "self":
                 # oo::define ClassName { self { method foo {} {...} } }
                 # Applies definitions to the class object itself.
@@ -499,6 +511,17 @@ def _parse_objdefine_body(
                         has_args=has_args,
                         visibility="private",
                     )
+                elif len(parts) >= 2 and parts[1] == "variable":
+                    obj.instance_variables.extend(parts[2:])
+                elif len(parts) == 2:
+                    # private {block} — evaluate block as Tcl
+                    interp.eval(parts[1])
+                elif len(parts) >= 2:
+                    # private someCommand args... — evaluate as Tcl
+                    from ..machine import _list_escape
+
+                    cmd = " ".join(_list_escape(a) for a in parts[1:])
+                    interp.eval(cmd)
             case _:
                 pass
 
