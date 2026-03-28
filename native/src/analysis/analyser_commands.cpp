@@ -104,7 +104,23 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
             auto [role_cmd, role_args] = s_.alias_resolver.resolve(
                 cmd_name, args, scope ? namespace_from_scope(scope) : "::");
             if (role_cmd != cmd_name) {
-                has_sig = registry_->signature(role_cmd).has_value();
+                auto alias_arity = registry_->validation(role_cmd);
+                if (alias_arity.has_value()) {
+                    has_sig = true;
+                    // Effective arg count = prepended alias args + caller's args.
+                    auto nargs = static_cast<int32_t>(role_args.size());
+                    if (nargs < alias_arity->min) {
+                        emit_diagnostic(range_from_token(cmd.argv[0]), Severity::ERROR,
+                                        DiagCode::E001,
+                                        "Too few arguments for '" + cmd_name + "'");
+                    } else if (nargs > alias_arity->max) {
+                        emit_diagnostic(range_from_token(cmd.argv[0]), Severity::ERROR,
+                                        DiagCode::E001,
+                                        "Too many arguments for '" + cmd_name + "'");
+                    }
+                } else {
+                    has_sig = registry_->signature(role_cmd).has_value();
+                }
             }
         }
     }
@@ -402,6 +418,11 @@ void Analyser::parse_switch_body(std::string_view body_text, const Token* body_t
     // Re-lex the braced body to extract pattern/body pair elements.
     auto [inner_cmds, inner_diags] = segment_with_recovery(body_text, body_token);
 
+    // Propagate recovery diagnostics from the braced body.
+    for (auto& diag : inner_diags) {
+        s_.result.diagnostics_.push_back(std::move(diag));
+    }
+
     // Collect element texts and tokens from the inner parse.
     std::vector<std::string> elements;
     std::vector<Token> elem_tokens;
@@ -643,6 +664,12 @@ void Analyser::handle_package(const SegmentedCommand& cmd) {
             pkg_version = args.size() >= 4 ? args[3] : "";
         } else {
             pkg_version = args.size() >= 3 ? args[2] : "";
+        }
+        // Dynamic package names (variable/command substitution) mean we can't
+        // know which packages are loaded at analysis time.
+        if (pkg_name.find('$') != std::string::npos ||
+            pkg_name.find('[') != std::string::npos) {
+            s_.result.has_dynamic_providers_ = true;
         }
         s_.result.package_requires_.push_back(PackageRequire{
             pkg_name, pkg_version, range_from_token(cmd.argv[0]),

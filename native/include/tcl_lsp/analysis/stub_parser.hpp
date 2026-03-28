@@ -17,7 +17,6 @@ enum class StubParseError : std::uint8_t {
     MISSING_NAME,         // "stub" but no command name
     MISSING_BRACES,       // no {args} block found
     INVALID_ARG_SYNTAX,   // malformed arg (empty name, bad optional syntax)
-    INVALID_ROLE,         // unrecognised arg role
     INVALID_EXPR_KIND,    // not "expr-func" or "expr-op"
 };
 
