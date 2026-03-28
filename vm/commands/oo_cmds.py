@@ -52,10 +52,11 @@ def _estimate_error_line(body: str, error: TclError) -> int:
     """
     import re
 
-    # Check errorInfo for a "line N" indicator from our eval
+    # Check errorInfo for a "definition script" line indicator from our eval
+    # (skip inner eval/body contexts which also contain "line N)")
     if error.error_info:
         for entry in error.error_info:
-            m = re.search(r'line (\d+)\)', str(entry))
+            m = re.search(r'definition script.*line (\d+)\)', str(entry))
             if m:
                 return int(m.group(1))
 
@@ -208,6 +209,11 @@ def _define_method(interp: TclInterp, args: list[str]) -> TclResult:
     obj = getattr(interp, "_defining_object", None)
     if cls is None and obj is None:
         raise TclError("this command may only be called from within the body of an oo::define command")
+    # Check if the class has been downgraded to a non-class (e.g., via self class oo::object)
+    if cls is not None and obj is None:
+        oo = _get_oo_runtime(interp)
+        if cls.qualified_name not in oo.classes:
+            raise TclError("attempt to misuse API")
     if len(args) < 3:
         raise TclError('wrong # args: should be "method name ?option? args body"')
     name = args[0]
@@ -853,7 +859,33 @@ def _objdefine_class(interp: TclInterp, args: list[str]) -> TclResult:
         raise TclError("may not modify the class of the root object class")
     if obj.name == "::oo::class":
         raise TclError("may not modify the class of the class of classes")
+    old_class_name = obj.class_name
     obj.class_name = cls.qualified_name
+
+    # If downgrading from a class (metaclass) to a non-class (oo::object):
+    # destroy instances and subclasses, then deregister the class.
+    old_cls = oo.classes.get(obj.name)
+    if old_cls is not None and not oo._is_metaclass(cls):
+        # Destroy subclasses first (they'll also destroy their instances)
+        for sub_cls in list(oo.classes.values()):
+            if sub_cls.qualified_name == obj.name:
+                continue
+            if old_cls.qualified_name in sub_cls.superclasses:
+                sub_obj = oo.objects.get(sub_cls.qualified_name)
+                if sub_obj is not None and sub_obj.name in oo.objects:
+                    oo._destroy_object(interp, sub_obj)
+        # Destroy instances
+        for inst in list(oo.objects.values()):
+            if inst.name == obj.name:
+                continue
+            if inst.class_name == old_cls.qualified_name and inst.name in oo.objects:
+                oo._destroy_object(interp, inst)
+        # Deregister the class
+        oo.classes.pop(obj.name, None)
+        # Re-register object command as plain object
+        oo._register_object_command(interp, obj)
+
+    # If upgrading to a metaclass, register as a class
     if oo._is_metaclass(cls) and obj.name not in oo.classes:
         new_cls_obj = TclOOClass(
             name=obj.name.rsplit("::", 1)[-1],

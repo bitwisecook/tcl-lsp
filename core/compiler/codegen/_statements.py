@@ -297,7 +297,7 @@ class _StatementsMixin:
                 # Tag the last INVOKE instruction with original source text
                 # for accurate errorInfo "invoked from within" frames.
                 if tokens and tokens.argv_texts:
-                    self._tag_last_invoke_source(tokens.argv_texts)
+                    self._tag_last_invoke_source(tokens.argv_texts, tokens)
 
             case IRBarrier(command=cmd, args=args, reason=reason, tokens=tokens):
                 if cmd:
@@ -307,7 +307,7 @@ class _StatementsMixin:
                         self._emit_call(cmd, args)
                     # Tag the last INVOKE instruction with original source text.
                     if tokens and tokens.argv_texts:
-                        self._tag_last_invoke_source(tokens.argv_texts)
+                        self._tag_last_invoke_source(tokens.argv_texts, tokens)
                     # Commands with CompileProcs in Tcl 9.0 keep their
                     # startCommand even when they fall through to invokeStk.
                     # Prevent these from being tagged as generic invokes.
@@ -427,7 +427,11 @@ class _StatementsMixin:
         self._emit(Op.POP)
         self._used_generic_invoke = True
 
-    def _tag_last_invoke_source(self: _Emitter, argv_texts: tuple[str, ...]) -> None:
+    def _tag_last_invoke_source(
+        self: _Emitter,
+        argv_texts: tuple[str, ...],
+        tokens: "CommandTokens | None" = None,
+    ) -> None:
         """Set ``source_cmd_text`` on the most recent INVOKE instruction.
 
         Walks backwards through ``self._instrs`` to find the last
@@ -435,19 +439,30 @@ class _StatementsMixin:
         (pre-substitution) command text so that the VM can produce
         accurate errorInfo "invoked from within" frames.
         """
+        from core.parsing.tokens import TokenType
+
         _INVOKE_OPS = (Op.INVOKE_STK1, Op.INVOKE_STK4, Op.INVOKE_EXPANDED)
         for i in range(len(self._instrs) - 1, -1, -1):
             if self._instrs[i].op in _INVOKE_OPS:
                 # Reconstruct the command text, quoting args that contain
-                # whitespace to approximate the original source.  Args
-                # containing $ or [ are compound words (with substitutions)
-                # that were not originally quoted, so skip quoting those.
+                # whitespace to approximate the original source.  Use the
+                # token type to preserve the original quoting style (braces
+                # vs double-quotes).
                 parts: list[str] = []
-                for a in argv_texts:
+                for idx, a in enumerate(argv_texts):
                     needs_quote = " " in a or "\t" in a or "\n" in a or not a
                     has_subst = "$" in a or "[" in a
                     if needs_quote and not has_subst:
-                        parts.append(f'"{a}"')
+                        # Check if the original token was a braced string
+                        is_braced = False
+                        if tokens and idx < len(tokens.argv):
+                            tok = tokens.argv[idx]
+                            if tok.type == TokenType.STR:
+                                is_braced = True
+                        if is_braced:
+                            parts.append(f'{{{a}}}')
+                        else:
+                            parts.append(f'"{a}"')
                     else:
                         parts.append(a)
                 self._instrs[i].source_cmd_text = " ".join(parts)

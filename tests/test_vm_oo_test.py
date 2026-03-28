@@ -67,8 +67,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-12.x: Forward method edge cases
     # oo-13.x: Filter edge cases
     "oo-13.6",
-    "oo-13.7",
-    "oo-13.11",
     # oo-14.x: Mixin edge cases
     # oo-15.x: oo::objdefine edge cases
     "oo-15.10",
@@ -77,10 +75,8 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-16.x: info object/class edge cases
     # oo-17.x: definitionnamespace
     # oo-18.x: error traces and slot operations
-    "oo-18.3b",
     "oo-18.5",
     "oo-18.9",
-    "oo-18.11",
     # oo-19.x: abstract class
     "oo-19.4",
     # oo-20.x: singleton/abstract/tag
