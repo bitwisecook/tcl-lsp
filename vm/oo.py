@@ -510,6 +510,12 @@ class OORuntime:
                         obj.unexported_methods = saved
             method, defining_class = oo_self.resolve_method(obj, method_name)
             if method is None:
+                avail = oo_self._available_methods(obj, include_all=True)
+                if avail:
+                    raise TclError(
+                        f'unknown method "{method_name}": must be '
+                        + _format_method_list(avail)
+                    )
                 raise TclError(f'unknown method "{method_name}"')
             return oo_self._invoke_method(interp, obj, method, args[1:], defining_class=defining_class)
 
@@ -538,8 +544,12 @@ class OORuntime:
 
         return None, None
 
-    def _available_methods(self, obj: TclOOObject) -> list[str]:
-        """Return list of available method names for error messages."""
+    def _available_methods(self, obj: TclOOObject, *, include_all: bool = False) -> list[str]:
+        """Return list of available method names for error messages.
+
+        When *include_all* is True, include unexported and private methods
+        (used for ``my`` dispatch errors where the caller has full access).
+        """
         methods: set[str] = set()
         # Collect class-level export/unexport sets from MRO
         cls_exports: set[str] = set()
@@ -557,7 +567,10 @@ class OORuntime:
                             cls_unexports.add(m)
         # Instance methods — respect visibility and export overrides
         for m, md in obj.instance_methods.items():
-            if m in obj.exported_methods:
+            if include_all:
+                if md.visibility != "private" or include_all:
+                    methods.add(m)
+            elif m in obj.exported_methods:
                 methods.add(m)
             elif m in obj.unexported_methods:
                 continue
@@ -569,22 +582,31 @@ class OORuntime:
                 methods.add(m)
         if "destroy" not in obj.unexported_methods and "destroy" not in cls_unexports:
             methods.add("destroy")
+        elif include_all:
+            methods.add("destroy")
         if cls:
             for class_qname in self._effective_mro(obj):
                 ancestor = self.classes.get(class_qname)
                 if ancestor:
                     for m, md in ancestor.methods.items():
-                        # Object-level export overrides class visibility
-                        if m in obj.exported_methods:
-                            methods.add(m)
-                        elif m in obj.unexported_methods:
-                            continue
-                        elif m in cls_exports:
-                            methods.add(m)
-                        elif m in cls_unexports:
-                            continue
-                        elif md.visibility == "public":
-                            methods.add(m)
+                        if include_all:
+                            # Skip builtins
+                            if md.body and md.body.startswith("__builtin_"):
+                                methods.add(m)
+                            else:
+                                methods.add(m)
+                        else:
+                            # Object-level export overrides class visibility
+                            if m in obj.exported_methods:
+                                methods.add(m)
+                            elif m in obj.unexported_methods:
+                                continue
+                            elif m in cls_exports:
+                                methods.add(m)
+                            elif m in cls_unexports:
+                                continue
+                            elif md.visibility == "public":
+                                methods.add(m)
         return sorted(methods)
 
     def _invoke_with_filters(
@@ -806,9 +828,15 @@ class OORuntime:
             var_name = args[0]
             return TclResult(value=f"{obj.namespace}::{var_name}")
         elif name == "unknown":
-            # Default unknown handler — error
+            # Default unknown handler — error with method list
             if args:
                 method_name = args[0]
+                avail = self._available_methods(obj)
+                if avail:
+                    raise TclError(
+                        f'unknown method "{method_name}": must be '
+                        + _format_method_list(avail)
+                    )
                 raise TclError(f'unknown method "{method_name}"')
             raise TclError("no method name given")
         raise TclError(f'unknown builtin method "{name}"')
@@ -913,6 +941,12 @@ class OORuntime:
 
         method, defining_class = self.resolve_method(obj, method_name)
         if method is None:
+            avail = self._available_methods(obj, include_all=True)
+            if avail:
+                raise TclError(
+                    f'unknown method "{method_name}": must be '
+                    + _format_method_list(avail)
+                )
             raise TclError(f'unknown method "{method_name}"')
 
         # TIP 500: private methods via ``my`` are only accessible from
@@ -920,6 +954,12 @@ class OORuntime:
         if method.visibility == "private" and defining_class:
             caller_class = getattr(frame, "_oo_class", None)
             if caller_class != defining_class:
+                avail = self._available_methods(obj, include_all=True)
+                if avail:
+                    raise TclError(
+                        f'unknown method "{method_name}": must be '
+                        + _format_method_list(avail)
+                    )
                 raise TclError(f'unknown method "{method_name}"')
 
         return self._invoke_method(interp, obj, method, args[1:], defining_class=defining_class)

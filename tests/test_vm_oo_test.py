@@ -169,8 +169,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-23.x: configurable
     "oo-23.1",
     # oo-24.x: configurable (advanced)
-    "oo-24.1",
-    "oo-24.2",
     "oo-24.3",
     # oo-26.x: property access
     "oo-26.2",
