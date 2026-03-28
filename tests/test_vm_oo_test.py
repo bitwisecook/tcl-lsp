@@ -77,15 +77,10 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-15.14",
     # oo-16.x: info object/class edge cases
     # oo-17.x: definitionnamespace
-    # oo-18.x: slot operations
+    # oo-18.x: error traces and slot operations
     "oo-18.3b",
-    "oo-18.4",
     "oo-18.5",
-    "oo-18.6",
-    "oo-18.7",
-    "oo-18.8",
     "oo-18.9",
-    "oo-18.10",
     "oo-18.11",
     # oo-19.x: abstract class
     "oo-19.2",

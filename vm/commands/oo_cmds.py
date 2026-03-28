@@ -551,16 +551,33 @@ def _define_self(interp: TclInterp, args: list[str]) -> TclResult:
     oo = _get_oo_runtime(interp)
     obj = oo.objects.get(cls.qualified_name)
     if obj is None:
+        if args:
+            raise TclError(
+                "this command cannot be called when the object has been deleted"
+            )
         return TclResult()
     if not args:
         return TclResult(value=cls.qualified_name)
-    if len(args) == 1:
-        _parse_objdefine_body(interp, obj, args[0])
-    else:
+    body = args[0] if len(args) == 1 else None
+    if body is None:
         from ..machine import _list_escape
-
-        reconstructed = " ".join(_list_escape(a) for a in args)
-        _parse_objdefine_body(interp, obj, reconstructed)
+        body = " ".join(_list_escape(a) for a in args)
+    try:
+        _parse_objdefine_body(interp, obj, body)
+    except TclError as e:
+        # Add "class object" context to errorInfo
+        from ..machine import _list_escape as _le
+        line_no = _estimate_error_line(body, e)
+        current_name = obj.name
+        display_name = current_name
+        if len(display_name) > 32:
+            display_name = display_name[:30] + "..."
+        ctx = f'    (in definition script for class object "{display_name}" line {line_no})'
+        inv = f'    invoked from within\n"self {{{body}}}"' if len(args) == 1 else f'    invoked from within\n"self {body}"'
+        info = list(e.error_info) if e.error_info else [e.message]
+        info.append(ctx)
+        info.append(inv)
+        raise TclError(e.message, error_info=info) from None
     return TclResult()
 
 
@@ -979,7 +996,12 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
             # Count newlines before the error to approximate line position.
             body_text = args[2]
             line_no = _estimate_error_line(body_text, e)
-            ctx = f'    (in definition script for class "{qualified}" line {line_no})'
+            # Use current class name (may have been renamed during define)
+            current_qn = cls.qualified_name
+            display_name = current_qn
+            if len(display_name) > 32:
+                display_name = display_name[:30] + "..."
+            ctx = f'    (in definition script for class "{display_name}" line {line_no})'
             inv = f'    invoked from within\n"{full_cmd}"'
             info = list(e.error_info) if e.error_info else [e.message]
             info.append(ctx)
@@ -1116,7 +1138,13 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
             full_cmd = f"oo::define {class_name} {_list_escape(args[1])}"
             body_text = args[1]
             line_no = _estimate_error_line(body_text, e)
-            ctx = f'    (in definition script for class "{cls.qualified_name}" line {line_no})'
+            # Use current class name (may have been renamed during define)
+            current_name = cls.qualified_name
+            # Truncate long class names (like C Tcl, ~30 chars + "...")
+            display_name = current_name
+            if len(display_name) > 32:
+                display_name = display_name[:30] + "..."
+            ctx = f'    (in definition script for class "{display_name}" line {line_no})'
             inv = f'    invoked from within\n"{full_cmd}"'
             info = list(e.error_info) if e.error_info else [e.message]
             info.append(ctx)
@@ -1166,7 +1194,25 @@ def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
         raise TclError(f'"{obj_name}" does not refer to an object')
 
     if len(args) == 2:
-        body_result = _parse_objdefine_body(interp, obj, args[1])
+        try:
+            body_result = _parse_objdefine_body(interp, obj, args[1])
+        except TclError as e:
+            from ..machine import _list_escape
+
+            full_cmd = f"oo::objdefine {obj_name} {_list_escape(args[1])}"
+            body_text = args[1]
+            line_no = _estimate_error_line(body_text, e)
+            # Use current object name (may have been renamed during define)
+            current_name = obj.name
+            display_name = current_name
+            if len(display_name) > 32:
+                display_name = display_name[:30] + "..."
+            ctx = f'    (in definition script for object "{display_name}" line {line_no})'
+            inv = f'    invoked from within\n"{full_cmd}"'
+            info = list(e.error_info) if e.error_info else [e.message]
+            info.append(ctx)
+            info.append(inv)
+            raise TclError(e.message, error_info=info) from None
     else:
         # Single-subcommand form: oo::objdefine obj method foo {} {body}
         # Reconstruct with braces to preserve structure

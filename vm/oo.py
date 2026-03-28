@@ -1023,14 +1023,29 @@ class OORuntime:
             # Augment errorInfo with OO method context frame, matching
             # C Tcl's format: (class "::X" method "foo" line N) or
             # (object "::x" method "foo" line N)
-            dc = defining_class or obj.class_name
-            is_class_method = dc and dc in self.classes
-            if is_class_method:
-                ctx = f'    (class "{dc}" method "{method.name}" line 1)'
-            else:
-                ctx = f'    (object "{obj.name}" method "{method.name}" line 1)'
             info = list(e.error_info) if e.error_info else [e.message]
-            info.append(ctx)
+            if method.body.startswith("__builtin_") and method.name == "eval":
+                # Built-in eval: use (in "my eval" script line N) format
+                # when invoked via my, or (in "::obj eval" script line N)
+                # when invoked externally.
+                caller_frame = frame.parent
+                via_my = getattr(caller_frame, '_oo_self', None) == obj.name if caller_frame else False
+                if via_my:
+                    eval_ctx = f'    (in "my eval" script line 1)'
+                    eval_inv = f'    invoked from within\n"my eval {{{args[0] if args else ""}}}"'
+                else:
+                    eval_ctx = f'    (in "{obj.name} eval" script line 1)'
+                    eval_inv = f'    invoked from within\n"{obj.name} eval {{{args[0] if args else ""}}}"'
+                info.append(eval_ctx)
+                info.append(eval_inv)
+            else:
+                dc = defining_class or obj.class_name
+                is_class_method = dc and dc in self.classes
+                if is_class_method:
+                    ctx = f'    (class "{dc}" method "{method.name}" line 1)'
+                else:
+                    ctx = f'    (object "{obj.name}" method "{method.name}" line 1)'
+                info.append(ctx)
             raise TclError(e.message, error_info=info) from None
         finally:
             # When _oo_instance_vars proxy is active, reads/writes go
