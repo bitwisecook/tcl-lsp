@@ -109,7 +109,7 @@ auto AnalysisResult::copy_scope_tree(const Scope& src, Scope* parent)
 
     // Recursively copy children.
     for (const auto& child_ptr : src.children) {
-        dest->children.push_back(copy_scope_tree(*child_ptr, dest.get()).release());
+        dest->children.push_back(copy_scope_tree(*child_ptr, dest.get()));
     }
 
     return dest;
@@ -132,7 +132,7 @@ auto AnalysisResult::copy_for_snapshot() const -> AnalysisResult {
             for (auto& [name, var] : scope.variables) {
                 all_variables[name] = &var;
             }
-            for (auto* child : scope.children) {
+            for (const auto& child : scope.children) {
                 walk(*child);
             }
         }
