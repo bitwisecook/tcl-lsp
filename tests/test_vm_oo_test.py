@@ -68,9 +68,7 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-3.8",
     "oo-3.9",
     # oo-4.x: Method dispatch edge cases (errorInfo, uplevel, variable)
-    "oo-4.1",
     "oo-4.10",
-    "oo-4.2",
     "oo-4.7",
     "oo-4.8",
     "oo-4.9",

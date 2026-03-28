@@ -432,7 +432,15 @@ class OORuntime:
 
     def _available_methods(self, obj: TclOOObject) -> list[str]:
         """Return list of available method names for error messages."""
-        methods = set(obj.instance_methods.keys())
+        methods: set[str] = set()
+        # Instance methods — respect visibility and export overrides
+        for m, md in obj.instance_methods.items():
+            if m in obj.exported_methods:
+                methods.add(m)
+            elif m in obj.unexported_methods:
+                continue
+            elif md.visibility == "public":
+                methods.add(m)
         methods.add("destroy")
         cls = self.classes.get(obj.class_name)
         if cls:

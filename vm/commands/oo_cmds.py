@@ -296,6 +296,7 @@ def _parse_objdefine_body(
                     param_names=param_names,
                     body=method_body,
                     has_args=has_args,
+                    visibility=_default_method_visibility(name),
                 )
             case "forward":
                 if len(parts) < 3:
@@ -309,6 +310,7 @@ def _parse_objdefine_body(
                     body="",
                     has_args=True,
                     forward_target=fwd_target,
+                    visibility=_default_method_visibility(fwd_name),
                 )
             case "deletemethod":
                 for m in parts[1:]:
