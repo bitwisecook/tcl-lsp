@@ -493,4 +493,48 @@ void Analyser::scan_var_references(const std::vector<Token>& tokens, Scope* scop
     }
 }
 
+// ---------------------------------------------------------------------------
+// AliasResolver
+// ---------------------------------------------------------------------------
+
+void Analyser::AliasResolver::register_alias(const std::string& qualified,
+                                              const std::string& target_cmd,
+                                              std::vector<std::string> prepended_args) {
+    aliases_[qualified] = {target_cmd, std::move(prepended_args)};
+}
+
+auto Analyser::AliasResolver::resolve(const std::string& cmd_name,
+                                       const std::vector<std::string>& args,
+                                       const std::string& ns) const
+    -> std::pair<std::string, std::vector<std::string>> {
+
+    auto try_lookup = [&](const std::string& key)
+        -> const std::pair<std::string, std::vector<std::string>>* {
+        auto it = aliases_.find(key);
+        return it != aliases_.end() ? &it->second : nullptr;
+    };
+
+    auto make_result = [&](const std::pair<std::string, std::vector<std::string>>& alias) {
+        auto effective = alias.second;
+        effective.insert(effective.end(), args.begin(), args.end());
+        return std::pair{alias.first, effective};
+    };
+
+    if (cmd_name.starts_with("::")) {
+        auto q = normalise_qualified(cmd_name);
+        if (auto* alias = try_lookup(q)) return make_result(*alias);
+        return {cmd_name, args};
+    }
+
+    if (ns != "::") {
+        auto candidate = normalise_qualified(ns + "::" + cmd_name);
+        if (auto* alias = try_lookup(candidate)) return make_result(*alias);
+    }
+
+    auto global = normalise_qualified("::" + cmd_name);
+    if (auto* alias = try_lookup(global)) return make_result(*alias);
+
+    return {cmd_name, args};
+}
+
 } // namespace tcl_lsp
