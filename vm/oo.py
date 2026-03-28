@@ -62,6 +62,8 @@ class TclOOClass:
     destructor: TclOOMethod | None = None
     variables: list[str] = field(default_factory=list)
     filters: list[str] = field(default_factory=list)
+    exported_methods: set[str] = field(default_factory=set)
+    unexported_methods: set[str] = field(default_factory=set)
     _mro_cache: list[str] | None = field(default=None, repr=False)
 
     def mro(self, class_registry: dict[str, TclOOClass]) -> list[str]:
@@ -126,6 +128,16 @@ class OORuntime:
 
         # Register oo::object as the root class
         root = TclOOClass(name="object", qualified_name="::oo::object")
+        # Built-in unexported methods inherited by all objects
+        for builtin_name in ("eval", "unknown", "variable", "varname"):
+            root.methods[builtin_name] = TclOOMethod(
+                name=builtin_name,
+                params=[("args", None)] if builtin_name != "varname" else [("varName", None)],
+                param_names=["args"] if builtin_name != "varname" else ["varName"],
+                body=f"__builtin_{builtin_name}__",
+                has_args=builtin_name != "varname",
+                visibility="unexported",
+            )
         self.classes["::oo::object"] = root
         # oo::object is an object whose class is oo::class
         self.objects["::oo::object"] = TclOOObject(
@@ -386,9 +398,9 @@ class OORuntime:
 
             method, defining_class = self.resolve_method(obj, method_name)
             if method is None:
-                # Try unknown method handler
+                # Try unknown method handler (skip the built-in one on oo::object)
                 unknown, unknown_class = self.resolve_method(obj, "unknown")
-                if unknown is not None:
+                if unknown is not None and not unknown.body.startswith("__builtin_"):
                     return self._invoke_method(
                         interp,
                         obj,
@@ -409,8 +421,22 @@ class OORuntime:
             # Check visibility — unexported methods are not callable from
             # outside the object (only via ``my``).  Private methods
             # (TIP 500) are not callable via external dispatch at all.
-            # Object-level export/unexport overrides class-level visibility.
+            # Object-level export/unexport overrides class-level visibility,
+            # and class-level export/unexport overrides method-level visibility.
             effective_vis = method.visibility
+            # Check class-level export/unexport from MRO
+            cls_check = self.classes.get(obj.class_name)
+            if cls_check:
+                for class_qname in self._effective_mro(obj):
+                    ancestor = self.classes.get(class_qname)
+                    if ancestor:
+                        if method_name in ancestor.exported_methods:
+                            effective_vis = "public"
+                            break
+                        if method_name in ancestor.unexported_methods:
+                            effective_vis = "unexported"
+                            break
+            # Object-level overrides class-level
             if method_name in obj.exported_methods:
                 effective_vis = "public"
             elif method_name in obj.unexported_methods:
@@ -513,17 +539,34 @@ class OORuntime:
     def _available_methods(self, obj: TclOOObject) -> list[str]:
         """Return list of available method names for error messages."""
         methods: set[str] = set()
+        # Collect class-level export/unexport sets from MRO
+        cls_exports: set[str] = set()
+        cls_unexports: set[str] = set()
+        cls = self.classes.get(obj.class_name)
+        if cls:
+            for class_qname in self._effective_mro(obj):
+                ancestor = self.classes.get(class_qname)
+                if ancestor:
+                    for m in ancestor.exported_methods:
+                        if m not in cls_unexports:
+                            cls_exports.add(m)
+                    for m in ancestor.unexported_methods:
+                        if m not in cls_exports:
+                            cls_unexports.add(m)
         # Instance methods — respect visibility and export overrides
         for m, md in obj.instance_methods.items():
             if m in obj.exported_methods:
                 methods.add(m)
             elif m in obj.unexported_methods:
                 continue
+            elif m in cls_exports:
+                methods.add(m)
+            elif m in cls_unexports:
+                continue
             elif md.visibility == "public":
                 methods.add(m)
-        if "destroy" not in obj.unexported_methods:
+        if "destroy" not in obj.unexported_methods and "destroy" not in cls_unexports:
             methods.add("destroy")
-        cls = self.classes.get(obj.class_name)
         if cls:
             for class_qname in self._effective_mro(obj):
                 ancestor = self.classes.get(class_qname)
@@ -533,6 +576,10 @@ class OORuntime:
                         if m in obj.exported_methods:
                             methods.add(m)
                         elif m in obj.unexported_methods:
+                            continue
+                        elif m in cls_exports:
+                            methods.add(m)
+                        elif m in cls_unexports:
                             continue
                         elif md.visibility == "public":
                             methods.add(m)
@@ -700,7 +747,11 @@ class OORuntime:
         old_frame = interp.current_frame
         interp.current_frame = frame
         try:
-            result = interp.eval(method.body)
+            # Handle built-in methods (eval, variable, varname, unknown)
+            if method.body.startswith("__builtin_"):
+                result = self._exec_builtin(interp, obj, method, args, frame)
+            else:
+                result = interp.eval(method.body)
         except TclReturn as ret:
             result = TclResult(value=ret.value)
         finally:
@@ -712,6 +763,45 @@ class OORuntime:
                     pass  # variable was not set in this method invocation
             interp.current_frame = old_frame
         return result
+
+    def _exec_builtin(
+        self,
+        interp: TclInterp,
+        obj: TclOOObject,
+        method: TclOOMethod,
+        args: list[str],
+        frame: object,
+    ) -> TclResult:
+        """Execute a built-in oo::object method (eval, variable, varname, unknown)."""
+        name = method.name
+        if name == "eval":
+            # Evaluate script in the object's namespace context
+            from .machine import _list_escape
+
+            script = " ".join(_list_escape(a) for a in args) if len(args) > 1 else (args[0] if args else "")
+            return interp.eval(script)
+        elif name == "variable":
+            # Import object variables into the method's local scope
+            for var_name in args:
+                if var_name in obj._vars:
+                    frame.set_var(var_name, obj._vars[var_name])
+                else:
+                    frame.set_var(var_name, "")
+                    obj._vars[var_name] = ""
+            return TclResult()
+        elif name == "varname":
+            # Return the fully-qualified variable name
+            if not args:
+                raise TclError('wrong # args: should be "varname varName"')
+            var_name = args[0]
+            return TclResult(value=f"{obj.namespace}::{var_name}")
+        elif name == "unknown":
+            # Default unknown handler — error
+            if args:
+                method_name = args[0]
+                raise TclError(f'unknown method "{method_name}"')
+            raise TclError("no method name given")
+        raise TclError(f'unknown builtin method "{name}"')
 
     def _destroy_object(self, interp: TclInterp, obj: TclOOObject) -> TclResult:
         """Destroy an object, running its destructor if present.
@@ -751,18 +841,25 @@ class OORuntime:
             self.invalidate_all_mro()
 
         cls = self.classes.get(obj.class_name)
+        dtor_error: TclError | None = None
         if cls:
             dtor, dtor_class = self._resolve_destructor(cls)
             if dtor is not None:
-                self._invoke_method(interp, obj, dtor, [], defining_class=dtor_class)
+                try:
+                    self._invoke_method(interp, obj, dtor, [], defining_class=dtor_class)
+                except TclError as e:
+                    dtor_error = e
 
-        # Remove object command and storage
+        # Always remove object command and storage, even if destructor errored
         interp._runtime_commands.pop(obj.name, None)
         if obj.name.startswith("::"):
             short = obj.name.rsplit("::", 1)[-1]
             if short:
                 interp._runtime_commands.pop(short, None)
         self.objects.pop(obj.name, None)
+
+        if dtor_error is not None:
+            raise dtor_error
         return TclResult()
 
     def self_name(self, interp: TclInterp) -> str:
@@ -1008,6 +1105,8 @@ class OORuntime:
             ancestor = self.classes.get(class_qname)
             if ancestor and method_name in ancestor.methods:
                 m = ancestor.methods[method_name]
+                if m.body.startswith("__builtin_"):
+                    continue
                 impl = "forward" if m.forward_target else "method"
                 chain.append(("method", method_name, class_qname, impl))
 
@@ -1029,6 +1128,8 @@ class OORuntime:
             ancestor = self.classes.get(class_qname)
             if ancestor and method_name in ancestor.methods:
                 m = ancestor.methods[method_name]
+                if m.body.startswith("__builtin_"):
+                    continue
                 impl = "forward" if m.forward_target else "method"
                 chain.append(("method", method_name, class_qname, impl))
 
@@ -1047,6 +1148,8 @@ class OORuntime:
             ancestor = self.classes.get(class_qname)
             if ancestor and method_name in ancestor.methods:
                 m = ancestor.methods[method_name]
+                if m.body.startswith("__builtin_"):
+                    continue
                 impl = "forward" if m.forward_target else "method"
                 chain.append(("method", method_name, class_qname, impl))
 
@@ -1060,6 +1163,9 @@ class OORuntime:
                 ancestor = self.classes.get(class_qname)
                 if ancestor and "unknown" in ancestor.methods:
                     m = ancestor.methods["unknown"]
+                    # Skip builtin methods — they're represented as core methods
+                    if m.body.startswith("__builtin_"):
+                        continue
                     impl = "forward" if m.forward_target else "method"
                     chain.append(("unknown", "unknown", class_qname, impl))
             chain.append(("unknown", "unknown", "::oo::object", '{core method: "unknown"}'))
@@ -1124,6 +1230,8 @@ class OORuntime:
             ancestor = self.classes.get(class_qname)
             if ancestor and method_name in ancestor.methods:
                 m = ancestor.methods[method_name]
+                if m.body.startswith("__builtin_"):
+                    continue
                 impl = "forward" if m.forward_target else "method"
                 chain.append(("method", method_name, class_qname, impl))
                 found = True
@@ -1134,6 +1242,9 @@ class OORuntime:
                 ancestor = self.classes.get(class_qname)
                 if ancestor and "unknown" in ancestor.methods:
                     m = ancestor.methods["unknown"]
+                    # Skip builtin methods — they're represented as core methods
+                    if m.body.startswith("__builtin_"):
+                        continue
                     impl = "forward" if m.forward_target else "method"
                     chain.append(("unknown", "unknown", class_qname, impl))
             # Core unknown handler

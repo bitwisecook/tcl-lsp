@@ -61,7 +61,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-3.4a",
     "oo-3.5",
     "oo-3.5a",
-    "oo-3.6",
     "oo-3.7",
     "oo-3.8",
     "oo-3.9",

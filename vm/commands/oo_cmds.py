@@ -96,6 +96,46 @@ def _default_method_visibility(name: str) -> str:
     return "unexported"
 
 
+def _split_body_lines(body: str) -> list[str]:
+    """Split a definition body into individual command lines.
+
+    Handles semicolons as command separators (like Tcl), but only at the
+    top level (not inside braces or quotes).
+    """
+    raw_lines = body.strip().split("\n")
+    lines: list[str] = []
+    for raw in raw_lines:
+        depth = 0
+        in_quote = False
+        current: list[str] = []
+        i_c = 0
+        while i_c < len(raw):
+            ch = raw[i_c]
+            if ch == "\\" and not in_quote:
+                current.append(ch)
+                i_c += 1
+                if i_c < len(raw):
+                    current.append(raw[i_c])
+                i_c += 1
+                continue
+            if ch == '"':
+                in_quote = not in_quote
+            elif not in_quote:
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                elif ch == ";" and depth == 0:
+                    lines.append("".join(current))
+                    current = []
+                    i_c += 1
+                    continue
+            current.append(ch)
+            i_c += 1
+        lines.append("".join(current))
+    return lines
+
+
 def _parse_class_body(
     interp: TclInterp,
     cls: TclOOClass,
@@ -104,10 +144,8 @@ def _parse_class_body(
     """Parse a class definition body and populate the class."""
     from ..machine import _split_list
 
-    # Split body into commands via simple line-based parsing with
-    # brace-balancing for multi-line commands.  This is a lightweight
-    # approach — it does not use the full Tcl parser.
-    lines = body.strip().split("\n")
+    lines = _split_body_lines(body)
+
     i = 0
     while i < len(lines):
         line = lines[i].strip()
@@ -150,6 +188,9 @@ def _parse_class_body(
                     param_str, method_body = parts[2], parts[3]
                 params, param_names, has_args = _parse_method_params(param_str)
                 vis = flag_vis if flag_vis is not None else _default_method_visibility(name)
+                # Defining a method clears class-level export/unexport for it
+                cls.exported_methods.discard(name)
+                cls.unexported_methods.discard(name)
                 cls.methods[name] = TclOOMethod(
                     name=name,
                     params=params,
@@ -229,11 +270,15 @@ def _parse_class_body(
                     cls.methods[new_name] = method
             case "export":
                 for m in parts[1:]:
+                    cls.exported_methods.add(m)
+                    cls.unexported_methods.discard(m)
                     method = cls.methods.get(m)
                     if method:
                         method.visibility = "public"
             case "unexport":
                 for m in parts[1:]:
+                    cls.unexported_methods.add(m)
+                    cls.exported_methods.discard(m)
                     method = cls.methods.get(m)
                     if method:
                         method.visibility = "unexported"
@@ -295,7 +340,7 @@ def _parse_objdefine_body(
     """Parse an oo::objdefine body and populate the object's instance methods."""
     from ..machine import _split_list
 
-    lines = body.strip().split("\n")
+    lines = _split_body_lines(body)
     i = 0
     while i < len(lines):
         line = lines[i].strip()
