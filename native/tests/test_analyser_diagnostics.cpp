@@ -53,7 +53,7 @@ static auto errors(const AnalysisResult& result) -> std::vector<Diagnostic> {
     return out;
 }
 
-static auto by_code(const AnalysisResult& result, const std::string& code)
+static auto by_code(const AnalysisResult& result, DiagCode code)
     -> std::vector<Diagnostic> {
     std::vector<Diagnostic> out;
     for (const auto& d : result.diagnostics()) {
@@ -68,14 +68,14 @@ static auto by_code(const AnalysisResult& result, const std::string& code)
 
 TEST_CASE("proc call: too few args (E002)", "[analyser][diagnostics]") {
     auto result = analyse("proc add {a b} { return [expr {$a + $b}] }\nadd 1");
-    auto e002 = by_code(result, "E002");
+    auto e002 = by_code(result, DiagCode::E002);
     REQUIRE(e002.size() >= 1);
     CHECK(e002[0].message.find("::add") != std::string::npos);
 }
 
 TEST_CASE("proc call: too many args (E003)", "[analyser][diagnostics]") {
     auto result = analyse("proc add {a b} { return [expr {$a + $b}] }\nadd 1 2 3");
-    auto e003 = by_code(result, "E003");
+    auto e003 = by_code(result, DiagCode::E003);
     REQUIRE(e003.size() >= 1);
     CHECK(e003[0].message.find("::add") != std::string::npos);
 }
@@ -83,16 +83,16 @@ TEST_CASE("proc call: too many args (E003)", "[analyser][diagnostics]") {
 TEST_CASE("proc call: with default arg no error", "[analyser][diagnostics]") {
     auto result = analyse(
         "proc greet {name {title Mr}} { return \"$title $name\" }\ngreet Bob");
-    auto e = by_code(result, "E002");
-    auto e3 = by_code(result, "E003");
+    auto e = by_code(result, DiagCode::E002);
+    auto e3 = by_code(result, DiagCode::E003);
     CHECK(e.empty());
     CHECK(e3.empty());
 }
 
 TEST_CASE("proc call: variadic args no error", "[analyser][diagnostics]") {
     auto result = analyse("proc log {level args} { return $level }\nlog info a b c");
-    CHECK(by_code(result, "E002").empty());
-    CHECK(by_code(result, "E003").empty());
+    CHECK(by_code(result, DiagCode::E002).empty());
+    CHECK(by_code(result, DiagCode::E003).empty());
 }
 
 TEST_CASE("proc call: namespace proc arity", "[analyser][diagnostics]") {
@@ -100,7 +100,7 @@ TEST_CASE("proc call: namespace proc arity", "[analyser][diagnostics]") {
     proc add {a b} { return [expr {$a + $b}] }
     add 1
 })");
-    auto e002 = by_code(result, "E002");
+    auto e002 = by_code(result, DiagCode::E002);
     REQUIRE(e002.size() >= 1);
     CHECK(e002[0].message.find("::math::add") != std::string::npos);
 }
@@ -124,7 +124,7 @@ TEST_CASE("diagnostics: multiline error on correct line", "[analyser][diagnostic
 
 TEST_CASE("W214: unused param detected", "[analyser][w214]") {
     auto result = analyse("proc foo {x y} { puts $x }");
-    auto w214 = by_code(result, "W214");
+    auto w214 = by_code(result, DiagCode::W214);
     REQUIRE(w214.size() == 1);
     CHECK(w214[0].message.find("y") != std::string::npos);
     CHECK(w214[0].severity == Severity::HINT);
@@ -132,37 +132,37 @@ TEST_CASE("W214: unused param detected", "[analyser][w214]") {
 
 TEST_CASE("W214: all params used no warning", "[analyser][w214]") {
     auto result = analyse("proc foo {a b} { puts $a; puts $b }");
-    CHECK(by_code(result, "W214").empty());
+    CHECK(by_code(result, DiagCode::W214).empty());
 }
 
 TEST_CASE("W214: args param not flagged", "[analyser][w214]") {
     auto result = analyse("proc foo {args} { puts hello }");
-    CHECK(by_code(result, "W214").empty());
+    CHECK(by_code(result, DiagCode::W214).empty());
 }
 
 TEST_CASE("W214: underscore prefix not flagged", "[analyser][w214]") {
     auto result = analyse("proc foo {_unused x} { puts $x }");
-    CHECK(by_code(result, "W214").empty());
+    CHECK(by_code(result, DiagCode::W214).empty());
 }
 
 TEST_CASE("W214: multiple unused params", "[analyser][w214]") {
     auto result = analyse("proc foo {a b c} { puts hello }");
-    CHECK(by_code(result, "W214").size() == 3);
+    CHECK(by_code(result, DiagCode::W214).size() == 3);
 }
 
 TEST_CASE("W214: param used in return", "[analyser][w214]") {
     auto result = analyse("proc foo {x} { return $x }");
-    CHECK(by_code(result, "W214").empty());
+    CHECK(by_code(result, DiagCode::W214).empty());
 }
 
 TEST_CASE("W214: param used in branch condition", "[analyser][w214]") {
     auto result = analyse("proc foo {x} { if {$x > 0} { puts yes } }");
-    CHECK(by_code(result, "W214").empty());
+    CHECK(by_code(result, DiagCode::W214).empty());
 }
 
 TEST_CASE("W214: truly unused still warns with return", "[analyser][w214]") {
     auto result = analyse("proc foo {x y} { return [expr {$x + 1}] }");
-    auto w214 = by_code(result, "W214");
+    auto w214 = by_code(result, DiagCode::W214);
     REQUIRE(w214.size() == 1);
     CHECK(w214[0].message.find("y") != std::string::npos);
 }
@@ -173,11 +173,11 @@ TEST_CASE("W214: truly unused still warns with return", "[analyser][w214]") {
 
 TEST_CASE("return: expr braced no W214", "[analyser][w214]") {
     auto result = analyse("proc foo {x} { return [expr {$x + 1}] }");
-    CHECK(by_code(result, "W214").empty());
+    CHECK(by_code(result, DiagCode::W214).empty());
 }
 
 TEST_CASE("return: cmd subst no W214", "[analyser][w214]") {
     auto reg = make_diag_registry();
     auto result = analyse("proc foo {x} { return [string length $x] }", &reg);
-    CHECK(by_code(result, "W214").empty());
+    CHECK(by_code(result, DiagCode::W214).empty());
 }

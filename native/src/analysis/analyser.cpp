@@ -143,7 +143,7 @@ void Analyser::analyse_commands_inner(const std::vector<SegmentedCommand>& comma
                     case UnclosedDelimiter::BRACE: break;
                 }
             }
-            emit_diagnostic(cmd.range, Severity::ERROR, "E200", msg);
+            emit_diagnostic(cmd.range, Severity::ERROR, DiagCode::E200, msg);
             continue;
         }
 
