@@ -1377,7 +1377,7 @@ class OORuntime:
         if inst_cls is None:
             raise TclError(f'class "{obj.class_name}" not found')
 
-        mro = inst_cls.mro(self.classes)
+        mro = self._effective_mro(obj)
 
         # Helper to find a method/constructor/destructor on an ancestor class
         def _find_on_ancestor(ancestor: TclOOClass) -> TclOOMethod | None:
