@@ -1027,7 +1027,88 @@ With lsp-framework providing the protocol layer, LSP features and server
 replacement happen together:
 - 7a: Integrate lsp-framework subproject, verify `make test-all` passes
 - 7b: Server skeleton (lifecycle, document sync, capabilities)
-- 7c: Port semantic tokens (performance-critical, first feature)
-- 7d: Port remaining features one at a time
-- 7e: Remove pygls, lsprotocol, pybind11 shim
+- 7c: Python bridge wiring all 21 LSP features through C++ server
+- 7d: Integration testing, GCC 13 verification, valgrind memcheck
+- 7e: Remove pygls, lsprotocol dependency
+
+### Phase 7: LSP Server (pygls replacement)
+
+Phase 7 replaces the pygls-based Python LSP server with a native C++ server
+using lsp-framework. The C++ server handles JSON-RPC transport and delegates
+feature requests to the existing Python code via an embedded Python interpreter.
+
+#### Architecture
+
+```
+Editor <-> stdio <-> C++ LSP server (lsp-framework)
+                         |
+                         +-- C++ core (document store, capabilities)
+                         |
+                         +-- Python bridge (embedded interpreter via pybind11)
+                              |
+                              +-- lsp/features/*.py (unchanged)
+                              +-- core/*.py (unchanged)
+                              +-- lsp/workspace/*.py (unchanged)
+```
+
+The C++ server owns the JSON-RPC transport. For each LSP request, it
+serialises params to JSON, calls the Python bridge, and parses the JSON
+result. This avoids complex type conversion — JSON is the natural
+interchange format for an LSP server.
+
+#### New files
+
+| File | Purpose |
+|---|---|
+| `native/include/tcl_lsp/lsp/server.hpp` | `TclLspServer` class |
+| `native/include/tcl_lsp/lsp/document_store.hpp` | Thread-safe document state |
+| `native/include/tcl_lsp/lsp/python_bridge.hpp` | Python embedding interface |
+| `native/src/lsp/server.cpp` | Server lifecycle + feature routing |
+| `native/src/lsp/document_store.cpp` | Document store implementation |
+| `native/src/lsp/python_bridge.cpp` | pybind11 embedded interpreter |
+| `native/src/lsp/main.cpp` | stdio entry point |
+| `lsp/_native_bridge.py` | Python-side shim for all 21 features |
+
+#### Features wired through Python bridge
+
+All 21 LSP feature methods are routed through the Python bridge via
+lsp-framework's generic JSON message handler:
+
+| Method | Python function |
+|---|---|
+| `textDocument/semanticTokens/full` | `semantic_tokens_full()` |
+| `textDocument/semanticTokens/full/delta` | `compute_semantic_tokens_edits()` |
+| `textDocument/completion` | `get_completions()` |
+| `textDocument/hover` | `get_hover()` |
+| `textDocument/definition` | `get_definition()` |
+| `textDocument/references` | `get_references()` |
+| `textDocument/documentSymbol` | `get_document_symbols()` |
+| `textDocument/foldingRange` | `get_folding_ranges()` |
+| `textDocument/rename` | `get_rename_edits()` |
+| `textDocument/prepareRename` | `prepare_rename()` |
+| `textDocument/signatureHelp` | `get_signature_help()` |
+| `textDocument/formatting` | `get_formatting()` |
+| `textDocument/rangeFormatting` | `get_range_formatting()` |
+| `textDocument/codeAction` | `get_code_actions()` |
+| `workspace/symbol` | `get_workspace_symbols()` |
+| `textDocument/inlayHint` | `get_inlay_hints()` |
+| `textDocument/prepareCallHierarchy` | `prepare_call_hierarchy()` |
+| `callHierarchy/incomingCalls` | `incoming_calls()` |
+| `callHierarchy/outgoingCalls` | `outgoing_calls()` |
+| `textDocument/documentLink` | `get_document_links()` |
+| `textDocument/selectionRange` | `get_selection_ranges()` |
+
+Document sync (didOpen/didChange/didClose) is forwarded to both the C++
+document store and the Python workspace state for analysis + diagnostics.
+Diagnostics are published back to the client via a notification callback.
+
+#### Verification
+
+| Compiler | Build | Tests | Valgrind |
+|---|---|---|---|
+| Clang 18 | clean | 30/30 | 30/30 (zero errors) |
+| GCC 13 | clean | 31/31 | — |
+
+Server end-to-end verified: stdio initialize → full capabilities response
+with all 21 features registered.
 
