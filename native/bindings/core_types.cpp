@@ -383,14 +383,25 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
     // compute_virtual_insertions()
     m.def(
         "compute_virtual_insertions",
-        [](const std::string& source, py::object body_token_obj) {
+        [](const std::string& source,
+           py::object body_token_obj,
+           py::object known_commands_obj) {
             const Token* body_token = nullptr;
             Token body_tok_storage;
             if (!body_token_obj.is_none()) {
                 body_tok_storage = body_token_obj.cast<Token>();
                 body_token = &body_tok_storage;
             }
-            auto result = compute_virtual_insertions(source, body_token);
+            std::unordered_set<std::string>* kc_ptr = nullptr;
+            std::unordered_set<std::string> kc_set;
+            if (!known_commands_obj.is_none()) {
+                auto kc_seq = known_commands_obj.cast<py::sequence>();
+                for (auto item : kc_seq) {
+                    kc_set.insert(item.cast<std::string>());
+                }
+                kc_ptr = &kc_set;
+            }
+            auto result = compute_virtual_insertions(source, body_token, kc_ptr);
             // Convert to Python dict with string values (matching Python API).
             py::dict py_result;
             for (auto& [offset, ch] : result) {
@@ -399,23 +410,36 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
             return py_result;
         },
         py::arg("source"),
-        py::arg("body_token") = py::none());
+        py::arg("body_token") = py::none(),
+        py::arg("known_commands") = py::none());
 
     // segment_with_recovery()
     m.def(
         "segment_with_recovery",
-        [](const std::string& source, py::object body_token_obj) {
+        [](const std::string& source,
+           py::object body_token_obj,
+           py::object known_commands_obj) {
             const Token* body_token = nullptr;
             Token body_tok_storage;
             if (!body_token_obj.is_none()) {
                 body_tok_storage = body_token_obj.cast<Token>();
                 body_token = &body_tok_storage;
             }
-            auto result = segment_with_recovery(source, body_token);
+            std::unordered_set<std::string>* kc_ptr = nullptr;
+            std::unordered_set<std::string> kc_set;
+            if (!known_commands_obj.is_none()) {
+                auto kc_seq = known_commands_obj.cast<py::sequence>();
+                for (auto item : kc_seq) {
+                    kc_set.insert(item.cast<std::string>());
+                }
+                kc_ptr = &kc_set;
+            }
+            auto result = segment_with_recovery(source, body_token, kc_ptr);
             return py::make_tuple(std::move(result.commands), std::move(result.diagnostics));
         },
         py::arg("source"),
-        py::arg("body_token") = py::none());
+        py::arg("body_token") = py::none(),
+        py::arg("known_commands") = py::none());
 
     // position_from_relative()
     m.def("position_from_relative",

@@ -1081,8 +1081,9 @@ ifneq ($(GCC_ANALYZE_CXX),)
 	@failed=0; \
 	for src in $(CPP_SOURCES); do \
 		echo "  Analyzing $$src ..."; \
-		$(GCC_ANALYZE_CXX) $(GCC_ANALYZE_FLAGS) $$src 2>&1 | grep -v '^$$' || true; \
-		if $(GCC_ANALYZE_CXX) $(GCC_ANALYZE_FLAGS) $$src 2>&1 | grep -q '\-Wanalyzer'; then \
+		output=$$($(GCC_ANALYZE_CXX) $(GCC_ANALYZE_FLAGS) $$src 2>&1); \
+		echo "$$output" | grep -v '^$$' || true; \
+		if echo "$$output" | grep -q '\-Wanalyzer'; then \
 			echo "  FAIL: -Wanalyzer diagnostic in $$src"; \
 			failed=1; \
 		fi; \

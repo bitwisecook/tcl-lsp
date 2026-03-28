@@ -451,7 +451,7 @@ auto segment_top_level_chunks(std::string_view source) -> std::vector<TopLevelCh
 
         // Hash only the command text (not trailing whitespace).
         auto cmd_text = source.substr(static_cast<std::size_t>(start),
-                                      static_cast<std::size_t>(cmd_end - start));
+                                      static_cast<std::size_t>(cmd_end - start + 1));
         auto hash = std::hash<std::string_view>{}(cmd_text);
 
         TopLevelChunk chunk;
