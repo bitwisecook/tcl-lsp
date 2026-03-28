@@ -64,6 +64,8 @@ class TclOOClass:
     filters: list[str] = field(default_factory=list)
     exported_methods: set[str] = field(default_factory=set)
     unexported_methods: set[str] = field(default_factory=set)
+    definition_namespace: str = ""
+    instance_definition_namespace: str = ""
     _mro_cache: list[str] | None = field(default=None, repr=False)
 
     def mro(self, class_registry: dict[str, TclOOClass]) -> list[str]:
@@ -245,22 +247,14 @@ class OORuntime:
 
         # If the creating class is a metaclass, the new object is itself a class.
         if self._is_metaclass(cls):
-            from .commands.oo_cmds import _cmd_oo_class
+            from .commands.oo_cmds import _cmd_oo_class, _parse_class_body
 
             # Delegate to the class creation machinery so that the new
-            # object gets a class record, a class command, etc.  We build
-            # args for ``oo::class create name ?body?``.
+            # object gets a class record, a class command, etc.
             create_args = ["create", obj_name]
-            if args:
-                # The remaining args become the constructor args, but
-                # for metaclass-created classes C Tcl passes them to the
-                # constructor rather than treating them as a body.
-                pass
             result = _cmd_oo_class(interp, create_args)
             new_name = result.value
 
-            # Run constructor if provided via args (metaclass may have a
-            # constructor that initialises the new class).
             new_cls = self.classes.get(new_name)
             new_obj = self.objects.get(new_name)
             if new_cls is not None and new_obj is not None:
@@ -268,7 +262,12 @@ class OORuntime:
                 new_obj.class_name = class_name
                 ctor, ctor_class = self._resolve_constructor(cls)
                 if ctor is not None and args:
+                    # Metaclass has an explicit constructor — call it
                     self._invoke_method(interp, new_obj, ctor, args, defining_class=ctor_class)
+                elif args:
+                    # No explicit constructor — treat the first arg as a
+                    # definition body (oo::class default behaviour).
+                    _parse_class_body(interp, new_cls, args[0])
             return new_name
 
         # Each object gets a unique internal namespace like C Tcl's ::oo::ObjN

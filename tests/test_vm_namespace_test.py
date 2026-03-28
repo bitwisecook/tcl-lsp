@@ -173,17 +173,11 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-50.8",  # ensemble compile
     "namespace-50.9",  # ensemble compile
     # TIP 400 — namespace ensemble rewrite
-    "namespace-51.2",  # ensemble rewrite
     "namespace-51.3",  # ensemble rewrite
-    "namespace-51.4",  # ensemble rewrite
-    "namespace-51.5",  # ensemble rewrite
-    "namespace-51.6",  # ensemble rewrite
     "namespace-51.7",  # ensemble rewrite
     "namespace-51.8",  # ensemble rewrite
     "namespace-51.9",  # ensemble rewrite
     "namespace-51.10",  # ensemble rewrite
-    "namespace-51.11",  # ensemble rewrite
-    "namespace-51.12",  # ensemble rewrite
     "namespace-51.13",  # ensemble rewrite
     "namespace-51.14",  # ensemble rewrite
     "namespace-51.17",  # ensemble rewrite

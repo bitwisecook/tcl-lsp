@@ -585,6 +585,20 @@ class TclInterp:
             if rt_handler is not None:
                 return rt_handler(self, args)
 
+            # Namespace path resolution: check each namespace in the path
+            for path_ns in self.current_namespace._path:
+                path_proc = path_ns.lookup_proc(cmd_name)
+                if isinstance(path_proc, ProcDef):
+                    return self._call_proc(path_proc, args)
+                path_handler = path_ns.lookup_command(cmd_name)
+                if callable(path_handler):
+                    return path_handler(self, args)
+                # Check runtime commands in path namespace
+                path_qn = path_ns.qualname
+                path_fq = f"{path_qn}::{cmd_name}" if path_qn != "::" else f"::{cmd_name}"
+                path_rt = self._runtime_commands.get(path_fq)
+                if path_rt is not None:
+                    return path_rt(self, args)
 
         # Built-in commands (global registry)
         handler = self.lookup_command(cmd_name)

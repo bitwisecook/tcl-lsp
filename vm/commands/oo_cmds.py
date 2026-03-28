@@ -558,7 +558,37 @@ def _define_self(interp: TclInterp, args: list[str]) -> TclResult:
 
 
 def _define_definitionnamespace(interp: TclInterp, args: list[str]) -> TclResult:
-    """::oo::define::definitionnamespace — not yet implemented."""
+    """::oo::define::definitionnamespace ?kind? namespace"""
+    from ..scope import resolve_namespace
+
+    cls = getattr(interp, "_defining_class", None)
+    if cls is None:
+        raise TclError(
+            "this command may only be called from within the body of an oo::define command"
+        )
+    if not args or len(args) > 2:
+        raise TclError(
+            'wrong # args: should be "definitionnamespace ?kind? namespace"'
+        )
+    if len(args) == 2:
+        kind = args[0]
+        ns_name = args[1]
+        if kind not in ("-class", "-instance"):
+            raise TclError(f'bad kind "{kind}": must be -class or -instance')
+    else:
+        kind = "-class"
+        ns_name = args[0]
+    # Empty namespace string clears the definition namespace
+    if ns_name:
+        qn = ns_name if ns_name.startswith("::") else f"::{ns_name}"
+        ns = resolve_namespace(interp.root_namespace, qn)
+        if ns is None:
+            raise TclError(f'namespace "{qn}" not found')
+        ns_name = qn
+    if kind == "-class":
+        cls.definition_namespace = ns_name
+    else:
+        cls.instance_definition_namespace = ns_name
     return TclResult()
 
 
@@ -670,11 +700,26 @@ def _parse_class_body(
     this by registering transient handlers then running
     ``interp.eval(body)`` in that namespace.
     """
-    from ..scope import ensure_namespace
+    from ..scope import ensure_namespace, resolve_namespace
 
     _ensure_define_commands(interp)
 
     oo_define_ns = ensure_namespace(interp.root_namespace, "::oo::define")
+
+    # TIP 524: Check if the class's metaclass has a definition namespace.
+    # If so, evaluate the body in that namespace instead of ::oo::define.
+    eval_ns = oo_define_ns
+    oo = _get_oo_runtime(interp)
+    obj = oo.objects.get(cls.qualified_name)
+    if obj is not None:
+        metaclass = oo.classes.get(obj.class_name)
+        if metaclass is not None and metaclass.definition_namespace:
+            custom_ns = resolve_namespace(
+                interp.root_namespace, metaclass.definition_namespace
+            )
+            if custom_ns is not None:
+                eval_ns = custom_ns
+
     saved_ns = interp.current_namespace
     saved_frame_ns = interp.current_frame.namespace
     saved_cls = getattr(interp, "_defining_class", None)
@@ -683,8 +728,8 @@ def _parse_class_body(
     interp._defining_class = cls
     interp._defining_object = None
     interp._defining_frame = interp.current_frame
-    interp.current_namespace = oo_define_ns
-    interp.current_frame.namespace = oo_define_ns
+    interp.current_namespace = eval_ns
+    interp.current_frame.namespace = eval_ns
     try:
         result = interp.eval(body)
     finally:
@@ -767,7 +812,21 @@ def _parse_objdefine_body(
         interp._runtime_commands["::oo::objdefine::class"] = _objdefine_class
         interp._runtime_commands["::oo::objdefine::mixin"] = _objdefine_mixin
 
+    from ..scope import resolve_namespace as _resolve_ns
+
     objdefine_ns = ensure_namespace(interp.root_namespace, "::oo::objdefine")
+
+    # TIP 524: Check if the object's class has an instance_definition_namespace.
+    eval_ns = objdefine_ns
+    oo = _get_oo_runtime(interp)
+    metaclass = oo.classes.get(obj.class_name)
+    if metaclass is not None and metaclass.instance_definition_namespace:
+        custom_ns = _resolve_ns(
+            interp.root_namespace, metaclass.instance_definition_namespace
+        )
+        if custom_ns is not None:
+            eval_ns = custom_ns
+
     saved_ns = interp.current_namespace
     saved_frame_ns = interp.current_frame.namespace
     saved_cls = getattr(interp, "_defining_class", None)
@@ -776,8 +835,8 @@ def _parse_objdefine_body(
     interp._defining_class = None
     interp._defining_object = obj
     interp._defining_frame = interp.current_frame
-    interp.current_namespace = objdefine_ns
-    interp.current_frame.namespace = objdefine_ns
+    interp.current_namespace = eval_ns
+    interp.current_frame.namespace = eval_ns
     try:
         result = interp.eval(body)
     finally:
