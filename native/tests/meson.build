@@ -17,6 +17,9 @@ test_sources = {
   'test_recovery_e203': 'test_recovery_e203.cpp',
   'test_recovery_ghost': 'test_recovery_ghost.cpp',
   'test_upstream_parse': 'test_upstream_parse.cpp',
+  'test_semantic_types': 'test_semantic_types.cpp',
+  'test_analysis_result': 'test_analysis_result.cpp',
+  'test_param_list_parser': 'test_param_list_parser.cpp',
 }
 
 foreach name, src : test_sources
