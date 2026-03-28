@@ -7,6 +7,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from ..machine import _list_escape
+from ..oo import _format_method_list as _format_or_list
 from ..types import TclError, TclResult
 
 if TYPE_CHECKING:
@@ -685,7 +686,7 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
             method = cls.methods.get(method_name)
             if method is None:
                 raise TclError(
-                    f'unknown method "{method_name}": must be {", ".join(sorted(cls.methods.keys()))}'
+                    f'unknown method "{method_name}": must be {_format_or_list(sorted(cls.methods.keys()))}'
                 )
             param_str = " ".join(f"{{{n} {d}}}" if d is not None else n for n, d in method.params)
             return TclResult(value=f"{param_str} {{{method.body}}}")

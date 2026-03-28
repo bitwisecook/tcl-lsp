@@ -20,6 +20,20 @@ if TYPE_CHECKING:
     from .interp import TclInterp
 
 
+def _format_method_list(names: list[str]) -> str:
+    """Format a list of method names for Tcl error messages.
+
+    Tcl uses ``"a, b or c"`` (no Oxford comma).
+    """
+    if len(names) == 0:
+        return ""
+    if len(names) == 1:
+        return names[0]
+    if len(names) == 2:
+        return f"{names[0]} or {names[1]}"
+    return ", ".join(names[:-1]) + " or " + names[-1]
+
+
 @dataclass
 class TclOOMethod:
     """A single method on a class or object."""
@@ -174,6 +188,19 @@ class OORuntime:
         self._next_obj_id += 1
         if obj_name is None:
             obj_name = f"::oo::Obj{self._next_obj_id}"
+        else:
+            # Check for duplicate object name (only named objects, not auto-generated)
+            if obj_name in self.objects:
+                raise TclError(
+                    f'can\'t create object "{obj_name}": command already exists with that name'
+                )
+            # Also check short name for qualified names
+            if obj_name.startswith("::"):
+                short = obj_name.rsplit("::", 1)[-1]
+                if short and short in self.objects:
+                    raise TclError(
+                        f'can\'t create object "{obj_name}": command already exists with that name'
+                    )
 
         # Each object gets a unique internal namespace like C Tcl's ::oo::ObjN
         ns = f"::oo::Obj{self._next_obj_id}"
@@ -323,7 +350,7 @@ class OORuntime:
                     )
                 raise TclError(
                     f'unknown method "{method_name}": must be '
-                    + ", ".join(self._available_methods(obj))
+                    + _format_method_list(self._available_methods(obj))
                 )
 
             # Check visibility — unexported methods are not callable from
@@ -341,7 +368,7 @@ class OORuntime:
                 if caller_self != obj.name:
                     raise TclError(
                         f'unknown method "{method_name}": must be '
-                        + ", ".join(self._available_methods(obj))
+                        + _format_method_list(self._available_methods(obj))
                     )
 
             # Check for filters — filters intercept all method calls except
@@ -409,7 +436,7 @@ class OORuntime:
         methods.add("destroy")
         cls = self.classes.get(obj.class_name)
         if cls:
-            for class_qname in cls.mro(self.classes):
+            for class_qname in self._effective_mro(obj):
                 ancestor = self.classes.get(class_qname)
                 if ancestor:
                     for m, md in ancestor.methods.items():
