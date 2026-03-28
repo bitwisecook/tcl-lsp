@@ -670,7 +670,11 @@ class TestOO10Variables:
         assert interp.eval("c2 incr").value == "2"
 
     def test_oo_10_3_variable_inherited(self) -> None:
-        """oo-10.3: variables are inherited through superclass."""
+        """oo-10.3: variables accessible when declared in defining class.
+
+        In C Tcl, each class must explicitly declare ``variable`` for
+        the names it needs — they are not automatically inherited.
+        """
         interp = TclInterp()
         interp.eval("""
             oo::class create Base {
@@ -680,6 +684,7 @@ class TestOO10Variables:
             }
             oo::class create Sub {
                 superclass Base
+                variable x
                 method doubleX {} { return [expr {$x * 2}] }
             }
             Sub create obj

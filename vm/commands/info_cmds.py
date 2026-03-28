@@ -153,6 +153,11 @@ def _cmd_info(interp: TclInterp, args: list[str]) -> TclResult:
             import fnmatch
 
             names = interp.current_frame.var_names()
+            # Exclude OO instance variables — they are not locals
+            oo_iv = getattr(interp.current_frame, "_oo_instance_vars", None)
+            if oo_iv:
+                iv_set = oo_iv[1]  # set of instance var names
+                names = [n for n in names if n not in iv_set]
             matched = [n for n in sorted(names) if fnmatch.fnmatch(n, pattern)]
             return TclResult(value=" ".join(_list_escape(n) for n in matched))
 
