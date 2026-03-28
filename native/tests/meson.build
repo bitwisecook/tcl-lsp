@@ -9,6 +9,14 @@ test_sources = {
   'test_lexer_edge_cases_1': 'test_lexer_edge_cases_1.cpp',
   'test_lexer_edge_cases_2': 'test_lexer_edge_cases_2.cpp',
   'test_lexer_edge_cases_3': 'test_lexer_edge_cases_3.cpp',
+  'test_segmenter': 'test_segmenter.cpp',
+  'test_segmenter_recovery': 'test_segmenter_recovery.cpp',
+  'test_segmenter_chunks': 'test_segmenter_chunks.cpp',
+  'test_recovery_e201': 'test_recovery_e201.cpp',
+  'test_recovery_e202': 'test_recovery_e202.cpp',
+  'test_recovery_e203': 'test_recovery_e203.cpp',
+  'test_recovery_virtual': 'test_recovery_virtual.cpp',
+  'test_upstream_parse': 'test_upstream_parse.cpp',
 }
 
 foreach name, src : test_sources

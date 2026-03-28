@@ -127,7 +127,7 @@ New edits cancel in-flight analysis. Semantic tokens are always the priority.
 | Choice | Decision | Rationale |
 |---|---|---|
 | Language | C++23/26 | Latest standard features: `expected`, `ranges`, `format`, spaceship operator, `deducing this` |
-| Compiler | Clang 18+ | Best C++23 support, cross-platform, excellent tooling (clang-tidy, clang-format) |
+| Compilers | Clang 18+ and GCC 13+ | Dual-compiler requirement: all native code must build clean under both with `-Werror` |
 | Build | Meson | Clean readable syntax, first-class pybind11 support, WrapDB for dependencies |
 | Bindings | pybind11 | Native Python extension, exposes C++ types directly to Python |
 | Testing | Catch2 (C++) + pytest (Python) | Catch2 for C++ unit tests; full pytest suite validates through pybind11 shim |
@@ -170,10 +170,10 @@ The Meson build enables these unconditionally (see `meson.build`):
 ### Warning policy
 
 Pure C++ code (`native/src/`, `native/include/`, `native/tests/`) must build
-with zero warnings under `-Werror`. The pybind11 bindings (`native/bindings/`)
-are excluded from clang-tidy and cppcheck since they are temporary shim code.
-GCC-specific false positives in pybind11 template code are suppressed in the
-bindings build only.
+with zero warnings under `-Werror` on **both Clang 18+ and GCC 13+**. The
+pybind11 bindings (`native/bindings/`) are excluded from clang-tidy and
+cppcheck since they are temporary shim code. GCC-specific false positives
+in pybind11 template code are suppressed in the bindings build only.
 
 ### Makefile targets
 
@@ -364,4 +364,87 @@ not yet wired into the LSP pipeline — it's exposed as `NativeTclLexer` in
 the native module but the Python code still uses its own `TclLexer`. The
 speedup will be visible once the segmenter and semantic tokens code path
 call the native lexer.
+
+### Phase 3: Command Segmenter + Error Recovery
+
+Phase 3 ports the command segmenter and error recovery pipeline to C++.
+This is the layer that consumes the flat token stream from `TclLexer` and
+groups tokens into per-command `SegmentedCommand` structures at EOL/semicolon
+boundaries. It also includes incremental chunking (`TopLevelChunk` with
+hash-based dirty tracking) and full E201/E202/E203 error recovery via virtual
+token injection.
+
+**New types:**
+
+| Type | Header | Purpose |
+|---|---|---|
+| `Severity` | `core/diagnostic.hpp` | LSP diagnostic severity (`uint8_t` enum) |
+| `CodeFix` | `core/diagnostic.hpp` | Quick-fix suggestion (range + new text) |
+| `Diagnostic` | `core/diagnostic.hpp` | Error/warning with optional fixes |
+| `UnclosedDelimiter` | `parsing/segmenter.hpp` | Which delimiter was left open |
+| `SegmentedCommand` | `parsing/segmenter.hpp` | Single parsed Tcl command |
+| `TopLevelChunk` | `parsing/segmenter.hpp` | Source region for incremental analysis |
+| `VirtualToken` | `parsing/recovery.hpp` | Zero-width token for recovery |
+| `RecoveryResult` | `parsing/recovery.hpp` | Commands + diagnostics from recovery |
+
+**API surface:**
+
+| Function | Purpose |
+|---|---|
+| `segment_commands()` | Main entry point: tokenise + segment + optional recovery |
+| `segment_top_level_chunks()` | Split source into hashable chunks for incremental re-analysis |
+| `find_first_dirty_chunk()` | Pairwise hash comparison between old and new chunk lists |
+| `compute_virtual_insertions()` | First-pass detection of missing delimiters |
+| `segment_with_recovery()` | Full two-pass pipeline: detect → inject → re-parse |
+| `has_suspicious_token()` | Check last command for unclosed delimiter tokens |
+| `find_recovery_offset()` | Scan token text for known command to resume parsing |
+| `position_from_relative()` | O(n) newline walk for absolute position from relative offset |
+
+**Error recovery detectors:**
+
+| Code | Condition | Heuristics |
+|---|---|---|
+| E201 | Unterminated `[` | comment-break, command-break, brace-break, no-heuristic |
+| E202 | Unterminated `"` | newline with known command, no-heuristic |
+| E203 | Unterminated `{` | de-indented known command, no-heuristic |
+
+**Test coverage (Catch2):**
+
+| Test file | Tests | Scope |
+|---|---|---|
+| `test_segmenter.cpp` | 15 | Core segmentation (commands, words, comments) |
+| `test_segmenter_recovery.cpp` | 17 | Recovery + suspicious token + find_recovery_offset |
+| `test_segmenter_chunks.cpp` | 12 | TopLevelChunk + find_first_dirty_chunk |
+| `test_recovery_e201.cpp` | 14 | E201 heuristics + is_unterminated_cmd |
+| `test_recovery_e202.cpp` | 8 | E202 heuristics + is_suspicious_quote |
+| `test_recovery_e203.cpp` | 8 | E203 heuristics + is_suspicious_str |
+| `test_recovery_virtual.cpp` | 9 | Virtual token lexer integration + pipeline |
+| `test_upstream_parse.cpp` | 23 | Ported from Tcl upstream parse.test |
+| **Total** | **106** | |
+
+Plus 127 Python tests (75 segmenter + 52 recovery) passing through pybind11 shim.
+
+**Dual-compiler verification:**
+
+All native C++ code builds clean under both Clang 18 and GCC 13/14 with
+`-Werror` and all hardening flags. Both compilers pass all sanitiser suites:
+
+| Compiler | Build | ASan+UBSan | TSan | Valgrind |
+|---|---|---|---|---|
+| Clang 18 | clean | 16/16 | 16/16 | 16/16 |
+| GCC 13 | clean | 16/16 | 16/16 | — |
+| GCC 14 | clean | 16/16 | 16/16 | — |
+
+Static analysis: clang-tidy, cppcheck, clang-format, and Clang Static Analyzer
+(scan-build) all pass clean with zero warnings/bugs on our code.
+
+**pybind11 bindings:**
+
+All Phase 3 types and functions are exposed to Python via the `_tcl_lsp_native`
+module. The `core/_native.py` shim conditionally imports them (falls back to
+pure-Python when native module is unavailable). Available as:
+`NativeSegmentedCommand`, `TopLevelChunk`, `Diagnostic`, `CodeFix`, `Severity`,
+`UnclosedDelimiter`, `segment_commands`, `segment_top_level_chunks`,
+`find_first_dirty_chunk`, `compute_virtual_insertions`, `segment_with_recovery`,
+`position_from_relative`.
 

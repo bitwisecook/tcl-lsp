@@ -21,4 +21,26 @@ except ImportError:
 
     NATIVE = False
 
-__all__ = ["SourcePosition", "Range", "DocumentBuffer", "NATIVE"]
+# Phase 3: segmenter + recovery types (optional, only when native is available).
+NATIVE_SEGMENTER = False
+try:
+    from _tcl_lsp_native import (  # type: ignore[import-not-found]
+        CodeFix,
+        Diagnostic,
+        NativeSegmentedCommand,
+        Severity,
+        TopLevelChunk,
+        UnclosedDelimiter,
+        compute_virtual_insertions,
+        find_first_dirty_chunk,
+        position_from_relative,
+        segment_commands,
+        segment_top_level_chunks,
+        segment_with_recovery,
+    )
+
+    NATIVE_SEGMENTER = True
+except ImportError:
+    pass
+
+__all__ = ["SourcePosition", "Range", "DocumentBuffer", "NATIVE", "NATIVE_SEGMENTER"]
