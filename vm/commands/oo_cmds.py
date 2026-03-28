@@ -244,10 +244,16 @@ def _define_superclass(interp: TclInterp, args: list[str]) -> TclResult:
         raise TclError("this command may only be called from within the body of an oo::define command")
     if not args:
         # No args resets to default superclass
-        if cls.qualified_name != "::oo::object":
-            cls.superclasses = ["::oo::object"]
-        else:
+        # Metaclasses (subclasses of oo::class) default to ::oo::class
+        # Regular classes default to ::oo::object
+        # oo::object itself has no superclass
+        oo = _get_oo_runtime(interp)
+        if cls.qualified_name == "::oo::object":
             cls.superclasses = []
+        elif oo._is_metaclass(cls):
+            cls.superclasses = ["::oo::class"]
+        else:
+            cls.superclasses = ["::oo::object"]
     else:
         # Handle -append flag
         if args[0] == "-append":

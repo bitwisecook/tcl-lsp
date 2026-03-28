@@ -489,7 +489,7 @@ class OORuntime:
                             method_name,
                             method_args,
                             destroy_method,
-                            None,
+                            "::oo::object",
                         )
                         # After filters complete, actually destroy
                         if obj.name in self.objects:
@@ -679,6 +679,7 @@ class OORuntime:
         filter_target: tuple[TclOOMethod, str | None] | None = None,
         filter_method_name: str | None = None,
         filter_method_args: list[str] | None = None,
+        via_next: bool = False,
     ) -> TclResult:
         """Invoke a method on an object, setting up the instance context.
 
@@ -732,10 +733,21 @@ class OORuntime:
         cls = self.classes.get(obj.class_name)
         proc_ns = interp.root_namespace
 
+        # When invoked via ``next``, the new frame shares the same
+        # parent and level as the calling method frame so that
+        # ``upvar 1`` reaches the original caller — matching real Tcl
+        # semantics where chained methods are at the same call depth.
+        if via_next:
+            parent_frame = interp.current_frame.parent or interp.current_frame
+            frame_level = interp.current_frame.level
+        else:
+            parent_frame = interp.current_frame
+            frame_level = interp.current_frame.level + 1
+
         frame = CallFrame(
-            level=interp.current_frame.level + 1,
+            level=frame_level,
             proc_name=f"{obj.name} {method.name}" if method.name else obj.name,
-            parent=interp.current_frame,
+            parent=parent_frame,
             namespace=proc_ns,
             interp=interp,
             call_args=args,
@@ -1085,6 +1097,7 @@ class OORuntime:
                     target_method,
                     filter_method_args,
                     defining_class=target_class,
+                    via_next=True,
                 )
 
         # --- Normal MRO walk ---
@@ -1116,6 +1129,7 @@ class OORuntime:
                             m,
                             args,
                             defining_class=class_qname,
+                            via_next=True,
                         )
         else:
             # Find the defining class in the MRO, then look for the next
@@ -1135,6 +1149,7 @@ class OORuntime:
                                 obj,
                                 m,
                                 args,
+                                via_next=True,
                                 defining_class=class_qname,
                             )
 
