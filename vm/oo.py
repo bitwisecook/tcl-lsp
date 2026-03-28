@@ -1281,13 +1281,24 @@ class OORuntime:
         if ancestor is None:
             raise TclError(f'"{target_class}" is not a class')
 
-        # Validate that the target class is in the object's MRO
+        # Validate that the target class is reachable from the current
+        # position in the MRO.  The caller's class must come before the
+        # target class in the chain.
         mro = self._effective_mro(obj)
+        caller_class = getattr(frame, "_oo_class", None)
         if target_class not in mro:
             short_name = target_class.lstrip(":")
             raise TclError(
                 f'method has no non-filter implementation by "{short_name}"'
             )
+        if caller_class and caller_class in mro:
+            caller_idx = mro.index(caller_class)
+            target_idx = mro.index(target_class)
+            if target_idx <= caller_idx:
+                short_name = target_class.split("::")[-1] if "::" in target_class else target_class
+                raise TclError(
+                    f'method implementation by "{short_name}" not reachable from here'
+                )
 
         # Handle constructors and destructors specially
         if method_name == "<constructor>":
@@ -1317,13 +1328,24 @@ class OORuntime:
                 f'method has no non-filter implementation by "{short_name}"'
             )
 
-        return self._invoke_method(
-            interp,
-            obj,
-            ancestor.methods[method_name],
-            args,
-            defining_class=target_class,
-        )
+        target_method = ancestor.methods[method_name]
+        try:
+            return self._invoke_method(
+                interp,
+                obj,
+                target_method,
+                args,
+                defining_class=target_class,
+            )
+        except TclError as e:
+            # Rewrite wrong # args to use "nextto ClassName" form
+            if e.message.startswith("wrong # args"):
+                tc_short = target_class.split("::")[-1] if "::" in target_class else target_class
+                param_list = " ".join(p for p, _ in target_method.params)
+                raise TclError(
+                    f'wrong # args: should be "nextto {tc_short} {param_list}"'
+                ) from None
+            raise
 
     def build_object_call_chain(
         self, obj: TclOOObject, method_name: str
