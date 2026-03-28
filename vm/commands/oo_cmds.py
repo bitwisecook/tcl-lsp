@@ -646,10 +646,15 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
 
     if len(args) == 2:
         # Body form: oo::define Dog { method bark {} { ... } }
+        # Special case: "self" alone returns the class name (TIP #470)
+        if args[1].strip() == "self":
+            return TclResult(value=cls.qualified_name)
         _parse_class_body(interp, cls, args[1])
     else:
         # Single-subcommand form: oo::define Dog superclass Animal
-        # Reconstruct with braces to preserve structure
+        # Special case: "self" alone returns the class name (TIP #470)
+        if args[1] == "self" and len(args) == 2:
+            return TclResult(value=cls.qualified_name)
         from ..machine import _list_escape
 
         reconstructed = " ".join(_list_escape(a) for a in args[1:])

@@ -779,9 +779,17 @@ class OORuntime:
         if name == "eval":
             # Evaluate script in the object's namespace context
             from .machine import _list_escape
+            from .scope import ensure_namespace
 
             script = " ".join(_list_escape(a) for a in args) if len(args) > 1 else (args[0] if args else "")
-            return interp.eval(script)
+            # Set frame namespace to the object's namespace
+            obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
+            old_ns = frame.namespace
+            frame.namespace = obj_ns
+            try:
+                return interp.eval(script)
+            finally:
+                frame.namespace = old_ns
         elif name == "variable":
             # Import object variables into the method's local scope
             for var_name in args:
@@ -1155,6 +1163,12 @@ class OORuntime:
                 impl = "forward" if m.forward_target else "method"
                 chain.append(("method", method_name, class_qname, impl))
 
+        # If method_name is "destroy", add as core method on oo::object
+        if method_name == "destroy":
+            if not any(ct == "method" for ct, _, _, _ in chain):
+                chain.append(("method", "destroy", "::oo::object", '{core method: "destroy"}'))
+            return chain
+
         # If no method found, add unknown handlers
         if not any(ct == "method" for ct, _, _, _ in chain):
             if "unknown" in obj.instance_methods:
@@ -1227,6 +1241,21 @@ class OORuntime:
                     chain.append(("filter", fname, class_qname, impl))
 
         # Walk MRO for the method
+        # Handle "destroy" as a core method
+        if method_name == "destroy":
+            # Walk MRO for user-defined destroy methods first
+            found_user = False
+            for class_qname in cls.mro(self.classes):
+                ancestor = self.classes.get(class_qname)
+                if ancestor and "destroy" in ancestor.methods:
+                    m = ancestor.methods["destroy"]
+                    if not m.body.startswith("__builtin_"):
+                        impl = "forward" if m.forward_target else "method"
+                        chain.append(("method", "destroy", class_qname, impl))
+                        found_user = True
+            chain.append(("method", "destroy", "::oo::object", '{core method: "destroy"}'))
+            return chain
+
         found = False
         for class_qname in cls.mro(self.classes):
             ancestor = self.classes.get(class_qname)
