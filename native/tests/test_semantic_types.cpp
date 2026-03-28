@@ -32,21 +32,20 @@ TEST_CASE("ParamDef default construction", "[semantic_types]") {
     ParamDef p;
     p.name = "x";
     REQUIRE(p.name == "x");
-    REQUIRE(p.has_default == false);
-    REQUIRE(p.default_value.empty());
+    REQUIRE_FALSE(p.default_value.has_value());
 }
 
 TEST_CASE("ParamDef with default value", "[semantic_types]") {
-    ParamDef p{"name", true, "World"};
+    ParamDef p{"name", "World"};
     REQUIRE(p.name == "name");
-    REQUIRE(p.has_default == true);
-    REQUIRE(p.default_value == "World");
+    REQUIRE(p.default_value.has_value());
+    REQUIRE(p.default_value.value() == "World");
 }
 
 TEST_CASE("ParamDef equality", "[semantic_types]") {
-    ParamDef a{"x", false, ""};
-    ParamDef b{"x", false, ""};
-    ParamDef c{"y", false, ""};
+    ParamDef a{"x", std::nullopt};
+    ParamDef b{"x", std::nullopt};
+    ParamDef c{"y", std::nullopt};
     REQUIRE(a == b);
     REQUIRE_FALSE(a == c);
 }
@@ -77,7 +76,7 @@ TEST_CASE("ProcDef construction", "[semantic_types]") {
     ProcDef p;
     p.name = "greet";
     p.qualified_name = "::greet";
-    p.params = {{"name", false, ""}};
+    p.params = {{"name", std::nullopt}};
     REQUIRE(p.name == "greet");
     REQUIRE(p.qualified_name == "::greet");
     REQUIRE(p.params.size() == 1);
@@ -89,7 +88,7 @@ TEST_CASE("ProcDef with param traits", "[semantic_types]") {
     ProcDef p;
     p.name = "eval_body";
     p.qualified_name = "::eval_body";
-    p.params = {{"script", false, ""}};
+    p.params = {{"script", std::nullopt}};
     p.param_traits["script"] = static_cast<ProcArgTraits>(ProcArgTrait::EVAL);
     REQUIRE(has_trait(p.param_traits["script"], ProcArgTrait::EVAL));
 }

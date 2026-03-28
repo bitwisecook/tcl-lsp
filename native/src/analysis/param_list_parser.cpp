@@ -73,9 +73,9 @@ auto parse_param_list(std::string_view param_str) -> std::vector<ParamDef> {
                 while (ds < rest.size() && is_ws(rest[ds])) {
                     ++ds;
                 }
-                params.push_back({std::string(name), true, std::string(rest.substr(ds))});
+                params.push_back({std::string(name), std::string(rest.substr(ds))});
             } else if (!inner.empty()) {
-                params.push_back({std::string(inner), false, ""});
+                params.push_back({std::string(inner), std::nullopt});
             }
         } else {
             // Bare word.
@@ -85,7 +85,7 @@ auto parse_param_list(std::string_view param_str) -> std::vector<ParamDef> {
             }
             auto word = text.substr(word_start, i - word_start);
             if (!word.empty()) {
-                params.push_back({std::string(word), false, ""});
+                params.push_back({std::string(word), std::nullopt});
             }
         }
     }

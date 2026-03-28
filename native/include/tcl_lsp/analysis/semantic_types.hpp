@@ -43,8 +43,7 @@ auto to_string(ProcArgTrait t) -> std::string;
 // A parameter in a proc definition (immutable value).
 struct ParamDef {
     std::string name;
-    bool has_default = false;
-    std::string default_value;
+    std::optional<std::string> default_value;
 
     auto operator==(const ParamDef&) const -> bool = default;
 };

@@ -36,8 +36,8 @@ TEST_CASE("proc: default parameter", "[analyser][proc]") {
     REQUIRE(p != nullptr);
     REQUIRE(p->params.size() == 1);
     REQUIRE(p->params[0].name == "name");
-    REQUIRE(p->params[0].has_default == true);
-    REQUIRE(p->params[0].default_value == "World");
+    REQUIRE(p->params[0].default_value.has_value());
+    REQUIRE(p->params[0].default_value.value() == "World");
 }
 
 TEST_CASE("proc: no parameters", "[analyser][proc]") {

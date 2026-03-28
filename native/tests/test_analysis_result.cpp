@@ -14,7 +14,7 @@ TEST_CASE("AnalysisResult default has global scope", "[analysis_result]") {
 TEST_CASE("AnalysisResult find_proc by qualified name", "[analysis_result]") {
     AnalysisResult result;
     auto& scope = result.global_scope();
-    scope.procs["greet"] = ProcDef{"greet", "::greet", {{"name", false, ""}},
+    scope.procs["greet"] = ProcDef{"greet", "::greet", {{"name", std::nullopt}},
                                    Range::zero(), Range::zero(), "", {}};
     result.all_procs["::greet"] = &scope.procs["greet"];
 
@@ -97,7 +97,7 @@ TEST_CASE("AnalysisResult copy_for_snapshot creates independent copy", "[analysi
     auto& scope = original.global_scope();
 
     // Add a proc with params.
-    scope.procs["greet"] = ProcDef{"greet", "::greet", {{"name", false, ""}},
+    scope.procs["greet"] = ProcDef{"greet", "::greet", {{"name", std::nullopt}},
                                    Range::zero(), Range::zero(), "Says hello", {}};
     original.all_procs["::greet"] = &scope.procs["greet"];
 

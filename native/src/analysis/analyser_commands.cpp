@@ -843,11 +843,11 @@ void Analyser::check_proc_call_arity(const ProcDef& proc_def,
 
     for (std::size_t i = 0; i < proc_def.params.size(); ++i) {
         const auto& param = proc_def.params[i];
-        if (i == proc_def.params.size() - 1 && param.name == "args" && !param.has_default) {
+        if (i == proc_def.params.size() - 1 && param.name == "args" && !param.default_value) {
             variadic = true;
             continue;
         }
-        if (!param.has_default) {
+        if (!param.default_value) {
             ++required;
         }
     }
