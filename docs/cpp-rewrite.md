@@ -515,7 +515,7 @@ translates between the two: C++ `compute_ghost_insertions()` is exposed to
 Python as `compute_virtual_insertions()`, and the `ghost_insertions` parameter
 is exposed as `virtual_insertions`.
 
-### Phase 4: Semantic Model — Analyser (in progress)
+### Phase 4: Semantic Model — Analyser
 
 Phase 4 ports the semantic analysis layer — the Analyser that consumes
 `SegmentedCommand[]` and produces an `AnalysisResult` containing proc
@@ -527,7 +527,186 @@ pipeline. Every LSP feature (completion, hover, diagnostics, semantic tokens)
 depends on `AnalysisResult`. Porting it to C++ keeps the entire
 tokenise→segment→analyse pipeline in C++ without crossing the Python boundary.
 
-**File organisation — prefer smaller, focused files:**
+#### Architecture
+
+The analyser is designed as idiomatic modern C++ — not a transliteration of
+the Python analyser. The initial port was followed by a 13-commit refactoring
+pass that replaced Python-shaped patterns with proper C++ idioms. The key
+architectural decisions and patterns are documented below as guidance for all
+future native code.
+
+##### Ownership: `unique_ptr` trees, not manual `new`/`delete`
+
+Scope tree children use `std::vector<std::unique_ptr<Scope>>`. This
+eliminates explicit destructors, custom move constructors, and NOLINT
+suppressions. `make_child_scope()` uses `std::make_unique` and returns a
+raw non-owning pointer (safe: parent outlives children within a single
+`AnalysisResult`).
+
+**Rule:** Never use bare `new`/`delete` in new code. Ownership is always
+expressed via `unique_ptr` (single owner) or `shared_ptr` (rare, shared
+ownership). Non-owning access uses raw pointers or references.
+
+##### Optional values: `std::optional`, not bool+value pairs
+
+Python's `Optional[T]` with `is not None` checks maps to `std::optional<T>`,
+not `bool has_X; T X;` pairs. Examples:
+- `Scope::body_range` is `std::optional<Range>` (not `bool has_body_range`)
+- `ParamDef::default_value` is `std::optional<std::string>` (not `bool has_default`)
+- `AnalysisResult::unknown_proc_info_` is `std::optional<UnknownProcInfo>`
+
+**Rule:** If a value may or may not be present, use `std::optional`. Never
+use a bool sentinel with a default-constructed companion.
+
+##### Error reporting: `std::expected`, not bare `std::optional`
+
+When a function can fail for identifiable reasons, use `std::expected<T, E>`
+with a typed error enum — not `std::optional<T>` which discards *why* it
+failed. Example:
+
+```cpp
+enum class StubParseError : std::uint8_t {
+    NOT_A_STUB, MISSING_NAME, MISSING_BRACES,
+    INVALID_ARG_SYNTAX, INVALID_ROLE, INVALID_EXPR_KIND,
+};
+
+auto parse_stub_line(std::string_view line, Range range)
+    -> std::expected<StubCommandDef, StubParseError>;
+```
+
+**Rule:** Use `std::optional` when absence is normal (lookup miss). Use
+`std::expected` when failure has distinct causes that callers may want to
+distinguish.
+
+##### Type-safe enums for codes and categories
+
+Diagnostic codes are a `DiagCode` enum class (not stringly-typed):
+
+```cpp
+enum class DiagCode : std::uint16_t {
+    E001 = 1001,  // builtin arity
+    E002 = 1002,  // proc too few args
+    W123 = 2123,  // unresolved command
+    W214 = 2214,  // unused proc parameter
+    // ...
+};
+```
+
+This gives compile-time completeness checking and eliminates typo bugs.
+`to_string(DiagCode)` converts to the string form ("E001", "W123") for
+LSP output and pybind11.
+
+**Rule:** When a finite set of string constants is compared in multiple
+places, replace with an enum class. Provide `to_string()` for serialisation.
+
+##### Encapsulation: private data with `friend` access
+
+`AnalysisResult` has all data members private, with `friend class Analyser`
+for mutation during analysis. External consumers use const accessors
+(`diagnostics()`, `all_procs()`, `regex_patterns()`, etc.). This enforces
+the rule that only the Analyser builds the result.
+
+**Rule:** Data types consumed by multiple subsystems should have private
+members with const accessors. Use `friend` for the single class that
+populates them, not public setters.
+
+##### Zero-copy views: `std::span` for contiguous data
+
+`SegmentedCommand::args()` and `arg_tokens()` return `std::span<const T>`
+— zero-copy views into the underlying vectors. This eliminates vector copies
+on every command dispatch (called 33+ times per command).
+
+**Rule:** When returning a view into owned contiguous data, use `std::span`.
+Callers must not outlive the owning container.
+
+##### Command dispatch: static table, not if/elif chain
+
+`process_command` uses two `static const` `unordered_map` tables mapping
+command names to member function pointers:
+
+```cpp
+using ConsumingHandler = auto(Analyser::*)(const SegmentedCommand&, Scope*) -> bool;
+using NonConsumingHandler = void(Analyser::*)(const SegmentedCommand&, Scope*);
+
+static const std::unordered_map<std::string_view, ConsumingHandler> consuming_handlers{...};
+static const std::unordered_map<std::string_view, NonConsumingHandler> non_consuming_handlers{...};
+```
+
+Consuming handlers return `true` if they fully handle the command (skipping
+generic analysis). Non-consuming handlers augment the generic path.
+
+**Rule:** When dispatching on a string to one of N handlers, use a static
+table. Encode the dispatch semantics in the type system (consuming vs
+non-consuming).
+
+##### Session pattern: stateless Analyser
+
+The Analyser separates immutable configuration (`registry_`,
+`disabled_diagnostics_`) from per-analysis transient state via a nested
+`Session` struct:
+
+```cpp
+struct Session {
+    AnalysisResult result;
+    Scope* current_scope = nullptr;
+    int32_t conditional_depth = 0;
+    std::string last_comment;
+    AliasResolver alias_resolver;
+    bool unresolved_commands_emitted = false;
+};
+Session s_;
+```
+
+Each `analyse()` call resets state with `s_ = Session{}` — a single
+assignment that makes it impossible to forget resetting a field. This
+clearly separates what survives across calls (config) from what is
+per-analysis (session).
+
+**Rule:** When a class accumulates transient state that must be reset
+between uses, group it into a session/context struct and reset it
+atomically.
+
+##### Embedded state: scope-local data, not external maps
+
+Analysis state that logically belongs to a scope lives in the `Scope`
+struct, not in external maps keyed on `Scope*`:
+
+- `Scope::const_strings` — constant string values for regex propagation
+- `Scope::regex_vars` — variables known to hold regex patterns
+- `Scope::cached_namespace` — lazily computed namespace path
+
+This eliminates fragile pointer-identity maps and makes scope state
+self-contained.
+
+**Rule:** If data is conceptually per-scope (or per-node), embed it in the
+node struct. External maps keyed on pointer identity are a code smell.
+
+##### Extracted components: `AliasResolver`
+
+Command alias resolution is encapsulated in a nested `AliasResolver` struct
+with `register_alias()` and `resolve()` methods. This keeps alias state
+and logic cohesive without polluting the main Analyser interface.
+
+**Rule:** When a subset of state + methods forms a natural unit, extract it
+as a nested struct or class. Prefer composition over monolithic classes.
+
+##### Generic tree traversal: `visit_scope_tree`
+
+A function template provides pre-order scope tree visitation:
+
+```cpp
+template <typename F>
+void visit_scope_tree(Scope& root, F&& fn);      // mutable
+void visit_scope_tree(const Scope& root, F&& fn); // const
+```
+
+Used by `copy_for_snapshot()` to rebuild flat indexes. Available for all
+future scope-walking passes (diagnostics, completions, etc.).
+
+**Rule:** If a tree/graph walk pattern appears in 2+ places (or will), add
+a generic visitor. Don't duplicate the walk logic.
+
+#### File organisation
 
 When a module grows large, split it into multiple `.cpp` files that share a
 single header. This improves readability and compile times without adding
@@ -535,25 +714,29 @@ abstraction. The analyser is split three ways:
 
 | File | Purpose | Lines |
 |---|---|---|
-| `analyser.cpp` | Entry points, body/command iteration | ~170 |
-| `analyser_commands.cpp` | Command-specific handlers (proc, set, if, switch, etc.) | ~860 |
-| `analyser_helpers.cpp` | Variable tracking, scope helpers, naming, diagnostics, expr | ~510 |
+| `analyser.cpp` | Entry points, body/command iteration, noqa suppression | ~170 |
+| `analyser_commands.cpp` | Command dispatch + all command-specific handlers | ~840 |
+| `analyser_helpers.cpp` | Variable tracking, scope helpers, naming, diagnostics, expr, AliasResolver | ~540 |
 
 This pattern applies generally: if a `.cpp` file exceeds ~500 lines, consider
 splitting it along natural seam lines (e.g. handlers vs helpers vs entry
 points). Each file should be cohesive — all functions in a file should relate
 to each other.
 
-**New types (Phase 4a — semantic value types):**
+#### Types
+
+**Phase 4a — semantic value types:**
 
 | Type | Header | Purpose |
 |---|---|---|
 | `ProcArgTrait` | `semantic_types.hpp` | Bitmask enum for proc parameter usage traits |
 | `VarDef` | `semantic_types.hpp` | Variable definition with references |
-| `ParamDef` | `semantic_types.hpp` | Proc parameter (name, default, has_default) |
+| `ParamDef` | `semantic_types.hpp` | Proc parameter with `optional<string>` default |
 | `ProcDef` | `semantic_types.hpp` | Procedure definition |
 | `ScopeKind` | `semantic_types.hpp` | GLOBAL, NAMESPACE, PROC |
-| `Scope` | `semantic_types.hpp` | Scope tree node (owns children via destructor) |
+| `Scope` | `semantic_types.hpp` | Scope tree node (`unique_ptr` children, embedded const-string/regex state) |
+| `visit_scope_tree` | `semantic_types.hpp` | Generic pre-order scope tree visitor (function template) |
+| `DiagCode` | `diagnostic.hpp` | Type-safe diagnostic code enum (1xxx=errors, 2xxx=warnings) |
 | `RegexPattern` | `auxiliary_types.hpp` | Source range known to contain regex |
 | `CommandInvocation` | `auxiliary_types.hpp` | Command word observed during analysis |
 | `PackageRequire` | `auxiliary_types.hpp` | `package require` invocation |
@@ -562,11 +745,12 @@ to each other.
 | `StubArgDef` | `auxiliary_types.hpp` | Parameter in stub command definition |
 | `StubCommandDef` | `auxiliary_types.hpp` | Command stub from structured comment |
 | `StubExprDef` | `auxiliary_types.hpp` | Expr function/operator stub |
+| `StubParseError` | `stub_parser.hpp` | Typed error enum for stub parse failures |
 | `UnknownProcInfo` | `auxiliary_types.hpp` | Analysis of user-defined `unknown` proc |
 | `PackageContext` | `auxiliary_types.hpp` | Package confidence levels |
-| `AnalysisResult` | `analysis_result.hpp` | Complete document analysis result |
+| `AnalysisResult` | `analysis_result.hpp` | Complete document analysis result (encapsulated, `friend Analyser`) |
 
-**New types (Phase 4b — command registry interface):**
+**Phase 4b — command registry interface:**
 
 | Type | Header | Purpose |
 |---|---|---|
@@ -577,15 +761,15 @@ to each other.
 | `CommandRegistryInterface` | `command_interface.hpp` | ABC for command metadata |
 | `TestCommandRegistry` | `command_interface.hpp` | Minimal test-harness registry |
 
-**New modules (Phase 4c–4d):**
+**Phase 4c–4d — modules:**
 
 | Module | Purpose |
 |---|---|
-| `stub_parser.hpp/cpp` | Inline stub comment parser (`# tcl-lsp: stubs-begin/end`) |
+| `stub_parser.hpp/cpp` | Inline stub comment parser; returns `std::expected` |
 | `param_list_parser.hpp/cpp` | Tcl parameter list parser |
-| `analyser.hpp` + 3 `.cpp` files | Core analyser |
+| `analyser.hpp` + 3 `.cpp` files | Core analyser with Session pattern |
 
-**Analyser command handlers:**
+#### Analyser command handlers
 
 | Handler | Tcl command | Notable features |
 |---|---|---|
@@ -600,20 +784,32 @@ to each other.
 | `handle_try` | `try` | on/trap/finally handler scanning |
 | `handle_if` | `if` | if/elseif/else with optional `then` keywords |
 | `handle_while` | `while` | Expression + body analysis |
-| `handle_interp_alias` | `interp alias` | Namespace-aware alias recording |
+| `handle_dict` | `dict for` | Variable list + body analysis |
+| `handle_interp_alias` | `interp alias` | Namespace-aware alias recording via `AliasResolver` |
 | `handle_package` | `package` | require/provide tracking |
 | `handle_source` | `source` | Literal vs dynamic path detection |
+| `handle_expr` | `expr` | All args analysed as expressions |
 | `analyse_body_args` | generic | Registry-based arg role analysis (BODY/EXPR/PATTERN/VAR_NAME) |
-| `expr` (inline) | `expr` | All args analysed as expressions |
 
-**Diagnostics emitted:**
+#### Diagnostics
+
+Diagnostic codes use the `DiagCode` enum. Numeric encoding: 1xxx = errors,
+2xxx = warnings/hints. `to_string(DiagCode)` produces the string form
+("E001", "W123") for LSP and pybind11.
 
 | Code | Severity | Description |
 |---|---|---|
 | E001 | Error | Built-in command arity violation (via registry) |
 | E002 | Error | User proc: too few arguments |
 | E003 | Error | User proc: too many arguments |
-| E200 | Error | Missing close-brace/bracket/quote |
+| E101 | Error | Missing open brace (from Python/pybind11) |
+| E200 | Error | Missing close delimiter (generic) |
+| E201 | Error | Unterminated bracket |
+| E202 | Error | Unterminated quote |
+| E203 | Error | Unterminated brace |
+| E204 | Error | Recovery: extra characters after close-brace |
+| E205 | Error | Recovery: extra characters after close-quote |
+| E206 | Error | Recovery: missing close-brace for variable name |
 | W113 | Warning | Proc shadows built-in command |
 | W123 | Hint | Unresolved command (with "did you mean?" suggestions) |
 | W214 | Hint | Unused proc parameter |
@@ -622,16 +818,21 @@ to each other.
 W220 (dead assignment), H300 (possible paste error), I230/I231 (unreachable
 branch/arm) — these require CFG/SSA analysis.
 
-**Memory management:**
+#### Memory management
 
-- Scope tree: root owned by `unique_ptr` in `AnalysisResult`; child scopes
-  allocated with `new` and owned by parent's destructor (deleted in `~Scope()`).
-  Move-only semantics (copy deleted; use `copy_for_snapshot()` for explicit copies).
-- `ProcDef*` and `VarDef*` in flat indexes point into scope's maps (valid for
-  lifetime of scope tree).
-- `AnalysisResult` is move-only; deep copy via `copy_for_snapshot()`.
+- **Scope tree:** Root owned by `unique_ptr<Scope>` in `AnalysisResult`.
+  Child scopes created with `make_unique<Scope>` via `make_child_scope()`,
+  pushed into parent's `children` vector. Move-only semantics (copy deleted;
+  use `copy_for_snapshot()` for explicit deep copies). Compiler-generated
+  destructor recursively destroys the tree via unique_ptr chain.
+- **Flat indexes:** `ProcDef*` and `VarDef*` in `all_procs_`/`all_variables_`
+  point into scope-owned maps (valid for lifetime of scope tree).
+- **Analysis result:** Move-only; deep copy via `copy_for_snapshot()` which
+  uses `visit_scope_tree` to rebuild flat indexes into the copied tree.
+- **Scope-embedded state:** `const_strings`, `regex_vars`, and
+  `cached_namespace` live directly on `Scope`, not in external maps.
 
-**Test coverage (Catch2):**
+#### Test coverage (Catch2)
 
 | Test file | Tests | Ported from |
 |---|---|---|
@@ -652,12 +853,12 @@ branch/arm) — these require CFG/SSA analysis.
 
 Plus 8,041 Python tests passing through pybind11 shim (unchanged).
 
-**Verification (Phase 4d checkpoint):**
+#### Verification (Phase 4d checkpoint)
 
 | Compiler | Build | Tests | ASan+UBSan | TSan | Valgrind |
 |---|---|---|---|---|---|
 | Clang 18 | clean | 28/28 | 28/28 | 28/28 | 28/28 |
-| GCC 13 | clean | 28/28 | — | — | — |
+| GCC 13 | clean | 28/28 | 28/28 | 28/28 | — |
 
 Static analysis — all clean:
 
@@ -666,7 +867,7 @@ Static analysis — all clean:
 | clang-tidy | 0 errors (5 NOLINT suppressions) |
 | clang-format | compliant |
 
-**Remaining Phase 4 sub-phases:**
+#### Remaining Phase 4 sub-phases
 
 - 4e: Regex pattern tracking edge cases + package context analysis
 - 4f: Full command alias resolution + unknown handler analysis (with IR lowering)
@@ -676,4 +877,51 @@ Static analysis — all clean:
 - 4j: Arity diagnostics via full registry bridge
 - 4k: Upstream Tcl tests (proc.test, namespace.test)
 - 4l: Documentation + benchmark
+
+### Direction: Phase 5 and beyond
+
+Phase 4's architecture establishes the patterns for all subsequent phases.
+The key constraints going forward:
+
+**The analyser is the foundation.** Every LSP feature (Phase 7) consumes
+`AnalysisResult`. The result's encapsulated design (private data, const
+accessors, `friend Analyser`) means new fields can be added without
+changing the consumer API. New diagnostic passes add new `DiagCode` enum
+values and emission sites — the type system enforces that all codes are
+declared in one place.
+
+**IR lowering (Phase 5) will consume the scope tree.** The `visit_scope_tree`
+utility and the scope's embedded state (const_strings, regex_vars) provide
+the interface. The IR module will read the scope tree via const visitors,
+not by reaching into Analyser internals.
+
+**CFG/SSA (Phase 6) enables data-flow diagnostics.** W210 (read-before-set),
+W211 (unused variable), W220 (dead assignment) require the control flow graph
+that Phase 6 builds. These will add new `DiagCode` values and new diagnostic
+emission in dedicated pass functions — not by expanding the Analyser's
+`process_command` dispatch.
+
+**The Session pattern scales to incremental analysis (Phase 4g).** Because
+transient state is isolated in `Session`, incremental re-analysis can
+construct a partial session from a snapshot without touching the Analyser's
+config. The `analyse_commands()` entry point already accepts pre-segmented
+commands for this purpose.
+
+**The `CommandRegistryInterface` ABC enables the Python bridge.** The
+virtual dispatch overhead (once per command, not per token) is negligible.
+The registry will be backed by the Python `CommandSpec` registry via
+pybind11 until the full registry is ported to C++ in Phase 7.
+
+**Architectural invariants for all new native code:**
+
+1. Ownership via `unique_ptr`; no manual `new`/`delete`
+2. `std::optional` for maybe-absent values; `std::expected` for failable operations
+3. Enum classes for finite code/category sets; `to_string()` for serialisation
+4. Encapsulated data types with const accessors and `friend` mutation
+5. `std::span` for zero-copy views into contiguous owned data
+6. Static dispatch tables for string-based command routing
+7. Session/context structs for transient state that resets between uses
+8. Scope-embedded state, not external pointer-keyed maps
+9. Generic visitors for tree traversal
+10. Every new diagnostic code added to the `DiagCode` enum (compile-time checked)
 
