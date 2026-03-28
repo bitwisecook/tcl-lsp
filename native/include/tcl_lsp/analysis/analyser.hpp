@@ -57,22 +57,29 @@ class Analyser {
                                 Scope* scope, std::string_view source);
     void process_command(const SegmentedCommand& cmd, Scope* scope, std::string_view source);
 
-    // --- Command handlers ---
-    void handle_proc(const SegmentedCommand& cmd, Scope* scope);
+    // --- Command handlers (consuming: return true if command was fully handled) ---
+    using ConsumingHandler = auto(Analyser::*)(const SegmentedCommand&, Scope*) -> bool;
+    using NonConsumingHandler = void(Analyser::*)(const SegmentedCommand&, Scope*);
+
+    auto handle_proc(const SegmentedCommand& cmd, Scope* scope) -> bool;
+    auto handle_namespace_eval(const SegmentedCommand& cmd, Scope* scope) -> bool;
+    auto handle_foreach(const SegmentedCommand& cmd, Scope* scope) -> bool;
+    auto handle_for(const SegmentedCommand& cmd, Scope* scope) -> bool;
+    auto handle_switch(const SegmentedCommand& cmd, Scope* scope) -> bool;
+    auto handle_catch(const SegmentedCommand& cmd, Scope* scope) -> bool;
+    auto handle_try(const SegmentedCommand& cmd, Scope* scope) -> bool;
+    auto handle_if(const SegmentedCommand& cmd, Scope* scope) -> bool;
+    auto handle_while(const SegmentedCommand& cmd, Scope* scope) -> bool;
+    auto handle_dict(const SegmentedCommand& cmd, Scope* scope) -> bool;
+
+    // Non-consuming handlers (augment the generic analysis path).
     void handle_set(const SegmentedCommand& cmd, Scope* scope);
-    void handle_namespace_eval(const SegmentedCommand& cmd, Scope* scope);
-    void handle_foreach(const SegmentedCommand& cmd, Scope* scope);
-    void handle_for(const SegmentedCommand& cmd, Scope* scope);
-    void handle_switch(const SegmentedCommand& cmd, Scope* scope);
-    void handle_catch(const SegmentedCommand& cmd, Scope* scope);
-    void handle_try(const SegmentedCommand& cmd, Scope* scope);
     void handle_incr(const SegmentedCommand& cmd, Scope* scope);
     void handle_variable_decl(const SegmentedCommand& cmd, Scope* scope);
     void handle_interp_alias(const SegmentedCommand& cmd);
     void handle_package(const SegmentedCommand& cmd);
     void handle_source(const SegmentedCommand& cmd);
-    void handle_if(const SegmentedCommand& cmd, Scope* scope);
-    void handle_while(const SegmentedCommand& cmd, Scope* scope);
+    void handle_expr(const SegmentedCommand& cmd, Scope* scope);
 
     // --- Switch body parsing ---
     void parse_switch_body(std::string_view body_text, const Token* body_token,

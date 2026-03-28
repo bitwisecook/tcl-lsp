@@ -28,7 +28,6 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
 
     const auto& cmd_name = cmd.texts[0];
     const auto args = cmd.args();
-    const auto atoks = cmd.arg_tokens();
 
     // Record command invocation.
     auto* resolved_proc = find_proc_call(cmd_name, scope);
@@ -51,69 +50,33 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
         result_.has_dynamic_providers_ = true;
     }
 
-    // --- Consuming special-case handlers (return early) ---
-
-    if (cmd_name == "proc" && args.size() >= 3) {
-        handle_proc(cmd, scope);
-        return;
-    }
-    if (cmd_name == "namespace" && args.size() >= 2 && args[0] == "eval") {
-        handle_namespace_eval(cmd, scope);
-        return;
-    }
-    if (cmd_name == "foreach" && args.size() >= 3) {
-        handle_foreach(cmd, scope);
-        return;
-    }
-    if (cmd_name == "for" && args.size() >= 4) {
-        handle_for(cmd, scope);
-        return;
-    }
-    if (cmd_name == "switch" && args.size() >= 2) {
-        handle_switch(cmd, scope);
-        return;
-    }
-    if (cmd_name == "catch" && !args.empty()) {
-        handle_catch(cmd, scope);
-        return;
-    }
-    if (cmd_name == "try" && !args.empty()) {
-        handle_try(cmd, scope);
-        return;
-    }
-    if (cmd_name == "if" && args.size() >= 2) {
-        handle_if(cmd, scope);
-        return;
-    }
-    if (cmd_name == "while" && args.size() >= 2) {
-        handle_while(cmd, scope);
-        return;
-    }
-    // dict for {key val} dict body
-    if (cmd_name == "dict" && args.size() >= 4 && args[0] == "for") {
-        define_vars_from_list(args[1], atoks.size() > 1 ? atoks[1] : cmd.argv[0], scope);
-        const Token* btok = atoks.size() > 3 ? &atoks[3] : nullptr;
-        analyse_body(args[3], scope, btok);
-        return;
+    // --- Consuming handlers (return early if command was fully handled) ---
+    static const std::unordered_map<std::string_view, ConsumingHandler> consuming_handlers{
+        {"proc",      &Analyser::handle_proc},
+        {"namespace", &Analyser::handle_namespace_eval},
+        {"foreach",   &Analyser::handle_foreach},
+        {"for",       &Analyser::handle_for},
+        {"switch",    &Analyser::handle_switch},
+        {"catch",     &Analyser::handle_catch},
+        {"try",       &Analyser::handle_try},
+        {"if",        &Analyser::handle_if},
+        {"while",     &Analyser::handle_while},
+        {"dict",      &Analyser::handle_dict},
+    };
+    if (auto it = consuming_handlers.find(cmd_name); it != consuming_handlers.end()) {
+        if ((this->*(it->second))(cmd, scope)) return;
     }
 
-    // --- Non-consuming special-case handlers ---
-
-    // expr: analyse all args as expressions (fundamental Tcl command).
-    if (cmd_name == "expr" && !args.empty()) {
-        for (const auto& arg : args) {
-            analyse_expr(arg, scope);
-        }
-    }
-
-    if (cmd_name == "set" && !args.empty()) {
-        handle_set(cmd, scope);
-    }
-    if ((cmd_name == "variable" || cmd_name == "global") && !args.empty()) {
-        handle_variable_decl(cmd, scope);
-    }
-    if (cmd_name == "incr" && !args.empty() && !atoks.empty()) {
-        handle_incr(cmd, scope);
+    // --- Non-consuming handlers (augment generic analysis) ---
+    static const std::unordered_map<std::string_view, NonConsumingHandler> non_consuming_handlers{
+        {"set",      &Analyser::handle_set},
+        {"incr",     &Analyser::handle_incr},
+        {"variable", &Analyser::handle_variable_decl},
+        {"global",   &Analyser::handle_variable_decl},
+        {"expr",     &Analyser::handle_expr},
+    };
+    if (auto it = non_consuming_handlers.find(cmd_name); it != non_consuming_handlers.end()) {
+        (this->*(it->second))(cmd, scope);
     }
     if (cmd_name == "interp") {
         handle_interp_alias(cmd);
@@ -153,8 +116,9 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
 // handle_proc
 // ---------------------------------------------------------------------------
 
-void Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) {
+auto Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) -> bool {
     const auto args = cmd.args();
+    if (args.size() < 3) return false;
     const auto atoks = cmd.arg_tokens();
 
     const auto& proc_name = args[0];
@@ -173,7 +137,7 @@ void Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) {
     }
     qualified = normalise_qualified_name(qualified, nullptr);
 
-    if (atoks.empty()) return;
+    if (atoks.empty()) return true;
     auto name_range = range_from_token(atoks[0]);
     auto body_range = atoks.size() > 2 ? range_from_token(atoks[2]) : name_range;
 
@@ -251,6 +215,7 @@ void Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) {
         norm_qual == "tcl::unknown") {
         extract_unknown_proc_info(body);
     }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -314,11 +279,11 @@ void Analyser::handle_variable_decl(const SegmentedCommand& cmd, Scope* scope) {
 // handle_namespace_eval
 // ---------------------------------------------------------------------------
 
-void Analyser::handle_namespace_eval(const SegmentedCommand& cmd, Scope* scope) {
+auto Analyser::handle_namespace_eval(const SegmentedCommand& cmd, Scope* scope) -> bool {
     const auto args = cmd.args();
+    if (args.size() < 2 || args[0] != "eval") return false;
     const auto atoks = cmd.arg_tokens();
     // args[0]="eval", args[1]=ns_name, args[2]=body
-    if (args.size() < 2) return;
     const auto& ns_name = args[1];
 
     auto* ns_scope = make_child_scope(ScopeKind::NAMESPACE, ns_name, scope);
@@ -330,14 +295,16 @@ void Analyser::handle_namespace_eval(const SegmentedCommand& cmd, Scope* scope) 
         const Token* btok = atoks.size() > 2 ? &atoks[2] : nullptr;
         analyse_body(args[2], ns_scope, btok);
     }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
 // handle_foreach
 // ---------------------------------------------------------------------------
 
-void Analyser::handle_foreach(const SegmentedCommand& cmd, Scope* scope) {
+auto Analyser::handle_foreach(const SegmentedCommand& cmd, Scope* scope) -> bool {
     const auto args = cmd.args();
+    if (args.size() < 3) return false;
     const auto atoks = cmd.arg_tokens();
 
     if (!atoks.empty()) {
@@ -346,14 +313,16 @@ void Analyser::handle_foreach(const SegmentedCommand& cmd, Scope* scope) {
 
     const Token* btok = !atoks.empty() ? &atoks.back() : nullptr;
     analyse_body(args.back(), scope, btok);
+    return true;
 }
 
 // ---------------------------------------------------------------------------
 // handle_for
 // ---------------------------------------------------------------------------
 
-void Analyser::handle_for(const SegmentedCommand& cmd, Scope* scope) {
+auto Analyser::handle_for(const SegmentedCommand& cmd, Scope* scope) -> bool {
     const auto args = cmd.args();
+    if (args.size() < 4) return false;
     const auto atoks = cmd.arg_tokens();
 
     const Token* init_tok = !atoks.empty() ? &atoks[0] : nullptr;
@@ -372,14 +341,16 @@ void Analyser::handle_for(const SegmentedCommand& cmd, Scope* scope) {
         const Token* body_tok = atoks.size() > 3 ? &atoks[3] : nullptr;
         analyse_body(args[3], scope, body_tok);
     }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
 // handle_switch
 // ---------------------------------------------------------------------------
 
-void Analyser::handle_switch(const SegmentedCommand& cmd, Scope* scope) {
+auto Analyser::handle_switch(const SegmentedCommand& cmd, Scope* scope) -> bool {
     const auto args = cmd.args();
+    if (args.size() < 2) return false;
     const auto atoks = cmd.arg_tokens();
 
     // Parse options to detect -regexp.
@@ -422,6 +393,7 @@ void Analyser::handle_switch(const SegmentedCommand& cmd, Scope* scope) {
             i += 2;
         }
     }
+    return true;
 }
 
 void Analyser::parse_switch_body(std::string_view body_text, const Token* body_token,
@@ -469,8 +441,9 @@ void Analyser::parse_switch_body(std::string_view body_text, const Token* body_t
 // handle_catch
 // ---------------------------------------------------------------------------
 
-void Analyser::handle_catch(const SegmentedCommand& cmd, Scope* scope) {
+auto Analyser::handle_catch(const SegmentedCommand& cmd, Scope* scope) -> bool {
     const auto args = cmd.args();
+    if (args.empty()) return false;
     const auto atoks = cmd.arg_tokens();
 
     const Token* body_tok = !atoks.empty() ? &atoks[0] : nullptr;
@@ -484,14 +457,16 @@ void Analyser::handle_catch(const SegmentedCommand& cmd, Scope* scope) {
             define_var(args[i], range_from_token(atoks[i]), scope, false);
         }
     }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
 // handle_try
 // ---------------------------------------------------------------------------
 
-void Analyser::handle_try(const SegmentedCommand& cmd, Scope* scope) {
+auto Analyser::handle_try(const SegmentedCommand& cmd, Scope* scope) -> bool {
     const auto args = cmd.args();
+    if (args.empty()) return false;
     const auto atoks = cmd.arg_tokens();
 
     // First arg is the try body.
@@ -513,6 +488,7 @@ void Analyser::handle_try(const SegmentedCommand& cmd, Scope* scope) {
             ++i;
         }
     }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -531,8 +507,9 @@ void Analyser::handle_incr(const SegmentedCommand& cmd, Scope* scope) {
 // handle_if
 // ---------------------------------------------------------------------------
 
-void Analyser::handle_if(const SegmentedCommand& cmd, Scope* scope) {
+auto Analyser::handle_if(const SegmentedCommand& cmd, Scope* scope) -> bool {
     const auto args = cmd.args();
+    if (args.size() < 2) return false;
     const auto atoks = cmd.arg_tokens();
 
     conditional_depth_++;
@@ -576,21 +553,50 @@ void Analyser::handle_if(const SegmentedCommand& cmd, Scope* scope) {
     }
 
     conditional_depth_--;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
 // handle_while
 // ---------------------------------------------------------------------------
 
-void Analyser::handle_while(const SegmentedCommand& cmd, Scope* scope) {
+auto Analyser::handle_while(const SegmentedCommand& cmd, Scope* scope) -> bool {
     const auto args = cmd.args();
+    if (args.size() < 2) return false;
     const auto atoks = cmd.arg_tokens();
-    if (args.size() < 2) return;
 
     analyse_expr(args[0], scope);
 
     const Token* btok = atoks.size() > 1 ? &atoks[1] : nullptr;
     analyse_body(args[1], scope, btok);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// handle_dict
+// ---------------------------------------------------------------------------
+
+auto Analyser::handle_dict(const SegmentedCommand& cmd, Scope* scope) -> bool {
+    const auto args = cmd.args();
+    if (args.size() < 4 || args[0] != "for") return false;
+    const auto atoks = cmd.arg_tokens();
+
+    define_vars_from_list(args[1], atoks.size() > 1 ? atoks[1] : cmd.argv[0], scope);
+    const Token* btok = atoks.size() > 3 ? &atoks[3] : nullptr;
+    analyse_body(args[3], scope, btok);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// handle_expr
+// ---------------------------------------------------------------------------
+
+void Analyser::handle_expr(const SegmentedCommand& cmd, Scope* scope) {
+    const auto args = cmd.args();
+    if (args.empty()) return;
+    for (const auto& arg : args) {
+        analyse_expr(arg, scope);
+    }
 }
 
 // ---------------------------------------------------------------------------
