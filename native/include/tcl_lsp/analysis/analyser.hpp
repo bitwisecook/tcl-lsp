@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -49,7 +50,7 @@ class Analyser {
                             const std::string& target_cmd,
                             std::vector<std::string> prepended_args);
         auto resolve(const std::string& cmd_name,
-                     const std::vector<std::string>& args,
+                     std::span<const std::string> args,
                      const std::string& ns) const
             -> std::pair<std::string, std::vector<std::string>>;
         void clear() { aliases_.clear(); }
@@ -105,7 +106,7 @@ class Analyser {
     // --- Proc call ---
     auto find_proc_call(const std::string& cmd_name, Scope* scope) -> ProcDef*;
     void check_proc_call_arity(const ProcDef& proc_def,
-                                const std::vector<std::string>& args,
+                                std::span<const std::string> args,
                                 const Token& cmd_token);
 
     // --- Generic body analysis via arg roles ---

@@ -800,7 +800,7 @@ auto Analyser::find_proc_call(const std::string& cmd_name, Scope* scope) -> Proc
 // ---------------------------------------------------------------------------
 
 void Analyser::check_proc_call_arity(const ProcDef& proc_def,
-                                     const std::vector<std::string>& args,
+                                     std::span<const std::string> args,
                                      const Token& cmd_token) {
     int32_t required = 0;
     bool variadic = false;
