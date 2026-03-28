@@ -27,26 +27,22 @@ Analyser::Analyser(const CommandRegistryInterface* registry,
 // ---------------------------------------------------------------------------
 
 auto Analyser::analyse(std::string_view source) -> AnalysisResult {
-    result_ = AnalysisResult{};
-    current_scope_ = &result_.global_scope();
-    conditional_depth_ = 0;
-    last_comment_.clear();
-    alias_resolver_.clear();
-    unresolved_commands_emitted_ = false;
+    s_ = Session{};
+    s_.current_scope = &s_.result.global_scope();
 
     // Pre-scan for inline stub blocks.
     auto stubs = scan_source_for_stubs(source);
-    result_.stub_commands_.insert(result_.stub_commands_.end(),
-                                 std::make_move_iterator(stubs.commands.begin()),
-                                 std::make_move_iterator(stubs.commands.end()));
-    result_.stub_expr_defs_.insert(result_.stub_expr_defs_.end(),
-                                   std::make_move_iterator(stubs.expressions.begin()),
-                                   std::make_move_iterator(stubs.expressions.end()));
+    s_.result.stub_commands_.insert(s_.result.stub_commands_.end(),
+                                   std::make_move_iterator(stubs.commands.begin()),
+                                   std::make_move_iterator(stubs.commands.end()));
+    s_.result.stub_expr_defs_.insert(s_.result.stub_expr_defs_.end(),
+                                     std::make_move_iterator(stubs.expressions.begin()),
+                                     std::make_move_iterator(stubs.expressions.end()));
 
-    analyse_body(source, &result_.global_scope());
+    analyse_body(source, &s_.result.global_scope());
     emit_unresolved_command_diagnostics();
     dedupe_diagnostics();
-    return std::move(result_);
+    return std::move(s_.result);
 }
 
 // ---------------------------------------------------------------------------
@@ -56,19 +52,15 @@ auto Analyser::analyse(std::string_view source) -> AnalysisResult {
 auto Analyser::analyse_commands(std::string_view source,
                                 const std::vector<SegmentedCommand>& commands,
                                 bool finalise) -> AnalysisResult {
-    result_ = AnalysisResult{};
-    current_scope_ = &result_.global_scope();
-    conditional_depth_ = 0;
-    last_comment_.clear();
-    alias_resolver_.clear();
-    unresolved_commands_emitted_ = false;
+    s_ = Session{};
+    s_.current_scope = &s_.result.global_scope();
 
-    analyse_commands_inner(commands, &result_.global_scope(), source);
+    analyse_commands_inner(commands, &s_.result.global_scope(), source);
     if (finalise) {
         emit_unresolved_command_diagnostics();
         dedupe_diagnostics();
     }
-    return std::move(result_);
+    return std::move(s_.result);
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +70,7 @@ auto Analyser::analyse_commands(std::string_view source,
 void Analyser::analyse_body(std::string_view source, Scope* scope,
                             const Token* body_token) {
     auto [commands, recovery_diags] = segment_with_recovery(source, body_token);
-    result_.diagnostics_.insert(result_.diagnostics_.end(),
+    s_.result.diagnostics_.insert(s_.result.diagnostics_.end(),
                                std::make_move_iterator(recovery_diags.begin()),
                                std::make_move_iterator(recovery_diags.end()));
     analyse_commands_inner(commands, scope, source);
@@ -93,14 +85,14 @@ void Analyser::analyse_commands_inner(const std::vector<SegmentedCommand>& comma
     for (const auto& cmd : commands) {
         // Track preceding comments and handle noqa suppression.
         if (cmd.preceding_comment.has_value()) {
-            last_comment_ = *cmd.preceding_comment;
+            s_.last_comment = *cmd.preceding_comment;
 
-            auto lower = last_comment_;
+            auto lower = s_.last_comment;
             std::transform(lower.begin(), lower.end(), lower.begin(),
                            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
             auto noqa_pos = lower.find("noqa");
             if (noqa_pos != std::string::npos) {
-                auto rest = last_comment_.substr(noqa_pos + 4);
+                auto rest = s_.last_comment.substr(noqa_pos + 4);
                 auto ws = rest.find_first_not_of(" \t");
                 if (ws != std::string::npos) {
                     rest = rest.substr(ws);
@@ -127,7 +119,7 @@ void Analyser::analyse_commands_inner(const std::vector<SegmentedCommand>& comma
                 }
 
                 for (auto ln = cmd.range.start.line; ln <= cmd.range.end.line; ++ln) {
-                    auto& existing = result_.suppressed_lines_[ln];
+                    auto& existing = s_.result.suppressed_lines_[ln];
                     existing.insert(codes.begin(), codes.end());
                 }
             }

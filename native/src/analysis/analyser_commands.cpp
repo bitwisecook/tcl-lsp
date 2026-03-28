@@ -31,7 +31,7 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
 
     // Record command invocation.
     auto* resolved_proc = find_proc_call(cmd_name, scope);
-    result_.command_invocations_.push_back(CommandInvocation{
+    s_.result.command_invocations_.push_back(CommandInvocation{
         cmd_name, range_from_token(cmd.argv[0]),
         resolved_proc ? resolved_proc->qualified_name : ""});
 
@@ -40,14 +40,14 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
     handle_source(cmd);
 
     if (cmd_name == "load") {
-        result_.has_dynamic_providers_ = true;
+        s_.result.has_dynamic_providers_ = true;
     } else if ((cmd_name == "set" || cmd_name == "lappend") && !args.empty() &&
                args[0] == "auto_path") {
-        result_.has_dynamic_providers_ = true;
+        s_.result.has_dynamic_providers_ = true;
     } else if (cmd_name == "rename") {
-        result_.has_dynamic_providers_ = true;
+        s_.result.has_dynamic_providers_ = true;
     } else if (cmd_name == "namespace" && args.size() >= 2 && args[0] == "import") {
-        result_.has_dynamic_providers_ = true;
+        s_.result.has_dynamic_providers_ = true;
     }
 
     // --- Consuming handlers (return early if command was fully handled) ---
@@ -101,7 +101,7 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
             }
         }
         if (!has_sig) {
-            auto [role_cmd, role_args] = alias_resolver_.resolve(
+            auto [role_cmd, role_args] = s_.alias_resolver.resolve(
                 cmd_name, args, scope ? namespace_from_scope(scope) : "::");
             if (role_cmd != cmd_name) {
                 has_sig = registry_->signature(role_cmd).has_value();
@@ -165,8 +165,8 @@ auto Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) -> bool {
     }
 
     // Extract doc from preceding comment.
-    auto doc = last_comment_;
-    last_comment_.clear();
+    auto doc = s_.last_comment;
+    s_.last_comment.clear();
 
     ProcDef proc_def;
     proc_def.name = proc_name;
@@ -177,7 +177,7 @@ auto Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) -> bool {
     proc_def.doc = doc;
 
     scope->procs[proc_name] = proc_def;
-    result_.all_procs_[qualified] = &scope->procs[proc_name];
+    s_.result.all_procs_[qualified] = &scope->procs[proc_name];
 
     // Create proc child scope.
     auto* proc_scope = make_child_scope(ScopeKind::PROC, proc_name, scope);
@@ -190,10 +190,10 @@ auto Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) -> bool {
     }
 
     // Analyse body.
-    auto saved_comment = last_comment_;
+    auto saved_comment = s_.last_comment;
     const Token* body_tok = atoks.size() > 2 ? &atoks[2] : nullptr;
     analyse_body(body, proc_scope, body_tok);
-    last_comment_ = saved_comment;
+    s_.last_comment = saved_comment;
 
     // W214: unused proc parameters.
     for (const auto& p : params) {
@@ -377,13 +377,13 @@ auto Analyser::handle_switch(const SegmentedCommand& cmd, Scope* scope) -> bool 
                 if (pat_tok.type == TokenType::VAR) {
                     auto cv = lookup_const_string(pat_tok.text, scope);
                     if (cv.has_value()) {
-                        result_.regex_patterns_.push_back(
+                        s_.result.regex_patterns_.push_back(
                             RegexPattern{range_from_token(pat_tok), cv->first, "switch"});
                         scope->regex_vars.insert(pat_tok.text);
                         record_defining_set_as_regex(pat_tok.text, scope, "switch");
                     }
                 } else {
-                    result_.regex_patterns_.push_back(
+                    s_.result.regex_patterns_.push_back(
                         RegexPattern{range_from_token(pat_tok), args[i], "switch"});
                 }
             }
@@ -420,13 +420,13 @@ void Analyser::parse_switch_body(std::string_view body_text, const Token* body_t
             if (pat_tok.type == TokenType::VAR) {
                 auto cv = lookup_const_string(pat_tok.text, scope);
                 if (cv.has_value()) {
-                    result_.regex_patterns_.push_back(
+                    s_.result.regex_patterns_.push_back(
                         RegexPattern{range_from_token(pat_tok), cv->first, "switch"});
                     scope->regex_vars.insert(pat_tok.text);
                     record_defining_set_as_regex(pat_tok.text, scope, "switch");
                 }
             } else {
-                result_.regex_patterns_.push_back(
+                s_.result.regex_patterns_.push_back(
                     RegexPattern{range_from_token(pat_tok), elements[i], "switch"});
             }
         }
@@ -448,9 +448,9 @@ auto Analyser::handle_catch(const SegmentedCommand& cmd, Scope* scope) -> bool {
     const auto atoks = cmd.arg_tokens();
 
     const Token* body_tok = !atoks.empty() ? &atoks[0] : nullptr;
-    conditional_depth_++;
+    s_.conditional_depth++;
     analyse_body(args[0], scope, body_tok);
-    conditional_depth_--;
+    s_.conditional_depth--;
 
     // Optional result/options variables (indices 1, 2).
     for (std::size_t i = 1; i < std::min(args.size(), std::size_t{3}); ++i) {
@@ -513,7 +513,7 @@ auto Analyser::handle_if(const SegmentedCommand& cmd, Scope* scope) -> bool {
     if (args.size() < 2) return false;
     const auto atoks = cmd.arg_tokens();
 
-    conditional_depth_++;
+    s_.conditional_depth++;
 
     // if expr ?then? body ?elseif expr ?then? body?... ?else bodyN?
     std::size_t i = 0;
@@ -553,7 +553,7 @@ auto Analyser::handle_if(const SegmentedCommand& cmd, Scope* scope) -> bool {
         }
     }
 
-    conditional_depth_--;
+    s_.conditional_depth--;
     return true;
 }
 
@@ -622,8 +622,8 @@ void Analyser::handle_interp_alias(const SegmentedCommand& cmd) {
     auto qualified = normalise_qualified_name(alias_name, nullptr);
     std::vector<std::string> prepended(args.begin() + 5, args.end());
 
-    alias_resolver_.register_alias(qualified, target_cmd, prepended);
-    result_.command_aliases_[qualified] = {target_cmd, std::vector<std::string>(prepended)};
+    s_.alias_resolver.register_alias(qualified, target_cmd, prepended);
+    s_.result.command_aliases_[qualified] = {target_cmd, std::vector<std::string>(prepended)};
 }
 
 // ---------------------------------------------------------------------------
@@ -644,12 +644,12 @@ void Analyser::handle_package(const SegmentedCommand& cmd) {
         } else {
             pkg_version = args.size() >= 3 ? args[2] : "";
         }
-        result_.package_requires_.push_back(PackageRequire{
+        s_.result.package_requires_.push_back(PackageRequire{
             pkg_name, pkg_version, range_from_token(cmd.argv[0]),
-            conditional_depth_ > 0});
+            s_.conditional_depth > 0});
     } else if (args[0] == "provide" && args.size() >= 2) {
         auto pkg_version = args.size() >= 3 ? args[2] : std::string{};
-        result_.package_provides_.push_back(PackageProvide{
+        s_.result.package_provides_.push_back(PackageProvide{
             args[1], pkg_version, range_from_token(cmd.argv[0])});
     }
 }
@@ -672,7 +672,7 @@ void Analyser::handle_source(const SegmentedCommand& cmd) {
                   path.find('$') == std::string::npos &&
                   path.find('[') == std::string::npos;
 
-    result_.source_targets_.push_back(SourceTarget{path, range_from_token(st), is_lit});
+    s_.result.source_targets_.push_back(SourceTarget{path, range_from_token(st), is_lit});
 }
 
 // ---------------------------------------------------------------------------
@@ -686,7 +686,7 @@ void Analyser::analyse_body_args(const SegmentedCommand& cmd, Scope* scope) {
     const auto args = cmd.args();
     const auto atoks = cmd.arg_tokens();
 
-    auto [role_cmd, role_args] = alias_resolver_.resolve(
+    auto [role_cmd, role_args] = s_.alias_resolver.resolve(
                 cmd_name, args, scope ? namespace_from_scope(scope) : "::");
     auto prepend_n = static_cast<int32_t>(role_args.size()) -
                      static_cast<int32_t>(args.size());
@@ -743,13 +743,13 @@ void Analyser::analyse_body_args(const SegmentedCommand& cmd, Scope* scope) {
                     if (pt.type == TokenType::VAR) {
                         auto cv = lookup_const_string(pt.text, scope);
                         if (cv.has_value()) {
-                            result_.regex_patterns_.push_back(
+                            s_.result.regex_patterns_.push_back(
                                 RegexPattern{range_from_token(pt), cv->first, role_cmd});
                             scope->regex_vars.insert(pt.text);
                             record_defining_set_as_regex(pt.text, scope, role_cmd);
                         }
                     } else {
-                        result_.regex_patterns_.push_back(
+                        s_.result.regex_patterns_.push_back(
                             RegexPattern{range_from_token(pt), args[uidx], role_cmd});
                     }
                 }
@@ -773,8 +773,8 @@ auto Analyser::find_proc_call(const std::string& cmd_name, Scope* scope) -> Proc
     auto try_find = [&](const std::string& raw) -> ProcDef* {
         auto q = normalise_qualified_name(raw, nullptr);
         if (q.empty()) return nullptr;
-        auto it = result_.all_procs_.find(q);
-        return it != result_.all_procs_.end() ? it->second : nullptr;
+        auto it = s_.result.all_procs_.find(q);
+        return it != s_.result.all_procs_.end() ? it->second : nullptr;
     };
 
     if (cmd_name.starts_with("::")) {

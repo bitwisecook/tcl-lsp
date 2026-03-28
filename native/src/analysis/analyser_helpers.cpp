@@ -76,7 +76,7 @@ void Analyser::define_var(const std::string& name, Range range, Scope* scope,
     auto it = scope->variables.find(base);
     if (it == scope->variables.end()) {
         scope->variables[base] = VarDef{base, range, {}, warn_if_unused};
-        result_.all_variables_[scope->name + "::" + base] = &scope->variables[base];
+        s_.result.all_variables_[scope->name + "::" + base] = &scope->variables[base];
         return;
     }
     if (warn_if_unused) {
@@ -96,9 +96,9 @@ void Analyser::record_var_read(const std::string& name, Range range, Scope* scop
 
     // Cross-scope variables (::var, static::var) — check global scope.
     if ((base.starts_with("::") || base.starts_with("static::")) &&
-        scope != &result_.global_scope()) {
-        auto git = result_.global_scope().variables.find(base);
-        if (git != result_.global_scope().variables.end()) {
+        scope != &s_.result.global_scope()) {
+        auto git = s_.result.global_scope().variables.find(base);
+        if (git != s_.result.global_scope().variables.end()) {
             git->second.references.push_back(range);
         }
     }
@@ -136,7 +136,7 @@ void Analyser::record_defining_set_as_regex(const std::string& var_name, Scope* 
     while (s != nullptr) {
         auto it = s->const_strings.find(var_name);
         if (it != s->const_strings.end()) {
-            result_.regex_patterns_.push_back(RegexPattern{
+            s_.result.regex_patterns_.push_back(RegexPattern{
                 it->second.second, it->second.first, command});
             return;
         }
@@ -253,11 +253,11 @@ void Analyser::extract_unknown_proc_info(const std::string& proc_body) {
     auto start = proc_body.find_first_not_of(" \t\n\r");
     if (start == std::string::npos) {
         // Empty stub — does not suppress W123.
-        result_.unknown_proc_info_ = UnknownProcInfo{{}, false, true, false, false, false, false};
+        s_.result.unknown_proc_info_ = UnknownProcInfo{{}, false, true, false, false, false, false};
         return;
     }
     // Without IR analysis, be conservative — treat as opaque handler.
-    result_.unknown_proc_info_ =
+    s_.result.unknown_proc_info_ =
         UnknownProcInfo{{}, true, false, true, true, true, true};
 }
 
@@ -266,8 +266,8 @@ void Analyser::extract_unknown_proc_info(const std::string& proc_body) {
 // ---------------------------------------------------------------------------
 
 void Analyser::emit_unresolved_command_diagnostics() {
-    if (unresolved_commands_emitted_) return;
-    unresolved_commands_emitted_ = true;
+    if (s_.unresolved_commands_emitted) return;
+    s_.unresolved_commands_emitted = true;
 
     if (disabled_diagnostics_.contains("W123")) return;
 
@@ -278,13 +278,13 @@ void Analyser::emit_unresolved_command_diagnostics() {
         registry_names.insert(names.begin(), names.end());
     }
     std::unordered_set<std::string> stub_names;
-    for (const auto& s : result_.stub_commands_) {
+    for (const auto& s : s_.result.stub_commands_) {
         stub_names.insert(s.name);
     }
 
     // Build proc tail names.
     std::unordered_set<std::string> proc_tail_names;
-    for (const auto& [qname, _] : result_.all_procs_) {
+    for (const auto& [qname, _] : s_.result.all_procs_) {
         auto sep = qname.rfind("::");
         if (sep != std::string::npos) {
             auto tail = qname.substr(sep + 2);
@@ -293,21 +293,21 @@ void Analyser::emit_unresolved_command_diagnostics() {
     }
 
     // Check unknown proc info for suppression.
-    auto& upi = result_.unknown_proc_info_;
+    auto& upi = s_.result.unknown_proc_info_;
     if (upi.has_value() &&
         (upi->chains_original || upi->has_exec || upi->has_auto_load ||
          upi->case_insensitive || upi->has_pattern_dispatch)) {
         return;
     }
-    if (result_.has_dynamic_providers_) return;
-    if (!result_.package_requires_.empty()) return;
+    if (s_.result.has_dynamic_providers_) return;
+    if (!s_.result.package_requires_.empty()) return;
 
     auto dispatch_targets =
         upi.has_value() ? upi->dispatch_targets : std::unordered_set<std::string>{};
 
     // Alias tail names.
     std::unordered_set<std::string> alias_names;
-    for (const auto& [qname, _] : result_.command_aliases_) {
+    for (const auto& [qname, _] : s_.result.command_aliases_) {
         auto sep = qname.rfind("::");
         if (sep != std::string::npos) {
             auto tail = qname.substr(sep + 2);
@@ -323,7 +323,7 @@ void Analyser::emit_unresolved_command_diagnostics() {
     candidates.insert(dispatch_targets.begin(), dispatch_targets.end());
     candidates.insert(alias_names.begin(), alias_names.end());
 
-    for (const auto& inv : result_.command_invocations_) {
+    for (const auto& inv : s_.result.command_invocations_) {
         const auto& name = inv.name;
 
         if (registry_names.contains(name)) continue;
@@ -386,25 +386,25 @@ void Analyser::dedupe_diagnostics() {
 
     // Collect E101 lines for redundant E002 suppression.
     std::unordered_set<int32_t> e101_lines;
-    for (const auto& d : result_.diagnostics_) {
+    for (const auto& d : s_.result.diagnostics_) {
         if (d.code == DiagCode::E101) e101_lines.insert(d.range.start.line);
     }
 
     std::unordered_set<Key, Key::Hash> seen;
     std::vector<Diagnostic> deduped;
-    for (auto& d : result_.diagnostics_) {
+    for (auto& d : s_.result.diagnostics_) {
         Key key{d.code, d.range.start.offset, d.range.end.offset, d.message, d.severity};
         if (seen.contains(key)) continue;
         if (d.code == DiagCode::E002 && e101_lines.contains(d.range.start.line)) continue;
         seen.insert(key);
         deduped.push_back(std::move(d));
     }
-    result_.diagnostics_ = std::move(deduped);
+    s_.result.diagnostics_ = std::move(deduped);
 }
 
 auto Analyser::is_diagnostic_suppressed(int32_t line, DiagCode code) const -> bool {
-    auto it = result_.suppressed_lines_.find(line);
-    if (it == result_.suppressed_lines_.end()) return false;
+    auto it = s_.result.suppressed_lines_.find(line);
+    if (it == s_.result.suppressed_lines_.end()) return false;
     return it->second.contains("*") || it->second.contains(to_string(code));
 }
 
@@ -412,7 +412,7 @@ void Analyser::emit_diagnostic(Range range, Severity severity, DiagCode code,
                                const std::string& message, std::vector<CodeFix> fixes) {
     if (disabled_diagnostics_.contains(to_string(code))) return;
     if (is_diagnostic_suppressed(range.start.line, code)) return;
-    result_.diagnostics_.push_back(
+    s_.result.diagnostics_.push_back(
         Diagnostic{range, severity, code, message, std::move(fixes)});
 }
 
