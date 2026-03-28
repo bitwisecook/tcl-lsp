@@ -77,8 +77,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-20.x: singleton/abstract/tag
     # oo-21.x: readableproperties/writableproperties
     # oo-22.x: property
-    "oo-22.1",
-    "oo-22.2",
     "oo-22.3",
     "oo-22.4",
     "oo-22.5",

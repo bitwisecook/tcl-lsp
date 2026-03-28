@@ -283,6 +283,7 @@ class CallFrame:
         "_oo_filter_method_name",
         "_oo_filter_method_args",
         "_oo_instance_vars",
+        "_info_parent",
     )
 
     def __init__(
@@ -317,6 +318,9 @@ class CallFrame:
         # Instance variable backing store: (obj._vars dict, set of var names)
         # When set, get_var/set_var for these names proxy to obj._vars.
         self._oo_instance_vars: tuple[dict[str, str], set[str]] | None = None
+        # True call parent for `info frame` depth (differs from `parent`
+        # for next-chained methods where parent is skipped for upvar).
+        self._info_parent: CallFrame | None = None
         # Optional interpreter reference for firing variable traces.
         self._interp = interp
 

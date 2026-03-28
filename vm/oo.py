@@ -1045,10 +1045,11 @@ class OORuntime:
         # the object rather than polluting the global namespace.
         proc_ns = ensure_namespace(interp.root_namespace, obj.namespace)
 
-        # When invoked via ``next``, the new frame shares the same
-        # parent and level as the calling method frame so that
-        # ``upvar 1`` reaches the original caller — matching real Tcl
-        # semantics where chained methods are at the same call depth.
+        # When invoked via ``next``, chained methods share the same
+        # ``level`` as the calling method frame so that ``upvar 1``
+        # reaches the original caller.  The frame's ``parent`` is set
+        # to the calling method's parent (for upvar resolution), but
+        # ``_info_parent`` tracks the true call chain for ``info frame``.
         if via_next:
             parent_frame = interp.current_frame.parent or interp.current_frame
             frame_level = interp.current_frame.level
@@ -1064,6 +1065,11 @@ class OORuntime:
             interp=interp,
             call_args=args,
         )
+        # For `next` chains, track the true call parent for `info frame` depth.
+        # `parent` is used for upvar resolution (same as calling method's parent),
+        # `_info_parent` tracks the actual call chain.
+        if via_next:
+            frame._info_parent = interp.current_frame
 
         # Bind instance variables into the frame — collect from all
         # classes in the MRO that declare variables.

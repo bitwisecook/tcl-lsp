@@ -241,8 +241,19 @@ def _cmd_info(interp: TclInterp, args: list[str]) -> TclResult:
 
         case "frame":
             if not rest:
-                return TclResult(value=str(interp.current_frame.level))
-            return TclResult(value="")
+                # Return current frame depth, using _info_parent for
+                # true call chain depth (next-chained methods count).
+                depth = 0
+                f = interp.current_frame
+                while f is not None:
+                    depth += 1
+                    f = getattr(f, "_info_parent", None) or getattr(f, "parent", None)
+                return TclResult(value=str(depth))
+            try:
+                frame_level = int(rest[0])
+            except ValueError:
+                raise TclError(f'expected integer but got "{rest[0]}"')
+            return _info_frame(interp, frame_level)
 
         case "complete":
             if not rest:
@@ -265,6 +276,80 @@ def _cmd_info(interp: TclInterp, args: list[str]) -> TclResult:
                 + ", or "
                 + _INFO_SUBCMDS[-1]
             )
+
+
+def _info_frame(interp: TclInterp, level: int) -> TclResult:
+    """Return dict describing a call frame.
+
+    ``info frame 0`` is the current frame.  Positive *level* is an
+    absolute frame number (1 = outermost).  Negative *level* is
+    relative to the current frame.
+    """
+    from ..machine import _list_escape
+
+    # Build frame stack using _info_parent for true call depth
+    frames: list[object] = []
+    f = interp.current_frame
+    while f is not None:
+        frames.append(f)
+        f = getattr(f, "_info_parent", None) or getattr(f, "parent", None)
+    frames.reverse()  # frames[0] = outermost, frames[-1] = current
+
+    if level == 0:
+        target = interp.current_frame
+    elif level > 0:
+        if level > len(frames):
+            raise TclError(f"bad level \"{level}\"")
+        target = frames[level - 1]
+    else:
+        idx = len(frames) + level
+        if idx < 0:
+            raise TclError(f"bad level \"{level}\"")
+        target = frames[idx]
+
+    # Build result dict as key-value pairs
+    parts: list[str] = []
+    parts.append("type")
+    parts.append(getattr(target, "_frame_type", "eval"))
+
+    # cmd: the currently executing command text.  When the target is the
+    # current frame, this is always "info frame <level>".
+    cmd = getattr(target, "_current_cmd", None)
+    if cmd:
+        parts.append("cmd")
+        parts.append(cmd)
+    elif target is interp.current_frame:
+        parts.append("cmd")
+        parts.append(f"info frame {level}")
+
+    # proc: only for non-OO procedures
+    oo_method = getattr(target, "_oo_method", None)
+    if oo_method is None:
+        proc_name = getattr(target, "proc_name", None)
+        if proc_name:
+            parts.append("proc")
+            parts.append(proc_name)
+
+    # OO method context
+    if oo_method and oo_method not in ("<constructor>", "<destructor>"):
+        parts.append("method")
+        parts.append(oo_method)
+    oo_class = getattr(target, "_oo_class", None)
+    oo_self = getattr(target, "_oo_self", None)
+    if oo_class and not oo_class.startswith("__instance__"):
+        # Class-defined method: show class, not object
+        parts.append("class")
+        parts.append(oo_class)
+    elif oo_self:
+        # Instance (per-object) method: show object, not class
+        parts.append("object")
+        parts.append(oo_self)
+
+    # level: 0 for current frame context
+    parts.append("level")
+    parts.append("0")
+
+    return TclResult(value=" ".join(_list_escape(p) for p in parts))
 
 
 def _get_oo(interp: TclInterp):
