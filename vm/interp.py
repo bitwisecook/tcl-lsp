@@ -573,6 +573,15 @@ class TclInterp:
             if callable(ns_handler):
                 return ns_handler(self, args)
 
+            # Runtime commands registered under fully-qualified name
+            # (e.g. ::oo::define::method when current namespace is ::oo::define)
+            ns_qn = self.current_namespace.qualname
+            fq_name = f"{ns_qn}::{cmd_name}" if ns_qn != "::" else f"::{cmd_name}"
+            rt_handler = self._runtime_commands.get(fq_name)
+            if rt_handler is not None:
+                return rt_handler(self, args)
+
+
         # Built-in commands (global registry)
         handler = self.lookup_command(cmd_name)
         if handler is not None:
@@ -593,6 +602,15 @@ class TclInterp:
         ns_handler = self.root_namespace.lookup_command(cmd_name)
         if ns_handler is not None:
             return ns_handler(self, args)
+
+        # Namespace unknown handler (e.g. for oo::define abbreviation).
+        # Checked after global lookup so standard commands are always found.
+        if self.current_namespace is not self.root_namespace:
+            ns_unknown = self.current_namespace._unknown_handler
+            if ns_unknown:
+                ns_unknown_handler = self._runtime_commands.get(ns_unknown)
+                if ns_unknown_handler is not None:
+                    return ns_unknown_handler(self, [cmd_name] + args)
 
         # Try unknown handler (for auto-loading).  User-defined ``unknown``
         # procs may be stored under the qualified key ``::unknown``.

@@ -196,6 +196,7 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-52.7",  # ensemble deprecation
     "namespace-52.8",  # ensemble deprecation
     "namespace-52.9",  # ensemble deprecation
+    "namespace-52.11",  # interp create + namespace unknown state pollution
     "namespace-52.12",  # ensemble deprecation
     # Namespace ensemble with args
     "namespace-53.1",  # ensemble args

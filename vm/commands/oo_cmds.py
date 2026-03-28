@@ -136,222 +136,495 @@ def _split_body_lines(body: str) -> list[str]:
     return lines
 
 
+def _define_method(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::method — define a method on the current class or object."""
+    cls = getattr(interp, "_defining_class", None)
+    obj = getattr(interp, "_defining_object", None)
+    if cls is None and obj is None:
+        raise TclError("this command may only be called from within the body of an oo::define command")
+    if len(args) < 3:
+        raise TclError('wrong # args: should be "method name args body"')
+    name = args[0]
+    # Check for -export/-unexport/-private flag
+    flag_vis = None
+    if args[1].startswith("-") and len(args) >= 4:
+        flag = args[1]
+        if flag == "-export":
+            flag_vis = "public"
+        elif flag == "-unexport":
+            flag_vis = "unexported"
+        elif flag == "-private":
+            flag_vis = "private"
+        else:
+            raise TclError(
+                f'bad export flag "{flag}": must be -export, -private, or -unexport'
+            )
+        param_str, method_body = args[2], args[3]
+    else:
+        param_str, method_body = args[1], args[2]
+    params, param_names, has_args = _parse_method_params(param_str)
+    vis = flag_vis if flag_vis is not None else _default_method_visibility(name)
+    m = TclOOMethod(
+        name=name,
+        params=params,
+        param_names=param_names,
+        body=method_body,
+        has_args=has_args,
+        visibility=vis,
+    )
+    if cls is not None:
+        cls.exported_methods.discard(name)
+        cls.unexported_methods.discard(name)
+        cls.methods[name] = m
+    elif obj is not None:
+        obj.exported_methods.discard(name)
+        obj.unexported_methods.discard(name)
+        obj.instance_methods[name] = m
+    return TclResult()
+
+
+def _define_classmethod(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::classmethod"""
+    cls = getattr(interp, "_defining_class", None)
+    if cls is None:
+        raise TclError("this command may only be called from within the body of an oo::define command")
+    if len(args) < 3:
+        raise TclError('wrong # args: should be "classmethod name args body"')
+    name, param_str, method_body = args[0], args[1], args[2]
+    params, param_names, has_args = _parse_method_params(param_str)
+    cls.class_methods[name] = TclOOMethod(
+        name=name,
+        params=params,
+        param_names=param_names,
+        body=method_body,
+        has_args=has_args,
+    )
+    return TclResult()
+
+
+def _define_constructor(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::constructor"""
+    cls = getattr(interp, "_defining_class", None)
+    if cls is None:
+        raise TclError("this command may only be called from within the body of an oo::define command")
+    if len(args) < 2:
+        raise TclError('wrong # args: should be "constructor args body"')
+    param_str, ctor_body = args[0], args[1]
+    params, param_names, has_args = _parse_method_params(param_str)
+    cls.constructor = TclOOMethod(
+        name="<constructor>",
+        params=params,
+        param_names=param_names,
+        body=ctor_body,
+        has_args=has_args,
+    )
+    return TclResult()
+
+
+def _define_destructor(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::destructor"""
+    cls = getattr(interp, "_defining_class", None)
+    if cls is None:
+        raise TclError("this command may only be called from within the body of an oo::define command")
+    if len(args) < 1:
+        raise TclError('wrong # args: should be "destructor body"')
+    cls.destructor = TclOOMethod(
+        name="<destructor>",
+        params=[],
+        param_names=[],
+        body=args[0],
+    )
+    return TclResult()
+
+
+def _define_superclass(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::superclass"""
+    cls = getattr(interp, "_defining_class", None)
+    if cls is None:
+        raise TclError("this command may only be called from within the body of an oo::define command")
+    cls.superclasses = list(args)
+    return TclResult()
+
+
+def _define_mixin(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::mixin"""
+    cls = getattr(interp, "_defining_class", None)
+    if cls is None:
+        raise TclError("this command may only be called from within the body of an oo::define command")
+    mixin_args = list(args)
+    if mixin_args and mixin_args[0] == "-append":
+        new_mixins = mixin_args[1:]
+    else:
+        new_mixins = list(mixin_args)
+        cls.mixins = []
+    oo = _get_oo_runtime(interp)
+    for m in new_mixins:
+        qn = m if m.startswith("::") else f"::{m}"
+        if qn == cls.qualified_name:
+            raise TclError("may not mix a class into itself")
+        if m in cls.mixins or qn in cls.mixins:
+            raise TclError("class should only be a direct mixin once")
+        cls.mixins.append(m)
+    return TclResult()
+
+
+def _define_variable(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::variable"""
+    cls = getattr(interp, "_defining_class", None)
+    obj = getattr(interp, "_defining_object", None)
+    if cls is not None:
+        cls.variables.extend(args)
+    elif obj is not None:
+        obj.instance_variables.extend(args)
+    return TclResult()
+
+
+def _define_filter(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::filter"""
+    cls = getattr(interp, "_defining_class", None)
+    obj = getattr(interp, "_defining_object", None)
+    if cls is not None:
+        cls.filters.extend(args)
+    elif obj is not None:
+        obj.instance_filters.extend(args)
+    return TclResult()
+
+
+def _define_forward(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::forward"""
+    cls = getattr(interp, "_defining_class", None)
+    obj = getattr(interp, "_defining_object", None)
+    if len(args) < 2:
+        raise TclError('wrong # args: should be "forward name cmdName ?arg ...?"')
+    fwd_name = args[0]
+    fwd_target = args[1:]
+    m = TclOOMethod(
+        name=fwd_name,
+        params=[("args", None)],
+        param_names=["args"],
+        body="",
+        has_args=True,
+        forward_target=fwd_target,
+    )
+    if cls is not None:
+        cls.methods[fwd_name] = m
+    elif obj is not None:
+        obj.instance_methods[fwd_name] = m
+    return TclResult()
+
+
+def _define_deletemethod(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::deletemethod"""
+    cls = getattr(interp, "_defining_class", None)
+    obj = getattr(interp, "_defining_object", None)
+    for m in args:
+        if cls is not None:
+            cls.methods.pop(m, None)
+        elif obj is not None:
+            obj.instance_methods.pop(m, None)
+    return TclResult()
+
+
+def _define_renamemethod(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::renamemethod"""
+    if len(args) < 2:
+        raise TclError('wrong # args: should be "renamemethod oldName newName"')
+    old_name, new_name = args[0], args[1]
+    cls = getattr(interp, "_defining_class", None)
+    obj = getattr(interp, "_defining_object", None)
+    if cls is not None:
+        method = cls.methods.pop(old_name, None)
+        if method is not None:
+            method.name = new_name
+            cls.methods[new_name] = method
+    elif obj is not None:
+        method = obj.instance_methods.pop(old_name, None)
+        if method is not None:
+            method.name = new_name
+            obj.instance_methods[new_name] = method
+    return TclResult()
+
+
+def _define_export(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::export"""
+    cls = getattr(interp, "_defining_class", None)
+    obj = getattr(interp, "_defining_object", None)
+    for m in args:
+        if cls is not None:
+            cls.exported_methods.add(m)
+            cls.unexported_methods.discard(m)
+            method = cls.methods.get(m)
+            if method:
+                method.visibility = "public"
+        elif obj is not None:
+            obj.exported_methods.add(m)
+            obj.unexported_methods.discard(m)
+    return TclResult()
+
+
+def _define_unexport(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::unexport"""
+    cls = getattr(interp, "_defining_class", None)
+    obj = getattr(interp, "_defining_object", None)
+    for m in args:
+        if cls is not None:
+            cls.unexported_methods.add(m)
+            cls.exported_methods.discard(m)
+            method = cls.methods.get(m)
+            if method:
+                method.visibility = "unexported"
+        elif obj is not None:
+            obj.unexported_methods.add(m)
+            obj.exported_methods.discard(m)
+    return TclResult()
+
+
+def _define_private(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::private — TIP 500 private method/variable."""
+    if not args:
+        raise TclError('wrong # args: should be "private cmd ?arg ...?"')
+    subcmd = args[0]
+    if subcmd == "method":
+        cls = getattr(interp, "_defining_class", None)
+        obj = getattr(interp, "_defining_object", None)
+        if len(args) < 4:
+            raise TclError('wrong # args: should be "private method name args body"')
+        name, param_str, method_body = args[1], args[2], args[3]
+        params, param_names, has_args = _parse_method_params(param_str)
+        m = TclOOMethod(
+            name=name,
+            params=params,
+            param_names=param_names,
+            body=method_body,
+            has_args=has_args,
+            visibility="private",
+        )
+        if cls is not None:
+            cls.methods[name] = m
+        elif obj is not None:
+            obj.instance_methods[name] = m
+    elif subcmd == "variable":
+        cls = getattr(interp, "_defining_class", None)
+        obj = getattr(interp, "_defining_object", None)
+        if cls is not None:
+            cls.variables.extend(args[1:])
+        elif obj is not None:
+            obj.instance_variables.extend(args[1:])
+    elif subcmd == "forward":
+        return _define_forward(interp, args[1:])
+    elif len(args) == 1:
+        # Single braced block: evaluate as definition script
+        interp.eval(args[0])
+    else:
+        # Multiple args: evaluate as Tcl command in current context
+        from ..machine import _list_escape
+
+        cmd = " ".join(_list_escape(a) for a in args)
+        interp.eval(cmd)
+    return TclResult()
+
+
+def _define_self(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::self — apply definitions to the class object itself."""
+    cls = getattr(interp, "_defining_class", None)
+    if cls is None:
+        raise TclError("this command may only be called from within the body of an oo::define command")
+    oo = _get_oo_runtime(interp)
+    obj = oo.objects.get(cls.qualified_name)
+    if obj is None:
+        return TclResult()
+    if not args:
+        return TclResult(value=cls.qualified_name)
+    if len(args) == 1:
+        _parse_objdefine_body(interp, obj, args[0])
+    else:
+        from ..machine import _list_escape
+
+        reconstructed = " ".join(_list_escape(a) for a in args)
+        _parse_objdefine_body(interp, obj, reconstructed)
+    return TclResult()
+
+
+def _define_definitionnamespace(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::definitionnamespace — not yet implemented."""
+    return TclResult()
+
+
+def _define_unknown(interp: TclInterp, args: list[str]) -> TclResult:
+    """Unknown handler for ::oo::define namespace — supports abbreviation."""
+    if not args:
+        raise TclError("wrong # args")
+    cmd_name = args[0]
+    # Try abbreviation
+    full = _abbreviate(cmd_name, _CLASS_BODY_SUBCMDS)
+    if full != cmd_name:
+        fq = f"::oo::define::{full}"
+        handler = interp._runtime_commands.get(fq)
+        if handler is not None:
+            return handler(interp, args[1:])
+    raise TclError(f'invalid command name "{cmd_name}"')
+
+
+def _objdefine_unknown(interp: TclInterp, args: list[str]) -> TclResult:
+    """Unknown handler for ::oo::objdefine namespace — supports abbreviation."""
+    if not args:
+        raise TclError("wrong # args")
+    cmd_name = args[0]
+    full = _abbreviate(cmd_name, _OBJDEFINE_SUBCMDS)
+    if full != cmd_name:
+        fq = f"::oo::objdefine::{full}"
+        handler = interp._runtime_commands.get(fq)
+        if handler is not None:
+            return handler(interp, args[1:])
+    raise TclError(f'invalid command name "{cmd_name}"')
+
+
+def _ensure_define_commands(interp: TclInterp) -> None:
+    """Register ::oo::define::* commands if not already present."""
+    if getattr(interp, "_oo_define_commands_registered", False):
+        return
+    interp._oo_define_commands_registered = True
+
+    cmds = {
+        "::oo::define::method": _define_method,
+        "::oo::define::classmethod": _define_classmethod,
+        "::oo::define::constructor": _define_constructor,
+        "::oo::define::destructor": _define_destructor,
+        "::oo::define::superclass": _define_superclass,
+        "::oo::define::mixin": _define_mixin,
+        "::oo::define::variable": _define_variable,
+        "::oo::define::filter": _define_filter,
+        "::oo::define::forward": _define_forward,
+        "::oo::define::deletemethod": _define_deletemethod,
+        "::oo::define::renamemethod": _define_renamemethod,
+        "::oo::define::export": _define_export,
+        "::oo::define::unexport": _define_unexport,
+        "::oo::define::private": _define_private,
+        "::oo::define::self": _define_self,
+        "::oo::define::definitionnamespace": _define_definitionnamespace,
+    }
+    for name, handler in cmds.items():
+        interp._runtime_commands[name] = handler
+
+    # Register unknown handler for abbreviation support
+    from ..scope import ensure_namespace
+
+    interp._runtime_commands["::oo::define::__unknown__"] = _define_unknown
+    oo_define_ns = ensure_namespace(interp.root_namespace, "::oo::define")
+    oo_define_ns._unknown_handler = "::oo::define::__unknown__"
+
+
+def _ensure_objdefine_commands(interp: TclInterp) -> None:
+    """Register ::oo::objdefine::* commands if not already present."""
+    if getattr(interp, "_oo_objdefine_commands_registered", False):
+        return
+    interp._oo_objdefine_commands_registered = True
+
+    # objdefine shares many commands with define, but uses the object context
+    cmds = {
+        "::oo::objdefine::method": _define_method,
+        "::oo::objdefine::variable": _define_variable,
+        "::oo::objdefine::filter": _define_filter,
+        "::oo::objdefine::forward": _define_forward,
+        "::oo::objdefine::deletemethod": _define_deletemethod,
+        "::oo::objdefine::renamemethod": _define_renamemethod,
+        "::oo::objdefine::export": _define_export,
+        "::oo::objdefine::unexport": _define_unexport,
+        "::oo::objdefine::mixin": _objdefine_mixin,
+        "::oo::objdefine::private": _define_private,
+        "::oo::objdefine::class": _objdefine_class,
+    }
+    for name, handler in cmds.items():
+        interp._runtime_commands[name] = handler
+
+    # Register unknown handler for abbreviation
+    from ..scope import ensure_namespace
+
+    interp._runtime_commands["::oo::objdefine::__unknown__"] = _objdefine_unknown
+    objdefine_ns = ensure_namespace(interp.root_namespace, "::oo::objdefine")
+    objdefine_ns._unknown_handler = "::oo::objdefine::__unknown__"
+
+
 def _parse_class_body(
     interp: TclInterp,
     cls: TclOOClass,
     body: str,
 ) -> None:
-    """Parse a class definition body and populate the class."""
-    from ..machine import _split_list
+    """Parse a class definition body by evaluating it in the ::oo::define namespace.
 
-    lines = _split_body_lines(body)
+    In C Tcl, the body of ``oo::define`` is a Tcl script executed in
+    the ``::oo::define`` namespace where definition commands (method,
+    constructor, etc.) are registered as real commands.  We replicate
+    this by registering transient handlers then running
+    ``interp.eval(body)`` in that namespace.
+    """
+    from ..scope import ensure_namespace
 
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        if not line or line.startswith("#"):
-            i += 1
-            continue
+    _ensure_define_commands(interp)
 
-        # Collect multi-line commands (brace balancing)
-        while line.count("{") > line.count("}") and i + 1 < len(lines):
-            i += 1
-            line += "\n" + lines[i]
+    oo_define_ns = ensure_namespace(interp.root_namespace, "::oo::define")
+    saved_ns = interp.current_namespace
+    saved_cls = getattr(interp, "_defining_class", None)
+    saved_obj = getattr(interp, "_defining_object", None)
+    interp._defining_class = cls
+    interp._defining_object = None
+    interp.current_namespace = oo_define_ns
+    try:
+        interp.eval(body)
+    finally:
+        interp.current_namespace = saved_ns
+        interp._defining_class = saved_cls
+        interp._defining_object = saved_obj
 
-        parts = _split_list(line)
-        if not parts:
-            i += 1
-            continue
 
-        subcmd = _abbreviate(parts[0], _CLASS_BODY_SUBCMDS)
-        match subcmd:
-            case "method":
-                if len(parts) < 4:
-                    raise TclError('wrong # args: should be "method name args body"')
-                name = parts[1]
-                # Check for -export/-unexport/-private flag
-                flag_vis = None
-                if parts[2].startswith("-") and len(parts) >= 5:
-                    flag = parts[2]
-                    if flag == "-export":
-                        flag_vis = "public"
-                    elif flag == "-unexport":
-                        flag_vis = "unexported"
-                    elif flag == "-private":
-                        flag_vis = "private"
-                    else:
-                        raise TclError(
-                            f'bad export flag "{flag}": must be -export, -private, or -unexport'
-                        )
-                    param_str, method_body = parts[3], parts[4]
-                else:
-                    param_str, method_body = parts[2], parts[3]
-                params, param_names, has_args = _parse_method_params(param_str)
-                vis = flag_vis if flag_vis is not None else _default_method_visibility(name)
-                # Defining a method clears class-level export/unexport for it
-                cls.exported_methods.discard(name)
-                cls.unexported_methods.discard(name)
-                cls.methods[name] = TclOOMethod(
-                    name=name,
-                    params=params,
-                    param_names=param_names,
-                    body=method_body,
-                    has_args=has_args,
-                    visibility=vis,
-                )
-            case "classmethod":
-                if len(parts) < 4:
-                    raise TclError('wrong # args: should be "classmethod name args body"')
-                name, param_str, method_body = parts[1], parts[2], parts[3]
-                params, param_names, has_args = _parse_method_params(param_str)
-                cls.class_methods[name] = TclOOMethod(
-                    name=name,
-                    params=params,
-                    param_names=param_names,
-                    body=method_body,
-                    has_args=has_args,
-                )
-            case "constructor":
-                if len(parts) < 3:
-                    raise TclError('wrong # args: should be "constructor args body"')
-                param_str, ctor_body = parts[1], parts[2]
-                params, param_names, has_args = _parse_method_params(param_str)
-                cls.constructor = TclOOMethod(
-                    name="<constructor>",
-                    params=params,
-                    param_names=param_names,
-                    body=ctor_body,
-                    has_args=has_args,
-                )
-            case "destructor":
-                if len(parts) < 2:
-                    raise TclError('wrong # args: should be "destructor body"')
-                cls.destructor = TclOOMethod(
-                    name="<destructor>",
-                    params=[],
-                    param_names=[],
-                    body=parts[1],
-                )
-            case "superclass":
-                cls.superclasses = parts[1:]
-            case "mixin":
-                mixin_args = parts[1:]
-                if mixin_args and mixin_args[0] == "-append":
-                    new_mixins = mixin_args[1:]
-                else:
-                    new_mixins = list(mixin_args)
-                    cls.mixins = []
-                # Validate: no self-mixin, no duplicates
-                oo = _get_oo_runtime(interp)
-                for m in new_mixins:
-                    qn = m if m.startswith("::") else f"::{m}"
-                    if qn == cls.qualified_name:
-                        raise TclError("may not mix a class into itself")
-                    if m in cls.mixins or qn in cls.mixins:
-                        raise TclError("class should only be a direct mixin once")
-                    cls.mixins.append(m)
-            case "variable":
-                cls.variables.extend(parts[1:])
-            case "filter":
-                cls.filters.extend(parts[1:])
-            case "forward":
-                if len(parts) < 3:
-                    raise TclError('wrong # args: should be "forward name cmdName ?arg ...?"')
-                fwd_name = parts[1]
-                fwd_target = parts[2:]
-                cls.methods[fwd_name] = TclOOMethod(
-                    name=fwd_name,
-                    params=[("args", None)],
-                    param_names=["args"],
-                    body="",
-                    has_args=True,
-                    forward_target=fwd_target,
-                )
-            case "deletemethod":
-                for m in parts[1:]:
-                    cls.methods.pop(m, None)
-            case "renamemethod":
-                if len(parts) < 3:
-                    raise TclError('wrong # args: should be "renamemethod oldName newName"')
-                old_name, new_name = parts[1], parts[2]
-                method = cls.methods.pop(old_name, None)
-                if method is not None:
-                    method.name = new_name
-                    cls.methods[new_name] = method
-            case "export":
-                for m in parts[1:]:
-                    cls.exported_methods.add(m)
-                    cls.unexported_methods.discard(m)
-                    method = cls.methods.get(m)
-                    if method:
-                        method.visibility = "public"
-            case "unexport":
-                for m in parts[1:]:
-                    cls.unexported_methods.add(m)
-                    cls.exported_methods.discard(m)
-                    method = cls.methods.get(m)
-                    if method:
-                        method.visibility = "unexported"
-            case "private":
-                # TIP 500: private method — only accessible via my from
-                # within the defining class.
-                # private method name args body
-                if len(parts) >= 5 and parts[1] == "method":
-                    name, param_str, method_body = parts[2], parts[3], parts[4]
-                    params, param_names, has_args = _parse_method_params(param_str)
-                    cls.methods[name] = TclOOMethod(
-                        name=name,
-                        params=params,
-                        param_names=param_names,
-                        body=method_body,
-                        has_args=has_args,
-                        visibility="private",
-                    )
-                elif len(parts) >= 2 and parts[1] == "variable":
-                    # private variable — same as variable but in private context
-                    cls.variables.extend(parts[2:])
-                elif len(parts) == 2:
-                    # private {block} — evaluate block as Tcl
-                    interp.eval(parts[1])
-                elif len(parts) >= 2:
-                    # private someCommand args... — evaluate as Tcl
-                    from ..machine import _list_escape
+def _objdefine_mixin(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::objdefine::mixin"""
+    obj = getattr(interp, "_defining_object", None)
+    if obj is None:
+        raise TclError("this command may only be called from within the body of an oo::objdefine command")
+    mixin_args = list(args)
+    if mixin_args and mixin_args[0] == "-append":
+        new_mixins = mixin_args[1:]
+    else:
+        new_mixins = list(mixin_args)
+        obj.instance_mixins = []
+    for m in new_mixins:
+        qn = m if m.startswith("::") else f"::{m}"
+        for existing in obj.instance_mixins:
+            existing_qn = existing if existing.startswith("::") else f"::{existing}"
+            if qn == existing_qn:
+                raise TclError("class should only be a direct mixin once")
+        obj.instance_mixins.append(m)
+    return TclResult()
 
-                    cmd = " ".join(_list_escape(a) for a in parts[1:])
-                    interp.eval(cmd)
-            case "self":
-                # oo::define ClassName { self { method foo {} {...} } }
-                # Applies definitions to the class object itself.
-                if len(parts) >= 2:
-                    oo = _get_oo_runtime(interp)
-                    obj = oo.objects.get(cls.qualified_name)
-                    if obj is not None:
-                        # If a single block, parse as objdefine body
-                        # If multiple args, treat as single subcommand
-                        if len(parts) == 2:
-                            _parse_objdefine_body(interp, obj, parts[1])
-                        else:
-                            from ..machine import _list_escape
 
-                            reconstructed = " ".join(_list_escape(a) for a in parts[1:])
-                            _parse_objdefine_body(interp, obj, reconstructed)
-            case "definitionnamespace":
-                pass  # not yet implemented
-            case _:
-                # In C Tcl, oo::define evaluates the body as a Tcl script
-                # in the ::oo::define namespace.  Non-definition commands
-                # are evaluated normally.
-                from ..scope import ensure_namespace
-
-                oo_define_ns = ensure_namespace(interp.root_namespace, "::oo::define")
-                saved_ns = interp.current_namespace
-                interp.current_namespace = oo_define_ns
-                try:
-                    interp.eval(line)
-                finally:
-                    interp.current_namespace = saved_ns
-
-        i += 1
+def _objdefine_class(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::objdefine::class"""
+    obj = getattr(interp, "_defining_object", None)
+    if obj is None:
+        raise TclError("this command may only be called from within the body of an oo::objdefine command")
+    if len(args) < 1:
+        raise TclError('wrong # args: should be "class className"')
+    new_class = args[0]
+    oo = _get_oo_runtime(interp)
+    cls = oo.classes.get(new_class)
+    if cls is None:
+        qn = f"::{new_class}" if not new_class.startswith("::") else new_class
+        cls = oo.classes.get(qn)
+    if cls is None:
+        raise TclError(f'"{new_class}" is not a class')
+    if cls.qualified_name == obj.name:
+        raise TclError("may not change classes into an instance of themselves")
+    obj.class_name = cls.qualified_name
+    if oo._is_metaclass(cls) and obj.name not in oo.classes:
+        new_cls_obj = TclOOClass(
+            name=obj.name.rsplit("::", 1)[-1],
+            qualified_name=obj.name,
+        )
+        oo.register_class(new_cls_obj)
+        _register_class_command(interp, oo, obj.name, new_cls_obj)
+    oo.invalidate_all_mro()
+    return TclResult()
 
 
 def _parse_objdefine_body(
@@ -359,173 +632,30 @@ def _parse_objdefine_body(
     obj: TclOOObject,
     body: str,
 ) -> None:
-    """Parse an oo::objdefine body and populate the object's instance methods."""
-    from ..machine import _split_list
+    """Parse an oo::objdefine body by evaluating it in the ::oo::objdefine namespace."""
+    from ..scope import ensure_namespace
 
-    lines = _split_body_lines(body)
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        if not line or line.startswith("#"):
-            i += 1
-            continue
+    _ensure_define_commands(interp)
+    _ensure_objdefine_commands(interp)
 
-        while line.count("{") > line.count("}") and i + 1 < len(lines):
-            i += 1
-            line += "\n" + lines[i]
+    # Register objdefine-only commands
+    if "::oo::objdefine::class" not in interp._runtime_commands:
+        interp._runtime_commands["::oo::objdefine::class"] = _objdefine_class
+        interp._runtime_commands["::oo::objdefine::mixin"] = _objdefine_mixin
 
-        parts = _split_list(line)
-        if not parts:
-            i += 1
-            continue
-
-        subcmd = _abbreviate(parts[0], _OBJDEFINE_SUBCMDS)
-        match subcmd:
-            case "method":
-                if len(parts) < 4:
-                    raise TclError('wrong # args: should be "method name args body"')
-                name = parts[1]
-                # Check for -export/-unexport/-private flag
-                flag_vis = None
-                if parts[2].startswith("-") and len(parts) >= 5:
-                    flag = parts[2]
-                    if flag == "-export":
-                        flag_vis = "public"
-                    elif flag == "-unexport":
-                        flag_vis = "unexported"
-                    elif flag == "-private":
-                        flag_vis = "private"
-                    else:
-                        raise TclError(
-                            f'bad export flag "{flag}": must be -export, -private, or -unexport'
-                        )
-                    param_str, method_body = parts[3], parts[4]
-                else:
-                    param_str, method_body = parts[2], parts[3]
-                params, param_names, has_args = _parse_method_params(param_str)
-                vis = flag_vis if flag_vis is not None else _default_method_visibility(name)
-                obj.instance_methods[name] = TclOOMethod(
-                    name=name,
-                    params=params,
-                    param_names=param_names,
-                    body=method_body,
-                    has_args=has_args,
-                    visibility=vis,
-                )
-            case "forward":
-                if len(parts) < 3:
-                    raise TclError('wrong # args: should be "forward name cmdName ?arg ...?"')
-                fwd_name = parts[1]
-                fwd_target = parts[2:]
-                obj.instance_methods[fwd_name] = TclOOMethod(
-                    name=fwd_name,
-                    params=[("args", None)],
-                    param_names=["args"],
-                    body="",
-                    has_args=True,
-                    forward_target=fwd_target,
-                    visibility=_default_method_visibility(fwd_name),
-                )
-            case "deletemethod":
-                for m in parts[1:]:
-                    obj.instance_methods.pop(m, None)
-            case "renamemethod":
-                if len(parts) < 3:
-                    raise TclError('wrong # args: should be "renamemethod oldName newName"')
-                old_name, new_name = parts[1], parts[2]
-                method = obj.instance_methods.pop(old_name, None)
-                if method is not None:
-                    method.name = new_name
-                    obj.instance_methods[new_name] = method
-            case "mixin":
-                mixin_args = parts[1:]
-                if mixin_args and mixin_args[0] == "-append":
-                    new_mixins = mixin_args[1:]
-                else:
-                    new_mixins = list(mixin_args)
-                    obj.instance_mixins = []
-                for m in new_mixins:
-                    qn = m if m.startswith("::") else f"::{m}"
-                    # Check for duplicates
-                    for existing in obj.instance_mixins:
-                        existing_qn = existing if existing.startswith("::") else f"::{existing}"
-                        if qn == existing_qn:
-                            raise TclError("class should only be a direct mixin once")
-                    obj.instance_mixins.append(m)
-            case "variable":
-                obj.instance_variables.extend(parts[1:])
-            case "filter":
-                obj.instance_filters.extend(parts[1:])
-            case "export":
-                for m in parts[1:]:
-                    obj.exported_methods.add(m)
-                    obj.unexported_methods.discard(m)
-                    method = obj.instance_methods.get(m)
-                    if method:
-                        method.visibility = "public"
-            case "unexport":
-                for m in parts[1:]:
-                    obj.unexported_methods.add(m)
-                    obj.exported_methods.discard(m)
-                    method = obj.instance_methods.get(m)
-                    if method:
-                        method.visibility = "unexported"
-            case "class":
-                if len(parts) < 2:
-                    raise TclError('wrong # args: should be "class className"')
-                new_class = parts[1]
-                oo = _get_oo_runtime(interp)
-                # Resolve class name
-                cls = oo.classes.get(new_class)
-                if cls is None:
-                    qn = f"::{new_class}" if not new_class.startswith("::") else new_class
-                    cls = oo.classes.get(qn)
-                if cls is None:
-                    raise TclError(f'"{new_class}" is not a class')
-                # Check: cannot make a class an instance of itself
-                if cls.qualified_name == obj.name:
-                    raise TclError(
-                        "may not change classes into an instance of themselves"
-                    )
-                # Change the object's class
-                obj.class_name = cls.qualified_name
-                # If switching to oo::class, register as a class
-                if oo._is_metaclass(cls) and obj.name not in oo.classes:
-                    new_cls_obj = TclOOClass(
-                        name=obj.name.rsplit("::", 1)[-1],
-                        qualified_name=obj.name,
-                    )
-                    oo.register_class(new_cls_obj)
-                    _register_class_command(interp, oo, obj.name, new_cls_obj)
-                oo.invalidate_all_mro()
-            case "private":
-                # TIP 500: private instance method
-                if len(parts) >= 5 and parts[1] == "method":
-                    name, param_str, method_body = parts[2], parts[3], parts[4]
-                    params, param_names, has_args = _parse_method_params(param_str)
-                    obj.instance_methods[name] = TclOOMethod(
-                        name=name,
-                        params=params,
-                        param_names=param_names,
-                        body=method_body,
-                        has_args=has_args,
-                        visibility="private",
-                    )
-                elif len(parts) >= 2 and parts[1] == "variable":
-                    obj.instance_variables.extend(parts[2:])
-                elif len(parts) == 2:
-                    # private {block} — evaluate block as Tcl
-                    interp.eval(parts[1])
-                elif len(parts) >= 2:
-                    # private someCommand args... — evaluate as Tcl
-                    from ..machine import _list_escape
-
-                    cmd = " ".join(_list_escape(a) for a in parts[1:])
-                    interp.eval(cmd)
-            case _:
-                pass
-
-        i += 1
+    objdefine_ns = ensure_namespace(interp.root_namespace, "::oo::objdefine")
+    saved_ns = interp.current_namespace
+    saved_cls = getattr(interp, "_defining_class", None)
+    saved_obj = getattr(interp, "_defining_object", None)
+    interp._defining_class = None
+    interp._defining_object = obj
+    interp.current_namespace = objdefine_ns
+    try:
+        interp.eval(body)
+    finally:
+        interp.current_namespace = saved_ns
+        interp._defining_class = saved_cls
+        interp._defining_object = saved_obj
 
 
 def _get_oo_runtime(interp: TclInterp) -> OORuntime:

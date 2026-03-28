@@ -98,7 +98,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-15.12",
     "oo-15.13.2",
     "oo-15.14",
-    "oo-15.15",
     # oo-16.x: info object/class edge cases
     "oo-16.11",
     "oo-16.14",
@@ -180,7 +179,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-27.22",
     "oo-27.23",
     # oo-28.x: configurable (complex)
-    "oo-28.1",
     # oo-29.x
     "oo-29.1",
     # oo-30.x
@@ -217,8 +215,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-35.7.1",
     "oo-35.7.2",
     # oo-36.x
-    "oo-36.3",
-    "oo-36.4",
     "oo-36.5",
     "oo-36.6",
     "oo-36.7",
