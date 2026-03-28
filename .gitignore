@@ -65,6 +65,7 @@ builddir-fuzz/
 builddir-cfi/
 subprojects/catch2/
 subprojects/pybind11/
+subprojects/lsp-framework/
 *.so
 *.pyd
 

@@ -28,6 +28,27 @@ tcl_lsp_dep = declare_dependency(
   include_directories: tcl_lsp_inc,
 )
 
+# LSP server library (document store, server skeleton).
+tcl_lsp_server_lib = static_library('tcl_lsp_server',
+  'src/lsp/document_store.cpp',
+  'src/lsp/server.cpp',
+  include_directories: tcl_lsp_inc,
+  dependencies: [tcl_lsp_dep, lsp_framework_dep],
+)
+
+tcl_lsp_server_dep = declare_dependency(
+  link_with: tcl_lsp_server_lib,
+  include_directories: tcl_lsp_inc,
+  dependencies: [tcl_lsp_dep, lsp_framework_dep],
+)
+
+# LSP server executable.
+executable('tcl-lsp-server',
+  'src/lsp/main.cpp',
+  dependencies: [tcl_lsp_server_dep],
+  install: true,
+)
+
 # pybind11 extension module installed into core/ package.
 # Only built when pybind11 is available — GCC-only sanitiser and analyzer builds
 # may not have pybind11 installed.

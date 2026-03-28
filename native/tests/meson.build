@@ -1,5 +1,18 @@
 catch2_dep = dependency('catch2-with-main')
 
+# LSP server tests (depend on lsp-framework).
+lsp_test_sources = {
+  'test_lsp_document_store': 'test_lsp_document_store.cpp',
+}
+
+foreach name, src : lsp_test_sources
+  exe = executable(name, src,
+    dependencies: [catch2_dep, tcl_lsp_server_dep],
+  )
+  test(name, exe, suite: 'tcl-lsp')
+endforeach
+
+# Core library tests (no lsp-framework dependency).
 test_sources = {
   'test_source_position': 'test_source_position.cpp',
   'test_range': 'test_range.cpp',

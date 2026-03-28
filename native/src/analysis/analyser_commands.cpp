@@ -653,7 +653,6 @@ void Analyser::handle_interp_alias(const SegmentedCommand& cmd) {
 
 void Analyser::handle_package(const SegmentedCommand& cmd) {
     const auto args = cmd.args();
-    const auto atoks = cmd.arg_tokens();
     if (cmd.texts[0] != "package" || args.empty()) return;
 
     if (args[0] == "require" && args.size() >= 2) {
