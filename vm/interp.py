@@ -174,6 +174,22 @@ class TclInterp:
         self.packages["Tcl"] = _tcl_pkg
         self.packages["tcl"] = _tcl_pkg
 
+        # Pre-provide the tcl::oo package so ``package require tcl::oo`` works.
+        # TclOO is a built-in package in Tcl 9.0.
+        _oo_pkg: dict[str, str | bool | dict[str, str] | None] = {
+            "version": "1.3.1",
+            "loaded": True,
+            "ifneeded": {},
+        }
+        self.packages["tcl::oo"] = _oo_pkg
+
+        # Set ::oo:: namespace variables that the oo.test suite reads at
+        # the top level before any OO commands run.
+        oo_ns = ensure_namespace(self.root_namespace, "::oo")
+        oo_frame = oo_ns.get_frame(self)
+        oo_frame.set_var("patchlevel", "1.3.1")
+        oo_frame.set_var("version", "1.3.1")
+
         # Register the tcltest package so ``package require tcltest`` works
         from .commands.tcltest_cmds import setup_tcltest
 

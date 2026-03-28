@@ -293,6 +293,13 @@ def _get_oo_runtime(interp: TclInterp) -> OORuntime:
     """Get or create the OO runtime on the interpreter."""
     if not hasattr(interp, "_oo_runtime"):
         interp._oo_runtime = OORuntime()
+        # Set ::oo:: namespace variables that Tcl test files expect.
+        from ..scope import ensure_namespace
+
+        oo_ns = ensure_namespace(interp.root_namespace, "::oo")
+        oo_frame = oo_ns.get_frame(interp)
+        oo_frame.set_var("patchlevel", "1.3.1")
+        oo_frame.set_var("version", "1.3.1")
     return interp._oo_runtime
 
 
