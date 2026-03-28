@@ -237,9 +237,19 @@ def _parse_class_body(
             case "mixin":
                 mixin_args = parts[1:]
                 if mixin_args and mixin_args[0] == "-append":
-                    cls.mixins.extend(mixin_args[1:])
+                    new_mixins = mixin_args[1:]
                 else:
-                    cls.mixins = list(mixin_args)
+                    new_mixins = list(mixin_args)
+                    cls.mixins = []
+                # Validate: no self-mixin, no duplicates
+                oo = _get_oo_runtime(interp)
+                for m in new_mixins:
+                    qn = m if m.startswith("::") else f"::{m}"
+                    if qn == cls.qualified_name:
+                        raise TclError("may not mix a class into itself")
+                    if m in cls.mixins or qn in cls.mixins:
+                        raise TclError("class should only be a direct mixin once")
+                    cls.mixins.append(m)
             case "variable":
                 cls.variables.extend(parts[1:])
             case "filter":
@@ -418,9 +428,18 @@ def _parse_objdefine_body(
             case "mixin":
                 mixin_args = parts[1:]
                 if mixin_args and mixin_args[0] == "-append":
-                    obj.instance_mixins.extend(mixin_args[1:])
+                    new_mixins = mixin_args[1:]
                 else:
-                    obj.instance_mixins = list(mixin_args)
+                    new_mixins = list(mixin_args)
+                    obj.instance_mixins = []
+                for m in new_mixins:
+                    qn = m if m.startswith("::") else f"::{m}"
+                    # Check for duplicates
+                    for existing in obj.instance_mixins:
+                        existing_qn = existing if existing.startswith("::") else f"::{existing}"
+                        if qn == existing_qn:
+                            raise TclError("class should only be a direct mixin once")
+                    obj.instance_mixins.append(m)
             case "variable":
                 obj.instance_variables.extend(parts[1:])
             case "filter":
@@ -451,6 +470,11 @@ def _parse_objdefine_body(
                     cls = oo.classes.get(qn)
                 if cls is None:
                     raise TclError(f'"{new_class}" is not a class')
+                # Check: cannot make a class an instance of itself
+                if cls.qualified_name == obj.name:
+                    raise TclError(
+                        "may not change classes into an instance of themselves"
+                    )
                 # Change the object's class
                 obj.class_name = cls.qualified_name
                 # If switching to oo::class, register as a class

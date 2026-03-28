@@ -92,17 +92,13 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-13.x: Filter edge cases
     "oo-13.6",
     "oo-13.7",
-    "oo-13.8",
     "oo-13.9",
     "oo-13.10",
     "oo-13.11",
     # oo-14.x: Mixin edge cases
     "oo-14.1",
     "oo-14.2",
-    "oo-14.4",
     "oo-14.7",
-    "oo-14.9",
-    "oo-14.10",
     # oo-15.x: oo::objdefine edge cases
     "oo-15.6",
     "oo-15.8",
