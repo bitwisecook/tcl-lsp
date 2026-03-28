@@ -45,8 +45,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-1.22",
     "oo-1.25",
     "oo-1.3",
-    "oo-1.5.1",
-    "oo-1.6",
     "oo-1.7",
     # oo-2.x: Constructor edge cases
     "oo-2.1",
@@ -68,9 +66,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-3.8",
     "oo-3.9",
     # oo-4.x: Method dispatch edge cases (errorInfo, uplevel, variable)
-    "oo-4.10",
-    "oo-4.7",
-    "oo-4.8",
     "oo-4.9",
     # oo-5.x: Visibility enforcement edge cases
     "oo-5.2",

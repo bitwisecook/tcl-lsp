@@ -130,15 +130,33 @@ def _parse_class_body(
             case "method":
                 if len(parts) < 4:
                     raise TclError('wrong # args: should be "method name args body"')
-                name, param_str, method_body = parts[1], parts[2], parts[3]
+                name = parts[1]
+                # Check for -export/-unexport/-private flag
+                flag_vis = None
+                if parts[2].startswith("-") and len(parts) >= 5:
+                    flag = parts[2]
+                    if flag == "-export":
+                        flag_vis = "public"
+                    elif flag == "-unexport":
+                        flag_vis = "unexported"
+                    elif flag == "-private":
+                        flag_vis = "private"
+                    else:
+                        raise TclError(
+                            f'bad export flag "{flag}": must be -export, -private, or -unexport'
+                        )
+                    param_str, method_body = parts[3], parts[4]
+                else:
+                    param_str, method_body = parts[2], parts[3]
                 params, param_names, has_args = _parse_method_params(param_str)
+                vis = flag_vis if flag_vis is not None else _default_method_visibility(name)
                 cls.methods[name] = TclOOMethod(
                     name=name,
                     params=params,
                     param_names=param_names,
                     body=method_body,
                     has_args=has_args,
-                    visibility=_default_method_visibility(name),
+                    visibility=vis,
                 )
             case "classmethod":
                 if len(parts) < 4:
@@ -299,15 +317,33 @@ def _parse_objdefine_body(
             case "method":
                 if len(parts) < 4:
                     raise TclError('wrong # args: should be "method name args body"')
-                name, param_str, method_body = parts[1], parts[2], parts[3]
+                name = parts[1]
+                # Check for -export/-unexport/-private flag
+                flag_vis = None
+                if parts[2].startswith("-") and len(parts) >= 5:
+                    flag = parts[2]
+                    if flag == "-export":
+                        flag_vis = "public"
+                    elif flag == "-unexport":
+                        flag_vis = "unexported"
+                    elif flag == "-private":
+                        flag_vis = "private"
+                    else:
+                        raise TclError(
+                            f'bad export flag "{flag}": must be -export, -private, or -unexport'
+                        )
+                    param_str, method_body = parts[3], parts[4]
+                else:
+                    param_str, method_body = parts[2], parts[3]
                 params, param_names, has_args = _parse_method_params(param_str)
+                vis = flag_vis if flag_vis is not None else _default_method_visibility(name)
                 obj.instance_methods[name] = TclOOMethod(
                     name=name,
                     params=params,
                     param_names=param_names,
                     body=method_body,
                     has_args=has_args,
-                    visibility=_default_method_visibility(name),
+                    visibility=vis,
                 )
             case "forward":
                 if len(parts) < 3:

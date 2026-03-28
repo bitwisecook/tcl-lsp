@@ -371,9 +371,13 @@ class OORuntime:
         """Register the object as a command that dispatches method calls."""
 
         def _obj_dispatch(interp: TclInterp, args: list[str]) -> TclResult:
+            # Use short (unqualified) name in error messages, like C Tcl
+            short_name = obj.name
+            if short_name.startswith("::"):
+                short_name = short_name[2:]
 
             if not args:
-                raise TclError(f'wrong # args: should be "{obj.name} method ?arg ...?"')
+                raise TclError(f'wrong # args: should be "{short_name} method ?arg ...?"')
             method_name = args[0]
             method_args = args[1:]
 
@@ -392,9 +396,14 @@ class OORuntime:
                         [method_name] + method_args,
                         defining_class=unknown_class,
                     )
+                avail = self._available_methods(obj)
+                if avail:
+                    raise TclError(
+                        f'unknown method "{method_name}": must be '
+                        + _format_method_list(avail)
+                    )
                 raise TclError(
-                    f'unknown method "{method_name}": must be '
-                    + _format_method_list(self._available_methods(obj))
+                    f'object "{obj.name}" has no visible methods'
                 )
 
             # Check visibility — unexported methods are not callable from
@@ -410,9 +419,14 @@ class OORuntime:
                 frame = interp.current_frame
                 caller_self = getattr(frame, "_oo_self", None)
                 if caller_self != obj.name:
+                    avail = self._available_methods(obj)
+                    if avail:
+                        raise TclError(
+                            f'unknown method "{method_name}": must be '
+                            + _format_method_list(avail)
+                        )
                     raise TclError(
-                        f'unknown method "{method_name}": must be '
-                        + _format_method_list(self._available_methods(obj))
+                        f'object "{obj.name}" has no visible methods'
                     )
 
             # Check for filters — filters intercept all method calls except
@@ -481,7 +495,8 @@ class OORuntime:
                 continue
             elif md.visibility == "public":
                 methods.add(m)
-        methods.add("destroy")
+        if "destroy" not in obj.unexported_methods:
+            methods.add("destroy")
         cls = self.classes.get(obj.class_name)
         if cls:
             for class_qname in self._effective_mro(obj):
