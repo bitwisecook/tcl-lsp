@@ -68,7 +68,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-11.7",
     "oo-11.8",
     # oo-12.x: Forward method edge cases
-    "oo-12.7",
     # oo-13.x: Filter edge cases
     "oo-13.6",
     "oo-13.7",
@@ -78,7 +77,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-14.x: Mixin edge cases
     "oo-14.1",
     "oo-14.2",
-    "oo-14.7",
     # oo-15.x: oo::objdefine edge cases
     "oo-15.6",
     "oo-15.8",

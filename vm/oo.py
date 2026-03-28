@@ -575,6 +575,22 @@ class OORuntime:
                             + _format_method_list(avail)
                         )
                     raise TclError(f'unknown method "{method_name}"')
+            # Check for filters — my calls go through filters unless
+            # we're already inside a filter chain for this object.
+            in_filter = getattr(obj, "_in_filter", False)
+            if not in_filter:
+                filters = oo_self._collect_filters(obj)
+                if filters and method_name not in filters:
+                    chain: list[tuple[TclOOMethod, str]] = []
+                    for fname in filters:
+                        fmethod, fclass = oo_self.resolve_method(obj, fname)
+                        if fmethod is not None:
+                            chain.append((fmethod, fclass or obj.class_name))
+                    if chain:
+                        return oo_self._invoke_with_filters(
+                            interp, obj, chain, 0, method_name, args[1:],
+                            method, defining_class,
+                        )
             return oo_self._invoke_method(interp, obj, method, args[1:], defining_class=defining_class)
 
         ns_my_name = f"{obj.namespace}::my"
@@ -695,20 +711,25 @@ class OORuntime:
     ) -> TclResult:
         """Invoke a filter in the chain, setting up next to proceed."""
         fmethod, fclass = filter_chain[filter_index]
-        # Filters receive the same args as the original method call
-        # (the method name is available via `self target` / `self method`)
-        return self._invoke_method(
-            interp,
-            obj,
-            fmethod,
-            method_args,
-            defining_class=fclass,
-            filter_chain=filter_chain,
-            filter_index=filter_index,
-            filter_target=(target_method, target_class),
-            filter_method_name=method_name,
-            filter_method_args=method_args,
-        )
+        # Mark that this object is inside a filter chain so nested
+        # my calls don't re-trigger filters (preventing infinite loops).
+        was_in_filter = getattr(obj, "_in_filter", False)
+        obj._in_filter = True
+        try:
+            return self._invoke_method(
+                interp,
+                obj,
+                fmethod,
+                method_args,
+                defining_class=fclass,
+                filter_chain=filter_chain,
+                filter_index=filter_index,
+                filter_target=(target_method, target_class),
+                filter_method_name=method_name,
+                filter_method_args=method_args,
+            )
+        finally:
+            obj._in_filter = was_in_filter
 
     def _invoke_method(
         self,
@@ -1139,6 +1160,23 @@ class OORuntime:
                     )
                 raise TclError(f'unknown method "{method_name}"')
 
+        # Check for filters — my calls go through filters unless
+        # we're already inside a filter chain for this object.
+        in_filter = getattr(obj, "_in_filter", False)
+        if not in_filter:
+            filters = self._collect_filters(obj)
+            if filters and method_name not in filters:
+                chain: list[tuple[TclOOMethod, str]] = []
+                for fname in filters:
+                    fmethod, fclass = self.resolve_method(obj, fname)
+                    if fmethod is not None:
+                        chain.append((fmethod, fclass or obj.class_name))
+                if chain:
+                    return self._invoke_with_filters(
+                        interp, obj, chain, 0, method_name, args[1:],
+                        method, defining_class,
+                    )
+
         return self._invoke_method(interp, obj, method, args[1:], defining_class=defining_class)
 
     def next_dispatch(self, interp: TclInterp, args: list[str]) -> TclResult:
@@ -1189,16 +1227,23 @@ class OORuntime:
                 )
             else:
                 # All filters exhausted — invoke the target method
-                # with the original method args (no method name prefix)
+                # with the original method args (no method name prefix).
+                # Clear _in_filter so my calls from the target method
+                # can re-trigger filters (matching C Tcl behaviour).
                 target_method, target_class = filter_target
-                return self._invoke_method(
-                    interp,
-                    obj,
-                    target_method,
-                    filter_method_args,
-                    defining_class=target_class,
-                    via_next=True,
-                )
+                was_in_filter = getattr(obj, "_in_filter", False)
+                obj._in_filter = False
+                try:
+                    return self._invoke_method(
+                        interp,
+                        obj,
+                        target_method,
+                        filter_method_args,
+                        defining_class=target_class,
+                        via_next=True,
+                    )
+                finally:
+                    obj._in_filter = was_in_filter
 
         # --- Normal MRO walk ---
         inst_cls = self.classes.get(obj.class_name)
