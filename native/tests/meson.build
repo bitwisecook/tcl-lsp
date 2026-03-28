@@ -3,6 +3,7 @@ catch2_dep = dependency('catch2-with-main')
 # LSP server core tests (depend on lsp-framework, no Python).
 lsp_core_test_sources = {
   'test_lsp_document_store': 'test_lsp_document_store.cpp',
+  'test_lsp_server_integration': 'test_lsp_server_integration.cpp',
 }
 
 foreach name, src : lsp_core_test_sources
