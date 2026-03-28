@@ -302,7 +302,17 @@ def _ns_which(interp: TclInterp, args: list[str]) -> TclResult:
             return TclResult(value=f"::{name}")
         return TclResult(value="")
     else:
-        # variable — check the namespace's own frame
+        # variable — for fully-qualified names, check if the namespace exists
+        if name.startswith("::"):
+            last_sep = name.rfind("::")
+            if last_sep > 0:
+                ns_part = name[:last_sep] or "::"
+                target_ns = resolve_namespace(interp.root_namespace, ns_part)
+                if target_ns is not None:
+                    return TclResult(value=name)
+            # Global namespace variable
+            return TclResult(value=name if interp.global_frame.exists(name.lstrip(":")) else "")
+        # Relative name — check the namespace's own frame
         ns_frame = interp.current_namespace.get_frame(interp)
         if ns_frame.exists(name):
             if interp.current_namespace.qualname == "::":

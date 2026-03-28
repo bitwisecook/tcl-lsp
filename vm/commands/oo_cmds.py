@@ -88,11 +88,12 @@ def _parse_method_params(
     params: list[tuple[str, str | None]] = []
     names: list[str] = []
     has_args = False
-    for p in raw_params:
+    for i, p in enumerate(raw_params):
         parts = _split_list(p)
         if len(parts) == 1:
             pname = parts[0]
-            if pname == "args":
+            # Only the LAST parameter named "args" is variadic
+            if pname == "args" and i == len(raw_params) - 1:
                 has_args = True
             names.append(pname)
             params.append((pname, None))
@@ -1225,7 +1226,17 @@ def _register_class_command(
             # Override the auto-generated namespace with the specified one
             created_obj = oo.objects.get(obj_name)
             if created_obj is not None:
+                old_ns_name = created_obj.namespace
                 created_obj.namespace = ns_name
+                # Create the new namespace and set back-reference
+                from ..scope import ensure_namespace, resolve_namespace
+                new_ns = ensure_namespace(interp.root_namespace, ns_name)
+                new_ns._oo_object_name = obj_name
+                # Clean up old auto-generated namespace
+                old_ns = resolve_namespace(interp.root_namespace, old_ns_name)
+                if old_ns is not None:
+                    old_ns._oo_object_name = None
+                    old_ns.delete()
                 # Re-register my/myclass in the new namespace
                 oo._register_object_command(interp, created_obj)
             return TclResult(value=obj_name)

@@ -1090,8 +1090,11 @@ class OORuntime:
                 if var_name in obj._vars:
                     frame._scalars[var_name] = obj._vars[var_name]
 
-        # Bind parameters
-        all_params = [(n, d) for n, d in method.params if n != "args"]
+        # Bind parameters — only strip the last "args" if has_args is True
+        if method.has_args:
+            all_params = method.params[:-1]  # last param is variadic "args"
+        else:
+            all_params = list(method.params)
         required = [(n, d) for n, d in all_params if d is None]
 
         if not method.has_args and len(args) > len(all_params):
