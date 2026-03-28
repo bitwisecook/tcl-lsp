@@ -104,6 +104,15 @@ TEST_CASE("DocumentBuffer::offset_to_line_col", "[document_buffer]") {
     CHECK(buf.offset_to_line_col(6) == std::pair{1, 2});
 }
 
+TEST_CASE("DocumentBuffer::offset_to_line_col hello_world", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("hello\nworld");
+
+    CHECK(buf.offset_to_line_col(0) == std::pair{0, 0});
+    CHECK(buf.offset_to_line_col(3) == std::pair{0, 3});
+    CHECK(buf.offset_to_line_col(6) == std::pair{1, 0});
+    CHECK(buf.offset_to_line_col(8) == std::pair{1, 2});
+}
+
 TEST_CASE("DocumentBuffer::range_from_offsets", "[document_buffer]") {
     auto buf = DocumentBuffer::from_source("abc\ndef");
 
@@ -143,4 +152,250 @@ TEST_CASE("DocumentBuffer round-trip offset->position->offset", "[document_buffe
         auto back = buf.position_to_offset(pos.line, pos.character);
         CHECK(back == off);
     }
+}
+
+// ---------------------------------------------------------------------------
+// compute_line_starts (tested via DocumentBuffer::line_starts() accessor)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("compute_line_starts", "[document_buffer]") {
+    SECTION("empty") {
+        auto buf = DocumentBuffer::from_source("");
+        auto& ls = buf.line_starts();
+        REQUIRE(ls.size() == 1);
+        CHECK(ls[0] == 0);
+    }
+
+    SECTION("single_line") {
+        auto buf = DocumentBuffer::from_source("hello");
+        auto& ls = buf.line_starts();
+        REQUIRE(ls.size() == 1);
+        CHECK(ls[0] == 0);
+    }
+
+    SECTION("two_lines") {
+        auto buf = DocumentBuffer::from_source("hello\nworld");
+        auto& ls = buf.line_starts();
+        REQUIRE(ls.size() == 2);
+        CHECK(ls[0] == 0);
+        CHECK(ls[1] == 6);
+    }
+
+    SECTION("trailing_newline") {
+        auto buf = DocumentBuffer::from_source("hello\n");
+        auto& ls = buf.line_starts();
+        REQUIRE(ls.size() == 2);
+        CHECK(ls[0] == 0);
+        CHECK(ls[1] == 6);
+    }
+
+    SECTION("multiple_lines") {
+        auto buf = DocumentBuffer::from_source("a\nb\nc\nd");
+        auto& ls = buf.line_starts();
+        REQUIRE(ls.size() == 4);
+        CHECK(ls[0] == 0);
+        CHECK(ls[1] == 2);
+        CHECK(ls[2] == 4);
+        CHECK(ls[3] == 6);
+    }
+
+    SECTION("empty_lines") {
+        auto buf = DocumentBuffer::from_source("\n\n\n");
+        auto& ls = buf.line_starts();
+        REQUIRE(ls.size() == 4);
+        CHECK(ls[0] == 0);
+        CHECK(ls[1] == 1);
+        CHECK(ls[2] == 2);
+        CHECK(ls[3] == 3);
+    }
+
+    SECTION("crlf") {
+        // \r is treated as a regular character; only \n starts new lines
+        auto buf = DocumentBuffer::from_source("a\r\nb\r\n");
+        auto& ls = buf.line_starts();
+        REQUIRE(ls.size() == 3);
+        CHECK(ls[0] == 0);
+        CHECK(ls[1] == 3);
+        CHECK(ls[2] == 6);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// DocumentBuffer::from_source — line_starts verification
+// ---------------------------------------------------------------------------
+
+TEST_CASE("DocumentBuffer::from_source line_starts", "[document_buffer]") {
+    SECTION("basic") {
+        auto buf = DocumentBuffer::from_source("hello\nworld", 1);
+        CHECK(buf.source() == "hello\nworld");
+        CHECK(buf.version() == 1);
+        auto& ls = buf.line_starts();
+        REQUIRE(ls.size() == 2);
+        CHECK(ls[0] == 0);
+        CHECK(ls[1] == 6);
+    }
+
+    SECTION("empty") {
+        auto buf = DocumentBuffer::from_source("");
+        CHECK(buf.source() == "");
+        auto& ls = buf.line_starts();
+        REQUIRE(ls.size() == 1);
+        CHECK(ls[0] == 0);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// offset_to_position — individual cases matching Python tests
+// ---------------------------------------------------------------------------
+
+TEST_CASE("DocumentBuffer::offset_to_position detailed", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("hello\nworld");
+
+    SECTION("start_of_file") {
+        CHECK(buf.offset_to_position(0) == SourcePosition{0, 0, 0});
+    }
+
+    SECTION("middle_of_first_line") {
+        CHECK(buf.offset_to_position(3) == SourcePosition{0, 3, 3});
+    }
+
+    SECTION("start_of_second_line") {
+        CHECK(buf.offset_to_position(6) == SourcePosition{1, 0, 6});
+    }
+
+    SECTION("end_of_file") {
+        CHECK(buf.offset_to_position(11) == SourcePosition{1, 5, 11});
+    }
+
+    SECTION("newline_char") {
+        CHECK(buf.offset_to_position(5) == SourcePosition{0, 5, 5});
+    }
+}
+
+TEST_CASE("DocumentBuffer::offset_to_position clamp_negative", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("hello");
+    auto pos = buf.offset_to_position(-1);
+    CHECK(pos.offset == 0);
+}
+
+TEST_CASE("DocumentBuffer::offset_to_position clamp_past_end", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("hello");
+    auto pos = buf.offset_to_position(100);
+    CHECK(pos.offset == 5);
+}
+
+TEST_CASE("DocumentBuffer::offset_to_position empty_source", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("");
+    auto pos = buf.offset_to_position(0);
+    CHECK(pos == SourcePosition{0, 0, 0});
+}
+
+TEST_CASE("DocumentBuffer::offset_to_position multiline", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("line1\nline2\nline3");
+
+    SECTION("start_of_line3") {
+        auto pos = buf.offset_to_position(12);
+        CHECK(pos == SourcePosition{2, 0, 12});
+    }
+
+    SECTION("middle_of_line3") {
+        auto pos = buf.offset_to_position(15);
+        CHECK(pos == SourcePosition{2, 3, 15});
+    }
+}
+
+// ---------------------------------------------------------------------------
+// position_to_offset — individual cases matching Python tests
+// ---------------------------------------------------------------------------
+
+TEST_CASE("DocumentBuffer::position_to_offset detailed", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("hello\nworld");
+
+    SECTION("start") {
+        CHECK(buf.position_to_offset(0, 0) == 0);
+    }
+
+    SECTION("middle") {
+        CHECK(buf.position_to_offset(0, 3) == 3);
+    }
+
+    SECTION("second_line") {
+        CHECK(buf.position_to_offset(1, 0) == 6);
+    }
+
+    SECTION("clamp_line") {
+        // Line 5 doesn't exist, clamps to last line
+        CHECK(buf.position_to_offset(5, 0) == 6);
+    }
+
+    SECTION("clamp_character") {
+        // Character 100 on line 0 clamps to end of line
+        CHECK(buf.position_to_offset(0, 100) == 5);
+    }
+}
+
+TEST_CASE("DocumentBuffer::position_to_offset roundtrip proc", "[document_buffer]") {
+    std::string source = "proc foo {bar} {\n    set x 1\n    return $x\n}\n";
+    auto buf = DocumentBuffer::from_source(std::string(source));
+
+    for (int32_t off = 0; off < static_cast<int32_t>(source.size()); ++off) {
+        auto pos = buf.offset_to_position(off);
+        auto back = buf.position_to_offset(pos.line, pos.character);
+        CHECK(back == off);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// chunk_line_range — multiple chunks
+// ---------------------------------------------------------------------------
+
+TEST_CASE("DocumentBuffer::chunk_line_range single_chunk", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("set x 1\n");
+    auto [sl, sc, el, ec] = buf.chunk_line_range(0, 8);
+    CHECK(sl == 0);
+    CHECK(sc == 0);
+    CHECK(el == 1);
+    CHECK(ec == 0);
+}
+
+TEST_CASE("DocumentBuffer::chunk_line_range multiple_chunks", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("set x 1\nset y 2\n");
+
+    SECTION("first_chunk") {
+        auto [sl, sc, el, ec] = buf.chunk_line_range(0, 8);
+        CHECK(sl == 0);
+        CHECK(sc == 0);
+        CHECK(el == 1);
+        CHECK(ec == 0);
+    }
+
+    SECTION("second_chunk") {
+        auto [sl, sc, el, ec] = buf.chunk_line_range(8, 16);
+        CHECK(sl == 1);
+        CHECK(sc == 0);
+        CHECK(el == 2);
+        CHECK(ec == 0);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// range_from_offsets — cross_line and basic with hello\nworld
+// ---------------------------------------------------------------------------
+
+TEST_CASE("DocumentBuffer::range_from_offsets basic hello", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("hello\nworld");
+    auto r = buf.range_from_offsets(0, 4);
+    CHECK(r.start.line == 0);
+    CHECK(r.start.character == 0);
+    CHECK(r.end.line == 0);
+    CHECK(r.end.character == 4);
+}
+
+TEST_CASE("DocumentBuffer::range_from_offsets cross_line", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("hello\nworld");
+    auto r = buf.range_from_offsets(3, 8);
+    CHECK(r.start.line == 0);
+    CHECK(r.start.character == 3);
+    CHECK(r.end.line == 1);
+    CHECK(r.end.character == 2);
 }

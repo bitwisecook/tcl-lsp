@@ -6,6 +6,9 @@ test_sources = {
   'test_document_buffer': 'test_document_buffer.cpp',
   'test_token': 'test_token.cpp',
   'test_lexer': 'test_lexer.cpp',
+  'test_lexer_edge_cases_1': 'test_lexer_edge_cases_1.cpp',
+  'test_lexer_edge_cases_2': 'test_lexer_edge_cases_2.cpp',
+  'test_lexer_edge_cases_3': 'test_lexer_edge_cases_3.cpp',
 }
 
 foreach name, src : test_sources
