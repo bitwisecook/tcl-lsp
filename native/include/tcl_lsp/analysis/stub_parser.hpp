@@ -3,6 +3,7 @@
 #include "tcl_lsp/analysis/auxiliary_types.hpp"
 #include "tcl_lsp/core/range.hpp"
 
+#include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>

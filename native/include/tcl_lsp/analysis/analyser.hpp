@@ -80,6 +80,24 @@ class Analyser {
     void handle_interp_alias(const SegmentedCommand& cmd);
     void handle_package(const SegmentedCommand& cmd);
     void handle_source(const SegmentedCommand& cmd);
+    void handle_if(const SegmentedCommand& cmd, Scope* scope);
+    void handle_while(const SegmentedCommand& cmd, Scope* scope);
+
+    // --- Switch body parsing ---
+    void parse_switch_body(std::string_view body_text, const Token* body_token,
+                           Scope* scope, bool is_regexp);
+
+    // --- Variable list parsing (foreach) ---
+    void define_vars_from_list(const std::string& var_list_text,
+                               const Token& tok, Scope* scope);
+
+    // --- Alias resolution + proc call ---
+    auto resolve_alias(const std::string& cmd_name, const std::vector<std::string>& args,
+                       Scope* scope) -> std::pair<std::string, std::vector<std::string>>;
+    auto find_proc_call(const std::string& cmd_name, Scope* scope) -> ProcDef*;
+    void check_proc_call_arity(const ProcDef& proc_def,
+                                const std::vector<std::string>& args,
+                                const Token& cmd_token);
 
     // --- Generic body analysis via arg roles ---
     void analyse_body_args(const SegmentedCommand& cmd, Scope* scope);

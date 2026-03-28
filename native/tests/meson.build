@@ -20,6 +20,15 @@ test_sources = {
   'test_semantic_types': 'test_semantic_types.cpp',
   'test_analysis_result': 'test_analysis_result.cpp',
   'test_param_list_parser': 'test_param_list_parser.cpp',
+  'test_stub_parser': 'test_stub_parser.cpp',
+  'test_analyser_proc': 'test_analyser_proc.cpp',
+  'test_analyser_variable': 'test_analyser_variable.cpp',
+  'test_analyser_control_flow': 'test_analyser_control_flow.cpp',
+  'test_analyser_regex': 'test_analyser_regex.cpp',
+  'test_analyser_package': 'test_analyser_package.cpp',
+  'test_analyser_alias': 'test_analyser_alias.cpp',
+  'test_analyser_w123': 'test_analyser_w123.cpp',
+  'test_analyser_diagnostics': 'test_analyser_diagnostics.cpp',
 }
 
 foreach name, src : test_sources

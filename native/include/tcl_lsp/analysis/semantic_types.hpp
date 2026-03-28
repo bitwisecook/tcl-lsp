@@ -71,7 +71,8 @@ enum class ScopeKind : std::uint8_t { GLOBAL, NAMESPACE, PROC };
 auto to_string(ScopeKind k) -> std::string;
 
 // A lexical scope (global, namespace, or proc body).
-// Mutable during analysis; arena-allocated.
+// Mutable during analysis.  Children are owned via raw pointers; the
+// destructor deletes them so the tree is cleaned up recursively.
 struct Scope {
     ScopeKind kind = ScopeKind::GLOBAL;
     std::string name;
@@ -81,6 +82,37 @@ struct Scope {
     std::unordered_map<std::string, VarDef> variables;
     std::unordered_map<std::string, ProcDef> procs;
     std::vector<Scope*> children;
+
+    Scope() = default;
+    ~Scope() { for (auto* child : children) delete child; }
+
+    // Movable (source's children vector is emptied, preventing double-delete).
+    Scope(Scope&& other) noexcept
+        : kind(other.kind), name(std::move(other.name)), parent(other.parent),
+          body_range(other.body_range), has_body_range(other.has_body_range),
+          variables(std::move(other.variables)), procs(std::move(other.procs)),
+          children(std::move(other.children)) {
+        other.children.clear(); // NOLINT — ensure moved-from won't delete
+    }
+    auto operator=(Scope&& other) noexcept -> Scope& {
+        if (this != &other) {
+            for (auto* child : children) delete child;
+            kind = other.kind;
+            name = std::move(other.name);
+            parent = other.parent;
+            body_range = other.body_range;
+            has_body_range = other.has_body_range;
+            variables = std::move(other.variables);
+            procs = std::move(other.procs);
+            children = std::move(other.children);
+            other.children.clear(); // NOLINT
+        }
+        return *this;
+    }
+
+    // Not copyable (parent pointers would be wrong).
+    Scope(const Scope&) = delete;
+    auto operator=(const Scope&) -> Scope& = delete;
 };
 
 } // namespace tcl_lsp
