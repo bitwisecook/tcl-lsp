@@ -688,240 +688,230 @@ def optimise_load_forwarding(
 
     Inspired by ZJIT's store-to-load forwarding: instead of storing to a
     variable and immediately loading it back, forward the value directly.
+
+    Uses the following SSA/SCCP infrastructure:
+
+    - **Def-use chains** (``analysis.def_use_chains``): precise single-use
+      detection — only fires when a definition has exactly one ``OPERAND``
+      use and no phi/terminator uses.
+    - **SCCP lattice** (``analysis.values``): skip constants already handled
+      by O100 — only forward OVERDEFINED (non-constant) values.
+    - **Memory-SSA aliases** (``analysis.memory_ssa``): skip variables
+      involved in aliasing (upvar/global/variable) where writes through
+      one name could be visible through another.
+    - **Side-effect classification** (``classify_side_effects``): use the
+      registry-backed effect model to determine intervening barriers,
+      replacing a hardcoded command list.
+    - **SSA versions** (``ssa_stmt.uses``/``defs``): verify that all
+      variables read by the inlined expression have unchanged SSA versions
+      between the def site and the use site.
     """
-    from ..cfg import CFGBranch, CFGReturn
     from ..core_analyses import LatticeKind
+    from ..def_use import UseKind
     from ..ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRBarrier, IRCall
-    from ..memory_ssa import compute_aliases
+    from ..side_effects import classify_side_effects
     from ._helpers import _full_command_range, _tokens_for_statement
     from ._pattern_recognition import _statement_delete_rewrite_range, _statement_rewrite_context
 
     if is_top_level:
         return
 
-    # Build alias set for this function.
-    aliased_names: set[str] = set()
-    for aset in compute_aliases(ssa):
-        aliased_names |= aset.names
+    # Require def-use chains for precise single-use detection.
+    du = analysis.def_use_chains
+    if du is None:
+        return
+
+    # Alias information from memory-SSA (pre-computed during analysis).
+    aliased_names: frozenset[str] = frozenset()
+    if analysis.memory_ssa is not None:
+        aliased_names = analysis.memory_ssa.aliased_names
+    else:
+        # Fallback: compute aliases directly.
+        from ..memory_ssa import compute_aliases
+
+        for aset in compute_aliases(ssa):
+            aliased_names = aliased_names | aset.names
 
     executable_blocks = set(cfg.blocks) - set(analysis.unreachable_blocks)
-
-    # Collect all uses of each (name, version) across the function.
-    use_count: dict[tuple[str, int], int] = {}
-    for bn in executable_blocks:
-        ssa_block = ssa.blocks.get(bn)
-        if ssa_block is None:
-            continue
-        for ssa_stmt in ssa_block.statements:
-            for name, ver in ssa_stmt.uses.items():
-                if ver > 0:
-                    key = (name, ver)
-                    use_count[key] = use_count.get(key, 0) + 1
-        # Phi uses count as uses.
-        for phi in ssa_block.phis:
-            for pred, incoming_ver in phi.incoming.items():
-                if incoming_ver > 0 and pred in executable_blocks:
-                    key = (phi.name, incoming_ver)
-                    use_count[key] = use_count.get(key, 0) + 1
-        # Return/branch uses count as uses.
-        block = cfg.blocks.get(bn)
-        if block is not None:
-            term = block.terminator
-            if isinstance(term, CFGReturn) and term.value:
-                for tok in _scan_var_tokens(term.value):
-                    name = _normalise_var_name(tok)
-                    ver = ssa_block.exit_versions.get(name, 0)
-                    if ver > 0:
-                        key = (name, ver)
-                        use_count[key] = use_count.get(key, 0) + 1
-            elif isinstance(term, CFGBranch):
-                from ..expr_ast import vars_in_expr_node
-
-                for name in vars_in_expr_node(term.condition):
-                    ver = ssa_block.exit_versions.get(name, 0)
-                    if ver > 0:
-                        key = (name, ver)
-                        use_count[key] = use_count.get(key, 0) + 1
 
     # Build statement rewrite ranges for deletion.
     range_by_stmt, next_start_by_stmt = _statement_rewrite_context(source, cfg)
 
-    # Identify constants already handled by O100.
-    constant_keys: set[tuple[str, int]] = set()
-    for key, lv in analysis.values.items():
-        if getattr(lv, "kind", None) is LatticeKind.CONST:
-            constant_keys.add(key)
+    # Walk def-use chains looking for single-use, same-block forwarding candidates.
+    for def_key, chain in du.chains.items():
+        def_name, def_ver = def_key
 
-    # Walk blocks looking for single-use def→use pairs.
-    for bn in executable_blocks:
-        block = cfg.blocks.get(bn)
-        ssa_block = ssa.blocks.get(bn)
+        # Must have exactly one use, and it must be a statement operand
+        # (not a phi incoming edge or terminator condition).
+        if chain.use_count != 1:
+            continue
+        use = chain.uses[0]
+        if use.kind is not UseKind.OPERAND:
+            continue
+
+        # Def must be a statement (not a phi or parameter).
+        defsite = chain.definition
+        if defsite.statement_index < 0:
+            continue
+
+        # Def and use must be in the same executable block.
+        def_block = defsite.block
+        use_block = use.block
+        if def_block != use_block:
+            continue
+        if def_block not in executable_blocks:
+            continue
+
+        block = cfg.blocks.get(def_block)
+        ssa_block = ssa.blocks.get(def_block)
         if block is None or ssa_block is None:
             continue
 
-        for def_idx, ssa_stmt in enumerate(ssa_block.statements):
-            if def_idx >= len(block.statements):
-                continue
-            stmt = block.statements[def_idx]
+        def_idx = defsite.statement_index
+        use_idx = use.statement_index
+        if def_idx >= len(block.statements) or use_idx >= len(block.statements):
+            continue
+        if use_idx <= def_idx:
+            continue
 
-            # Only consider pure assignment statements.
-            if not isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr)):
-                continue
+        stmt = block.statements[def_idx]
+        ssa_stmt = ssa_block.statements[def_idx]
 
-            # Must have exactly one def.
-            if len(ssa_stmt.defs) != 1:
-                continue
-            def_name, def_ver = next(iter(ssa_stmt.defs.items()))
-            if def_ver <= 0:
-                continue
-            def_key = (def_name, def_ver)
+        # Only consider pure assignment statements.
+        if not isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr)):
+            continue
 
-            # Skip constants — O100 handles those.
-            if def_key in constant_keys:
-                continue
+        # Skip constants — SCCP lattice says O100 handles those.
+        lv = analysis.values.get(def_key)
+        if lv is not None and getattr(lv, "kind", None) is LatticeKind.CONST:
+            continue
 
-            # Skip cross-event variables.
-            if def_name in ctx.cross_event_vars:
-                continue
+        # Skip cross-event variables.
+        if def_name in ctx.cross_event_vars:
+            continue
 
-            # Skip aliased variables — both the defined variable and any
-            # variable read by the expression.  Aliases (upvar/global/variable)
-            # mean writes through one name are visible through another, so
-            # name-based intervening-modification checks are insufficient.
-            if def_name in aliased_names:
-                continue
-            def_read_names = set(ssa_stmt.uses.keys())
-            if def_read_names & aliased_names:
-                continue
+        # Skip aliased variables — both the defined variable and any
+        # variable read by the expression.  Memory-SSA alias sets track
+        # upvar/global/variable bindings; writes through one alias are
+        # visible through another, so forwarding is unsafe.
+        if def_name in aliased_names:
+            continue
+        def_read_names = set(ssa_stmt.uses.keys())
+        if def_read_names & aliased_names:
+            continue
 
-            # Must have exactly one use in the entire function.
-            if use_count.get(def_key, 0) != 1:
-                continue
+        # Check intervening statements between def and use:
+        # - No barriers (IRBarrier)
+        # - No side-effectful commands (using classify_side_effects)
+        # - No redefinition of any variable read by the expression
+        #   (SSA version integrity check)
+        unsafe = False
+        for between_idx in range(def_idx + 1, use_idx):
+            if between_idx >= len(block.statements):
+                break
+            between_stmt = block.statements[between_idx]
 
-            # Find the single use: must be in the same block at a later index.
-            use_idx = None
-            use_var_name = None
-            for candidate_idx in range(def_idx + 1, len(ssa_block.statements)):
-                candidate_ssa = ssa_block.statements[candidate_idx]
-                if candidate_ssa.uses.get(def_name) == def_ver:
-                    use_idx = candidate_idx
-                    use_var_name = def_name
-                    break
-
-            if use_idx is None:
-                continue
-
-            # Verify that no variable read by the expression is redefined
-            # between the def site and the use site.  If any read variable's
-            # SSA version changes, inlining would evaluate the expression
-            # with wrong values.
-            versions_changed = False
-            for between_idx in range(def_idx + 1, use_idx):
-                if between_idx >= len(ssa_block.statements):
-                    break
-                between_stmt = block.statements[between_idx]
-                if isinstance(between_stmt, IRBarrier):
-                    versions_changed = True
-                    break
-                if isinstance(between_stmt, IRCall):
-                    if between_stmt.command in (
-                        "eval",
-                        "uplevel",
-                        "upvar",
-                        "info",
-                        "trace",
-                        "namespace",
-                        "interp",
-                    ):
-                        versions_changed = True
-                        break
-                # If any intervening statement defines a variable that the
-                # expression reads, the SSA version has changed — unsafe.
-                between_ssa = ssa_block.statements[between_idx]
-                if def_read_names & set(between_ssa.defs.keys()):
-                    versions_changed = True
-                    break
-            if versions_changed:
-                continue
-
-            # Extract the full command text from source (including closing brackets).
-            stmt_range = stmt.range
-            full_stmt_range = _full_command_range(source, stmt_range) or stmt_range
-            stmt_text = source[full_stmt_range.start.offset : full_stmt_range.end.offset + 1]
-
-            # Build the inline replacement: [set name value_expr]
-            # The full statement text IS the set command, so wrapping in [] works.
-            inline_text = f"[{stmt_text}]"
-
-            # Find the $var token in the use-site statement.
-            use_stmt = block.statements[use_idx]
-            parsed = _tokens_for_statement(use_stmt, source)
-            if parsed is None:
-                continue
-
-            _, use_argv_tokens, use_argv_single = parsed
-            # Scan all tokens for the $var reference.
-            var_token = None
-            for tidx, tok in enumerate(use_argv_tokens):
-                if tok.type is not TokenType.VAR:
-                    continue
-                if _normalise_var_name(tok.text) != use_var_name:
-                    continue
-                # Must be a single-token word — we cannot inline [set ...]
-                # into the middle of a string interpolation.
-                if tidx < len(use_argv_single) and not use_argv_single[tidx]:
-                    continue
-                var_token = tok
+            # IRBarrier is always a kill.
+            if isinstance(between_stmt, IRBarrier):
+                unsafe = True
                 break
 
-            if var_token is None:
+            # Use the side-effect model to detect effectful commands
+            # that could observe or modify variable state.
+            if isinstance(between_stmt, IRCall):
+                callee_summary = None
+                if ctx.interproc is not None:
+                    from ..interprocedural import resolve_call_target
+
+                    known = set(ctx.interproc.procedures)
+                    target = resolve_call_target(
+                        between_stmt.command,
+                        between_stmt.args,
+                        cfg.name if hasattr(cfg, "name") else "::top",
+                        known,
+                    )
+                    if target is not None:
+                        callee_summary = ctx.interproc.procedures.get(target)
+                effect = classify_side_effects(
+                    between_stmt.command,
+                    between_stmt.args,
+                    callee_summary=callee_summary,
+                )
+                if not effect.pure:
+                    unsafe = True
+                    break
+
+            # SSA version check: if any intervening statement redefines
+            # a variable that the expression reads, the reaching version
+            # at the use site would differ — inlining is unsafe.
+            between_ssa = ssa_block.statements[between_idx]
+            if def_read_names & set(between_ssa.defs.keys()):
+                unsafe = True
+                break
+        if unsafe:
+            continue
+
+        # Extract the full command text from source (including closing brackets).
+        stmt_range = stmt.range
+        full_stmt_range = _full_command_range(source, stmt_range) or stmt_range
+        stmt_text = source[full_stmt_range.start.offset : full_stmt_range.end.offset + 1]
+
+        # Build the inline replacement: [set name value_expr]
+        inline_text = f"[{stmt_text}]"
+
+        # Find the $var token in the use-site statement.
+        use_stmt = block.statements[use_idx]
+        parsed = _tokens_for_statement(use_stmt, source)
+        if parsed is None:
+            continue
+
+        _, use_argv_tokens, use_argv_single = parsed
+        var_token = None
+        for tidx, tok in enumerate(use_argv_tokens):
+            if tok.type is not TokenType.VAR:
                 continue
+            if _normalise_var_name(tok.text) != def_name:
+                continue
+            # Must be a single-token word — we cannot inline [set ...]
+            # into the middle of a string interpolation.
+            if tidx < len(use_argv_single) and not use_argv_single[tidx]:
+                continue
+            var_token = tok
+            break
 
-            # Emit grouped rewrite: inline at use site + delete the set line.
-            group_id = ctx.alloc_group()
+        if var_token is None:
+            continue
 
-            # 1. Replace $var with [set name value].
-            var_range = _var_token_range(var_token)
+        # Emit grouped rewrite: inline at use site + delete the set line.
+        group_id = ctx.alloc_group()
+
+        # 1. Replace $var with [set name value].
+        var_range = _var_token_range(var_token)
+        ctx.optimisations.append(
+            Optimisation(
+                code="O127",
+                message=f"Inline single-use variable `${def_name}`",
+                range=var_range,
+                replacement=inline_text,
+                group=group_id,
+            )
+        )
+
+        # 2. Delete the original set statement.
+        def_stmt_key = (def_block, def_idx)
+        full_range = range_by_stmt.get(def_stmt_key)
+        if full_range is not None:
+            delete_range = _statement_delete_rewrite_range(
+                source,
+                full_range,
+                next_start_by_stmt.get(def_stmt_key),
+            )
             ctx.optimisations.append(
                 Optimisation(
                     code="O127",
-                    message=f"Inline single-use variable `${use_var_name}`",
-                    range=var_range,
-                    replacement=inline_text,
+                    message="Remove inlined assignment",
+                    range=delete_range,
+                    replacement="",
                     group=group_id,
                 )
             )
-
-            # 2. Delete the original set statement.
-            def_key_stmt = (bn, def_idx)
-            full_range = range_by_stmt.get(def_key_stmt)
-            if full_range is not None:
-                delete_range = _statement_delete_rewrite_range(
-                    source,
-                    full_range,
-                    next_start_by_stmt.get(def_key_stmt),
-                )
-                ctx.optimisations.append(
-                    Optimisation(
-                        code="O127",
-                        message="Remove inlined assignment",
-                        range=delete_range,
-                        replacement="",
-                        group=group_id,
-                    )
-                )
-
-
-def _scan_var_tokens(text: str) -> list[str]:
-    """Extract variable names from a Tcl text string (for use counting)."""
-    from ...parsing.lexer import TclLexer
-
-    names: list[str] = []
-    lexer = TclLexer(text)
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-        if tok.type is TokenType.VAR:
-            names.append(tok.text)
-    return names
