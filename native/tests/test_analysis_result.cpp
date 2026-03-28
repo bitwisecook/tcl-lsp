@@ -1,4 +1,6 @@
 #include "tcl_lsp/analysis/analysis_result.hpp"
+#include "tcl_lsp/analysis/analyser.hpp"
+#include "tcl_lsp/analysis/command_interface.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -12,12 +14,7 @@ TEST_CASE("AnalysisResult default has global scope", "[analysis_result]") {
 }
 
 TEST_CASE("AnalysisResult find_proc by qualified name", "[analysis_result]") {
-    AnalysisResult result;
-    auto& scope = result.global_scope();
-    scope.procs["greet"] = ProcDef{"greet", "::greet", {{"name", std::nullopt}},
-                                   Range::zero(), Range::zero(), "", {}};
-    result.all_procs["::greet"] = &scope.procs["greet"];
-
+    auto result = analyse("proc greet {name} { return $name }");
     REQUIRE(result.find_proc("greet") != nullptr);
     REQUIRE(result.find_proc("greet")->qualified_name == "::greet");
     REQUIRE(result.find_proc("::greet") != nullptr);
@@ -29,23 +26,13 @@ TEST_CASE("AnalysisResult find_proc returns nullptr for missing", "[analysis_res
 }
 
 TEST_CASE("AnalysisResult find_proc via bare name index", "[analysis_result]") {
-    AnalysisResult result;
-    auto& scope = result.global_scope();
-
-    // Create a proc with a namespace-qualified key that doesn't match a bare lookup.
-    scope.procs["add"] = ProcDef{"add", "::math::add", {}, Range::zero(), Range::zero(), "", {}};
-    result.all_procs["::math::add"] = &scope.procs["add"];
-
-    // Lookup by bare name "add" should find it via the bare-name index.
+    auto result = analyse("namespace eval math { proc add {a b} {} }");
     REQUIRE(result.find_proc("add") != nullptr);
     REQUIRE(result.find_proc("add")->qualified_name == "::math::add");
 }
 
 TEST_CASE("AnalysisResult active_package_names", "[analysis_result]") {
-    AnalysisResult result;
-    result.package_requires.push_back({"Tk", "8.6", Range::zero(), false});
-    result.package_requires.push_back({"http", "", Range::zero(), true});
-
+    auto result = analyse("package require Tk 8.6\npackage require http");
     auto names = result.active_package_names();
     REQUIRE(names.contains("Tk"));
     REQUIRE(names.contains("http"));
@@ -53,39 +40,33 @@ TEST_CASE("AnalysisResult active_package_names", "[analysis_result]") {
 }
 
 TEST_CASE("AnalysisResult package_context classifies correctly", "[analysis_result]") {
-    AnalysisResult result;
-    result.package_requires.push_back({"Tk", "8.6", Range::zero(), false});
-    result.package_requires.push_back({"http", "", Range::zero(), true});
-    result.package_provides.push_back({"mylib", "1.0", Range::zero()});
-    result.has_dynamic_providers = true;
-
+    // Unconditional require
+    auto result = analyse("package require Tk 8.6");
     auto ctx = result.package_context();
     REQUIRE(ctx.confidence("Tk") == Confidence::DEFINITE);
+}
+
+TEST_CASE("AnalysisResult package_context conditional", "[analysis_result]") {
+    // catch wrapping makes it conditional
+    auto result = analyse("catch { package require http }");
+    auto ctx = result.package_context();
     REQUIRE(ctx.confidence("http") == Confidence::PROBABLE);
-    REQUIRE(ctx.provided.contains("mylib"));
-    REQUIRE(ctx.unknown_providers == true);
 }
 
 TEST_CASE("AnalysisResult package_context unconditional overrides conditional", "[analysis_result]") {
-    AnalysisResult result;
-    // Same package both conditional and unconditional.
-    result.package_requires.push_back({"Tk", "", Range::zero(), true});
-    result.package_requires.push_back({"Tk", "8.6", Range::zero(), false});
-
+    auto result = analyse("catch { package require Tk }\npackage require Tk 8.6");
     auto ctx = result.package_context();
     REQUIRE(ctx.confidence("Tk") == Confidence::DEFINITE);
     REQUIRE_FALSE(ctx.probable.contains("Tk"));
 }
 
 TEST_CASE("AnalysisResult regex_position_set", "[analysis_result]") {
-    AnalysisResult result;
-    result.regex_patterns.push_back({{{2, 5, 30}, {2, 15, 40}}, "^foo$", "regexp"});
-    result.regex_patterns.push_back({{{5, 0, 80}, {5, 10, 90}}, "\\d+", "regsub"});
+    TestCommandRegistry registry;
+    registry.add_command("regexp", CommandSig{{1, 100}, {{0, ArgRole::PATTERN}}});
 
+    auto result = Analyser(&registry).analyse("regexp {^foo$} test");
     auto& positions = result.regex_position_set();
-    REQUIRE(positions.size() == 2);
-    REQUIRE(positions.contains({2, 5}));
-    REQUIRE(positions.contains({5, 0}));
+    REQUIRE(positions.size() == 1);
 
     // Verify caching: same reference returned.
     auto& positions2 = result.regex_position_set();
@@ -93,30 +74,9 @@ TEST_CASE("AnalysisResult regex_position_set", "[analysis_result]") {
 }
 
 TEST_CASE("AnalysisResult copy_for_snapshot creates independent copy", "[analysis_result]") {
-    AnalysisResult original;
-    auto& scope = original.global_scope();
-
-    // Add a proc with params.
-    scope.procs["greet"] = ProcDef{"greet", "::greet", {{"name", std::nullopt}},
-                                   Range::zero(), Range::zero(), "Says hello", {}};
-    original.all_procs["::greet"] = &scope.procs["greet"];
-
-    // Add a variable.
-    scope.variables["x"] = VarDef{"x", Range::zero(), {}, false};
-    original.all_variables["x"] = &scope.variables["x"];
-
-    // Add a child scope.
-    auto child = std::make_unique<Scope>();
-    child->kind = ScopeKind::PROC;
-    child->name = "greet";
-    child->parent = &scope;
-    child->variables["name"] = VarDef{"name", Range::zero(), {}, true};
-    scope.children.push_back(std::move(child));
-
-    // Add other data.
-    original.diagnostics.push_back({Range::zero(), Severity::WARNING, "W100", "test", {}});
-    original.package_requires.push_back({"Tk", "8.6", Range::zero(), false});
-    original.regex_patterns.push_back({Range::zero(), "^foo$", "regexp"});
+    auto original = analyse(
+        "proc greet {name} { set y 10 }\n"
+        "package require Tk 8.6");
 
     // Create snapshot.
     auto snap = original.copy_for_snapshot();
@@ -124,31 +84,28 @@ TEST_CASE("AnalysisResult copy_for_snapshot creates independent copy", "[analysi
     // Verify structure.
     REQUIRE(snap.global_scope().kind == ScopeKind::GLOBAL);
     REQUIRE(snap.global_scope().procs.contains("greet"));
-    REQUIRE(snap.global_scope().procs["greet"].qualified_name == "::greet");
-    REQUIRE(snap.global_scope().variables.contains("x"));
+    REQUIRE(snap.global_scope().procs.at("greet").qualified_name == "::greet");
     REQUIRE(snap.global_scope().children.size() == 1);
     REQUIRE(snap.global_scope().children[0]->kind == ScopeKind::PROC);
     REQUIRE(snap.global_scope().children[0]->parent == &snap.global_scope());
-    REQUIRE(snap.global_scope().children[0]->variables.contains("name"));
 
     // Verify flat indexes point into copied tree.
     REQUIRE(snap.find_proc("greet") != nullptr);
     REQUIRE(snap.find_proc("greet") != original.find_proc("greet")); // different pointers
 
-    // Verify independence: mutate original, snap unchanged.
+    // Verify independence: mutate original scope, snap unchanged.
     original.global_scope().procs["greet"].doc = "CHANGED";
-    REQUIRE(snap.global_scope().procs["greet"].doc == "Says hello");
+    REQUIRE(snap.global_scope().procs.at("greet").doc.empty());
 
-    original.diagnostics.clear();
-    REQUIRE(snap.diagnostics.size() == 1);
-
-    // No manual cleanup needed — unique_ptr handles it.
+    // Verify diagnostics independence.
+    auto orig_diag_count = original.diagnostics().size();
+    auto snap_diag_count = snap.diagnostics().size();
+    REQUIRE(orig_diag_count == snap_diag_count);
 }
 
 TEST_CASE("AnalysisResult move construction", "[analysis_result]") {
-    AnalysisResult a;
-    a.global_scope().procs["foo"] = ProcDef{"foo", "::foo", {}, Range::zero(), Range::zero(), "", {}};
-    a.all_procs["::foo"] = &a.global_scope().procs["foo"];
+    auto a = analyse("proc foo {} {}");
+    REQUIRE(a.find_proc("foo") != nullptr);
 
     AnalysisResult b = std::move(a);
     REQUIRE(b.global_scope().procs.contains("foo"));

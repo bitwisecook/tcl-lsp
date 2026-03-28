@@ -32,7 +32,7 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
 
     // Record command invocation.
     auto* resolved_proc = find_proc_call(cmd_name, scope);
-    result_.command_invocations.push_back(CommandInvocation{
+    result_.command_invocations_.push_back(CommandInvocation{
         cmd_name, range_from_token(cmd.argv[0]),
         resolved_proc ? resolved_proc->qualified_name : ""});
 
@@ -41,14 +41,14 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
     handle_source(cmd);
 
     if (cmd_name == "load") {
-        result_.has_dynamic_providers = true;
+        result_.has_dynamic_providers_ = true;
     } else if ((cmd_name == "set" || cmd_name == "lappend") && !args.empty() &&
                args[0] == "auto_path") {
-        result_.has_dynamic_providers = true;
+        result_.has_dynamic_providers_ = true;
     } else if (cmd_name == "rename") {
-        result_.has_dynamic_providers = true;
+        result_.has_dynamic_providers_ = true;
     } else if (cmd_name == "namespace" && args.size() >= 2 && args[0] == "import") {
-        result_.has_dynamic_providers = true;
+        result_.has_dynamic_providers_ = true;
     }
 
     // --- Consuming special-case handlers (return early) ---
@@ -212,7 +212,7 @@ void Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) {
     proc_def.doc = doc;
 
     scope->procs[proc_name] = proc_def;
-    result_.all_procs[qualified] = &scope->procs[proc_name];
+    result_.all_procs_[qualified] = &scope->procs[proc_name];
 
     // Create proc child scope.
     auto* proc_scope = make_child_scope(ScopeKind::PROC, proc_name, scope);
@@ -405,13 +405,13 @@ void Analyser::handle_switch(const SegmentedCommand& cmd, Scope* scope) {
                 if (pat_tok.type == TokenType::VAR) {
                     auto cv = lookup_const_string(pat_tok.text, scope);
                     if (cv.has_value()) {
-                        result_.regex_patterns.push_back(
+                        result_.regex_patterns_.push_back(
                             RegexPattern{range_from_token(pat_tok), cv->first, "switch"});
                         scope->regex_vars.insert(pat_tok.text);
                         record_defining_set_as_regex(pat_tok.text, scope, "switch");
                     }
                 } else {
-                    result_.regex_patterns.push_back(
+                    result_.regex_patterns_.push_back(
                         RegexPattern{range_from_token(pat_tok), args[i], "switch"});
                 }
             }
@@ -447,13 +447,13 @@ void Analyser::parse_switch_body(std::string_view body_text, const Token* body_t
             if (pat_tok.type == TokenType::VAR) {
                 auto cv = lookup_const_string(pat_tok.text, scope);
                 if (cv.has_value()) {
-                    result_.regex_patterns.push_back(
+                    result_.regex_patterns_.push_back(
                         RegexPattern{range_from_token(pat_tok), cv->first, "switch"});
                     scope->regex_vars.insert(pat_tok.text);
                     record_defining_set_as_regex(pat_tok.text, scope, "switch");
                 }
             } else {
-                result_.regex_patterns.push_back(
+                result_.regex_patterns_.push_back(
                     RegexPattern{range_from_token(pat_tok), elements[i], "switch"});
             }
         }
@@ -616,7 +616,7 @@ void Analyser::handle_interp_alias(const SegmentedCommand& cmd) {
     std::vector<std::string> prepended(args.begin() + 5, args.end());
 
     command_aliases_[qualified] = {target_cmd, prepended};
-    result_.command_aliases[qualified] = {target_cmd, prepended};
+    result_.command_aliases_[qualified] = {target_cmd, prepended};
 }
 
 // ---------------------------------------------------------------------------
@@ -637,12 +637,12 @@ void Analyser::handle_package(const SegmentedCommand& cmd) {
         } else {
             pkg_version = args.size() >= 3 ? args[2] : "";
         }
-        result_.package_requires.push_back(PackageRequire{
+        result_.package_requires_.push_back(PackageRequire{
             pkg_name, pkg_version, range_from_token(cmd.argv[0]),
             conditional_depth_ > 0});
     } else if (args[0] == "provide" && args.size() >= 2) {
         auto pkg_version = args.size() >= 3 ? args[2] : std::string{};
-        result_.package_provides.push_back(PackageProvide{
+        result_.package_provides_.push_back(PackageProvide{
             args[1], pkg_version, range_from_token(cmd.argv[0])});
     }
 }
@@ -665,7 +665,7 @@ void Analyser::handle_source(const SegmentedCommand& cmd) {
                   path.find('$') == std::string::npos &&
                   path.find('[') == std::string::npos;
 
-    result_.source_targets.push_back(SourceTarget{path, range_from_token(st), is_lit});
+    result_.source_targets_.push_back(SourceTarget{path, range_from_token(st), is_lit});
 }
 
 // ---------------------------------------------------------------------------
@@ -735,13 +735,13 @@ void Analyser::analyse_body_args(const SegmentedCommand& cmd, Scope* scope) {
                     if (pt.type == TokenType::VAR) {
                         auto cv = lookup_const_string(pt.text, scope);
                         if (cv.has_value()) {
-                            result_.regex_patterns.push_back(
+                            result_.regex_patterns_.push_back(
                                 RegexPattern{range_from_token(pt), cv->first, role_cmd});
                             scope->regex_vars.insert(pt.text);
                             record_defining_set_as_regex(pt.text, scope, role_cmd);
                         }
                     } else {
-                        result_.regex_patterns.push_back(
+                        result_.regex_patterns_.push_back(
                             RegexPattern{range_from_token(pt), args[uidx], role_cmd});
                     }
                 }
@@ -809,8 +809,8 @@ auto Analyser::find_proc_call(const std::string& cmd_name, Scope* scope) -> Proc
     auto try_find = [&](const std::string& raw) -> ProcDef* {
         auto q = normalise_qualified_name(raw, nullptr);
         if (q.empty()) return nullptr;
-        auto it = result_.all_procs.find(q);
-        return it != result_.all_procs.end() ? it->second : nullptr;
+        auto it = result_.all_procs_.find(q);
+        return it != result_.all_procs_.end() ? it->second : nullptr;
     };
 
     if (cmd_name.starts_with("::")) {

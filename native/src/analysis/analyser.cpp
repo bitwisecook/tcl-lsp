@@ -36,10 +36,10 @@ auto Analyser::analyse(std::string_view source) -> AnalysisResult {
 
     // Pre-scan for inline stub blocks.
     auto stubs = scan_source_for_stubs(source);
-    result_.stub_commands.insert(result_.stub_commands.end(),
+    result_.stub_commands_.insert(result_.stub_commands_.end(),
                                  std::make_move_iterator(stubs.commands.begin()),
                                  std::make_move_iterator(stubs.commands.end()));
-    result_.stub_expr_defs.insert(result_.stub_expr_defs.end(),
+    result_.stub_expr_defs_.insert(result_.stub_expr_defs_.end(),
                                    std::make_move_iterator(stubs.expressions.begin()),
                                    std::make_move_iterator(stubs.expressions.end()));
 
@@ -78,7 +78,7 @@ auto Analyser::analyse_commands(std::string_view source,
 void Analyser::analyse_body(std::string_view source, Scope* scope,
                             const Token* body_token) {
     auto [commands, recovery_diags] = segment_with_recovery(source, body_token);
-    result_.diagnostics.insert(result_.diagnostics.end(),
+    result_.diagnostics_.insert(result_.diagnostics_.end(),
                                std::make_move_iterator(recovery_diags.begin()),
                                std::make_move_iterator(recovery_diags.end()));
     analyse_commands_inner(commands, scope, source);
@@ -127,7 +127,7 @@ void Analyser::analyse_commands_inner(const std::vector<SegmentedCommand>& comma
                 }
 
                 for (auto ln = cmd.range.start.line; ln <= cmd.range.end.line; ++ln) {
-                    auto& existing = result_.suppressed_lines[ln];
+                    auto& existing = result_.suppressed_lines_[ln];
                     existing.insert(codes.begin(), codes.end());
                 }
             }

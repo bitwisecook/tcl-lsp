@@ -22,7 +22,7 @@ void AnalysisResult::ensure_bare_name_index() const {
         return;
     }
     bare_name_index_.emplace();
-    for (const auto& [qname, proc] : all_procs) {
+    for (const auto& [qname, proc] : all_procs_) {
         bare_name_index_->try_emplace(proc->name, proc);
     }
 }
@@ -30,10 +30,10 @@ void AnalysisResult::ensure_bare_name_index() const {
 auto AnalysisResult::find_proc(std::string_view name) const -> const ProcDef* {
     // Try qualified forms first.
     std::string with_prefix = "::" + std::string(name);
-    if (auto it = all_procs.find(with_prefix); it != all_procs.end()) {
+    if (auto it = all_procs_.find(with_prefix); it != all_procs_.end()) {
         return it->second;
     }
-    if (auto it = all_procs.find(std::string(name)); it != all_procs.end()) {
+    if (auto it = all_procs_.find(std::string(name)); it != all_procs_.end()) {
         return it->second;
     }
     // Fall back to bare-name index.
@@ -46,7 +46,7 @@ auto AnalysisResult::find_proc(std::string_view name) const -> const ProcDef* {
 
 auto AnalysisResult::active_package_names() const -> std::unordered_set<std::string> {
     std::unordered_set<std::string> result;
-    for (const auto& pr : package_requires) {
+    for (const auto& pr : package_requires_) {
         result.insert(pr.name);
     }
     return result;
@@ -54,7 +54,7 @@ auto AnalysisResult::active_package_names() const -> std::unordered_set<std::str
 
 auto AnalysisResult::package_context() const -> PackageContext {
     PackageContext ctx;
-    for (const auto& pr : package_requires) {
+    for (const auto& pr : package_requires_) {
         if (pr.conditional) {
             ctx.probable.insert(pr.name);
         } else {
@@ -65,17 +65,17 @@ auto AnalysisResult::package_context() const -> PackageContext {
     for (const auto& name : ctx.definite) {
         ctx.probable.erase(name);
     }
-    for (const auto& pp : package_provides) {
+    for (const auto& pp : package_provides_) {
         ctx.provided.insert(pp.name);
     }
-    ctx.unknown_providers = has_dynamic_providers;
+    ctx.unknown_providers = has_dynamic_providers_;
     return ctx;
 }
 
 auto AnalysisResult::regex_position_set() const -> const RegexPositionSet& {
     if (!regex_position_cache_.has_value()) {
         regex_position_cache_.emplace();
-        for (const auto& rp : regex_patterns) {
+        for (const auto& rp : regex_patterns_) {
             regex_position_cache_->emplace(rp.range.start.line, rp.range.start.character);
         }
     }
@@ -119,7 +119,6 @@ auto AnalysisResult::copy_for_snapshot() const -> AnalysisResult {
     copy.global_scope_ = copy_scope_tree(*global_scope_, nullptr);
 
     // Rebuild flat indexes pointing into the copied tree.
-    // Walk the copied scope tree to find all procs and variables.
     struct Walker {
         std::unordered_map<std::string, ProcDef*>& all_procs;
         std::unordered_map<std::string, VarDef*>& all_variables;
@@ -137,22 +136,22 @@ auto AnalysisResult::copy_for_snapshot() const -> AnalysisResult {
         }
     };
 
-    Walker walker{copy.all_procs, copy.all_variables};
+    Walker walker{copy.all_procs_, copy.all_variables_};
     walker.walk(*copy.global_scope_);
 
     // Copy plain data.
-    copy.diagnostics = diagnostics;
-    copy.suppressed_lines = suppressed_lines;
-    copy.regex_patterns = regex_patterns;
-    copy.command_invocations = command_invocations;
-    copy.package_requires = package_requires;
-    copy.package_provides = package_provides;
-    copy.has_dynamic_providers = has_dynamic_providers;
-    copy.source_targets = source_targets;
-    copy.stub_commands = stub_commands;
-    copy.stub_expr_defs = stub_expr_defs;
-    copy.command_aliases = command_aliases;
-    copy.unknown_proc_info = unknown_proc_info;
+    copy.diagnostics_ = diagnostics_;
+    copy.suppressed_lines_ = suppressed_lines_;
+    copy.regex_patterns_ = regex_patterns_;
+    copy.command_invocations_ = command_invocations_;
+    copy.package_requires_ = package_requires_;
+    copy.package_provides_ = package_provides_;
+    copy.has_dynamic_providers_ = has_dynamic_providers_;
+    copy.source_targets_ = source_targets_;
+    copy.stub_commands_ = stub_commands_;
+    copy.stub_expr_defs_ = stub_expr_defs_;
+    copy.command_aliases_ = command_aliases_;
+    copy.unknown_proc_info_ = unknown_proc_info_;
 
     return copy;
 }
