@@ -481,24 +481,30 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                             for mname, m in ancestor.methods.items():
                                 if mname not in methods:
                                     methods[mname] = getattr(m, "visibility", "public")
-                    # Also add built-in methods, respecting unexport
-                    _BUILTIN_METHODS = {
-                        "destroy": "public",
-                        "<cloned>": "private",
-                        "eval": "private",
-                        "unknown": "private",
-                        "variable": "private",
-                        "varname": "private",
-                    }
-                    obj_unexported = getattr(obj, "unexported_methods", set())
-                    for bm, bv in _BUILTIN_METHODS.items():
-                        if bm not in methods:
-                            if bm in obj_unexported:
-                                methods[bm] = "unexported"
-                            else:
-                                methods[bm] = bv
-            if not private_flag:
-                # Filter to only public/exported
+                # Add built-in methods, respecting unexport
+                _BUILTIN_METHODS = {
+                    "destroy": "public",
+                    "<cloned>": "private",
+                    "eval": "private",
+                    "unknown": "private",
+                    "variable": "private",
+                    "varname": "private",
+                }
+                obj_unexported = getattr(obj, "unexported_methods", set())
+                for bm, bv in _BUILTIN_METHODS.items():
+                    if bm not in methods:
+                        if bm in obj_unexported:
+                            methods[bm] = "unexported"
+                        else:
+                            methods[bm] = bv
+            if private_flag:
+                # -private: show all methods including private
+                pass
+            elif all_flag:
+                # -all: show public methods (inherited + built-in public)
+                methods = {k: v for k, v in methods.items() if v in ("public", "exported")}
+            else:
+                # Default: show only public/exported instance methods
                 methods = {k: v for k, v in methods.items() if v in ("public", "exported")}
             matched = sorted(m for m in methods if fnmatch.fnmatch(m, pattern))
             return TclResult(value=" ".join(_list_escape(m) for m in matched))
@@ -710,17 +716,43 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                     private_flag = True
                 else:
                     pattern = arg
-            methods = list(cls.methods.keys())
-            if not private_flag:
-                methods = [m for m in methods if cls.methods[m].visibility == "public"]
+            methods_dict: dict[str, str] = {}  # name -> visibility
+            for mname, m in cls.methods.items():
+                methods_dict[mname] = getattr(m, "visibility", "public")
             if all_flag:
                 for cqn in cls.mro(oo.classes):
                     ancestor = oo.classes.get(cqn)
                     if ancestor and ancestor is not cls:
-                        for m in ancestor.methods:
-                            if m not in methods:
-                                if private_flag or ancestor.methods[m].visibility == "public":
-                                    methods.append(m)
+                        for mname, m in ancestor.methods.items():
+                            if mname not in methods_dict:
+                                methods_dict[mname] = getattr(m, "visibility", "public")
+                # Add built-in methods
+                _BUILTIN_CLASS_METHODS = {
+                    "destroy": "public",
+                    "<cloned>": "private",
+                    "eval": "private",
+                    "unknown": "private",
+                    "variable": "private",
+                    "varname": "private",
+                }
+                # Check class-level unexport
+                all_unexported: set[str] = set()
+                for cqn in cls.mro(oo.classes):
+                    ancestor = oo.classes.get(cqn)
+                    if ancestor:
+                        all_unexported |= ancestor.unexported_methods
+                for bm, bv in _BUILTIN_CLASS_METHODS.items():
+                    if bm not in methods_dict:
+                        if bm in all_unexported:
+                            methods_dict[bm] = "unexported"
+                        else:
+                            methods_dict[bm] = bv
+            if private_flag:
+                methods = [k for k, v in methods_dict.items()]
+            elif all_flag:
+                methods = [k for k, v in methods_dict.items() if v in ("public", "exported")]
+            else:
+                methods = [k for k, v in methods_dict.items() if v in ("public", "exported")]
             matched = sorted(m for m in methods if fnmatch.fnmatch(m, pattern))
             return TclResult(value=" ".join(_list_escape(m) for m in matched))
 

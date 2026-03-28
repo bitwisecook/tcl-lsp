@@ -91,8 +91,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-16.x: info object/class edge cases
     "oo-16.16",
     # oo-17.x: definitionnamespace
-    "oo-17.9",
-    "oo-17.13",
     "oo-17.15",
     "oo-17.16",
     # oo-18.x: slot operations
