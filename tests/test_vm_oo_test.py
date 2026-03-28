@@ -50,7 +50,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-2.6",
     "oo-2.7",
     "oo-2.8",
-    "oo-2.9",
     # oo-3.x: Destructor edge cases
     "oo-3.1",
     "oo-3.12",

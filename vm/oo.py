@@ -274,20 +274,18 @@ class OORuntime:
         self._register_object_command(interp, obj)
 
         # Run constructor — walk MRO to find the first constructor.
-        # If the constructor throws, clean up the partially-constructed object.
+        # If the constructor throws, run destructor then clean up.
         ctor, ctor_class = self._resolve_constructor(cls)
         if ctor is not None:
             try:
                 self._invoke_method(interp, obj, ctor, args or [], defining_class=ctor_class)
-            except TclError:
-                # Constructor failed — destroy the partial object
-                interp._runtime_commands.pop(obj_name, None)
-                if obj_name.startswith("::"):
-                    short = obj_name.rsplit("::", 1)[-1]
-                    if short:
-                        interp._runtime_commands.pop(short, None)
-                self.objects.pop(obj_name, None)
-                raise
+            except TclError as ctor_err:
+                # Constructor failed — run destructor then destroy the object
+                try:
+                    self._destroy_object(interp, obj)
+                except TclError:
+                    pass  # ignore destructor errors during cleanup
+                raise ctor_err
 
         return obj_name
 
