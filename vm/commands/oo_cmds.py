@@ -371,13 +371,40 @@ def _define_mixin(interp: TclInterp, args: list[str]) -> TclResult:
     cls = getattr(interp, "_defining_class", None)
     if cls is None:
         raise TclError("this command may only be called from within the body of an oo::define command")
-    mixin_args = list(args)
-    if mixin_args and mixin_args[0] == "-append":
-        new_mixins = mixin_args[1:]
-    else:
-        new_mixins = list(mixin_args)
-        cls.mixins = []
     oo = _get_oo_runtime(interp)
+
+    if not args:
+        cls.mixins = []
+        return TclResult()
+
+    op = args[0] if args[0].startswith("-") else None
+
+    if op == "-clear":
+        cls.mixins = []
+        return TclResult()
+
+    if op == "-remove":
+        names_to_remove = args[1:]
+        # Resolve names for comparison
+        resolved_remove: set[str] = set()
+        for n in names_to_remove:
+            resolved_remove.add(n if n.startswith("::") else f"::{n}")
+        cls.mixins = [
+            m for m in cls.mixins
+            if (m if m.startswith("::") else f"::{m}") not in resolved_remove
+        ]
+        return TclResult()
+
+    if op == "-set":
+        new_mixins = args[1:]
+        cls.mixins = []
+    elif op == "-append":
+        new_mixins = args[1:]
+    else:
+        # Default: set (replace)
+        new_mixins = list(args)
+        cls.mixins = []
+
     for m in new_mixins:
         qn = m if m.startswith("::") else f"::{m}"
         if qn == cls.qualified_name:
@@ -487,9 +514,9 @@ def _define_filter(interp: TclInterp, args: list[str]) -> TclResult:
     cls = getattr(interp, "_defining_class", None)
     obj = getattr(interp, "_defining_object", None)
     if cls is not None:
-        cls.filters.extend(args)
+        cls.filters = _apply_slot_op(cls.filters, args, validate=False)
     elif obj is not None:
-        obj.instance_filters.extend(args)
+        obj.instance_filters = _apply_slot_op(obj.instance_filters, args, validate=False)
     return TclResult()
 
 
@@ -932,12 +959,36 @@ def _objdefine_mixin(interp: TclInterp, args: list[str]) -> TclResult:
     obj = getattr(interp, "_defining_object", None)
     if obj is None:
         raise TclError("this command may only be called from within the body of an oo::objdefine command")
-    mixin_args = list(args)
-    if mixin_args and mixin_args[0] == "-append":
-        new_mixins = mixin_args[1:]
-    else:
-        new_mixins = list(mixin_args)
+
+    if not args:
         obj.instance_mixins = []
+        return TclResult()
+
+    op = args[0] if args[0].startswith("-") else None
+
+    if op == "-clear":
+        obj.instance_mixins = []
+        return TclResult()
+
+    if op == "-remove":
+        names_to_remove: set[str] = set()
+        for n in args[1:]:
+            names_to_remove.add(n if n.startswith("::") else f"::{n}")
+        obj.instance_mixins = [
+            m for m in obj.instance_mixins
+            if (m if m.startswith("::") else f"::{m}") not in names_to_remove
+        ]
+        return TclResult()
+
+    if op == "-set":
+        new_mixins = args[1:]
+        obj.instance_mixins = []
+    elif op == "-append":
+        new_mixins = args[1:]
+    else:
+        new_mixins = list(args)
+        obj.instance_mixins = []
+
     for m in new_mixins:
         qn = m if m.startswith("::") else f"::{m}"
         for existing in obj.instance_mixins:
