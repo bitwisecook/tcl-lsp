@@ -152,39 +152,12 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-41.2",  # tailcall
     "namespace-41.3",  # tailcall
     # Namespace ensemble create/config
-    "namespace-42.1",  # ensemble create
-    "namespace-42.2",  # ensemble create
-    "namespace-42.3",  # ensemble create
-    "namespace-42.4",  # ensemble create
-    "namespace-42.5",  # ensemble create
-    "namespace-42.8",  # ensemble create
-    "namespace-42.9",  # ensemble create
-    "namespace-42.10",  # ensemble create
-    "namespace-42.11",  # ensemble create
-    # Ensemble exists
-    "namespace-43.1",  # ensemble exists
-    "namespace-43.2",  # ensemble exists
-    "namespace-43.4",  # ensemble exists
-    "namespace-43.7",  # ensemble exists
-    "namespace-43.9",  # ensemble exists
-    "namespace-43.12",  # ensemble exists
-    "namespace-43.14",  # ensemble exists
-    "namespace-43.16",  # ensemble exists
+    "namespace-42.3",  # ensemble create — prefix matching edge case
+    "namespace-42.9",  # ensemble create — configure after create
+    "namespace-42.10",  # ensemble create — configure after create
+    "namespace-42.11",  # ensemble create — namespace eval + ensemble
     # Ensemble info
-    "namespace-44.2",  # ensemble info
-    "namespace-44.3",  # ensemble info
-    "namespace-44.4",  # ensemble info
-    "namespace-44.5",  # ensemble info
-    "namespace-44.6",  # ensemble info
-    # Ensemble error handling
-    "namespace-45.1",  # ensemble error
-    "namespace-45.2",  # ensemble error
-    "namespace-46.1",  # ensemble error
-    "namespace-46.2",  # ensemble error
-    "namespace-46.3",  # ensemble error
-    "namespace-46.4",  # ensemble error
-    "namespace-46.7",  # ensemble error
-    "namespace-46.9",  # ensemble error
+    "namespace-44.5",  # ensemble info — prefix error message
     # Ensemble dispatch
     "namespace-47.1",  # ensemble dispatch
     "namespace-47.2",  # ensemble dispatch

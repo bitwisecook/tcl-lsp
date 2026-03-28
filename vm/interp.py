@@ -53,6 +53,18 @@ class ProcDef:
     body_start_line: int = 0  # 1-based line of first body statement (for errorInfo)
 
 
+@dataclass
+class EnsembleConfig:
+    """Configuration for a namespace ensemble command."""
+
+    namespace: str  # FQ namespace that owns the ensemble
+    map: dict[str, str]  # subcommand -> implementation (may be multi-word)
+    subcommands: list[str]  # explicit subcommand list (empty = use exports)
+    unknown: str  # unknown handler script (empty = none)
+    prefixes: bool  # whether prefix matching is enabled
+    parameters: list[str]  # fixed leading parameters before subcommand
+
+
 # Matches ``::tcl::<base>::<sub>`` — FQ ensemble command names emitted
 # by the bytecode compiler (e.g. ``::tcl::dict::values``).
 _FQ_ENSEMBLE_RE = re.compile(r"^::tcl::(\w+)::(\w+)$")
@@ -136,6 +148,9 @@ class TclInterp:
         self.variable_traces: dict[str, list[tuple[list[str], str]]] = {}
         # Command traces: cmd_name -> list of (ops, script)
         self.command_traces: dict[str, list[tuple[list[str], str]]] = {}
+
+        # Ensemble metadata: fully-qualified command name -> EnsembleConfig
+        self.ensembles: dict[str, EnsembleConfig] = {}
 
         # I/O channels
         self.channels: dict[str, TextIO] = {

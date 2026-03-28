@@ -170,6 +170,18 @@ def _cmd_rename(interp: TclInterp, args: list[str]) -> TclResult:
         if new_name:
             interp.register_command(new_name, handler)
         interp.unregister_command(old_name)
+        # Migrate ensemble metadata
+        old_fqn = old_name if old_name.startswith("::") else f"::{old_name}"
+        if old_fqn in interp.ensembles:
+            if new_name:
+                new_fqn = new_name if new_name.startswith("::") else f"::{new_name}"
+                interp.ensembles[new_fqn] = interp.ensembles.pop(old_fqn)
+                # Update the handler's FQN reference so dispatch works
+                new_handler = interp.lookup_command(new_name)
+                if new_handler is not None and hasattr(new_handler, "_ensemble_ref"):
+                    new_handler._ensemble_ref[0] = new_fqn
+            else:
+                del interp.ensembles[old_fqn]
         _cleanup_proc(interp, old_name, new_name)
         _fire_cmd_traces(interp, old_name, new_name)
         return TclResult()
