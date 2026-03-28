@@ -173,17 +173,33 @@ class OORuntime:
         for c in self.classes.values():
             c.invalidate_mro()
 
+    def _is_metaclass(self, cls: TclOOClass) -> bool:
+        """Check if *cls* is a metaclass (has ``::oo::class`` in its MRO)."""
+        mro = cls.mro(self.classes)
+        return "::oo::class" in mro
+
     def create_object(
         self,
         interp: TclInterp,
         class_name: str,
         obj_name: str | None = None,
         args: list[str] | None = None,
+        display_name: str | None = None,
     ) -> str:
-        """Create a new object instance of the given class."""
+        """Create a new object instance of the given class.
+
+        If *class_name* is a metaclass (has ``::oo::class`` in its MRO),
+        the new object is itself a class and gets registered as such with
+        a class command.
+
+        *display_name* is the original user-provided name used in error
+        messages (C Tcl uses the unqualified form).
+        """
         cls = self.classes.get(class_name)
         if cls is None:
             raise TclError(f'unknown class "{class_name}"')
+
+        err_name = display_name or obj_name
 
         self._next_obj_id += 1
         if obj_name is None:
@@ -192,15 +208,43 @@ class OORuntime:
             # Check for duplicate object name (only named objects, not auto-generated)
             if obj_name in self.objects:
                 raise TclError(
-                    f'can\'t create object "{obj_name}": command already exists with that name'
+                    f'can\'t create object "{err_name}": command already exists with that name'
                 )
             # Also check short name for qualified names
             if obj_name.startswith("::"):
                 short = obj_name.rsplit("::", 1)[-1]
                 if short and short in self.objects:
                     raise TclError(
-                        f'can\'t create object "{obj_name}": command already exists with that name'
+                        f'can\'t create object "{err_name}": command already exists with that name'
                     )
+
+        # If the creating class is a metaclass, the new object is itself a class.
+        if self._is_metaclass(cls):
+            from .commands.oo_cmds import _cmd_oo_class
+
+            # Delegate to the class creation machinery so that the new
+            # object gets a class record, a class command, etc.  We build
+            # args for ``oo::class create name ?body?``.
+            create_args = ["create", obj_name]
+            if args:
+                # The remaining args become the constructor args, but
+                # for metaclass-created classes C Tcl passes them to the
+                # constructor rather than treating them as a body.
+                pass
+            result = _cmd_oo_class(interp, create_args)
+            new_name = result.value
+
+            # Run constructor if provided via args (metaclass may have a
+            # constructor that initialises the new class).
+            new_cls = self.classes.get(new_name)
+            new_obj = self.objects.get(new_name)
+            if new_cls is not None and new_obj is not None:
+                # Set the metaclass as the new class's class_name
+                new_obj.class_name = class_name
+                ctor, ctor_class = self._resolve_constructor(cls)
+                if ctor is not None and args:
+                    self._invoke_method(interp, new_obj, ctor, args, defining_class=ctor_class)
+            return new_name
 
         # Each object gets a unique internal namespace like C Tcl's ::oo::ObjN
         ns = f"::oo::Obj{self._next_obj_id}"
@@ -501,10 +545,45 @@ class OORuntime:
         can find the correct position in the MRO chain.
         """
         # Forward methods bypass the normal method invocation and directly
-        # call the target command in the caller's scope.
+        # call the target command in the caller's scope, but with OO
+        # context set so that `my` and `self` work.
         if method.forward_target is not None:
             cmd_parts = list(method.forward_target) + list(args)
-            return interp.invoke(cmd_parts[0], cmd_parts[1:])
+            frame = interp.current_frame
+            saved_self = getattr(frame, "_oo_self", None)
+            saved_class = getattr(frame, "_oo_class", None)
+            saved_method = getattr(frame, "_oo_method", None)
+            frame._oo_self = obj.name
+            frame._oo_class = defining_class
+            frame._oo_method = method.name
+            try:
+                return interp.invoke(cmd_parts[0], cmd_parts[1:])
+            except TclError as e:
+                # Rewrite "wrong # args" errors to show the forward
+                # method name and object instead of the internal target.
+                msg = str(e)
+                if msg.startswith("wrong # args: should be "):
+                    import re
+
+                    m = re.match(
+                        r'wrong # args: should be "([^"]*)"', msg
+                    )
+                    if m:
+                        original = m.group(1).split()
+                        prefix_count = len(method.forward_target)
+                        remaining_params = original[prefix_count:]
+                        short_name = obj.name
+                        if short_name.startswith("::"):
+                            short_name = short_name[2:]
+                        new_params = [short_name, method.name] + remaining_params
+                        raise TclError(
+                            f'wrong # args: should be "{" ".join(new_params)}"'
+                        ) from None
+                raise
+            finally:
+                frame._oo_self = saved_self
+                frame._oo_class = saved_class
+                frame._oo_method = saved_method
 
         from .scope import CallFrame
 
@@ -668,6 +747,22 @@ class OORuntime:
             raise TclError(f'object "{obj_name}" has been destroyed')
 
         method_name = args[0]
+
+        # For class objects, `my create`/`my new`/`my destroy` dispatch
+        # directly to the class command logic, bypassing export checks
+        # (since `my` is an internal-access mechanism).
+        if obj_name in self.classes and method_name in ("create", "new", "destroy"):
+            cls_cmd = interp._runtime_commands.get(obj_name)
+            if cls_cmd is not None:
+                # Temporarily clear unexport marks so the class command
+                # allows the built-in method through.
+                saved = obj.unexported_methods.copy()
+                obj.unexported_methods -= {"create", "new", "destroy"}
+                try:
+                    return cls_cmd(interp, args)
+                finally:
+                    obj.unexported_methods = saved
+
         method, defining_class = self.resolve_method(obj, method_name)
         if method is None:
             raise TclError(f'unknown method "{method_name}"')

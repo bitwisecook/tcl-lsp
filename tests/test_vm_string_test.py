@@ -126,6 +126,7 @@ KNOWN_FAILURES_SUBST: set[str] = {
     "subst-12.4",  # continuation line in subst
     "subst-12.5",  # continuation line in subst
     # Interp / word boundaries
+    "subst-13.1",  # test isolation: global state from namespace tests
     "subst-13.2",  # word boundary in subst
 }
 

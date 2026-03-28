@@ -253,7 +253,18 @@ def _parse_class_body(
             case "definitionnamespace":
                 pass  # not yet implemented
             case _:
-                pass  # ignore unknown subcommands
+                # In C Tcl, oo::define evaluates the body as a Tcl script
+                # in the ::oo::define namespace.  Non-definition commands
+                # are evaluated normally.
+                from ..scope import ensure_namespace
+
+                oo_define_ns = ensure_namespace(interp.root_namespace, "::oo::define")
+                saved_ns = interp.current_namespace
+                interp.current_namespace = oo_define_ns
+                try:
+                    interp.eval(line)
+                finally:
+                    interp.current_namespace = saved_ns
 
         i += 1
 
@@ -403,24 +414,35 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
     oo = _get_oo_runtime(interp)
     cls = TclOOClass(name=name, qualified_name=qualified)
 
+    # Default superclass if none specified — set before registration so that
+    # register_class sees the correct hierarchy from the start.
+    # _parse_class_body may override this if a superclass is specified.
+    if qualified != "::oo::object":
+        cls.superclasses = ["::oo::object"]
+
+    # Register early so that `self { ... }` blocks in the class body
+    # can find the class object via oo.objects.
+    oo.register_class(cls)
+
     if len(args) >= 3:
         _parse_class_body(interp, cls, args[2])
 
-    # Default superclass if none specified
-    if not cls.superclasses and qualified != "::oo::object":
-        cls.superclasses = ["::oo::object"]
-
-    oo.register_class(cls)
-
     # Register class as a command for `ClassName new` / `ClassName create`
     def _class_cmd(interp: TclInterp, cmd_args: list[str]) -> TclResult:
+        from ..oo import _format_method_list
+
         if not cmd_args:
             raise TclError(f'wrong # args: should be "{qualified} method ?arg ...?"')
         method = cmd_args[0]
-        if method == "new":
+
+        # Check if method is unexported on the class object
+        obj = oo.objects.get(qualified)
+        is_unexported = obj is not None and method in obj.unexported_methods
+
+        if method == "new" and not is_unexported:
             obj_name = oo.create_object(interp, qualified, args=cmd_args[1:])
             return TclResult(value=obj_name)
-        if method == "create":
+        if method == "create" and not is_unexported:
             if len(cmd_args) < 2:
                 raise TclError(f'wrong # args: should be "{qualified} create name ?arg ...?"')
             create_name = cmd_args[1]
@@ -432,23 +454,59 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
                     create_name = f"::{create_name}"
                 else:
                     create_name = f"{ns}::{create_name}"
-            obj_name = oo.create_object(interp, qualified, obj_name=create_name, args=cmd_args[2:])
+            # Normalize repeated :: separators (e.g. ::::foo → ::foo)
+            while "::::" in create_name:
+                create_name = create_name.replace("::::", "::")
+            obj_name = oo.create_object(
+                interp, qualified, obj_name=create_name, args=cmd_args[2:],
+                display_name=cmd_args[1],
+            )
             return TclResult(value=obj_name)
         if method == "destroy":
             # Destroy this class (and cascade to instances)
-            obj = oo.objects.get(qualified)
             if obj is not None:
                 return oo._destroy_object(interp, obj)
             return TclResult()
         # Dispatch to the class's OO method dispatch (class objects have methods too)
-        obj = oo.objects.get(qualified)
-        if obj is not None:
+        if obj is not None and not is_unexported:
             m, defining_class = oo.resolve_method(obj, method)
             if m is not None:
                 return oo._invoke_method(
                     interp, obj, m, cmd_args[1:], defining_class=defining_class
                 )
-        raise TclError(f'unknown method "{method}": must be create, destroy or new')
+        # Build dynamic available method list for error message
+        available: list[str] = ["destroy"]
+        if obj is not None:
+            # Add create/new if not unexported
+            for builtin in ("create", "new"):
+                if builtin not in obj.unexported_methods:
+                    available.append(builtin)
+            # Add instance methods (from self block / objdefine)
+            for m_name, m_def in obj.instance_methods.items():
+                if m_name in obj.exported_methods:
+                    available.append(m_name)
+                elif m_name in obj.unexported_methods:
+                    continue
+                elif m_def.visibility == "public":
+                    available.append(m_name)
+            # Add methods from MRO
+            for class_qname in oo._effective_mro(obj):
+                ancestor = oo.classes.get(class_qname)
+                if ancestor:
+                    for m_name, m_def in ancestor.methods.items():
+                        if m_name in obj.exported_methods:
+                            available.append(m_name)
+                        elif m_name in obj.unexported_methods:
+                            continue
+                        elif m_def.visibility == "public":
+                            available.append(m_name)
+        else:
+            available.extend(["create", "new"])
+        available = sorted(set(available))
+        raise TclError(
+            f'unknown method "{method}": must be '
+            + _format_method_list(available)
+        )
 
     interp._runtime_commands[qualified] = _class_cmd
     # Also register short name
@@ -545,7 +603,7 @@ def _cmd_oo_object(interp: TclInterp, args: list[str]) -> TclResult:
                 name = f"::{name}"
             else:
                 name = f"{ns}::{name}"
-        obj_name = oo.create_object(interp, "::oo::object", obj_name=name, args=args[2:])
+        obj_name = oo.create_object(interp, "::oo::object", obj_name=name, args=args[2:], display_name=args[1])
         return TclResult(value=obj_name)
     elif subcmd == "destroy":
         # oo::object itself cannot be destroyed in normal usage
