@@ -139,6 +139,15 @@ class OORuntime:
                 has_args=builtin_name != "varname",
                 visibility="unexported",
             )
+        # <cloned> is a private built-in (no-op by default, overridable)
+        root.methods["<cloned>"] = TclOOMethod(
+            name="<cloned>",
+            params=[("originObject", None)],
+            param_names=["originObject"],
+            body="__builtin_cloned__",
+            has_args=False,
+            visibility="private",
+        )
         self.classes["::oo::object"] = root
         # oo::object is an object whose class is oo::class
         self.objects["::oo::object"] = TclOOObject(
@@ -593,11 +602,18 @@ class OORuntime:
 
         return None, None
 
-    def _available_methods(self, obj: TclOOObject, *, include_all: bool = False) -> list[str]:
+    def _available_methods(
+        self,
+        obj: TclOOObject,
+        *,
+        include_all: bool = False,
+        caller_class: str | None = None,
+    ) -> list[str]:
         """Return list of available method names for error messages.
 
-        When *include_all* is True, include unexported and private methods
-        (used for ``my`` dispatch errors where the caller has full access).
+        When *include_all* is True, include unexported methods and built-in
+        private methods.  User-defined private methods are only included if
+        *caller_class* matches the class that defines them.
         """
         methods: set[str] = set()
         # Collect class-level export/unexport sets from MRO
@@ -614,10 +630,21 @@ class OORuntime:
                     for m in ancestor.unexported_methods:
                         if m not in cls_exports:
                             cls_unexports.add(m)
+
+        def _should_include(md: TclOOMethod, defining: str | None = None) -> bool:
+            """Check if a private method should be included based on caller context."""
+            if md.visibility != "private":
+                return True
+            # Built-in private methods are always visible in include_all mode
+            if md.body and md.body.startswith("__builtin_"):
+                return True
+            # User-defined private: only visible if caller_class matches
+            return caller_class is not None and defining == caller_class
+
         # Instance methods — respect visibility and export overrides
         for m, md in obj.instance_methods.items():
             if include_all:
-                if md.visibility != "private" or include_all:
+                if _should_include(md):
                     methods.add(m)
             elif m in obj.exported_methods:
                 methods.add(m)
@@ -639,10 +666,7 @@ class OORuntime:
                 if ancestor:
                     for m, md in ancestor.methods.items():
                         if include_all:
-                            # Skip builtins
-                            if md.body and md.body.startswith("__builtin_"):
-                                methods.add(m)
-                            else:
+                            if _should_include(md, class_qname):
                                 methods.add(m)
                         else:
                             # Object-level export overrides class visibility
@@ -961,6 +985,9 @@ class OORuntime:
         elif name == "destroy":
             # Called from filter chain's next → actual destroy
             return TclResult()
+        elif name == "<cloned>":
+            # Default <cloned> handler — no-op (user can override)
+            return TclResult()
         raise TclError(f'unknown builtin method "{name}"')
 
     def _destroy_object(self, interp: TclInterp, obj: TclOOObject) -> TclResult:
@@ -1090,8 +1117,9 @@ class OORuntime:
                     obj.unexported_methods = saved
 
         method, defining_class = self.resolve_method(obj, method_name)
+        my_caller_class = getattr(frame, "_oo_class", None)
         if method is None:
-            avail = self._available_methods(obj, include_all=True)
+            avail = self._available_methods(obj, include_all=True, caller_class=my_caller_class)
             if avail:
                 raise TclError(
                     f'unknown method "{method_name}": must be '
@@ -1102,9 +1130,8 @@ class OORuntime:
         # TIP 500: private methods via ``my`` are only accessible from
         # within the defining class itself.
         if method.visibility == "private" and defining_class:
-            caller_class = getattr(frame, "_oo_class", None)
-            if caller_class != defining_class:
-                avail = self._available_methods(obj, include_all=True)
+            if my_caller_class != defining_class:
+                avail = self._available_methods(obj, include_all=True, caller_class=my_caller_class)
                 if avail:
                     raise TclError(
                         f'unknown method "{method_name}": must be '
