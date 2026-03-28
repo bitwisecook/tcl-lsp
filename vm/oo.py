@@ -232,31 +232,67 @@ class OORuntime:
                 return ancestor.destructor, class_qname
         return None, None
 
+    def _effective_mro(self, obj: TclOOObject) -> list[str]:
+        """Compute the full effective MRO for an object, including instance mixins.
+
+        Uses ``tcloo_linearise`` with instance mixins prepended to the class's
+        mixin list so the result matches C Tcl's call chain ordering.
+        """
+        cls = self.classes.get(obj.class_name)
+        if cls is None:
+            return []
+
+        if not obj.instance_mixins:
+            return cls.mro(self.classes)
+
+        # Build supers/mixins maps for the lineariser
+        def _normalise(name: str) -> str:
+            if name.startswith("::"):
+                return name
+            if f"::{name}" in self.classes:
+                return f"::{name}"
+            return name
+
+        supers_map: dict[str, list[str]] = {}
+        mixins_map: dict[str, list[str]] = {}
+        for qn, c in self.classes.items():
+            supers_map[qn] = [_normalise(s) for s in c.superclasses]
+            if c.mixins:
+                mixins_map[qn] = [_normalise(m) for m in c.mixins]
+
+        # Prepend instance mixins to the class's mixin list
+        inst_mixins = [_normalise(m) for m in obj.instance_mixins]
+        existing_mixins = mixins_map.get(cls.qualified_name, [])
+        mixins_map[cls.qualified_name] = inst_mixins + existing_mixins
+
+        try:
+            return tcloo_linearise(cls.qualified_name, supers_map, mixins_map=mixins_map)
+        except MROError:
+            return cls.mro(self.classes)
+
     def _collect_filters(self, obj: TclOOObject) -> list[str]:
         """Collect all applicable filter names for an object.
 
-        Order: instance filters, then class filters from each class in MRO.
+        Order: class filters from effective MRO first, then instance filters.
         Duplicates are removed (first occurrence wins).
         """
         seen: set[str] = set()
         result: list[str] = []
 
-        # Instance filters
+        # Class filters from effective MRO (includes instance mixins)
+        for class_qname in self._effective_mro(obj):
+            ancestor = self.classes.get(class_qname)
+            if ancestor:
+                for f in ancestor.filters:
+                    if f not in seen:
+                        seen.add(f)
+                        result.append(f)
+
+        # Instance filters last
         for f in obj.instance_filters:
             if f not in seen:
                 seen.add(f)
                 result.append(f)
-
-        # Class filters from MRO
-        cls = self.classes.get(obj.class_name)
-        if cls:
-            for class_qname in cls.mro(self.classes):
-                ancestor = self.classes.get(class_qname)
-                if ancestor:
-                    for f in ancestor.filters:
-                        if f not in seen:
-                            seen.add(f)
-                            result.append(f)
 
         return result
 
@@ -771,23 +807,63 @@ class OORuntime:
         tuples matching what ``info object call`` returns.
         """
         chain: list[tuple[str, str, str, str]] = []
+        effective_mro = self._effective_mro(obj)
 
         # Collect filter names (deduped)
         filter_names = self._collect_filters(obj)
-        # For each filter, list every class in MRO that defines the filter method
-        cls = self.classes.get(obj.class_name)
         for fname in filter_names:
             if fname in obj.instance_methods:
                 m = obj.instance_methods[fname]
                 impl = "forward" if m.forward_target else "method"
                 chain.append(("filter", fname, "object", impl))
-            if cls:
-                for class_qname in cls.mro(self.classes):
-                    ancestor = self.classes.get(class_qname)
-                    if ancestor and fname in ancestor.methods:
-                        m = ancestor.methods[fname]
-                        impl = "forward" if m.forward_target else "method"
-                        chain.append(("filter", fname, class_qname, impl))
+            for class_qname in effective_mro:
+                ancestor = self.classes.get(class_qname)
+                if ancestor and fname in ancestor.methods:
+                    m = ancestor.methods[fname]
+                    impl = "forward" if m.forward_target else "method"
+                    chain.append(("filter", fname, class_qname, impl))
+
+        # Walk effective MRO for method entries
+        # Instance mixin methods come first, then instance method, then class methods
+        # Split: classes from instance mixins vs class MRO
+        instance_mixin_classes: set[str] = set()
+        for mixin_name in obj.instance_mixins:
+            qn = mixin_name if mixin_name.startswith("::") else f"::{mixin_name}"
+            mixin_cls = self.classes.get(qn)
+            if mixin_cls:
+                for cqn in mixin_cls.mro(self.classes):
+                    instance_mixin_classes.add(cqn)
+
+        # Instance mixin method entries
+        for class_qname in effective_mro:
+            if class_qname not in instance_mixin_classes:
+                continue
+            ancestor = self.classes.get(class_qname)
+            if ancestor and method_name in ancestor.methods:
+                m = ancestor.methods[method_name]
+                impl = "forward" if m.forward_target else "method"
+                chain.append(("method", method_name, class_qname, impl))
+
+        # Class-level mixin method entries (from effective MRO, before instance method)
+        cls = self.classes.get(obj.class_name)
+        class_own_mro: list[str] = []
+        class_mixin_classes: set[str] = set()
+        if cls:
+            class_own_mro = cls.mro(self.classes)
+            # Identify which classes are from class-level mixins vs the plain hierarchy
+            plain_hierarchy = self._plain_hierarchy(cls)
+            class_mixin_classes = set(class_own_mro) - plain_hierarchy
+
+        for class_qname in effective_mro:
+            if class_qname in instance_mixin_classes:
+                continue
+            if class_qname not in class_mixin_classes:
+                continue
+            ancestor = self.classes.get(class_qname)
+            if ancestor and method_name in ancestor.methods:
+                m = ancestor.methods[method_name]
+                impl = "forward" if m.forward_target else "method"
+                chain.append(("method", method_name, class_qname, impl))
 
         # Instance method
         if method_name in obj.instance_methods:
@@ -795,35 +871,51 @@ class OORuntime:
             impl = "forward" if m.forward_target else "method"
             chain.append(("method", method_name, "object", impl))
 
-        # Walk MRO for class methods
-        cls = self.classes.get(obj.class_name)
-        if cls:
-            for class_qname in cls.mro(self.classes):
-                ancestor = self.classes.get(class_qname)
-                if ancestor and method_name in ancestor.methods:
-                    m = ancestor.methods[method_name]
-                    impl = "forward" if m.forward_target else "method"
-                    chain.append(("method", method_name, class_qname, impl))
+        # Class hierarchy methods (non-mixin)
+        for class_qname in effective_mro:
+            if class_qname in instance_mixin_classes:
+                continue
+            if class_qname in class_mixin_classes:
+                continue
+            ancestor = self.classes.get(class_qname)
+            if ancestor and method_name in ancestor.methods:
+                m = ancestor.methods[method_name]
+                impl = "forward" if m.forward_target else "method"
+                chain.append(("method", method_name, class_qname, impl))
 
         # If no method found, add unknown handlers
         if not any(ct == "method" for ct, _, _, _ in chain):
-            # Instance-level unknown
             if "unknown" in obj.instance_methods:
                 m = obj.instance_methods["unknown"]
                 impl = "forward" if m.forward_target else "method"
                 chain.append(("unknown", "unknown", "object", impl))
-            # User-defined unknown methods from MRO
-            if cls:
-                for class_qname in cls.mro(self.classes):
-                    ancestor = self.classes.get(class_qname)
-                    if ancestor and "unknown" in ancestor.methods:
-                        m = ancestor.methods["unknown"]
-                        impl = "forward" if m.forward_target else "method"
-                        chain.append(("unknown", "unknown", class_qname, impl))
-            # Core unknown handler
+            for class_qname in effective_mro:
+                ancestor = self.classes.get(class_qname)
+                if ancestor and "unknown" in ancestor.methods:
+                    m = ancestor.methods["unknown"]
+                    impl = "forward" if m.forward_target else "method"
+                    chain.append(("unknown", "unknown", class_qname, impl))
             chain.append(("unknown", "unknown", "::oo::object", '{core method: "unknown"}'))
 
         return chain
+
+    def _plain_hierarchy(self, cls: TclOOClass) -> set[str]:
+        """Get the plain inheritance hierarchy (without mixins) for a class."""
+        result: set[str] = set()
+        visited: set[str] = set()
+        stack = [cls.qualified_name]
+        while stack:
+            qn = stack.pop()
+            if qn in visited:
+                continue
+            visited.add(qn)
+            result.add(qn)
+            c = self.classes.get(qn)
+            if c:
+                for s in c.superclasses:
+                    sq = s if s.startswith("::") else f"::{s}"
+                    stack.append(sq)
+        return result
 
     def build_class_call_chain(
         self, class_name: str, method_name: str
