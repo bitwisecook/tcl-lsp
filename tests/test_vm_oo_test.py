@@ -184,19 +184,8 @@ KNOWN_FAILURES_OO: set[str] = {
 
 KNOWN_FAILURES_OO_NEXT2: set[str] = {
     # oo-call-*: Call chain introspection — remaining failures
-    "oo-call-1.7",
-    "oo-call-1.8",
-    "oo-call-1.9",
-    "oo-call-1.10",
-    "oo-call-1.11",
-    "oo-call-1.12",
-    "oo-call-1.16",
     "oo-call-1.20",
     "oo-call-1.21",
-    "oo-call-2.5",
-    "oo-call-2.6",
-    "oo-call-2.7",
-    "oo-call-2.10",
     # oo-call-3.*: Error cases
     "oo-call-3.1",
     "oo-call-3.3",

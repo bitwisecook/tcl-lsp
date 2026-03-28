@@ -137,7 +137,6 @@ KNOWN_FAILURES_VAR: set[str] = {
     "var-6.2",  # namespace delete cleans up vars
     "var-6.3",  # namespace delete cleans up vars
     # Namespace var persistence / info vars / unset
-    "var-7.9",  # namespace var persistence across evals
     "var-7.14",  # namespace var with traces
     "var-7.15",  # namespace var with traces
     # Variable traces through namespace

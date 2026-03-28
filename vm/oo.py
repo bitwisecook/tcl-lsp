@@ -533,10 +533,24 @@ class OORuntime:
         """
         from .types import TclResult
 
-        # If this object is a class, destroy all its instances first
+        # If this object is a class, destroy subclasses and instances first
         cls_def = self.classes.get(obj.name)
         if cls_def is not None:
-            # Collect instances to destroy (snapshot to avoid mutation during iteration)
+            # Destroy subclasses first (they are also classes whose superclass is this class)
+            qn = cls_def.qualified_name
+            short = qn.lstrip(":")
+            subclasses_to_destroy = [
+                c
+                for c in list(self.classes.values())
+                if c.qualified_name != qn
+                and any(s == qn or s == short or f"::{s}" == qn for s in c.superclasses)
+            ]
+            for sub_cls in subclasses_to_destroy:
+                sub_obj = self.objects.get(sub_cls.qualified_name)
+                if sub_obj and sub_obj.name in self.objects:
+                    self._destroy_object(interp, sub_obj)
+
+            # Collect direct instances to destroy (snapshot to avoid mutation during iteration)
             instances_to_destroy = [
                 o
                 for o in list(self.objects.values())
@@ -758,13 +772,22 @@ class OORuntime:
         """
         chain: list[tuple[str, str, str, str]] = []
 
-        # Collect filters
-        filters = self._collect_filters(obj)
-        for fname in filters:
-            fmethod, fclass = self.resolve_method(obj, fname)
-            if fmethod is not None:
-                impl = "forward" if fmethod.forward_target else "method"
-                chain.append(("filter", fname, fclass or obj.class_name, impl))
+        # Collect filter names (deduped)
+        filter_names = self._collect_filters(obj)
+        # For each filter, list every class in MRO that defines the filter method
+        cls = self.classes.get(obj.class_name)
+        for fname in filter_names:
+            if fname in obj.instance_methods:
+                m = obj.instance_methods[fname]
+                impl = "forward" if m.forward_target else "method"
+                chain.append(("filter", fname, "object", impl))
+            if cls:
+                for class_qname in cls.mro(self.classes):
+                    ancestor = self.classes.get(class_qname)
+                    if ancestor and fname in ancestor.methods:
+                        m = ancestor.methods[fname]
+                        impl = "forward" if m.forward_target else "method"
+                        chain.append(("filter", fname, class_qname, impl))
 
         # Instance method
         if method_name in obj.instance_methods:
@@ -782,8 +805,22 @@ class OORuntime:
                     impl = "forward" if m.forward_target else "method"
                     chain.append(("method", method_name, class_qname, impl))
 
-        # If no method found, add unknown handler
+        # If no method found, add unknown handlers
         if not any(ct == "method" for ct, _, _, _ in chain):
+            # Instance-level unknown
+            if "unknown" in obj.instance_methods:
+                m = obj.instance_methods["unknown"]
+                impl = "forward" if m.forward_target else "method"
+                chain.append(("unknown", "unknown", "object", impl))
+            # User-defined unknown methods from MRO
+            if cls:
+                for class_qname in cls.mro(self.classes):
+                    ancestor = self.classes.get(class_qname)
+                    if ancestor and "unknown" in ancestor.methods:
+                        m = ancestor.methods["unknown"]
+                        impl = "forward" if m.forward_target else "method"
+                        chain.append(("unknown", "unknown", class_qname, impl))
+            # Core unknown handler
             chain.append(("unknown", "unknown", "::oo::object", '{core method: "unknown"}'))
 
         return chain
@@ -802,21 +839,25 @@ class OORuntime:
 
         chain: list[tuple[str, str, str, str]] = []
 
-        # Class-level filters
+        # Collect filter names (deduped, ordered by MRO)
+        seen_filters: set[str] = set()
+        filter_names: list[str] = []
         for class_qname in cls.mro(self.classes):
             ancestor = self.classes.get(class_qname)
             if ancestor:
                 for fname in ancestor.filters:
-                    # Check if already in chain
-                    if not any(ct == "filter" and mn == fname for ct, mn, _, _ in chain):
-                        # Resolve filter method from MRO
-                        for cqn2 in cls.mro(self.classes):
-                            anc2 = self.classes.get(cqn2)
-                            if anc2 and fname in anc2.methods:
-                                fm = anc2.methods[fname]
-                                impl = "forward" if fm.forward_target else "method"
-                                chain.append(("filter", fname, cqn2, impl))
-                                break
+                    if fname not in seen_filters:
+                        seen_filters.add(fname)
+                        filter_names.append(fname)
+
+        # For each filter, list every class in MRO that defines the filter method
+        for fname in filter_names:
+            for class_qname in cls.mro(self.classes):
+                ancestor = self.classes.get(class_qname)
+                if ancestor and fname in ancestor.methods:
+                    fm = ancestor.methods[fname]
+                    impl = "forward" if fm.forward_target else "method"
+                    chain.append(("filter", fname, class_qname, impl))
 
         # Walk MRO for the method
         found = False
@@ -829,6 +870,14 @@ class OORuntime:
                 found = True
 
         if not found:
+            # User-defined unknown methods from MRO
+            for class_qname in cls.mro(self.classes):
+                ancestor = self.classes.get(class_qname)
+                if ancestor and "unknown" in ancestor.methods:
+                    m = ancestor.methods["unknown"]
+                    impl = "forward" if m.forward_target else "method"
+                    chain.append(("unknown", "unknown", class_qname, impl))
+            # Core unknown handler
             chain.append(("unknown", "unknown", "::oo::object", '{core method: "unknown"}'))
 
         return chain

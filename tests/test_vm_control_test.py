@@ -63,8 +63,6 @@ KNOWN_FAILURES_FOREACH: set[str] = {
     "foreach-1.14",
     # Brace-quoting in foreach value list
     "foreach-2.8",  # "invalid command name }" — braced body not parsed
-    # lsort-based output vs raw iteration
-    "foreach-3.1",  # dict ordering differs from expected sorted output
     # break/continue: extra iterations or missing error
     "foreach-5.4",  # continue count: 4 instead of 1
     "foreach-5.5",  # missing "wrong # args" for continue
@@ -99,7 +97,6 @@ KNOWN_FAILURES_APPEND: set[str] = {
     "append-4.14",  # extra space in result
     "append-4.15",  # backslash-space vs braced space
     "append-4.16",  # extra space in result
-    "append-4.18",  # empty vs "{}"
     # lappend: unmatched brace/quote validation
     "append-4.9",
     "append-4.10",
@@ -109,14 +106,9 @@ KNOWN_FAILURES_APPEND: set[str] = {
     "append-4.22",
     "append-10.2",
     "append-10.4",
-    # String length: append doubles length
-    "append-5.1",  # "length mismatch: should have been 300, was 600"
     # Trace handling
     "append-7.1",  # trace on undefined var
     "append-7.5",  # trace count
-    # lappend result quoting
-    "append-9.0",  # "{new value}" vs "new value"
-    "append-9.1",  # "{new value}" vs "new value"
 }
 
 KNOWN_FAILURES_EVAL: set[str] = {

@@ -530,7 +530,7 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             return TclResult(value=" ".join(_list_escape(t) for t in method.forward_target))
 
         case "call":
-            if len(rest) < 2:
+            if len(rest) != 2:
                 raise TclError('wrong # args: should be "info object call objName methodName"')
             oo, obj = _resolve_object(interp, rest[0])
             method_name = rest[1]
@@ -745,7 +745,7 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
             return TclResult(value=" ".join(_list_escape(t) for t in method.forward_target))
 
         case "call":
-            if len(rest) < 2:
+            if len(rest) != 2:
                 raise TclError('wrong # args: should be "info class call className methodName"')
             oo, cls = _resolve_class(interp, rest[0])
             method_name = rest[1]

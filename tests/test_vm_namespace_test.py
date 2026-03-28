@@ -91,7 +91,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-18.2",  # namespace ensemble
     # namespace upvar
     "namespace-19.3",  # namespace upvar
-    "namespace-19.4",  # namespace upvar
     # namespace unknown
     "namespace-20.2",  # namespace unknown handler
     "namespace-20.3",  # namespace unknown handler
