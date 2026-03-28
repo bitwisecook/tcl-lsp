@@ -470,13 +470,13 @@ class OORuntime:
     ) -> TclResult:
         """Invoke a filter in the chain, setting up next to proceed."""
         fmethod, fclass = filter_chain[filter_index]
-        # Filters receive [methodName, ?arg ...?]
-        filter_args = [method_name] + method_args
+        # Filters receive the same args as the original method call
+        # (the method name is available via `self target` / `self method`)
         return self._invoke_method(
             interp,
             obj,
             fmethod,
-            filter_args,
+            method_args,
             defining_class=fclass,
             filter_chain=filter_chain,
             filter_index=filter_index,

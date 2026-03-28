@@ -637,7 +637,7 @@ class TestOO13:
             """
             oo::class create Cls {
                 method logF args {
-                    lappend ::log [lindex $args 0]
+                    lappend ::log "filtered"
                     next {*}$args
                 }
                 method foo {} { return ok }
@@ -647,7 +647,7 @@ class TestOO13:
         """,
         )
         assert tcl_eval(interp, "obj foo") == "ok"
-        assert tcl_eval(interp, "set ::log") == "foo"
+        assert tcl_eval(interp, "set ::log") == "filtered"
 
     def test_oo_13_2_filter_modify_return(self) -> None:
         """oo-13.2: filter can wrap return value."""

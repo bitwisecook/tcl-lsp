@@ -26,7 +26,7 @@ class TestOO13Filters:
         interp.eval("""
             oo::class create Cls {
                 method logFilter args {
-                    lappend ::result "filter:[lindex $args 0]"
+                    lappend ::result "filtered"
                     next {*}$args
                 }
                 method foo {} {
@@ -39,16 +39,16 @@ class TestOO13Filters:
         interp.eval("Cls create obj")
         interp.eval("obj foo")
         result = interp.eval("set ::result")
-        assert "filter:foo" in result.value
+        assert "filtered" in result.value
         assert "foo" in result.value
 
     def test_oo_13_2_filter_sees_method_name(self) -> None:
-        """oo-13.2: filter receives target method name as first arg."""
+        """oo-13.2: filter does NOT receive method name as arg; args match the original call."""
         interp = TclInterp()
         interp.eval("""
             oo::class create Cls {
                 method myFilter args {
-                    set ::filterArg [lindex $args 0]
+                    set ::filterArgs $args
                     next {*}$args
                 }
                 method bar {} { return "bar-result" }
@@ -56,9 +56,11 @@ class TestOO13Filters:
             }
         """)
         interp.eval("Cls create obj")
-        interp.eval("obj bar")
-        result = interp.eval("set ::filterArg")
-        assert result.value == "bar"
+        result = interp.eval("obj bar")
+        assert result.value == "bar-result"
+        filter_args = interp.eval("set ::filterArgs")
+        # bar takes no arguments, so filter receives empty args
+        assert filter_args.value == ""
 
     def test_oo_13_3_multiple_filters(self) -> None:
         """oo-13.3: multiple filters run in order."""

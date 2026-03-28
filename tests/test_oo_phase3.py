@@ -412,9 +412,9 @@ class TestOOIntegration:
         interp.eval("""
             oo::class create Base {
                 method traceFilter args {
-                    lappend ::trace "before:[lindex $args 0]"
+                    lappend ::trace "before"
                     set r [next {*}$args]
-                    lappend ::trace "after:[lindex $args 0]"
+                    lappend ::trace "after"
                     return $r
                 }
                 method baseMethod {} { return "base" }
@@ -429,8 +429,8 @@ class TestOOIntegration:
         result = interp.eval("obj subMethod")
         assert result.value == "sub"
         trace = interp.eval("set ::trace")
-        assert "before:subMethod" in trace.value
-        assert "after:subMethod" in trace.value
+        assert "before" in trace.value
+        assert "after" in trace.value
 
     def test_unknown_with_forward(self) -> None:
         """Unknown handler combined with forward methods."""
