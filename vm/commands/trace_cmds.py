@@ -189,6 +189,12 @@ def fire_traces(
                 try:
                     interp.eval(callback)
                 except Exception as exc:
+                    exc_msg = str(exc)
+                    if "invalid command name" in exc_msg:
+                        # Command no longer exists — treat as stale trace
+                        # and silently remove it to prevent cascading errors.
+                        traces.remove((ops, script))
+                        continue
                     if op == "write":
                         # Write trace errors reject the set — propagate
                         # with the Tcl-standard "can't set" prefix.

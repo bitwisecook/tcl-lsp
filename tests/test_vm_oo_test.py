@@ -96,10 +96,7 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-19.5",
     # oo-20.x: singleton/abstract/tag
     "oo-20.6",
-    "oo-20.7",
     "oo-20.10",
-    "oo-20.13",
-    "oo-20.14",
     "oo-20.15",
     # oo-21.x: readableproperties/writableproperties
     "oo-21.2",
@@ -127,8 +124,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-27.8",
     "oo-27.9",
     "oo-27.13",
-    "oo-27.14",
-    "oo-27.15",
     "oo-27.16",
     "oo-27.17",
     "oo-27.18",
@@ -178,7 +173,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-38.4",
     "oo-38.5",
     # oo-39.x
-    "oo-39.1",
     "oo-39.2",
     "oo-39.3",
     "oo-39.4",
@@ -186,8 +180,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-39.6",
     "oo-39.7",
     "oo-39.8",
-    "oo-39.9",
-    "oo-39.10",
     "oo-39.11",
     "oo-39.12",
     # oo-40.x
