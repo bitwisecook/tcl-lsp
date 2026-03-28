@@ -435,14 +435,22 @@ class OORuntime:
     def _collect_filters(self, obj: TclOOObject) -> list[str]:
         """Collect all applicable filter names for an object.
 
-        Order: class filters from effective MRO first, then instance filters.
+        In C Tcl, instance filters are inserted just before the object's
+        direct class in the MRO (same position as instance methods).
+        This means mixin class filters run first, then instance filters,
+        then direct class filters.
         Duplicates are removed (first occurrence wins).
         """
         seen: set[str] = set()
         result: list[str] = []
 
-        # Class filters from effective MRO (includes instance mixins)
         for class_qname in self._effective_mro(obj):
+            # Insert instance filters right before the direct class
+            if class_qname == obj.class_name:
+                for f in obj.instance_filters:
+                    if f not in seen:
+                        seen.add(f)
+                        result.append(f)
             ancestor = self.classes.get(class_qname)
             if ancestor:
                 for f in ancestor.filters:
@@ -450,7 +458,7 @@ class OORuntime:
                         seen.add(f)
                         result.append(f)
 
-        # Instance filters last
+        # Fallback: if direct class not in MRO, add instance filters at end
         for f in obj.instance_filters:
             if f not in seen:
                 seen.add(f)
@@ -586,12 +594,12 @@ class OORuntime:
             # including destroy (but not the filter methods themselves).
             filters = self._collect_filters(obj)
             if filters and method_name not in [f for f in filters]:
-                # Build filter chain: resolve each filter name to a method
+                # Build filter chain: for each filter name, collect ALL
+                # implementations in MRO order (like C Tcl's call chain).
                 chain: list[tuple[TclOOMethod, str]] = []
                 for fname in filters:
-                    fmethod, fclass = self.resolve_method(obj, fname)
-                    if fmethod is not None:
-                        chain.append((fmethod, fclass or obj.class_name))
+                    for cqn, fm in self._resolve_all_methods(obj, fname):
+                        chain.append((fm, cqn))
                 if chain:
                     if is_destroy:
                         # For destroy, create a synthetic method that triggers destruction
@@ -735,9 +743,8 @@ class OORuntime:
                 if filters and method_name not in filters:
                     chain: list[tuple[TclOOMethod, str]] = []
                     for fname in filters:
-                        fmethod, fclass = oo_self.resolve_method(obj, fname)
-                        if fmethod is not None:
-                            chain.append((fmethod, fclass or obj.class_name))
+                        for cqn, fm in oo_self._resolve_all_methods(obj, fname):
+                            chain.append((fm, cqn))
                     if chain:
                         return oo_self._invoke_with_filters(
                             interp, obj, chain, 0, method_name, args[1:],
@@ -781,20 +788,21 @@ class OORuntime:
 
         If *skip_private_from* is set, skip private methods defined in
         that class (used to fall back to non-private alternatives).
-        """
-        # Instance methods first — use the object name as a sentinel
-        # "defining class" so that ``next`` starts at the beginning of
-        # the real MRO (instance methods sit before the MRO).
-        if method_name in obj.instance_methods:
-            m = obj.instance_methods[method_name]
-            dc = f"__instance__{obj.name}"
-            if skip_private_from and dc == skip_private_from and m.visibility == "private":
-                pass  # skip, fall through to MRO
-            else:
-                return m, dc
 
-        # Walk effective MRO (includes instance mixins)
-        for class_qname in self._effective_mro(obj):
+        In C Tcl the call chain order is:
+          mixin methods → instance methods → class hierarchy methods
+        Instance methods are inserted just before the object's direct class.
+        """
+        mro = self._effective_mro(obj)
+        inst_dc = f"__instance__{obj.name}"
+
+        for class_qname in mro:
+            # Insert instance method check right before the direct class
+            if class_qname == obj.class_name and method_name in obj.instance_methods:
+                m = obj.instance_methods[method_name]
+                if not (skip_private_from and inst_dc == skip_private_from and m.visibility == "private"):
+                    return m, inst_dc
+
             ancestor = self.classes.get(class_qname)
             if ancestor and method_name in ancestor.methods:
                 m = ancestor.methods[method_name]
@@ -802,7 +810,39 @@ class OORuntime:
                     continue
                 return m, class_qname
 
+        # Fallback: if direct class not in MRO, still check instance methods
+        if method_name in obj.instance_methods:
+            m = obj.instance_methods[method_name]
+            if not (skip_private_from and inst_dc == skip_private_from and m.visibility == "private"):
+                return m, inst_dc
+
         return None, None
+
+    def _resolve_all_methods(
+        self, obj: TclOOObject, method_name: str,
+    ) -> list[tuple[str, TclOOMethod]]:
+        """Resolve ALL implementations of a method in MRO order.
+
+        Returns a list of ``(defining_class, method)`` tuples representing
+        every implementation in the call chain.  Instance methods are
+        inserted before the direct class (matching C Tcl ordering).
+        """
+        result: list[tuple[str, TclOOMethod]] = []
+        mro = self._effective_mro(obj)
+        inst_dc = f"__instance__{obj.name}"
+
+        for class_qname in mro:
+            if class_qname == obj.class_name and method_name in obj.instance_methods:
+                result.append((inst_dc, obj.instance_methods[method_name]))
+            ancestor = self.classes.get(class_qname)
+            if ancestor and method_name in ancestor.methods:
+                result.append((class_qname, ancestor.methods[method_name]))
+
+        # Fallback: if direct class not in MRO, still check instance methods
+        if not any(dc == inst_dc for dc, _ in result) and method_name in obj.instance_methods:
+            result.insert(0, (inst_dc, obj.instance_methods[method_name]))
+
+        return result
 
     def _available_methods(
         self,
@@ -1782,9 +1822,8 @@ class OORuntime:
             if filters and method_name not in filters:
                 chain: list[tuple[TclOOMethod, str]] = []
                 for fname in filters:
-                    fmethod, fclass = self.resolve_method(obj, fname)
-                    if fmethod is not None:
-                        chain.append((fmethod, fclass or obj.class_name))
+                    for cqn, fm in self._resolve_all_methods(obj, fname):
+                        chain.append((fm, cqn))
                 if chain:
                     return self._invoke_with_filters(
                         interp, obj, chain, 0, method_name, args[1:],
@@ -1891,21 +1930,32 @@ class OORuntime:
                 raise TclError(e.message, error_info=info) from None
 
         if defining_class.startswith("__instance__"):
+            # Instance method: next goes to the direct class in the MRO
+            found_direct = False
             for class_qname in mro:
-                ancestor = self.classes.get(class_qname)
-                if ancestor:
-                    m = _find_on_ancestor(ancestor)
-                    if m is not None:
-                        return _next_invoke(class_qname, m)
+                if class_qname == obj.class_name:
+                    found_direct = True
+                if found_direct:
+                    ancestor = self.classes.get(class_qname)
+                    if ancestor:
+                        m = _find_on_ancestor(ancestor)
+                        if m is not None:
+                            return _next_invoke(class_qname, m)
         else:
             # Find the defining class in the MRO, then look for the next
-            # class that defines the same method/constructor/destructor
+            # class that defines the same method/constructor/destructor.
+            # Instance methods sit between mixins and the direct class.
             found_defining = False
             for class_qname in mro:
                 if class_qname == defining_class:
                     found_defining = True
                     continue
                 if found_defining:
+                    # Insert instance method check before the direct class
+                    if class_qname == obj.class_name and method_name in obj.instance_methods:
+                        inst_m = obj.instance_methods[method_name]
+                        inst_dc = f"__instance__{obj.name}"
+                        return _next_invoke(inst_dc, inst_m)
                     ancestor = self.classes.get(class_qname)
                     if ancestor:
                         m = _find_on_ancestor(ancestor)
