@@ -735,10 +735,10 @@ def _cmd_oo_object(interp: TclInterp, args: list[str]) -> TclResult:
 
 
 def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
-    """oo::copy sourceObject ?targetObject? ?targetNamespace?"""
+    """oo::copy sourceName ?targetName? ?targetNamespace?"""
     if not args:
         raise TclError(
-            'wrong # args: should be "oo::copy sourceObject ?targetObject? ?targetNamespace?"'
+            'wrong # args: should be "oo::copy sourceName ?targetName? ?targetNamespace?"'
         )
 
     oo = _get_oo_runtime(interp)
@@ -866,8 +866,18 @@ def _cmd_self(interp: TclInterp, args: list[str]) -> TclResult:
         if idx < len(chain):
             return TclResult(value=chain[idx][0].name)
         raise TclError("not inside a filter")
+    if subcmd == "target":
+        # Return the target method and defining class when inside a filter
+        frame = interp.current_frame
+        target = getattr(frame, "_oo_filter_target", None)
+        if target is None:
+            raise TclError("not inside a filter")
+        target_method, target_class = target
+        class_name = target_class if target_class else ""
+        method_name = getattr(frame, "_oo_filter_method_name", "")
+        return TclResult(value=f"{class_name} {method_name}")
     raise TclError(
-        f'unknown method "{subcmd}": must be caller, class, filter, method, namespace, or object'
+        f'unknown method "{subcmd}": must be caller, class, filter, method, namespace, object, or target'
     )
 
 

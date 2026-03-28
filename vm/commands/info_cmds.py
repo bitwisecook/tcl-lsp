@@ -447,14 +447,14 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             all_flag = "-all" in rest
             methods = list(obj.instance_methods.keys())
             if all_flag:
-                # Include class methods too (excluding builtins)
+                # Include class methods too
                 cls = oo.classes.get(obj.class_name)
                 if cls:
                     for cqn in cls.mro(oo.classes):
                         ancestor = oo.classes.get(cqn)
                         if ancestor:
-                            for m, md in ancestor.methods.items():
-                                if m not in methods and not md.body.startswith("__builtin_"):
+                            for m in ancestor.methods:
+                                if m not in methods:
                                     methods.append(m)
             matched = sorted(m for m in methods if fnmatch.fnmatch(m, pattern))
             return TclResult(value=" ".join(_list_escape(m) for m in matched))
@@ -464,6 +464,14 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                 raise TclError('wrong # args: should be "info object namespace objName"')
             oo, obj = _resolve_object(interp, rest[0])
             return TclResult(value=obj.namespace)
+
+        case "creationid":
+            if len(rest) != 1:
+                raise TclError(
+                    'wrong # args: should be "info object creationid objName"'
+                )
+            oo, obj = _resolve_object(interp, rest[0])
+            return TclResult(value=str(obj.creation_id))
 
         case "mixins":
             if not rest:
@@ -658,16 +666,16 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                     private_flag = True
                 else:
                     pattern = arg
-            methods = [m for m in cls.methods if not cls.methods[m].body.startswith("__builtin_")]
+            methods = list(cls.methods.keys())
             if not private_flag:
                 methods = [m for m in methods if cls.methods[m].visibility == "public"]
             if all_flag:
                 for cqn in cls.mro(oo.classes):
                     ancestor = oo.classes.get(cqn)
                     if ancestor and ancestor is not cls:
-                        for m, md in ancestor.methods.items():
-                            if m not in methods and not md.body.startswith("__builtin_"):
-                                if private_flag or md.visibility == "public":
+                        for m in ancestor.methods:
+                            if m not in methods:
+                                if private_flag or ancestor.methods[m].visibility == "public":
                                     methods.append(m)
             matched = sorted(m for m in methods if fnmatch.fnmatch(m, pattern))
             return TclResult(value=" ".join(_list_escape(m) for m in matched))

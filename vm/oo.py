@@ -114,6 +114,7 @@ class TclOOObject:
     instance_variables: list[str] = field(default_factory=list)
     exported_methods: set[str] = field(default_factory=set)
     unexported_methods: set[str] = field(default_factory=set)
+    creation_id: int = 0
     _vars: dict[str, str] = field(default_factory=dict)
     _arrays: dict[str, dict[str, str]] = field(default_factory=dict)
 
@@ -264,6 +265,7 @@ class OORuntime:
             name=obj_name,
             class_name=class_name,
             namespace=ns,
+            creation_id=self._next_obj_id,
         )
         self.objects[obj_name] = obj
 
