@@ -166,12 +166,13 @@ auto Analyser::regex_var_key(Scope* scope, const std::string& name) const -> std
 
 auto Analyser::make_child_scope(ScopeKind kind, const std::string& name,
                                 Scope* parent) -> Scope* {
-    auto* child = new Scope(); // NOLINT — owned by parent's destructor
+    auto child = std::make_unique<Scope>();
     child->kind = kind;
     child->name = name;
     child->parent = parent;
-    parent->children.push_back(child);
-    return child;
+    auto* ptr = child.get();
+    parent->children.push_back(std::move(child));
+    return ptr;
 }
 
 auto Analyser::namespace_from_scope(Scope* scope) -> std::string {

@@ -111,7 +111,7 @@ TEST_CASE("AnalysisResult copy_for_snapshot creates independent copy", "[analysi
     child->name = "greet";
     child->parent = &scope;
     child->variables["name"] = VarDef{"name", Range::zero(), {}, true};
-    scope.children.push_back(child.release());
+    scope.children.push_back(std::move(child));
 
     // Add other data.
     original.diagnostics.push_back({Range::zero(), Severity::WARNING, "W100", "test", {}});
@@ -142,15 +142,7 @@ TEST_CASE("AnalysisResult copy_for_snapshot creates independent copy", "[analysi
     original.diagnostics.clear();
     REQUIRE(snap.diagnostics.size() == 1);
 
-    // Cleanup child scopes (raw pointers).
-    for (auto* c : scope.children) {
-        delete c;
-    }
-    scope.children.clear();
-    for (auto* c : snap.global_scope().children) {
-        delete c;
-    }
-    snap.global_scope().children.clear();
+    // No manual cleanup needed — unique_ptr handles it.
 }
 
 TEST_CASE("AnalysisResult move construction", "[analysis_result]") {

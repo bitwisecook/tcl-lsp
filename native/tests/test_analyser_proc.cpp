@@ -69,7 +69,7 @@ TEST_CASE("proc: creates child scope", "[analyser][proc]") {
     auto result = analyse("proc test {x} { set y 10 }");
     auto& global = result.global_scope();
     REQUIRE(global.children.size() == 1);
-    auto* proc_scope = global.children[0];
+    auto* proc_scope = global.children[0].get();
     REQUIRE(proc_scope->kind == ScopeKind::PROC);
     REQUIRE(proc_scope->name == "test");
     // x is a parameter defined in proc scope
@@ -89,7 +89,7 @@ TEST_CASE("namespace eval: creates scope", "[analyser][namespace]") {
     auto result = analyse("namespace eval math { proc add {a b} { expr {$a+$b} } }");
     auto& global = result.global_scope();
     REQUIRE(global.children.size() == 1);
-    auto* ns_scope = global.children[0];
+    auto* ns_scope = global.children[0].get();
     REQUIRE(ns_scope->kind == ScopeKind::NAMESPACE);
     REQUIRE(ns_scope->name == "math");
     REQUIRE(ns_scope->procs.contains("add"));

@@ -40,7 +40,7 @@ TEST_CASE("nested proc and if", "[analyser][control]") {
     REQUIRE(result.find_proc("test") != nullptr);
     auto& children = result.global_scope().children;
     REQUIRE(children.size() == 1);
-    auto* proc_scope = children[0];
+    auto* proc_scope = children[0].get();
     REQUIRE(proc_scope->variables.contains("flag"));
     REQUIRE(proc_scope->variables.contains("x"));
 }
