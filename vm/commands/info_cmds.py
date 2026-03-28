@@ -421,10 +421,13 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                     return TclResult(value="0")
                 oo_obj, obj = _resolve_object(interp, obj_name)
                 cls = oo.classes.get(obj.class_name)
-                if cls is None:
-                    return TclResult(value="0")
                 qn = class_name if class_name.startswith("::") else f"::{class_name}"
-                return TclResult(value="1" if qn in cls.mixins or class_name in cls.mixins else "0")
+                # Check both instance-level and class-level mixins
+                all_mixins = list(obj.instance_mixins)
+                if cls is not None:
+                    all_mixins.extend(cls.mixins)
+                is_mixin = any(qn == m or class_name == m or f"::{m}" == qn for m in all_mixins)
+                return TclResult(value="1" if is_mixin else "0")
 
             else:
                 raise TclError(
@@ -466,7 +469,13 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             if not rest:
                 raise TclError('wrong # args: should be "info object mixins objName"')
             oo, obj = _resolve_object(interp, rest[0])
-            instance_mixins = obj.instance_mixins
+            instance_mixins = []
+            for m in obj.instance_mixins:
+                if not m.startswith("::"):
+                    qm = f"::{m}" if f"::{m}" in oo.classes else m
+                else:
+                    qm = m
+                instance_mixins.append(qm)
             return TclResult(value=" ".join(_list_escape(m) for m in instance_mixins))
 
         case "variables":
@@ -503,8 +512,9 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             method = obj.instance_methods.get(method_name)
             if method is None:
                 raise TclError(f'unknown method "{method_name}"')
-            param_str = " ".join(f"{{{n} {d}}}" if d is not None else n for n, d in method.params)
-            return TclResult(value=f"{param_str} {{{method.body}}}")
+            param_parts = [f"{{{n} {d}}}" if d is not None else _list_escape(n) for n, d in method.params]
+            param_str = " ".join(param_parts)
+            return TclResult(value=f"{{{param_str}}} {{{method.body}}}")
 
         case "methodtype":
             if len(rest) < 2:
@@ -688,8 +698,9 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                 raise TclError(
                     f'unknown method "{method_name}": must be {_format_or_list(sorted(cls.methods.keys()))}'
                 )
-            param_str = " ".join(f"{{{n} {d}}}" if d is not None else n for n, d in method.params)
-            return TclResult(value=f"{param_str} {{{method.body}}}")
+            param_parts = [f"{{{n} {d}}}" if d is not None else _list_escape(n) for n, d in method.params]
+            param_str = " ".join(param_parts)
+            return TclResult(value=f"{{{param_str}}} {{{method.body}}}")
 
         case "constructor":
             if not rest:
