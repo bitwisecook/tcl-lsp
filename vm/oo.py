@@ -49,24 +49,32 @@ class TclOOClass:
     _mro_cache: list[str] | None = field(default=None, repr=False)
 
     def mro(self, class_registry: dict[str, TclOOClass]) -> list[str]:
-        """Return the C3 linearised MRO for this class."""
+        """Return the MRO for this class using TclOO's DFS + late-placement algorithm."""
         if self._mro_cache is not None:
             return self._mro_cache
+
         supers_map: dict[str, list[str]] = {}
+        mixins_map: dict[str, list[str]] = {}
+
         for qn, cls in class_registry.items():
-            parents = list(cls.mixins) + list(cls.superclasses)
             # Normalise parent names to qualified form
-            normalised: list[str] = []
-            for p in parents:
-                if p.startswith("::"):
-                    normalised.append(p)
-                elif f"::{p}" in class_registry:
-                    normalised.append(f"::{p}")
-                else:
-                    normalised.append(p)
-            supers_map[qn] = normalised
+            def _normalise(names: list[str]) -> list[str]:
+                normalised: list[str] = []
+                for p in names:
+                    if p.startswith("::"):
+                        normalised.append(p)
+                    elif f"::{p}" in class_registry:
+                        normalised.append(f"::{p}")
+                    else:
+                        normalised.append(p)
+                return normalised
+
+            supers_map[qn] = _normalise(list(cls.superclasses))
+            if cls.mixins:
+                mixins_map[qn] = _normalise(list(cls.mixins))
+
         try:
-            result = c3_linearise(self.qualified_name, supers_map)
+            result = c3_linearise(self.qualified_name, supers_map, mixins_map=mixins_map)
         except C3Error:
             result = [self.qualified_name]
         self._mro_cache = result

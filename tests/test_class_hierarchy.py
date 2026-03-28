@@ -117,9 +117,9 @@ class TestBuildClassHierarchy:
         }
         ch = build_class_hierarchy(classes)
         mro = ch.mro_map["::Dog"]
-        assert mro[0] == "::Dog"
-        # Mixins come before superclasses in TclOO
-        assert mro.index("::Serializable") < mro.index("::Animal")
+        # In TclOO DFS, mixins are processed before the class itself
+        assert mro.index("::Serializable") < mro.index("::Dog")
+        assert mro.index("::Dog") < mro.index("::Animal")
 
 
 class TestMethodProviders:

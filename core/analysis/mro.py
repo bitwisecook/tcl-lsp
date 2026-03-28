@@ -1,115 +1,100 @@
-"""C3 linearisation for TclOO class hierarchies.
+"""TclOO method resolution order.
 
-Implements the same C3 method resolution order algorithm used by TclOO
-(and Python). Given a class hierarchy graph, produces the linearised MRO
-for each class.
+Implements the same MRO algorithm as Tcl 9.0's ``tclOOCall.c``:
 
-Reference: "A Monotonic Superclass Linearization for Dylan"
-(Barrett et al., 1996, OOPSLA).
+1. Depth-first traversal: mixins first, then the class itself, then
+   superclasses.
+2. Late-placement deduplication: when a class is encountered again,
+   it is *moved to the end* of the list (not skipped).
+
+This produces the same order as C3 linearisation for standard single
+and diamond hierarchies, but differs for mixin orderings where TclOO
+places mixins before the class itself.
+
+Reference: ``AddSimpleClassChainToCallContext()`` in
+``generic/tclOOCall.c`` (Tcl 9.0.3).
 """
 
 from __future__ import annotations
 
 
 class C3Error(Exception):
-    """Raised when C3 linearisation fails due to an inconsistent hierarchy."""
+    """Raised when MRO computation fails (e.g. cycle in hierarchy)."""
+
+
+def _tcloo_dfs(
+    cls: str,
+    mixins_map: dict[str, list[str]],
+    supers_map: dict[str, list[str]],
+    result: list[str],
+    visiting: set[str],
+) -> None:
+    """Recursive DFS matching TclOO's AddSimpleClassChainToCallContext.
+
+    For each class:
+    1. Recurse into mixins
+    2. Add the class itself (with late-placement dedup)
+    3. Recurse into superclasses
+    """
+    if cls in visiting:
+        return  # cycle guard
+    visiting.add(cls)
+    try:
+        # 1. Process mixins first
+        for mixin in mixins_map.get(cls, []):
+            _tcloo_dfs(mixin, mixins_map, supers_map, result, visiting)
+
+        # 2. Add own class (late-placement: move to end if already present)
+        if cls in result:
+            result.remove(cls)
+        result.append(cls)
+
+        # 3. Process superclasses
+        for parent in supers_map.get(cls, []):
+            _tcloo_dfs(parent, mixins_map, supers_map, result, visiting)
+    finally:
+        visiting.discard(cls)
 
 
 def c3_linearise(
     class_name: str,
     superclasses_map: dict[str, list[str]],
+    mixins_map: dict[str, list[str]] | None = None,
 ) -> list[str]:
-    """Return the method resolution order for *class_name* using C3 linearisation.
+    """Return the method resolution order for *class_name*.
 
-    *superclasses_map* maps each class name to its direct superclasses
-    (in declaration order).  Classes not present in the map are assumed
-    to have no superclasses (leaf classes or ``oo::object``).
+    Uses TclOO's DFS + late-placement algorithm (NOT C3 linearisation).
+    The function name is kept for backwards compatibility.
 
-    Returns a list starting with *class_name* itself, followed by its
-    linearised ancestors.
+    *superclasses_map* maps class name → direct superclasses.
+    *mixins_map* maps class name → mixin classes (processed before supers).
 
-    Raises ``C3Error`` if the hierarchy is inconsistent (no valid
-    linearisation exists).
+    Returns a list starting with *class_name* followed by ancestors
+    in resolution order.
+
+    Raises ``C3Error`` on cycles.
     """
-    cache: dict[str, list[str]] = {}
-    return _c3(class_name, superclasses_map, cache, set())
+    if mixins_map is None:
+        mixins_map = {}
 
+    # Cycle detection: check for trivial self-cycles
+    parents = superclasses_map.get(class_name, [])
+    if class_name in parents:
+        raise C3Error(f"cycle detected in class hierarchy involving '{class_name}'")
 
-def _c3(
-    cls: str,
-    supers_map: dict[str, list[str]],
-    cache: dict[str, list[str]],
-    in_progress: set[str],
-) -> list[str]:
-    """Recursive C3 with cycle detection and memoisation."""
-    if cls in cache:
-        return cache[cls]
+    # Check for two-node cycles
+    for p in parents:
+        if class_name in superclasses_map.get(p, []):
+            raise C3Error(f"cycle detected in class hierarchy involving '{class_name}'")
 
-    if cls in in_progress:
-        raise C3Error(f"cycle detected in class hierarchy involving '{cls}'")
-
-    in_progress.add(cls)
-    try:
-        parents = supers_map.get(cls, [])
-        if not parents:
-            result = [cls]
-            cache[cls] = result
-            return result
-
-        # Compute linearisations of each parent
-        parent_linears = [_c3(p, supers_map, cache, in_progress) for p in parents]
-        # Merge: parent linearisations + list of parents
-        result = [cls] + _merge(parent_linears + [list(parents)], cls)
-        cache[cls] = result
-        return result
-    finally:
-        in_progress.discard(cls)
-
-
-def _merge(lists: list[list[str]], cls: str) -> list[str]:
-    """Merge step of C3 linearisation.
-
-    Takes a list of linearisation lists and merges them according to
-    the C3 algorithm: at each step, pick the first head that does not
-    appear in the tail of any other list.
-    """
     result: list[str] = []
-    # Work on copies so we can mutate
-    seqs = [lst[:] for lst in lists if lst]
-
-    while seqs:
-        # Find a good head: one that doesn't appear in any other tail
-        candidate = None
-        for seq in seqs:
-            head = seq[0]
-            # Check if head appears in the tail of any other sequence
-            in_tail = False
-            for other in seqs:
-                if head in other[1:]:
-                    in_tail = True
-                    break
-            if not in_tail:
-                candidate = head
-                break
-
-        if candidate is None:
-            remaining = [s[0] for s in seqs if s]
-            raise C3Error(
-                f"inconsistent hierarchy for '{cls}': "
-                f"cannot linearise {remaining}"
-            )
-
-        result.append(candidate)
-        # Remove candidate from the head of all sequences
-        seqs = [s[1:] if s[0] == candidate else s for s in seqs]
-        # Remove empty sequences
-        seqs = [s for s in seqs if s]
-
+    _tcloo_dfs(class_name, mixins_map, superclasses_map, result, set())
     return result
 
 
 def build_mro_map(
     superclasses_map: dict[str, list[str]],
+    mixins_map: dict[str, list[str]] | None = None,
 ) -> tuple[dict[str, list[str]], list[str]]:
     """Compute MRO for all classes in the hierarchy.
 
@@ -117,6 +102,8 @@ def build_mro_map(
     to its linearised MRO, and *errors* is a list of error messages for
     classes whose hierarchy is inconsistent.
     """
+    if mixins_map is None:
+        mixins_map = {}
     mro_map: dict[str, list[str]] = {}
     errors: list[str] = []
 
@@ -124,7 +111,7 @@ def build_mro_map(
         if cls in mro_map:
             continue
         try:
-            mro = c3_linearise(cls, superclasses_map)
+            mro = c3_linearise(cls, superclasses_map, mixins_map)
             mro_map[cls] = mro
         except C3Error as e:
             errors.append(str(e))

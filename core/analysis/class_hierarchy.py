@@ -64,30 +64,34 @@ def build_class_hierarchy(classes: dict[str, ClassDef]) -> ClassHierarchy:
     Computes C3 linearisation, subclass maps, and method provider resolution
     for all classes in the index.
     """
-    # Build superclasses map for C3
+    # Build separate superclasses and mixins maps for TclOO DFS algorithm
     supers_map: dict[str, list[str]] = {}
-    for qname, cd in classes.items():
-        # Combine superclasses and mixins; mixins come first in TclOO MRO
-        parents = list(cd.mixins) + list(cd.superclasses)
-        # Normalise parent names to qualified form if possible
+    mixins_map: dict[str, list[str]] = {}
+
+    def _normalise_names(names: list[str]) -> list[str]:
         normalised: list[str] = []
-        for p in parents:
+        for p in names:
             if p.startswith("::"):
                 normalised.append(p)
             elif f"::{p}" in classes:
                 normalised.append(f"::{p}")
             else:
                 normalised.append(p)
-        supers_map[qname] = normalised
+        return normalised
 
-    # Compute MRO for each class
+    for qname, cd in classes.items():
+        supers_map[qname] = _normalise_names(list(cd.superclasses))
+        if cd.mixins:
+            mixins_map[qname] = _normalise_names(list(cd.mixins))
+
+    # Compute MRO for each class using TclOO's DFS + late-placement algorithm
     mro_map: dict[str, tuple[str, ...]] = {}
     errors: list[str] = []
     for qname in classes:
         if qname in mro_map:
             continue
         try:
-            mro = c3_linearise(qname, supers_map)
+            mro = c3_linearise(qname, supers_map, mixins_map=mixins_map)
             mro_map[qname] = tuple(mro)
         except C3Error as e:
             errors.append(str(e))
