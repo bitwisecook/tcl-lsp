@@ -509,9 +509,15 @@ class OORuntime:
             if is_destroy:
                 return self._destroy_object(interp, obj)
 
-            return self._invoke_method(
-                interp, obj, method, method_args, defining_class=defining_class
-            )
+            try:
+                return self._invoke_method(
+                    interp, obj, method, method_args, defining_class=defining_class
+                )
+            except TclError as e:
+                # Add top-level "invoked from within" frame to errorInfo
+                info = list(e.error_info) if e.error_info else [e.message]
+                info.append(f'    invoked from within\n"{short_name} {method_name}"')
+                raise TclError(e.message, error_info=info) from None
 
         interp._runtime_commands[obj.name] = _obj_dispatch
         # Also register the short name if different
@@ -852,6 +858,19 @@ class OORuntime:
             # tailcall: unwind this method frame, execute in caller
             tailcall_pending = (tc.cmd, tc.args)
             result = TclResult()
+        except TclError as e:
+            # Augment errorInfo with OO method context frame, matching
+            # C Tcl's format: (class "::X" method "foo" line N) or
+            # (object "::x" method "foo" line N)
+            dc = defining_class or obj.class_name
+            is_class_method = dc and dc in self.classes
+            if is_class_method:
+                ctx = f'    (class "{dc}" method "{method.name}" line 1)'
+            else:
+                ctx = f'    (object "{obj.name}" method "{method.name}" line 1)'
+            info = list(e.error_info) if e.error_info else [e.message]
+            info.append(ctx)
+            raise TclError(e.message, error_info=info) from None
         finally:
             # Write back instance variables before restoring frame
             for var_name in all_vars:
@@ -1157,20 +1176,27 @@ class OORuntime:
 
         # If the current method is an instance method (sentinel marker),
         # start searching from the beginning of the MRO.
+        def _next_invoke(class_qname: str, m: TclOOMethod) -> TclResult:
+            """Invoke method and augment errorInfo with 'next' context."""
+            try:
+                return self._invoke_method(
+                    interp, obj, m, args,
+                    defining_class=class_qname, via_next=True,
+                )
+            except TclError as e:
+                from .machine import _list_escape
+                next_cmd = "next" + (" " + " ".join(_list_escape(a) for a in args) if args else " ")
+                info = list(e.error_info) if e.error_info else [e.message]
+                info.append(f'    invoked from within\n"{next_cmd}"')
+                raise TclError(e.message, error_info=info) from None
+
         if defining_class.startswith("__instance__"):
             for class_qname in mro:
                 ancestor = self.classes.get(class_qname)
                 if ancestor:
                     m = _find_on_ancestor(ancestor)
                     if m is not None:
-                        return self._invoke_method(
-                            interp,
-                            obj,
-                            m,
-                            args,
-                            defining_class=class_qname,
-                            via_next=True,
-                        )
+                        return _next_invoke(class_qname, m)
         else:
             # Find the defining class in the MRO, then look for the next
             # class that defines the same method/constructor/destructor
@@ -1184,14 +1210,7 @@ class OORuntime:
                     if ancestor:
                         m = _find_on_ancestor(ancestor)
                         if m is not None:
-                            return self._invoke_method(
-                                interp,
-                                obj,
-                                m,
-                                args,
-                                via_next=True,
-                                defining_class=class_qname,
-                            )
+                            return _next_invoke(class_qname, m)
 
         # In Tcl, next silently does nothing when there is no next
         # implementation for constructors/destructors.

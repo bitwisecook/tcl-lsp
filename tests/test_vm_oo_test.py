@@ -63,7 +63,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-6.17",
     "oo-6.18",
     # oo-7.x: Inheritance edge cases
-    "oo-7.7",
     "oo-7.10",
     # oo-11.x: Class methods
     "oo-11.6.4",
