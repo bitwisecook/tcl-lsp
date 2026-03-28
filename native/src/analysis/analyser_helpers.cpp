@@ -110,26 +110,20 @@ void Analyser::record_var_read(const std::string& name, Range range, Scope* scop
 
 void Analyser::set_const_string(const std::string& var_name, const std::string& value,
                                 Range value_range, Scope* scope) {
-    const_strings_[scope][var_name] = {value, value_range};
+    scope->const_strings[var_name] = {value, value_range};
 }
 
 void Analyser::clear_const_string(const std::string& var_name, Scope* scope) {
-    auto it = const_strings_.find(scope);
-    if (it != const_strings_.end()) {
-        it->second.erase(var_name);
-    }
+    scope->const_strings.erase(var_name);
 }
 
 auto Analyser::lookup_const_string(const std::string& var_name, Scope* scope) const
     -> std::optional<std::pair<std::string, Range>> {
     auto* s = scope;
     while (s != nullptr) {
-        auto scope_it = const_strings_.find(s);
-        if (scope_it != const_strings_.end()) {
-            auto var_it = scope_it->second.find(var_name);
-            if (var_it != scope_it->second.end()) {
-                return var_it->second;
-            }
+        auto it = s->const_strings.find(var_name);
+        if (it != s->const_strings.end()) {
+            return it->second;
         }
         s = s->parent;
     }
@@ -140,24 +134,14 @@ void Analyser::record_defining_set_as_regex(const std::string& var_name, Scope* 
                                             const std::string& command) {
     auto* s = scope;
     while (s != nullptr) {
-        auto scope_it = const_strings_.find(s);
-        if (scope_it != const_strings_.end()) {
-            auto var_it = scope_it->second.find(var_name);
-            if (var_it != scope_it->second.end()) {
-                result_.regex_patterns.push_back(RegexPattern{
-                    var_it->second.second, var_it->second.first, command});
-                return;
-            }
+        auto it = s->const_strings.find(var_name);
+        if (it != s->const_strings.end()) {
+            result_.regex_patterns.push_back(RegexPattern{
+                it->second.second, it->second.first, command});
+            return;
         }
         s = s->parent;
     }
-}
-
-auto Analyser::regex_var_key(Scope* scope, const std::string& name) const -> std::string {
-    // Unique key for (scope, var_name) pair.
-    std::ostringstream oss;
-    oss << static_cast<const void*>(scope) << "::" << name;
-    return oss.str();
 }
 
 // ---------------------------------------------------------------------------

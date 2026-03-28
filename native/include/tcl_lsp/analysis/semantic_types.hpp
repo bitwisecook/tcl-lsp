@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace tcl_lsp {
@@ -83,6 +84,10 @@ struct Scope {
     std::unordered_map<std::string, VarDef> variables;
     std::unordered_map<std::string, ProcDef> procs;
     std::vector<std::unique_ptr<Scope>> children;
+
+    // Const-string tracking for regex variable propagation (Phase 4 analyser state).
+    std::unordered_map<std::string, std::pair<std::string, Range>> const_strings;
+    std::unordered_set<std::string> regex_vars;
 
     Scope() = default;
     ~Scope() = default;

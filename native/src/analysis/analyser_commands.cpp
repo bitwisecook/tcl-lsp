@@ -407,7 +407,7 @@ void Analyser::handle_switch(const SegmentedCommand& cmd, Scope* scope) {
                     if (cv.has_value()) {
                         result_.regex_patterns.push_back(
                             RegexPattern{range_from_token(pat_tok), cv->first, "switch"});
-                        regex_var_keys_.insert(regex_var_key(scope, pat_tok.text));
+                        scope->regex_vars.insert(pat_tok.text);
                         record_defining_set_as_regex(pat_tok.text, scope, "switch");
                     }
                 } else {
@@ -449,7 +449,7 @@ void Analyser::parse_switch_body(std::string_view body_text, const Token* body_t
                 if (cv.has_value()) {
                     result_.regex_patterns.push_back(
                         RegexPattern{range_from_token(pat_tok), cv->first, "switch"});
-                    regex_var_keys_.insert(regex_var_key(scope, pat_tok.text));
+                    scope->regex_vars.insert(pat_tok.text);
                     record_defining_set_as_regex(pat_tok.text, scope, "switch");
                 }
             } else {
@@ -737,7 +737,7 @@ void Analyser::analyse_body_args(const SegmentedCommand& cmd, Scope* scope) {
                         if (cv.has_value()) {
                             result_.regex_patterns.push_back(
                                 RegexPattern{range_from_token(pt), cv->first, role_cmd});
-                            regex_var_keys_.insert(regex_var_key(scope, pt.text));
+                            scope->regex_vars.insert(pt.text);
                             record_defining_set_as_regex(pt.text, scope, role_cmd);
                         }
                     } else {
