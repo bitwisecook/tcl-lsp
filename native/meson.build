@@ -16,6 +16,10 @@ tcl_lsp_lib = static_library('tcl_lsp',
   'src/analysis/analysis_result.cpp',
   'src/analysis/command_interface.cpp',
   'src/analysis/param_list_parser.cpp',
+  'src/analysis/stub_parser.cpp',
+  'src/analysis/analyser.cpp',
+  'src/analysis/analyser_commands.cpp',
+  'src/analysis/analyser_helpers.cpp',
   include_directories: tcl_lsp_inc,
 )
 

@@ -515,3 +515,165 @@ translates between the two: C++ `compute_ghost_insertions()` is exposed to
 Python as `compute_virtual_insertions()`, and the `ghost_insertions` parameter
 is exposed as `virtual_insertions`.
 
+### Phase 4: Semantic Model — Analyser (in progress)
+
+Phase 4 ports the semantic analysis layer — the Analyser that consumes
+`SegmentedCommand[]` and produces an `AnalysisResult` containing proc
+definitions, variable definitions, scopes, diagnostics, regex patterns,
+package tracking, command aliases, and unknown-handler analysis.
+
+**Why this layer:** It sits directly above the segmenter in the data-flow
+pipeline. Every LSP feature (completion, hover, diagnostics, semantic tokens)
+depends on `AnalysisResult`. Porting it to C++ keeps the entire
+tokenise→segment→analyse pipeline in C++ without crossing the Python boundary.
+
+**File organisation — prefer smaller, focused files:**
+
+When a module grows large, split it into multiple `.cpp` files that share a
+single header. This improves readability and compile times without adding
+abstraction. The analyser is split three ways:
+
+| File | Purpose | Lines |
+|---|---|---|
+| `analyser.cpp` | Entry points, body/command iteration | ~170 |
+| `analyser_commands.cpp` | Command-specific handlers (proc, set, if, switch, etc.) | ~860 |
+| `analyser_helpers.cpp` | Variable tracking, scope helpers, naming, diagnostics, expr | ~510 |
+
+This pattern applies generally: if a `.cpp` file exceeds ~500 lines, consider
+splitting it along natural seam lines (e.g. handlers vs helpers vs entry
+points). Each file should be cohesive — all functions in a file should relate
+to each other.
+
+**New types (Phase 4a — semantic value types):**
+
+| Type | Header | Purpose |
+|---|---|---|
+| `ProcArgTrait` | `semantic_types.hpp` | Bitmask enum for proc parameter usage traits |
+| `VarDef` | `semantic_types.hpp` | Variable definition with references |
+| `ParamDef` | `semantic_types.hpp` | Proc parameter (name, default, has_default) |
+| `ProcDef` | `semantic_types.hpp` | Procedure definition |
+| `ScopeKind` | `semantic_types.hpp` | GLOBAL, NAMESPACE, PROC |
+| `Scope` | `semantic_types.hpp` | Scope tree node (owns children via destructor) |
+| `RegexPattern` | `auxiliary_types.hpp` | Source range known to contain regex |
+| `CommandInvocation` | `auxiliary_types.hpp` | Command word observed during analysis |
+| `PackageRequire` | `auxiliary_types.hpp` | `package require` invocation |
+| `PackageProvide` | `auxiliary_types.hpp` | `package provide` invocation |
+| `SourceTarget` | `auxiliary_types.hpp` | `source` command target path |
+| `StubArgDef` | `auxiliary_types.hpp` | Parameter in stub command definition |
+| `StubCommandDef` | `auxiliary_types.hpp` | Command stub from structured comment |
+| `StubExprDef` | `auxiliary_types.hpp` | Expr function/operator stub |
+| `UnknownProcInfo` | `auxiliary_types.hpp` | Analysis of user-defined `unknown` proc |
+| `PackageContext` | `auxiliary_types.hpp` | Package confidence levels |
+| `AnalysisResult` | `analysis_result.hpp` | Complete document analysis result |
+
+**New types (Phase 4b — command registry interface):**
+
+| Type | Header | Purpose |
+|---|---|---|
+| `ArgRole` | `command_interface.hpp` | What role an argument plays (BODY, EXPR, PATTERN, etc.) |
+| `Arity` | `command_interface.hpp` | Min/max argument count |
+| `CommandSig` | `command_interface.hpp` | Simple command signature |
+| `SubcommandSig` | `command_interface.hpp` | Command with subcommands |
+| `CommandRegistryInterface` | `command_interface.hpp` | ABC for command metadata |
+| `TestCommandRegistry` | `command_interface.hpp` | Minimal test-harness registry |
+
+**New modules (Phase 4c–4d):**
+
+| Module | Purpose |
+|---|---|
+| `stub_parser.hpp/cpp` | Inline stub comment parser (`# tcl-lsp: stubs-begin/end`) |
+| `param_list_parser.hpp/cpp` | Tcl parameter list parser |
+| `analyser.hpp` + 3 `.cpp` files | Core analyser |
+
+**Analyser command handlers:**
+
+| Handler | Tcl command | Notable features |
+|---|---|---|
+| `handle_proc` | `proc` | Scope creation, param defs, W113 shadow check, W214 unused params, unknown proc detection |
+| `handle_set` | `set` | Variable definition (2 args), read (1 arg), const string tracking |
+| `handle_variable_decl` | `variable`, `global` | Alternating name/value pairs |
+| `handle_namespace_eval` | `namespace eval` | Namespace scope creation |
+| `handle_foreach` | `foreach` | Per-variable ranges from var-list |
+| `handle_for` | `for` | Init body, test expr, next body, main body |
+| `handle_switch` | `switch` | Form 1 (inline pairs), Form 2 (braced body), -regexp regex tracking |
+| `handle_catch` | `catch` | Conditional depth, result/options vars |
+| `handle_try` | `try` | on/trap/finally handler scanning |
+| `handle_if` | `if` | if/elseif/else with optional `then` keywords |
+| `handle_while` | `while` | Expression + body analysis |
+| `handle_interp_alias` | `interp alias` | Namespace-aware alias recording |
+| `handle_package` | `package` | require/provide tracking |
+| `handle_source` | `source` | Literal vs dynamic path detection |
+| `analyse_body_args` | generic | Registry-based arg role analysis (BODY/EXPR/PATTERN/VAR_NAME) |
+| `expr` (inline) | `expr` | All args analysed as expressions |
+
+**Diagnostics emitted:**
+
+| Code | Severity | Description |
+|---|---|---|
+| E001 | Error | Built-in command arity violation (via registry) |
+| E002 | Error | User proc: too few arguments |
+| E003 | Error | User proc: too many arguments |
+| E200 | Error | Missing close-brace/bracket/quote |
+| W113 | Warning | Proc shadows built-in command |
+| W123 | Hint | Unresolved command (with "did you mean?" suggestions) |
+| W214 | Hint | Unused proc parameter |
+
+**Deferred to Phase 5–6:** W210 (read-before-set), W211 (unused variable),
+W220 (dead assignment), H300 (possible paste error), I230/I231 (unreachable
+branch/arm) — these require CFG/SSA analysis.
+
+**Memory management:**
+
+- Scope tree: root owned by `unique_ptr` in `AnalysisResult`; child scopes
+  allocated with `new` and owned by parent's destructor (deleted in `~Scope()`).
+  Move-only semantics (copy deleted; use `copy_for_snapshot()` for explicit copies).
+- `ProcDef*` and `VarDef*` in flat indexes point into scope's maps (valid for
+  lifetime of scope tree).
+- `AnalysisResult` is move-only; deep copy via `copy_for_snapshot()`.
+
+**Test coverage (Catch2):**
+
+| Test file | Tests | Ported from |
+|---|---|---|
+| `test_semantic_types.cpp` | 7 | Type construction + scope tree |
+| `test_analysis_result.cpp` | 8 | AnalysisResult methods |
+| `test_param_list_parser.cpp` | 4 | Parameter list parsing |
+| `test_stub_parser.cpp` | 12 | Stub comment parsing |
+| `test_analyser_proc.cpp` | 10 | TestProcAnalysis + TestNamespaceAnalysis |
+| `test_analyser_variable.cpp` | 8 | TestVariableAnalysis |
+| `test_analyser_control_flow.cpp` | 12 | TestControlFlow |
+| `test_analyser_regex.cpp` | 14 | TestRegexPatterns + TestRegexVariablePropagation |
+| `test_analyser_package.cpp` | 12 | TestPackageRequire + TestSourceTargets |
+| `test_analyser_alias.cpp` | 14 | TestInterpAlias |
+| `test_analyser_w123.cpp` | 14 | TestW123UnresolvedCommand |
+| `test_analyser_diagnostics.cpp` | 14 | TestDiagnostics + TestUnusedProcParameters |
+| **Phase 4 total** | **129** | |
+| **Cumulative total** | **248** | |
+
+Plus 8,041 Python tests passing through pybind11 shim (unchanged).
+
+**Verification (Phase 4d checkpoint):**
+
+| Compiler | Build | Tests | ASan+UBSan | TSan | Valgrind |
+|---|---|---|---|---|---|
+| Clang 18 | clean | 28/28 | 28/28 | 28/28 | 28/28 |
+| GCC 13 | clean | 28/28 | — | — | — |
+
+Static analysis — all clean:
+
+| Tool | Result |
+|---|---|
+| clang-tidy | 0 errors (5 NOLINT suppressions) |
+| clang-format | compliant |
+
+**Remaining Phase 4 sub-phases:**
+
+- 4e: Regex pattern tracking edge cases + package context analysis
+- 4f: Full command alias resolution + unknown handler analysis (with IR lowering)
+- 4g: Incremental analysis + snapshot/restore
+- 4h: Shallow proc arg traits
+- 4i: pybind11 bindings + Python integration
+- 4j: Arity diagnostics via full registry bridge
+- 4k: Upstream Tcl tests (proc.test, namespace.test)
+- 4l: Documentation + benchmark
+

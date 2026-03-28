@@ -123,15 +123,12 @@ TEST_CASE("Scope tree with parent pointers", "[semantic_types]") {
     child->name = "foo";
     child->parent = &global;
 
-    auto* child_ptr = child.get();
     global.children.push_back(child.release());
 
     REQUIRE(global.children.size() == 1);
     REQUIRE(global.children[0]->name == "foo");
     REQUIRE(global.children[0]->parent == &global);
-
-    // Cleanup (manual since we released from unique_ptr).
-    delete child_ptr;
+    // Scope destructor deletes children automatically.
 }
 
 TEST_CASE("Scope with variables and procs", "[semantic_types]") {
