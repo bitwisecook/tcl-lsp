@@ -36,9 +36,10 @@
 #   make coverage      Generate all coverage reports (Python + VS Code)
 #   make coverage-py   Run Python tests with coverage (HTML + XML in tmp/coverage/python/)
 #   make coverage-ext  Run VS Code extension tests with coverage (HTML in tmp/coverage/vscode/)
+#   make test-cpp      Run ALL C++ verification (all compilers + sanitisers + analysis + valgrind)
 #   make native-setup  Configure the C++ native build (Meson + Clang)
 #   make native-build  Build the C++ native module
-#   make native-test   Run C++ unit tests
+#   make native-test   Run C++ unit tests (Clang only)
 #   make native-test-asan  Run C++ tests with AddressSanitizer + UBSanitizer
 #   make native-test-tsan  Run C++ tests with ThreadSanitizer
 #   make native-scan-build Run Clang Static Analyzer
@@ -134,7 +135,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts format-cpp lint-cpp typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated native-setup native-build native-test native-setup-asan native-test-asan native-setup-tsan native-test-tsan native-scan-build native-valgrind native-setup-fuzz native-fuzz native-setup-cfi native-test-cfi test-cpp native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan native-gcc-analyze native-clean .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts format-cpp lint-cpp typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated native-setup native-build native-test native-setup-asan native-test-asan native-setup-tsan native-test-tsan native-scan-build native-valgrind native-setup-fuzz native-fuzz native-setup-cfi native-test-cfi test-cpp _test-cpp-compiler-rt native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan native-gcc-analyze native-clean .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -310,7 +311,7 @@ coverage-ext: compile $(NPM_STAMP) ## Run VS Code extension tests with coverage 
 
 # Phase targets for parallel prep-pr execution
 _prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings lint-cpp native-scan-build native-gcc-analyze
-_prep-pr-tests: test-py test-opt native-test native-test-asan native-test-tsan native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan
+_prep-pr-tests: test-py test-opt native-test native-test-asan native-test-tsan native-valgrind native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
 # CFI and fuzzing require clang compiler-rt (libclang-rt-18-dev).
@@ -319,13 +320,7 @@ HAS_COMPILER_RT := $(shell echo 'int main(){}' | clang++ -fsanitize=cfi -flto -f
 
 prep-pr: format ## Fast pre-PR gate (format + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
-ifeq ($(HAS_COMPILER_RT),1)
-	@echo "==> compiler-rt available — running CFI tests and fuzz smoke test"
-	@$(MAKE) native-test-cfi
-	@$(MAKE) native-fuzz FUZZ_SECONDS=10
-else
-	@echo "==> compiler-rt not available — skipping CFI and fuzz (install libclang-rt-18-dev to enable)"
-endif
+	@$(MAKE) _test-cpp-compiler-rt
 
 test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX)
 	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke
@@ -856,7 +851,31 @@ native-build: ## Build the C++ native module
 native-test: ## Run C++ unit tests
 	meson test -C $(NATIVE_BUILDDIR) --suite tcl-lsp --print-errorlogs
 
-test-cpp: native-test ## Alias for native-test (matches test-py naming)
+test-cpp: ## Run all C++ tests: all compilers, sanitisers, static analysis, valgrind
+	@echo "==> test-cpp: comprehensive C++ verification (all compilers + sanitisers + static analysis)"
+	@$(MAKE) -j $(NPROC) lint-cpp native-scan-build native-gcc-analyze
+	@$(MAKE) -j $(NPROC) native-test native-test-asan native-test-tsan native-valgrind \
+		native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan
+	@$(MAKE) _test-cpp-compiler-rt
+	@echo "==> test-cpp: all passes clean"
+
+# compiler-rt dependent tests (CFI + fuzz) — auto-install if possible.
+_test-cpp-compiler-rt:
+ifeq ($(HAS_COMPILER_RT),1)
+	@echo "==> compiler-rt available — running CFI tests and fuzz smoke test"
+	@$(MAKE) native-test-cfi
+	@$(MAKE) native-fuzz FUZZ_SECONDS=10
+else
+	@echo "==> compiler-rt not available — attempting to install libclang-rt-18-dev"
+	@if command -v apt-get >/dev/null 2>&1; then \
+		sudo apt-get install -y libclang-rt-18-dev && \
+		echo "==> installed compiler-rt — running CFI + fuzz" && \
+		$(MAKE) native-test-cfi && \
+		$(MAKE) native-fuzz FUZZ_SECONDS=10; \
+	else \
+		echo "==> SKIP: no apt-get and no compiler-rt — install libclang-rt-18-dev manually"; \
+	fi
+endif
 
 # --- Sanitizer builds ---
 # We try clang first (if libclang-rt-18-dev is installed), then fall back to GCC.
@@ -932,7 +951,7 @@ native-scan-build: ## Run Clang Static Analyzer (path-sensitive analysis)
 
 # --- Valgrind ---
 # Memcheck: uninitialised reads, invalid memory access, leaks.
-# Slower than ASan — use for periodic deep checks, not every PR.
+# Complements ASan — catches different classes of bugs (e.g. conditional jumps on uninit values).
 native-valgrind: ## Run C++ tests under Valgrind memcheck
 	@echo "==> Running C++ tests under Valgrind memcheck"
 	@if [ ! -f $(NATIVE_BUILDDIR)/build.ninja ]; then $(MAKE) native-setup; fi
