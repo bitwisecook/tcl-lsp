@@ -481,7 +481,7 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                             for mname, m in ancestor.methods.items():
                                 if mname not in methods:
                                     methods[mname] = getattr(m, "visibility", "public")
-                # Add built-in methods, respecting unexport
+                # Add built-in methods, respecting unexport from MRO
                 _BUILTIN_METHODS = {
                     "destroy": "public",
                     "<cloned>": "private",
@@ -490,10 +490,16 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                     "variable": "private",
                     "varname": "private",
                 }
-                obj_unexported = getattr(obj, "unexported_methods", set())
+                # Collect unexported methods from entire MRO
+                all_unexported: set[str] = set(getattr(obj, "unexported_methods", set()))
+                if cls:
+                    for cqn in cls.mro(oo.classes):
+                        ancestor = oo.classes.get(cqn)
+                        if ancestor:
+                            all_unexported |= ancestor.unexported_methods
                 for bm, bv in _BUILTIN_METHODS.items():
                     if bm not in methods:
-                        if bm in obj_unexported:
+                        if bm in all_unexported:
                             methods[bm] = "unexported"
                         else:
                             methods[bm] = bv
