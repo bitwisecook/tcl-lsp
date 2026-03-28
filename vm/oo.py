@@ -178,13 +178,25 @@ class OORuntime:
         )
         self.objects[obj_name] = obj
 
-        # Run constructor — walk MRO to find the first constructor
+        # Register the object command before running the constructor
+        # so the object is usable from within the constructor body.
+        self._register_object_command(interp, obj)
+
+        # Run constructor — walk MRO to find the first constructor.
+        # If the constructor throws, clean up the partially-constructed object.
         ctor, ctor_class = self._resolve_constructor(cls)
         if ctor is not None:
-            self._invoke_method(interp, obj, ctor, args or [], defining_class=ctor_class)
-
-        # Register the object as a command
-        self._register_object_command(interp, obj)
+            try:
+                self._invoke_method(interp, obj, ctor, args or [], defining_class=ctor_class)
+            except TclError:
+                # Constructor failed — destroy the partial object
+                interp._runtime_commands.pop(obj_name, None)
+                if obj_name.startswith("::"):
+                    short = obj_name.rsplit("::", 1)[-1]
+                    if short:
+                        interp._runtime_commands.pop(short, None)
+                self.objects.pop(obj_name, None)
+                raise
 
         return obj_name
 
@@ -216,6 +228,34 @@ class OORuntime:
                 return ancestor.destructor, class_qname
         return None, None
 
+    def _collect_filters(self, obj: TclOOObject) -> list[str]:
+        """Collect all applicable filter names for an object.
+
+        Order: instance filters, then class filters from each class in MRO.
+        Duplicates are removed (first occurrence wins).
+        """
+        seen: set[str] = set()
+        result: list[str] = []
+
+        # Instance filters
+        for f in getattr(obj, "instance_filters", []):
+            if f not in seen:
+                seen.add(f)
+                result.append(f)
+
+        # Class filters from MRO
+        cls = self.classes.get(obj.class_name)
+        if cls:
+            for class_qname in cls.mro(self.classes):
+                ancestor = self.classes.get(class_qname)
+                if ancestor:
+                    for f in ancestor.filters:
+                        if f not in seen:
+                            seen.add(f)
+                            result.append(f)
+
+        return result
+
     def _register_object_command(self, interp: TclInterp, obj: TclOOObject) -> None:
         """Register the object as a command that dispatches method calls."""
 
@@ -231,10 +271,55 @@ class OORuntime:
 
             method, defining_class = self.resolve_method(obj, method_name)
             if method is None:
+                # Try unknown method handler
+                unknown, unknown_class = self.resolve_method(obj, "unknown")
+                if unknown is not None:
+                    return self._invoke_method(
+                        interp,
+                        obj,
+                        unknown,
+                        [method_name] + method_args,
+                        defining_class=unknown_class,
+                    )
                 raise TclError(
                     f'unknown method "{method_name}": must be '
                     + ", ".join(self._available_methods(obj))
                 )
+
+            # Check visibility — unexported methods are not callable from
+            # outside the object (only via ``my``).  Private methods
+            # (TIP 500) are not callable via external dispatch at all.
+            if method.visibility in ("unexported", "private"):
+                frame = interp.current_frame
+                caller_self = getattr(frame, "_oo_self", None)
+                if caller_self != obj.name:
+                    raise TclError(
+                        f'unknown method "{method_name}": must be '
+                        + ", ".join(self._available_methods(obj))
+                    )
+
+            # Check for filters — filters intercept all method calls except
+            # destroy and the filter methods themselves.
+            filters = self._collect_filters(obj)
+            if filters:
+                # Build filter chain: resolve each filter name to a method
+                chain: list[tuple[TclOOMethod, str]] = []
+                for fname in filters:
+                    fmethod, fclass = self.resolve_method(obj, fname)
+                    if fmethod is not None:
+                        chain.append((fmethod, fclass or obj.class_name))
+                if chain:
+                    return self._invoke_with_filters(
+                        interp,
+                        obj,
+                        chain,
+                        0,
+                        method_name,
+                        method_args,
+                        method,
+                        defining_class,
+                    )
+
             return self._invoke_method(
                 interp, obj, method, method_args, defining_class=defining_class
             )
@@ -286,6 +371,34 @@ class OORuntime:
                     )
         return sorted(methods)
 
+    def _invoke_with_filters(
+        self,
+        interp: TclInterp,
+        obj: TclOOObject,
+        filter_chain: list[tuple[TclOOMethod, str]],
+        filter_index: int,
+        method_name: str,
+        method_args: list[str],
+        target_method: TclOOMethod,
+        target_class: str | None,
+    ) -> TclResult:
+        """Invoke a filter in the chain, setting up next to proceed."""
+        fmethod, fclass = filter_chain[filter_index]
+        # Filters receive [methodName, ?arg ...?]
+        filter_args = [method_name] + method_args
+        return self._invoke_method(
+            interp,
+            obj,
+            fmethod,
+            filter_args,
+            defining_class=fclass,
+            filter_chain=filter_chain,
+            filter_index=filter_index,
+            filter_target=(target_method, target_class),
+            filter_method_name=method_name,
+            filter_method_args=method_args,
+        )
+
     def _invoke_method(
         self,
         interp: TclInterp,
@@ -293,6 +406,11 @@ class OORuntime:
         method: TclOOMethod,
         args: list[str],
         defining_class: str | None = None,
+        filter_chain: list[tuple[TclOOMethod, str]] | None = None,
+        filter_index: int = 0,
+        filter_target: tuple[TclOOMethod, str | None] | None = None,
+        filter_method_name: str | None = None,
+        filter_method_args: list[str] | None = None,
     ) -> TclResult:
         """Invoke a method on an object, setting up the instance context.
 
@@ -366,6 +484,14 @@ class OORuntime:
         frame._oo_class = defining_class or obj.class_name
         frame._oo_method = method.name
 
+        # Store filter chain info so `next` can advance through filters
+        if filter_chain is not None:
+            frame._oo_filter_chain = filter_chain
+            frame._oo_filter_index = filter_index
+            frame._oo_filter_target = filter_target
+            frame._oo_filter_method_name = filter_method_name
+            frame._oo_filter_method_args = filter_method_args
+
         # Execute method body
         old_frame = interp.current_frame
         interp.current_frame = frame
@@ -384,8 +510,27 @@ class OORuntime:
         return result
 
     def _destroy_object(self, interp: TclInterp, obj: TclOOObject) -> TclResult:
-        """Destroy an object, running its destructor if present."""
+        """Destroy an object, running its destructor if present.
+
+        If the object is a class, all its instances are destroyed first.
+        """
         from .types import TclResult
+
+        # If this object is a class, destroy all its instances first
+        cls_def = self.classes.get(obj.name)
+        if cls_def is not None:
+            # Collect instances to destroy (snapshot to avoid mutation during iteration)
+            instances_to_destroy = [
+                o
+                for o in list(self.objects.values())
+                if o.class_name == cls_def.qualified_name and o.name != obj.name
+            ]
+            for inst in instances_to_destroy:
+                if inst.name in self.objects:
+                    self._destroy_object(interp, inst)
+            # Remove class from registry
+            self.classes.pop(cls_def.qualified_name, None)
+            self.invalidate_all_mro()
 
         cls = self.classes.get(obj.class_name)
         if cls:
@@ -428,14 +573,23 @@ class OORuntime:
         method, defining_class = self.resolve_method(obj, method_name)
         if method is None:
             raise TclError(f'unknown method "{method_name}"')
+
+        # TIP 500: private methods via ``my`` are only accessible from
+        # within the defining class itself.
+        if method.visibility == "private" and defining_class:
+            caller_class = getattr(frame, "_oo_class", None)
+            if caller_class != defining_class:
+                raise TclError(f'unknown method "{method_name}"')
+
         return self._invoke_method(interp, obj, method, args[1:], defining_class=defining_class)
 
     def next_dispatch(self, interp: TclInterp, args: list[str]) -> TclResult:
         """Dispatch `next` — call next method in MRO chain.
 
-        Uses ``_oo_class`` on the call frame to identify the *defining*
-        class of the currently executing method, then walks the MRO to
-        find the next class that implements the same method name.
+        If the current frame is executing a filter, ``next`` advances
+        through the filter chain and then to the target method.
+        Otherwise it walks the MRO to find the next class that
+        implements the same method name.
         """
         frame = interp.current_frame
         obj_name = getattr(frame, "_oo_self", None)
@@ -448,29 +602,78 @@ class OORuntime:
         if obj is None:
             raise TclError(f'object "{obj_name}" has been destroyed')
 
-        # Get MRO from the object's instantiating class (not the defining class)
+        # --- Filter chain support ---
+        filter_chain = getattr(frame, "_oo_filter_chain", None)
+        if filter_chain is not None:
+            filter_index = getattr(frame, "_oo_filter_index", 0)
+            filter_target = getattr(frame, "_oo_filter_target", None)
+            filter_method_name = getattr(frame, "_oo_filter_method_name", None)
+            filter_method_args = getattr(frame, "_oo_filter_method_args", [])
+
+            next_idx = filter_index + 1
+
+            # When next is called from a filter, the args passed to next
+            # typically include [methodName, ...originalArgs] because the
+            # filter was invoked with that shape.  We always use the
+            # original method args for the target and for subsequent
+            # filters, so the method name prefix is handled correctly.
+            if next_idx < len(filter_chain):
+                # Advance to next filter — pass original method name + args
+                return self._invoke_with_filters(
+                    interp,
+                    obj,
+                    filter_chain,
+                    next_idx,
+                    filter_method_name,
+                    filter_method_args,
+                    filter_target[0],
+                    filter_target[1],
+                )
+            else:
+                # All filters exhausted — invoke the target method
+                # with the original method args (no method name prefix)
+                target_method, target_class = filter_target
+                return self._invoke_method(
+                    interp,
+                    obj,
+                    target_method,
+                    filter_method_args,
+                    defining_class=target_class,
+                )
+
+        # --- Normal MRO walk ---
         inst_cls = self.classes.get(obj.class_name)
         if inst_cls is None:
             raise TclError(f'class "{obj.class_name}" not found')
 
         mro = inst_cls.mro(self.classes)
 
+        # Helper to find a method/constructor/destructor on an ancestor class
+        def _find_on_ancestor(ancestor: TclOOClass) -> TclOOMethod | None:
+            if method_name == "<constructor>":
+                return ancestor.constructor
+            if method_name == "<destructor>":
+                return ancestor.destructor
+            return ancestor.methods.get(method_name)
+
         # If the current method is an instance method (sentinel marker),
         # start searching from the beginning of the MRO.
         if defining_class.startswith("__instance__"):
             for class_qname in mro:
                 ancestor = self.classes.get(class_qname)
-                if ancestor and method_name in ancestor.methods:
-                    return self._invoke_method(
-                        interp,
-                        obj,
-                        ancestor.methods[method_name],
-                        args,
-                        defining_class=class_qname,
-                    )
+                if ancestor:
+                    m = _find_on_ancestor(ancestor)
+                    if m is not None:
+                        return self._invoke_method(
+                            interp,
+                            obj,
+                            m,
+                            args,
+                            defining_class=class_qname,
+                        )
         else:
             # Find the defining class in the MRO, then look for the next
-            # class that defines the same method name
+            # class that defines the same method/constructor/destructor
             found_defining = False
             for class_qname in mro:
                 if class_qname == defining_class:
@@ -478,16 +681,22 @@ class OORuntime:
                     continue
                 if found_defining:
                     ancestor = self.classes.get(class_qname)
-                    if ancestor and method_name in ancestor.methods:
-                        return self._invoke_method(
-                            interp,
-                            obj,
-                            ancestor.methods[method_name],
-                            args,
-                            defining_class=class_qname,
-                        )
+                    if ancestor:
+                        m = _find_on_ancestor(ancestor)
+                        if m is not None:
+                            return self._invoke_method(
+                                interp,
+                                obj,
+                                m,
+                                args,
+                                defining_class=class_qname,
+                            )
 
-        # Tcl raises an error when next is called with no more implementations
+        # In Tcl, next silently does nothing when there is no next
+        # implementation for constructors/destructors.
+        if method_name in ("<constructor>", "<destructor>"):
+            return TclResult()
+
         raise TclError("no next method implementation")
 
     def nextto_dispatch(self, interp: TclInterp, target_class: str, args: list[str]) -> TclResult:

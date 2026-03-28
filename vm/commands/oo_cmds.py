@@ -160,6 +160,21 @@ def _parse_class_body(
                     method = cls.methods.get(m)
                     if method:
                         method.visibility = "unexported"
+            case "private":
+                # TIP 500: private method — only accessible via my from
+                # within the defining class.
+                # private method name args body
+                if len(parts) >= 5 and parts[1] == "method":
+                    name, param_str, method_body = parts[2], parts[3], parts[4]
+                    params, param_names, has_args = _parse_method_params(param_str)
+                    cls.methods[name] = TclOOMethod(
+                        name=name,
+                        params=params,
+                        param_names=param_names,
+                        body=method_body,
+                        has_args=has_args,
+                        visibility="private",
+                    )
             case _:
                 pass  # ignore unknown subcommands
 
@@ -255,6 +270,19 @@ def _parse_objdefine_body(
                     method = obj.instance_methods.get(m)
                     if method:
                         method.visibility = "unexported"
+            case "private":
+                # TIP 500: private instance method
+                if len(parts) >= 5 and parts[1] == "method":
+                    name, param_str, method_body = parts[2], parts[3], parts[4]
+                    params, param_names, has_args = _parse_method_params(param_str)
+                    obj.instance_methods[name] = TclOOMethod(
+                        name=name,
+                        params=params,
+                        param_names=param_names,
+                        body=method_body,
+                        has_args=has_args,
+                        visibility="private",
+                    )
             case _:
                 pass
 
@@ -322,7 +350,13 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
                     create_name = f"{ns}::{create_name}"
             obj_name = oo.create_object(interp, qualified, obj_name=create_name, args=cmd_args[2:])
             return TclResult(value=obj_name)
-        raise TclError(f'unknown method "{method}": must be create or new')
+        if method == "destroy":
+            # Destroy this class (and cascade to instances)
+            obj = oo.objects.get(qualified)
+            if obj is not None:
+                return oo._destroy_object(interp, obj)
+            return TclResult()
+        raise TclError(f'unknown method "{method}": must be create, destroy, or new')
 
     interp._runtime_commands[qualified] = _class_cmd
     # Also register short name
@@ -502,7 +536,30 @@ def _cmd_self(interp: TclInterp, args: list[str]) -> TclResult:
         if obj is None:
             raise TclError(f'object "{obj_name}" has been destroyed')
         return TclResult(value=obj.namespace)
-    raise TclError(f'unknown method "{subcmd}": must be class, method, namespace, or object')
+    if subcmd == "caller":
+        # Return {definingClass methodName} of the calling method
+        frame = interp.current_frame
+        parent = getattr(frame, "parent", None)
+        if parent is None:
+            raise TclError("caller is not an object")
+        caller_class = getattr(parent, "_oo_class", None)
+        caller_method = getattr(parent, "_oo_method", None)
+        if caller_class is None or caller_method is None:
+            raise TclError("caller is not an object")
+        return TclResult(value=f"{caller_class} {caller_method}")
+    if subcmd == "filter":
+        # Return the current filter name if in a filter
+        frame = interp.current_frame
+        chain = getattr(frame, "_oo_filter_chain", None)
+        if chain is None:
+            raise TclError("not inside a filter")
+        idx = getattr(frame, "_oo_filter_index", 0)
+        if idx < len(chain):
+            return TclResult(value=chain[idx][0].name)
+        raise TclError("not inside a filter")
+    raise TclError(
+        f'unknown method "{subcmd}": must be caller, class, filter, method, namespace, or object'
+    )
 
 
 def _cmd_my(interp: TclInterp, args: list[str]) -> TclResult:

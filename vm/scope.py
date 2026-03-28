@@ -273,6 +273,11 @@ class CallFrame:
         "_oo_self",
         "_oo_class",
         "_oo_method",
+        "_oo_filter_chain",
+        "_oo_filter_index",
+        "_oo_filter_target",
+        "_oo_filter_method_name",
+        "_oo_filter_method_args",
     )
 
     def __init__(

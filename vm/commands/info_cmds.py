@@ -505,6 +505,30 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             param_str = " ".join(f"{{{n} {d}}}" if d is not None else n for n, d in method.params)
             return TclResult(value=f"{param_str} {{{method.body}}}")
 
+        case "methodtype":
+            if len(rest) < 2:
+                raise TclError(
+                    'wrong # args: should be "info object methodtype objName methodName"'
+                )
+            oo, obj = _resolve_object(interp, rest[0])
+            method_name = rest[1]
+            method = obj.instance_methods.get(method_name)
+            if method is None:
+                raise TclError(f'unknown method "{method_name}"')
+            if method.forward_target is not None:
+                return TclResult(value="forward")
+            return TclResult(value="method")
+
+        case "forward":
+            if len(rest) < 2:
+                raise TclError('wrong # args: should be "info object forward objName methodName"')
+            oo, obj = _resolve_object(interp, rest[0])
+            method_name = rest[1]
+            method = obj.instance_methods.get(method_name)
+            if method is None or method.forward_target is None:
+                raise TclError(f'unknown forward method "{method_name}"')
+            return TclResult(value=" ".join(_list_escape(t) for t in method.forward_target))
+
         case _:
             return TclResult()
 
@@ -684,6 +708,30 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                 raise TclError('wrong # args: should be "info class filters className"')
             oo, cls = _resolve_class(interp, rest[0])
             return TclResult(value=" ".join(_list_escape(f) for f in cls.filters))
+
+        case "methodtype":
+            if len(rest) < 2:
+                raise TclError(
+                    'wrong # args: should be "info class methodtype className methodName"'
+                )
+            oo, cls = _resolve_class(interp, rest[0])
+            method_name = rest[1]
+            method = cls.methods.get(method_name)
+            if method is None:
+                raise TclError(f'unknown method "{method_name}"')
+            if method.forward_target is not None:
+                return TclResult(value="forward")
+            return TclResult(value="method")
+
+        case "forward":
+            if len(rest) < 2:
+                raise TclError('wrong # args: should be "info class forward className methodName"')
+            oo, cls = _resolve_class(interp, rest[0])
+            method_name = rest[1]
+            method = cls.methods.get(method_name)
+            if method is None or method.forward_target is None:
+                raise TclError(f'unknown forward method "{method_name}"')
+            return TclResult(value=" ".join(_list_escape(t) for t in method.forward_target))
 
         case _:
             return TclResult()
