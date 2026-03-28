@@ -574,6 +574,33 @@ class OORuntime:
                         caller_class = getattr(frame, "_oo_class", None)
                         if caller_class and caller_class == defining_class:
                             allow = True
+                    if not allow and effective_vis == "private":
+                        # Private method not accessible — try to find a
+                        # non-private implementation further down the MRO
+                        alt_method, alt_class = oo_self.resolve_method(
+                            obj, method_name, skip_private_from=defining_class,
+                        )
+                        if alt_method is not None:
+                            method = alt_method
+                            defining_class = alt_class
+                            allow = True
+                            # Re-check visibility of the alternative
+                            effective_vis = alt_method.visibility
+                            for class_qname in oo_self._effective_mro(obj):
+                                ancestor = oo_self.classes.get(class_qname)
+                                if ancestor:
+                                    if method_name in ancestor.exported_methods:
+                                        effective_vis = "public"
+                                        break
+                                    if method_name in ancestor.unexported_methods:
+                                        effective_vis = "unexported"
+                                        break
+                            if method_name in obj.exported_methods:
+                                effective_vis = "public"
+                            elif method_name in obj.unexported_methods:
+                                effective_vis = "unexported"
+                            if effective_vis in ("unexported", "private"):
+                                allow = False
                     if not allow:
                         # Try routing through unknown handler before erroring
                         # (oo::Slot's unknown catches unexported calls)
@@ -2112,6 +2139,9 @@ class OORuntime:
                 for cqn in mixin_cls.mro(self.classes):
                     instance_mixin_classes.add(cqn)
 
+        def _call_type(m: TclOOMethod) -> str:
+            return "private" if m.visibility == "private" else "method"
+
         # Instance mixin method entries
         for class_qname in effective_mro:
             if class_qname not in instance_mixin_classes:
@@ -2122,7 +2152,7 @@ class OORuntime:
                 if m.body.startswith("__builtin_"):
                     continue
                 impl = "forward" if m.forward_target else "method"
-                chain.append(("method", method_name, class_qname, impl))
+                chain.append((_call_type(m), method_name, class_qname, impl))
 
         # Class-level mixin method entries (from effective MRO, before instance method)
         cls = self.classes.get(obj.class_name)
@@ -2145,7 +2175,7 @@ class OORuntime:
                 if m.body.startswith("__builtin_"):
                     continue
                 impl = "forward" if m.forward_target else "method"
-                chain.append(("method", method_name, class_qname, impl))
+                chain.append((_call_type(m), method_name, class_qname, impl))
 
         # Handle special methods: <constructor>, <destructor>
         if method_name in ("<constructor>", "<destructor>"):
@@ -2162,7 +2192,7 @@ class OORuntime:
         if method_name in obj.instance_methods:
             m = obj.instance_methods[method_name]
             impl = "forward" if m.forward_target else "method"
-            chain.append(("method", method_name, "object", impl))
+            chain.append((_call_type(m), method_name, "object", impl))
 
         # Class hierarchy methods (non-mixin)
         for class_qname in effective_mro:
@@ -2176,7 +2206,7 @@ class OORuntime:
                 if m.body.startswith("__builtin_"):
                     continue
                 impl = "forward" if m.forward_target else "method"
-                chain.append(("method", method_name, class_qname, impl))
+                chain.append((_call_type(m), method_name, class_qname, impl))
 
         # If method_name is "destroy", add as core method on oo::object
         if method_name == "destroy":
