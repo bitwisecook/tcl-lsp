@@ -36,13 +36,9 @@ class Analyser {
                           bool finalise = true) -> AnalysisResult;
 
   private:
-    AnalysisResult result_;
-    Scope* current_scope_ = nullptr;
+    // --- Immutable config (survives across analyse() calls) ---
     const CommandRegistryInterface* registry_;
     std::unordered_set<std::string> disabled_diagnostics_;
-    std::string last_comment_;
-    int32_t conditional_depth_ = 0;
-
 
     // Manages command alias registration and resolution.
     struct AliasResolver {
@@ -53,16 +49,22 @@ class Analyser {
                      std::span<const std::string> args,
                      const std::string& ns) const
             -> std::pair<std::string, std::vector<std::string>>;
-        void clear() { aliases_.clear(); }
 
       private:
         std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>>
             aliases_;
     };
-    AliasResolver alias_resolver_;
 
-    // Track whether we've already emitted W123 diagnostics.
-    bool unresolved_commands_emitted_ = false;
+    // --- Per-analysis transient state (constructed fresh each call) ---
+    struct Session {
+        AnalysisResult result;
+        Scope* current_scope = nullptr;
+        int32_t conditional_depth = 0;
+        std::string last_comment;
+        AliasResolver alias_resolver;
+        bool unresolved_commands_emitted = false;
+    };
+    Session s_;
 
 
     // --- Analysis methods ---
