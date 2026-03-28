@@ -350,8 +350,17 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
     match sub:
         case "class":
             if not rest:
-                raise TclError('wrong # args: should be "info object class objName"')
+                raise TclError('wrong # args: should be "info object class objName ?className?"')
             oo, obj = _resolve_object(interp, rest[0])
+            if len(rest) >= 2:
+                # Two-arg form: check if object is of given class
+                check_class = rest[1]
+                qn = check_class if check_class.startswith("::") else f"::{check_class}"
+                cls = oo.classes.get(obj.class_name)
+                if cls is None:
+                    return TclResult(value="0")
+                mro = cls.mro(oo.classes)
+                return TclResult(value="1" if qn in mro or check_class in mro else "0")
             return TclResult(value=obj.class_name)
 
         case "isa":
@@ -403,7 +412,10 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                 class_name = rest[2]
                 if oo is None:
                     return TclResult(value="0")
-                oo_obj, obj = _resolve_object(interp, obj_name)
+                qn_obj = obj_name if obj_name.startswith("::") else f"::{obj_name}"
+                obj = oo.objects.get(obj_name) or oo.objects.get(qn_obj)
+                if obj is None:
+                    return TclResult(value="0")
                 cls = oo.classes.get(obj.class_name)
                 if cls is None:
                     return TclResult(value="0")
@@ -419,7 +431,10 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                 class_name = rest[2]
                 if oo is None:
                     return TclResult(value="0")
-                oo_obj, obj = _resolve_object(interp, obj_name)
+                qn_obj = obj_name if obj_name.startswith("::") else f"::{obj_name}"
+                obj = oo.objects.get(obj_name) or oo.objects.get(qn_obj)
+                if obj is None:
+                    return TclResult(value="0")
                 cls = oo.classes.get(obj.class_name)
                 qn = class_name if class_name.startswith("::") else f"::{class_name}"
                 # Check both instance-level and class-level mixins

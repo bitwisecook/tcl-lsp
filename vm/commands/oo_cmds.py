@@ -242,7 +242,21 @@ def _define_superclass(interp: TclInterp, args: list[str]) -> TclResult:
     cls = getattr(interp, "_defining_class", None)
     if cls is None:
         raise TclError("this command may only be called from within the body of an oo::define command")
-    cls.superclasses = list(args)
+    if not args:
+        # No args resets to default superclass
+        if cls.qualified_name != "::oo::object":
+            cls.superclasses = ["::oo::object"]
+        else:
+            cls.superclasses = []
+    else:
+        # Handle -append flag
+        if args[0] == "-append":
+            supers = list(args[1:])
+            for s in supers:
+                if s not in cls.superclasses:
+                    cls.superclasses.append(s)
+        else:
+            cls.superclasses = list(args)
     return TclResult()
 
 
