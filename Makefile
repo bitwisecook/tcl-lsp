@@ -36,6 +36,16 @@
 #   make coverage      Generate all coverage reports (Python + VS Code)
 #   make coverage-py   Run Python tests with coverage (HTML + XML in tmp/coverage/python/)
 #   make coverage-ext  Run VS Code extension tests with coverage (HTML in tmp/coverage/vscode/)
+#   make native-setup  Configure the C++ native build (Meson + Clang)
+#   make native-build  Build the C++ native module
+#   make native-test   Run C++ unit tests
+#   make native-test-asan  Run C++ tests with AddressSanitizer + UBSanitizer
+#   make native-test-tsan  Run C++ tests with ThreadSanitizer
+#   make native-scan-build Run Clang Static Analyzer
+#   make native-valgrind   Run C++ tests under Valgrind memcheck
+#   make native-clean  Remove C++ build artifacts
+#   make format-cpp    Format C++ code with clang-format
+#   make lint-cpp      Lint C++ code (clang-tidy + cppcheck + format check)
 #   make clean         Remove build artifacts
 #   make distclean     Remove build artifacts and node_modules
 #
@@ -119,7 +129,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts format-cpp lint-cpp typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated native-setup native-build native-test native-setup-asan native-test-asan native-setup-tsan native-test-tsan native-scan-build native-valgrind native-setup-fuzz native-fuzz native-setup-cfi native-test-cfi native-clean .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -197,7 +207,7 @@ test: test-py test-ext ## Run all tests (Python + VS Code extension)
 
 lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
 
-format: format-py format-ts ## Format Python and TypeScript code
+format: format-py format-ts format-cpp ## Format Python, TypeScript, and C++ code
 
 test-py: $(UV_STAMP) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
 	@echo "==> Running Python tests"
@@ -294,12 +304,23 @@ coverage-ext: compile $(NPM_STAMP) ## Run VS Code extension tests with coverage 
 	@echo "VS Code extension coverage report: $(COV_DIR)/vscode/index.html"
 
 # Phase targets for parallel prep-pr execution
-_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings
-_prep-pr-tests: test-py test-opt
+_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings lint-cpp native-scan-build
+_prep-pr-tests: test-py test-opt native-test native-test-asan native-test-tsan
 _prep-pr-smoke: smoke-zipapps smoke-vsix
+
+# CFI and fuzzing require clang compiler-rt (libclang-rt-18-dev).
+# Detect availability and run them when possible.
+HAS_COMPILER_RT := $(shell echo 'int main(){}' | clang++ -fsanitize=cfi -flto -fvisibility=hidden -x c++ - -o /dev/null 2>/dev/null && echo 1 || echo 0)
 
 prep-pr: format ## Fast pre-PR gate (format + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
+ifeq ($(HAS_COMPILER_RT),1)
+	@echo "==> compiler-rt available — running CFI tests and fuzz smoke test"
+	@$(MAKE) native-test-cfi
+	@$(MAKE) native-fuzz FUZZ_SECONDS=10
+else
+	@echo "==> compiler-rt not available — skipping CFI and fuzz (install libclang-rt-18-dev to enable)"
+endif
 
 test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX)
 	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke
@@ -801,7 +822,176 @@ clean-screenshots: ## Remove captured screenshots
 
 # Cleanup
 
-clean: ## Remove build artifacts
+# C++ native module (Meson build)
+NATIVE_BUILDDIR      := builddir
+NATIVE_BUILDDIR_ASAN := builddir-asan
+NATIVE_BUILDDIR_TSAN := builddir-tsan
+NATIVE_BUILDDIR_FUZZ := builddir-fuzz
+NATIVE_BUILDDIR_CFI  := builddir-cfi
+
+# C++ source file lists for formatting/linting (excludes pybind11 bindings).
+CPP_SOURCES := $(wildcard native/src/core/*.cpp native/src/parsing/*.cpp)
+CPP_HEADERS := $(wildcard native/include/tcl_lsp/core/*.hpp native/include/tcl_lsp/parsing/*.hpp)
+CPP_TESTS := $(wildcard native/tests/*.cpp)
+CPP_FUZZ := $(wildcard native/fuzz/*.cpp)
+CPP_BINDINGS := $(wildcard native/bindings/*.cpp)
+CPP_ALL := $(CPP_SOURCES) $(CPP_HEADERS) $(CPP_TESTS) $(CPP_FUZZ) $(CPP_BINDINGS)
+
+native-setup: ## Configure the C++ native build (Meson + Clang)
+	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR) --wipe 2>/dev/null || CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR)
+
+native-build: ## Build the C++ native module
+	meson compile -C $(NATIVE_BUILDDIR)
+
+native-test: ## Run C++ unit tests
+	meson test -C $(NATIVE_BUILDDIR) --suite tcl-lsp --print-errorlogs
+
+# --- Sanitizer builds ---
+# We try clang first (if libclang-rt-18-dev is installed), then fall back to GCC.
+# GCC 13's libasan/libubsan/libtsan are always available on Ubuntu 24.04.
+# The pybind11 bindings build with relaxed warnings (see native/meson.build).
+SANITIZER_CC  := $(shell echo 'int main(){}' | clang++ -fsanitize=address -x c++ - -o /dev/null 2>/dev/null && echo clang || echo gcc)
+SANITIZER_CXX := $(shell echo 'int main(){}' | clang++ -fsanitize=address -x c++ - -o /dev/null 2>/dev/null && echo clang++ || echo g++)
+
+# ASan + UBSan: catches memory errors (buffer overflow, use-after-free, stack overflow)
+# and undefined behaviour (signed overflow, null deref, alignment, shift errors).
+native-setup-asan: ## Configure C++ build with AddressSanitizer + UBSanitizer
+	CC=$(SANITIZER_CC) CXX=$(SANITIZER_CXX) meson setup $(NATIVE_BUILDDIR_ASAN) \
+		-Db_sanitize=address,undefined \
+		-Db_lundef=false \
+		-Dwerror=false \
+		--wipe 2>/dev/null || \
+	CC=$(SANITIZER_CC) CXX=$(SANITIZER_CXX) meson setup $(NATIVE_BUILDDIR_ASAN) \
+		-Db_sanitize=address,undefined \
+		-Db_lundef=false \
+		-Dwerror=false
+
+native-test-asan: ## Build and test with ASan + UBSan
+	@echo "==> Building and testing with AddressSanitizer + UBSanitizer ($(SANITIZER_CXX))"
+	@if [ ! -f $(NATIVE_BUILDDIR_ASAN)/build.ninja ]; then $(MAKE) native-setup-asan; fi
+	meson compile -C $(NATIVE_BUILDDIR_ASAN)
+	meson test -C $(NATIVE_BUILDDIR_ASAN) --suite tcl-lsp --print-errorlogs
+
+# TSan: catches data races, deadlocks, and thread-safety issues.
+# Cannot run alongside ASan — needs its own build directory.
+native-setup-tsan: ## Configure C++ build with ThreadSanitizer
+	CC=$(SANITIZER_CC) CXX=$(SANITIZER_CXX) meson setup $(NATIVE_BUILDDIR_TSAN) \
+		-Db_sanitize=thread \
+		-Db_lundef=false \
+		-Dwerror=false \
+		--wipe 2>/dev/null || \
+	CC=$(SANITIZER_CC) CXX=$(SANITIZER_CXX) meson setup $(NATIVE_BUILDDIR_TSAN) \
+		-Db_sanitize=thread \
+		-Db_lundef=false \
+		-Dwerror=false
+
+native-test-tsan: ## Build and test with ThreadSanitizer
+	@echo "==> Building and testing with ThreadSanitizer ($(SANITIZER_CXX))"
+	@if [ ! -f $(NATIVE_BUILDDIR_TSAN)/build.ninja ]; then $(MAKE) native-setup-tsan; fi
+	meson compile -C $(NATIVE_BUILDDIR_TSAN)
+	meson test -C $(NATIVE_BUILDDIR_TSAN) --suite tcl-lsp --print-errorlogs
+
+# --- Static analysis ---
+# Clang Static Analyzer: path-sensitive analysis (null derefs, dead stores, logic errors).
+# Deeper than clang-tidy — explores execution paths, not just AST patterns.
+native-scan-build: ## Run Clang Static Analyzer (path-sensitive analysis)
+	@echo "==> Running Clang Static Analyzer (scan-build)"
+	@if [ ! -f $(NATIVE_BUILDDIR)/build.ninja ]; then $(MAKE) native-setup; fi
+	scan-build-18 --use-analyzer=/usr/bin/clang-18 --status-bugs \
+		-enable-checker core \
+		-enable-checker deadcode \
+		-enable-checker security \
+		-enable-checker unix \
+		-enable-checker cplusplus \
+		-enable-checker optin.cplusplus.UninitializedObject \
+		-enable-checker optin.cplusplus.VirtualCall \
+		-enable-checker optin.portability.UnixAPI \
+		meson compile -C $(NATIVE_BUILDDIR) --clean && \
+	scan-build-18 --use-analyzer=/usr/bin/clang-18 --status-bugs \
+		-enable-checker core \
+		-enable-checker deadcode \
+		-enable-checker security \
+		-enable-checker unix \
+		-enable-checker cplusplus \
+		-enable-checker optin.cplusplus.UninitializedObject \
+		-enable-checker optin.cplusplus.VirtualCall \
+		-enable-checker optin.portability.UnixAPI \
+		meson compile -C $(NATIVE_BUILDDIR)
+
+# --- Valgrind ---
+# Memcheck: uninitialised reads, invalid memory access, leaks.
+# Slower than ASan — use for periodic deep checks, not every PR.
+native-valgrind: ## Run C++ tests under Valgrind memcheck
+	@echo "==> Running C++ tests under Valgrind memcheck"
+	@if [ ! -f $(NATIVE_BUILDDIR)/build.ninja ]; then $(MAKE) native-setup; fi
+	meson compile -C $(NATIVE_BUILDDIR)
+	meson test -C $(NATIVE_BUILDDIR) --suite tcl-lsp --print-errorlogs \
+		--wrap='valgrind --leak-check=full --track-origins=yes --error-exitcode=1 --errors-for-leak-kinds=definite'
+
+# --- Fuzzing ---
+# libFuzzer harness for the lexer.  Requires clang + libclang-rt-18-dev.
+# Seeds in native/fuzz/corpus/.  Run duration defaults to 60s for CI;
+# override with FUZZ_SECONDS=N for longer campaigns.
+FUZZ_SECONDS ?= 60
+
+native-setup-fuzz: ## Configure C++ build for fuzzing (clang + libFuzzer + ASan)
+	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR_FUZZ) \
+		-Dfuzz=true -Dtests=false \
+		-Db_sanitize=address,undefined \
+		-Db_lundef=false \
+		-Dwerror=false \
+		--wipe 2>/dev/null || \
+	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR_FUZZ) \
+		-Dfuzz=true -Dtests=false \
+		-Db_sanitize=address,undefined \
+		-Db_lundef=false \
+		-Dwerror=false
+
+native-fuzz: ## Run the lexer fuzzer (FUZZ_SECONDS=60 by default)
+	@echo "==> Building fuzz targets"
+	@if [ ! -f $(NATIVE_BUILDDIR_FUZZ)/build.ninja ]; then $(MAKE) native-setup-fuzz; fi
+	meson compile -C $(NATIVE_BUILDDIR_FUZZ)
+	@echo "==> Fuzzing lexer for $(FUZZ_SECONDS)s (corpus: native/fuzz/corpus/)"
+	$(NATIVE_BUILDDIR_FUZZ)/native/fuzz/fuzz_lexer \
+		native/fuzz/corpus/ \
+		-max_total_time=$(FUZZ_SECONDS) \
+		-max_len=65536
+
+# --- Control Flow Integrity ---
+# CFI validates indirect call targets.  Requires clang + LTO + compiler-rt.
+native-setup-cfi: ## Configure C++ build with Control Flow Integrity
+	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR_CFI) \
+		-Dcfi=true \
+		-Db_lto=true \
+		--wipe 2>/dev/null || \
+	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR_CFI) \
+		-Dcfi=true \
+		-Db_lto=true
+
+native-test-cfi: ## Build and test with Control Flow Integrity
+	@echo "==> Building and testing with Control Flow Integrity (clang + LTO)"
+	@if [ ! -f $(NATIVE_BUILDDIR_CFI)/build.ninja ]; then $(MAKE) native-setup-cfi; fi
+	meson compile -C $(NATIVE_BUILDDIR_CFI)
+	meson test -C $(NATIVE_BUILDDIR_CFI) --suite tcl-lsp --print-errorlogs
+
+native-clean: ## Remove C++ build artifacts
+	rm -rf $(NATIVE_BUILDDIR) $(NATIVE_BUILDDIR_ASAN) $(NATIVE_BUILDDIR_TSAN) $(NATIVE_BUILDDIR_FUZZ) $(NATIVE_BUILDDIR_CFI)
+
+format-cpp: ## Format C++ code with clang-format
+	@echo "==> Formatting C++ code with clang-format"
+	clang-format -i $(CPP_ALL)
+
+lint-cpp: ## Lint C++ code with clang-tidy and cppcheck
+	@echo "==> Linting C++ with clang-tidy (core + parsing)"
+	clang-tidy -p $(NATIVE_BUILDDIR) $(CPP_SOURCES) --warnings-as-errors='*'
+	@echo "==> Static analysis with cppcheck"
+	cppcheck --enable=all --std=c++23 --error-exitcode=1 \
+		--suppressions-list=.cppcheck-suppress --inline-suppr \
+		-I native/include native/src/
+	@echo "==> Checking clang-format compliance"
+	clang-format --dry-run -Werror $(CPP_ALL)
+
+clean: native-clean ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
 	rm -rf $(OUT_DIR)
 	rm -f  $(BUILD_INFO)
