@@ -426,7 +426,13 @@ class OORuntime:
                         [method_name] + method_args,
                         defining_class=unknown_class,
                     )
-                avail = self._available_methods(obj)
+                # Include private methods in error message when caller
+                # is in the same class (TIP 500 cross-object access)
+                frame = interp.current_frame
+                err_caller_class = getattr(frame, "_oo_class", None)
+                avail = self._available_methods(
+                    obj, caller_class=err_caller_class
+                )
                 if avail:
                     raise TclError(
                         f'unknown method "{method_name}": must be '
@@ -463,16 +469,26 @@ class OORuntime:
                 if effective_vis in ("unexported", "private"):
                     frame = interp.current_frame
                     caller_self = getattr(frame, "_oo_self", None)
-                    if caller_self != obj.name:
+                    allow = False
+                    if caller_self == obj.name:
+                        # Same object — always allow
+                        allow = True
+                    elif effective_vis == "private" and defining_class:
+                        # TIP 500: private methods accessible from the
+                        # same class (cross-object calls)
+                        caller_class = getattr(frame, "_oo_class", None)
+                        if caller_class and caller_class == defining_class:
+                            allow = True
+                    if not allow:
                         avail = self._available_methods(obj)
-                    if avail:
+                        if avail:
+                            raise TclError(
+                                f'unknown method "{method_name}": must be '
+                                + _format_method_list(avail)
+                            )
                         raise TclError(
-                            f'unknown method "{method_name}": must be '
-                            + _format_method_list(avail)
+                            f'object "{obj.name}" has no visible methods'
                         )
-                    raise TclError(
-                        f'object "{obj.name}" has no visible methods'
-                    )
 
             # Check for filters — filters intercept all method calls
             # including destroy (but not the filter methods themselves).
@@ -569,17 +585,36 @@ class OORuntime:
                 raise TclError(f'unknown method "{method_name}"')
             # TIP 500: private methods are only accessible from the
             # defining class itself, matching the check in my_dispatch.
+            # Instance-level private methods are only accessible from
+            # other instance-level methods on the same object.
             if method.visibility == "private" and defining_class:
                 frame = interp.current_frame
                 caller_class = getattr(frame, "_oo_class", None)
-                if caller_class != defining_class:
-                    avail = oo_self._available_methods(obj, include_all=True)
-                    if avail:
-                        raise TclError(
-                            f'unknown method "{method_name}": must be '
-                            + _format_method_list(avail)
-                        )
-                    raise TclError(f'unknown method "{method_name}"')
+                is_instance_private = defining_class and defining_class.startswith("__instance__")
+                caller_is_instance = caller_class and caller_class.startswith("__instance__")
+                # Instance private → only accessible from instance methods
+                # Class private → only accessible from same class
+                allow = False
+                if is_instance_private and caller_is_instance:
+                    allow = True
+                elif not is_instance_private and caller_class == defining_class:
+                    allow = True
+                if not allow:
+                    # Try to find a non-private method with the same name
+                    alt_method, alt_class = oo_self.resolve_method(
+                        obj, method_name, skip_private_from=defining_class
+                    )
+                    if alt_method is not None:
+                        method = alt_method
+                        defining_class = alt_class
+                    else:
+                        avail = oo_self._available_methods(obj, include_all=True)
+                        if avail:
+                            raise TclError(
+                                f'unknown method "{method_name}": must be '
+                                + _format_method_list(avail)
+                            )
+                        raise TclError(f'unknown method "{method_name}"')
             # Check for filters — my calls go through filters unless
             # we're already inside a filter chain for this object.
             in_filter = getattr(obj, "_in_filter", False)
@@ -602,24 +637,36 @@ class OORuntime:
         interp._runtime_commands[ns_my_name] = _ns_my
 
     def resolve_method(
-        self, obj: TclOOObject, method_name: str
+        self, obj: TclOOObject, method_name: str,
+        *, skip_private_from: str | None = None,
     ) -> tuple[TclOOMethod | None, str | None]:
         """Resolve a method on an object using MRO.
 
         Returns ``(method, defining_class_qname)`` so that ``next`` can
         find the correct position in the MRO chain.
+
+        If *skip_private_from* is set, skip private methods defined in
+        that class (used to fall back to non-private alternatives).
         """
         # Instance methods first — use the object name as a sentinel
         # "defining class" so that ``next`` starts at the beginning of
         # the real MRO (instance methods sit before the MRO).
         if method_name in obj.instance_methods:
-            return obj.instance_methods[method_name], f"__instance__{obj.name}"
+            m = obj.instance_methods[method_name]
+            dc = f"__instance__{obj.name}"
+            if skip_private_from and dc == skip_private_from and m.visibility == "private":
+                pass  # skip, fall through to MRO
+            else:
+                return m, dc
 
         # Walk effective MRO (includes instance mixins)
         for class_qname in self._effective_mro(obj):
             ancestor = self.classes.get(class_qname)
             if ancestor and method_name in ancestor.methods:
-                return ancestor.methods[method_name], class_qname
+                m = ancestor.methods[method_name]
+                if skip_private_from and class_qname == skip_private_from and m.visibility == "private":
+                    continue
+                return m, class_qname
 
         return None, None
 
@@ -700,6 +747,10 @@ class OORuntime:
                             elif m in cls_unexports:
                                 continue
                             elif md.visibility == "public":
+                                methods.add(m)
+                            elif (md.visibility == "private"
+                                  and caller_class is not None
+                                  and class_qname == caller_class):
                                 methods.add(m)
         return sorted(methods)
 
