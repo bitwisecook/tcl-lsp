@@ -56,7 +56,11 @@ def get_definition(
 
     # Check for class definition
     for _qname, class_def in analysis.all_classes.items():
-        if class_def.name == word or class_def.qualified_name == word or class_def.qualified_name == f"::{word}":
+        if (
+            class_def.name == word
+            or class_def.qualified_name == word
+            or class_def.qualified_name == f"::{word}"
+        ):
             return [to_lsp_location(uri, class_def.name_range)]
 
     # Check for method definition — if inside a class body, resolve method names

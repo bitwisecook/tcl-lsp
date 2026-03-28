@@ -42,7 +42,11 @@ def prepare_type_hierarchy(
         return []
 
     for _qname, class_def in analysis.all_classes.items():
-        if class_def.name == word or class_def.qualified_name == word or class_def.qualified_name == f"::{word}":
+        if (
+            class_def.name == word
+            or class_def.qualified_name == word
+            or class_def.qualified_name == f"::{word}"
+        ):
             return [_class_to_item(uri, class_def)]
 
     return []
@@ -73,7 +77,11 @@ def supertypes(
     results: list[types.TypeHierarchyItem] = []
     for parent_name in class_def.superclasses + class_def.mixins:
         for _qname, cd in analysis.all_classes.items():
-            if cd.name == parent_name or cd.qualified_name == parent_name or cd.qualified_name == f"::{parent_name}":
+            if (
+                cd.name == parent_name
+                or cd.qualified_name == parent_name
+                or cd.qualified_name == f"::{parent_name}"
+            ):
                 results.append(_class_to_item(uri, cd))
                 break
 
@@ -99,7 +107,10 @@ def subtypes(
         # Also check qualified name
         for _qname2, target_cd in analysis.all_classes.items():
             if target_cd.name == class_name or target_cd.qualified_name == class_name:
-                if target_cd.qualified_name in cd.superclasses or target_cd.qualified_name in cd.mixins:
+                if (
+                    target_cd.qualified_name in cd.superclasses
+                    or target_cd.qualified_name in cd.mixins
+                ):
                     if not any(r.name == cd.name for r in results):
                         results.append(_class_to_item(uri, cd))
                 break

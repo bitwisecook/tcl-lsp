@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.class_hierarchy import ClassHierarchy, build_class_hierarchy
-from core.analysis.semantic_model import ClassDef, MethodDef, ParamDef, PropertyDef, Range
+from core.analysis.class_hierarchy import build_class_hierarchy
+from core.analysis.semantic_model import ClassDef, MethodDef, ParamDef, Range
 from core.parsing.tokens import SourcePosition
 
 
@@ -44,7 +44,7 @@ def _make_class(
 
 def _make_method(name: str, params: list[str] | None = None) -> MethodDef:
     """Helper to create a MethodDef for tests."""
-    param_defs = [ParamDef(name=p, name_range=_range()) for p in (params or [])]
+    param_defs = [ParamDef(name=p) for p in (params or [])]
     return MethodDef(
         name=name,
         params=param_defs,
@@ -141,7 +141,9 @@ class TestMethodProviders:
     def test_overridden_method(self):
         classes = {
             "::Animal": _make_class("Animal", methods={"speak": _make_method("speak")}),
-            "::Dog": _make_class("Dog", superclasses=["::Animal"], methods={"speak": _make_method("speak")}),
+            "::Dog": _make_class(
+                "Dog", superclasses=["::Animal"], methods={"speak": _make_method("speak")}
+            ),
         }
         ch = build_class_hierarchy(classes)
         assert ch.method_target("::Dog", "speak") == "::Dog"
@@ -168,7 +170,9 @@ class TestMethodProviders:
     def test_all_implementations(self):
         classes = {
             "::Animal": _make_class("Animal", methods={"speak": _make_method("speak")}),
-            "::Dog": _make_class("Dog", superclasses=["::Animal"], methods={"speak": _make_method("speak")}),
+            "::Dog": _make_class(
+                "Dog", superclasses=["::Animal"], methods={"speak": _make_method("speak")}
+            ),
             "::Cat": _make_class("Cat", superclasses=["::Animal"]),
         }
         ch = build_class_hierarchy(classes)

@@ -869,7 +869,13 @@ def skip_options(
 def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[int]:
     """Return argument indices (0-based, after command name) for a role."""
     if role is ArgRole.BODY:
-        if command in ("oo::class", "oo::object", "oo::configurable", "oo::abstract", "oo::singleton"):
+        if command in (
+            "oo::class",
+            "oo::object",
+            "oo::configurable",
+            "oo::abstract",
+            "oo::singleton",
+        ):
             return _oo_class_object_body_indices(args)
         if command in ("oo::define", "oo::objdefine"):
             return _oo_define_body_indices(args)

@@ -269,6 +269,7 @@ def _cmd_info(interp: TclInterp, args: list[str]) -> TclResult:
 def _get_oo(interp: TclInterp):
     """Get OO runtime, initialising if needed."""
     from .oo_cmds import _get_oo_runtime
+
     return _get_oo_runtime(interp)
 
 
@@ -312,9 +313,20 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
     rest = args[1:]
 
     _OBJ_SUBCMDS = (
-        "call", "class", "creationid", "definition", "filters", "forward",
-        "isa", "methods", "methodtype", "mixins", "namespace", "properties",
-        "variables", "vars",
+        "call",
+        "class",
+        "creationid",
+        "definition",
+        "filters",
+        "forward",
+        "isa",
+        "methods",
+        "methodtype",
+        "mixins",
+        "namespace",
+        "properties",
+        "variables",
+        "vars",
     )
     matches = [s for s in _OBJ_SUBCMDS if s.startswith(sub)]
     if len(matches) == 1:
@@ -322,12 +334,16 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
     elif len(matches) > 1 and sub not in _OBJ_SUBCMDS:
         raise TclError(
             f'unknown or ambiguous subcommand "{sub}": must be '
-            + ", ".join(_OBJ_SUBCMDS[:-1]) + ", or " + _OBJ_SUBCMDS[-1]
+            + ", ".join(_OBJ_SUBCMDS[:-1])
+            + ", or "
+            + _OBJ_SUBCMDS[-1]
         )
     elif not matches:
         raise TclError(
             f'unknown or ambiguous subcommand "{sub}": must be '
-            + ", ".join(_OBJ_SUBCMDS[:-1]) + ", or " + _OBJ_SUBCMDS[-1]
+            + ", ".join(_OBJ_SUBCMDS[:-1])
+            + ", or "
+            + _OBJ_SUBCMDS[-1]
         )
 
     match sub:
@@ -339,7 +355,9 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
 
         case "isa":
             if len(rest) < 2:
-                raise TclError('wrong # args: should be "info object isa category objName ?arg ...?"')
+                raise TclError(
+                    'wrong # args: should be "info object isa category objName ?arg ...?"'
+                )
             category = rest[0]
             obj_name = rest[1]
             oo = _get_oo(interp)
@@ -348,8 +366,12 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                 # Check if the name refers to a known object or class
                 if oo is None:
                     return TclResult(value="0")
-                found = (obj_name in oo.objects or f"::{obj_name}" in oo.objects
-                         or obj_name in oo.classes or f"::{obj_name}" in oo.classes)
+                found = (
+                    obj_name in oo.objects
+                    or f"::{obj_name}" in oo.objects
+                    or obj_name in oo.classes
+                    or f"::{obj_name}" in oo.classes
+                )
                 return TclResult(value="1" if found else "0")
 
             elif category == "class":
@@ -374,7 +396,9 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
 
             elif category == "typeof":
                 if len(rest) < 3:
-                    raise TclError('wrong # args: should be "info object isa typeof objName className"')
+                    raise TclError(
+                        'wrong # args: should be "info object isa typeof objName className"'
+                    )
                 class_name = rest[2]
                 if oo is None:
                     return TclResult(value="0")
@@ -388,7 +412,9 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
 
             elif category == "mixin":
                 if len(rest) < 3:
-                    raise TclError('wrong # args: should be "info object isa mixin objName className"')
+                    raise TclError(
+                        'wrong # args: should be "info object isa mixin objName className"'
+                    )
                 class_name = rest[2]
                 if oo is None:
                     return TclResult(value="0")
@@ -400,14 +426,19 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                 return TclResult(value="1" if qn in cls.mixins or class_name in cls.mixins else "0")
 
             else:
-                raise TclError(f'unknown category "{category}": must be class, metaclass, mixin, object, or typeof')
+                raise TclError(
+                    f'unknown category "{category}": must be class, metaclass, mixin, object, or typeof'
+                )
 
         case "methods":
             if not rest:
-                raise TclError('wrong # args: should be "info object methods objName ?options ...?"')
+                raise TclError(
+                    'wrong # args: should be "info object methods objName ?options ...?"'
+                )
             oo, obj = _resolve_object(interp, rest[0])
             # Return only instance-level methods (not class methods)
             import fnmatch
+
             pattern = rest[1] if len(rest) > 1 else "*"
             all_flag = "-all" in rest
             methods = list(obj.instance_methods.keys())
@@ -449,6 +480,7 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                 raise TclError('wrong # args: should be "info object vars objName"')
             oo, obj = _resolve_object(interp, rest[0])
             import fnmatch
+
             pattern = rest[1] if len(rest) > 1 else "*"
             matched = sorted(v for v in obj._vars.keys() if fnmatch.fnmatch(v, pattern))
             return TclResult(value=" ".join(_list_escape(v) for v in matched))
@@ -462,16 +494,15 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
 
         case "definition":
             if len(rest) < 2:
-                raise TclError('wrong # args: should be "info object definition objName methodName"')
+                raise TclError(
+                    'wrong # args: should be "info object definition objName methodName"'
+                )
             oo, obj = _resolve_object(interp, rest[0])
             method_name = rest[1]
             method = obj.instance_methods.get(method_name)
             if method is None:
                 raise TclError(f'unknown method "{method_name}"')
-            param_str = " ".join(
-                f"{{{n} {d}}}" if d is not None else n
-                for n, d in method.params
-            )
+            param_str = " ".join(f"{{{n} {d}}}" if d is not None else n for n, d in method.params)
             return TclResult(value=f"{param_str} {{{method.body}}}")
 
         case _:
@@ -487,9 +518,21 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
     rest = args[1:]
 
     _CLS_SUBCMDS = (
-        "call", "constructor", "definition", "definitionnamespace", "destructor",
-        "filters", "forward", "instances", "methods", "methodtype", "mixins",
-        "properties", "subclasses", "superclasses", "variables",
+        "call",
+        "constructor",
+        "definition",
+        "definitionnamespace",
+        "destructor",
+        "filters",
+        "forward",
+        "instances",
+        "methods",
+        "methodtype",
+        "mixins",
+        "properties",
+        "subclasses",
+        "superclasses",
+        "variables",
     )
     matches = [s for s in _CLS_SUBCMDS if s.startswith(sub)]
     if len(matches) == 1:
@@ -497,12 +540,16 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
     elif len(matches) > 1 and sub not in _CLS_SUBCMDS:
         raise TclError(
             f'unknown or ambiguous subcommand "{sub}": must be '
-            + ", ".join(_CLS_SUBCMDS[:-1]) + ", or " + _CLS_SUBCMDS[-1]
+            + ", ".join(_CLS_SUBCMDS[:-1])
+            + ", or "
+            + _CLS_SUBCMDS[-1]
         )
     elif not matches:
         raise TclError(
             f'unknown or ambiguous subcommand "{sub}": must be '
-            + ", ".join(_CLS_SUBCMDS[:-1]) + ", or " + _CLS_SUBCMDS[-1]
+            + ", ".join(_CLS_SUBCMDS[:-1])
+            + ", or "
+            + _CLS_SUBCMDS[-1]
         )
 
     match sub:
@@ -527,6 +574,7 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                 raise TclError('wrong # args: should be "info class subclasses className"')
             oo, cls = _resolve_class(interp, rest[0])
             import fnmatch
+
             pattern = rest[1] if len(rest) > 1 else "*"
             subs = []
             for cqn, c in oo.classes.items():
@@ -553,6 +601,7 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                 raise TclError('wrong # args: should be "info class methods className"')
             oo, cls = _resolve_class(interp, rest[0])
             import fnmatch
+
             pattern = "*"
             all_flag = False
             private_flag = False
@@ -582,25 +631,28 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                 raise TclError('wrong # args: should be "info class instances className"')
             oo, cls = _resolve_class(interp, rest[0])
             import fnmatch
+
             pattern = rest[1] if len(rest) > 1 else "*"
             instances = sorted(
-                name for name, obj in oo.objects.items()
+                name
+                for name, obj in oo.objects.items()
                 if obj.class_name == cls.qualified_name and fnmatch.fnmatch(name, pattern)
             )
             return TclResult(value=" ".join(_list_escape(i) for i in instances))
 
         case "definition":
             if len(rest) < 2:
-                raise TclError('wrong # args: should be "info class definition className methodName"')
+                raise TclError(
+                    'wrong # args: should be "info class definition className methodName"'
+                )
             oo, cls = _resolve_class(interp, rest[0])
             method_name = rest[1]
             method = cls.methods.get(method_name)
             if method is None:
-                raise TclError(f'unknown method "{method_name}": must be {", ".join(sorted(cls.methods.keys()))}')
-            param_str = " ".join(
-                f"{{{n} {d}}}" if d is not None else n
-                for n, d in method.params
-            )
+                raise TclError(
+                    f'unknown method "{method_name}": must be {", ".join(sorted(cls.methods.keys()))}'
+                )
+            param_str = " ".join(f"{{{n} {d}}}" if d is not None else n for n, d in method.params)
             return TclResult(value=f"{param_str} {{{method.body}}}")
 
         case "constructor":
@@ -610,10 +662,7 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
             if cls.constructor is None:
                 return TclResult(value="")
             ctor = cls.constructor
-            param_str = " ".join(
-                f"{{{n} {d}}}" if d is not None else n
-                for n, d in ctor.params
-            )
+            param_str = " ".join(f"{{{n} {d}}}" if d is not None else n for n, d in ctor.params)
             return TclResult(value=f"{param_str} {{{ctor.body}}}")
 
         case "destructor":

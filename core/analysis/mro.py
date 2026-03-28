@@ -65,8 +65,13 @@ def _tcloo_dfs(
         # 1. Process class-level mixins (enter mixin path)
         for mixin in mixins_map.get(cls, []):
             _tcloo_dfs(
-                mixin, mixins_map, supers_map, result, visiting,
-                is_mixin_path=True, building_mixins=building_mixins,
+                mixin,
+                mixins_map,
+                supers_map,
+                result,
+                visiting,
+                is_mixin_path=True,
+                building_mixins=building_mixins,
             )
 
         # 2. Add own class with MIXIN_CONSISTENT gate:
@@ -80,8 +85,13 @@ def _tcloo_dfs(
         # 3. Process superclasses (inherit mixin-path status)
         for parent in supers_map.get(cls, []):
             _tcloo_dfs(
-                parent, mixins_map, supers_map, result, visiting,
-                is_mixin_path=is_mixin_path, building_mixins=building_mixins,
+                parent,
+                mixins_map,
+                supers_map,
+                result,
+                visiting,
+                is_mixin_path=is_mixin_path,
+                building_mixins=building_mixins,
             )
     finally:
         visiting.discard(cls)
@@ -123,14 +133,24 @@ def c3_linearise(
 
     # Pass 1: BUILDING_MIXINS — only collect mixin-path classes
     _tcloo_dfs(
-        class_name, mixins_map, superclasses_map, result, set(),
-        is_mixin_path=False, building_mixins=True,
+        class_name,
+        mixins_map,
+        superclasses_map,
+        result,
+        set(),
+        is_mixin_path=False,
+        building_mixins=True,
     )
 
     # Pass 2: collect non-mixin-path classes (shares result list for dedup)
     _tcloo_dfs(
-        class_name, mixins_map, superclasses_map, result, set(),
-        is_mixin_path=False, building_mixins=False,
+        class_name,
+        mixins_map,
+        superclasses_map,
+        result,
+        set(),
+        is_mixin_path=False,
+        building_mixins=False,
     )
 
     return result

@@ -69,15 +69,25 @@ def get_references(
 
     # Check for class name references
     for _qname, class_def in analysis.all_classes.items():
-        if class_def.name == word or class_def.qualified_name == word or class_def.qualified_name == f"::{word}":
+        if (
+            class_def.name == word
+            or class_def.qualified_name == word
+            or class_def.qualified_name == f"::{word}"
+        ):
             locations: list[types.Location] = []
             if include_declaration:
                 locations.append(to_lsp_location(uri, class_def.name_range))
             # Find references in superclass/mixin declarations of other classes
             for _other_qname, other_class in analysis.all_classes.items():
-                if class_def.name in other_class.superclasses or class_def.qualified_name in other_class.superclasses:
+                if (
+                    class_def.name in other_class.superclasses
+                    or class_def.qualified_name in other_class.superclasses
+                ):
                     locations.append(to_lsp_location(uri, other_class.name_range))
-                if class_def.name in other_class.mixins or class_def.qualified_name in other_class.mixins:
+                if (
+                    class_def.name in other_class.mixins
+                    or class_def.qualified_name in other_class.mixins
+                ):
                     locations.append(to_lsp_location(uri, other_class.name_range))
             # Find references in command invocations
             for invocation in analysis.command_invocations:

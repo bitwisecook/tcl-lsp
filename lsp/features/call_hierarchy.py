@@ -42,7 +42,9 @@ def _proc_to_item(proc_def: ProcDef, uri: str) -> types.CallHierarchyItem:
     )
 
 
-def _method_to_item(method_def: MethodDef, class_def: ClassDef, uri: str) -> types.CallHierarchyItem:
+def _method_to_item(
+    method_def: MethodDef, class_def: ClassDef, uri: str
+) -> types.CallHierarchyItem:
     """Convert a MethodDef to a CallHierarchyItem."""
     return types.CallHierarchyItem(
         name=method_def.name,

@@ -434,11 +434,7 @@ class TestSemanticTokens:
         assert any(t["type"] == "keyword" and t["length"] == len("property") for t in tokens)
 
     def test_classmethod_keyword_and_body_recurses(self):
-        source = (
-            "oo::class create Foo {\n"
-            "    classmethod find args { return ok }\n"
-            "}"
-        )
+        source = "oo::class create Foo {\n    classmethod find args { return ok }\n}"
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert any(t["type"] == "keyword" and t["length"] == len("classmethod") for t in tokens)
         assert any(t["type"] == "keyword" and t["length"] == len("return") for t in tokens)
@@ -469,30 +465,17 @@ class TestSemanticTokens:
         assert any(t["type"] == "keyword" and t["length"] == len("set") for t in tokens)
 
     def test_nextto_highlighted_as_keyword(self):
-        source = (
-            "oo::class create Sub {\n"
-            "    superclass Base\n"
-            "    method foo {} { nextto Base }\n"
-            "}"
-        )
+        source = "oo::class create Sub {\n    superclass Base\n    method foo {} { nextto Base }\n}"
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert any(t["type"] == "keyword" and t["length"] == len("nextto") for t in tokens)
 
     def test_callback_highlighted_as_keyword(self):
-        source = (
-            "oo::class create Foo {\n"
-            "    method setup {} { callback Notify }\n"
-            "}"
-        )
+        source = "oo::class create Foo {\n    method setup {} { callback Notify }\n}"
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert any(t["type"] == "keyword" and t["length"] == len("callback") for t in tokens)
 
     def test_classvariable_highlighted_as_keyword(self):
-        source = (
-            "oo::class create Foo {\n"
-            "    method inc {} { classvariable count; incr count }\n"
-            "}"
-        )
+        source = "oo::class create Foo {\n    method inc {} { classvariable count; incr count }\n}"
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert any(t["type"] == "keyword" and t["length"] == len("classvariable") for t in tokens)
 

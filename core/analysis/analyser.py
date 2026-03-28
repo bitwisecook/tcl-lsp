@@ -1922,9 +1922,7 @@ class Analyser:
     # TclOO class extraction
     # ------------------------------------------------------------------
 
-    _OO_METACLASSES = frozenset(
-        {"oo::class", "oo::configurable", "oo::abstract", "oo::singleton"}
-    )
+    _OO_METACLASSES = frozenset({"oo::class", "oo::configurable", "oo::abstract", "oo::singleton"})
 
     def _handle_oo_class_command(
         self,
@@ -1969,7 +1967,9 @@ class Analyser:
         )
 
         if body:
-            self._parse_oo_definition_body(body, arg_tokens[2] if len(arg_tokens) > 2 else None, class_def, scope)
+            self._parse_oo_definition_body(
+                body, arg_tokens[2] if len(arg_tokens) > 2 else None, class_def, scope
+            )
 
         scope.classes[class_name] = class_def
         self.result.all_classes[qualified] = class_def
@@ -2013,15 +2013,31 @@ class Analyser:
         # Body:   oo::define ClassName { method name args body; ... }
         if len(args) >= 2:
             _OO_DEFINE_SUBCMDS = {
-                "method", "classmethod", "constructor", "destructor",
-                "superclass", "mixin", "variable", "filter", "forward",
-                "export", "unexport", "property", "private",
-                "initialise", "initialize", "definitionnamespace",
-                "deletemethod", "renamemethod", "self",
+                "method",
+                "classmethod",
+                "constructor",
+                "destructor",
+                "superclass",
+                "mixin",
+                "variable",
+                "filter",
+                "forward",
+                "export",
+                "unexport",
+                "property",
+                "private",
+                "initialise",
+                "initialize",
+                "definitionnamespace",
+                "deletemethod",
+                "renamemethod",
+                "self",
             }
             if args[1] in _OO_DEFINE_SUBCMDS:
                 # Inline form
-                self._parse_oo_define_inline(args[1:], arg_tokens[1:] if len(arg_tokens) > 1 else [], class_def, scope)
+                self._parse_oo_define_inline(
+                    args[1:], arg_tokens[1:] if len(arg_tokens) > 1 else [], class_def, scope
+                )
             else:
                 # Body form
                 body_tok = arg_tokens[1] if len(arg_tokens) > 1 else None
@@ -2056,16 +2072,26 @@ class Analyser:
                 case "method":
                     self._extract_method_def(sub_args, sub_tokens, class_def, scope, kind="method")
                 case "classmethod":
-                    self._extract_method_def(sub_args, sub_tokens, class_def, scope, kind="classmethod")
+                    self._extract_method_def(
+                        sub_args, sub_tokens, class_def, scope, kind="classmethod"
+                    )
                 case "constructor":
                     self._extract_method_def(
-                        sub_args, sub_tokens, class_def, scope,
-                        kind="constructor", synthetic_name="<constructor>",
+                        sub_args,
+                        sub_tokens,
+                        class_def,
+                        scope,
+                        kind="constructor",
+                        synthetic_name="<constructor>",
                     )
                 case "destructor":
                     self._extract_method_def(
-                        sub_args, sub_tokens, class_def, scope,
-                        kind="destructor", synthetic_name="<destructor>",
+                        sub_args,
+                        sub_tokens,
+                        class_def,
+                        scope,
+                        kind="destructor",
+                        synthetic_name="<destructor>",
                     )
                 case "forward":
                     if sub_args:
@@ -2095,8 +2121,12 @@ class Analyser:
                         inner_tokens = sub_tokens[1:]
                         if inner_subcmd in ("method", "classmethod"):
                             self._extract_method_def(
-                                inner_args, inner_tokens, class_def, scope,
-                                kind=inner_subcmd, visibility="private",
+                                inner_args,
+                                inner_tokens,
+                                class_def,
+                                scope,
+                                kind=inner_subcmd,
+                                visibility="private",
                             )
                 case "initialise" | "initialize":
                     # initialise { body } — class-level initialisation script
@@ -2133,13 +2163,21 @@ class Analyser:
                 class_def.variables = list(sub_args)
             case "constructor":
                 self._extract_method_def(
-                    sub_args, sub_tokens, class_def, scope,
-                    kind="constructor", synthetic_name="<constructor>",
+                    sub_args,
+                    sub_tokens,
+                    class_def,
+                    scope,
+                    kind="constructor",
+                    synthetic_name="<constructor>",
                 )
             case "destructor":
                 self._extract_method_def(
-                    sub_args, sub_tokens, class_def, scope,
-                    kind="destructor", synthetic_name="<destructor>",
+                    sub_args,
+                    sub_tokens,
+                    class_def,
+                    scope,
+                    kind="destructor",
+                    synthetic_name="<destructor>",
                 )
             case "filter":
                 class_def.filters = list(sub_args)
@@ -2166,7 +2204,9 @@ class Analyser:
                 param_str = args[0]
                 body = args[1]
                 name_range = Range.zero()
-                body_range = range_from_token(arg_tokens[1]) if len(arg_tokens) > 1 else Range.zero()
+                body_range = (
+                    range_from_token(arg_tokens[1]) if len(arg_tokens) > 1 else Range.zero()
+                )
                 params = _parse_param_list(param_str)
             elif kind == "destructor" and len(args) >= 1:
                 param_str = ""
@@ -2234,7 +2274,11 @@ class Analyser:
                 )
 
         saved_comment = self._last_comment
-        body_tok = arg_tokens[2] if len(arg_tokens) > 2 and kind not in ("constructor", "destructor") else None
+        body_tok = (
+            arg_tokens[2]
+            if len(arg_tokens) > 2 and kind not in ("constructor", "destructor")
+            else None
+        )
         if kind == "constructor" and len(arg_tokens) > 1:
             body_tok = arg_tokens[1]
         elif kind == "destructor" and arg_tokens:

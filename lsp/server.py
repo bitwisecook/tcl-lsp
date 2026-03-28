@@ -66,12 +66,16 @@ from .features.semantic_tokens import (
     semantic_tokens_full,
 )
 from .features.signature_help import get_signature_help
+from .features.symbol_resolution import find_word_at_position
 from .features.type_hierarchy import (
     prepare_type_hierarchy,
+)
+from .features.type_hierarchy import (
     subtypes as get_subtypes,
+)
+from .features.type_hierarchy import (
     supertypes as get_supertypes,
 )
-from .features.symbol_resolution import find_word_at_position
 from .features.workspace_symbols import get_workspace_symbols
 from .workspace.document_state import WorkspaceState
 from .workspace.scanner import BackgroundScanner, path_to_uri, uri_to_path

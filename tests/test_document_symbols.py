@@ -163,6 +163,7 @@ class TestTclOOSymbols:
         ctor = cls.children[0]
         assert ctor.name == "constructor"
         assert ctor.kind == types.SymbolKind.Constructor
+        assert ctor.detail is not None
         assert "(name)" in ctor.detail
 
     def test_property_symbol(self):
@@ -185,6 +186,7 @@ class TestTclOOSymbols:
             }
         """)
         symbols = get_document_symbols(source)
+        assert symbols[0].detail is not None
         assert ": Animal" in symbols[0].detail
 
     def test_class_detail_shows_metaclass(self):
@@ -194,6 +196,7 @@ class TestTclOOSymbols:
             }
         """)
         symbols = get_document_symbols(source)
+        assert symbols[0].detail is not None
         assert "oo::abstract" in symbols[0].detail
 
     def test_classmethod_detail(self):
@@ -204,6 +207,8 @@ class TestTclOOSymbols:
         """)
         symbols = get_document_symbols(source)
         cls = symbols[0]
+        assert cls.children is not None
         cm = [c for c in cls.children if c.name == "count"]
         assert len(cm) == 1
+        assert cm[0].detail is not None
         assert "classmethod" in cm[0].detail

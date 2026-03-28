@@ -319,9 +319,7 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
                     create_name = f"::{create_name}"
                 else:
                     create_name = f"{ns}::{create_name}"
-            obj_name = oo.create_object(
-                interp, qualified, obj_name=create_name, args=cmd_args[2:]
-            )
+            obj_name = oo.create_object(interp, qualified, obj_name=create_name, args=cmd_args[2:])
             return TclResult(value=obj_name)
         raise TclError(f'unknown method "{method}": must be create or new')
 
@@ -356,6 +354,7 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
         # Single-subcommand form: oo::define Dog superclass Animal
         # Reconstruct with braces to preserve structure
         from ..machine import _list_escape
+
         reconstructed = " ".join(_list_escape(a) for a in args[1:])
         _parse_class_body(interp, cls, reconstructed)
 
@@ -387,6 +386,7 @@ def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
         # Single-subcommand form: oo::objdefine obj method foo {} {body}
         # Reconstruct with braces to preserve structure
         from ..machine import _list_escape
+
         reconstructed = " ".join(_list_escape(a) for a in args[1:])
         _parse_objdefine_body(interp, obj, reconstructed)
 
@@ -422,7 +422,7 @@ def _cmd_oo_object(interp: TclInterp, args: list[str]) -> TclResult:
         return TclResult(value=obj_name)
     elif subcmd == "destroy":
         # oo::object itself cannot be destroyed in normal usage
-        raise TclError('cannot destroy the root object')
+        raise TclError("cannot destroy the root object")
     else:
         raise TclError(f'unknown method "{subcmd}": must be create, destroy or new')
 
@@ -430,7 +430,9 @@ def _cmd_oo_object(interp: TclInterp, args: list[str]) -> TclResult:
 def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
     """oo::copy sourceObject ?targetObject? ?targetNamespace?"""
     if not args:
-        raise TclError('wrong # args: should be "oo::copy sourceObject ?targetObject? ?targetNamespace?"')
+        raise TclError(
+            'wrong # args: should be "oo::copy sourceObject ?targetObject? ?targetNamespace?"'
+        )
 
     oo = _get_oo_runtime(interp)
     src_name = args[0]
@@ -456,8 +458,9 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
         oo._next_obj_id += 1
         tgt_name = f"::oo::Obj{oo._next_obj_id}"
 
-    from ..oo import TclOOObject
     import copy
+
+    from ..oo import TclOOObject
 
     tgt = TclOOObject(
         name=tgt_name,

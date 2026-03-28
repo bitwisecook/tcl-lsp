@@ -942,7 +942,11 @@ def get_hover(
 
     # Check OO class names
     for _qname, class_def in analysis.all_classes.items():
-        if class_def.name == word or class_def.qualified_name == word or class_def.qualified_name == f"::{word}":
+        if (
+            class_def.name == word
+            or class_def.qualified_name == word
+            or class_def.qualified_name == f"::{word}"
+        ):
             return types.Hover(
                 contents=types.MarkupContent(
                     kind=types.MarkupKind.Markdown,
@@ -960,14 +964,18 @@ def get_hover(
                     return types.Hover(
                         contents=types.MarkupContent(
                             kind=types.MarkupKind.Markdown,
-                            value=_method_hover_text(class_def.methods[word], class_def.qualified_name),
+                            value=_method_hover_text(
+                                class_def.methods[word], class_def.qualified_name
+                            ),
                         ),
                     )
                 if word in class_def.class_methods:
                     return types.Hover(
                         contents=types.MarkupContent(
                             kind=types.MarkupKind.Markdown,
-                            value=_method_hover_text(class_def.class_methods[word], class_def.qualified_name),
+                            value=_method_hover_text(
+                                class_def.class_methods[word], class_def.qualified_name
+                            ),
                         ),
                     )
                 break

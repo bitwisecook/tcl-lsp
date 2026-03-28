@@ -10,7 +10,7 @@ devirtualisation and call graph construction.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .mro import C3Error, c3_linearise
 from .semantic_model import ClassDef
@@ -136,7 +136,9 @@ def build_class_hierarchy(classes: dict[str, ClassDef]) -> ClassHierarchy:
             # Walk MRO to find first provider
             for ancestor_name in mro:
                 ancestor = classes.get(ancestor_name)
-                if ancestor and (method_name in ancestor.methods or method_name in ancestor.class_methods):
+                if ancestor and (
+                    method_name in ancestor.methods or method_name in ancestor.class_methods
+                ):
                     method_providers[(qname, method_name)] = ancestor_name
                     break
 

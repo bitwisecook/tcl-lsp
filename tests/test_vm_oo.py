@@ -13,16 +13,16 @@ class TestOOClassCreate:
 
     def test_create_class(self) -> None:
         interp = TclInterp()
-        result = interp.eval('oo::class create Dog {}')
+        result = interp.eval("oo::class create Dog {}")
         assert result.value == "::Dog"
 
     def test_create_class_with_method(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Dog {
                 method bark {} { return "woof" }
             }
-        ''')
+        """)
         result = interp.eval("Dog new")
         obj_name = result.value
         result = interp.eval(f"{obj_name} bark")
@@ -30,13 +30,13 @@ class TestOOClassCreate:
 
     def test_create_class_with_constructor(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Dog {
                 variable name
                 constructor {n} { set name $n }
                 method get_name {} { return $name }
             }
-        ''')
+        """)
         result = interp.eval("Dog new Rex")
         obj_name = result.value
         result = interp.eval(f"{obj_name} get_name")
@@ -48,11 +48,11 @@ class TestOOMethodDispatch:
 
     def test_method_with_params(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Calc {
                 method add {a b} { expr {$a + $b} }
             }
-        ''')
+        """)
         result = interp.eval("Calc new")
         obj_name = result.value
         result = interp.eval(f"{obj_name} add 3 4")
@@ -60,11 +60,11 @@ class TestOOMethodDispatch:
 
     def test_method_wrong_args(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Calc {
                 method add {a b} { expr {$a + $b} }
             }
-        ''')
+        """)
         result = interp.eval("Calc new")
         obj_name = result.value
         with pytest.raises(TclError, match="wrong # args"):
@@ -72,7 +72,7 @@ class TestOOMethodDispatch:
 
     def test_unknown_method(self) -> None:
         interp = TclInterp()
-        interp.eval('oo::class create Dog {}')
+        interp.eval("oo::class create Dog {}")
         result = interp.eval("Dog new")
         obj_name = result.value
         with pytest.raises(TclError, match="unknown method"):
@@ -84,7 +84,7 @@ class TestOOInheritance:
 
     def test_single_inheritance(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Animal {
                 method speak {} { return "..." }
             }
@@ -92,7 +92,7 @@ class TestOOInheritance:
                 superclass Animal
                 method bark {} { return "woof" }
             }
-        ''')
+        """)
         result = interp.eval("Dog new")
         obj_name = result.value
         # Inherited method
@@ -104,7 +104,7 @@ class TestOOInheritance:
 
     def test_method_override(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Animal {
                 method speak {} { return "..." }
             }
@@ -112,7 +112,7 @@ class TestOOInheritance:
                 superclass Animal
                 method speak {} { return "woof" }
             }
-        ''')
+        """)
         result = interp.eval("Dog new")
         obj_name = result.value
         result = interp.eval(f"{obj_name} speak")
@@ -124,11 +124,11 @@ class TestOOSelfAndMy:
 
     def test_self_returns_object_name(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Dog {
                 method who {} { return [self] }
             }
-        ''')
+        """)
         result = interp.eval("Dog new")
         obj_name = result.value
         result = interp.eval(f"{obj_name} who")
@@ -136,12 +136,12 @@ class TestOOSelfAndMy:
 
     def test_my_dispatches_method(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Dog {
                 method bark {} { return "woof" }
                 method speak {} { return [my bark] }
             }
-        ''')
+        """)
         result = interp.eval("Dog new")
         obj_name = result.value
         result = interp.eval(f"{obj_name} speak")
@@ -149,11 +149,11 @@ class TestOOSelfAndMy:
 
     def test_self_class(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Dog {
                 method my_class {} { return [self class] }
             }
-        ''')
+        """)
         result = interp.eval("Dog new")
         obj_name = result.value
         result = interp.eval(f"{obj_name} my_class")
@@ -165,7 +165,7 @@ class TestOODestroy:
 
     def test_destroy(self) -> None:
         interp = TclInterp()
-        interp.eval('oo::class create Dog {}')
+        interp.eval("oo::class create Dog {}")
         result = interp.eval("Dog new")
         obj_name = result.value
         interp.eval(f"{obj_name} destroy")
@@ -174,13 +174,13 @@ class TestOODestroy:
 
     def test_destructor_runs(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Dog {
                 variable destroyed
                 constructor {} { set destroyed 0 }
                 destructor { set ::was_destroyed 1 }
             }
-        ''')
+        """)
         interp.eval("set ::was_destroyed 0")
         result = interp.eval("Dog new")
         obj_name = result.value
@@ -194,12 +194,12 @@ class TestOODefine:
 
     def test_define_adds_method(self) -> None:
         interp = TclInterp()
-        interp.eval('oo::class create Dog {}')
-        interp.eval('''
+        interp.eval("oo::class create Dog {}")
+        interp.eval("""
             oo::define Dog {
                 method bark {} { return "woof" }
             }
-        ''')
+        """)
         result = interp.eval("Dog new")
         obj_name = result.value
         result = interp.eval(f"{obj_name} bark")
@@ -211,14 +211,14 @@ class TestOOInstanceVars:
 
     def test_instance_vars_persist(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Counter {
                 variable count
                 constructor {} { set count 0 }
                 method incr {} { set count [expr {$count + 1}]; return $count }
                 method get {} { return $count }
             }
-        ''')
+        """)
         result = interp.eval("Counter new")
         obj_name = result.value
         interp.eval(f"{obj_name} incr")
@@ -228,14 +228,14 @@ class TestOOInstanceVars:
 
     def test_separate_instances(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Counter {
                 variable count
                 constructor {} { set count 0 }
                 method incr {} { set count [expr {$count + 1}]; return $count }
                 method get {} { return $count }
             }
-        ''')
+        """)
         r1 = interp.eval("Counter new")
         r2 = interp.eval("Counter new")
         obj1 = r1.value
@@ -254,11 +254,11 @@ class TestOONamedCreate:
 
     def test_create_named_object(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Dog {
                 method bark {} { return "woof" }
             }
-        ''')
+        """)
         result = interp.eval("Dog create rex")
         assert result.value == "::rex"
         result = interp.eval("rex bark")
@@ -271,7 +271,7 @@ class TestOONext:
     def test_next_calls_superclass(self) -> None:
         """oo-15.1: next calls the superclass method."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Animal {
                 method speak {} { return "..." }
             }
@@ -279,7 +279,7 @@ class TestOONext:
                 superclass Animal
                 method speak {} { return "woof-[next]" }
             }
-        ''')
+        """)
         result = interp.eval("Dog new")
         obj = result.value
         result = interp.eval(f"{obj} speak")
@@ -288,7 +288,7 @@ class TestOONext:
     def test_next_in_diamond(self) -> None:
         """next walks the correct MRO in a diamond: D -> B -> C -> A."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create A {
                 method who {} { return "A" }
             }
@@ -304,7 +304,7 @@ class TestOONext:
                 superclass B C
                 method who {} { return "D-[next]" }
             }
-        ''')
+        """)
         result = interp.eval("D new")
         obj = result.value
         result = interp.eval(f"{obj} who")
@@ -313,11 +313,11 @@ class TestOONext:
     def test_next_no_more_methods(self) -> None:
         """next at the end of the chain returns empty."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Base {
                 method greet {} { return "hello" }
             }
-        ''')
+        """)
         result = interp.eval("Base new")
         obj = result.value
         result = interp.eval(f"{obj} greet")
@@ -329,7 +329,7 @@ class TestOONextto:
 
     def test_nextto_specific_class(self) -> None:
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create A {
                 method greet {} { return "A" }
             }
@@ -341,7 +341,7 @@ class TestOONextto:
                 superclass B
                 method greet {} { return "C-[nextto A]" }
             }
-        ''')
+        """)
         result = interp.eval("C new")
         obj = result.value
         result = interp.eval(f"{obj} greet")
@@ -355,7 +355,7 @@ class TestOOMixinDispatch:
     def test_mixin_method_overrides(self) -> None:
         """oo-14.8: mixin method takes priority over class method."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Base {
                 method greet {} { return "base" }
             }
@@ -368,7 +368,7 @@ class TestOOMixinDispatch:
                 method greet {} { return "cls" }
             }
             oo::define Cls mixin Mix
-        ''')
+        """)
         result = interp.eval("Cls new")
         obj = result.value
         result = interp.eval(f"{obj} greet")
@@ -378,7 +378,7 @@ class TestOOMixinDispatch:
     def test_mixin_next_chain(self) -> None:
         """Mixin's next goes to the class, then to superclass."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Base {
                 method who {} { return "Base" }
             }
@@ -391,7 +391,7 @@ class TestOOMixinDispatch:
                 method who {} { return "Cls-[next]" }
             }
             oo::define Cls mixin Mix
-        ''')
+        """)
         result = interp.eval("Cls new")
         obj = result.value
         result = interp.eval(f"{obj} who")
@@ -401,7 +401,7 @@ class TestOOMixinDispatch:
     def test_mixin_append(self) -> None:
         """mixin -append adds to existing mixins."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create A {
                 method a {} { return "a" }
             }
@@ -411,7 +411,7 @@ class TestOOMixinDispatch:
             oo::class create C {}
             oo::define C mixin A
             oo::define C { mixin -append B }
-        ''')
+        """)
         result = interp.eval("C new")
         obj = result.value
         # Both mixin methods available
@@ -423,12 +423,12 @@ class TestOOMixinDispatch:
     def test_define_single_subcommand_form(self) -> None:
         """oo::define ClassName subcommand args (no body block)."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Animal {
                 method speak {} { return "..." }
             }
             oo::class create Dog {}
-        ''')
+        """)
         interp.eval("oo::define Dog superclass Animal")
         result = interp.eval("Dog new")
         obj = result.value
@@ -442,7 +442,7 @@ class TestOOConstructorInheritance:
     def test_inherited_constructor(self) -> None:
         """Subclass without its own constructor uses superclass constructor."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Base {
                 variable val
                 constructor {v} { set val $v }
@@ -451,7 +451,7 @@ class TestOOConstructorInheritance:
             oo::class create Child {
                 superclass Base
             }
-        ''')
+        """)
         result = interp.eval("Child new hello")
         obj = result.value
         result = interp.eval(f"{obj} get")
@@ -460,14 +460,14 @@ class TestOOConstructorInheritance:
     def test_inherited_destructor(self) -> None:
         """Subclass without its own destructor runs superclass destructor."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Base {
                 destructor { set ::dtor_ran 1 }
             }
             oo::class create Child {
                 superclass Base
             }
-        ''')
+        """)
         interp.eval("set ::dtor_ran 0")
         result = interp.eval("Child new")
         obj = result.value

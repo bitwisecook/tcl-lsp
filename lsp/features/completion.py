@@ -567,7 +567,10 @@ def get_completions(
         if context_cmd == "my" and scope.kind == "method" and scope.parent:
             parent_scope = scope.parent
             for _qname, class_def in analysis.all_classes.items():
-                if class_def.name == parent_scope.name or class_def.qualified_name == parent_scope.name:
+                if (
+                    class_def.name == parent_scope.name
+                    or class_def.qualified_name == parent_scope.name
+                ):
                     for meth_name, meth_def in class_def.methods.items():
                         if partial and not meth_name.startswith(partial):
                             continue

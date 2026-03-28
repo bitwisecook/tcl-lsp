@@ -110,17 +110,22 @@ class OORuntime:
         self.classes["::oo::object"] = root
         # oo::object is an object whose class is oo::class
         self.objects["::oo::object"] = TclOOObject(
-            name="::oo::object", class_name="::oo::class", namespace="::oo::object",
+            name="::oo::object",
+            class_name="::oo::class",
+            namespace="::oo::object",
         )
 
         # Register oo::class as the metaclass
         metaclass = TclOOClass(
-            name="class", qualified_name="::oo::class",
+            name="class",
+            qualified_name="::oo::class",
             superclasses=["::oo::object"],
         )
         self.classes["::oo::class"] = metaclass
         self.objects["::oo::class"] = TclOOObject(
-            name="::oo::class", class_name="::oo::class", namespace="::oo::class",
+            name="::oo::class",
+            class_name="::oo::class",
+            namespace="::oo::class",
         )
 
     def register_class(self, cls: TclOOClass) -> None:
@@ -415,9 +420,7 @@ class OORuntime:
         method, defining_class = self.resolve_method(obj, method_name)
         if method is None:
             raise TclError(f'unknown method "{method_name}"')
-        return self._invoke_method(
-            interp, obj, method, args[1:], defining_class=defining_class
-        )
+        return self._invoke_method(interp, obj, method, args[1:], defining_class=defining_class)
 
     def next_dispatch(self, interp: TclInterp, args: list[str]) -> TclResult:
         """Dispatch `next` — call next method in MRO chain.
@@ -451,7 +454,10 @@ class OORuntime:
                 ancestor = self.classes.get(class_qname)
                 if ancestor and method_name in ancestor.methods:
                     return self._invoke_method(
-                        interp, obj, ancestor.methods[method_name], args,
+                        interp,
+                        obj,
+                        ancestor.methods[method_name],
+                        args,
                         defining_class=class_qname,
                     )
         else:
@@ -466,16 +472,17 @@ class OORuntime:
                     ancestor = self.classes.get(class_qname)
                     if ancestor and method_name in ancestor.methods:
                         return self._invoke_method(
-                            interp, obj, ancestor.methods[method_name], args,
+                            interp,
+                            obj,
+                            ancestor.methods[method_name],
+                            args,
                             defining_class=class_qname,
                         )
 
         # Tcl raises an error when next is called with no more implementations
         raise TclError("no next method implementation")
 
-    def nextto_dispatch(
-        self, interp: TclInterp, target_class: str, args: list[str]
-    ) -> TclResult:
+    def nextto_dispatch(self, interp: TclInterp, target_class: str, args: list[str]) -> TclResult:
         """Dispatch `nextto className` — jump to a specific class in the MRO chain."""
         frame = interp.current_frame
         obj_name = getattr(frame, "_oo_self", None)
@@ -497,11 +504,12 @@ class OORuntime:
             raise TclError(f'unknown class "{target_class}"')
 
         if method_name not in ancestor.methods:
-            raise TclError(
-                f'method "{method_name}" is not defined on class "{target_class}"'
-            )
+            raise TclError(f'method "{method_name}" is not defined on class "{target_class}"')
 
         return self._invoke_method(
-            interp, obj, ancestor.methods[method_name], args,
+            interp,
+            obj,
+            ancestor.methods[method_name],
+            args,
             defining_class=target_class,
         )

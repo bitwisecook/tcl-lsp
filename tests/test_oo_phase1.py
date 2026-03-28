@@ -11,7 +11,6 @@ import pytest
 from vm.interp import TclInterp
 from vm.types import TclError
 
-
 # ---------------------------------------------------------------------------
 # oo-1.x: Basic OO functionality (objdefine, plain objects)
 # ---------------------------------------------------------------------------
@@ -25,14 +24,14 @@ class TestOO1Basic:
         interp = TclInterp()
         interp.eval("set result {}")
         interp.eval("lappend result [oo::object create foo]")
-        interp.eval('''
+        interp.eval("""
             lappend result [oo::objdefine foo {
                 method bar args {
                     lappend ::result {*}$args
                     return [llength $args]
                 }
             }]
-        ''')
+        """)
         interp.eval("lappend result [foo bar a b c]")
         result = interp.eval("set result")
         # Tcl: {::foo {} a b c 3}
@@ -43,16 +42,16 @@ class TestOO1Basic:
         """oo-1.4: empty object name is rejected."""
         interp = TclInterp()
         with pytest.raises(TclError, match="object name must not be empty"):
-            interp.eval('oo::object create {}')
+            interp.eval("oo::object create {}")
 
     def test_oo_1_8_objdefine_method_replacement(self) -> None:
         """oo-1.8: method can be replaced via objdefine."""
         interp = TclInterp()
         interp.eval("oo::object create obj")
-        interp.eval('oo::objdefine obj method foo {} {return bar}')
+        interp.eval("oo::objdefine obj method foo {} {return bar}")
         r1 = interp.eval("obj foo")
         assert r1.value == "bar"
-        interp.eval('oo::objdefine obj method foo {} {}')
+        interp.eval("oo::objdefine obj method foo {} {}")
         r2 = interp.eval("obj foo")
         assert r2.value == ""
 
@@ -60,7 +59,7 @@ class TestOO1Basic:
         """objdefine single-subcommand form: oo::objdefine obj method foo {} {body}."""
         interp = TclInterp()
         interp.eval("oo::object create obj")
-        interp.eval('oo::objdefine obj method greet {} {return hello}')
+        interp.eval("oo::objdefine obj method greet {} {return hello}")
         result = interp.eval("obj greet")
         assert result.value == "hello"
 
@@ -78,7 +77,7 @@ class TestOO2Constructors:
         interp = TclInterp()
         interp.eval("oo::class create foo")
         interp.eval("oo::define foo constructor {} return")
-        result = interp.eval("[foo new] destroy")
+        interp.eval("[foo new] destroy")
         # Should not raise
         interp.eval("oo::define foo constructor {} {}")
         obj = interp.eval("foo new")
@@ -87,7 +86,7 @@ class TestOO2Constructors:
     def test_oo_2_constructor_with_args(self) -> None:
         """Constructor receives arguments from new/create."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Greeter {
                 variable greeting
                 constructor {msg} {
@@ -97,7 +96,7 @@ class TestOO2Constructors:
                     return $greeting
                 }
             }
-        ''')
+        """)
         interp.eval("Greeter create g1 hello")
         result = interp.eval("g1 greet")
         assert result.value == "hello"
@@ -115,12 +114,12 @@ class TestOO3Destructors:
         """oo-3.3: constructor then destructor run in order."""
         interp = TclInterp()
         interp.eval("set ::result {}")
-        interp.eval('''
+        interp.eval("""
             oo::class create foo {
                 constructor {} {lappend ::result made}
                 destructor {lappend ::result died}
             }
-        ''')
+        """)
         obj = interp.eval("foo new").value
         interp.eval(f"{obj} destroy")
         result = interp.eval("set ::result")
@@ -131,14 +130,14 @@ class TestOO3Destructors:
         """Destructor is inherited from superclass."""
         interp = TclInterp()
         interp.eval("set ::result {}")
-        interp.eval('''
+        interp.eval("""
             oo::class create Base {
                 destructor {lappend ::result base-died}
             }
             oo::class create Child {
                 superclass Base
             }
-        ''')
+        """)
         obj = interp.eval("Child new").value
         interp.eval(f"{obj} destroy")
         result = interp.eval("set ::result")
@@ -195,12 +194,12 @@ class TestOO6Forward:
         """oo-6.1: forward delegates to target command."""
         interp = TclInterp()
         interp.eval("oo::object create foo")
-        interp.eval('''
+        interp.eval("""
             oo::objdefine foo {
                 forward a lappend
                 forward b lappend result
             }
-        ''')
+        """)
         interp.eval("set result {}")
         interp.eval("foo a result 1")
         interp.eval("foo b 2")
@@ -210,11 +209,11 @@ class TestOO6Forward:
     def test_oo_forward_on_class(self) -> None:
         """Forward method on a class works for instances."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Logger {
                 forward log ::lappend ::log
             }
-        ''')
+        """)
         interp.eval("set ::log {}")
         interp.eval("Logger create l1")
         interp.eval("l1 log hello")
@@ -237,7 +236,7 @@ class TestOO7Inheritance:
         interp.eval("oo::class create superClass")
         interp.eval("oo::class create subClass")
         interp.eval("subClass create instance")
-        interp.eval('oo::define superClass method doit x {lappend ::result $x}')
+        interp.eval("oo::define superClass method doit x {lappend ::result $x}")
         interp.eval("oo::define subClass superclass superClass")
         interp.eval("set ::result {}")
         interp.eval("instance doit ok")
@@ -250,18 +249,18 @@ class TestOO7Inheritance:
         interp.eval("oo::class create superClass")
         interp.eval("oo::class create subClass")
         interp.eval("subClass create instance")
-        interp.eval('''
+        interp.eval("""
             oo::define superClass method doit x {
                 lappend ::result |$x|
             }
-        ''')
+        """)
         interp.eval("oo::define subClass superclass superClass")
-        interp.eval('''
+        interp.eval("""
             oo::objdefine instance method doit x {
                 lappend ::result =$x=
                 next [incr x]
             }
-        ''')
+        """)
         interp.eval("set ::result {}")
         interp.eval("instance doit 1")
         result = interp.eval("set ::result")
@@ -273,23 +272,23 @@ class TestOO7Inheritance:
         interp.eval("oo::class create superClass")
         interp.eval("oo::class create subClass")
         interp.eval("subClass create instance")
-        interp.eval('''
+        interp.eval("""
             oo::define superClass method doit x {
                 lappend ::result |$x|
             }
-        ''')
-        interp.eval('''
+        """)
+        interp.eval("""
             oo::define subClass {
                 superclass superClass
                 method doit x {lappend ::result -$x-; next [incr x]}
             }
-        ''')
-        interp.eval('''
+        """)
+        interp.eval("""
             oo::objdefine instance method doit x {
                 lappend ::result =$x=
                 next [incr x]
             }
-        ''')
+        """)
         interp.eval("set ::result {}")
         interp.eval("instance doit 1")
         result = interp.eval("set ::result")
@@ -312,25 +311,25 @@ class TestOO9Diamond:
         interp.eval("oo::class create C")
         interp.eval("oo::class create D")
         interp.eval("D create foo")
-        interp.eval('oo::define A method test {} {lappend ::result A; return ok}')
-        interp.eval('''
+        interp.eval("oo::define A method test {} {lappend ::result A; return ok}")
+        interp.eval("""
             oo::define B {
                 superclass A
                 method test {} {lappend ::result B; next}
             }
-        ''')
-        interp.eval('''
+        """)
+        interp.eval("""
             oo::define C {
                 superclass A
                 method test {} {lappend ::result C; next}
             }
-        ''')
-        interp.eval('''
+        """)
+        interp.eval("""
             oo::define D {
                 superclass B C
                 method test {} {lappend ::result D; next}
             }
-        ''')
+        """)
         interp.eval("set ::result {}")
         interp.eval("lappend ::result [foo test]")
         result = interp.eval("set ::result")
@@ -348,13 +347,13 @@ class TestOO15Copy:
     def test_oo_15_copy_basic(self) -> None:
         """oo::copy creates independent clone."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 variable val
                 constructor {v} {set val $v}
                 method get {} {return $val}
             }
-        ''')
+        """)
         interp.eval("Cls create orig hello")
         r1 = interp.eval("orig get")
         assert r1.value == "hello"
@@ -366,14 +365,14 @@ class TestOO15Copy:
     def test_oo_15_copy_independent_state(self) -> None:
         """Cloned object has independent state."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Counter {
                 variable n
                 constructor {} {set n 0}
                 method incr {} {incr n; return $n}
                 method get {} {return $n}
             }
-        ''')
+        """)
         interp.eval("Counter create c1")
         interp.eval("c1 incr")
         interp.eval("c1 incr")
@@ -464,12 +463,12 @@ class TestOO16InfoObject:
     def test_oo_16_info_object_vars(self) -> None:
         """info object vars returns instance variable names."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 variable x y
                 constructor {} {set x 1; set y 2}
             }
-        ''')
+        """)
         interp.eval("Cls create inst")
         result = interp.eval("info object vars inst")
         assert "x" in result.value
@@ -526,11 +525,11 @@ class TestOO17InfoClass:
         interp = TclInterp()
         interp.eval("oo::class create A")
         interp.eval("oo::class create B")
-        interp.eval('''
+        interp.eval("""
             oo::class create C {
                 superclass A B
             }
-        ''')
+        """)
         result = interp.eval("info class superclasses C")
         assert "::A" in result.value
         assert "::B" in result.value
@@ -538,12 +537,12 @@ class TestOO17InfoClass:
     def test_oo_17_info_class_methods(self) -> None:
         """info class methods returns method names."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 method foo {} {}
                 method bar {} {}
             }
-        ''')
+        """)
         result = interp.eval("info class methods Cls")
         assert "bar" in result.value
         assert "foo" in result.value
@@ -551,11 +550,11 @@ class TestOO17InfoClass:
     def test_oo_17_info_class_definition(self) -> None:
         """info class definition returns {argList body}."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 method greet {name} {return "hello $name"}
             }
-        ''')
+        """)
         result = interp.eval("info class definition Cls greet")
         assert "name" in result.value
         assert "hello" in result.value
@@ -563,11 +562,11 @@ class TestOO17InfoClass:
     def test_oo_17_info_class_constructor(self) -> None:
         """info class constructor returns constructor signature."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 constructor {x y} {set z 1}
             }
-        ''')
+        """)
         result = interp.eval("info class constructor Cls")
         assert "x" in result.value
         assert "y" in result.value
@@ -575,22 +574,22 @@ class TestOO17InfoClass:
     def test_oo_17_info_class_destructor(self) -> None:
         """info class destructor returns destructor body."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 destructor {puts dying}
             }
-        ''')
+        """)
         result = interp.eval("info class destructor Cls")
         assert "dying" in result.value
 
     def test_oo_17_info_class_variables(self) -> None:
         """info class variables returns declared variables."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 variable x y z
             }
-        ''')
+        """)
         result = interp.eval("info class variables Cls")
         assert "x" in result.value
         assert "y" in result.value
@@ -601,11 +600,11 @@ class TestOO17InfoClass:
         interp = TclInterp()
         interp.eval("oo::class create Mix1")
         interp.eval("oo::class create Mix2")
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 mixin Mix1 Mix2
             }
-        ''')
+        """)
         result = interp.eval("info class mixins Cls")
         assert "Mix1" in result.value
         assert "Mix2" in result.value
@@ -614,11 +613,11 @@ class TestOO17InfoClass:
         """info class subclasses returns subclass list."""
         interp = TclInterp()
         interp.eval("oo::class create Parent")
-        interp.eval('''
+        interp.eval("""
             oo::class create Child {
                 superclass Parent
             }
-        ''')
+        """)
         result = interp.eval("info class subclasses Parent")
         assert "::Child" in result.value
 
@@ -634,12 +633,12 @@ class TestOODefineExtensions:
     def test_deletemethod(self) -> None:
         """oo::define deletemethod removes a method."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 method foo {} {return foo}
                 method bar {} {return bar}
             }
-        ''')
+        """)
         interp.eval("Cls create obj")
         r1 = interp.eval("obj foo")
         assert r1.value == "foo"
@@ -650,11 +649,11 @@ class TestOODefineExtensions:
     def test_renamemethod(self) -> None:
         """oo::define renamemethod renames a method."""
         interp = TclInterp()
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 method foo {} {return foo}
             }
-        ''')
+        """)
         interp.eval("Cls create obj")
         interp.eval("oo::define Cls renamemethod foo bar")
         with pytest.raises(TclError, match="unknown method"):
@@ -666,11 +665,11 @@ class TestOODefineExtensions:
         """oo::define forward creates a forwarding method."""
         interp = TclInterp()
         interp.eval("set ::log {}")
-        interp.eval('''
+        interp.eval("""
             oo::class create Cls {
                 forward log ::lappend ::log
             }
-        ''')
+        """)
         interp.eval("Cls create obj")
         interp.eval("obj log hello")
         interp.eval("obj log world")
@@ -696,12 +695,12 @@ class TestOOObjdefine:
         """oo::objdefine body with multiple methods."""
         interp = TclInterp()
         interp.eval("oo::object create obj")
-        interp.eval('''
+        interp.eval("""
             oo::objdefine obj {
                 method foo {} {return foo}
                 method bar {} {return bar}
             }
-        ''')
+        """)
         assert interp.eval("obj foo").value == "foo"
         assert interp.eval("obj bar").value == "bar"
 
@@ -778,18 +777,18 @@ class TestOOIntegration:
         """Instance method overrides class method, next chains."""
         interp = TclInterp()
         interp.eval("set ::result {}")
-        interp.eval('''
+        interp.eval("""
             oo::class create Base {
                 method greet {} {lappend ::result base}
             }
-        ''')
+        """)
         interp.eval("Base create obj")
-        interp.eval('''
+        interp.eval("""
             oo::objdefine obj method greet {} {
                 lappend ::result instance
                 next
             }
-        ''')
+        """)
         interp.eval("obj greet")
         result = interp.eval("set ::result")
         assert result.value == "instance base"
