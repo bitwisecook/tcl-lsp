@@ -134,7 +134,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts format-cpp lint-cpp typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated native-setup native-build native-test native-setup-asan native-test-asan native-setup-tsan native-test-tsan native-scan-build native-valgrind native-setup-fuzz native-fuzz native-setup-cfi native-test-cfi native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan native-gcc-analyze native-clean .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts format-cpp lint-cpp typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated native-setup native-build native-test native-setup-asan native-test-asan native-setup-tsan native-test-tsan native-scan-build native-valgrind native-setup-fuzz native-fuzz native-setup-cfi native-test-cfi test-cpp native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan native-gcc-analyze native-clean .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -855,6 +855,8 @@ native-build: ## Build the C++ native module
 
 native-test: ## Run C++ unit tests
 	meson test -C $(NATIVE_BUILDDIR) --suite tcl-lsp --print-errorlogs
+
+test-cpp: native-test ## Alias for native-test (matches test-py naming)
 
 # --- Sanitizer builds ---
 # We try clang first (if libclang-rt-18-dev is installed), then fall back to GCC.
