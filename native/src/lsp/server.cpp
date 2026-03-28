@@ -1,5 +1,8 @@
 #include "tcl_lsp/lsp/server.hpp"
 
+#include <lsp/json/json.h>
+#include <lsp/serialization.h>
+
 #include <string>
 #include <utility>
 #include <variant>
@@ -8,8 +11,16 @@ namespace tcl_lsp {
 
 TclLspServer::TclLspServer(lsp::Connection& connection)
     : handler_{connection}
+    , python_{std::make_unique<PythonBridge>()}
 {
     register_handlers();
+
+    // Wire Python diagnostics back to the client via lsp-framework.
+    python_->set_notification_callback(
+        [this](std::string_view method, const std::string& params_json) {
+            auto json_params = lsp::json::parse(params_json);
+            handler_.sendNotification(method, std::move(json_params));
+        });
 }
 
 void TclLspServer::run() {
@@ -19,8 +30,18 @@ void TclLspServer::run() {
     }
 }
 
+// Helper: call a Python feature and return the parsed JSON result.
+auto TclLspServer::call_python_feature(const std::string& method,
+                                        const std::string& params_json)
+    -> lsp::json::Value {
+    auto result = python_->call_feature(method, params_json);
+    if (!result.has_value()) return {};
+    return lsp::json::parse(*result);
+}
+
 void TclLspServer::register_handlers() {
     handler_
+        // Lifecycle
         .add<lsp::requests::Initialize>(
             [this](lsp::requests::Initialize::Params&& p) {
                 return on_initialize(std::move(p));
@@ -33,6 +54,8 @@ void TclLspServer::register_handlers() {
             [this]() { return on_shutdown(); })
         .add<lsp::notifications::Exit>(
             [this]() { on_exit(); })
+
+        // Document sync
         .add<lsp::notifications::TextDocument_DidOpen>(
             [this](lsp::notifications::TextDocument_DidOpen::Params&& p) {
                 on_did_open(std::move(p));
@@ -45,6 +68,41 @@ void TclLspServer::register_handlers() {
             [this](lsp::notifications::TextDocument_DidClose::Params&& p) {
                 on_did_close(std::move(p));
             });
+
+    // All feature requests delegated to Python via generic JSON handlers.
+    // Each handler serialises params to JSON, calls Python, parses the result.
+    static constexpr std::string_view python_features[] = {
+        "textDocument/semanticTokens/full",
+        "textDocument/semanticTokens/full/delta",
+        "textDocument/completion",
+        "textDocument/hover",
+        "textDocument/definition",
+        "textDocument/references",
+        "textDocument/documentSymbol",
+        "textDocument/foldingRange",
+        "textDocument/rename",
+        "textDocument/prepareRename",
+        "textDocument/signatureHelp",
+        "textDocument/formatting",
+        "textDocument/rangeFormatting",
+        "textDocument/codeAction",
+        "workspace/symbol",
+        "textDocument/inlayHint",
+        "textDocument/prepareCallHierarchy",
+        "callHierarchy/incomingCalls",
+        "callHierarchy/outgoingCalls",
+        "textDocument/documentLink",
+        "textDocument/selectionRange",
+    };
+
+    for (auto method : python_features) {
+        handler_.add(method,
+            [this, m = std::string(method)](lsp::json::Value&& params)
+                -> lsp::json::Value {
+                auto params_json = lsp::json::stringify(params);
+                return call_python_feature(m, params_json);
+            });
+    }
 }
 
 // Lifecycle
@@ -63,7 +121,7 @@ auto TclLspServer::on_initialize(
 
 void TclLspServer::on_initialized(
     [[maybe_unused]] lsp::notifications::Initialized::Params&& params) {
-    // Future: start background workspace scanning via Python bridge.
+    python_->on_initialized("{}", "{}");
 }
 
 auto TclLspServer::on_shutdown() -> lsp::requests::Shutdown::Result {
@@ -84,6 +142,11 @@ void TclLspServer::on_did_open(
         params.textDocument.languageId,
         params.textDocument.text,
         params.textDocument.version);
+
+    // Forward to Python for analysis + diagnostics.
+    python_->on_did_open(uri, params.textDocument.languageId,
+                         params.textDocument.text,
+                         params.textDocument.version);
 }
 
 void TclLspServer::on_did_change(
@@ -91,24 +154,26 @@ void TclLspServer::on_did_change(
     if (params.contentChanges.empty()) return;
 
     auto uri = params.textDocument.uri.toString();
-    // Extract text from the last content change (full sync).
     const auto& last = params.contentChanges.back();
     auto text = std::visit(
         [](const auto& change) -> std::string { return change.text; },
         last);
-    documents_.change(uri, std::move(text), params.textDocument.version);
+    documents_.change(uri, text, params.textDocument.version);
+
+    // Forward to Python for re-analysis + diagnostics.
+    python_->on_did_change(uri, text, params.textDocument.version);
 }
 
 void TclLspServer::on_did_close(
     lsp::notifications::TextDocument_DidClose::Params&& params) {
     auto uri = params.textDocument.uri.toString();
     documents_.close(uri);
+    python_->on_did_close(uri);
 }
 
 // Capabilities
 
 auto TclLspServer::build_capabilities() -> lsp::ServerCapabilities {
-    // Semantic token legend — matches the Python server's token types/modifiers.
     lsp::SemanticTokensLegend legend{
         .tokenTypes = {
             "namespace", "type", "class", "enum", "interface",
@@ -124,7 +189,6 @@ auto TclLspServer::build_capabilities() -> lsp::ServerCapabilities {
         },
     };
 
-    // Fields in declaration order per ServerCapabilities struct.
     return lsp::ServerCapabilities{
         .positionEncoding = lsp::PositionEncodingKind::UTF16,
         .textDocumentSync = lsp::TextDocumentSyncOptions{
