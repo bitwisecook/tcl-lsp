@@ -40,7 +40,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-1.19",
     "oo-1.20",
     "oo-1.21",
-    "oo-1.22",
     "oo-1.25",
     "oo-1.7",
     # oo-2.x: Constructor edge cases (interp)
@@ -91,9 +90,7 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-19.x: abstract class
     "oo-19.2",
     "oo-19.4",
-    "oo-19.5",
     # oo-20.x: singleton/abstract/tag
-    "oo-20.6",
     # oo-21.x: readableproperties/writableproperties
     "oo-21.2",
     "oo-21.3",

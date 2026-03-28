@@ -1060,26 +1060,43 @@ class OORuntime:
         name = method.name
         if name == "eval":
             # Evaluate script in the object's namespace context
+            # Uses namespace eval semantics so the namespace's variable
+            # table is accessible (like C Tcl).
             from .machine import _list_escape
             from .scope import ensure_namespace
 
             script = " ".join(_list_escape(a) for a in args) if len(args) > 1 else (args[0] if args else "")
-            # Set frame AND interp namespace to the object's namespace
             obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
-            old_ns = frame.namespace
-            old_interp_ns = interp.current_namespace
-            frame.namespace = obj_ns
+            ns_frame = obj_ns.get_frame(interp)
+
+            # Sync obj._vars into the namespace frame so variables are
+            # accessible during eval
+            for k, v in obj._vars.items():
+                ns_frame._scalars[k] = v
+
+            # Push the namespace frame as current and evaluate.
+            # Propagate OO context so self/my work inside eval.
+            saved_frame = interp.current_frame
+            saved_ns = interp.current_namespace
+            saved_oo_self = getattr(ns_frame, '_oo_self', None)
+            saved_oo_class = getattr(ns_frame, '_oo_class', None)
+            saved_oo_method = getattr(ns_frame, '_oo_method', None)
+            ns_frame._oo_self = obj.name
+            ns_frame._oo_class = getattr(frame, '_oo_class', None)
+            ns_frame._oo_method = getattr(frame, '_oo_method', None)
+            interp.current_frame = ns_frame
             interp.current_namespace = obj_ns
             try:
                 result = interp.eval(script)
             finally:
-                frame.namespace = old_ns
-                interp.current_namespace = old_interp_ns
-                # Write back namespace variables to obj._vars so they persist
-                if hasattr(obj_ns, '_frame') and obj_ns._frame is not None:
-                    ns_frame = obj_ns._frame
-                    for vname in list(ns_frame._scalars.keys()):
-                        obj._vars[vname] = ns_frame._scalars[vname]
+                interp.current_frame = saved_frame
+                interp.current_namespace = saved_ns
+                ns_frame._oo_self = saved_oo_self
+                ns_frame._oo_class = saved_oo_class
+                ns_frame._oo_method = saved_oo_method
+                # Write back namespace variables to obj._vars
+                for vname in list(ns_frame._scalars.keys()):
+                    obj._vars[vname] = ns_frame._scalars[vname]
             return result
         elif name == "variable":
             # Import object variables into the caller's local scope.
@@ -1285,6 +1302,23 @@ class OORuntime:
                     self._invoke_method(interp, obj, dtor, [], defining_class=dtor_class)
                 except TclError as e:
                     dtor_error = e
+
+        # Destroy namespace-owned children (objects whose commands live in
+        # this object's namespace).  This handles the nested ownership case
+        # where [self class] create xyz creates inside the current namespace.
+        # Check both name prefix and namespace prefix since object names
+        # may be registered under either.
+        prefixes = {obj.name + "::"}
+        if obj.namespace != obj.name:
+            prefixes.add(obj.namespace + "::")
+        ns_children = [
+            o for o in list(self.objects.values())
+            if o.name in self.objects
+            and any(o.name.startswith(p) for p in prefixes)
+        ]
+        for child in ns_children:
+            if child.name in self.objects:
+                self._destroy_object(interp, child)
 
         # Fire command traces before removing the command
         from .commands.trace_cmds import fire_command_traces
