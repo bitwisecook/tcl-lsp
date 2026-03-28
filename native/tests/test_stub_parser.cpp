@@ -60,13 +60,20 @@ TEST_CASE("parse_stub_line: empty args", "[stub_parser]") {
     REQUIRE(result->args.empty());
 }
 
-TEST_CASE("parse_stub_line: malformed returns nullopt", "[stub_parser]") {
-    REQUIRE_FALSE(parse_stub_line("# not a stub", Range::zero()).has_value());
-    REQUIRE_FALSE(parse_stub_line("# stub", Range::zero()).has_value());
+TEST_CASE("parse_stub_line: malformed returns error", "[stub_parser]") {
+    auto r1 = parse_stub_line("# not a stub", Range::zero());
+    REQUIRE_FALSE(r1.has_value());
+    CHECK(r1.error() == StubParseError::NOT_A_STUB);
+
+    auto r2 = parse_stub_line("# stub", Range::zero());
+    REQUIRE_FALSE(r2.has_value());
+    CHECK(r2.error() == StubParseError::NOT_A_STUB);
 }
 
-TEST_CASE("parse_stub_line: invalid role returns nullopt", "[stub_parser]") {
-    REQUIRE_FALSE(parse_stub_line("# stub cmd {arg:bogus}", Range::zero()).has_value());
+TEST_CASE("parse_stub_line: invalid role returns error", "[stub_parser]") {
+    auto r = parse_stub_line("# stub cmd {arg:bogus}", Range::zero());
+    REQUIRE_FALSE(r.has_value());
+    CHECK(r.error() == StubParseError::INVALID_ARG_SYNTAX);
 }
 
 // ---------------------------------------------------------------------------
