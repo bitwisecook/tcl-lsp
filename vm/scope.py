@@ -582,6 +582,19 @@ class CallFrame:
 
     def unset_var(self, name: str, *, nocomplain: bool = False) -> None:
         """Remove a scalar or array element."""
+        # OO instance variable proxy — unset removes from shared store
+        iv = self._oo_instance_vars
+        if iv is not None and "(" not in name and name in iv[1]:
+            if name in iv[0]:
+                self._fire_unset_trace(name)
+                del iv[0][name]
+                self._scalars.pop(name, None)
+                self._cleanup_traces(name, name)
+                return
+            if not nocomplain:
+                raise TclError(f'can\'t unset "{name}": no such variable')
+            return
+
         frame, resolved, elem = self._locate(name)
 
         if resolved in frame._constants and not nocomplain:

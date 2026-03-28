@@ -366,10 +366,9 @@ def _define_mixin(interp: TclInterp, args: list[str]) -> TclResult:
     return TclResult()
 
 
-def _define_variable(interp: TclInterp, args: list[str]) -> TclResult:
-    """::oo::define::variable"""
-    # Validate variable names — C Tcl rejects namespace separators and array elements
-    for name in args:
+def _validate_var_names(names: list[str]) -> None:
+    """Validate declared variable names — reject namespace separators and array elements."""
+    for name in names:
         if "::" in name:
             raise TclError(
                 f'invalid declared variable name "{name}":'
@@ -380,19 +379,80 @@ def _define_variable(interp: TclInterp, args: list[str]) -> TclResult:
                 f'invalid declared variable name "{name}":'
                 " must not refer to an array element"
             )
+
+
+def _apply_slot_op(current: list[str], args: list[str], validate: bool = True) -> list[str]:
+    """Apply a slot operation (-clear/-set/-append/-remove/-prepend/-appendifnew) to a list.
+
+    If no slot flag is present, defaults to -set (replace the list).
+    Returns the new list value.
+    """
+    if not args:
+        return current  # no-op
+
+    # Check for slot operation flag
+    op = args[0] if args and args[0].startswith("-") else None
+    if op == "-clear":
+        if len(args) > 1:
+            raise TclError('wrong # args: should be "variable -clear"')
+        return []
+    if op == "-set":
+        names = args[1:]
+        if validate:
+            _validate_var_names(names)
+        return list(names)
+    if op == "-append":
+        names = args[1:]
+        if validate:
+            _validate_var_names(names)
+        return current + names
+    if op == "-appendifnew":
+        names = args[1:]
+        if validate:
+            _validate_var_names(names)
+        result = list(current)
+        for n in names:
+            if n not in result:
+                result.append(n)
+        return result
+    if op == "-prepend":
+        names = args[1:]
+        if validate:
+            _validate_var_names(names)
+        return names + current
+    if op == "-remove":
+        names = set(args[1:])
+        return [v for v in current if v not in names]
+    if op is not None and op.startswith("-"):
+        # Unknown flag — C Tcl reports via slot dispatch
+        raise TclError(
+            f'unknown method "{op}": must be -append, -appendifnew, -clear,'
+            " -prepend, -remove, or -set"
+        )
+
+    # No flag — default is -append (like C Tcl's default slot operation)
+    if validate:
+        _validate_var_names(args)
+    return current + args
+
+
+def _define_variable(interp: TclInterp, args: list[str]) -> TclResult:
+    """::oo::define::variable"""
     cls = getattr(interp, "_defining_class", None)
     obj = getattr(interp, "_defining_object", None)
     is_private = getattr(interp, "_oo_private_mode", False)
     if cls is not None:
         if is_private:
-            cls.private_variables.extend(args)
+            cls.private_variables = _apply_slot_op(cls.private_variables, args)
         else:
-            cls.variables.extend(args)
+            cls.variables = _apply_slot_op(cls.variables, args)
     elif obj is not None:
         if is_private:
-            obj.private_instance_variables.extend(args)
+            obj.private_instance_variables = _apply_slot_op(
+                obj.private_instance_variables, args
+            )
         else:
-            obj.instance_variables.extend(args)
+            obj.instance_variables = _apply_slot_op(obj.instance_variables, args)
     return TclResult()
 
 
