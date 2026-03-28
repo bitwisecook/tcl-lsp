@@ -116,7 +116,11 @@ def _parse_class_body(
             case "superclass":
                 cls.superclasses = parts[1:]
             case "mixin":
-                cls.mixins = parts[1:]
+                mixin_args = parts[1:]
+                if mixin_args and mixin_args[0] == "-append":
+                    cls.mixins.extend(mixin_args[1:])
+                else:
+                    cls.mixins = list(mixin_args)
             case "variable":
                 cls.variables.extend(parts[1:])
             case "filter":
@@ -204,9 +208,9 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
 
 
 def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
-    """oo::define className body"""
+    """oo::define className body  OR  oo::define className subcommand ?arg ...?"""
     if len(args) < 2:
-        raise TclError('wrong # args: should be "oo::define className body"')
+        raise TclError('wrong # args: should be "oo::define className defScript"')
 
     class_name = args[0]
     oo = _get_oo_runtime(interp)
@@ -219,8 +223,17 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
     if cls is None:
         raise TclError(f'unknown class "{class_name}"')
 
-    _parse_class_body(interp, cls, args[1])
-    cls.invalidate_mro()
+    if len(args) == 2:
+        # Body form: oo::define Dog { method bark {} { ... } }
+        _parse_class_body(interp, cls, args[1])
+    else:
+        # Single-subcommand form: oo::define Dog superclass Animal
+        # Reconstruct as a single-line body for _parse_class_body
+        _parse_class_body(interp, cls, " ".join(args[1:]))
+
+    # Invalidate ALL classes — adding a mixin/superclass to one class
+    # can change the MRO of any subclass
+    oo.invalidate_all_mro()
     return TclResult()
 
 
@@ -269,9 +282,8 @@ def _cmd_nextto(interp: TclInterp, args: list[str]) -> TclResult:
     """nextto className ?arg ...?"""
     if not args:
         raise TclError('wrong # args: should be "nextto class ?arg ...?"')
-    # For now, nextto is a simplified version — just calls next
     oo = _get_oo_runtime(interp)
-    return oo.next_dispatch(interp, args[1:])
+    return oo.nextto_dispatch(interp, args[0], args[1:])
 
 
 # Metaclass variants
