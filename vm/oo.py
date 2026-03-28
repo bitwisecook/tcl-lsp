@@ -785,7 +785,10 @@ class OORuntime:
         )
 
         # Bind instance variables into the frame — collect from all
-        # classes in the MRO that declare variables
+        # classes in the MRO that declare variables.
+        # We store the obj._vars reference so reads/writes go directly
+        # to the shared instance variable store, avoiding stale copies
+        # when nested method calls (via my/next) modify the same vars.
         all_vars: list[str] = []
         if cls:
             for class_qname in cls.mro(self.classes):
@@ -794,9 +797,17 @@ class OORuntime:
                     for v in ancestor.variables:
                         if v not in all_vars:
                             all_vars.append(v)
-        for var_name in all_vars:
-            if var_name in obj._vars:
-                frame.set_var(var_name, obj._vars[var_name])
+        # Store reference to shared instance variable store.
+        # The frame's get_var/set_var will proxy reads/writes for these
+        # names directly to obj._vars, avoiding stale copies when nested
+        # method calls (via my/next) modify the same variables.
+        if all_vars:
+            all_vars_set = set(all_vars)
+            frame._oo_instance_vars = (obj._vars, all_vars_set)
+            # Seed local scalars for info vars visibility
+            for var_name in all_vars:
+                if var_name in obj._vars:
+                    frame._scalars[var_name] = obj._vars[var_name]
 
         # Bind parameters
         all_params = [(n, d) for n, d in method.params if n != "args"]
@@ -872,12 +883,15 @@ class OORuntime:
             info.append(ctx)
             raise TclError(e.message, error_info=info) from None
         finally:
-            # Write back instance variables before restoring frame
-            for var_name in all_vars:
-                try:
-                    obj._vars[var_name] = frame.get_var(var_name)
-                except (TclError, KeyError):
-                    pass  # variable was not set in this method invocation
+            # When _oo_instance_vars proxy is active, reads/writes go
+            # directly through obj._vars so no write-back is needed.
+            # Without the proxy (via_next calls that share parent frame),
+            # we must sync frame locals back to obj._vars.
+            if frame._oo_instance_vars is None:
+                for var_name in all_vars:
+                    val = frame._scalars.get(var_name)
+                    if val is not None:
+                        obj._vars[var_name] = val
             interp.current_frame = old_frame
             interp.current_namespace = old_ns
         if tailcall_pending is not None:

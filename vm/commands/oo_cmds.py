@@ -163,7 +163,12 @@ def _define_method(interp: TclInterp, args: list[str]) -> TclResult:
     else:
         param_str, method_body = args[1], args[2]
     params, param_names, has_args = _parse_method_params(param_str)
-    vis = flag_vis if flag_vis is not None else _default_method_visibility(name)
+    if flag_vis is not None:
+        vis = flag_vis
+    elif getattr(interp, "_oo_private_mode", False):
+        vis = "private"
+    else:
+        vis = _default_method_visibility(name)
     m = TclOOMethod(
         name=name,
         params=params,
@@ -441,13 +446,23 @@ def _define_private(interp: TclInterp, args: list[str]) -> TclResult:
         return _define_forward(interp, args[1:])
     elif len(args) == 1:
         # Single braced block: evaluate as definition script
-        interp.eval(args[0])
+        # Set private mode so methods defined inside are private
+        saved_private = getattr(interp, "_oo_private_mode", False)
+        interp._oo_private_mode = True
+        try:
+            interp.eval(args[0])
+        finally:
+            interp._oo_private_mode = saved_private
     else:
         # Multiple args: evaluate as Tcl command in current context
-        from ..machine import _list_escape
-
-        cmd = " ".join(_list_escape(a) for a in args)
-        interp.eval(cmd)
+        saved_private = getattr(interp, "_oo_private_mode", False)
+        interp._oo_private_mode = True
+        try:
+            from ..machine import _list_escape
+            cmd = " ".join(_list_escape(a) for a in args)
+            interp.eval(cmd)
+        finally:
+            interp._oo_private_mode = saved_private
     return TclResult()
 
 

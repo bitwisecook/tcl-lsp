@@ -280,6 +280,7 @@ class CallFrame:
         "_oo_filter_target",
         "_oo_filter_method_name",
         "_oo_filter_method_args",
+        "_oo_instance_vars",
     )
 
     def __init__(
@@ -311,6 +312,9 @@ class CallFrame:
         self._oo_self: str | None = None
         self._oo_class: str | None = None
         self._oo_method: str | None = None
+        # Instance variable backing store: (obj._vars dict, set of var names)
+        # When set, get_var/set_var for these names proxy to obj._vars.
+        self._oo_instance_vars: tuple[dict[str, str], set[str]] | None = None
         # Optional interpreter reference for firing variable traces.
         self._interp = interp
 
@@ -452,6 +456,16 @@ class CallFrame:
         if interp is not None and interp.variable_traces:
             self._fire_var_traces(interp, name, "read")
 
+        # OO instance variable proxy — reads go directly to shared store
+        iv = self._oo_instance_vars
+        if iv is not None and "(" not in name and name in iv[1]:
+            val = iv[0].get(name)
+            if val is not None:
+                return val
+            if default is not None:
+                return default
+            raise TclError(f'can\'t read "{name}": no such variable')
+
         frame, resolved, elem = self._locate(name)
 
         if elem is not None:
@@ -489,6 +503,18 @@ class CallFrame:
 
     def set_var(self, name: str, value: str) -> str:
         """Write a scalar or array element; returns *value*."""
+        # OO instance variable proxy — writes go directly to shared store
+        iv = self._oo_instance_vars
+        if iv is not None and "(" not in name and name in iv[1]:
+            iv[0][name] = value
+            # Also update local _scalars so info vars works
+            self._scalars[name] = value
+            # Fire write traces
+            interp = self._interp
+            if interp is not None and interp.variable_traces:
+                self._fire_var_traces(interp, name, "write")
+            return value
+
         frame, resolved, elem = self._locate(name)
 
         # Check if the variable is a constant

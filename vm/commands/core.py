@@ -284,13 +284,16 @@ def _cmd_uplevel(interp: TclInterp, args: list[str]) -> TclResult:
 
     script = " ".join(script_args) if len(script_args) > 1 else script_args[0]
 
-    # Execute in the target frame
+    # Execute in the target frame and its associated namespace context
     saved_frame = interp.current_frame
+    saved_ns = interp.current_namespace
     interp.current_frame = target_frame
+    interp.current_namespace = target_frame.namespace
     try:
         return interp.eval(script)
     finally:
         interp.current_frame = saved_frame
+        interp.current_namespace = saved_ns
 
 
 def _cmd_concat(interp: TclInterp, args: list[str]) -> TclResult:
