@@ -31,6 +31,7 @@ class TclOOMethod:
     has_args: bool = False
     visibility: str = "public"  # public | private | unexported
     compiled_asm: FunctionAsm | None = None
+    forward_target: list[str] | None = None  # for forward methods: [cmdName, ?arg ...?]
 
 
 @dataclass
@@ -107,10 +108,38 @@ class OORuntime:
         # Register oo::object as the root class
         root = TclOOClass(name="object", qualified_name="::oo::object")
         self.classes["::oo::object"] = root
+        # oo::object is an object whose class is oo::class
+        self.objects["::oo::object"] = TclOOObject(
+            name="::oo::object", class_name="::oo::class", namespace="::oo::object",
+        )
+
+        # Register oo::class as the metaclass
+        metaclass = TclOOClass(
+            name="class", qualified_name="::oo::class",
+            superclasses=["::oo::object"],
+        )
+        self.classes["::oo::class"] = metaclass
+        self.objects["::oo::class"] = TclOOObject(
+            name="::oo::class", class_name="::oo::class", namespace="::oo::class",
+        )
 
     def register_class(self, cls: TclOOClass) -> None:
-        """Register a class in the runtime."""
+        """Register a class in the runtime.
+
+        Every class is also an object in TclOO, so we register a
+        corresponding ``TclOOObject`` entry as well.  This allows
+        ``info object`` introspection to work on class names.
+        """
         self.classes[cls.qualified_name] = cls
+        # Register the class as an object (classes are objects in TclOO)
+        if cls.qualified_name not in self.objects:
+            # Determine the class-of-a-class (metaclass)
+            metaclass = "::oo::class"
+            self.objects[cls.qualified_name] = TclOOObject(
+                name=cls.qualified_name,
+                class_name=metaclass,
+                namespace=cls.qualified_name,
+            )
         # Invalidate MRO cache for all classes (a new class may affect subclasses)
         for c in self.classes.values():
             c.invalidate_mro()
@@ -198,6 +227,11 @@ class OORuntime:
             )
 
         interp._runtime_commands[obj.name] = _obj_dispatch
+        # Also register the short name if different
+        if obj.name.startswith("::"):
+            short = obj.name.rsplit("::", 1)[-1]
+            if short and short != obj.name:
+                interp._runtime_commands[short] = _obj_dispatch
 
     def resolve_method(
         self, obj: TclOOObject, method_name: str
@@ -207,9 +241,11 @@ class OORuntime:
         Returns ``(method, defining_class_qname)`` so that ``next`` can
         find the correct position in the MRO chain.
         """
-        # Instance methods first
+        # Instance methods first — use the object name as a sentinel
+        # "defining class" so that ``next`` starts at the beginning of
+        # the real MRO (instance methods sit before the MRO).
         if method_name in obj.instance_methods:
-            return obj.instance_methods[method_name], obj.class_name
+            return obj.instance_methods[method_name], f"__instance__{obj.name}"
 
         # Walk MRO
         cls = self.classes.get(obj.class_name)
@@ -251,6 +287,12 @@ class OORuntime:
         *method*.  This is stored on the call frame so that ``next``
         can find the correct position in the MRO chain.
         """
+        # Forward methods bypass the normal method invocation and directly
+        # call the target command in the caller's scope.
+        if method.forward_target is not None:
+            cmd_parts = list(method.forward_target) + list(args)
+            return interp.invoke(cmd_parts[0], cmd_parts[1:])
+
         from .scope import CallFrame
 
         cls = self.classes.get(obj.class_name)
@@ -340,6 +382,10 @@ class OORuntime:
 
         # Remove object command and storage
         interp._runtime_commands.pop(obj.name, None)
+        if obj.name.startswith("::"):
+            short = obj.name.rsplit("::", 1)[-1]
+            if short:
+                interp._runtime_commands.pop(short, None)
         self.objects.pop(obj.name, None)
         return TclResult()
 
@@ -398,20 +444,31 @@ class OORuntime:
 
         mro = inst_cls.mro(self.classes)
 
-        # Find the defining class in the MRO, then look for the next
-        # class that defines the same method name
-        found_defining = False
-        for class_qname in mro:
-            if class_qname == defining_class:
-                found_defining = True
-                continue
-            if found_defining:
+        # If the current method is an instance method (sentinel marker),
+        # start searching from the beginning of the MRO.
+        if defining_class.startswith("__instance__"):
+            for class_qname in mro:
                 ancestor = self.classes.get(class_qname)
                 if ancestor and method_name in ancestor.methods:
                     return self._invoke_method(
                         interp, obj, ancestor.methods[method_name], args,
                         defining_class=class_qname,
                     )
+        else:
+            # Find the defining class in the MRO, then look for the next
+            # class that defines the same method name
+            found_defining = False
+            for class_qname in mro:
+                if class_qname == defining_class:
+                    found_defining = True
+                    continue
+                if found_defining:
+                    ancestor = self.classes.get(class_qname)
+                    if ancestor and method_name in ancestor.methods:
+                        return self._invoke_method(
+                            interp, obj, ancestor.methods[method_name], args,
+                            defining_class=class_qname,
+                        )
 
         # Tcl raises an error when next is called with no more implementations
         raise TclError("no next method implementation")

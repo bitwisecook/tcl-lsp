@@ -260,7 +260,7 @@ class TestOONamedCreate:
             }
         ''')
         result = interp.eval("Dog create rex")
-        assert result.value == "rex"
+        assert result.value == "::rex"
         result = interp.eval("rex bark")
         assert result.value == "woof"
 

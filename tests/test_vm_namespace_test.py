@@ -255,7 +255,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-53.10",  # ensemble args
     "namespace-53.11",  # ensemble args
     # Ensemble compilation
-    "namespace-55.1",  # ensemble compile
     "namespace-55.2",  # ensemble compile
     # Namespace upvar + trace
     "namespace-56.1",  # upvar + trace

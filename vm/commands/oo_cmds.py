@@ -1,10 +1,10 @@
-"""TclOO commands: oo::class, oo::define, oo::object, self, my, next, nextto."""
+"""TclOO commands: oo::class, oo::define, oo::objdefine, oo::object, oo::copy, self, my, next, nextto."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ..oo import OORuntime, TclOOClass, TclOOMethod
+from ..oo import OORuntime, TclOOClass, TclOOMethod, TclOOObject
 from ..types import TclError, TclResult
 
 if TYPE_CHECKING:
@@ -126,7 +126,29 @@ def _parse_class_body(
             case "filter":
                 cls.filters.extend(parts[1:])
             case "forward":
-                pass  # forward handled at dispatch time
+                if len(parts) < 3:
+                    raise TclError('wrong # args: should be "forward name cmdName ?arg ...?"')
+                fwd_name = parts[1]
+                fwd_target = parts[2:]
+                cls.methods[fwd_name] = TclOOMethod(
+                    name=fwd_name,
+                    params=[("args", None)],
+                    param_names=["args"],
+                    body="",
+                    has_args=True,
+                    forward_target=fwd_target,
+                )
+            case "deletemethod":
+                for m in parts[1:]:
+                    cls.methods.pop(m, None)
+            case "renamemethod":
+                if len(parts) < 3:
+                    raise TclError('wrong # args: should be "renamemethod oldName newName"')
+                old_name, new_name = parts[1], parts[2]
+                method = cls.methods.pop(old_name, None)
+                if method is not None:
+                    method.name = new_name
+                    cls.methods[new_name] = method
             case "export":
                 for m in parts[1:]:
                     method = cls.methods.get(m)
@@ -139,6 +161,101 @@ def _parse_class_body(
                         method.visibility = "unexported"
             case _:
                 pass  # ignore unknown subcommands
+
+        i += 1
+
+
+def _parse_objdefine_body(
+    interp: TclInterp,
+    obj: TclOOObject,
+    body: str,
+) -> None:
+    """Parse an oo::objdefine body and populate the object's instance methods."""
+    from ..machine import _split_list
+
+    lines = body.strip().split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line or line.startswith("#"):
+            i += 1
+            continue
+
+        while line.count("{") > line.count("}") and i + 1 < len(lines):
+            i += 1
+            line += "\n" + lines[i]
+
+        parts = _split_list(line)
+        if not parts:
+            i += 1
+            continue
+
+        subcmd = parts[0]
+        match subcmd:
+            case "method":
+                if len(parts) < 4:
+                    raise TclError('wrong # args: should be "method name args body"')
+                name, param_str, method_body = parts[1], parts[2], parts[3]
+                params, param_names, has_args = _parse_method_params(param_str)
+                obj.instance_methods[name] = TclOOMethod(
+                    name=name,
+                    params=params,
+                    param_names=param_names,
+                    body=method_body,
+                    has_args=has_args,
+                )
+            case "forward":
+                if len(parts) < 3:
+                    raise TclError('wrong # args: should be "forward name cmdName ?arg ...?"')
+                fwd_name = parts[1]
+                fwd_target = parts[2:]
+                obj.instance_methods[fwd_name] = TclOOMethod(
+                    name=fwd_name,
+                    params=[("args", None)],
+                    param_names=["args"],
+                    body="",
+                    has_args=True,
+                    forward_target=fwd_target,
+                )
+            case "deletemethod":
+                for m in parts[1:]:
+                    obj.instance_methods.pop(m, None)
+            case "renamemethod":
+                if len(parts) < 3:
+                    raise TclError('wrong # args: should be "renamemethod oldName newName"')
+                old_name, new_name = parts[1], parts[2]
+                method = obj.instance_methods.pop(old_name, None)
+                if method is not None:
+                    method.name = new_name
+                    obj.instance_methods[new_name] = method
+            case "mixin":
+                mixin_args = parts[1:]
+                if not hasattr(obj, "instance_mixins"):
+                    obj.instance_mixins = []
+                if mixin_args and mixin_args[0] == "-append":
+                    obj.instance_mixins.extend(mixin_args[1:])
+                else:
+                    obj.instance_mixins = list(mixin_args)
+            case "variable":
+                if not hasattr(obj, "instance_variables"):
+                    obj.instance_variables = []
+                obj.instance_variables.extend(parts[1:])
+            case "filter":
+                if not hasattr(obj, "instance_filters"):
+                    obj.instance_filters = []
+                obj.instance_filters.extend(parts[1:])
+            case "export":
+                for m in parts[1:]:
+                    method = obj.instance_methods.get(m)
+                    if method:
+                        method.visibility = "public"
+            case "unexport":
+                for m in parts[1:]:
+                    method = obj.instance_methods.get(m)
+                    if method:
+                        method.visibility = "unexported"
+            case _:
+                pass
 
         i += 1
 
@@ -193,8 +310,17 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
         if method == "create":
             if len(cmd_args) < 2:
                 raise TclError(f'wrong # args: should be "{qualified} create name ?arg ...?"')
+            create_name = cmd_args[1]
+            if not create_name:
+                raise TclError("object name must not be empty")
+            if not create_name.startswith("::"):
+                ns = interp.current_namespace.qualname
+                if ns == "::":
+                    create_name = f"::{create_name}"
+                else:
+                    create_name = f"{ns}::{create_name}"
             obj_name = oo.create_object(
-                interp, qualified, obj_name=cmd_args[1], args=cmd_args[2:]
+                interp, qualified, obj_name=create_name, args=cmd_args[2:]
             )
             return TclResult(value=obj_name)
         raise TclError(f'unknown method "{method}": must be create or new')
@@ -228,13 +354,122 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
         _parse_class_body(interp, cls, args[1])
     else:
         # Single-subcommand form: oo::define Dog superclass Animal
-        # Reconstruct as a single-line body for _parse_class_body
-        _parse_class_body(interp, cls, " ".join(args[1:]))
+        # Reconstruct with braces to preserve structure
+        from ..machine import _list_escape
+        reconstructed = " ".join(_list_escape(a) for a in args[1:])
+        _parse_class_body(interp, cls, reconstructed)
 
     # Invalidate ALL classes — adding a mixin/superclass to one class
     # can change the MRO of any subclass
     oo.invalidate_all_mro()
     return TclResult()
+
+
+def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
+    """oo::objdefine objectName body  OR  oo::objdefine objectName subcommand ?arg ...?"""
+    if len(args) < 2:
+        raise TclError('wrong # args: should be "oo::objdefine objectName defScript"')
+
+    obj_name = args[0]
+    oo = _get_oo_runtime(interp)
+
+    # Resolve object name
+    obj = oo.objects.get(obj_name)
+    if obj is None:
+        qualified = f"::{obj_name}" if not obj_name.startswith("::") else obj_name
+        obj = oo.objects.get(qualified)
+    if obj is None:
+        raise TclError(f'"{obj_name}" does not refer to an object')
+
+    if len(args) == 2:
+        _parse_objdefine_body(interp, obj, args[1])
+    else:
+        # Single-subcommand form: oo::objdefine obj method foo {} {body}
+        # Reconstruct with braces to preserve structure
+        from ..machine import _list_escape
+        reconstructed = " ".join(_list_escape(a) for a in args[1:])
+        _parse_objdefine_body(interp, obj, reconstructed)
+
+    # Re-register the object command so new methods are visible
+    oo._register_object_command(interp, obj)
+    return TclResult()
+
+
+def _cmd_oo_object(interp: TclInterp, args: list[str]) -> TclResult:
+    """oo::object create/new — create plain objects (not from a user class)."""
+    if not args:
+        raise TclError('wrong # args: should be "oo::object method ?arg ...?"')
+
+    oo = _get_oo_runtime(interp)
+    subcmd = args[0]
+
+    if subcmd == "new":
+        obj_name = oo.create_object(interp, "::oo::object", args=args[1:])
+        return TclResult(value=obj_name)
+    elif subcmd == "create":
+        if len(args) < 2:
+            raise TclError('wrong # args: should be "oo::object create name ?arg ...?"')
+        name = args[1]
+        if not name:
+            raise TclError("object name must not be empty")
+        if not name.startswith("::"):
+            ns = interp.current_namespace.qualname
+            if ns == "::":
+                name = f"::{name}"
+            else:
+                name = f"{ns}::{name}"
+        obj_name = oo.create_object(interp, "::oo::object", obj_name=name, args=args[2:])
+        return TclResult(value=obj_name)
+    elif subcmd == "destroy":
+        # oo::object itself cannot be destroyed in normal usage
+        raise TclError('cannot destroy the root object')
+    else:
+        raise TclError(f'unknown method "{subcmd}": must be create, destroy or new')
+
+
+def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
+    """oo::copy sourceObject ?targetObject? ?targetNamespace?"""
+    if not args:
+        raise TclError('wrong # args: should be "oo::copy sourceObject ?targetObject? ?targetNamespace?"')
+
+    oo = _get_oo_runtime(interp)
+    src_name = args[0]
+
+    # Resolve source object
+    src = oo.objects.get(src_name)
+    if src is None:
+        qualified = f"::{src_name}" if not src_name.startswith("::") else src_name
+        src = oo.objects.get(qualified)
+    if src is None:
+        raise TclError(f'"{src_name}" does not refer to an object')
+
+    # Determine target name
+    if len(args) >= 2:
+        tgt_name = args[1]
+        if not tgt_name.startswith("::"):
+            ns = interp.current_namespace.qualname
+            if ns == "::":
+                tgt_name = f"::{tgt_name}"
+            else:
+                tgt_name = f"{ns}::{tgt_name}"
+    else:
+        oo._next_obj_id += 1
+        tgt_name = f"::oo::Obj{oo._next_obj_id}"
+
+    from ..oo import TclOOObject
+    import copy
+
+    tgt = TclOOObject(
+        name=tgt_name,
+        class_name=src.class_name,
+        namespace=tgt_name,
+        instance_methods={k: copy.copy(v) for k, v in src.instance_methods.items()},
+        _vars=dict(src._vars),
+        _arrays={k: dict(v) for k, v in src._arrays.items()},
+    )
+    oo.objects[tgt_name] = tgt
+    oo._register_object_command(interp, tgt)
+    return TclResult(value=tgt_name)
 
 
 def _cmd_self(interp: TclInterp, args: list[str]) -> TclResult:
@@ -308,6 +543,9 @@ def register() -> None:
 
     REGISTRY.register_handler("oo::class", _cmd_oo_class)
     REGISTRY.register_handler("oo::define", _cmd_oo_define)
+    REGISTRY.register_handler("oo::objdefine", _cmd_oo_objdefine)
+    REGISTRY.register_handler("oo::object", _cmd_oo_object)
+    REGISTRY.register_handler("oo::copy", _cmd_oo_copy)
     REGISTRY.register_handler("oo::configurable", _cmd_oo_configurable)
     REGISTRY.register_handler("oo::abstract", _cmd_oo_abstract)
     REGISTRY.register_handler("oo::singleton", _cmd_oo_singleton)
