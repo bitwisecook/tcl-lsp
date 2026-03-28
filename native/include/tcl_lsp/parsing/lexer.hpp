@@ -52,7 +52,7 @@ class TclLexer {
                       int32_t base_offset = 0,
                       int32_t base_line = 0,
                       int32_t base_col = 0,
-                      std::unordered_map<int32_t, char> virtual_insertions = {},
+                      std::unordered_map<int32_t, char> ghost_insertions = {},
                       const std::vector<int32_t>* shared_line_starts = nullptr);
 
     // Construct from owned string (lexer takes ownership, safe for Python bindings).
@@ -61,7 +61,7 @@ class TclLexer {
                       int32_t base_offset,
                       int32_t base_line,
                       int32_t base_col,
-                      std::unordered_map<int32_t, char> virtual_insertions,
+                      std::unordered_map<int32_t, char> ghost_insertions,
                       const std::vector<int32_t>* shared_line_starts,
                       struct OwningTag);
 
@@ -95,7 +95,7 @@ class TclLexer {
     }
 
   private:
-    // Character at current position (respects virtual insertions).
+    // Character at current position (respects ghost insertions).
     [[nodiscard]] auto cur() const -> char;
 
     // Advance position by n characters.
@@ -163,8 +163,8 @@ class TclLexer {
 
     std::vector<std::pair<SourcePosition, std::string>> warnings_;
 
-    std::unordered_map<int32_t, char> virtuals_;
-    bool has_virtuals_ = false;
+    std::unordered_map<int32_t, char> ghosts_;
+    bool has_ghosts_ = false;
 
     std::optional<Token> pending_sep_;
 

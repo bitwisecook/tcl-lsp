@@ -12,8 +12,8 @@ TclLexer::TclLexer(TclLexer&& other) noexcept
       base_line_(other.base_line_), base_col_(other.base_col_), line_(other.line_),
       col_(other.col_), start_(other.start_), end_(other.end_), type_(other.type_),
       at_command_start_(other.at_command_start_), insidequote_(other.insidequote_),
-      warnings_(std::move(other.warnings_)), virtuals_(std::move(other.virtuals_)),
-      has_virtuals_(other.has_virtuals_), pending_sep_(std::move(other.pending_sep_)),
+      warnings_(std::move(other.warnings_)), ghosts_(std::move(other.ghosts_)),
+      has_ghosts_(other.has_ghosts_), pending_sep_(std::move(other.pending_sep_)),
       line_starts_(std::move(other.line_starts_)) {}
 
 TclLexer& TclLexer::operator=(TclLexer&& other) noexcept {
@@ -34,8 +34,8 @@ TclLexer& TclLexer::operator=(TclLexer&& other) noexcept {
         at_command_start_ = other.at_command_start_;
         insidequote_ = other.insidequote_;
         warnings_ = std::move(other.warnings_);
-        virtuals_ = std::move(other.virtuals_);
-        has_virtuals_ = other.has_virtuals_;
+        ghosts_ = std::move(other.ghosts_);
+        has_ghosts_ = other.has_ghosts_;
         pending_sep_ = std::move(other.pending_sep_);
         line_starts_ = std::move(other.line_starts_);
     }
@@ -47,13 +47,13 @@ TclLexer::TclLexer(std::string text,
                    int32_t base_offset,
                    int32_t base_line,
                    int32_t base_col,
-                   std::unordered_map<int32_t, char> virtual_insertions,
+                   std::unordered_map<int32_t, char> ghost_insertions,
                    const std::vector<int32_t>* shared_line_starts,
                    OwningTag)
     : owned_text_(std::move(text)), text_(owned_text_), len_(static_cast<int32_t>(text_.size())),
       config_(config), base_offset_(base_offset), base_line_(base_line), base_col_(base_col),
-      line_(base_line), col_(base_col), virtuals_(std::move(virtual_insertions)),
-      has_virtuals_(!virtuals_.empty()) {
+      line_(base_line), col_(base_col), ghosts_(std::move(ghost_insertions)),
+      has_ghosts_(!ghosts_.empty()) {
     if (shared_line_starts != nullptr) {
         line_starts_ = *shared_line_starts;
     } else {
@@ -71,11 +71,11 @@ TclLexer::TclLexer(std::string_view text,
                    int32_t base_offset,
                    int32_t base_line,
                    int32_t base_col,
-                   std::unordered_map<int32_t, char> virtual_insertions,
+                   std::unordered_map<int32_t, char> ghost_insertions,
                    const std::vector<int32_t>* shared_line_starts)
     : text_(text), len_(static_cast<int32_t>(text.size())), config_(config),
       base_offset_(base_offset), base_line_(base_line), base_col_(base_col), line_(base_line),
-      col_(base_col), virtuals_(std::move(virtual_insertions)), has_virtuals_(!virtuals_.empty()) {
+      col_(base_col), ghosts_(std::move(ghost_insertions)), has_ghosts_(!ghosts_.empty()) {
     if (shared_line_starts != nullptr) {
         line_starts_ = *shared_line_starts;
     } else {
@@ -92,28 +92,28 @@ auto TclLexer::remaining() const -> int32_t {
     auto r = len_ - pos_;
     if (r > 0)
         return r;
-    if (has_virtuals_ && virtuals_.contains(pos_))
+    if (has_ghosts_ && ghosts_.contains(pos_))
         return 1;
     return 0;
 }
 
 auto TclLexer::cur() const -> char {
-    if (has_virtuals_) {
-        auto it = virtuals_.find(pos_);
-        if (it != virtuals_.end())
+    if (has_ghosts_) {
+        auto it = ghosts_.find(pos_);
+        if (it != ghosts_.end())
             return it->second;
     }
     return text_[static_cast<std::size_t>(pos_)];
 }
 
 void TclLexer::advance(int32_t n) {
-    if (has_virtuals_) {
+    if (has_ghosts_) {
         for (int32_t i = 0; i < n; ++i) {
-            auto it = virtuals_.find(pos_);
-            if (it != virtuals_.end()) {
-                virtuals_.erase(it);
-                if (virtuals_.empty())
-                    has_virtuals_ = false;
+            auto it = ghosts_.find(pos_);
+            if (it != ghosts_.end()) {
+                ghosts_.erase(it);
+                if (ghosts_.empty())
+                    has_ghosts_ = false;
                 continue;
             }
             if (pos_ < len_) {
@@ -127,7 +127,7 @@ void TclLexer::advance(int32_t n) {
             }
         }
     } else {
-        // Fast path — no virtual insertions (>99% of instances).
+        // Fast path — no ghost insertions (>99% of instances).
         for (int32_t i = 0; i < n; ++i) {
             if (pos_ < len_) {
                 if (text_[static_cast<std::size_t>(pos_)] == '\n') {
@@ -183,7 +183,7 @@ void TclLexer::report_error_at(const SourcePosition& pos, const std::string& mes
 
 void TclLexer::parse_sep() {
     start_ = pos_;
-    if (!has_virtuals_) {
+    if (!has_ghosts_) {
         auto pos = pos_;
         auto col = col_;
         while (pos < len_ && is_sep_char(text_[static_cast<std::size_t>(pos)])) {
@@ -203,7 +203,7 @@ void TclLexer::parse_sep() {
 
 void TclLexer::parse_eol() {
     start_ = pos_;
-    if (!has_virtuals_) {
+    if (!has_ghosts_) {
         auto pos = pos_;
         auto line = line_;
         auto col = col_;
@@ -236,7 +236,7 @@ void TclLexer::parse_command() {
     advance(); // skip opening '['
     start_ = pos_;
 
-    if (!has_virtuals_) {
+    if (!has_ghosts_) {
         auto pos = pos_;
         auto line = line_;
         auto col = col_;
@@ -327,7 +327,7 @@ void TclLexer::parse_command() {
         line_ = line;
         col_ = col;
     } else {
-        // Slow path — virtual insertion support.
+        // Slow path — ghost insertion support.
         while (true) {
             if (!remaining())
                 break;
@@ -461,7 +461,7 @@ void TclLexer::parse_brace() {
     advance(); // skip opening '{'
     start_ = pos_;
 
-    if (!has_virtuals_) {
+    if (!has_ghosts_) {
         auto pos = pos_;
         auto line = line_;
         auto col = col_;
@@ -529,7 +529,7 @@ void TclLexer::parse_brace() {
         return;
     }
 
-    // Slow path — virtual insertion support.
+    // Slow path — ghost insertion support.
     while (true) {
         if (!remaining()) {
             end_ = pos_ - 1;
@@ -595,7 +595,7 @@ void TclLexer::parse_string() {
     }
     start_ = pos_;
 
-    if (!has_virtuals_) {
+    if (!has_ghosts_) {
         auto pos = pos_;
         auto line = line_;
         auto col = col_;
@@ -672,7 +672,7 @@ void TclLexer::parse_string() {
         return;
     }
 
-    // Slow path — virtual insertion support.
+    // Slow path — ghost insertion support.
     while (true) {
         if (!remaining()) {
             if (insidequote_) {
@@ -722,7 +722,7 @@ void TclLexer::parse_string() {
 void TclLexer::parse_comment() {
     start_ = pos_; // include the '#'
 
-    if (!has_virtuals_) {
+    if (!has_ghosts_) {
         auto pos = pos_;
         auto line = line_;
         auto col = col_;
@@ -800,7 +800,7 @@ auto TclLexer::get_token() -> std::optional<Token> {
     }
 
     while (true) {
-        if (pos_ >= len_ && !(has_virtuals_ && virtuals_.contains(pos_))) {
+        if (pos_ >= len_ && !(has_ghosts_ && ghosts_.contains(pos_))) {
             if (type_ != TokenType::EOL && type_ != TokenType::EOF_) {
                 type_ = TokenType::EOL;
             } else {
@@ -815,9 +815,9 @@ auto TclLexer::get_token() -> std::optional<Token> {
 
         // Get current character for dispatch.
         char ch = '\0';
-        if (has_virtuals_) {
-            auto it = virtuals_.find(pos_);
-            ch = (it != virtuals_.end()) ? it->second : text_[static_cast<std::size_t>(pos_)];
+        if (has_ghosts_) {
+            auto it = ghosts_.find(pos_);
+            ch = (it != ghosts_.end()) ? it->second : text_[static_cast<std::size_t>(pos_)];
         } else {
             ch = text_[static_cast<std::size_t>(pos_)];
         }

@@ -53,9 +53,9 @@ auto extract_first_word(std::string_view stripped) -> std::string_view {
 // Create a lexer with appropriate base offsets for body_token.
 auto make_lexer(std::string_view source,
                 const Token* body_token,
-                std::unordered_map<int32_t, char> virtuals) -> TclLexer {
+                std::unordered_map<int32_t, char> ghosts) -> TclLexer {
     if (body_token == nullptr) {
-        return TclLexer(source, {}, 0, 0, 0, std::move(virtuals));
+        return TclLexer(source, {}, 0, 0, 0, std::move(ghosts));
     }
     if (body_token->type == TokenType::STR || body_token->type == TokenType::CMD) {
         return TclLexer(source,
@@ -63,24 +63,24 @@ auto make_lexer(std::string_view source,
                         body_token->start.offset + 1,
                         body_token->start.line,
                         body_token->start.character + 1,
-                        std::move(virtuals));
+                        std::move(ghosts));
     }
     return TclLexer(source,
                     {},
                     body_token->start.offset,
                     body_token->start.line,
                     body_token->start.character,
-                    std::move(virtuals));
+                    std::move(ghosts));
 }
 
 // The inner segmentation loop — no error recovery.
 auto segment_raw(std::string_view source,
                  const Token* body_token,
-                 std::unordered_map<int32_t, char> virtuals,
+                 std::unordered_map<int32_t, char> ghosts,
                  std::vector<std::pair<SourcePosition, std::string>>* collect_warnings)
     -> std::vector<SegmentedCommand> {
 
-    auto lexer = make_lexer(source, body_token, std::move(virtuals));
+    auto lexer = make_lexer(source, body_token, std::move(ghosts));
 
     std::vector<SegmentedCommand> commands;
     std::vector<Token> argv;
@@ -348,16 +348,16 @@ auto find_recovery_offset(std::string_view token_text,
 auto segment_commands(std::string_view source,
                       const Token* body_token,
                       const std::unordered_set<std::string>* known_commands,
-                      const std::unordered_map<int32_t, char>* virtual_insertions,
+                      const std::unordered_map<int32_t, char>* ghost_insertions,
                       std::vector<std::pair<SourcePosition, std::string>>* collect_warnings,
                       bool recovery) -> std::vector<SegmentedCommand> {
 
-    std::unordered_map<int32_t, char> virtuals;
-    if (virtual_insertions != nullptr) {
-        virtuals = *virtual_insertions;
+    std::unordered_map<int32_t, char> ghosts;
+    if (ghost_insertions != nullptr) {
+        ghosts = *ghost_insertions;
     }
 
-    auto commands = segment_raw(source, body_token, std::move(virtuals), collect_warnings);
+    auto commands = segment_raw(source, body_token, std::move(ghosts), collect_warnings);
 
     if (commands.empty()) {
         return commands;

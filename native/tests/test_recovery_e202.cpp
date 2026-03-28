@@ -29,7 +29,7 @@ TEST_CASE("e202 not suspicious for properly closed quote", "[recovery][e202]") {
     CHECK(!is_suspicious_quote(tok, cmd, source, 0));
 }
 
-TEST_CASE("e202 quote recovery produces virtual token", "[recovery][e202]") {
+TEST_CASE("e202 quote recovery produces ghost token", "[recovery][e202]") {
     std::unordered_set<std::string> known = {"set", "puts"};
     Token tok{TokenType::ESC, "\nset y 2", {0, 6, 6}, {1, 5, 14}};
     auto vt = detect_missing_quote_at_newline(tok, "", 0, known);

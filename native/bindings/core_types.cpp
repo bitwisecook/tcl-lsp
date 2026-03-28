@@ -181,12 +181,12 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
                          int32_t base_offset,
                          int32_t base_line,
                          int32_t base_col,
-                         py::object virtual_insertions,
+                         py::object ghost_insertions,
                          py::object line_starts_obj) {
                  // Convert Python dict to C++ map.
                  std::unordered_map<int32_t, char> vi;
-                 if (!virtual_insertions.is_none()) {
-                     auto dict = virtual_insertions.cast<py::dict>();
+                 if (!ghost_insertions.is_none()) {
+                     auto dict = ghost_insertions.cast<py::dict>();
                      for (auto& [k, v] : dict) {
                          auto offset = k.cast<int32_t>();
                          auto ch_str = v.cast<std::string>();
@@ -331,7 +331,7 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
         [](const std::string& source,
            py::object body_token_obj,
            py::object known_commands_obj,
-           py::object virtual_insertions_obj,
+           py::object ghost_insertions_obj,
            bool recovery) {
             const Token* body_token = nullptr;
             Token body_tok_storage;
@@ -352,8 +352,8 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
 
             std::unordered_map<int32_t, char>* vi_ptr = nullptr;
             std::unordered_map<int32_t, char> vi_map;
-            if (!virtual_insertions_obj.is_none()) {
-                auto vi_dict = virtual_insertions_obj.cast<py::dict>();
+            if (!ghost_insertions_obj.is_none()) {
+                auto vi_dict = ghost_insertions_obj.cast<py::dict>();
                 for (auto& [k, v] : vi_dict) {
                     auto ch_str = v.cast<std::string>();
                     if (!ch_str.empty()) {
@@ -380,12 +380,10 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
           py::arg("old_chunks"),
           py::arg("new_chunks"));
 
-    // compute_virtual_insertions()
+    // compute_ghost_insertions() — exposed as compute_virtual_insertions for Python compat.
     m.def(
         "compute_virtual_insertions",
-        [](const std::string& source,
-           py::object body_token_obj,
-           py::object known_commands_obj) {
+        [](const std::string& source, py::object body_token_obj, py::object known_commands_obj) {
             const Token* body_token = nullptr;
             Token body_tok_storage;
             if (!body_token_obj.is_none()) {
@@ -401,7 +399,7 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
                 }
                 kc_ptr = &kc_set;
             }
-            auto result = compute_virtual_insertions(source, body_token, kc_ptr);
+            auto result = compute_ghost_insertions(source, body_token, kc_ptr);
             // Convert to Python dict with string values (matching Python API).
             py::dict py_result;
             for (auto& [offset, ch] : result) {
@@ -416,9 +414,7 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
     // segment_with_recovery()
     m.def(
         "segment_with_recovery",
-        [](const std::string& source,
-           py::object body_token_obj,
-           py::object known_commands_obj) {
+        [](const std::string& source, py::object body_token_obj, py::object known_commands_obj) {
             const Token* body_token = nullptr;
             Token body_tok_storage;
             if (!body_token_obj.is_none()) {

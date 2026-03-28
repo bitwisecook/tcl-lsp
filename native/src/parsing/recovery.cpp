@@ -74,15 +74,15 @@ auto rtrim(std::string_view sv) -> std::string_view {
     return sv;
 }
 
-// Detect all virtual tokens across all commands.
+// Detect all ghost tokens across all commands.
 // When known_commands is non-null, command-break heuristics are enabled.
-auto detect_all_virtual_tokens(const std::vector<SegmentedCommand>& commands,
-                               std::string_view source,
-                               int32_t base_offset,
-                               const std::unordered_set<std::string>* known_commands)
-    -> std::pair<std::vector<VirtualToken>, std::vector<Diagnostic>> {
+auto detect_all_ghost_tokens(const std::vector<SegmentedCommand>& commands,
+                             std::string_view source,
+                             int32_t base_offset,
+                             const std::unordered_set<std::string>* known_commands)
+    -> std::pair<std::vector<GhostToken>, std::vector<Diagnostic>> {
 
-    std::vector<VirtualToken> virtuals;
+    std::vector<GhostToken> ghosts;
     std::vector<Diagnostic> fallback_diags;
 
     // Empty set used when caller provides no known commands.
@@ -96,14 +96,13 @@ auto detect_all_virtual_tokens(const std::vector<SegmentedCommand>& commands,
             if (is_unterminated_cmd(tok, source, base_offset)) {
                 auto vt = detect_missing_bracket_at_comment(tok, source, base_offset);
                 if (!vt) {
-                    vt = detect_missing_bracket_at_command(
-                        tok, source, base_offset, known_cmds);
+                    vt = detect_missing_bracket_at_command(tok, source, base_offset, known_cmds);
                 }
                 if (!vt) {
                     vt = detect_missing_bracket_at_brace(tok, source, base_offset);
                 }
                 if (vt) {
-                    virtuals.push_back(std::move(*vt));
+                    ghosts.push_back(std::move(*vt));
                 } else {
                     fallback_diags.push_back(detect_missing_bracket_no_heuristic(tok));
                 }
@@ -112,10 +111,9 @@ auto detect_all_virtual_tokens(const std::vector<SegmentedCommand>& commands,
 
             // E202: unterminated "
             if (is_suspicious_quote(tok, cmd, source, base_offset)) {
-                auto vt =
-                    detect_missing_quote_at_newline(tok, source, base_offset, known_cmds);
+                auto vt = detect_missing_quote_at_newline(tok, source, base_offset, known_cmds);
                 if (vt) {
-                    virtuals.push_back(std::move(*vt));
+                    ghosts.push_back(std::move(*vt));
                 } else {
                     fallback_diags.push_back(
                         detect_missing_quote_no_heuristic(tok, source, base_offset));
@@ -125,10 +123,9 @@ auto detect_all_virtual_tokens(const std::vector<SegmentedCommand>& commands,
 
             // E203: unterminated {
             if (is_suspicious_str(tok, source, base_offset)) {
-                auto vt =
-                    detect_missing_brace_at_command(tok, source, base_offset, known_cmds);
+                auto vt = detect_missing_brace_at_command(tok, source, base_offset, known_cmds);
                 if (vt) {
-                    virtuals.push_back(std::move(*vt));
+                    ghosts.push_back(std::move(*vt));
                 } else {
                     fallback_diags.push_back(
                         detect_missing_brace_no_heuristic(tok, source, base_offset));
@@ -137,7 +134,7 @@ auto detect_all_virtual_tokens(const std::vector<SegmentedCommand>& commands,
         }
     }
 
-    return {std::move(virtuals), std::move(fallback_diags)};
+    return {std::move(ghosts), std::move(fallback_diags)};
 }
 
 } // anonymous namespace
@@ -165,7 +162,7 @@ auto position_from_relative(std::string_view text,
 // E201: unterminated [ — comment-break heuristic.
 auto detect_missing_bracket_at_comment(const Token& tok,
                                        std::string_view /*source*/,
-                                       int32_t base_offset) -> std::optional<VirtualToken> {
+                                       int32_t base_offset) -> std::optional<GhostToken> {
 
     auto lines = split_lines(tok.text);
     if (lines.size() < 2) {
@@ -195,7 +192,7 @@ auto detect_missing_bracket_at_comment(const Token& tok,
             }
 
             const int32_t local_bracket_start = tok.start.offset - base_offset;
-            const int32_t virtual_offset = local_bracket_start + 1 + insert_text_idx;
+            const int32_t ghost_offset = local_bracket_start + 1 + insert_text_idx;
 
             auto diag_end = cmd_text_position(tok, std::max(insert_text_idx - 1, 0));
             const Range diag_range{tok.start, diag_end};
@@ -203,8 +200,8 @@ auto detect_missing_bracket_at_comment(const Token& tok,
             auto insert_pos = cmd_text_position(tok, insert_text_idx);
             const Range fix_range{insert_pos, insert_pos};
 
-            return VirtualToken{
-                virtual_offset,
+            return GhostToken{
+                ghost_offset,
                 ']',
                 Diagnostic{
                     diag_range,
@@ -229,7 +226,7 @@ auto detect_missing_bracket_at_command(const Token& tok,
                                        std::string_view /*source*/,
                                        int32_t base_offset,
                                        const std::unordered_set<std::string>& known_commands)
-    -> std::optional<VirtualToken> {
+    -> std::optional<GhostToken> {
 
     auto lines = split_lines(tok.text);
     if (lines.size() < 2) {
@@ -258,7 +255,7 @@ auto detect_missing_bracket_at_command(const Token& tok,
             }
 
             const int32_t local_bracket_start = tok.start.offset - base_offset;
-            const int32_t virtual_offset = local_bracket_start + 1 + insert_text_idx;
+            const int32_t ghost_offset = local_bracket_start + 1 + insert_text_idx;
 
             auto diag_end = cmd_text_position(tok, std::max(insert_text_idx - 1, 0));
             const Range diag_range{tok.start, diag_end};
@@ -266,8 +263,8 @@ auto detect_missing_bracket_at_command(const Token& tok,
             auto insert_pos = cmd_text_position(tok, insert_text_idx);
             const Range fix_range{insert_pos, insert_pos};
 
-            return VirtualToken{
-                virtual_offset,
+            return GhostToken{
+                ghost_offset,
                 ']',
                 Diagnostic{
                     diag_range,
@@ -288,7 +285,7 @@ auto detect_missing_bracket_at_command(const Token& tok,
 // E201: unterminated [ — brace-break heuristic.
 auto detect_missing_bracket_at_brace(const Token& tok,
                                      std::string_view /*source*/,
-                                     int32_t base_offset) -> std::optional<VirtualToken> {
+                                     int32_t base_offset) -> std::optional<GhostToken> {
 
     auto brace_pos = tok.text.find('{');
     if (brace_pos == std::string::npos) {
@@ -310,7 +307,7 @@ auto detect_missing_bracket_at_brace(const Token& tok,
     }
 
     const int32_t local_bracket_start = tok.start.offset - base_offset;
-    const int32_t virtual_offset = local_bracket_start + 1 + insert_idx;
+    const int32_t ghost_offset = local_bracket_start + 1 + insert_idx;
 
     auto content_end_idx = std::max(static_cast<int32_t>(content.size()) - 1, 0);
     auto diag_end = cmd_text_position(tok, content_end_idx);
@@ -319,8 +316,8 @@ auto detect_missing_bracket_at_brace(const Token& tok,
     auto insert_pos = cmd_text_position(tok, insert_idx);
     const Range fix_range{insert_pos, insert_pos};
 
-    return VirtualToken{
-        virtual_offset,
+    return GhostToken{
+        ghost_offset,
         ']',
         Diagnostic{
             diag_range,
@@ -382,7 +379,7 @@ auto detect_missing_quote_at_newline(const Token& tok,
                                      std::string_view /*source*/,
                                      int32_t base_offset,
                                      const std::unordered_set<std::string>& known_commands)
-    -> std::optional<VirtualToken> {
+    -> std::optional<GhostToken> {
 
     auto lines = split_lines(tok.text);
     if (lines.size() < 2) {
@@ -399,7 +396,7 @@ auto detect_missing_quote_at_newline(const Token& tok,
         if (known_commands.contains(std::string(first_word))) {
             // Virtual " right after the opening " -> creates empty string "".
             const int32_t local_quote_start = tok.start.offset - base_offset;
-            const int32_t virtual_offset = local_quote_start + 1;
+            const int32_t ghost_offset = local_quote_start + 1;
 
             const Range diag_range{tok.start, tok.start};
 
@@ -407,8 +404,8 @@ auto detect_missing_quote_at_newline(const Token& tok,
                 tok.start.line, tok.start.character + 1, tok.start.offset + 1};
             const Range fix_range{insert_pos, insert_pos};
 
-            return VirtualToken{
-                virtual_offset,
+            return GhostToken{
+                ghost_offset,
                 '"',
                 Diagnostic{
                     diag_range,
@@ -469,7 +466,7 @@ auto detect_missing_brace_at_command(const Token& tok,
                                      std::string_view /*source*/,
                                      int32_t base_offset,
                                      const std::unordered_set<std::string>& known_commands)
-    -> std::optional<VirtualToken> {
+    -> std::optional<GhostToken> {
 
     auto lines = split_lines(tok.text);
     if (lines.size() < 3) {
@@ -526,15 +523,15 @@ auto detect_missing_brace_at_command(const Token& tok,
                 // Virtual } at the \n before this line.
                 const int32_t newline_text_idx = cumulative - 1;
                 const int32_t local_brace_start = tok.start.offset - base_offset;
-                const int32_t virtual_offset = local_brace_start + 1 + newline_text_idx;
+                const int32_t ghost_offset = local_brace_start + 1 + newline_text_idx;
 
                 const Range diag_range{tok.start, tok.start};
 
                 auto insert_pos = cmd_text_position(tok, newline_text_idx);
                 const Range fix_range{insert_pos, insert_pos};
 
-                return VirtualToken{
-                    virtual_offset,
+                return GhostToken{
+                    ghost_offset,
                     '}',
                     Diagnostic{
                         diag_range,
@@ -575,10 +572,10 @@ auto is_unterminated_cmd(const Token& tok, std::string_view source, int32_t base
            source[static_cast<std::size_t>(close_local)] != ']';
 }
 
-// Compute virtual insertions for error recovery.
-auto compute_virtual_insertions(std::string_view source,
-                                const Token* body_token,
-                                const std::unordered_set<std::string>* known_commands)
+// Compute ghost insertions for error recovery.
+auto compute_ghost_insertions(std::string_view source,
+                              const Token* body_token,
+                              const std::unordered_set<std::string>* known_commands)
     -> std::unordered_map<int32_t, char> {
 
     auto commands = segment_commands(source, body_token);
@@ -587,14 +584,14 @@ auto compute_virtual_insertions(std::string_view source,
     }
 
     const int32_t base = base_offset_for(body_token);
-    auto [virtuals, _] = detect_all_virtual_tokens(commands, source, base, known_commands);
+    auto [ghosts, _] = detect_all_ghost_tokens(commands, source, base, known_commands);
 
-    if (virtuals.empty()) {
+    if (ghosts.empty()) {
         return {};
     }
 
     std::unordered_map<int32_t, char> result;
-    for (const auto& vt : virtuals) {
+    for (const auto& vt : ghosts) {
         result[vt.offset] = vt.ch;
     }
     return result;
@@ -603,7 +600,8 @@ auto compute_virtual_insertions(std::string_view source,
 // Full recovery pipeline.
 auto segment_with_recovery(std::string_view source,
                            const Token* body_token,
-                           const std::unordered_set<std::string>* known_commands) -> RecoveryResult {
+                           const std::unordered_set<std::string>* known_commands)
+    -> RecoveryResult {
     std::vector<std::pair<SourcePosition, std::string>> lexer_warnings;
     auto commands = segment_commands(source, body_token, nullptr, nullptr, &lexer_warnings);
 
@@ -635,19 +633,18 @@ auto segment_with_recovery(std::string_view source,
     }
 
     const int32_t base = base_offset_for(body_token);
-    auto [virtuals, fallback_diags] =
-        detect_all_virtual_tokens(commands, source, base, known_commands);
+    auto [ghosts, fallback_diags] = detect_all_ghost_tokens(commands, source, base, known_commands);
     auto warning_diags = warnings_to_diags(lexer_warnings);
 
-    if (virtuals.empty()) {
+    if (ghosts.empty()) {
         auto all_diags = std::move(fallback_diags);
         all_diags.insert(all_diags.end(), warning_diags.begin(), warning_diags.end());
         return {std::move(commands), std::move(all_diags)};
     }
 
-    // Re-parse with virtual tokens injected.
+    // Re-parse with ghost tokens injected.
     std::unordered_map<int32_t, char> insertions;
-    for (const auto& vt : virtuals) {
+    for (const auto& vt : ghosts) {
         insertions[vt.offset] = vt.ch;
     }
     std::vector<std::pair<SourcePosition, std::string>> reparse_warnings;
@@ -655,11 +652,11 @@ auto segment_with_recovery(std::string_view source,
         segment_commands(source, body_token, nullptr, &insertions, &reparse_warnings);
 
     std::vector<Diagnostic> diagnostics;
-    diagnostics.reserve(virtuals.size());
-    std::transform(virtuals.begin(),
-                   virtuals.end(),
+    diagnostics.reserve(ghosts.size());
+    std::transform(ghosts.begin(),
+                   ghosts.end(),
                    std::back_inserter(diagnostics),
-                   [](const VirtualToken& vt) { return vt.diagnostic; });
+                   [](const GhostToken& vt) { return vt.diagnostic; });
     diagnostics.insert(diagnostics.end(), fallback_diags.begin(), fallback_diags.end());
     diagnostics.insert(diagnostics.end(), warning_diags.begin(), warning_diags.end());
     auto reparse_diags = warnings_to_diags(reparse_warnings);

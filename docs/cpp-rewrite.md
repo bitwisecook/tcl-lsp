@@ -422,8 +422,8 @@ Phase 3 ports the command segmenter and error recovery pipeline to C++.
 This is the layer that consumes the flat token stream from `TclLexer` and
 groups tokens into per-command `SegmentedCommand` structures at EOL/semicolon
 boundaries. It also includes incremental chunking (`TopLevelChunk` with
-hash-based dirty tracking) and full E201/E202/E203 error recovery via virtual
-token injection.
+hash-based dirty tracking) and full E201/E202/E203 error recovery via ghost
+token injection (zero-width tokens inserted to close unterminated delimiters).
 
 **New types:**
 
@@ -435,7 +435,7 @@ token injection.
 | `UnclosedDelimiter` | `parsing/segmenter.hpp` | Which delimiter was left open |
 | `SegmentedCommand` | `parsing/segmenter.hpp` | Single parsed Tcl command |
 | `TopLevelChunk` | `parsing/segmenter.hpp` | Source region for incremental analysis |
-| `VirtualToken` | `parsing/recovery.hpp` | Zero-width token for recovery |
+| `GhostToken` | `parsing/recovery.hpp` | Zero-width token for recovery (called "ghost" to avoid C++ `virtual` confusion) |
 | `RecoveryResult` | `parsing/recovery.hpp` | Commands + diagnostics from recovery |
 
 **API surface:**
@@ -445,7 +445,7 @@ token injection.
 | `segment_commands()` | Main entry point: tokenise + segment + optional recovery |
 | `segment_top_level_chunks()` | Split source into hashable chunks for incremental re-analysis |
 | `find_first_dirty_chunk()` | Pairwise hash comparison between old and new chunk lists |
-| `compute_virtual_insertions()` | First-pass detection of missing delimiters |
+| `compute_ghost_insertions()` | First-pass detection of missing delimiters (Python shim exposes as `compute_virtual_insertions`) |
 | `segment_with_recovery()` | Full two-pass pipeline: detect → inject → re-parse |
 | `has_suspicious_token()` | Check last command for unclosed delimiter tokens |
 | `find_recovery_offset()` | Scan token text for known command to resume parsing |
@@ -469,7 +469,7 @@ token injection.
 | `test_recovery_e201.cpp` | 14 | E201 heuristics + is_unterminated_cmd |
 | `test_recovery_e202.cpp` | 8 | E202 heuristics + is_suspicious_quote |
 | `test_recovery_e203.cpp` | 8 | E203 heuristics + is_suspicious_str |
-| `test_recovery_virtual.cpp` | 9 | Virtual token lexer integration + pipeline |
+| `test_recovery_ghost.cpp` | 9 | Ghost token lexer integration + pipeline |
 | `test_upstream_parse.cpp` | 23 | Ported from Tcl upstream parse.test |
 | **Total** | **106** | |
 
@@ -505,4 +505,13 @@ pure-Python when native module is unavailable). Available as:
 `UnclosedDelimiter`, `segment_commands`, `segment_top_level_chunks`,
 `find_first_dirty_chunk`, `compute_virtual_insertions`, `segment_with_recovery`,
 `position_from_relative`.
+
+**Naming convention — "ghost" vs "virtual":**
+The C++ code uses "ghost token" (`GhostToken`, `compute_ghost_insertions`,
+`ghost_insertions`) to avoid confusion with C++ `virtual` keyword semantics.
+The Python code retains the original "virtual token" naming (`VirtualToken`,
+`compute_virtual_insertions`, `virtual_insertions`). The pybind11 shim
+translates between the two: C++ `compute_ghost_insertions()` is exposed to
+Python as `compute_virtual_insertions()`, and the `ghost_insertions` parameter
+is exposed as `virtual_insertions`.
 

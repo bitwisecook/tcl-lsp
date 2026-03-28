@@ -17,7 +17,8 @@
 namespace tcl_lsp {
 
 // A zero-width character the lexer should see at a source offset.
-struct VirtualToken {
+// Called "ghost" tokens to avoid confusion with C++ virtual keyword.
+struct GhostToken {
     int32_t offset;
     char ch;
     Diagnostic diagnostic;
@@ -39,16 +40,16 @@ struct RecoveryResult {
 
 // E201 detectors (unterminated [).
 [[nodiscard]] auto detect_missing_bracket_at_comment(
-    const Token& tok, std::string_view source, int32_t base_offset) -> std::optional<VirtualToken>;
+    const Token& tok, std::string_view source, int32_t base_offset) -> std::optional<GhostToken>;
 
 [[nodiscard]] auto detect_missing_bracket_at_command(
     const Token& tok,
     std::string_view source,
     int32_t base_offset,
-    const std::unordered_set<std::string>& known_commands) -> std::optional<VirtualToken>;
+    const std::unordered_set<std::string>& known_commands) -> std::optional<GhostToken>;
 
 [[nodiscard]] auto detect_missing_bracket_at_brace(
-    const Token& tok, std::string_view source, int32_t base_offset) -> std::optional<VirtualToken>;
+    const Token& tok, std::string_view source, int32_t base_offset) -> std::optional<GhostToken>;
 
 [[nodiscard]] auto detect_missing_bracket_no_heuristic(const Token& tok) -> Diagnostic;
 
@@ -62,7 +63,7 @@ struct RecoveryResult {
     const Token& tok,
     std::string_view source,
     int32_t base_offset,
-    const std::unordered_set<std::string>& known_commands) -> std::optional<VirtualToken>;
+    const std::unordered_set<std::string>& known_commands) -> std::optional<GhostToken>;
 
 [[nodiscard]] auto detect_missing_quote_no_heuristic(const Token& tok,
                                                      std::string_view source,
@@ -76,7 +77,7 @@ is_suspicious_str(const Token& tok, std::string_view source, int32_t base_offset
     const Token& tok,
     std::string_view source,
     int32_t base_offset,
-    const std::unordered_set<std::string>& known_commands) -> std::optional<VirtualToken>;
+    const std::unordered_set<std::string>& known_commands) -> std::optional<GhostToken>;
 
 [[nodiscard]] auto detect_missing_brace_no_heuristic(const Token& tok,
                                                      std::string_view source,
@@ -86,16 +87,15 @@ is_suspicious_str(const Token& tok, std::string_view source, int32_t base_offset
 [[nodiscard]] auto
 is_unterminated_cmd(const Token& tok, std::string_view source, int32_t base_offset) -> bool;
 
-// Compute virtual token insertions for error recovery.
+// Compute ghost token insertions for error recovery.
 // Does a first parse, detects imbalances, and returns the insertions dict.
 // When known_commands is provided, command-break heuristics are enabled.
-[[nodiscard]] auto compute_virtual_insertions(
-    std::string_view source,
-    const Token* body_token = nullptr,
-    const std::unordered_set<std::string>* known_commands = nullptr)
-    -> std::unordered_map<int32_t, char>;
+[[nodiscard]] auto compute_ghost_insertions(std::string_view source,
+                                            const Token* body_token = nullptr,
+                                            const std::unordered_set<std::string>* known_commands =
+                                                nullptr) -> std::unordered_map<int32_t, char>;
 
-// Parse source, detect imbalances, re-parse with virtual tokens.
+// Parse source, detect imbalances, re-parse with ghost tokens.
 // Returns (clean_commands, diagnostics).
 // When known_commands is provided, command-break heuristics are enabled.
 [[nodiscard]] auto segment_with_recovery(

@@ -55,7 +55,7 @@ struct TopLevelChunk {
 segment_commands(std::string_view source,
                  const Token* body_token = nullptr,
                  const std::unordered_set<std::string>* known_commands = nullptr,
-                 const std::unordered_map<int32_t, char>* virtual_insertions = nullptr,
+                 const std::unordered_map<int32_t, char>* ghost_insertions = nullptr,
                  std::vector<std::pair<SourcePosition, std::string>>* collect_warnings = nullptr,
                  bool recovery = true) -> std::vector<SegmentedCommand>;
 
