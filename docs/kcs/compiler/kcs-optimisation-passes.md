@@ -55,6 +55,7 @@ Source: [`core/compiler/optimiser/`](../../../core/compiler/optimiser/) —
 | O124 | Unused proc elimination | `_unused_procs.py` | Proc defined but never called (iRules only) |
 | O125 | Code sinking (LCP) | `_code_sinking.py` | Assignment used only in one branch |
 | O126 | Dead store after tail position | `_elimination.py` | Variable only used by eliminated tail expr |
+| O127 | Inline single-use assignment | `_propagation.py` | Non-constant variable set once and used once |
 
 ### Priority ordering
 
@@ -77,6 +78,10 @@ group, producing one primary diagnostic with the dead store as related info.
 used in the else branch → move `set msg` into the else branch.
 
 **GVN/CSE (O105)**: `[HTTP::uri]` called twice → extract to a variable.
+
+**Load forwarding (O127)**: `set x [HTTP::uri]; log local0. $x`
+→ `log local0. [set x [HTTP::uri]]` — eliminates the redundant variable load
+by inlining the assignment at the single use site.
 
 **DCE (O107)**: Code after `return` is unreachable → remove.
 

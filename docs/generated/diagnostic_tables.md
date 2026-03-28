@@ -114,3 +114,4 @@
 | O124 | Comment out unused procs in iRules (not called from any event). | ✓ |
 | O125 | Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) that uses them. | ✓ |
 | O126 | Remove unused variable assignments — eliminate `set` statements for variables that are never read. | ✓ |
+| O127 | Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site. | ✓ |

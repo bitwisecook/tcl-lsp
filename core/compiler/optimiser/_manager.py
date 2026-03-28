@@ -30,6 +30,7 @@ from ._propagation import (
     optimise_constant_var_refs,
     optimise_expr_substitutions,
     optimise_expression_args,
+    optimise_load_forwarding,
     optimise_return_terminator,
     optimise_static_proc_calls,
     optimise_string_interpolation_var_refs,
@@ -327,6 +328,16 @@ class _CompilerOptimiser:
         # Branch folding
         _branch_folding.optimise_branch_proc_calls(ctx, cfg, ssa, analysis, namespace=namespace)
         _branch_folding.optimise_constant_branches(ctx, cfg, ssa, analysis)
+
+        # Load forwarding (O127)
+        optimise_load_forwarding(
+            ctx,
+            source,
+            cfg,
+            ssa,
+            analysis,
+            is_top_level=is_top_level,
+        )
 
         # Elimination
         _elimination.optimise_elimination_passes(

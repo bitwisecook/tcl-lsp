@@ -1,6 +1,6 @@
 """Comprehensive optimiser coverage tests.
 
-Exercises every optimisation pass (O100–O125), the shimmer/thunking
+Exercises every optimisation pass (O100–O127), the shimmer/thunking
 detection pipeline, and the GVN/CSE/LICM pass to achieve 100% branch
 and path coverage of the optimisation code.
 
@@ -2275,3 +2275,47 @@ class TestO124UnusedIruleProcs:
             assert _has(s, "O124")
         finally:
             self._teardown_irules()
+
+
+class TestO127LoadForwarding:
+    """O127: inline single-use variable assignment (store-to-load forwarding)."""
+
+    def test_inline_command_subst(self):
+        s = "proc f {} { set x [clock seconds]\n puts $x }"
+        assert _has(s, "O127")
+
+    def test_inline_var_copy(self):
+        s = "proc f {a} { set x $a\n puts $x }"
+        assert _has(s, "O127")
+
+    def test_skip_constant(self):
+        s = "proc f {} { set x 42\n puts $x }"
+        assert _not_has(s, "O127")
+
+    def test_skip_multiple_uses(self):
+        s = "proc f {} { set x [clock seconds]\n puts $x\n puts $x }"
+        assert _not_has(s, "O127")
+
+    def test_skip_top_level(self):
+        s = "set x [clock seconds]\nputs $x"
+        assert _not_has(s, "O127")
+
+    def test_skip_barrier(self):
+        s = "proc f {} { set x [clock seconds]\n eval {}\n puts $x }"
+        assert _not_has(s, "O127")
+
+    def test_skip_aliased(self):
+        s = "proc f {} { upvar 1 ext x\n set x [clock seconds]\n puts $x }"
+        assert _not_has(s, "O127")
+
+    def test_skip_phi_merge(self):
+        s = "proc f {c} { if {$c} { set x [clock seconds] } else { set x [clock clicks] }\n puts $x }"
+        assert _not_has(s, "O127")
+
+    def test_skip_global_alias(self):
+        s = "proc f {} { global x\n set x [clock seconds]\n puts $x }"
+        assert _not_has(s, "O127")
+
+    def test_skip_info_between(self):
+        s = "proc f {} { set x [clock seconds]\n info exists x\n puts $x }"
+        assert _not_has(s, "O127")

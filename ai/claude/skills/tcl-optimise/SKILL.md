@@ -53,6 +53,7 @@ Apply LSP optimiser suggestions with explanations.
 - O124: Unused proc commenting — comment out procs not called from any event in iRules (iRules dialect only)
 - O125: Code sinking — sink side-effect-free assignments into decision blocks
 - O126: Unused variable removal — remove `set` statements for variables never read
+- O127: Inline single-use assignment — fold `set` into use site to eliminate redundant variable load
 
 ## Grouped optimisations
 

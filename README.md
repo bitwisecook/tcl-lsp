@@ -1768,7 +1768,7 @@ tcl-lsp/
       core_analyses.py    SCCP, liveness, type inference, dead store detection
       compilation_unit.py Compile pipeline orchestration and caching
       compiler_checks.py  IR-to-diagnostics (arity, subcommands)
-      optimiser.py        Source rewrite passes (O100–O125)
+      optimiser.py        Source rewrite passes (O100–O127)
       gvn.py              GVN/CSE/PRE/LICM redundant computation detection (O105–O106)
       interprocedural.py  Call graph, function purity/side-effect summaries
       taint.py            Data taint analysis (T100–T106, IRULE3xxx)

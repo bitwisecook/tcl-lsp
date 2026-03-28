@@ -643,6 +643,12 @@ export const OPTIMISATIONS: OptimisationDef[] = [
       "Remove unused variable assignments — eliminate `set` statements for variables that are never read.",
     defaultEnabled: true,
   },
+  {
+    code: "O127",
+    description:
+      "Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site.",
+    defaultEnabled: true,
+  },
 ];
 
 export const SECTION_TITLES: Record<string, string> = {

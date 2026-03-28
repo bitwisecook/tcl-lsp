@@ -127,6 +127,7 @@ object DiagnosticCatalog {
         OptimisationDef("O124", "O124: Comment out unused procs in iRules (not called from ...", true),
         OptimisationDef("O125", "O125: Sink side-effect-free assignments into the deepest d...", true),
         OptimisationDef("O126", "O126: Remove unused variable assignments", true),
+        OptimisationDef("O127", "O127: Inline single-use variable assignment", true),
     )
 
     val sectionTitles: Map<String, String> = mapOf(
