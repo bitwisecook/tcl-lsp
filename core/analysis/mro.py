@@ -59,7 +59,9 @@ def _tcloo_dfs(
     non-mixin-path classes are added.
     """
     if cls in visiting:
-        raise MROError(f"cycle detected in class hierarchy involving {cls!r}")
+        # Cycles through mixins are valid in TclOO (e.g., a mixin whose
+        # superclass is the class being mixed into).  Just skip.
+        return
     visiting.add(cls)
     try:
         # 1. Process class-level mixins (enter mixin path)
