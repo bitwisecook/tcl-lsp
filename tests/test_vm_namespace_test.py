@@ -242,13 +242,9 @@ KNOWN_FAILURES_NAMESPACE_OLD: set[str] = {
     "namespace-old-5.16",  # variable resolution
     "namespace-old-5.19",  # variable resolution
     # Namespace children / parent / qualifiers
-    "namespace-old-6.7",  # namespace children
     "namespace-old-6.8",  # namespace children
-    "namespace-old-6.9",  # namespace children
-    "namespace-old-6.10",  # namespace parent
     "namespace-old-6.11",  # namespace parent
     "namespace-old-6.16",  # namespace qualifiers
-    "namespace-old-6.19",  # namespace tail
     # Command resolution / import patterns
     "namespace-old-7.3",  # command resolution
     "namespace-old-7.4",  # command resolution

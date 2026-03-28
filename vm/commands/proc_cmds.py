@@ -197,6 +197,31 @@ def _cmd_rename(interp: TclInterp, args: list[str]) -> TclResult:
             _fire_cmd_traces(interp, old_name, new_name)
             return TclResult()
 
+    # Check current namespace for procs (when renaming within a namespace context)
+    if "::" not in old_name and interp.current_namespace is not interp.root_namespace:
+        ns_proc = interp.current_namespace.lookup_proc(old_name)
+        if ns_proc is not None:
+            interp.current_namespace._procs.pop(old_name, None)
+            # Remove from flat procedures dict
+            fq_old = f"{interp.current_namespace.qualname}::{old_name}"
+            interp.procedures.pop(fq_old, None)
+            if new_name:
+                if "::" in new_name:
+                    from ..scope import ensure_namespace
+                    new_ns_part = new_name[: new_name.rfind("::")]
+                    new_tail = new_name[new_name.rfind("::") + 2 :]
+                    new_ns = ensure_namespace(
+                        interp.root_namespace, new_ns_part if new_ns_part else "::"
+                    )
+                    new_ns.register_proc(new_tail, ns_proc)
+                    interp.procedures[new_name] = ns_proc
+                else:
+                    interp.current_namespace.register_proc(new_name, ns_proc)
+                    fq_new = f"{interp.current_namespace.qualname}::{new_name}"
+                    interp.procedures[fq_new] = ns_proc
+            _fire_cmd_traces(interp, old_name, new_name)
+            return TclResult()
+
     # Check flat command registry
     handler = interp.lookup_command(old_name)
     if handler is not None:

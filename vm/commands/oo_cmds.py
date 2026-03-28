@@ -11,6 +11,72 @@ if TYPE_CHECKING:
     from ..interp import TclInterp
 
 
+def _copy_namespace_contents(
+    interp: "TclInterp", src_ns_name: str, tgt_ns_name: str
+) -> None:
+    """Copy procs and variables from one namespace to another during oo::copy."""
+    import copy as copymod
+
+    from ..scope import CallFrame, ensure_namespace, resolve_namespace
+
+    src_ns = resolve_namespace(interp.root_namespace, src_ns_name)
+    if src_ns is None:
+        return
+    tgt_ns = ensure_namespace(interp.root_namespace, tgt_ns_name)
+
+    # Copy procs (skip 'my' which is set up separately by _register_object_command)
+    for proc_name, proc_def in list(src_ns._procs.items()):
+        if proc_name == "my":
+            continue
+        new_proc = copymod.copy(proc_def)
+        new_proc.def_namespace = tgt_ns.qualname
+        tgt_ns.register_proc(proc_name, new_proc)
+        # Also register in flat procedures dict
+        fq_name = f"{tgt_ns.qualname}::{proc_name}"
+        interp.procedures[fq_name] = new_proc
+
+    # Copy namespace-level variables (frame scalars/arrays)
+    if hasattr(src_ns, '_frame') and src_ns._frame is not None:
+        if not hasattr(tgt_ns, '_frame') or tgt_ns._frame is None:
+            tgt_ns._frame = CallFrame(namespace=tgt_ns)
+        for vn, vv in src_ns._frame._scalars.items():
+            tgt_ns._frame._scalars[vn] = vv
+        for vn, vv in src_ns._frame._arrays.items():
+            tgt_ns._frame._arrays[vn] = dict(vv)
+
+
+def _estimate_error_line(body: str, error: TclError) -> int:
+    """Estimate the line number within a definition body where an error occurred.
+
+    Looks at the error info for clues, falls back to counting leading newlines.
+    """
+    import re
+
+    # Check errorInfo for a "line N" indicator from our eval
+    if error.error_info:
+        for entry in error.error_info:
+            m = re.search(r'line (\d+)\)', str(entry))
+            if m:
+                return int(m.group(1))
+
+    # Fallback: find the error command in the body and count newlines before it
+    msg = error.message
+    # Try to find the erroring command text from errorInfo
+    if error.error_info:
+        for entry in error.error_info:
+            m2 = re.search(r'while executing\n"([^"]*)"', str(entry))
+            if m2:
+                cmd_text = m2.group(1)
+                pos = body.find(cmd_text)
+                if pos >= 0:
+                    return body[:pos].count('\n') + 1
+
+    # Final fallback: count leading whitespace/newlines to first content
+    stripped = body.lstrip()
+    leading = body[: len(body) - len(stripped)]
+    return leading.count('\n') + 1
+
+
 def _parse_method_params(
     param_str: str,
 ) -> tuple[list[tuple[str, str | None]], list[str], bool]:
@@ -798,7 +864,11 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
             from ..machine import _list_escape
 
             full_cmd = f"oo::class create {name} {_list_escape(args[2])}"
-            ctx = f'    (in definition script for class "{qualified}" line 1)'
+            # Estimate line number within the definition body.
+            # Count newlines before the error to approximate line position.
+            body_text = args[2]
+            line_no = _estimate_error_line(body_text, e)
+            ctx = f'    (in definition script for class "{qualified}" line {line_no})'
             inv = f'    invoked from within\n"{full_cmd}"'
             info = list(e.error_info) if e.error_info else [e.message]
             info.append(ctx)
@@ -924,7 +994,9 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
             from ..machine import _list_escape
 
             full_cmd = f"oo::define {class_name} {_list_escape(args[1])}"
-            ctx = f'    (in definition script for class "{cls.qualified_name}" line 1)'
+            body_text = args[1]
+            line_no = _estimate_error_line(body_text, e)
+            ctx = f'    (in definition script for class "{cls.qualified_name}" line {line_no})'
             inv = f'    invoked from within\n"{full_cmd}"'
             info = list(e.error_info) if e.error_info else [e.message]
             info.append(ctx)
@@ -1137,6 +1209,8 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
     )
     oo.objects[tgt_name] = tgt
     oo._register_object_command(interp, tgt)
+    # Copy namespace procs and variables from source to target
+    _copy_namespace_contents(interp, src.namespace, tgt.namespace)
     # Invoke <cloned> method on the new object, passing the source object name
     cloned_method, cloned_class = oo.resolve_method(tgt, "<cloned>")
     if cloned_method is not None:
