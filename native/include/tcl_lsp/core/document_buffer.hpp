@@ -26,6 +26,7 @@ class DocumentBuffer {
 
     [[nodiscard]] auto source() const noexcept -> std::string_view;
     [[nodiscard]] auto version() const noexcept -> std::optional<int>;
+
     [[nodiscard]] auto line_starts() const noexcept -> const std::vector<int32_t>& {
         return line_starts_;
     }

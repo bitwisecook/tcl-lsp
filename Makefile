@@ -36,13 +36,19 @@
 #   make coverage      Generate all coverage reports (Python + VS Code)
 #   make coverage-py   Run Python tests with coverage (HTML + XML in tmp/coverage/python/)
 #   make coverage-ext  Run VS Code extension tests with coverage (HTML in tmp/coverage/vscode/)
+#   make test-cpp      Run ALL C++ verification (all compilers + sanitisers + analysis + valgrind)
 #   make native-setup  Configure the C++ native build (Meson + Clang)
 #   make native-build  Build the C++ native module
-#   make native-test   Run C++ unit tests
+#   make native-test   Run C++ unit tests (Clang only)
 #   make native-test-asan  Run C++ tests with AddressSanitizer + UBSanitizer
 #   make native-test-tsan  Run C++ tests with ThreadSanitizer
 #   make native-scan-build Run Clang Static Analyzer
 #   make native-valgrind   Run C++ tests under Valgrind memcheck
+#   make native-test-gcc13 Build and test with GCC 13 (-Werror)
+#   make native-test-gcc14 Build and test with GCC 14 (-Werror)
+#   make native-test-gcc13-asan  GCC 13 with ASan + UBSan
+#   make native-test-gcc14-asan  GCC 14 with ASan + UBSan
+#   make native-gcc-analyze  Run GCC static analyzer (-fanalyzer)
 #   make native-clean  Remove C++ build artifacts
 #   make format-cpp    Format C++ code with clang-format
 #   make lint-cpp      Lint C++ code (clang-tidy + cppcheck + format check)
@@ -129,7 +135,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts format-cpp lint-cpp typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated native-setup native-build native-test native-setup-asan native-test-asan native-setup-tsan native-test-tsan native-scan-build native-valgrind native-setup-fuzz native-fuzz native-setup-cfi native-test-cfi native-clean .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts format-cpp lint-cpp typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated native-setup native-build native-test native-setup-asan native-test-asan native-setup-tsan native-test-tsan native-scan-build native-valgrind native-setup-fuzz native-fuzz native-setup-cfi native-test-cfi test-cpp _test-cpp-compiler-rt native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan native-gcc-analyze native-clean .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -304,8 +310,8 @@ coverage-ext: compile $(NPM_STAMP) ## Run VS Code extension tests with coverage 
 	@echo "VS Code extension coverage report: $(COV_DIR)/vscode/index.html"
 
 # Phase targets for parallel prep-pr execution
-_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings lint-cpp native-scan-build
-_prep-pr-tests: test-py test-opt native-test native-test-asan native-test-tsan
+_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings lint-cpp native-scan-build native-gcc-analyze
+_prep-pr-tests: test-py test-opt native-test native-test-asan native-test-tsan native-valgrind native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
 # CFI and fuzzing require clang compiler-rt (libclang-rt-18-dev).
@@ -314,13 +320,7 @@ HAS_COMPILER_RT := $(shell echo 'int main(){}' | clang++ -fsanitize=cfi -flto -f
 
 prep-pr: format ## Fast pre-PR gate (format + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
-ifeq ($(HAS_COMPILER_RT),1)
-	@echo "==> compiler-rt available — running CFI tests and fuzz smoke test"
-	@$(MAKE) native-test-cfi
-	@$(MAKE) native-fuzz FUZZ_SECONDS=10
-else
-	@echo "==> compiler-rt not available — skipping CFI and fuzz (install libclang-rt-18-dev to enable)"
-endif
+	@$(MAKE) _test-cpp-compiler-rt
 
 test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX)
 	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke
@@ -828,6 +828,11 @@ NATIVE_BUILDDIR_ASAN := builddir-asan
 NATIVE_BUILDDIR_TSAN := builddir-tsan
 NATIVE_BUILDDIR_FUZZ := builddir-fuzz
 NATIVE_BUILDDIR_CFI  := builddir-cfi
+NATIVE_BUILDDIR_GCC13      := builddir-gcc13
+NATIVE_BUILDDIR_GCC13_ASAN := builddir-gcc13-asan
+NATIVE_BUILDDIR_GCC14      := builddir-gcc14
+NATIVE_BUILDDIR_GCC14_ASAN := builddir-gcc14-asan
+NATIVE_BUILDDIR_GCC_ANALYZE := builddir-gcc-analyze
 
 # C++ source file lists for formatting/linting (excludes pybind11 bindings).
 CPP_SOURCES := $(wildcard native/src/core/*.cpp native/src/parsing/*.cpp)
@@ -845,6 +850,32 @@ native-build: ## Build the C++ native module
 
 native-test: ## Run C++ unit tests
 	meson test -C $(NATIVE_BUILDDIR) --suite tcl-lsp --print-errorlogs
+
+test-cpp: ## Run all C++ tests: all compilers, sanitisers, static analysis, valgrind
+	@echo "==> test-cpp: comprehensive C++ verification (all compilers + sanitisers + static analysis)"
+	@$(MAKE) -j $(NPROC) lint-cpp native-scan-build native-gcc-analyze
+	@$(MAKE) -j $(NPROC) native-test native-test-asan native-test-tsan native-valgrind \
+		native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan
+	@$(MAKE) _test-cpp-compiler-rt
+	@echo "==> test-cpp: all passes clean"
+
+# compiler-rt dependent tests (CFI + fuzz) — auto-install if possible.
+_test-cpp-compiler-rt:
+ifeq ($(HAS_COMPILER_RT),1)
+	@echo "==> compiler-rt available — running CFI tests and fuzz smoke test"
+	@$(MAKE) native-test-cfi
+	@$(MAKE) native-fuzz FUZZ_SECONDS=10
+else
+	@echo "==> compiler-rt not available — attempting to install libclang-rt-18-dev"
+	@if command -v apt-get >/dev/null 2>&1; then \
+		sudo apt-get install -y libclang-rt-18-dev && \
+		echo "==> installed compiler-rt — running CFI + fuzz" && \
+		$(MAKE) native-test-cfi && \
+		$(MAKE) native-fuzz FUZZ_SECONDS=10; \
+	else \
+		echo "==> SKIP: no apt-get and no compiler-rt — install libclang-rt-18-dev manually"; \
+	fi
+endif
 
 # --- Sanitizer builds ---
 # We try clang first (if libclang-rt-18-dev is installed), then fall back to GCC.
@@ -920,7 +951,7 @@ native-scan-build: ## Run Clang Static Analyzer (path-sensitive analysis)
 
 # --- Valgrind ---
 # Memcheck: uninitialised reads, invalid memory access, leaks.
-# Slower than ASan — use for periodic deep checks, not every PR.
+# Complements ASan — catches different classes of bugs (e.g. conditional jumps on uninit values).
 native-valgrind: ## Run C++ tests under Valgrind memcheck
 	@echo "==> Running C++ tests under Valgrind memcheck"
 	@if [ ! -f $(NATIVE_BUILDDIR)/build.ninja ]; then $(MAKE) native-setup; fi
@@ -963,10 +994,12 @@ native-setup-cfi: ## Configure C++ build with Control Flow Integrity
 	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR_CFI) \
 		-Dcfi=true \
 		-Db_lto=true \
+		-Dcatch2:tests=false \
 		--wipe 2>/dev/null || \
 	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR_CFI) \
 		-Dcfi=true \
-		-Db_lto=true
+		-Db_lto=true \
+		-Dcatch2:tests=false
 
 native-test-cfi: ## Build and test with Control Flow Integrity
 	@echo "==> Building and testing with Control Flow Integrity (clang + LTO)"
@@ -975,7 +1008,115 @@ native-test-cfi: ## Build and test with Control Flow Integrity
 	meson test -C $(NATIVE_BUILDDIR_CFI) --suite tcl-lsp --print-errorlogs
 
 native-clean: ## Remove C++ build artifacts
-	rm -rf $(NATIVE_BUILDDIR) $(NATIVE_BUILDDIR_ASAN) $(NATIVE_BUILDDIR_TSAN) $(NATIVE_BUILDDIR_FUZZ) $(NATIVE_BUILDDIR_CFI)
+	rm -rf $(NATIVE_BUILDDIR) $(NATIVE_BUILDDIR_ASAN) $(NATIVE_BUILDDIR_TSAN) $(NATIVE_BUILDDIR_FUZZ) $(NATIVE_BUILDDIR_CFI) \
+		$(NATIVE_BUILDDIR_GCC13) $(NATIVE_BUILDDIR_GCC13_ASAN) $(NATIVE_BUILDDIR_GCC14) $(NATIVE_BUILDDIR_GCC14_ASAN) $(NATIVE_BUILDDIR_GCC_ANALYZE)
+
+# --- GCC dual-compiler verification ---
+# All native C++ must build clean under both Clang 18+ and GCC 13+/14+ with -Werror.
+# GCC has its own static analyzer (-fanalyzer) and sanitizer implementations.
+# These targets are explicit — no fallback, no guessing.
+
+# Detect available GCC versions.
+HAS_GCC13 := $(shell which g++-13 >/dev/null 2>&1 && echo 1 || echo 0)
+HAS_GCC14 := $(shell which g++-14 >/dev/null 2>&1 && echo 1 || echo 0)
+
+# Helper: setup a GCC build directory (usage: $(call gcc_setup,CC,CXX,builddir,extra_args))
+define gcc_setup
+	$(1) $(2) meson setup $(3) $(4) \
+		--wipe 2>/dev/null || \
+	$(1) $(2) meson setup $(3) $(4)
+endef
+
+native-test-gcc13: ## Build and test with GCC 13 (-Werror)
+ifeq ($(HAS_GCC13),1)
+	@echo "==> Building and testing with GCC 13 (-Werror)"
+	@if [ ! -f $(NATIVE_BUILDDIR_GCC13)/build.ninja ]; then \
+		CC=gcc-13 CXX=g++-13 meson setup $(NATIVE_BUILDDIR_GCC13) --wipe 2>/dev/null || \
+		CC=gcc-13 CXX=g++-13 meson setup $(NATIVE_BUILDDIR_GCC13); \
+	fi
+	meson compile -C $(NATIVE_BUILDDIR_GCC13)
+	meson test -C $(NATIVE_BUILDDIR_GCC13) --suite tcl-lsp --print-errorlogs
+else
+	@echo "==> SKIP: g++-13 not found (install gcc-13 g++-13)"
+endif
+
+native-test-gcc14: ## Build and test with GCC 14 (-Werror)
+ifeq ($(HAS_GCC14),1)
+	@echo "==> Building and testing with GCC 14 (-Werror)"
+	@if [ ! -f $(NATIVE_BUILDDIR_GCC14)/build.ninja ]; then \
+		CC=gcc-14 CXX=g++-14 meson setup $(NATIVE_BUILDDIR_GCC14) --wipe 2>/dev/null || \
+		CC=gcc-14 CXX=g++-14 meson setup $(NATIVE_BUILDDIR_GCC14); \
+	fi
+	meson compile -C $(NATIVE_BUILDDIR_GCC14)
+	meson test -C $(NATIVE_BUILDDIR_GCC14) --suite tcl-lsp --print-errorlogs
+else
+	@echo "==> SKIP: g++-14 not found (install gcc-14 g++-14)"
+endif
+
+native-test-gcc13-asan: ## Build and test with GCC 13 ASan + UBSan
+ifeq ($(HAS_GCC13),1)
+	@echo "==> Building and testing with GCC 13 ASan + UBSan"
+	@if [ ! -f $(NATIVE_BUILDDIR_GCC13_ASAN)/build.ninja ]; then \
+		CC=gcc-13 CXX=g++-13 meson setup $(NATIVE_BUILDDIR_GCC13_ASAN) \
+			-Db_sanitize=address,undefined -Db_lundef=false -Dwerror=false \
+			--wipe 2>/dev/null || \
+		CC=gcc-13 CXX=g++-13 meson setup $(NATIVE_BUILDDIR_GCC13_ASAN) \
+			-Db_sanitize=address,undefined -Db_lundef=false -Dwerror=false; \
+	fi
+	meson compile -C $(NATIVE_BUILDDIR_GCC13_ASAN)
+	meson test -C $(NATIVE_BUILDDIR_GCC13_ASAN) --suite tcl-lsp --print-errorlogs
+else
+	@echo "==> SKIP: g++-13 not found"
+endif
+
+native-test-gcc14-asan: ## Build and test with GCC 14 ASan + UBSan
+ifeq ($(HAS_GCC14),1)
+	@echo "==> Building and testing with GCC 14 ASan + UBSan"
+	@if [ ! -f $(NATIVE_BUILDDIR_GCC14_ASAN)/build.ninja ]; then \
+		CC=gcc-14 CXX=g++-14 meson setup $(NATIVE_BUILDDIR_GCC14_ASAN) \
+			-Db_sanitize=address,undefined -Db_lundef=false -Dwerror=false \
+			--wipe 2>/dev/null || \
+		CC=gcc-14 CXX=g++-14 meson setup $(NATIVE_BUILDDIR_GCC14_ASAN) \
+			-Db_sanitize=address,undefined -Db_lundef=false -Dwerror=false; \
+	fi
+	meson compile -C $(NATIVE_BUILDDIR_GCC14_ASAN)
+	meson test -C $(NATIVE_BUILDDIR_GCC14_ASAN) --suite tcl-lsp --print-errorlogs
+else
+	@echo "==> SKIP: g++-14 not found"
+endif
+
+# GCC's built-in static analyzer (-fanalyzer).  Path-sensitive analysis similar to
+# Clang's scan-build but catches different bug classes.  GCC 14 adds infinite-loop
+# detection, overlapping-buffer checks, and enabled-by-default taint analysis.
+# Uses the highest available GCC version for best coverage.
+#
+# We compile each source file individually with -fanalyzer to avoid false positives
+# from Catch2 and pybind11 headers.  Only our native/src/ files are analysed.
+GCC_ANALYZE_CXX := $(shell which g++-14 >/dev/null 2>&1 && echo g++-14 || (which g++-13 >/dev/null 2>&1 && echo g++-13 || echo ""))
+GCC_ANALYZE_FLAGS := -std=c++23 -fanalyzer -fsyntax-only -I native/include \
+	-D_GLIBCXX_ASSERTIONS -Wall -Wextra
+
+native-gcc-analyze: ## Run GCC static analyzer (-fanalyzer)
+ifneq ($(GCC_ANALYZE_CXX),)
+	@echo "==> Running GCC static analyzer (-fanalyzer) with $(GCC_ANALYZE_CXX)"
+	@failed=0; \
+	for src in $(CPP_SOURCES); do \
+		echo "  Analyzing $$src ..."; \
+		output=$$($(GCC_ANALYZE_CXX) $(GCC_ANALYZE_FLAGS) $$src 2>&1); \
+		echo "$$output" | grep -v '^$$' || true; \
+		if echo "$$output" | grep -q '\-Wanalyzer'; then \
+			echo "  FAIL: -Wanalyzer diagnostic in $$src"; \
+			failed=1; \
+		fi; \
+	done; \
+	if [ "$$failed" = "1" ]; then \
+		echo "ERROR: GCC analyzer found issues"; exit 1; \
+	else \
+		echo "==> GCC analyzer: clean"; \
+	fi
+else
+	@echo "==> SKIP: no GCC 13/14 found for -fanalyzer"
+endif
 
 format-cpp: ## Format C++ code with clang-format
 	@echo "==> Formatting C++ code with clang-format"

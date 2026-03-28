@@ -86,6 +86,6 @@ if get_option('cfi')
 endif
 
 py = import('python').find_installation(pure: false)
-pybind11_dep = dependency('pybind11')
+pybind11_dep = dependency('pybind11', required: false)
 
 subdir('native')
