@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
-#include <optional>
+#include <expected>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -134,48 +134,48 @@ auto is_stubs_end(std::string_view comment) -> bool {
 }
 
 auto parse_stub_line(std::string_view line, Range line_range)
-    -> std::optional<StubCommandDef> {
+    -> std::expected<StubCommandDef, StubParseError> {
     auto text = strip_comment_prefix(line);
     auto lower = to_lower(text);
 
     // Must start with "stub " (case-insensitive).
     if (!lower.starts_with("stub ")) {
-        return std::nullopt;
+        return std::unexpected(StubParseError::NOT_A_STUB);
     }
     // Skip expr stubs.
     if (lower.starts_with("stub expr-")) {
-        return std::nullopt;
+        return std::unexpected(StubParseError::NOT_A_STUB);
     }
 
     text = text.substr(5); // skip "stub "
     // Skip whitespace after "stub".
     auto pos = text.find_first_not_of(" \t");
     if (pos == std::string_view::npos) {
-        return std::nullopt;
+        return std::unexpected(StubParseError::MISSING_NAME);
     }
     text = text.substr(pos);
 
     // Extract command name (first non-whitespace token).
     auto name_end = text.find_first_of(" \t{");
     if (name_end == std::string_view::npos) {
-        return std::nullopt; // No args block.
+        return std::unexpected(StubParseError::MISSING_BRACES);
     }
     auto cmd_name = std::string(text.substr(0, name_end));
 
     // Find args in braces.
     auto brace_start = text.find('{', name_end);
     if (brace_start == std::string_view::npos) {
-        return std::nullopt;
+        return std::unexpected(StubParseError::MISSING_BRACES);
     }
     auto brace_end = text.find('}', brace_start);
     if (brace_end == std::string_view::npos) {
-        return std::nullopt;
+        return std::unexpected(StubParseError::MISSING_BRACES);
     }
 
     auto args_str = text.substr(brace_start + 1, brace_end - brace_start - 1);
     auto args = parse_stub_args(args_str);
     if (!args.has_value()) {
-        return std::nullopt;
+        return std::unexpected(StubParseError::INVALID_ARG_SYNTAX);
     }
 
     auto flags_str = text.substr(brace_end + 1);
@@ -195,19 +195,19 @@ auto parse_stub_line(std::string_view line, Range line_range)
 }
 
 auto parse_expr_stub_line(std::string_view line, Range line_range)
-    -> std::optional<StubExprDef> {
+    -> std::expected<StubExprDef, StubParseError> {
     auto text = strip_comment_prefix(line);
     auto lower = to_lower(text);
 
     // Must match "stub expr-func <name> ?arity?" or "stub expr-op <name> ?arity?".
     if (!lower.starts_with("stub expr-")) {
-        return std::nullopt;
+        return std::unexpected(StubParseError::NOT_A_STUB);
     }
 
     auto tokens = split_whitespace(text);
     // tokens[0] = "stub", tokens[1] = "expr-func" or "expr-op", tokens[2] = name, tokens[3] = arity
     if (tokens.size() < 3) {
-        return std::nullopt;
+        return std::unexpected(StubParseError::MISSING_NAME);
     }
 
     auto kind_lower = to_lower(tokens[1]);
@@ -217,7 +217,7 @@ auto parse_expr_stub_line(std::string_view line, Range line_range)
     } else if (kind_lower == "expr-op") {
         kind = "operator";
     } else {
-        return std::nullopt;
+        return std::unexpected(StubParseError::INVALID_EXPR_KIND);
     }
 
     auto name = std::string(tokens[2]);
