@@ -71,7 +71,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-4.1",
     "oo-4.10",
     "oo-4.2",
-    "oo-4.3",
     "oo-4.7",
     "oo-4.8",
     "oo-4.9",
@@ -98,7 +97,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-6.19",
     "oo-6.20",
     # oo-7.x: Inheritance / superclass edge cases
-    "oo-7.1",
     "oo-7.4",
     "oo-7.5",
     "oo-7.6",

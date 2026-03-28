@@ -438,7 +438,15 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
             if obj is not None:
                 return oo._destroy_object(interp, obj)
             return TclResult()
-        raise TclError(f'unknown method "{method}": must be create, destroy, or new')
+        # Dispatch to the class's OO method dispatch (class objects have methods too)
+        obj = oo.objects.get(qualified)
+        if obj is not None:
+            m, defining_class = oo.resolve_method(obj, method)
+            if m is not None:
+                return oo._invoke_method(
+                    interp, obj, m, cmd_args[1:], defining_class=defining_class
+                )
+        raise TclError(f'unknown method "{method}": must be create, destroy or new')
 
     interp._runtime_commands[qualified] = _class_cmd
     # Also register short name
@@ -541,6 +549,12 @@ def _cmd_oo_object(interp: TclInterp, args: list[str]) -> TclResult:
         # oo::object itself cannot be destroyed in normal usage
         raise TclError("cannot destroy the root object")
     else:
+        # Fall through to OO dispatch for methods defined on oo::object
+        obj = oo.objects.get("::oo::object")
+        if obj is not None:
+            m, defining_class = oo.resolve_method(obj, subcmd)
+            if m is not None:
+                return oo._invoke_method(interp, obj, m, args[1:], defining_class=defining_class)
         raise TclError(f'unknown method "{subcmd}": must be create, destroy or new')
 
 
