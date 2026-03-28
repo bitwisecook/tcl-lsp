@@ -547,6 +547,19 @@ class OORuntime:
                         + _format_method_list(avail)
                     )
                 raise TclError(f'unknown method "{method_name}"')
+            # TIP 500: private methods are only accessible from the
+            # defining class itself, matching the check in my_dispatch.
+            if method.visibility == "private" and defining_class:
+                frame = interp.current_frame
+                caller_class = getattr(frame, "_oo_class", None)
+                if caller_class != defining_class:
+                    avail = oo_self._available_methods(obj, include_all=True)
+                    if avail:
+                        raise TclError(
+                            f'unknown method "{method_name}": must be '
+                            + _format_method_list(avail)
+                        )
+                    raise TclError(f'unknown method "{method_name}"')
             return oo_self._invoke_method(interp, obj, method, args[1:], defining_class=defining_class)
 
         ns_my_name = f"{obj.namespace}::my"
@@ -690,6 +703,9 @@ class OORuntime:
         # Forward methods bypass the normal method invocation and directly
         # call the target command in the caller's scope, but with OO
         # context set so that `my` and `self` work.
+        # Non-qualified forward targets are resolved in the object's
+        # namespace so that per-object procs (created inside the
+        # constructor) are found correctly.
         if method.forward_target is not None:
             cmd_parts = list(method.forward_target) + list(args)
             frame = interp.current_frame
@@ -699,6 +715,11 @@ class OORuntime:
             frame._oo_self = obj.name
             frame._oo_class = defining_class
             frame._oo_method = method.name
+            # Resolve non-qualified commands in the object's namespace
+            from .scope import ensure_namespace
+            obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
+            saved_ns = interp.current_namespace
+            interp.current_namespace = obj_ns
             try:
                 return interp.invoke(cmd_parts[0], cmd_parts[1:])
             except TclError as e:
@@ -724,14 +745,18 @@ class OORuntime:
                         ) from None
                 raise
             finally:
+                interp.current_namespace = saved_ns
                 frame._oo_self = saved_self
                 frame._oo_class = saved_class
                 frame._oo_method = saved_method
 
-        from .scope import CallFrame
+        from .scope import CallFrame, ensure_namespace
 
         cls = self.classes.get(obj.class_name)
-        proc_ns = interp.root_namespace
+        # Method bodies execute in the object's per-instance namespace
+        # so that commands like ``proc`` create definitions scoped to
+        # the object rather than polluting the global namespace.
+        proc_ns = ensure_namespace(interp.root_namespace, obj.namespace)
 
         # When invoked via ``next``, the new frame shares the same
         # parent and level as the calling method frame so that
@@ -809,9 +834,11 @@ class OORuntime:
             frame._oo_filter_method_name = filter_method_name
             frame._oo_filter_method_args = filter_method_args
 
-        # Execute method body
+        # Execute method body in the object's namespace context
         old_frame = interp.current_frame
+        old_ns = interp.current_namespace
         interp.current_frame = frame
+        interp.current_namespace = proc_ns
         tailcall_pending: tuple[str, list[str]] | None = None
         try:
             # Handle built-in methods (eval, variable, varname, unknown)
@@ -833,6 +860,7 @@ class OORuntime:
                 except (TclError, KeyError):
                     pass  # variable was not set in this method invocation
             interp.current_frame = old_frame
+            interp.current_namespace = old_ns
         if tailcall_pending is not None:
             return interp.invoke(tailcall_pending[0], tailcall_pending[1])
         return result
@@ -978,12 +1006,24 @@ class OORuntime:
         return TclResult()
 
     def self_name(self, interp: TclInterp) -> str:
-        """Return the name of the current object (for `self` command)."""
+        """Return the name of the current object (for `self` command).
+
+        Also works inside ``oo::define`` / ``oo::objdefine`` bodies
+        (TIP #470) where the class/object being defined is returned.
+        """
         frame = interp.current_frame
         obj_name = getattr(frame, "_oo_self", None)
-        if obj_name is None:
-            raise TclError('"self" may only be invoked from within a method')
-        return obj_name
+        if obj_name is not None:
+            return obj_name
+        # TIP #470: inside oo::define / oo::objdefine body, self returns
+        # the class or object being defined.
+        defining_cls = getattr(interp, "_defining_class", None)
+        if defining_cls is not None:
+            return defining_cls.qualified_name
+        defining_obj = getattr(interp, "_defining_object", None)
+        if defining_obj is not None:
+            return defining_obj.name
+        raise TclError('"self" may only be invoked from within a method')
 
     def my_dispatch(self, interp: TclInterp, args: list[str]) -> TclResult:
         """Dispatch `my method args...` from within a method body."""

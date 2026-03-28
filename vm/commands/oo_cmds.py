@@ -576,7 +576,7 @@ def _parse_class_body(
     interp: TclInterp,
     cls: TclOOClass,
     body: str,
-) -> None:
+) -> TclResult:
     """Parse a class definition body by evaluating it in the ::oo::define namespace.
 
     In C Tcl, the body of ``oo::define`` is a Tcl script executed in
@@ -591,17 +591,21 @@ def _parse_class_body(
 
     oo_define_ns = ensure_namespace(interp.root_namespace, "::oo::define")
     saved_ns = interp.current_namespace
+    saved_frame_ns = interp.current_frame.namespace
     saved_cls = getattr(interp, "_defining_class", None)
     saved_obj = getattr(interp, "_defining_object", None)
     interp._defining_class = cls
     interp._defining_object = None
     interp.current_namespace = oo_define_ns
+    interp.current_frame.namespace = oo_define_ns
     try:
-        interp.eval(body)
+        result = interp.eval(body)
     finally:
         interp.current_namespace = saved_ns
+        interp.current_frame.namespace = saved_frame_ns
         interp._defining_class = saved_cls
         interp._defining_object = saved_obj
+    return result
 
 
 def _objdefine_mixin(interp: TclInterp, args: list[str]) -> TclResult:
@@ -658,7 +662,7 @@ def _parse_objdefine_body(
     interp: TclInterp,
     obj: TclOOObject,
     body: str,
-) -> None:
+) -> TclResult:
     """Parse an oo::objdefine body by evaluating it in the ::oo::objdefine namespace."""
     from ..scope import ensure_namespace
 
@@ -672,17 +676,21 @@ def _parse_objdefine_body(
 
     objdefine_ns = ensure_namespace(interp.root_namespace, "::oo::objdefine")
     saved_ns = interp.current_namespace
+    saved_frame_ns = interp.current_frame.namespace
     saved_cls = getattr(interp, "_defining_class", None)
     saved_obj = getattr(interp, "_defining_object", None)
     interp._defining_class = None
     interp._defining_object = obj
     interp.current_namespace = objdefine_ns
+    interp.current_frame.namespace = objdefine_ns
     try:
-        interp.eval(body)
+        result = interp.eval(body)
     finally:
         interp.current_namespace = saved_ns
+        interp.current_frame.namespace = saved_frame_ns
         interp._defining_class = saved_cls
         interp._defining_object = saved_obj
+    return result
 
 
 def _get_oo_runtime(interp: TclInterp) -> OORuntime:
@@ -873,13 +881,14 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
     oo = _get_oo_runtime(interp)
     cls = _resolve_class(interp, oo, class_name)
 
+    body_result = TclResult()
     if len(args) == 2:
         # Body form: oo::define Dog { method bark {} { ... } }
         # Special case: "self" alone returns the class name (TIP #470)
         if args[1].strip() == "self":
             return TclResult(value=cls.qualified_name)
         try:
-            _parse_class_body(interp, cls, args[1])
+            body_result = _parse_class_body(interp, cls, args[1])
         except TclError as e:
             # Add definition script context frame to errorInfo
             from ..machine import _list_escape
@@ -900,7 +909,7 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
 
         reconstructed = " ".join(_list_escape(a) for a in args[1:])
         try:
-            _parse_class_body(interp, cls, reconstructed)
+            body_result = _parse_class_body(interp, cls, reconstructed)
         except TclError as e:
             # Rewrite "wrong # args" to include oo::define prefix
             msg = e.message
@@ -915,7 +924,7 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
     # Invalidate ALL classes — adding a mixin/superclass to one class
     # can change the MRO of any subclass
     oo.invalidate_all_mro()
-    return TclResult()
+    return body_result
 
 
 def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
@@ -935,7 +944,7 @@ def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
         raise TclError(f'"{obj_name}" does not refer to an object')
 
     if len(args) == 2:
-        _parse_objdefine_body(interp, obj, args[1])
+        body_result = _parse_objdefine_body(interp, obj, args[1])
     else:
         # Single-subcommand form: oo::objdefine obj method foo {} {body}
         # Reconstruct with braces to preserve structure
@@ -943,7 +952,7 @@ def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
 
         reconstructed = " ".join(_list_escape(a) for a in args[1:])
         try:
-            _parse_objdefine_body(interp, obj, reconstructed)
+            body_result = _parse_objdefine_body(interp, obj, reconstructed)
         except TclError as e:
             msg = e.message
             if msg.startswith("wrong # args: should be \""):
@@ -959,7 +968,7 @@ def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
         _register_class_command(interp, oo, obj.name, oo.classes[obj.name])
     else:
         oo._register_object_command(interp, obj)
-    return TclResult()
+    return body_result
 
 
 def _cmd_oo_object(interp: TclInterp, args: list[str]) -> TclResult:
@@ -1088,10 +1097,23 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
 def _cmd_self(interp: TclInterp, args: list[str]) -> TclResult:
     """self ?subcommand?"""
     oo = _get_oo_runtime(interp)
+
+    # TIP #470: inside oo::define / oo::objdefine (not in a method),
+    # ``self`` takes no subcommands — it just returns the class/object name.
+    frame = interp.current_frame
+    in_method = getattr(frame, "_oo_self", None) is not None
+    if not in_method:
+        defining_cls = getattr(interp, "_defining_class", None)
+        defining_obj = getattr(interp, "_defining_object", None)
+        if defining_cls is not None or defining_obj is not None:
+            if args:
+                raise TclError('wrong # args: should be "self"')
+            return TclResult(value=oo.self_name(interp))
+
     if not args:
         return TclResult(value=oo.self_name(interp))
     subcmd = args[0]
-    if subcmd == "object":
+    if subcmd in ("object", "self"):
         return TclResult(value=oo.self_name(interp))
     if subcmd == "class":
         frame = interp.current_frame
