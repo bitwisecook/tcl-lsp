@@ -61,6 +61,7 @@ class TclOOClass:
     constructor: TclOOMethod | None = None
     destructor: TclOOMethod | None = None
     variables: list[str] = field(default_factory=list)
+    private_variables: list[str] = field(default_factory=list)
     filters: list[str] = field(default_factory=list)
     exported_methods: set[str] = field(default_factory=set)
     unexported_methods: set[str] = field(default_factory=set)
@@ -114,6 +115,7 @@ class TclOOObject:
     instance_mixins: list[str] = field(default_factory=list)
     instance_filters: list[str] = field(default_factory=list)
     instance_variables: list[str] = field(default_factory=list)
+    private_instance_variables: list[str] = field(default_factory=list)
     exported_methods: set[str] = field(default_factory=set)
     unexported_methods: set[str] = field(default_factory=set)
     creation_id: int = 0

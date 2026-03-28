@@ -363,10 +363,17 @@ def _define_variable(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::define::variable"""
     cls = getattr(interp, "_defining_class", None)
     obj = getattr(interp, "_defining_object", None)
+    is_private = getattr(interp, "_oo_private_mode", False)
     if cls is not None:
-        cls.variables.extend(args)
+        if is_private:
+            cls.private_variables.extend(args)
+        else:
+            cls.variables.extend(args)
     elif obj is not None:
-        obj.instance_variables.extend(args)
+        if is_private:
+            obj.private_instance_variables.extend(args)
+        else:
+            obj.instance_variables.extend(args)
     return TclResult()
 
 
@@ -505,9 +512,9 @@ def _define_private(interp: TclInterp, args: list[str]) -> TclResult:
         cls = getattr(interp, "_defining_class", None)
         obj = getattr(interp, "_defining_object", None)
         if cls is not None:
-            cls.variables.extend(args[1:])
+            cls.private_variables.extend(args[1:])
         elif obj is not None:
-            obj.instance_variables.extend(args[1:])
+            obj.private_instance_variables.extend(args[1:])
     elif subcmd == "forward":
         return _define_forward(interp, args[1:])
     elif len(args) == 1:

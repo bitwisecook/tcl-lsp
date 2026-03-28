@@ -458,19 +458,34 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             import fnmatch
 
             # Parse options: -all, -private, -scope scope, pattern
-            all_flag = "-all" in rest
-            private_flag = "-private" in rest
-            # Pattern is non-flag arg after objName
+            all_flag = False
+            private_flag = False
+            scope_filter: str | None = None
             pattern = "*"
-            for r in rest[1:]:
-                if not r.startswith("-"):
-                    pattern = r
-                    break
+            i = 1
+            while i < len(rest):
+                if rest[i] == "-all":
+                    all_flag = True
+                    i += 1
+                elif rest[i] == "-private":
+                    private_flag = True
+                    i += 1
+                elif rest[i] == "-scope" and i + 1 < len(rest):
+                    scope_filter = rest[i + 1]
+                    i += 2
+                else:
+                    pattern = rest[i]
+                    i += 1
 
             methods: dict[str, str] = {}  # name -> visibility
             # Instance methods
             for mname, m in obj.instance_methods.items():
-                methods[mname] = getattr(m, "visibility", "public")
+                vis = getattr(m, "visibility", "public")
+                if mname in obj.exported_methods:
+                    vis = "public"
+                elif mname in obj.unexported_methods:
+                    vis = "unexported"
+                methods[mname] = vis
             if all_flag:
                 # Include class methods from MRO
                 cls = oo.classes.get(obj.class_name)
@@ -503,7 +518,9 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                             methods[bm] = "unexported"
                         else:
                             methods[bm] = bv
-            if all_flag and private_flag:
+            if scope_filter is not None:
+                methods = {k: v for k, v in methods.items() if v == scope_filter}
+            elif all_flag and private_flag:
                 # -all -private: show everything
                 pass
             elif private_flag:
@@ -549,6 +566,9 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             if not rest:
                 raise TclError('wrong # args: should be "info object variables objName"')
             oo, obj = _resolve_object(interp, rest[0])
+            if "-private" in rest[1:]:
+                pvars = getattr(obj, "private_instance_variables", [])
+                return TclResult(value=" ".join(_list_escape(v) for v in pvars))
             instance_vars = obj.instance_variables
             return TclResult(value=" ".join(_list_escape(v) for v in instance_vars))
 
@@ -718,16 +738,30 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
             pattern = "*"
             all_flag = False
             private_flag = False
-            for arg in rest[1:]:
-                if arg == "-all":
+            scope_filter: str | None = None
+            i = 1
+            while i < len(rest):
+                if rest[i] == "-all":
                     all_flag = True
-                elif arg == "-private":
+                    i += 1
+                elif rest[i] == "-private":
                     private_flag = True
+                    i += 1
+                elif rest[i] == "-scope" and i + 1 < len(rest):
+                    scope_filter = rest[i + 1]
+                    i += 2
                 else:
-                    pattern = arg
+                    pattern = rest[i]
+                    i += 1
             methods_dict: dict[str, str] = {}  # name -> visibility
             for mname, m in cls.methods.items():
-                methods_dict[mname] = getattr(m, "visibility", "public")
+                vis = getattr(m, "visibility", "public")
+                # export/unexport override visibility
+                if mname in cls.exported_methods:
+                    vis = "public"
+                elif mname in cls.unexported_methods:
+                    vis = "unexported"
+                methods_dict[mname] = vis
             if all_flag:
                 for cqn in cls.mro(oo.classes):
                     ancestor = oo.classes.get(cqn)
@@ -756,7 +790,10 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                             methods_dict[bm] = "unexported"
                         else:
                             methods_dict[bm] = bv
-            if all_flag and private_flag:
+            if scope_filter is not None:
+                # -scope X: show only methods with that visibility
+                methods = [k for k, v in methods_dict.items() if v == scope_filter]
+            elif all_flag and private_flag:
                 # -all -private: show everything
                 methods = list(methods_dict.keys())
             elif private_flag:
@@ -823,6 +860,9 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
             if not rest:
                 raise TclError('wrong # args: should be "info class variables className"')
             oo, cls = _resolve_class(interp, rest[0])
+            if "-private" in rest[1:]:
+                pvars = getattr(cls, "private_variables", [])
+                return TclResult(value=" ".join(_list_escape(v) for v in pvars))
             return TclResult(value=" ".join(_list_escape(v) for v in cls.variables))
 
         case "filters":
