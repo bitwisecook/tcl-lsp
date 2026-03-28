@@ -504,7 +504,7 @@ void Analyser::AliasResolver::register_alias(const std::string& qualified,
 }
 
 auto Analyser::AliasResolver::resolve(const std::string& cmd_name,
-                                       const std::vector<std::string>& args,
+                                       std::span<const std::string> args,
                                        const std::string& ns) const
     -> std::pair<std::string, std::vector<std::string>> {
 
@@ -523,7 +523,7 @@ auto Analyser::AliasResolver::resolve(const std::string& cmd_name,
     if (cmd_name.starts_with("::")) {
         auto q = normalise_qualified(cmd_name);
         if (auto* alias = try_lookup(q)) return make_result(*alias);
-        return {cmd_name, args};
+        return {cmd_name, std::vector<std::string>(args.begin(), args.end())};
     }
 
     if (ns != "::") {
@@ -534,7 +534,7 @@ auto Analyser::AliasResolver::resolve(const std::string& cmd_name,
     auto global = normalise_qualified("::" + cmd_name);
     if (auto* alias = try_lookup(global)) return make_result(*alias);
 
-    return {cmd_name, args};
+    return {cmd_name, std::vector<std::string>(args.begin(), args.end())};
 }
 
 } // namespace tcl_lsp

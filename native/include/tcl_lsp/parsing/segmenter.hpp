@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -32,8 +33,8 @@ struct SegmentedCommand {
 
     // Convenience accessors.
     [[nodiscard]] auto name() const -> std::string;
-    [[nodiscard]] auto args() const -> std::vector<std::string>;
-    [[nodiscard]] auto arg_tokens() const -> std::vector<Token>;
+    [[nodiscard]] auto args() const -> std::span<const std::string>;
+    [[nodiscard]] auto arg_tokens() const -> std::span<const Token>;
     [[nodiscard]] auto arg_single_token() const -> std::vector<bool>;
 };
 
