@@ -176,6 +176,65 @@ class OORuntime:
             namespace="::oo::class",
         )
 
+        # Register oo::Slot — the base class for define/objdefine slot commands
+        # (filter, mixin, superclass, variable).  Slot provides the standard
+        # -set / -append / -clear / -prepend / -remove / -appendifnew protocol.
+        slot_cls = TclOOClass(
+            name="Slot",
+            qualified_name="::oo::Slot",
+            superclasses=["::oo::object"],
+        )
+        # Slot methods use __builtin_slot_*__ bodies handled by the OO runtime
+        for slot_op in ("-set", "-append", "-clear", "-prepend", "-remove", "-appendifnew"):
+            slot_cls.methods[slot_op] = TclOOMethod(
+                name=slot_op,
+                params=[("args", None)],
+                param_names=["args"],
+                body=f"__builtin_slot_{slot_op.lstrip('-')}__",
+                has_args=True,
+                visibility="public",
+            )
+        slot_cls.exported_methods = {"-set", "-append", "-clear", "-prepend", "-remove", "-appendifnew"}
+        # Get and Set are unexported (overridden by subclasses)
+        for vmethod in ("Get", "Set"):
+            slot_cls.methods[vmethod] = TclOOMethod(
+                name=vmethod,
+                params=[("args", None)] if vmethod == "Set" else [],
+                param_names=["args"] if vmethod == "Set" else [],
+                body=f"__builtin_slot_{vmethod}__",
+                has_args=vmethod == "Set",
+                visibility="unexported",
+            )
+        slot_cls.unexported_methods = {"Get", "Set"}
+        # --default-operation is unexported
+        slot_cls.methods["--default-operation"] = TclOOMethod(
+            name="--default-operation",
+            params=[("args", None)],
+            param_names=["args"],
+            body="__builtin_slot_default_op__",
+            has_args=True,
+            visibility="unexported",
+        )
+        slot_cls.unexported_methods.add("--default-operation")
+        # Override unknown to delegate all unknown methods to --default-operation
+        # This means "slotObj x y" calls "--default-operation x y" (i.e., -append x y)
+        slot_cls.methods["unknown"] = TclOOMethod(
+            name="unknown",
+            params=[("args", None)],
+            param_names=["args"],
+            body="__builtin_slot_unknown__",
+            has_args=True,
+            visibility="unexported",
+        )
+        # Unexport destroy so external calls go through unknown handler
+        slot_cls.unexported_methods.add("destroy")
+        self.classes["::oo::Slot"] = slot_cls
+        self.objects["::oo::Slot"] = TclOOObject(
+            name="::oo::Slot",
+            class_name="::oo::class",
+            namespace="::oo::Slot",
+        )
+
     def register_class(self, cls: TclOOClass) -> None:
         """Register a class in the runtime.
 
@@ -421,12 +480,25 @@ class OORuntime:
             method, defining_class = self.resolve_method(obj, method_name)
 
             # destroy is special: always available, but goes through filters
+            # Exception: if destroy is explicitly unexported on any class in
+            # the MRO, route through unknown (needed for oo::Slot)
             is_destroy = method_name == "destroy"
+            if is_destroy and "destroy" not in obj.exported_methods:
+                for mro_cls_name in oo_self._effective_mro(obj):
+                    mro_cls = oo_self.classes.get(mro_cls_name)
+                    if mro_cls is not None and "destroy" in mro_cls.unexported_methods:
+                        is_destroy = False
+                        method = None
+                        break
 
             if method is None and not is_destroy:
-                # Try unknown method handler (skip the built-in one on oo::object)
+                # Try unknown method handler (skip the built-in one on oo::object,
+                # but allow the slot unknown handler)
                 unknown, unknown_class = self.resolve_method(obj, "unknown")
-                if unknown is not None and not unknown.body.startswith("__builtin_"):
+                if unknown is not None and (
+                    not unknown.body.startswith("__builtin_")
+                    or unknown.body == "__builtin_slot_unknown__"
+                ):
                     return self._invoke_method(
                         interp,
                         obj,
@@ -488,7 +560,19 @@ class OORuntime:
                         if caller_class and caller_class == defining_class:
                             allow = True
                     if not allow:
-                        avail = self._available_methods(obj)
+                        # Try routing through unknown handler before erroring
+                        # (oo::Slot's unknown catches unexported calls)
+                        unknown, unknown_class = oo_self.resolve_method(obj, "unknown")
+                        if unknown is not None and (
+                            not unknown.body.startswith("__builtin_")
+                            or unknown.body == "__builtin_slot_unknown__"
+                        ):
+                            return oo_self._invoke_method(
+                                interp, obj, unknown,
+                                [method_name] + method_args,
+                                defining_class=unknown_class,
+                            )
+                        avail = oo_self._available_methods(obj)
                         if avail:
                             raise TclError(
                                 f'unknown method "{method_name}": must be '
@@ -1193,6 +1277,23 @@ class OORuntime:
             else:
                 ns_frame._oo_instance_vars = (obj._vars, {var_name})
             return TclResult(value=f"{obj.namespace}::{var_name}")
+        elif name == "unknown" and method.body == "__builtin_slot_unknown__":
+            # oo::Slot unknown handler: dispatch all unknown methods to
+            # --default-operation (which defaults to -append).
+            # Methods starting with "-" are slot operations and should
+            # NOT be caught by the unknown handler — they should error.
+            called_method = args[0] if args else ""
+            if called_method.startswith("-"):
+                # Fall through to the default unknown handler for - methods
+                avail = self._available_methods(obj)
+                if avail:
+                    raise TclError(
+                        f'unknown method "{called_method}": must be '
+                        + _format_method_list(avail)
+                    )
+                raise TclError(f'unknown method "{called_method}"')
+            all_args = list(args)
+            return self._exec_slot_builtin(interp, obj, "--default-operation", all_args, frame)
         elif name == "unknown":
             # Default unknown handler — error with method list
             if args:
@@ -1232,7 +1333,239 @@ class OORuntime:
                         for vn, vv in origin_ns._frame._arrays.items():
                             obj_ns._frame._arrays[vn] = dict(vv)
             return TclResult()
+        # oo::Slot builtin operations
+        if name in ("-set", "-append", "-clear", "-prepend", "-remove",
+                     "-appendifnew", "--default-operation", "Get", "Set"):
+            return self._exec_slot_builtin(interp, obj, name, args, frame)
+
+        # Define-namespace slot builtins (Get/Set/Resolve for filter/mixin/etc.)
+        if method.body.startswith("__builtin_define_slot_"):
+            return self._exec_define_slot_builtin(interp, obj, method, args, frame)
+
         raise TclError(f'unknown builtin method "{name}"')
+
+    def _exec_slot_builtin(
+        self,
+        interp: TclInterp,
+        obj: TclOOObject,
+        op: str,
+        args: list[str],
+        frame: object,
+    ) -> TclResult:
+        """Execute a built-in oo::Slot method.
+
+        In C Tcl, slot builtins are C code that calls the Tcl-level
+        Get/Set/Resolve methods.  The C code itself doesn't add a Tcl
+        frame, so the virtual methods run one level above the caller.
+        We replicate this by temporarily popping back to the parent
+        frame before dispatching sub-method calls.
+        """
+        from .machine import _list_escape, _split_list
+
+        if op == "Get":
+            return TclResult(value="")
+        elif op == "Set":
+            return TclResult()
+        elif op == "--default-operation":
+            return self._exec_slot_builtin(interp, obj, "-append", args, frame)
+
+        # For the actual slot operations, temporarily restore the parent
+        # frame so sub-method calls (Get/Set/Resolve) execute at the
+        # same level as the slot command invocation.
+        saved_frame = interp.current_frame
+        parent = getattr(frame, 'parent', None)
+        if parent is not None:
+            interp.current_frame = parent
+
+        def _call(method_name: str, margs: list[str]) -> TclResult:
+            return self._invoke_method(
+                interp, obj, self._find_method(obj, method_name),
+                margs, defining_class=None,
+            )
+
+        def _resolve_args(raw_args: list[str]) -> list[str]:
+            resolved = []
+            for a in raw_args:
+                try:
+                    r = _call("Resolve", [a])
+                    resolved.append(r.value)
+                except TclError:
+                    resolved.append(a)
+            return resolved
+
+        def _to_list(items: list[str]) -> str:
+            return " ".join(_list_escape(r) for r in items)
+
+        try:
+            if op == "-clear":
+                _call("Set", [""])
+            elif op == "-set":
+                resolved = _resolve_args(args)
+                _call("Set", [_to_list(resolved)])
+            elif op == "-append":
+                resolved = _resolve_args(args)
+                current = _call("Get", [])
+                current_list = _split_list(current.value) if current.value else []
+                _call("Set", [_to_list(current_list + resolved)])
+            elif op == "-prepend":
+                resolved = _resolve_args(args)
+                current = _call("Get", [])
+                current_list = _split_list(current.value) if current.value else []
+                _call("Set", [_to_list(resolved + current_list)])
+            elif op == "-remove":
+                resolved = _resolve_args(args)
+                current = _call("Get", [])
+                current_list = _split_list(current.value) if current.value else []
+                for r in resolved:
+                    if r in current_list:
+                        current_list.remove(r)
+                _call("Set", [_to_list(current_list)])
+            elif op == "-appendifnew":
+                resolved = _resolve_args(args)
+                current = _call("Get", [])
+                current_list = _split_list(current.value) if current.value else []
+                for r in resolved:
+                    if r not in current_list:
+                        current_list.append(r)
+                _call("Set", [_to_list(current_list)])
+        finally:
+            interp.current_frame = saved_frame
+        return TclResult()
+
+    def _exec_define_slot_builtin(
+        self,
+        interp: TclInterp,
+        obj: TclOOObject,
+        method: TclOOMethod,
+        args: list[str],
+        frame: object,
+    ) -> TclResult:
+        """Execute a define-namespace slot builtin (Get/Set/Resolve for filter etc.)."""
+        from .machine import _list_escape, _split_list
+
+        body = method.body
+        # Extract the operation and slot name from the body string
+        # Format: __builtin_define_slot_{Op}_{slot_name}__
+        # e.g.: __builtin_define_slot_Get_::oo::define::filter__
+        inner = body[len("__builtin_define_slot_"):-2]  # strip prefix and trailing __
+        # Split at first underscore after Op name
+        for op_name in ("Get", "Set", "Resolve", "default"):
+            if inner.startswith(op_name + "_"):
+                slot_name = inner[len(op_name) + 1:]
+                break
+        else:
+            raise TclError(f"unknown define slot builtin: {body}")
+
+        # Determine if this is a define or objdefine slot
+        is_objdefine = "::oo::objdefine::" in slot_name
+        # Extract the property name (filter, mixin, superclass, variable)
+        prop = slot_name.rsplit("::", 1)[-1]
+
+        # Get the target class/object
+        if is_objdefine:
+            target_obj = getattr(interp, "_defining_object", None)
+            if target_obj is None:
+                raise TclError("this command may only be used within objdefine")
+            if op_name == "Get":
+                if prop == "filter":
+                    return TclResult(value=" ".join(_list_escape(f) for f in target_obj.instance_filters))
+                elif prop == "mixin":
+                    return TclResult(value=" ".join(_list_escape(m) for m in target_obj.instance_mixins))
+                elif prop == "variable":
+                    return TclResult(value=" ".join(_list_escape(v) for v in target_obj.instance_variables))
+            elif op_name == "Set":
+                lst = _split_list(args[0]) if args and args[0] else []
+                if prop == "filter":
+                    target_obj.instance_filters = lst
+                elif prop == "mixin":
+                    target_obj.instance_mixins = lst
+                    self.invalidate_all_mro()
+                elif prop == "variable":
+                    target_obj.instance_variables = lst
+                return TclResult()
+            elif op_name == "Resolve":
+                if prop in ("mixin",):
+                    name = args[0] if args else ""
+                    qn = name if name.startswith("::") else f"::{name}"
+                    if qn in self.classes:
+                        return TclResult(value=qn)
+                    if name in self.classes:
+                        return TclResult(value=name)
+                    # Try current namespace
+                    ns = interp.current_namespace.qualname
+                    ns_qn = f"{ns}::{name}" if ns != "::" else f"::{name}"
+                    if ns_qn in self.classes:
+                        return TclResult(value=ns_qn)
+                return TclResult(value=args[0] if args else "")
+            elif op_name == "default":
+                return self._exec_slot_builtin(interp, obj, "-append", args, frame)
+        else:
+            target_cls = getattr(interp, "_defining_class", None)
+            if target_cls is None:
+                raise TclError("this command may only be used within oo::define")
+            if op_name == "Get":
+                if prop == "filter":
+                    return TclResult(value=" ".join(_list_escape(f) for f in target_cls.filters))
+                elif prop == "mixin":
+                    return TclResult(value=" ".join(_list_escape(m) for m in target_cls.mixins))
+                elif prop == "superclass":
+                    supers = target_cls.superclasses
+                    # Normalize to qualified names
+                    normalized = []
+                    for s in supers:
+                        qn = s if s.startswith("::") else f"::{s}"
+                        if qn in self.classes:
+                            normalized.append(qn)
+                        else:
+                            normalized.append(s)
+                    return TclResult(value=" ".join(_list_escape(s) for s in normalized))
+                elif prop == "variable":
+                    return TclResult(value=" ".join(_list_escape(v) for v in target_cls.variables))
+            elif op_name == "Set":
+                lst = _split_list(args[0]) if args and args[0] else []
+                if prop == "filter":
+                    target_cls.filters = lst
+                elif prop == "mixin":
+                    target_cls.mixins = lst
+                    self.invalidate_all_mro()
+                elif prop == "superclass":
+                    target_cls.superclasses = lst
+                    self.invalidate_all_mro()
+                elif prop == "variable":
+                    target_cls.variables = lst
+                return TclResult()
+            elif op_name == "Resolve":
+                if prop in ("mixin", "superclass"):
+                    name = args[0] if args else ""
+                    qn = name if name.startswith("::") else f"::{name}"
+                    if qn in self.classes:
+                        return TclResult(value=qn)
+                    if name in self.classes:
+                        return TclResult(value=name)
+                    # Try current namespace
+                    ns = interp.current_namespace.qualname
+                    ns_qn = f"{ns}::{name}" if ns != "::" else f"::{name}"
+                    if ns_qn in self.classes:
+                        return TclResult(value=ns_qn)
+                    if prop == "superclass":
+                        raise TclError(f'unknown class "{name}"')
+                    raise TclError(f'unknown class "{name}"')
+                return TclResult(value=args[0] if args else "")
+            elif op_name == "default":
+                return self._exec_slot_builtin(interp, obj, "-append", args, frame)
+
+        return TclResult()
+
+    def _find_method(self, obj: TclOOObject, method_name: str) -> TclOOMethod:
+        """Find a method on an object (checking instance methods then class methods)."""
+        md = obj.instance_methods.get(method_name)
+        if md is not None:
+            return md
+        for class_qn in self._effective_mro(obj):
+            cls = self.classes.get(class_qn)
+            if cls and method_name in cls.methods:
+                return cls.methods[method_name]
+        raise TclError(f'unknown method "{method_name}"')
 
     def _destroy_object(self, interp: TclInterp, obj: TclOOObject) -> TclResult:
         """Destroy an object, running its destructor if present.

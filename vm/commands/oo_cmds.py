@@ -867,10 +867,17 @@ def _objdefine_class(interp: TclInterp, args: list[str]) -> TclResult:
     old_cls = oo.classes.get(obj.name)
     if old_cls is not None and not oo._is_metaclass(cls):
         # Destroy subclasses first (they'll also destroy their instances)
+        old_qn = old_cls.qualified_name
+        old_short = old_qn.lstrip(":")
         for sub_cls in list(oo.classes.values()):
             if sub_cls.qualified_name == obj.name:
                 continue
-            if old_cls.qualified_name in sub_cls.superclasses:
+            # Check if old_cls is a superclass (may be stored qualified or unqualified)
+            is_super = any(
+                s == old_qn or s == old_short or f"::{s}" == old_qn
+                for s in sub_cls.superclasses
+            )
+            if is_super:
                 sub_obj = oo.objects.get(sub_cls.qualified_name)
                 if sub_obj is not None and sub_obj.name in oo.objects:
                     oo._destroy_object(interp, sub_obj)
@@ -949,6 +956,81 @@ def _parse_objdefine_body(
     return result
 
 
+def _setup_slot_instances(interp: TclInterp, oo: OORuntime) -> None:
+    """Create oo::Slot instances for define/objdefine namespace commands.
+
+    These slot objects implement the standard -set/-append/-clear/-prepend
+    /-remove protocol for filter, mixin, superclass, and variable commands.
+    """
+    from ..scope import ensure_namespace
+
+    slot_cls = oo.classes["::oo::Slot"]
+
+    # Define the slot instances we need to create.
+    # Each entry: (slot_name, has_resolve, has_default_op)
+    define_slots = [
+        ("::oo::define::filter", False, False),
+        ("::oo::define::mixin", True, True),
+        ("::oo::define::superclass", True, True),
+        ("::oo::define::variable", False, False),
+    ]
+    objdefine_slots = [
+        ("::oo::objdefine::filter", False, False),
+        ("::oo::objdefine::mixin", True, True),
+        ("::oo::objdefine::variable", False, False),
+    ]
+
+    for slot_name, has_resolve, has_default_op in define_slots + objdefine_slots:
+        obj = TclOOObject(
+            name=slot_name,
+            class_name="::oo::Slot",
+            namespace=slot_name,
+        )
+        # Override Get and Set with methods that will be dispatched as builtins
+        # but the actual behavior depends on the slot name
+        obj.instance_methods["Get"] = TclOOMethod(
+            name="Get",
+            params=[],
+            param_names=[],
+            body=f"__builtin_define_slot_Get_{slot_name}__",
+            has_args=False,
+            visibility="unexported",
+        )
+        obj.instance_methods["Set"] = TclOOMethod(
+            name="Set",
+            params=[("lst", None)],
+            param_names=["lst"],
+            body=f"__builtin_define_slot_Set_{slot_name}__",
+            has_args=False,
+            visibility="unexported",
+        )
+        obj.unexported_methods = {"Get", "Set"}
+        if has_resolve:
+            obj.instance_methods["Resolve"] = TclOOMethod(
+                name="Resolve",
+                params=[("slotEntry", None)],
+                param_names=["slotEntry"],
+                body=f"__builtin_define_slot_Resolve_{slot_name}__",
+                has_args=False,
+                visibility="unexported",
+            )
+            obj.unexported_methods.add("Resolve")
+        if has_default_op:
+            obj.instance_methods["--default-operation"] = TclOOMethod(
+                name="--default-operation",
+                params=[("args", None)],
+                param_names=["args"],
+                body=f"__builtin_define_slot_default_{slot_name}__",
+                has_args=True,
+                visibility="unexported",
+            )
+            obj.unexported_methods.add("--default-operation")
+        oo.objects[slot_name] = obj
+        # Don't register as commands — the existing Python define commands
+        # handle the actual functionality.  The slot objects exist only
+        # for introspection (info object class, info class instances).
+
+
 def _get_oo_runtime(interp: TclInterp) -> OORuntime:
     """Get or create the OO runtime on the interpreter."""
     if not hasattr(interp, "_oo_runtime"):
@@ -966,6 +1048,11 @@ def _get_oo_runtime(interp: TclInterp) -> OORuntime:
         # accessible by FQ name (e.g. oo::define::private) from any context.
         _ensure_define_commands(interp)
         _ensure_objdefine_commands(interp)
+        # Register oo::Slot class command
+        _register_class_command(interp, interp._oo_runtime, "::oo::Slot",
+                                interp._oo_runtime.classes["::oo::Slot"])
+        # Create slot instances for define/objdefine namespaces
+        _setup_slot_instances(interp, interp._oo_runtime)
     return interp._oo_runtime
 
 

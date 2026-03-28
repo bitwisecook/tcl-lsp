@@ -66,7 +66,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-11.8",
     # oo-12.x: Forward method edge cases
     # oo-13.x: Filter edge cases
-    "oo-13.6",
     # oo-14.x: Mixin edge cases
     # oo-15.x: oo::objdefine edge cases
     "oo-15.10",
@@ -117,29 +116,11 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-28.x: configurable (complex)
     # oo-29.x
     # oo-30.x
-    # oo-32.x
-    "oo-32.2",
-    "oo-32.3",
-    "oo-32.4",
-    "oo-32.5",
-    "oo-32.6",
-    "oo-32.7",
-    # oo-33.x
-    "oo-33.1",
-    "oo-33.2",
+    # oo-33.x (slot edge cases)
     "oo-33.3",
-    "oo-33.4",
-    "oo-33.5",
-    # oo-34.x
+    # oo-34.x (slot introspection)
     "oo-34.1",
     "oo-34.2",
-    "oo-34.3",
-    "oo-34.4",
-    "oo-34.5",
-    "oo-34.6",
-    "oo-34.7",
-    "oo-34.8",
-    "oo-34.9",
     "oo-34.10",
     # oo-35.x
     "oo-35.7.1",
