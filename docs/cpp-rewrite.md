@@ -925,3 +925,52 @@ pybind11 until the full registry is ported to C++ in Phase 7.
 9. Generic visitors for tree traversal
 10. Every new diagnostic code added to the `DiagCode` enum (compile-time checked)
 
+### LSP Library: lsp-framework (forked)
+
+The native LSP server uses a fork of
+[leon-bckl/lsp-framework](https://github.com/leon-bckl/lsp-framework) at
+[bitwisecook/lsp-framework](https://github.com/bitwisecook/lsp-framework).
+
+**What it is:** A C++20 library that auto-generates all LSP 3.17 types from the
+official `metaModel.json` at build time. Zero external dependencies. Type-safe
+handler registration using C++20 concepts. Built-in stdio and TCP socket
+transports. MIT license.
+
+**Why lsp-framework over alternatives:**
+
+| Library | Decision | Reason |
+|---|---|---|
+| lsp-framework | **Selected** | C++20, zero deps, auto-generated types from meta model, clean API |
+| LspCpp | Eliminated | boost + rapidjson + utfcpp + uri — too many large deps |
+| bare-lsp | Eliminated | No license, 8 stars, abseil dep, demo-quality |
+| Roll our own | Deferred | Transport/dispatcher are simple but type generation is significant toil; lsp-framework already solved it |
+
+Priority ranking: quality > simplicity/readability > performance. lsp-framework
+scored highest on quality (auto-generated types = no spec drift) and simplicity
+(zero deps, fluent C++20 API).
+
+**Fork improvements over upstream:**
+
+1. **Meson build system** — ported from CMake for native tcl-lsp integration
+2. **\*BSD support** — added FreeBSD/OpenBSD/NetBSD/DragonFlyBSD to socket and
+   process platform detection (`#if defined(__unix__) && !defined(_WIN32)`)
+3. **CI/CD** — GitHub Actions matrix: Linux (GCC 13/14, Clang 18), macOS
+   (Apple Clang), Windows (MSVC). ASan+UBSan on Linux. clang-format check.
+4. **Test suite** — Catch2 tests for JSON parser, JSON-RPC, transport,
+   LSP type serialization, MessageHandler dispatch, and integration tests
+5. **json::Integer → int64_t** — widened from int32_t to handle large request IDs
+6. **Linux/BSD debug logging** — stderr logging added (upstream only had macOS
+   os_log and Windows OutputDebugString)
+
+**Integration:** Meson subproject via `wrap-git` pointing at the fork. Library
+warnings suppressed in the wrap (dependency code, not ours). Our server code in
+`native/src/lsp/` compiles with full `-Werror`.
+
+**Phases 7+8 collapse into Phase 7:** With lsp-framework providing the protocol
+layer, LSP features and server replacement happen together:
+- 7a: Integrate lsp-framework subproject
+- 7b: Server skeleton (lifecycle, document sync, capabilities)
+- 7c: Port semantic tokens (performance-critical, first feature)
+- 7d: Port remaining features one at a time
+- 7e: Remove pygls, lsprotocol, pybind11 shim
+
