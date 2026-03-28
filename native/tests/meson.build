@@ -15,7 +15,7 @@ test_sources = {
   'test_recovery_e201': 'test_recovery_e201.cpp',
   'test_recovery_e202': 'test_recovery_e202.cpp',
   'test_recovery_e203': 'test_recovery_e203.cpp',
-  'test_recovery_virtual': 'test_recovery_virtual.cpp',
+  'test_recovery_ghost': 'test_recovery_ghost.cpp',
   'test_upstream_parse': 'test_upstream_parse.cpp',
 }
 

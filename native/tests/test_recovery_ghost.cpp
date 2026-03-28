@@ -1,5 +1,5 @@
-// Tests for virtual token lexer integration and compute_virtual_insertions
-// (ported from tests/test_recovery.py TestVirtualTokenLexer, TestComputeVirtualInsertions).
+// Tests for ghost token lexer integration and compute_ghost_insertions
+// (ported from tests/test_recovery.py TestGhostTokenLexer, TestComputeGhostInsertions).
 
 #include "tcl_lsp/parsing/lexer.hpp"
 #include "tcl_lsp/parsing/recovery.hpp"
@@ -12,14 +12,14 @@
 
 using namespace tcl_lsp;
 
-// TestVirtualTokenLexer
+// TestGhostTokenLexer
 
-TEST_CASE("virtual bracket terminates cmd", "[recovery][virtual]") {
+TEST_CASE("ghost bracket terminates cmd", "[recovery][ghost]") {
     // Source: "set x [foo bar" — no closing ]
-    // Virtual ] at offset 14 should terminate the CMD token.
+    // Ghost ] at offset 14 should terminate the CMD token.
     std::string_view source = "set x [foo bar";
-    std::unordered_map<int32_t, char> virtuals = {{14, ']'}};
-    TclLexer lexer(source, {}, 0, 0, 0, virtuals);
+    std::unordered_map<int32_t, char> ghosts = {{14, ']'}};
+    TclLexer lexer(source, {}, 0, 0, 0, ghosts);
     auto tokens = lexer.tokenise_all();
     // Should find a CMD token that terminates properly.
     bool found_cmd = false;
@@ -32,14 +32,14 @@ TEST_CASE("virtual bracket terminates cmd", "[recovery][virtual]") {
     CHECK(found_cmd);
 }
 
-TEST_CASE("virtual does not shift positions", "[recovery][virtual]") {
-    // Virtual tokens are zero-width — positions should not shift.
+TEST_CASE("ghost does not shift positions", "[recovery][ghost]") {
+    // Ghost tokens are zero-width — positions should not shift.
     std::string_view source = "set x [foo";
-    std::unordered_map<int32_t, char> virtuals = {{10, ']'}};
-    TclLexer lexer(source, {}, 0, 0, 0, virtuals);
+    std::unordered_map<int32_t, char> ghosts = {{10, ']'}};
+    TclLexer lexer(source, {}, 0, 0, 0, ghosts);
     auto tokens = lexer.tokenise_all();
     // The last real token should end at offset 9 (zero-based last char of "foo").
-    // Virtual ] is zero-width at offset 10.
+    // Ghost ] is zero-width at offset 10.
     bool found_cmd = false;
     for (const auto& tok : tokens) {
         if (tok.type == TokenType::CMD) {
@@ -49,7 +49,7 @@ TEST_CASE("virtual does not shift positions", "[recovery][virtual]") {
     CHECK(found_cmd);
 }
 
-TEST_CASE("no virtuals behaves normally", "[recovery][virtual]") {
+TEST_CASE("no ghosts behaves normally", "[recovery][ghost]") {
     std::string_view source = "set a 1";
     std::unordered_map<int32_t, char> empty;
     TclLexer lexer(source, {}, 0, 0, 0, empty);
@@ -64,18 +64,17 @@ TEST_CASE("no virtuals behaves normally", "[recovery][virtual]") {
     CHECK(content_count == 3);
 }
 
-// TestComputeVirtualInsertions
+// TestComputeGhostInsertions
 
-TEST_CASE("clean source returns empty insertions", "[recovery][virtual]") {
-    auto result = compute_virtual_insertions("set a 1\nset b 2");
+TEST_CASE("clean source returns empty insertions", "[recovery][ghost]") {
+    auto result = compute_ghost_insertions("set a 1\nset b 2");
     CHECK(result.empty());
 }
 
-TEST_CASE("compute virtual insertions for unterminated bracket at top level",
-          "[recovery][virtual]") {
+TEST_CASE("compute ghost insertions for unterminated bracket at top level", "[recovery][ghost]") {
     // Top-level unterminated [ with { inside — brace-break heuristic fires.
     std::string source = "set x [foo bar {stuff}\nset y 2";
-    auto result = compute_virtual_insertions(source);
+    auto result = compute_ghost_insertions(source);
     // The brace-break heuristic detects { inside [ and inserts ].
     CHECK(!result.empty());
 }
