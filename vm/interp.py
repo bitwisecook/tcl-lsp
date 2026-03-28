@@ -179,7 +179,7 @@ class TclInterp:
         _oo_pkg: dict[str, str | bool | dict[str, str] | None] = {
             "version": "1.3.1",
             "loaded": True,
-            "ifneeded": {},
+            "ifneeded": {"1.3.1": ""},
         }
         self.packages["tcl::oo"] = _oo_pkg
 

@@ -539,6 +539,8 @@ def _get_oo_runtime(interp: TclInterp) -> OORuntime:
         oo_frame = oo_ns.get_frame(interp)
         oo_frame.set_var("patchlevel", "1.3.1")
         oo_frame.set_var("version", "1.3.1")
+        # Register tcl::oo as a provided package
+        interp.eval('package provide tcl::oo 1.3.1')
     return interp._oo_runtime
 
 

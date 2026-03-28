@@ -32,7 +32,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-0.2",
     "oo-0.6",
     "oo-0.7",
-    "oo-0.9",
     # oo-1.x: Object creation edge cases (interp, namespace, rename)
     "oo-1.10",
     "oo-1.18.3",
