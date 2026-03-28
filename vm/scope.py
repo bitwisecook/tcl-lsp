@@ -266,6 +266,8 @@ class CallFrame:
         "namespace",
         "_scalars",
         "_arrays",
+        "_array_defaults",
+        "_constants",
         "_aliases",
         "_globals",
         "_declared",
@@ -296,6 +298,8 @@ class CallFrame:
         self.namespace = namespace
         self._scalars: dict[str, str] = {}
         self._arrays: dict[str, dict[str, str]] = {}
+        self._array_defaults: dict[str, str] = {}
+        self._constants: set[str] = set()
         # upvar aliases: local_name -> (target_frame, target_name)
         self._aliases: dict[str, tuple[CallFrame, str]] = {}
         # Names declared ``global`` in this frame.
@@ -455,6 +459,10 @@ class CallFrame:
             if arr is not None:
                 if elem in arr:
                     return arr[elem]
+                # Check for array default value
+                arr_default = frame._array_defaults.get(resolved)
+                if arr_default is not None:
+                    return arr_default
                 if default is not None:
                     return default
                 raise TclError(f'can\'t read "{name}": no such element in array')
@@ -482,6 +490,10 @@ class CallFrame:
     def set_var(self, name: str, value: str) -> str:
         """Write a scalar or array element; returns *value*."""
         frame, resolved, elem = self._locate(name)
+
+        # Check if the variable is a constant
+        if resolved in frame._constants:
+            raise TclError(f"can't set \"{name}\": variable is a constant")
 
         # Save old value for rollback if a write trace errors
         old_scalar: str | None = None
@@ -539,6 +551,9 @@ class CallFrame:
     def unset_var(self, name: str, *, nocomplain: bool = False) -> None:
         """Remove a scalar or array element."""
         frame, resolved, elem = self._locate(name)
+
+        if resolved in frame._constants and not nocomplain:
+            raise TclError(f"can't unset \"{name}\": variable is a constant")
 
         if elem is not None:
             arr = frame._arrays.get(resolved)
@@ -645,3 +660,17 @@ class CallFrame:
         frame, resolved = self._resolve(name)
         arr = frame._arrays.get(resolved)
         return len(arr) if arr else 0
+
+    def array_set_default(self, name: str, value: str) -> None:
+        frame, resolved = self._resolve(name)
+        # Ensure the array exists (create empty if needed)
+        frame._arrays.setdefault(resolved, {})
+        frame._array_defaults[resolved] = value
+
+    def array_get_default(self, name: str) -> str | None:
+        frame, resolved = self._resolve(name)
+        return frame._array_defaults.get(resolved)
+
+    def array_unset_default(self, name: str) -> None:
+        frame, resolved = self._resolve(name)
+        frame._array_defaults.pop(resolved, None)

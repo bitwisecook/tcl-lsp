@@ -340,6 +340,21 @@ def _cmd_subst(interp: TclInterp, args: list[str]) -> TclResult:
     return TclResult(value=result)
 
 
+def _cmd_const(interp: TclInterp, args: list[str]) -> TclResult:
+    """const varName value — create a read-only variable."""
+    if len(args) != 2:
+        raise TclError('wrong # args: should be "const varName value"')
+    name = args[0]
+    value = args[1]
+
+    # Set the variable first, then mark it as constant
+    interp.current_frame.set_var(name, value)
+    # Mark the resolved variable as constant
+    frame, resolved, _elem = interp.current_frame._locate(name)
+    frame._constants.add(resolved)
+    return TclResult()
+
+
 def register() -> None:
     """Register core commands."""
     from core.commands.registry import REGISTRY
@@ -354,3 +369,4 @@ def register() -> None:
     REGISTRY.register_handler("uplevel", _cmd_uplevel)
     REGISTRY.register_handler("concat", _cmd_concat)
     REGISTRY.register_handler("subst", _cmd_subst)
+    REGISTRY.register_handler("const", _cmd_const)

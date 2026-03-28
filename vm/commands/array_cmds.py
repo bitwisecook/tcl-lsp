@@ -286,6 +286,96 @@ def _array_statistics(interp: TclInterp, args: list[str]) -> TclResult:
     return TclResult(value=f"{size} entries in table, average chain length 1.0")
 
 
+def _array_for(interp: TclInterp, args: list[str]) -> TclResult:
+    """array for {keyVar valueVar} arrayName script"""
+    if len(args) != 3:
+        raise TclError('wrong # args: should be "array for {key value} arrayName script"')
+
+    var_list = _split_list(args[0])
+    if len(var_list) != 2:
+        raise TclError("must have two variable names")
+
+    key_var, val_var = var_list
+    array_name = args[1]
+    script = args[2]
+
+    if not interp.current_frame.array_exists(array_name):
+        raise TclError(f'"{array_name}" isn\'t an array')
+
+    # Snapshot the keys at the start of iteration
+    d = interp.current_frame.array_get(array_name)
+    initial_size = len(d)
+    keys = list(d.keys())
+
+    from ..types import TclBreak, TclContinue
+
+    result = TclResult()
+    for key in keys:
+        # Check if array was modified (keys added or removed)
+        current = interp.current_frame.array_get(array_name)
+        if len(current) != initial_size or set(current.keys()) != set(d.keys()):
+            raise TclError("array changed during iteration")
+
+        if key not in current:
+            continue
+
+        interp.current_frame.set_var(key_var, key)
+        interp.current_frame.set_var(val_var, current[key])
+
+        try:
+            result = interp.eval(script)
+        except TclBreak:
+            break
+        except TclContinue:
+            continue
+    return result
+
+
+def _array_default(interp: TclInterp, args: list[str]) -> TclResult:
+    """array default set|get|exists|unset arrayName ?value?"""
+    if len(args) < 2:
+        raise TclError('wrong # args: should be "array default subcommand arrayName ?arg ...?"')
+
+    sub = args[0]
+    array_name = args[1]
+
+    match sub:
+        case "set":
+            if len(args) != 3:
+                raise TclError(
+                    'wrong # args: should be "array default set arrayName value"'
+                )
+            interp.current_frame.array_set_default(array_name, args[2])
+            return TclResult()
+        case "get":
+            if len(args) != 2:
+                raise TclError(
+                    'wrong # args: should be "array default get arrayName"'
+                )
+            val = interp.current_frame.array_get_default(array_name)
+            if val is None:
+                raise TclError(f'"{array_name}" isn\'t an array or has no default')
+            return TclResult(value=val)
+        case "exists":
+            if len(args) != 2:
+                raise TclError(
+                    'wrong # args: should be "array default exists arrayName"'
+                )
+            val = interp.current_frame.array_get_default(array_name)
+            return TclResult(value="1" if val is not None else "0")
+        case "unset":
+            if len(args) != 2:
+                raise TclError(
+                    'wrong # args: should be "array default unset arrayName"'
+                )
+            interp.current_frame.array_unset_default(array_name)
+            return TclResult()
+        case _:
+            raise TclError(
+                f'unknown or ambiguous subcommand "{sub}": must be exists, get, set, or unset'
+            )
+
+
 def _cmd_parray(interp: TclInterp, args: list[str]) -> TclResult:
     """parray arrayName ?pattern?"""
     if not args or len(args) > 2:
@@ -319,8 +409,10 @@ def register() -> None:
     _ARRAY_DISPATCH.update(
         {
             "anymore": _array_anymore,
+            "default": _array_default,
             "donesearch": _array_donesearch,
             "exists": _array_exists,
+            "for": _array_for,
             "get": _array_get,
             "names": _array_names,
             "nextelement": _array_nextelement,
