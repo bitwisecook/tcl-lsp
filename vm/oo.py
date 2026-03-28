@@ -418,12 +418,8 @@ class OORuntime:
         if method_name in obj.instance_methods:
             return obj.instance_methods[method_name], f"__instance__{obj.name}"
 
-        # Walk MRO
-        cls = self.classes.get(obj.class_name)
-        if cls is None:
-            return None, None
-
-        for class_qname in cls.mro(self.classes):
+        # Walk effective MRO (includes instance mixins)
+        for class_qname in self._effective_mro(obj):
             ancestor = self.classes.get(class_qname)
             if ancestor and method_name in ancestor.methods:
                 return ancestor.methods[method_name], class_qname
