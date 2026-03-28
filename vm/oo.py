@@ -564,6 +564,9 @@ class OORuntime:
         def _ns_my(interp: TclInterp, args: list[str]) -> TclResult:
             if not args:
                 raise TclError('wrong # args: should be "my method ?arg ...?"')
+            # Check if object has been destroyed
+            if obj.name not in oo_self.objects:
+                raise TclError(f'invalid command name "my"')
             method_name = args[0]
             # For class objects, route create/new/destroy to the class command
             if obj.name in oo_self.classes and method_name in ("create", "new", "destroy"):
@@ -649,6 +652,22 @@ class OORuntime:
 
         ns_my_name = f"{obj.namespace}::my"
         interp._runtime_commands[ns_my_name] = _ns_my
+
+        # TIP 478: myclass command — dispatches to the object's class
+        def _ns_myclass(interp: TclInterp, args: list[str]) -> TclResult:
+            if not args:
+                raise TclError('wrong # args: should be "myclass method ?arg ...?"')
+            # Check if object has been destroyed
+            if obj.name not in oo_self.objects:
+                raise TclError(f'invalid command name "myclass"')
+            # Look up the class command and dispatch
+            cls_cmd = interp._runtime_commands.get(obj.class_name)
+            if cls_cmd is not None:
+                return cls_cmd(interp, args)
+            raise TclError(f'invalid command name "{obj.class_name}"')
+
+        ns_myclass_name = f"{obj.namespace}::myclass"
+        interp._runtime_commands[ns_myclass_name] = _ns_myclass
 
     def resolve_method(
         self, obj: TclOOObject, method_name: str,
@@ -1071,9 +1090,6 @@ class OORuntime:
                     caller._oo_instance_vars = (obj._vars, {var_name})
                 if var_name in obj._vars:
                     caller._scalars[var_name] = obj._vars[var_name]
-                else:
-                    obj._vars[var_name] = ""
-                    caller._scalars[var_name] = ""
             return TclResult()
         elif name == "varname":
             # Return the fully-qualified variable name

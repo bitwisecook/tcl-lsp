@@ -174,8 +174,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-39.x
     "oo-39.11",
     # oo-41.x
-    "oo-41.1",
-    "oo-41.2",
     "oo-41.3",
     # oo-42.x
     # oo-43.x (TIP 524: definitionnamespace)
