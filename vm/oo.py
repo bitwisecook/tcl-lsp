@@ -1078,12 +1078,16 @@ class OORuntime:
         # when nested method calls (via my/next) modify the same vars.
         all_vars: list[str] = []
         if cls:
-            for class_qname in cls.mro(self.classes):
+            for class_qname in self._effective_mro(obj):
                 ancestor = self.classes.get(class_qname)
                 if ancestor:
                     for v in ancestor.variables:
                         if v not in all_vars:
                             all_vars.append(v)
+        # Include per-object instance variables from oo::objdefine
+        for v in obj.instance_variables:
+            if v not in all_vars:
+                all_vars.append(v)
         # Store reference to shared instance variable store.
         # The frame's get_var/set_var will proxy reads/writes for these
         # names directly to obj._vars, avoiding stale copies when nested

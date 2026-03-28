@@ -368,6 +368,18 @@ def _define_mixin(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _define_variable(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::define::variable"""
+    # Validate variable names — C Tcl rejects namespace separators and array elements
+    for name in args:
+        if "::" in name:
+            raise TclError(
+                f'invalid declared variable name "{name}":'
+                " must not contain namespace separators"
+            )
+        if "(" in name:
+            raise TclError(
+                f'invalid declared variable name "{name}":'
+                " must not refer to an array element"
+            )
     cls = getattr(interp, "_defining_class", None)
     obj = getattr(interp, "_defining_object", None)
     is_private = getattr(interp, "_oo_private_mode", False)
