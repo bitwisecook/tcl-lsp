@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -78,8 +79,7 @@ struct Scope {
     ScopeKind kind = ScopeKind::GLOBAL;
     std::string name;
     Scope* parent = nullptr;
-    Range body_range = Range::zero();
-    bool has_body_range = false;
+    std::optional<Range> body_range;
     std::unordered_map<std::string, VarDef> variables;
     std::unordered_map<std::string, ProcDef> procs;
     std::vector<std::unique_ptr<Scope>> children;
