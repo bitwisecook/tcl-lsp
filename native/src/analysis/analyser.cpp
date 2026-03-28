@@ -31,8 +31,6 @@ auto Analyser::analyse(std::string_view source) -> AnalysisResult {
     current_scope_ = &result_.global_scope();
     conditional_depth_ = 0;
     last_comment_.clear();
-    const_strings_.clear();
-    regex_var_keys_.clear();
     command_aliases_.clear();
     unresolved_commands_emitted_ = false;
     ns_cache_.clear();
@@ -63,8 +61,6 @@ auto Analyser::analyse_commands(std::string_view source,
     current_scope_ = &result_.global_scope();
     conditional_depth_ = 0;
     last_comment_.clear();
-    const_strings_.clear();
-    regex_var_keys_.clear();
     command_aliases_.clear();
     unresolved_commands_emitted_ = false;
     ns_cache_.clear();

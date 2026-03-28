@@ -42,13 +42,6 @@ class Analyser {
     std::string last_comment_;
     int32_t conditional_depth_ = 0;
 
-    // Constant string tracking per scope (for regex variable propagation).
-    // scope pointer -> (var_name -> (value, value_range))
-    std::unordered_map<Scope*, std::unordered_map<std::string, std::pair<std::string, Range>>>
-        const_strings_;
-
-    // Variables known to hold regex patterns: (scope, var_name).
-    std::unordered_set<std::string> regex_var_keys_;
 
     // Command aliases: qualified alias_name -> (target_cmd, prepended_args).
     std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>>
@@ -115,7 +108,6 @@ class Analyser {
         -> std::optional<std::pair<std::string, Range>>;
     void record_defining_set_as_regex(const std::string& var_name, Scope* scope,
                                       const std::string& command);
-    auto regex_var_key(Scope* scope, const std::string& name) const -> std::string;
 
     // --- Scope helpers ---
     auto make_child_scope(ScopeKind kind, const std::string& name, Scope* parent) -> Scope*;
