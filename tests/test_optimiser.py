@@ -2280,6 +2280,34 @@ class TestLoadForwarding:
         _optimised, rewrites = optimise_source(source)
         assert not any(r.code == "O127" for r in rewrites)
 
+    def test_skip_when_sccp_resolves_constant(self):
+        """If SCCP + expr folding makes the value constant, O100 handles it."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set c 1
+                set x [expr {$c + 2}]
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        # SCCP sees x=CONST(3) after folding — O100 propagates, O127 defers.
+        assert not any(r.code == "O127" for r in rewrites)
+        assert any(r.code == "O100" for r in rewrites)
+
+    def test_skip_when_propagation_already_rewrote_use_site(self):
+        """If O100/O102 already rewrote the use-site statement, O127 defers."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set c 1
+                set x [clock seconds]
+                set y [expr {$c + $x}]
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        codes = [r.code for r in rewrites]
+        # O100 propagates $c into the expr. O127 should not also try
+        # to inline $x into the same (already rewritten) statement.
+        if "O100" in codes:
+            assert not any(r.code == "O127" for r in rewrites)
+
     def test_skip_aliased_read_variable(self):
         """If the expression reads an aliased variable, skip entirely."""
         source = textwrap.dedent("""\

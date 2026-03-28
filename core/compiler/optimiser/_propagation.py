@@ -786,6 +786,26 @@ def optimise_load_forwarding(
         if lv is not None and getattr(lv, "kind", None) is LatticeKind.CONST:
             continue
 
+        # Skip definitions whose statement was already rewritten by
+        # SCCP/ICIP propagation (O100/O101/O102/O103).  The statement
+        # loop ran before O127 and may have folded command substitutions
+        # or propagated constants that the SCCP lattice (computed before
+        # the optimiser) couldn't see.  Emitting O127 here would produce
+        # overlapping rewrites.
+        if (def_block, def_idx) in ctx.propagated_expr_stmts:
+            continue
+
+        # Similarly, skip definitions whose use was already consumed
+        # by constant propagation into a branch condition.
+        if def_key in ctx.propagated_branch_uses:
+            continue
+
+        # Skip the use-site statement if it was already rewritten by
+        # propagation — inlining into an already-folded statement
+        # would conflict.
+        if (use_block, use_idx) in ctx.propagated_expr_stmts:
+            continue
+
         # Skip cross-event variables.
         if def_name in ctx.cross_event_vars:
             continue
