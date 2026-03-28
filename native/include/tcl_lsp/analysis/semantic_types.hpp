@@ -103,4 +103,21 @@ struct Scope {
     auto operator=(const Scope&) -> Scope& = delete;
 };
 
+// Pre-order scope tree visitor.  Works with both mutable and const Scope.
+template <typename F>
+void visit_scope_tree(Scope& root, F&& fn) {
+    fn(root);
+    for (auto& child : root.children) {
+        visit_scope_tree(*child, fn);
+    }
+}
+
+template <typename F>
+void visit_scope_tree(const Scope& root, F&& fn) {
+    fn(root);
+    for (const auto& child : root.children) {
+        visit_scope_tree(*child, fn);
+    }
+}
+
 } // namespace tcl_lsp

@@ -119,25 +119,14 @@ auto AnalysisResult::copy_for_snapshot() const -> AnalysisResult {
     copy.global_scope_ = copy_scope_tree(*global_scope_, nullptr);
 
     // Rebuild flat indexes pointing into the copied tree.
-    struct Walker {
-        std::unordered_map<std::string, ProcDef*>& all_procs;
-        std::unordered_map<std::string, VarDef*>& all_variables;
-
-        void walk(Scope& scope) {
-            for (auto& [name, proc] : scope.procs) {
-                all_procs[proc.qualified_name] = &proc;
-            }
-            for (auto& [name, var] : scope.variables) {
-                all_variables[name] = &var;
-            }
-            for (const auto& child : scope.children) {
-                walk(*child);
-            }
+    visit_scope_tree(*copy.global_scope_, [&](Scope& scope) {
+        for (auto& [name, proc] : scope.procs) {
+            copy.all_procs_[proc.qualified_name] = &proc;
         }
-    };
-
-    Walker walker{copy.all_procs_, copy.all_variables_};
-    walker.walk(*copy.global_scope_);
+        for (auto& [name, var] : scope.variables) {
+            copy.all_variables_[name] = &var;
+        }
+    });
 
     // Copy plain data.
     copy.diagnostics_ = diagnostics_;
