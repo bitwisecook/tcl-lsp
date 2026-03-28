@@ -548,6 +548,8 @@ class TclInterp:
 
             # Check runtime commands by full qualified name (e.g. ::oo::Obj1::my)
             handler = self._runtime_commands.get(cmd_name)
+            if handler is None and not cmd_name.startswith("::"):
+                handler = self._runtime_commands.get(f"::{cmd_name}")
             if handler is not None:
                 return handler(self, args)
 

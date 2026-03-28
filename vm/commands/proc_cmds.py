@@ -156,12 +156,13 @@ def _cmd_rename(interp: TclInterp, args: list[str]) -> TclResult:
         raise TclError(f'can\'t rename to "{new_name}": command already exists')
 
     # OO integration: renaming an object command to "" triggers destruction
-    if not new_name and hasattr(interp, "oo") and interp.oo is not None:
+    oo = getattr(interp, "_oo_runtime", None)
+    if not new_name and oo is not None:
         # Check if old_name refers to an OO object
         qname = old_name if old_name.startswith("::") else f"::{old_name}"
-        obj = interp.oo.objects.get(qname) or interp.oo.objects.get(old_name)
+        obj = oo.objects.get(qname) or oo.objects.get(old_name)
         if obj is not None:
-            interp.oo._destroy_object(interp, obj)
+            oo._destroy_object(interp, obj)
             return TclResult()
 
     # Check flat command registry

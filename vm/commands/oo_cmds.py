@@ -143,7 +143,7 @@ def _define_method(interp: TclInterp, args: list[str]) -> TclResult:
     if cls is None and obj is None:
         raise TclError("this command may only be called from within the body of an oo::define command")
     if len(args) < 3:
-        raise TclError('wrong # args: should be "method name args body"')
+        raise TclError('wrong # args: should be "method name ?option? args body"')
     name = args[0]
     # Check for -export/-unexport/-private flag
     flag_vis = None
@@ -381,6 +381,13 @@ def _define_unexport(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _define_private(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::define::private — TIP 500 private method/variable."""
+    cls = getattr(interp, "_defining_class", None)
+    obj = getattr(interp, "_defining_object", None)
+    if cls is None and obj is None:
+        raise TclError(
+            "this command may only be called from within the context of"
+            " an ::oo::define or ::oo::objdefine command"
+        )
     if not args:
         raise TclError('wrong # args: should be "private cmd ?arg ...?"')
     subcmd = args[0]
@@ -671,6 +678,10 @@ def _get_oo_runtime(interp: TclInterp) -> OORuntime:
         oo_frame.set_var("version", "1.3.1")
         # Register tcl::oo as a provided package
         interp.eval('package provide tcl::oo 1.3.1')
+        # Eagerly register define/objdefine subcommands so they are
+        # accessible by FQ name (e.g. oo::define::private) from any context.
+        _ensure_define_commands(interp)
+        _ensure_objdefine_commands(interp)
     return interp._oo_runtime
 
 
@@ -722,7 +733,19 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
     oo.register_class(cls)
 
     if len(args) >= 3:
-        _parse_class_body(interp, cls, args[2])
+        try:
+            _parse_class_body(interp, cls, args[2])
+        except TclError as e:
+            # Add definition script context to errorInfo
+            from ..machine import _list_escape
+
+            full_cmd = f"oo::class create {name} {_list_escape(args[2])}"
+            ctx = f'    (in definition script for class "{qualified}" line 1)'
+            inv = f'    invoked from within\n"{full_cmd}"'
+            info = list(e.error_info) if e.error_info else [e.message]
+            info.append(ctx)
+            info.append(inv)
+            raise TclError(e.message, error_info=info) from None
 
     _register_class_command(interp, oo, qualified, cls)
 
@@ -835,7 +858,19 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
         # Special case: "self" alone returns the class name (TIP #470)
         if args[1].strip() == "self":
             return TclResult(value=cls.qualified_name)
-        _parse_class_body(interp, cls, args[1])
+        try:
+            _parse_class_body(interp, cls, args[1])
+        except TclError as e:
+            # Add definition script context frame to errorInfo
+            from ..machine import _list_escape
+
+            full_cmd = f"oo::define {class_name} {_list_escape(args[1])}"
+            ctx = f'    (in definition script for class "{cls.qualified_name}" line 1)'
+            inv = f'    invoked from within\n"{full_cmd}"'
+            info = list(e.error_info) if e.error_info else [e.message]
+            info.append(ctx)
+            info.append(inv)
+            raise TclError(e.message, error_info=info) from None
     else:
         # Single-subcommand form: oo::define Dog superclass Animal
         # Special case: "self" alone returns the class name (TIP #470)
@@ -844,7 +879,18 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
         from ..machine import _list_escape
 
         reconstructed = " ".join(_list_escape(a) for a in args[1:])
-        _parse_class_body(interp, cls, reconstructed)
+        try:
+            _parse_class_body(interp, cls, reconstructed)
+        except TclError as e:
+            # Rewrite "wrong # args" to include oo::define prefix
+            msg = e.message
+            if msg.startswith("wrong # args: should be \""):
+                inner = msg[len("wrong # args: should be \""):-1]
+                msg = f'wrong # args: should be "oo::define {class_name} {inner}"'
+            # Build proper error_info with full command text
+            full_cmd = "oo::define " + " ".join(args)
+            error_info = [msg, f'    while executing\n"{full_cmd}"']
+            raise TclError(msg, error_info=error_info) from None
 
     # Invalidate ALL classes — adding a mixin/superclass to one class
     # can change the MRO of any subclass
@@ -876,7 +922,16 @@ def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
         from ..machine import _list_escape
 
         reconstructed = " ".join(_list_escape(a) for a in args[1:])
-        _parse_objdefine_body(interp, obj, reconstructed)
+        try:
+            _parse_objdefine_body(interp, obj, reconstructed)
+        except TclError as e:
+            msg = e.message
+            if msg.startswith("wrong # args: should be \""):
+                inner = msg[len("wrong # args: should be \""):-1]
+                msg = f'wrong # args: should be "oo::objdefine {obj_name} {inner}"'
+            full_cmd = "oo::objdefine " + " ".join(args)
+            error_info = [msg, f'    while executing\n"{full_cmd}"']
+            raise TclError(msg, error_info=error_info) from None
 
     # Re-register the object command so new methods are visible
     # But skip if the object is now a class (class command was already registered)

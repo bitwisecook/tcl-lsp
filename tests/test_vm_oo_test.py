@@ -32,18 +32,16 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-0.2",
     "oo-0.6",
     "oo-0.7",
-    # oo-1.x: Object creation edge cases (interp, namespace, rename)
+    # oo-1.x: Object creation edge cases (interp, namespace, rename, error messages)
     "oo-1.10",
     "oo-1.18.3",
     "oo-1.18.4",
     "oo-1.18.5",
     "oo-1.19",
-    "oo-1.2",
     "oo-1.20",
     "oo-1.21",
     "oo-1.22",
     "oo-1.25",
-    "oo-1.3",
     "oo-1.7",
     # oo-2.x: Constructor edge cases (interp)
     "oo-2.1",
@@ -51,9 +49,7 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-2.7",
     "oo-2.8",
     # oo-3.x: Destructor edge cases
-    "oo-3.1",
     "oo-3.12",
-    "oo-3.2",
     "oo-3.3",
     "oo-3.4",
     "oo-3.4a",
@@ -103,7 +99,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-16.14",
     "oo-16.16",
     # oo-17.x: definitionnamespace
-    "oo-17.5",
     "oo-17.9",
     "oo-17.11",
     "oo-17.12",
@@ -112,9 +107,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-17.15",
     "oo-17.16",
     # oo-18.x: slot operations
-    "oo-18.1",
-    "oo-18.2",
-    "oo-18.3",
     "oo-18.3a",
     "oo-18.3b",
     "oo-18.4",
@@ -222,8 +214,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-36.9",
     "oo-36.10",
     # oo-37.x
-    "oo-37.5",
-    "oo-37.6",
     # oo-38.x
     "oo-38.1",
     "oo-38.2",
