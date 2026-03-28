@@ -89,7 +89,6 @@ auto AnalysisResult::copy_scope_tree(const Scope& src, Scope* parent)
     dest->name = src.name;
     dest->parent = parent;
     dest->body_range = src.body_range;
-    dest->has_body_range = src.has_body_range;
 
     // Copy variables (deep: VarDef references list).
     for (const auto& [name, var] : src.variables) {

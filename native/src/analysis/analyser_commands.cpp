@@ -217,7 +217,6 @@ void Analyser::handle_proc(const SegmentedCommand& cmd, Scope* scope) {
     // Create proc child scope.
     auto* proc_scope = make_child_scope(ScopeKind::PROC, proc_name, scope);
     proc_scope->body_range = body_range;
-    proc_scope->has_body_range = true;
 
     // Define parameters as variables.
     for (const auto& p : params) {
@@ -325,7 +324,6 @@ void Analyser::handle_namespace_eval(const SegmentedCommand& cmd, Scope* scope) 
     auto* ns_scope = make_child_scope(ScopeKind::NAMESPACE, ns_name, scope);
     if (atoks.size() > 2) {
         ns_scope->body_range = range_from_token(atoks[2]);
-        ns_scope->has_body_range = true;
     }
 
     if (args.size() >= 3) {
