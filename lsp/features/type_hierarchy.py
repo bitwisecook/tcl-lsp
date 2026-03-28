@@ -100,19 +100,21 @@ def subtypes(
     class_name = item.name
     uri = item.uri
 
+    # Resolve class_name to its qualified name once (O(n) instead of O(n^2))
+    qualified_names: set[str] = {class_name}
+    for _qname, target_cd in analysis.all_classes.items():
+        if target_cd.name == class_name or target_cd.qualified_name == class_name:
+            qualified_names.add(target_cd.qualified_name)
+
     results: list[types.TypeHierarchyItem] = []
+    seen: set[str] = set()
     for _qname, cd in analysis.all_classes.items():
-        if class_name in cd.superclasses or class_name in cd.mixins:
-            results.append(_class_to_item(uri, cd))
-        # Also check qualified name
-        for _qname2, target_cd in analysis.all_classes.items():
-            if target_cd.name == class_name or target_cd.qualified_name == class_name:
-                if (
-                    target_cd.qualified_name in cd.superclasses
-                    or target_cd.qualified_name in cd.mixins
-                ):
-                    if not any(r.name == cd.name for r in results):
-                        results.append(_class_to_item(uri, cd))
+        if cd.name in seen:
+            continue
+        for qn in qualified_names:
+            if qn in cd.superclasses or qn in cd.mixins:
+                results.append(_class_to_item(uri, cd))
+                seen.add(cd.name)
                 break
 
     return results

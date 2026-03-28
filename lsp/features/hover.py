@@ -81,7 +81,7 @@ def _method_hover_text(method_def: MethodDef, class_name: str) -> str:
             params.append(f"{{{p.name} {p.default_value}}}")
         else:
             params.append(p.name)
-    kind = method_def.kind if method_def.kind != "method" else "method"
+    kind = method_def.kind
     sig = f"{kind} {method_def.name} {{{' '.join(params)}}} {{...}}"
     parts = [f"```tcl\n# {class_name}\n{sig}\n```"]
     if method_def.doc:

@@ -13,22 +13,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from core.analysis.mro import C3Error, build_mro_map, c3_linearise
+from core.analysis.mro import MROError, build_mro_map, tcloo_linearise
 
 
 class TestTclOOMRO:
     def test_single_class_no_parents(self):
-        result = c3_linearise("A", {})
+        result = tcloo_linearise("A", {})
         assert result == ["A"]
 
     def test_single_inheritance(self):
         supers = {"A": [], "B": ["A"]}
-        result = c3_linearise("B", supers)
+        result = tcloo_linearise("B", supers)
         assert result == ["B", "A"]
 
     def test_chain_of_three(self):
         supers = {"A": [], "B": ["A"], "C": ["B"]}
-        result = c3_linearise("C", supers)
+        result = tcloo_linearise("C", supers)
         assert result == ["C", "B", "A"]
 
     def test_diamond_inheritance(self):
@@ -39,27 +39,27 @@ class TestTclOOMRO:
             "C": ["A"],
             "D": ["B", "C"],
         }
-        result = c3_linearise("D", supers)
+        result = tcloo_linearise("D", supers)
         assert result == ["D", "B", "C", "A"]
 
     def test_multiple_parents_no_diamond(self):
         supers = {"A": [], "B": [], "C": ["A", "B"]}
-        result = c3_linearise("C", supers)
+        result = tcloo_linearise("C", supers)
         assert result == ["C", "A", "B"]
 
     def test_cycle_raises_c3error(self):
         supers = {"A": ["B"], "B": ["A"]}
-        with pytest.raises(C3Error, match="cycle"):
-            c3_linearise("A", supers)
+        with pytest.raises(MROError, match="cycle"):
+            tcloo_linearise("A", supers)
 
     def test_self_cycle_raises_c3error(self):
         supers = {"A": ["A"]}
-        with pytest.raises(C3Error, match="cycle"):
-            c3_linearise("A", supers)
+        with pytest.raises(MROError, match="cycle"):
+            tcloo_linearise("A", supers)
 
     def test_unknown_parent_treated_as_leaf(self):
         supers = {"B": ["UnknownBase"]}
-        result = c3_linearise("B", supers)
+        result = tcloo_linearise("B", supers)
         assert result == ["B", "UnknownBase"]
 
     def test_tcloo_style_with_oo_object(self):
@@ -68,13 +68,13 @@ class TestTclOOMRO:
             "::Animal": ["::oo::object"],
             "::Dog": ["::Animal"],
         }
-        result = c3_linearise("::Dog", supers)
+        result = tcloo_linearise("::Dog", supers)
         assert result == ["::Dog", "::Animal", "::oo::object"]
 
     def test_deep_hierarchy(self):
         supers = {str(i): [str(i - 1)] for i in range(1, 10)}
         supers["0"] = []
-        result = c3_linearise("9", supers)
+        result = tcloo_linearise("9", supers)
         assert result == [str(i) for i in range(9, -1, -1)]
 
 
@@ -92,7 +92,7 @@ class TestTclOOMixins:
         mixins = {
             "cls": ["mix"],
         }
-        result = c3_linearise("cls", supers, mixins_map=mixins)
+        result = tcloo_linearise("cls", supers, mixins_map=mixins)
         # Tcl test expects dispatch: mix -> cls -> parent
         assert result.index("mix") < result.index("cls")
         assert result.index("cls") < result.index("parent")
@@ -108,7 +108,7 @@ class TestTclOOMixins:
         mixins = {
             "::Dog": ["::Serializable"],
         }
-        result = c3_linearise("::Dog", supers, mixins_map=mixins)
+        result = tcloo_linearise("::Dog", supers, mixins_map=mixins)
         # Mixin comes before the class itself in TclOO dispatch order
         assert result.index("::Serializable") < result.index("::Dog")
         assert result.index("::Dog") < result.index("::Animal")
@@ -116,7 +116,7 @@ class TestTclOOMixins:
     def test_no_mixins_same_as_superclass_only(self):
         """Without mixins, result is pure DFS on superclasses."""
         supers = {"A": [], "B": ["A"]}
-        result = c3_linearise("B", supers, mixins_map={})
+        result = tcloo_linearise("B", supers, mixins_map={})
         assert result == ["B", "A"]
 
     def test_mixin_of_mixin_oo_14_6(self):
@@ -131,7 +131,7 @@ class TestTclOOMixins:
             "B": ["A"],
             "C": ["B"],
         }
-        result = c3_linearise("C", supers, mixins_map=mixins)
+        result = tcloo_linearise("C", supers, mixins_map=mixins)
         # B is a mixin of C, A is a mixin of B
         # All mixin-path classes (A, B, parent-via-mixin) come before non-mixin (C)
         assert "A" in result
@@ -157,7 +157,7 @@ class TestTclOOMixins:
             "D": ["M1"],
             "C": ["M2"],
         }
-        result = c3_linearise("D", supers, mixins_map=mixins)
+        result = tcloo_linearise("D", supers, mixins_map=mixins)
         # Both mixins must come before both non-mixin classes
         assert result.index("M1") < result.index("D")
         assert result.index("M2") < result.index("D")
@@ -180,7 +180,7 @@ class TestTclOOMixins:
         mixins = {
             "cls": ["mix"],
         }
-        result = c3_linearise("cls", supers, mixins_map=mixins)
+        result = tcloo_linearise("cls", supers, mixins_map=mixins)
         # mix (mixin-path) before cls (non-mixin)
         assert result.index("mix") < result.index("cls")
         # base deduped to end (appears via both paths)

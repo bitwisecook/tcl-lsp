@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .mro import C3Error, c3_linearise
+from .mro import MROError, tcloo_linearise
 from .semantic_model import ClassDef
 
 
@@ -91,9 +91,9 @@ def build_class_hierarchy(classes: dict[str, ClassDef]) -> ClassHierarchy:
         if qname in mro_map:
             continue
         try:
-            mro = c3_linearise(qname, supers_map, mixins_map=mixins_map)
+            mro = tcloo_linearise(qname, supers_map, mixins_map=mixins_map)
             mro_map[qname] = tuple(mro)
-        except C3Error as e:
+        except MROError as e:
             errors.append(str(e))
             mro_map[qname] = (qname,)
 

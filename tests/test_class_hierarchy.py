@@ -44,7 +44,7 @@ def _make_class(
 
 def _make_method(name: str, params: list[str] | None = None) -> MethodDef:
     """Helper to create a MethodDef for tests."""
-    param_defs = [ParamDef(name=p) for p in (params or [])]
+    param_defs = tuple(ParamDef(name=p) for p in (params or []))
     return MethodDef(
         name=name,
         params=param_defs,

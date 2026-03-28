@@ -116,7 +116,7 @@ class MethodDef:
     """A method defined within a TclOO class."""
 
     name: str
-    params: list[ParamDef]
+    params: tuple[ParamDef, ...]
     name_range: Range
     body_range: Range
     visibility: str = "public"  # "public" | "private" | "unexported"

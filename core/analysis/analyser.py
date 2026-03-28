@@ -1924,6 +1924,30 @@ class Analyser:
 
     _OO_METACLASSES = frozenset({"oo::class", "oo::configurable", "oo::abstract", "oo::singleton"})
 
+    _OO_DEFINE_SUBCMDS = frozenset(
+        {
+            "method",
+            "classmethod",
+            "constructor",
+            "destructor",
+            "superclass",
+            "mixin",
+            "variable",
+            "filter",
+            "forward",
+            "export",
+            "unexport",
+            "property",
+            "private",
+            "initialise",
+            "initialize",
+            "definitionnamespace",
+            "deletemethod",
+            "renamemethod",
+            "self",
+        }
+    )
+
     def _handle_oo_class_command(
         self,
         cmd_name: str,
@@ -2012,28 +2036,7 @@ class Analyser:
         # Inline: oo::define ClassName method name args body
         # Body:   oo::define ClassName { method name args body; ... }
         if len(args) >= 2:
-            _OO_DEFINE_SUBCMDS = {
-                "method",
-                "classmethod",
-                "constructor",
-                "destructor",
-                "superclass",
-                "mixin",
-                "variable",
-                "filter",
-                "forward",
-                "export",
-                "unexport",
-                "property",
-                "private",
-                "initialise",
-                "initialize",
-                "definitionnamespace",
-                "deletemethod",
-                "renamemethod",
-                "self",
-            }
-            if args[1] in _OO_DEFINE_SUBCMDS:
+            if args[1] in self._OO_DEFINE_SUBCMDS:
                 # Inline form
                 self._parse_oo_define_inline(
                     args[1:], arg_tokens[1:] if len(arg_tokens) > 1 else [], class_def, scope
@@ -2099,7 +2102,7 @@ class Analyser:
                         fwd_range = range_from_token(sub_tokens[0]) if sub_tokens else Range.zero()
                         fwd_def = MethodDef(
                             name=fwd_name,
-                            params=[],
+                            params=(),
                             name_range=fwd_range,
                             body_range=fwd_range,
                             kind="forward",
@@ -2230,7 +2233,7 @@ class Analyser:
 
         method_def = MethodDef(
             name=method_name,
-            params=params,
+            params=tuple(params),
             name_range=name_range,
             body_range=body_range,
             visibility=visibility,

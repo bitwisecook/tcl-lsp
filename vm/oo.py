@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from core.analysis.mro import C3Error, c3_linearise
+from core.analysis.mro import MROError, tcloo_linearise
 
 from .types import TclError, TclResult, TclReturn
 
@@ -75,8 +75,8 @@ class TclOOClass:
                 mixins_map[qn] = _normalise(list(cls.mixins))
 
         try:
-            result = c3_linearise(self.qualified_name, supers_map, mixins_map=mixins_map)
-        except C3Error:
+            result = tcloo_linearise(self.qualified_name, supers_map, mixins_map=mixins_map)
+        except MROError:
             result = [self.qualified_name]
         self._mro_cache = result
         return result
@@ -211,9 +211,8 @@ class OORuntime:
 
         Returns ``(constructor, defining_class_qname)`` so that ``next``
         inside the constructor resolves from the correct MRO position.
+        The MRO includes the class itself as the first element.
         """
-        if cls.constructor is not None:
-            return cls.constructor, cls.qualified_name
         for class_qname in cls.mro(self.classes):
             ancestor = self.classes.get(class_qname)
             if ancestor and ancestor.constructor is not None:
@@ -225,9 +224,8 @@ class OORuntime:
 
         Returns ``(destructor, defining_class_qname)`` so that ``next``
         inside the destructor resolves from the correct MRO position.
+        The MRO includes the class itself as the first element.
         """
-        if cls.destructor is not None:
-            return cls.destructor, cls.qualified_name
         for class_qname in cls.mro(self.classes):
             ancestor = self.classes.get(class_qname)
             if ancestor and ancestor.destructor is not None:

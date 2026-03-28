@@ -31,7 +31,7 @@ Reference: ``AddSimpleClassChainToCallContext()`` and
 from __future__ import annotations
 
 
-class C3Error(Exception):
+class MROError(Exception):
     """Raised when MRO computation fails (e.g. cycle in hierarchy)."""
 
 
@@ -59,7 +59,7 @@ def _tcloo_dfs(
     non-mixin-path classes are added.
     """
     if cls in visiting:
-        raise C3Error(f"cycle detected in class hierarchy involving {cls!r}")
+        raise MROError(f"cycle detected in class hierarchy involving {cls!r}")
     visiting.add(cls)
     try:
         # 1. Process class-level mixins (enter mixin path)
@@ -97,16 +97,14 @@ def _tcloo_dfs(
         visiting.discard(cls)
 
 
-def c3_linearise(
+def tcloo_linearise(
     class_name: str,
     superclasses_map: dict[str, list[str]],
     mixins_map: dict[str, list[str]] | None = None,
 ) -> list[str]:
     """Return the method resolution order for *class_name*.
 
-    Uses TclOO's two-pass DFS + late-placement algorithm (NOT C3
-    linearisation).  The function name is kept for backwards
-    compatibility.
+    Uses TclOO's two-pass DFS + late-placement algorithm.
 
     *superclasses_map* maps class name -> direct superclasses.
     *mixins_map* maps class name -> mixin classes (processed before supers).
@@ -114,13 +112,13 @@ def c3_linearise(
     Returns a list with ancestors in resolution order: mixin-path
     classes first, then non-mixin classes.
 
-    Raises ``C3Error`` on cycles.
+    Raises ``MROError`` on cycles.
     """
     if mixins_map is None:
         mixins_map = {}
 
     # Cycle detection is handled inside _tcloo_dfs via the visiting set.
-    # Self-cycles are caught there too (A → A raises C3Error).
+    # Self-cycles are caught there too (A → A raises MROError).
 
     result: list[str] = []
 
@@ -168,9 +166,9 @@ def build_mro_map(
         if cls in mro_map:
             continue
         try:
-            mro = c3_linearise(cls, superclasses_map, mixins_map)
+            mro = tcloo_linearise(cls, superclasses_map, mixins_map)
             mro_map[cls] = mro
-        except C3Error as e:
+        except MROError as e:
             errors.append(str(e))
 
     return mro_map, errors
