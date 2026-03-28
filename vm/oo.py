@@ -574,9 +574,24 @@ class OORuntime:
                         return cls_cmd(interp, args)
                     finally:
                         obj.unexported_methods = saved
-            method, defining_class = oo_self.resolve_method(obj, method_name)
+            # TIP 500: When calling via 'my', check if the caller's
+            # defining class has a private method with this name — that
+            # takes priority over the normal MRO resolution.
+            frame = interp.current_frame
+            caller_class = getattr(frame, "_oo_class", None)
+            method: TclOOMethod | None = None
+            defining_class: str | None = None
+            if caller_class and not caller_class.startswith("__instance__"):
+                cc = oo_self.classes.get(caller_class)
+                if cc and method_name in cc.methods:
+                    m = cc.methods[method_name]
+                    if m.visibility == "private":
+                        method = m
+                        defining_class = caller_class
             if method is None:
-                avail = oo_self._available_methods(obj, include_all=True)
+                method, defining_class = oo_self.resolve_method(obj, method_name)
+            if method is None:
+                avail = oo_self._available_methods(obj, include_all=True, caller_class=caller_class)
                 if avail:
                     raise TclError(
                         f'unknown method "{method_name}": must be '
@@ -588,8 +603,6 @@ class OORuntime:
             # Instance-level private methods are only accessible from
             # other instance-level methods on the same object.
             if method.visibility == "private" and defining_class:
-                frame = interp.current_frame
-                caller_class = getattr(frame, "_oo_class", None)
                 is_instance_private = defining_class and defining_class.startswith("__instance__")
                 caller_is_instance = caller_class and caller_class.startswith("__instance__")
                 # Instance private → only accessible from instance methods
@@ -608,7 +621,7 @@ class OORuntime:
                         method = alt_method
                         defining_class = alt_class
                     else:
-                        avail = oo_self._available_methods(obj, include_all=True)
+                        avail = oo_self._available_methods(obj, include_all=True, caller_class=caller_class)
                         if avail:
                             raise TclError(
                                 f'unknown method "{method_name}": must be '

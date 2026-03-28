@@ -173,9 +173,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-38.4",
     "oo-38.5",
     # oo-39.x
-    "oo-39.2",
-    "oo-39.3",
-    "oo-39.8",
     "oo-39.11",
     "oo-39.12",
     # oo-40.x
