@@ -394,6 +394,29 @@ def _parse_objdefine_body(
                     method = obj.instance_methods.get(m)
                     if method:
                         method.visibility = "unexported"
+            case "class":
+                if len(parts) < 2:
+                    raise TclError('wrong # args: should be "class className"')
+                new_class = parts[1]
+                oo = _get_oo_runtime(interp)
+                # Resolve class name
+                cls = oo.classes.get(new_class)
+                if cls is None:
+                    qn = f"::{new_class}" if not new_class.startswith("::") else new_class
+                    cls = oo.classes.get(qn)
+                if cls is None:
+                    raise TclError(f'"{new_class}" is not a class')
+                # Change the object's class
+                obj.class_name = cls.qualified_name
+                # If switching to oo::class, register as a class
+                if oo._is_metaclass(cls) and obj.name not in oo.classes:
+                    new_cls_obj = TclOOClass(
+                        name=obj.name.rsplit("::", 1)[-1],
+                        qualified_name=obj.name,
+                    )
+                    oo.register_class(new_cls_obj)
+                    _register_class_command(interp, oo, obj.name, new_cls_obj)
+                oo.invalidate_all_mro()
             case "private":
                 # TIP 500: private instance method
                 if len(parts) >= 5 and parts[1] == "method":
@@ -620,7 +643,11 @@ def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
         _parse_objdefine_body(interp, obj, reconstructed)
 
     # Re-register the object command so new methods are visible
-    oo._register_object_command(interp, obj)
+    # But skip if the object is now a class (class command was already registered)
+    if obj.name in oo.classes:
+        _register_class_command(interp, oo, obj.name, oo.classes[obj.name])
+    else:
+        oo._register_object_command(interp, obj)
     return TclResult()
 
 

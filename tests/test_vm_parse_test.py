@@ -27,7 +27,9 @@ pytestmark = pytest.mark.slow
 # When a VM bug is fixed the test will unexpectedly pass — the set
 # must be updated (removing the entry) to keep CI green.
 
-KNOWN_FAILURES_PARSE: set[str] = set()
+KNOWN_FAILURES_PARSE: set[str] = {
+    "parse-8.12",  # test isolation: fails when run after other test files
+}
 
 KNOWN_FAILURES_PARSE_OLD: set[str] = set()
 

@@ -67,18 +67,9 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-3.9",
     # oo-4.x: Method dispatch edge cases (errorInfo, uplevel, variable)
     "oo-4.9",
-    # oo-5.x: Visibility enforcement edge cases
-    "oo-5.2",
-    "oo-5.3",
-    "oo-5.4",
-    "oo-5.5",
     # oo-6.x: oo::define edge cases (namespace, error messages)
-    "oo-6.1",
     "oo-6.4",
     "oo-6.7",
-    "oo-6.11",
-    "oo-6.12",
-    "oo-6.13",
     "oo-6.16",
     "oo-6.17",
     "oo-6.18",
@@ -89,15 +80,7 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-7.7",
     "oo-7.9",
     "oo-7.10",
-    # oo-8.x: Error messages
-    "oo-8.1",
-    # oo-10.x: Variable edge cases
-    "oo-10.2",
     # oo-11.x: Class methods / class-level dispatch
-    "oo-11.1",
-    "oo-11.2",
-    "oo-11.3",
-    "oo-11.4",
     "oo-11.5",
     "oo-11.6.4",
     "oo-11.7",
@@ -108,10 +91,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-12.7",
     "oo-12.8",
     # oo-13.x: Filter edge cases
-    "oo-13.1",
-    "oo-13.2",
-    "oo-13.4",
-    "oo-13.5",
     "oo-13.6",
     "oo-13.7",
     "oo-13.8",
@@ -126,7 +105,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-14.9",
     "oo-14.10",
     # oo-15.x: oo::objdefine edge cases
-    "oo-15.2",
     "oo-15.6",
     "oo-15.8",
     "oo-15.9",
@@ -137,13 +115,8 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-15.14",
     "oo-15.15",
     # oo-16.x: info object/class edge cases
-    "oo-16.6",
-    "oo-16.7",  # test isolation: foo stale from prior test
-    "oo-16.8",
     "oo-16.10",
     "oo-16.11",
-    "oo-16.12",
-    "oo-16.13",
     "oo-16.14",
     "oo-16.15",
     "oo-16.16",
