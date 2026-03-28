@@ -282,6 +282,11 @@ def _resolve_object(interp: TclInterp, name: str):
     obj = oo.objects.get(name)
     if obj is None and not name.startswith("::"):
         obj = oo.objects.get(f"::{name}")
+    # Try resolving relative to current namespace
+    if obj is None and not name.startswith("::"):
+        ns = interp.current_namespace.qualname
+        ns_qn = f"{ns}::{name}" if ns != "::" else f"::{name}"
+        obj = oo.objects.get(ns_qn)
     if obj is None:
         raise TclError(f"{name} does not refer to an object")
     return oo, obj

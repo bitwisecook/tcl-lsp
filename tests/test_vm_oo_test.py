@@ -117,9 +117,7 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-29.x
     # oo-30.x
     # oo-33.x (slot edge cases)
-    "oo-33.3",
     # oo-34.x (slot introspection)
-    "oo-34.1",
     "oo-34.2",
     "oo-34.10",
     # oo-35.x

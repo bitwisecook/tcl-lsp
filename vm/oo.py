@@ -1293,7 +1293,18 @@ class OORuntime:
                     )
                 raise TclError(f'unknown method "{called_method}"')
             all_args = list(args)
-            return self._exec_slot_builtin(interp, obj, "--default-operation", all_args, frame)
+            # Dispatch through normal method resolution to honor overrides
+            # (e.g., oo::objdefine $s forward --default-operation my -set)
+            defop_method = self._find_method(obj, "--default-operation")
+            # Pop frame so the sub-call runs at the correct level
+            saved_frame = interp.current_frame
+            parent = getattr(frame, 'parent', None)
+            if parent is not None:
+                interp.current_frame = parent
+            try:
+                return self._invoke_method(interp, obj, defop_method, all_args, defining_class=None)
+            finally:
+                interp.current_frame = saved_frame
         elif name == "unknown":
             # Default unknown handler — error with method list
             if args:
