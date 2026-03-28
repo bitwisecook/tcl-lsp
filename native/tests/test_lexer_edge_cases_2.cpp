@@ -1,6 +1,8 @@
 #include "tcl_lsp/parsing/lexer.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
+
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -21,7 +23,8 @@ static auto lex(std::string_view source) -> std::vector<Token> {
 static auto lex_texts(std::string_view source) -> std::vector<std::string> {
     auto toks = lex(source);
     std::vector<std::string> result;
-    for (auto& t : toks) result.push_back(t.text);
+    for (auto& t : toks)
+        result.push_back(t.text);
     return result;
 }
 
@@ -246,7 +249,8 @@ TEST_CASE("Backslash-newline: continuation in comment", "[lexer][edge-case]") {
     auto toks = lex("# comment \\\ncontinued");
     std::vector<Token> comments;
     for (auto& t : toks) {
-        if (t.type == TokenType::COMMENT) comments.push_back(t);
+        if (t.type == TokenType::COMMENT)
+            comments.push_back(t);
     }
     REQUIRE(comments.size() == 1);
     CHECK(comments[0].text.find("continued") != std::string::npos);
@@ -278,7 +282,8 @@ TEST_CASE("Error cases: unclosed brace warns", "[lexer][edge-case]") {
 
 TEST_CASE("Error cases: unclosed brace strict raises", "[lexer][edge-case]") {
     CHECK_THROWS_AS(lex_strict("{hello"), TclParseError);
-    CHECK_THROWS_WITH(lex_strict("{hello"), Catch::Matchers::ContainsSubstring("missing close-brace"));
+    CHECK_THROWS_WITH(lex_strict("{hello"),
+                      Catch::Matchers::ContainsSubstring("missing close-brace"));
 }
 
 TEST_CASE("Error cases: unclosed bracket warns", "[lexer][edge-case]") {
@@ -290,7 +295,8 @@ TEST_CASE("Error cases: unclosed bracket warns", "[lexer][edge-case]") {
 
 TEST_CASE("Error cases: unclosed bracket strict raises", "[lexer][edge-case]") {
     CHECK_THROWS_AS(lex_strict("[hello"), TclParseError);
-    CHECK_THROWS_WITH(lex_strict("[hello"), Catch::Matchers::ContainsSubstring("missing close-bracket"));
+    CHECK_THROWS_WITH(lex_strict("[hello"),
+                      Catch::Matchers::ContainsSubstring("missing close-bracket"));
 }
 
 TEST_CASE("Error cases: extra chars after quote warns", "[lexer][edge-case]") {
@@ -302,7 +308,8 @@ TEST_CASE("Error cases: extra chars after quote warns", "[lexer][edge-case]") {
 
 TEST_CASE("Error cases: extra chars after quote strict raises", "[lexer][edge-case]") {
     CHECK_THROWS_AS(lex_strict("\"hello\"world"), TclParseError);
-    CHECK_THROWS_WITH(lex_strict("\"hello\"world"), Catch::Matchers::ContainsSubstring("extra characters after close-quote"));
+    CHECK_THROWS_WITH(lex_strict("\"hello\"world"),
+                      Catch::Matchers::ContainsSubstring("extra characters after close-quote"));
 }
 
 TEST_CASE("Error cases: extra chars after brace warns", "[lexer][edge-case]") {
@@ -314,7 +321,8 @@ TEST_CASE("Error cases: extra chars after brace warns", "[lexer][edge-case]") {
 
 TEST_CASE("Error cases: extra chars after brace strict raises", "[lexer][edge-case]") {
     CHECK_THROWS_AS(lex_strict("{hello}world"), TclParseError);
-    CHECK_THROWS_WITH(lex_strict("{hello}world"), Catch::Matchers::ContainsSubstring("extra characters after close-brace"));
+    CHECK_THROWS_WITH(lex_strict("{hello}world"),
+                      Catch::Matchers::ContainsSubstring("extra characters after close-brace"));
 }
 
 TEST_CASE("Error cases: backslash-newline after close-brace no warning", "[lexer][edge-case]") {
@@ -324,7 +332,8 @@ TEST_CASE("Error cases: backslash-newline after close-brace no warning", "[lexer
     }));
 }
 
-TEST_CASE("Error cases: backslash-newline after close-brace strict no raise", "[lexer][edge-case]") {
+TEST_CASE("Error cases: backslash-newline after close-brace strict no raise",
+          "[lexer][edge-case]") {
     auto result = lex_strict("{hello}\\\n world");
     CHECK(!result.empty());
 }
@@ -337,10 +346,9 @@ TEST_CASE("Error cases: backslash non-newline after close-brace warns", "[lexer]
 }
 
 TEST_CASE("Error cases: spicegentcl testtemplate pattern", "[lexer][edge-case]") {
-    std::string source =
-        "testTemplate testResistorClass-1 {} "
-        "{Resistor new 1 netp netm -r 1e3 -tc1 1 -ac 1e6 -temp 25}\\\n"
-        "        {r1 netp netm 1e3 tc1=1 ac=1e6 temp=25}";
+    std::string source = "testTemplate testResistorClass-1 {} "
+                         "{Resistor new 1 netp netm -r 1e3 -tc1 1 -ac 1e6 -temp 25}\\\n"
+                         "        {r1 netp netm 1e3 tc1=1 ac=1e6 temp=25}";
     auto [toks, warnings] = lex_with_warnings(source);
     CHECK(!std::any_of(warnings.begin(), warnings.end(), [](auto& w) {
         return w.second.find("extra characters after close-brace") != std::string::npos;
@@ -412,7 +420,8 @@ TEST_CASE("Error cases: unclosed braced var warns", "[lexer][edge-case]") {
 
 TEST_CASE("Error cases: unclosed braced var strict raises", "[lexer][edge-case]") {
     CHECK_THROWS_AS(lex_strict("${name"), TclParseError);
-    CHECK_THROWS_WITH(lex_strict("${name"), Catch::Matchers::ContainsSubstring("missing close-brace for variable name"));
+    CHECK_THROWS_WITH(lex_strict("${name"),
+                      Catch::Matchers::ContainsSubstring("missing close-brace for variable name"));
 }
 
 TEST_CASE("Error cases: unclosed brace in cmd sub", "[lexer][edge-case]") {

@@ -1,5 +1,7 @@
 #include "tcl_lsp/parsing/lexer.hpp"
+
 #include <catch2/catch_test_macros.hpp>
+
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -20,7 +22,8 @@ static auto lex(std::string_view source) -> std::vector<Token> {
 static auto lex_types(std::string_view source) -> std::vector<TokenType> {
     auto toks = lex(source);
     std::vector<TokenType> result;
-    for (auto& t : toks) result.push_back(t.type);
+    for (auto& t : toks)
+        result.push_back(t.type);
     return result;
 }
 
@@ -344,10 +347,9 @@ TEST_CASE("Cmd sub containing braces with brackets", "[lexer][edge-case]") {
 TEST_CASE("Quoted string with cmd sub with braces", "[lexer][edge-case]") {
     auto toks = lex(R"("[set x {hello world}]")");
     auto types = lex_types(R"("[set x {hello world}]")");
-    CHECK(std::any_of(types.begin(), types.end(),
-                      [](TokenType t) { return t == TokenType::CMD; }));
-    auto it = std::find_if(toks.begin(), toks.end(),
-                           [](const Token& t) { return t.type == TokenType::CMD; });
+    CHECK(std::any_of(types.begin(), types.end(), [](TokenType t) { return t == TokenType::CMD; }));
+    auto it = std::find_if(
+        toks.begin(), toks.end(), [](const Token& t) { return t.type == TokenType::CMD; });
     REQUIRE(it != toks.end());
     CHECK(it->text == "set x {hello world}");
 }
@@ -397,30 +399,30 @@ TEST_CASE("Braces inside quotes are literal", "[lexer][edge-case]") {
 TEST_CASE("Hash after semicolon is comment", "[lexer][edge-case]") {
     auto toks = lex("set x 1 ;# trailing comment");
     auto types = lex_types("set x 1 ;# trailing comment");
-    CHECK(std::any_of(types.begin(), types.end(),
-                      [](TokenType t) { return t == TokenType::COMMENT; }));
+    CHECK(std::any_of(
+        types.begin(), types.end(), [](TokenType t) { return t == TokenType::COMMENT; }));
     CHECK(toks.back().type == TokenType::COMMENT);
 }
 
 TEST_CASE("Hash in argument position is not comment", "[lexer][edge-case]") {
     auto toks = lex("set x #notacomment");
     auto types = lex_types("set x #notacomment");
-    CHECK(!std::any_of(types.begin(), types.end(),
-                       [](TokenType t) { return t == TokenType::COMMENT; }));
+    CHECK(!std::any_of(
+        types.begin(), types.end(), [](TokenType t) { return t == TokenType::COMMENT; }));
     CHECK(toks.back().type == TokenType::ESC);
     CHECK(toks.back().text == "#notacomment");
 }
 
 TEST_CASE("Hash in quotes is not comment", "[lexer][edge-case]") {
     auto types = lex_types(R"(set x "#text")");
-    CHECK(!std::any_of(types.begin(), types.end(),
-                       [](TokenType t) { return t == TokenType::COMMENT; }));
+    CHECK(!std::any_of(
+        types.begin(), types.end(), [](TokenType t) { return t == TokenType::COMMENT; }));
 }
 
 TEST_CASE("Hash in braces is not comment", "[lexer][edge-case]") {
     auto types = lex_types("set x {#text}");
-    CHECK(!std::any_of(types.begin(), types.end(),
-                       [](TokenType t) { return t == TokenType::COMMENT; }));
+    CHECK(!std::any_of(
+        types.begin(), types.end(), [](TokenType t) { return t == TokenType::COMMENT; }));
 }
 
 // Group 6: Interleaved substitutions
@@ -429,7 +431,8 @@ TEST_CASE("Consecutive vars in quotes", "[lexer][edge-case]") {
     auto toks = lex(R"("$a$b$c")");
     std::vector<Token> vars;
     for (auto& t : toks) {
-        if (t.type == TokenType::VAR) vars.push_back(t);
+        if (t.type == TokenType::VAR)
+            vars.push_back(t);
     }
     REQUIRE(vars.size() == 3);
     CHECK(vars[0].text == "a");
@@ -441,7 +444,8 @@ TEST_CASE("Var cmd var in quotes", "[lexer][edge-case]") {
     auto toks = lex(R"("$a[cmd]$b")");
     std::vector<TokenType> types_no_esc;
     for (auto& t : toks) {
-        if (t.type != TokenType::ESC) types_no_esc.push_back(t.type);
+        if (t.type != TokenType::ESC)
+            types_no_esc.push_back(t.type);
     }
     CHECK(types_no_esc == std::vector<TokenType>{TokenType::VAR, TokenType::CMD, TokenType::VAR});
 }
@@ -450,7 +454,8 @@ TEST_CASE("Consecutive cmd subs in quotes", "[lexer][edge-case]") {
     auto toks = lex(R"("[a][b][c]")");
     std::vector<Token> cmds;
     for (auto& t : toks) {
-        if (t.type == TokenType::CMD) cmds.push_back(t);
+        if (t.type == TokenType::CMD)
+            cmds.push_back(t);
     }
     REQUIRE(cmds.size() == 3);
     CHECK(cmds[0].text == "a");
@@ -460,29 +465,30 @@ TEST_CASE("Consecutive cmd subs in quotes", "[lexer][edge-case]") {
 
 TEST_CASE("Escaped dollar in quotes is not var", "[lexer][edge-case]") {
     auto types = lex_types(R"("\$notavar")");
-    CHECK(!std::any_of(types.begin(), types.end(),
-                       [](TokenType t) { return t == TokenType::VAR; }));
+    CHECK(
+        !std::any_of(types.begin(), types.end(), [](TokenType t) { return t == TokenType::VAR; }));
 }
 
 TEST_CASE("Escaped bracket in quotes is not cmd", "[lexer][edge-case]") {
     auto types = lex_types(R"("\[notacmd]")");
-    CHECK(!std::any_of(types.begin(), types.end(),
-                       [](TokenType t) { return t == TokenType::CMD; }));
+    CHECK(
+        !std::any_of(types.begin(), types.end(), [](TokenType t) { return t == TokenType::CMD; }));
 }
 
 TEST_CASE("Text var text cmd text in quotes", "[lexer][edge-case]") {
     auto toks = lex(R"("hello $name, result=[calc]!")");
     std::vector<TokenType> types_no_esc;
     for (auto& t : toks) {
-        if (t.type != TokenType::ESC) types_no_esc.push_back(t.type);
+        if (t.type != TokenType::ESC)
+            types_no_esc.push_back(t.type);
     }
     CHECK(types_no_esc == std::vector<TokenType>{TokenType::VAR, TokenType::CMD});
-    auto var_it = std::find_if(toks.begin(), toks.end(),
-                               [](const Token& t) { return t.type == TokenType::VAR; });
+    auto var_it = std::find_if(
+        toks.begin(), toks.end(), [](const Token& t) { return t.type == TokenType::VAR; });
     REQUIRE(var_it != toks.end());
     CHECK(var_it->text == "name");
-    auto cmd_it = std::find_if(toks.begin(), toks.end(),
-                               [](const Token& t) { return t.type == TokenType::CMD; });
+    auto cmd_it = std::find_if(
+        toks.begin(), toks.end(), [](const Token& t) { return t.type == TokenType::CMD; });
     REQUIRE(cmd_it != toks.end());
     CHECK(cmd_it->text == "calc");
 }

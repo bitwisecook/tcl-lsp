@@ -1,8 +1,11 @@
+#include "tcl_lsp/core/diagnostic.hpp"
 #include "tcl_lsp/core/document_buffer.hpp"
 #include "tcl_lsp/core/memory_stats.hpp"
 #include "tcl_lsp/core/range.hpp"
 #include "tcl_lsp/core/source_position.hpp"
 #include "tcl_lsp/parsing/lexer.hpp"
+#include "tcl_lsp/parsing/recovery.hpp"
+#include "tcl_lsp/parsing/segmenter.hpp"
 #include "tcl_lsp/parsing/token.hpp"
 
 #include <pybind11/pybind11.h>
@@ -238,4 +241,188 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
                                [](const TclLexer& lexer) { return std::string(lexer.text()); })
         .def_property_readonly("line_starts",
                                [](const TclLexer& lexer) { return lexer.line_starts(); });
+
+    // --- Phase 3: Segmenter + Recovery types ---
+
+    // Severity enum.
+    py::enum_<Severity>(m, "Severity")
+        .value("ERROR", Severity::ERROR)
+        .value("WARNING", Severity::WARNING)
+        .value("INFORMATION", Severity::INFORMATION)
+        .value("HINT", Severity::HINT);
+
+    // CodeFix — a quick-fix suggestion.
+    py::class_<CodeFix>(m, "CodeFix")
+        .def(py::init([](const Range& range,
+                         const std::string& new_text,
+                         const std::string& description) {
+                 return CodeFix{range, new_text, description};
+             }),
+             py::arg("range"),
+             py::arg("new_text"),
+             py::arg("description") = "")
+        .def_readonly("range", &CodeFix::range)
+        .def_readonly("new_text", &CodeFix::new_text)
+        .def_readonly("description", &CodeFix::description)
+        .def("__eq__", [](const CodeFix& a, const CodeFix& b) { return a == b; })
+        .def("__repr__", [](const CodeFix& f) {
+            return "CodeFix(new_text=" + f.new_text + ", desc=" + f.description + ")";
+        });
+
+    // Diagnostic — error/warning message with optional fixes.
+    py::class_<Diagnostic>(m, "Diagnostic")
+        .def(py::init([](const Range& range,
+                         Severity severity,
+                         const std::string& code,
+                         const std::string& message,
+                         const std::vector<CodeFix>& fixes) {
+                 return Diagnostic{range, severity, code, message, fixes};
+             }),
+             py::arg("range"),
+             py::arg("severity") = Severity::ERROR,
+             py::arg("code") = "",
+             py::arg("message") = "",
+             py::arg("fixes") = std::vector<CodeFix>{})
+        .def_readonly("range", &Diagnostic::range)
+        .def_readonly("severity", &Diagnostic::severity)
+        .def_readonly("code", &Diagnostic::code)
+        .def_readonly("message", &Diagnostic::message)
+        .def_readonly("fixes", &Diagnostic::fixes)
+        .def("__eq__", [](const Diagnostic& a, const Diagnostic& b) { return a == b; })
+        .def("__repr__", [](const Diagnostic& d) {
+            return "Diagnostic(code=" + d.code + ", message=" + d.message + ")";
+        });
+
+    // UnclosedDelimiter enum.
+    py::enum_<UnclosedDelimiter>(m, "UnclosedDelimiter")
+        .value("BRACE", UnclosedDelimiter::BRACE)
+        .value("BRACKET", UnclosedDelimiter::BRACKET)
+        .value("QUOTE", UnclosedDelimiter::QUOTE);
+
+    // SegmentedCommand — a single parsed Tcl command.
+    py::class_<SegmentedCommand>(m, "NativeSegmentedCommand")
+        .def_readonly("range", &SegmentedCommand::range)
+        .def_readonly("argv", &SegmentedCommand::argv)
+        .def_readonly("texts", &SegmentedCommand::texts)
+        .def_readonly("single_token_word", &SegmentedCommand::single_token_word)
+        .def_readonly("all_tokens", &SegmentedCommand::all_tokens)
+        .def_readonly("preceding_comment", &SegmentedCommand::preceding_comment)
+        .def_readonly("is_partial", &SegmentedCommand::is_partial)
+        .def_readonly("partial_delimiter", &SegmentedCommand::partial_delimiter)
+        .def_readonly("expand_word", &SegmentedCommand::expand_word)
+        .def_property_readonly("name", [](const SegmentedCommand& cmd) { return cmd.name(); })
+        .def_property_readonly("args", [](const SegmentedCommand& cmd) { return cmd.args(); })
+        .def_property_readonly("arg_tokens",
+                               [](const SegmentedCommand& cmd) { return cmd.arg_tokens(); })
+        .def_property_readonly("arg_single_token",
+                               [](const SegmentedCommand& cmd) { return cmd.arg_single_token(); });
+
+    // TopLevelChunk — a region of top-level source.
+    py::class_<TopLevelChunk>(m, "TopLevelChunk")
+        .def_readonly("index", &TopLevelChunk::index)
+        .def_readonly("start_offset", &TopLevelChunk::start_offset)
+        .def_readonly("end_offset", &TopLevelChunk::end_offset)
+        .def_readonly("source_hash", &TopLevelChunk::source_hash)
+        .def_readonly("commands", &TopLevelChunk::commands);
+
+    // segment_commands() — main segmentation entry point.
+    m.def(
+        "segment_commands",
+        [](const std::string& source,
+           py::object body_token_obj,
+           py::object known_commands_obj,
+           py::object virtual_insertions_obj,
+           bool recovery) {
+            const Token* body_token = nullptr;
+            Token body_tok_storage;
+            if (!body_token_obj.is_none()) {
+                body_tok_storage = body_token_obj.cast<Token>();
+                body_token = &body_tok_storage;
+            }
+
+            std::unordered_set<std::string>* kc_ptr = nullptr;
+            std::unordered_set<std::string> kc_set;
+            if (!known_commands_obj.is_none()) {
+                auto kc_seq = known_commands_obj.cast<py::sequence>();
+                for (auto item : kc_seq) {
+                    kc_set.insert(item.cast<std::string>());
+                }
+                kc_ptr = &kc_set;
+            }
+
+            std::unordered_map<int32_t, char>* vi_ptr = nullptr;
+            std::unordered_map<int32_t, char> vi_map;
+            if (!virtual_insertions_obj.is_none()) {
+                auto vi_dict = virtual_insertions_obj.cast<py::dict>();
+                for (auto& [k, v] : vi_dict) {
+                    auto ch_str = v.cast<std::string>();
+                    if (!ch_str.empty()) {
+                        vi_map[k.cast<int32_t>()] = ch_str[0];
+                    }
+                }
+                vi_ptr = &vi_map;
+            }
+
+            return segment_commands(source, body_token, kc_ptr, vi_ptr, nullptr, recovery);
+        },
+        py::arg("source"),
+        py::arg("body_token") = py::none(),
+        py::arg("known_commands") = py::none(),
+        py::arg("virtual_insertions") = py::none(),
+        py::arg("recovery") = true);
+
+    // segment_top_level_chunks()
+    m.def("segment_top_level_chunks", &segment_top_level_chunks, py::arg("source"));
+
+    // find_first_dirty_chunk()
+    m.def("find_first_dirty_chunk",
+          &find_first_dirty_chunk,
+          py::arg("old_chunks"),
+          py::arg("new_chunks"));
+
+    // compute_virtual_insertions()
+    m.def(
+        "compute_virtual_insertions",
+        [](const std::string& source, py::object body_token_obj) {
+            const Token* body_token = nullptr;
+            Token body_tok_storage;
+            if (!body_token_obj.is_none()) {
+                body_tok_storage = body_token_obj.cast<Token>();
+                body_token = &body_tok_storage;
+            }
+            auto result = compute_virtual_insertions(source, body_token);
+            // Convert to Python dict with string values (matching Python API).
+            py::dict py_result;
+            for (auto& [offset, ch] : result) {
+                py_result[py::int_(offset)] = py::str(std::string(1, ch));
+            }
+            return py_result;
+        },
+        py::arg("source"),
+        py::arg("body_token") = py::none());
+
+    // segment_with_recovery()
+    m.def(
+        "segment_with_recovery",
+        [](const std::string& source, py::object body_token_obj) {
+            const Token* body_token = nullptr;
+            Token body_tok_storage;
+            if (!body_token_obj.is_none()) {
+                body_tok_storage = body_token_obj.cast<Token>();
+                body_token = &body_tok_storage;
+            }
+            auto result = segment_with_recovery(source, body_token);
+            return py::make_tuple(std::move(result.commands), std::move(result.diagnostics));
+        },
+        py::arg("source"),
+        py::arg("body_token") = py::none());
+
+    // position_from_relative()
+    m.def("position_from_relative",
+          &position_from_relative,
+          py::arg("text"),
+          py::arg("rel_offset"),
+          py::arg("base_line"),
+          py::arg("base_col"),
+          py::arg("base_offset"));
 }
