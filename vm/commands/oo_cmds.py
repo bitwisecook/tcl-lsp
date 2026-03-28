@@ -430,10 +430,14 @@ def _apply_slot_op(current: list[str], args: list[str], validate: bool = True) -
             " -prepend, -remove, or -set"
         )
 
-    # No flag — default is -append (like C Tcl's default slot operation)
+    # No flag — default is -appendifnew for variable (append, skip duplicates)
     if validate:
         _validate_var_names(args)
-    return current + args
+    result = list(current)
+    for n in args:
+        if n not in result:
+            result.append(n)
+    return result
 
 
 def _define_variable(interp: TclInterp, args: list[str]) -> TclResult:

@@ -90,8 +90,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-26.2",
     "oo-26.3",
     # oo-27.x: configure
-    "oo-27.21",
-    "oo-27.22",
     "oo-27.23",
     # oo-28.x: configurable (complex)
     # oo-29.x
