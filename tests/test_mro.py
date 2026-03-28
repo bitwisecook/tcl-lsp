@@ -133,9 +133,58 @@ class TestTclOOMixins:
         }
         result = c3_linearise("C", supers, mixins_map=mixins)
         # B is a mixin of C, A is a mixin of B
-        # So A should appear before B, B before C
+        # All mixin-path classes (A, B, parent-via-mixin) come before non-mixin (C)
         assert "A" in result
         assert "B" in result
+        assert result.index("A") < result.index("B")
+        assert result.index("B") < result.index("C")
+
+    def test_two_pass_nested_mixin_ordering(self):
+        """Two-pass mechanism: nested mixin at depth must precede non-mixin class.
+
+        D has mixin M1, superclass C. C has mixin M2, superclass A.
+        Without two passes: M1, D, M2, C, A (M2 between D and C).
+        With two passes:    M1, M2, D, C, A (all mixins before non-mixins).
+        """
+        supers = {
+            "A": [],
+            "C": ["A"],
+            "D": ["C"],
+            "M1": [],
+            "M2": [],
+        }
+        mixins = {
+            "D": ["M1"],
+            "C": ["M2"],
+        }
+        result = c3_linearise("D", supers, mixins_map=mixins)
+        # Both mixins must come before both non-mixin classes
+        assert result.index("M1") < result.index("D")
+        assert result.index("M2") < result.index("D")
+        assert result.index("M2") < result.index("C")
+        # Non-mixin ordering preserved
+        assert result.index("D") < result.index("C")
+        assert result.index("C") < result.index("A")
+
+    def test_mixin_shared_superclass_dedup(self):
+        """Late-placement dedup across passes for shared base.
+
+        cls has mixin mix, both extend base. base appears via mixin path
+        (pass 1) and non-mixin path (pass 2) — dedup moves it to the end.
+        """
+        supers = {
+            "base": [],
+            "mix": ["base"],
+            "cls": ["base"],
+        }
+        mixins = {
+            "cls": ["mix"],
+        }
+        result = c3_linearise("cls", supers, mixins_map=mixins)
+        # mix (mixin-path) before cls (non-mixin)
+        assert result.index("mix") < result.index("cls")
+        # base deduped to end (appears via both paths)
+        assert result.index("cls") < result.index("base")
 
 
 class TestBuildMroMap:
