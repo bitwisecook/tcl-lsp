@@ -60,7 +60,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-6.x: oo::define edge cases
     "oo-6.16",
     "oo-6.17",
-    "oo-6.18",
     # oo-7.x: Inheritance edge cases
     "oo-7.10",
     # oo-11.x: Class methods
@@ -71,18 +70,13 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-13.x: Filter edge cases
     "oo-13.6",
     "oo-13.7",
-    "oo-13.9",
-    "oo-13.10",
     "oo-13.11",
     # oo-14.x: Mixin edge cases
     "oo-14.1",
     "oo-14.2",
     # oo-15.x: oo::objdefine edge cases
     "oo-15.6",
-    "oo-15.8",
-    "oo-15.9",
     "oo-15.10",
-    "oo-15.12",
     "oo-15.13.2",
     "oo-15.14",
     # oo-16.x: info object/class edge cases
@@ -104,12 +98,8 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-19.4",
     "oo-19.5",
     # oo-20.x: singleton/abstract/tag
-    "oo-20.3",
-    "oo-20.4",
-    "oo-20.5",
     "oo-20.6",
     "oo-20.7",
-    "oo-20.9",
     "oo-20.10",
     "oo-20.11",
     "oo-20.13",

@@ -125,6 +125,7 @@ class TclInterp:
         self.procedures: dict[str, ProcDef] = {}
         self.script_file: str | None = None
         self.cmd_count = 0
+        self._last_cmd_name: str | None = None
         # Cache compiled bytecode for short, repeatedly-evaluated scripts.
         # This is especially important for tight loops (e.g. foreach/lmap)
         # that invoke ``eval`` with the same body many times.
@@ -519,6 +520,7 @@ class TclInterp:
     def _invoke_inner(self, cmd_name: str, args: list[str]) -> TclResult:
         """Dispatch a command by name (inner implementation)."""
         self.cmd_count += 1
+        self._last_cmd_name = cmd_name
 
         # Fully-qualified names (::foo::bar) resolve from root
         if "::" in cmd_name:

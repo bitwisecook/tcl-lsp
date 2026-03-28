@@ -668,6 +668,11 @@ def _objdefine_class(interp: TclInterp, args: list[str]) -> TclResult:
         raise TclError(f'"{new_class}" is not a class')
     if cls.qualified_name == obj.name:
         raise TclError("may not change classes into an instance of themselves")
+    # Protect root objects from class changes
+    if obj.name == "::oo::object":
+        raise TclError("may not modify the class of the root object class")
+    if obj.name == "::oo::class":
+        raise TclError("may not modify the class of the class of classes")
     obj.class_name = cls.qualified_name
     if oo._is_metaclass(cls) and obj.name not in oo.classes:
         new_cls_obj = TclOOClass(
@@ -1069,7 +1074,12 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
     import copy
 
     from ..oo import TclOOClass, TclOOObject
-    from ..scope import ensure_namespace
+    from ..scope import ensure_namespace, resolve_namespace
+
+    # Check if target namespace already exists
+    if target_namespace:
+        if resolve_namespace(interp.root_namespace, target_namespace) is not None:
+            raise TclError(f"{target_namespace} refers to an existing namespace")
 
     # If source is a class, create a new class copy
     src_cls = oo.classes.get(src.name)
@@ -1103,6 +1113,10 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
             if target_namespace:
                 tgt.namespace = target_namespace
                 ensure_namespace(interp.root_namespace, target_namespace)
+            # Invoke <cloned> method on the new class object
+            cloned_method, cloned_class = oo.resolve_method(tgt, "<cloned>")
+            if cloned_method is not None:
+                oo._invoke_method(interp, tgt, cloned_method, [src.name], defining_class=cloned_class)
         return TclResult(value=tgt_name)
 
     tgt_ns = target_namespace or f"::oo::Obj{oo._next_obj_id}"
@@ -1123,6 +1137,10 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
     )
     oo.objects[tgt_name] = tgt
     oo._register_object_command(interp, tgt)
+    # Invoke <cloned> method on the new object, passing the source object name
+    cloned_method, cloned_class = oo.resolve_method(tgt, "<cloned>")
+    if cloned_method is not None:
+        oo._invoke_method(interp, tgt, cloned_method, [src.name], defining_class=cloned_class)
     return TclResult(value=tgt_name)
 
 

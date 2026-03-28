@@ -400,6 +400,11 @@ class OORuntime:
             if short_name.startswith("::"):
                 short_name = short_name[2:]
 
+            # Track invocation name for forward error rewriting.
+            # If invoked as "::foo", use "::foo"; if as "foo", use "foo".
+            invoked_name = getattr(interp, "_last_cmd_name", None) or short_name
+            obj._invoked_name = invoked_name
+
             if not args:
                 raise TclError(f'wrong # args: should be "{short_name} method ?arg ...?"')
             method_name = args[0]
@@ -787,10 +792,9 @@ class OORuntime:
                         original = m.group(1).split()
                         prefix_count = len(method.forward_target)
                         remaining_params = original[prefix_count:]
-                        short_name = obj.name
-                        if short_name.startswith("::"):
-                            short_name = short_name[2:]
-                        new_params = [short_name, method.name] + remaining_params
+                        # Use the command name as-invoked for the error message
+                        display_name = getattr(obj, "_invoked_name", None) or obj.name
+                        new_params = [display_name, method.name] + remaining_params
                         raise TclError(
                             f'wrong # args: should be "{" ".join(new_params)}"'
                         ) from None
@@ -979,6 +983,14 @@ class OORuntime:
         elif name == "variable":
             # Import object variables into the method's local scope
             for var_name in args:
+                if "::" in var_name:
+                    raise TclError(
+                        f'variable name "{var_name}" illegal: must not contain namespace separator'
+                    )
+                if "(" in var_name and var_name.endswith(")"):
+                    raise TclError(
+                        f'can\'t define "{var_name}": name refers to an element in an array'
+                    )
                 if var_name in obj._vars:
                     frame.set_var(var_name, obj._vars[var_name])
                 else:
@@ -1007,7 +1019,28 @@ class OORuntime:
             # Called from filter chain's next → actual destroy
             return TclResult()
         elif name == "<cloned>":
-            # Default <cloned> handler — no-op (user can override)
+            # Default <cloned> handler — copy variables from origin object
+            if args:
+                from .scope import ensure_namespace
+                origin_name = args[0]
+                origin = self.objects.get(origin_name)
+                if origin is None and not origin_name.startswith("::"):
+                    origin = self.objects.get(f"::{origin_name}")
+                if origin is not None:
+                    obj._vars.update(origin._vars)
+                    obj._arrays = {k: dict(v) for k, v in origin._arrays.items()}
+                    # Also copy namespace-level variables (created by Tcl's
+                    # `variable` command inside methods/constructors).
+                    origin_ns = ensure_namespace(interp.root_namespace, origin.namespace)
+                    obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
+                    if hasattr(origin_ns, '_frame') and origin_ns._frame is not None:
+                        if not hasattr(obj_ns, '_frame') or obj_ns._frame is None:
+                            from .scope import CallFrame
+                            obj_ns._frame = CallFrame(namespace=obj_ns)
+                        for vn, vv in origin_ns._frame._scalars.items():
+                            obj_ns._frame._scalars[vn] = vv
+                        for vn, vv in origin_ns._frame._arrays.items():
+                            obj_ns._frame._arrays[vn] = dict(vv)
             return TclResult()
         raise TclError(f'unknown builtin method "{name}"')
 
