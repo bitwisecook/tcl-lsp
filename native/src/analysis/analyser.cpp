@@ -31,7 +31,7 @@ auto Analyser::analyse(std::string_view source) -> AnalysisResult {
     current_scope_ = &result_.global_scope();
     conditional_depth_ = 0;
     last_comment_.clear();
-    command_aliases_.clear();
+    alias_resolver_.clear();
     unresolved_commands_emitted_ = false;
 
     // Pre-scan for inline stub blocks.
@@ -60,7 +60,7 @@ auto Analyser::analyse_commands(std::string_view source,
     current_scope_ = &result_.global_scope();
     conditional_depth_ = 0;
     last_comment_.clear();
-    command_aliases_.clear();
+    alias_resolver_.clear();
     unresolved_commands_emitted_ = false;
 
     analyse_commands_inner(commands, &result_.global_scope(), source);

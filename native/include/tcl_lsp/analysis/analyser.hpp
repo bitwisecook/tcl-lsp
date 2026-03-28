@@ -43,9 +43,22 @@ class Analyser {
     int32_t conditional_depth_ = 0;
 
 
-    // Command aliases: qualified alias_name -> (target_cmd, prepended_args).
-    std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>>
-        command_aliases_;
+    // Manages command alias registration and resolution.
+    struct AliasResolver {
+        void register_alias(const std::string& qualified,
+                            const std::string& target_cmd,
+                            std::vector<std::string> prepended_args);
+        auto resolve(const std::string& cmd_name,
+                     const std::vector<std::string>& args,
+                     const std::string& ns) const
+            -> std::pair<std::string, std::vector<std::string>>;
+        void clear() { aliases_.clear(); }
+
+      private:
+        std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>>
+            aliases_;
+    };
+    AliasResolver alias_resolver_;
 
     // Track whether we've already emitted W123 diagnostics.
     bool unresolved_commands_emitted_ = false;
@@ -89,9 +102,7 @@ class Analyser {
     void define_vars_from_list(const std::string& var_list_text,
                                const Token& tok, Scope* scope);
 
-    // --- Alias resolution + proc call ---
-    auto resolve_alias(const std::string& cmd_name, const std::vector<std::string>& args,
-                       Scope* scope) -> std::pair<std::string, std::vector<std::string>>;
+    // --- Proc call ---
     auto find_proc_call(const std::string& cmd_name, Scope* scope) -> ProcDef*;
     void check_proc_call_arity(const ProcDef& proc_def,
                                 const std::vector<std::string>& args,

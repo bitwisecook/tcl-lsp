@@ -101,7 +101,8 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
             }
         }
         if (!has_sig) {
-            auto [role_cmd, role_args] = resolve_alias(cmd_name, args, scope);
+            auto [role_cmd, role_args] = alias_resolver_.resolve(
+                cmd_name, args, scope ? namespace_from_scope(scope) : "::");
             if (role_cmd != cmd_name) {
                 has_sig = registry_->signature(role_cmd).has_value();
             }
@@ -621,8 +622,8 @@ void Analyser::handle_interp_alias(const SegmentedCommand& cmd) {
     auto qualified = normalise_qualified_name(alias_name, nullptr);
     std::vector<std::string> prepended(args.begin() + 5, args.end());
 
-    command_aliases_[qualified] = {target_cmd, prepended};
-    result_.command_aliases_[qualified] = {target_cmd, prepended};
+    alias_resolver_.register_alias(qualified, target_cmd, prepended);
+    result_.command_aliases_[qualified] = {target_cmd, std::vector<std::string>(prepended)};
 }
 
 // ---------------------------------------------------------------------------
@@ -685,7 +686,8 @@ void Analyser::analyse_body_args(const SegmentedCommand& cmd, Scope* scope) {
     const auto args = cmd.args();
     const auto atoks = cmd.arg_tokens();
 
-    auto [role_cmd, role_args] = resolve_alias(cmd_name, args, scope);
+    auto [role_cmd, role_args] = alias_resolver_.resolve(
+                cmd_name, args, scope ? namespace_from_scope(scope) : "::");
     auto prepend_n = static_cast<int32_t>(role_args.size()) -
                      static_cast<int32_t>(args.size());
 
@@ -758,51 +760,7 @@ void Analyser::analyse_body_args(const SegmentedCommand& cmd, Scope* scope) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// resolve_alias
-// ---------------------------------------------------------------------------
-
-auto Analyser::resolve_alias(const std::string& cmd_name,
-                             const std::vector<std::string>& args,
-                             Scope* scope)
-    -> std::pair<std::string, std::vector<std::string>> {
-    auto ns = scope ? namespace_from_scope(scope) : std::string{"::"};
-
-    // Try namespace-qualified form, then global.
-    auto try_lookup = [&](const std::string& key)
-        -> std::pair<std::string, std::vector<std::string>>* {
-        auto it = command_aliases_.find(key);
-        return it != command_aliases_.end() ? &it->second : nullptr;
-    };
-
-    if (cmd_name.starts_with("::")) {
-        auto q = normalise_qualified_name(cmd_name, nullptr);
-        if (auto* alias = try_lookup(q)) {
-            auto effective = alias->second;
-            effective.insert(effective.end(), args.begin(), args.end());
-            return {alias->first, effective};
-        }
-        return {cmd_name, args};
-    }
-
-    if (ns != "::") {
-        auto candidate = normalise_qualified_name(ns + "::" + cmd_name, nullptr);
-        if (auto* alias = try_lookup(candidate)) {
-            auto effective = alias->second;
-            effective.insert(effective.end(), args.begin(), args.end());
-            return {alias->first, effective};
-        }
-    }
-
-    auto global = normalise_qualified_name("::" + cmd_name, nullptr);
-    if (auto* alias = try_lookup(global)) {
-        auto effective = alias->second;
-        effective.insert(effective.end(), args.begin(), args.end());
-        return {alias->first, effective};
-    }
-
-    return {cmd_name, args};
-}
+// AliasResolver methods are implemented in analyser_helpers.cpp (needs normalise_qualified).
 
 // ---------------------------------------------------------------------------
 // find_proc_call
