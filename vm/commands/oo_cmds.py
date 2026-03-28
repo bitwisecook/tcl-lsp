@@ -683,6 +683,18 @@ def _objdefine_unknown(interp: TclInterp, args: list[str]) -> TclResult:
     raise TclError(f'invalid command name "{cmd_name}"')
 
 
+def _require_class_context(handler):
+    """Wrap a define handler to require class context (not objdefine)."""
+    def _wrapper(interp: TclInterp, args: list[str]) -> TclResult:
+        cls = getattr(interp, "_defining_class", None)
+        if cls is None:
+            obj = getattr(interp, "_defining_object", None)
+            if obj is not None:
+                raise TclError("attempt to misuse API")
+        return handler(interp, args)
+    return _wrapper
+
+
 def _ensure_define_commands(interp: TclInterp) -> None:
     """Register ::oo::define::* commands if not already present."""
     if getattr(interp, "_oo_define_commands_registered", False):
@@ -690,20 +702,20 @@ def _ensure_define_commands(interp: TclInterp) -> None:
     interp._oo_define_commands_registered = True
 
     cmds = {
-        "::oo::define::method": _define_method,
-        "::oo::define::classmethod": _define_classmethod,
-        "::oo::define::constructor": _define_constructor,
-        "::oo::define::destructor": _define_destructor,
-        "::oo::define::superclass": _define_superclass,
-        "::oo::define::mixin": _define_mixin,
-        "::oo::define::variable": _define_variable,
-        "::oo::define::filter": _define_filter,
-        "::oo::define::forward": _define_forward,
-        "::oo::define::deletemethod": _define_deletemethod,
-        "::oo::define::renamemethod": _define_renamemethod,
-        "::oo::define::export": _define_export,
-        "::oo::define::unexport": _define_unexport,
-        "::oo::define::private": _define_private,
+        "::oo::define::method": _require_class_context(_define_method),
+        "::oo::define::classmethod": _require_class_context(_define_classmethod),
+        "::oo::define::constructor": _require_class_context(_define_constructor),
+        "::oo::define::destructor": _require_class_context(_define_destructor),
+        "::oo::define::superclass": _require_class_context(_define_superclass),
+        "::oo::define::mixin": _require_class_context(_define_mixin),
+        "::oo::define::variable": _require_class_context(_define_variable),
+        "::oo::define::filter": _require_class_context(_define_filter),
+        "::oo::define::forward": _require_class_context(_define_forward),
+        "::oo::define::deletemethod": _require_class_context(_define_deletemethod),
+        "::oo::define::renamemethod": _require_class_context(_define_renamemethod),
+        "::oo::define::export": _require_class_context(_define_export),
+        "::oo::define::unexport": _require_class_context(_define_unexport),
+        "::oo::define::private": _require_class_context(_define_private),
         "::oo::define::self": _define_self,
         "::oo::define::definitionnamespace": _define_definitionnamespace,
     }

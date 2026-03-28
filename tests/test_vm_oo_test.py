@@ -37,18 +37,15 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-1.18.3",
     "oo-1.18.4",
     "oo-1.18.5",
-    "oo-1.19",
     "oo-1.20",
     "oo-1.21",
     "oo-1.25",
-    "oo-1.7",
     # oo-2.x: Constructor edge cases (interp)
     "oo-2.1",
     "oo-2.6",
     "oo-2.7",
     "oo-2.8",
     # oo-3.x: Destructor edge cases
-    "oo-3.3",
     "oo-3.4",
     "oo-3.4a",
     "oo-3.5",

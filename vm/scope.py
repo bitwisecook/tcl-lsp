@@ -47,6 +47,7 @@ class Namespace:
         "_path",
         "_unknown_handler",
         "_frame",
+        "_oo_object_name",
     )
 
     def __init__(self, name: str, parent: Namespace | None = None) -> None:
@@ -67,6 +68,7 @@ class Namespace:
         self._path: list[Namespace] = []
         self._unknown_handler: str | None = None
         self._frame: CallFrame | None = None
+        self._oo_object_name: str | None = None
 
     def get_frame(self, interp: TclInterp) -> CallFrame:
         """Return the persistent CallFrame for this namespace.

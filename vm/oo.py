@@ -341,6 +341,13 @@ class OORuntime:
         )
         self.objects[obj_name] = obj
 
+        # Create the actual Tcl namespace for this object so that
+        # `namespace delete` and variable access work correctly.
+        from .scope import ensure_namespace
+        obj_ns = ensure_namespace(interp.root_namespace, ns)
+        # Store a back-reference so namespace delete can trigger destruction
+        obj_ns._oo_object_name = obj_name
+
         # Register the object command before running the constructor
         # so the object is usable from within the constructor body.
         self._register_object_command(interp, obj)

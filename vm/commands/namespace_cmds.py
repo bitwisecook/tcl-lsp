@@ -233,6 +233,17 @@ def _ns_delete(interp: TclInterp, args: list[str]) -> TclResult:
             raise TclError(f'unknown namespace "{ns_name}" in namespace delete command')
         if ns is interp.root_namespace:
             raise TclError("cannot delete the global namespace")
+        # If this namespace belongs to an OO object, destroy the object
+        oo_obj_name = getattr(ns, "_oo_object_name", None)
+        if oo_obj_name is not None:
+            oo = getattr(interp, "_oo_runtime", None)
+            if oo is not None:
+                obj = oo.objects.get(oo_obj_name)
+                if obj is not None:
+                    try:
+                        oo._destroy_object(interp, obj)
+                    except Exception:
+                        pass  # ignore destruction errors
         # Clean up ensemble commands owned by this namespace
         _cleanup_ensembles_for_namespace(interp, ns_name)
         ns.delete()
