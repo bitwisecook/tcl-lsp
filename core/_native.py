@@ -6,6 +6,8 @@ implementations when the native module is not available (e.g. the C++
 code has not been built).
 """
 
+import logging as _logging
+
 try:
     from _tcl_lsp_native import (  # type: ignore[import-not-found]
         DocumentBuffer,
@@ -43,8 +45,6 @@ try:
 except ImportError:
     pass
 
-import logging as _logging
-
 _log = _logging.getLogger(__name__)
 _log.debug(
     "Native C++ acceleration: core_types=%s, segmenter=%s",
@@ -52,4 +52,23 @@ _log.debug(
     NATIVE_SEGMENTER,
 )
 
-__all__ = ["SourcePosition", "Range", "DocumentBuffer", "NATIVE", "NATIVE_SEGMENTER"]
+__all__ = [
+    "SourcePosition",
+    "Range",
+    "DocumentBuffer",
+    "NATIVE",
+    "NATIVE_SEGMENTER",
+    # Phase 3 re-exports (only available when NATIVE_SEGMENTER is True).
+    "CodeFix",
+    "Diagnostic",
+    "NativeSegmentedCommand",
+    "Severity",
+    "TopLevelChunk",
+    "UnclosedDelimiter",
+    "compute_virtual_insertions",
+    "find_first_dirty_chunk",
+    "position_from_relative",
+    "segment_commands",
+    "segment_top_level_chunks",
+    "segment_with_recovery",
+]

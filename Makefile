@@ -994,10 +994,12 @@ native-setup-cfi: ## Configure C++ build with Control Flow Integrity
 	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR_CFI) \
 		-Dcfi=true \
 		-Db_lto=true \
+		-Dcatch2:tests=false \
 		--wipe 2>/dev/null || \
 	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR_CFI) \
 		-Dcfi=true \
-		-Db_lto=true
+		-Db_lto=true \
+		-Dcatch2:tests=false
 
 native-test-cfi: ## Build and test with Control Flow Integrity
 	@echo "==> Building and testing with Control Flow Integrity (clang + LTO)"
