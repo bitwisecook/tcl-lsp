@@ -72,8 +72,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-13.7",
     "oo-13.11",
     # oo-14.x: Mixin edge cases
-    "oo-14.1",
-    "oo-14.2",
     # oo-15.x: oo::objdefine edge cases
     "oo-15.10",
     "oo-15.13.2",
@@ -96,8 +94,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-19.5",
     # oo-20.x: singleton/abstract/tag
     "oo-20.6",
-    "oo-20.10",
-    "oo-20.15",
     # oo-21.x: readableproperties/writableproperties
     "oo-21.2",
     "oo-21.3",
@@ -135,8 +131,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-28.x: configurable (complex)
     # oo-29.x
     # oo-30.x
-    "oo-30.1",
-    "oo-30.2",
     # oo-32.x
     "oo-32.2",
     "oo-32.3",
@@ -174,10 +168,8 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-39.x
     "oo-39.11",
     # oo-41.x
-    "oo-41.3",
     # oo-42.x
     # oo-43.x (TIP 524: definitionnamespace)
-    "oo-43.7",
 }
 
 # ---------------------------------------------------------------------------

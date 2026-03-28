@@ -604,13 +604,45 @@ def _define_unknown(interp: TclInterp, args: list[str]) -> TclResult:
     if not args:
         raise TclError("wrong # args")
     cmd_name = args[0]
-    # Try abbreviation
+    # Try abbreviation against built-in define commands
     full = _abbreviate(cmd_name, _CLASS_BODY_SUBCMDS)
     if full != cmd_name:
         fq = f"::oo::define::{full}"
         handler = interp._runtime_commands.get(fq)
         if handler is not None:
             return handler(interp, args[1:])
+    # TIP 524: If we're in a custom definition namespace, try abbreviation
+    # against commands available there (procs, runtime commands).
+    cur_ns = interp.current_namespace
+    from ..scope import resolve_namespace
+    define_ns = resolve_namespace(interp.root_namespace, "::oo::define")
+    if cur_ns is not define_ns and cur_ns is not None:
+        # Collect available command names in the custom namespace
+        avail_cmds: list[str] = []
+        for p in cur_ns._procs:
+            avail_cmds.append(p)
+        for c in cur_ns._commands:
+            if c not in avail_cmds:
+                avail_cmds.append(c)
+        ns_qn = cur_ns.qualname
+        for rt_name in interp._runtime_commands:
+            if rt_name.startswith(ns_qn + "::"):
+                short = rt_name[len(ns_qn) + 2:]
+                if "::" not in short and short not in avail_cmds:
+                    avail_cmds.append(short)
+        if avail_cmds:
+            full_ns = _abbreviate(cmd_name, tuple(sorted(avail_cmds)))
+            if full_ns != cmd_name:
+                # Found an abbreviation — dispatch it
+                fq_cmd = f"{ns_qn}::{full_ns}"
+                proc = cur_ns.lookup_proc(full_ns)
+                if proc is not None:
+                    from ..interp import ProcDef
+                    if isinstance(proc, ProcDef):
+                        return interp._call_proc(proc, args[1:])
+                handler = interp._runtime_commands.get(fq_cmd)
+                if handler is not None:
+                    return handler(interp, args[1:])
     raise TclError(f'invalid command name "{cmd_name}"')
 
 
@@ -727,6 +759,15 @@ def _parse_class_body(
             if custom_ns is not None:
                 eval_ns = custom_ns
 
+    # If using a custom definition namespace, install the define unknown
+    # handler so abbreviation works for commands in that namespace too.
+    saved_unknown = None
+    if eval_ns is not oo_define_ns:
+        saved_unknown = getattr(eval_ns, '_unknown_handler', None)
+        unknown_key = f"{eval_ns.qualname}::__unknown__"
+        interp._runtime_commands[unknown_key] = _define_unknown
+        eval_ns._unknown_handler = unknown_key
+
     saved_ns = interp.current_namespace
     saved_frame_ns = interp.current_frame.namespace
     saved_cls = getattr(interp, "_defining_class", None)
@@ -745,6 +786,10 @@ def _parse_class_body(
         interp._defining_class = saved_cls
         interp._defining_object = saved_obj
         interp._defining_frame = saved_define_frame
+        if saved_unknown is not None:
+            eval_ns._unknown_handler = saved_unknown
+        elif eval_ns is not oo_define_ns and saved_unknown is None:
+            eval_ns._unknown_handler = None
     return result
 
 
@@ -961,7 +1006,16 @@ def _register_class_command(
 
         # Check if method is unexported on the class object
         obj = oo.objects.get(qualified)
-        is_unexported = obj is not None and method in obj.unexported_methods
+        # Internal calls (e.g. from myclass) bypass unexported checks
+        internal_call = getattr(interp, "_oo_internal_call", False)
+        is_unexported = False
+        if not internal_call:
+            is_unexported = obj is not None and method in obj.unexported_methods
+            # Also check instance method visibility (e.g., self method Hi)
+            if not is_unexported and obj is not None and method not in obj.exported_methods:
+                im = obj.instance_methods.get(method)
+                if im is not None and im.visibility in ("unexported", "private"):
+                    is_unexported = True
 
         if method == "new" and not is_unexported:
             obj_name = oo.create_object(interp, qualified, args=cmd_args[1:])

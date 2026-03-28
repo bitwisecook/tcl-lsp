@@ -290,6 +290,7 @@ class OORuntime:
         # If the constructor throws, run destructor then clean up.
         ctor, ctor_class = self._resolve_constructor(cls)
         if ctor is not None:
+            obj._in_constructor = True
             try:
                 self._invoke_method(interp, obj, ctor, args or [], defining_class=ctor_class)
             except TclError as ctor_err:
@@ -299,6 +300,12 @@ class OORuntime:
                 except TclError:
                     pass  # ignore destructor errors during cleanup
                 raise ctor_err
+            finally:
+                obj._in_constructor = False
+
+            # If the object was destroyed during construction, raise error
+            if obj.name not in self.objects:
+                raise TclError("object deleted in constructor")
 
         return obj_name
 
@@ -578,6 +585,10 @@ class OORuntime:
                         return cls_cmd(interp, args)
                     finally:
                         obj.unexported_methods = saved
+            # Handle destroy via my — destroy is always available
+            if method_name == "destroy":
+                return oo_self._destroy_object(interp, obj)
+
             # TIP 500: When calling via 'my', check if the caller's
             # defining class has a private method with this name — that
             # takes priority over the normal MRO resolution.
@@ -654,16 +665,22 @@ class OORuntime:
         interp._runtime_commands[ns_my_name] = _ns_my
 
         # TIP 478: myclass command — dispatches to the object's class
+        # myclass allows access to unexported methods (like my does)
         def _ns_myclass(interp: TclInterp, args: list[str]) -> TclResult:
             if not args:
                 raise TclError('wrong # args: should be "myclass method ?arg ...?"')
             # Check if object has been destroyed
             if obj.name not in oo_self.objects:
                 raise TclError(f'invalid command name "myclass"')
-            # Look up the class command and dispatch
+            # Look up the class command and dispatch, allowing unexported access
             cls_cmd = interp._runtime_commands.get(obj.class_name)
             if cls_cmd is not None:
-                return cls_cmd(interp, args)
+                saved = getattr(interp, "_oo_internal_call", False)
+                interp._oo_internal_call = True
+                try:
+                    return cls_cmd(interp, args)
+                finally:
+                    interp._oo_internal_call = saved
             raise TclError(f'invalid command name "{obj.class_name}"')
 
         ns_myclass_name = f"{obj.namespace}::myclass"
@@ -1092,10 +1109,57 @@ class OORuntime:
                     caller._scalars[var_name] = obj._vars[var_name]
             return TclResult()
         elif name == "varname":
-            # Return the fully-qualified variable name
+            # Return the fully-qualified variable name.
+            # Ensure the namespace frame actually has the variable so
+            # external `set ::oo::ObjN::varName` can read/write it.
             if not args:
                 raise TclError('wrong # args: should be "varname varName"')
             var_name = args[0]
+            # Check if the variable has an upvar alias in the caller's
+            # frame or the object's namespace frame (Bug 2da1cb0c80)
+            from .scope import ensure_namespace
+            caller = interp.current_frame
+            # First check caller's frame (for `my variable` context)
+            check_frame = None
+            if var_name in caller._aliases:
+                check_frame = caller
+            else:
+                obj_ns_check = ensure_namespace(interp.root_namespace, obj.namespace)
+                ns_frame_check = obj_ns_check.get_frame(interp)
+                if var_name in ns_frame_check._aliases:
+                    check_frame = ns_frame_check
+            if check_frame is not None and var_name in check_frame._aliases:
+                target_frame, target_name = check_frame._aliases[var_name]
+                # Walk to find the fully-qualified target name
+                seen: set[int] = set()
+                while target_name in target_frame._aliases:
+                    key = id(target_frame) ^ hash(target_name)
+                    if key in seen:
+                        break
+                    seen.add(key)
+                    target_frame, target_name = target_frame._aliases[target_name]
+                # If the target is in a namespace frame, return qualified
+                ns_ref = getattr(target_frame, 'namespace', None)
+                if ns_ref is not None and hasattr(ns_ref, 'qualname'):
+                    qn_ref = ns_ref.qualname
+                    return TclResult(value=f"{qn_ref}::{target_name}" if qn_ref != "::" else f"::{target_name}")
+                # For global vars, return ::name
+                if target_frame.parent is None:
+                    return TclResult(value=f"::{target_name}")
+            # Ensure variable is accessible in the object's namespace frame
+            from .scope import ensure_namespace
+            obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
+            ns_frame = obj_ns.get_frame(interp)
+            # Sync: if the variable exists in obj._vars, make it visible
+            # in the namespace frame
+            if var_name in obj._vars:
+                ns_frame._scalars[var_name] = obj._vars[var_name]
+            # Set up a proxy so future reads/writes go through obj._vars
+            existing = getattr(ns_frame, '_oo_instance_vars', None)
+            if existing is not None:
+                existing[1].add(var_name)
+            else:
+                ns_frame._oo_instance_vars = (obj._vars, {var_name})
             return TclResult(value=f"{obj.namespace}::{var_name}")
         elif name == "unknown":
             # Default unknown handler — error with method list
@@ -1154,9 +1218,39 @@ class OORuntime:
         # If this object is a class, destroy subclasses and instances first
         cls_def = self.classes.get(obj.name)
         if cls_def is not None:
-            # Destroy subclasses first (they are also classes whose superclass is this class)
             qn = cls_def.qualified_name
             short = qn.lstrip(":")
+
+            # Destroy objects that have this class as an object mixin
+            def _matches_class(mixin_name: str) -> bool:
+                """Check if a mixin name matches the class being destroyed."""
+                if mixin_name == qn or mixin_name == short:
+                    return True
+                if not mixin_name.startswith("::"):
+                    return f"::{mixin_name}" == qn
+                return False
+
+            mixin_objs = [
+                o for o in list(self.objects.values())
+                if o.name != obj.name
+                and any(_matches_class(m) for m in o.instance_mixins)
+            ]
+            for mo in mixin_objs:
+                if mo.name in self.objects:
+                    self._destroy_object(interp, mo)
+
+            # Destroy classes that have this class as a class mixin
+            mixin_classes = [
+                c for c in list(self.classes.values())
+                if c.qualified_name != qn
+                and any(_matches_class(m) for m in c.mixins)
+            ]
+            for mc in mixin_classes:
+                mc_obj = self.objects.get(mc.qualified_name)
+                if mc_obj and mc_obj.name in self.objects:
+                    self._destroy_object(interp, mc_obj)
+
+            # Destroy subclasses (classes whose superclass is this class)
             subclasses_to_destroy = [
                 c
                 for c in list(self.classes.values())
