@@ -542,6 +542,20 @@ def _get_oo_runtime(interp: TclInterp) -> OORuntime:
     return interp._oo_runtime
 
 
+def _resolve_class(interp: TclInterp, oo: OORuntime, name: str) -> TclOOClass:
+    """Resolve a class name, checking current namespace if not qualified."""
+    cls = oo.classes.get(name)
+    if cls is None and not name.startswith("::"):
+        cls = oo.classes.get(f"::{name}")
+    if cls is None and not name.startswith("::"):
+        ns = interp.current_namespace.qualname
+        ns_qualified = f"{ns}::{name}" if ns != "::" else f"::{name}"
+        cls = oo.classes.get(ns_qualified)
+    if cls is None:
+        raise TclError(f'unknown class "{name}"')
+    return cls
+
+
 def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
     """oo::class create className ?body?"""
     if len(args) < 2:
@@ -682,14 +696,7 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
 
     class_name = args[0]
     oo = _get_oo_runtime(interp)
-
-    # Resolve class name
-    cls = oo.classes.get(class_name)
-    if cls is None:
-        qualified = f"::{class_name}" if not class_name.startswith("::") else class_name
-        cls = oo.classes.get(qualified)
-    if cls is None:
-        raise TclError(f'unknown class "{class_name}"')
+    cls = _resolve_class(interp, oo, class_name)
 
     if len(args) == 2:
         # Body form: oo::define Dog { method bark {} { ... } }

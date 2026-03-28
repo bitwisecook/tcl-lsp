@@ -77,7 +77,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-7.x: Inheritance edge cases
     "oo-7.6",
     "oo-7.7",
-    "oo-7.9",
     "oo-7.10",
     # oo-11.x: Class methods
     "oo-11.5",
