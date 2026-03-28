@@ -925,3 +925,109 @@ pybind11 until the full registry is ported to C++ in Phase 7.
 9. Generic visitors for tree traversal
 10. Every new diagnostic code added to the `DiagCode` enum (compile-time checked)
 
+### LSP Library: lsp-framework (forked)
+
+The native LSP server uses a fork of
+[leon-bckl/lsp-framework](https://github.com/leon-bckl/lsp-framework) at
+[bitwisecook/lsp-framework](https://github.com/bitwisecook/lsp-framework).
+
+**What it is:** A C++20 library that auto-generates all LSP 3.17 types from the
+official `metaModel.json` at build time. Zero external dependencies. Type-safe
+handler registration using C++20 concepts. Built-in stdio and TCP socket
+transports. MIT license.
+
+**Why lsp-framework over alternatives:**
+
+| Library | Decision | Reason |
+|---|---|---|
+| lsp-framework | **Selected** | C++20, zero deps, auto-generated types from meta model, clean API |
+| LspCpp | Eliminated | boost + rapidjson + utfcpp + uri — too many large deps |
+| bare-lsp | Eliminated | No license, 8 stars, abseil dep, demo-quality |
+| Roll our own | Deferred | Transport/dispatcher are simple but type generation is significant toil; lsp-framework already solved it |
+
+Priority ranking: quality > simplicity/readability > performance. lsp-framework
+scored highest on quality (auto-generated types = no spec drift) and simplicity
+(zero deps, fluent C++20 API).
+
+#### Quality standard
+
+**The fork must pass the same quality bar as tcl-lsp itself.** It is not
+treated as a black-box dependency with suppressed warnings — it is held to
+the full tcl-lsp compiler and sanitizer matrix:
+
+| Requirement | Detail |
+|---|---|
+| **Compilers** | Clang 18, GCC 13, GCC 14 — all with `-Werror` |
+| **Warning level** | 3 (all warnings) + hardening flags |
+| **Hardening flags** | `-fstack-protector-strong`, `-D_FORTIFY_SOURCE=2`, `-D_GLIBCXX_ASSERTIONS`, `-Wconversion`, `-Wsign-conversion`, `-Wfloat-conversion`, `-Wvla`, `-Wdouble-promotion`, `-Wmissing-field-initializers`, `-Wnull-dereference`, `-Wformat=2`, `-Wunused-result`, `-Wimplicit-fallthrough` |
+| **Sanitizers** | ASan+UBSan, ThreadSanitizer, Valgrind memcheck |
+| **Static analysis** | clang-tidy (bugprone, modernize, performance, readability, cppcoreguidelines), cppcheck `--enable=all`, scan-build (9 checker categories), GCC `-fanalyzer` |
+| **Formatting** | clang-format 18 enforced (upstream style: tabs, Attach braces) |
+| **Tests** | Catch2 test suite covering JSON, JSON-RPC, transport, LSP types, MessageHandler, integration |
+
+The fork's `Makefile` provides the same target structure as tcl-lsp (`make test-all`,
+`make test-asan`, `make valgrind`, `make scan-build`, `make lint`, etc.).
+
+#### Upstream synchronisation
+
+**The fork must be kept up to date with upstream constantly.** Policy:
+
+1. **Rebase on upstream regularly** — at minimum before each tcl-lsp release,
+   and whenever upstream tags a new version. Use `git fetch upstream && git rebase upstream/master`.
+2. **Upstream remote configured** — the fork must have `upstream` pointing at
+   `leon-bckl/lsp-framework` in addition to `origin` at `bitwisecook/lsp-framework`.
+3. **Minimise fork delta** — the fork should only carry: Meson build, CI/CD,
+   test suite, quality enforcement config files, and the \*BSD/int64 patches.
+   The goal is zero functional divergence from upstream.
+4. **No private API forks** — if we need behaviour changes in the library,
+   only carry patches that are clearly separable from upstream.
+5. **Track upstream releases** — when upstream tags a release, the fork should
+   incorporate it within one week and verify all quality checks pass.
+6. **Upstream contributions handled by maintainer** — fixes suitable for
+   upstream are submitted by the project maintainer, not automated tooling.
+
+#### Fork improvements over upstream
+
+1. **Meson build system** — ported from CMake for native tcl-lsp integration;
+   pre-generated LSP types checked into `lsp/generated/` with forwarding headers
+2. **\*BSD support** — FreeBSD/OpenBSD/NetBSD/DragonFlyBSD added to socket and
+   process platform detection (`#if defined(__unix__) && !defined(_WIN32)`)
+3. **CI/CD** — GitHub Actions matrix: Linux (GCC 13/14, Clang 18), macOS
+   (Apple Clang), Windows (MSVC), FreeBSD (Clang). ASan+UBSan. clang-format check.
+4. **Quality enforcement** — AGENTS.md, CLAUDE.md, Makefile (26 targets),
+   .clang-format, .clang-tidy, .cppcheck-suppress, full hardening flags in
+   meson.build with `-Werror` and `warning_level=3`
+5. **Test suite** — Catch2 tests for JSON parser, JSON-RPC, transport,
+   LSP type serialization, MessageHandler dispatch, and integration tests
+6. **json::Integer → int64_t** — widened from int32_t to handle large request IDs;
+   fixed cascading type truncation bugs in serialization.h, messagehandler.cpp
+7. **Hardened build fixes** — `process.cpp` unconsumed `::write()` return,
+   `socket.cpp` ssize_t→SizeType conversion, `jsonrpc.cpp` GCC false-positive
+   `-Wmaybe-uninitialized` suppression (GCC bugzilla #106247)
+
+#### Integration
+
+Meson subproject via `wrap-git` pointing at the fork:
+
+```ini
+# native/subprojects/lsp-framework.wrap
+[wrap-git]
+url = https://github.com/bitwisecook/lsp-framework.git
+revision = master
+[provide]
+lsp-framework = lsp_dep
+```
+
+The library builds with its own `-Werror` and hardening flags (not suppressed).
+Our server code in `native/src/lsp/` also compiles with full `-Werror`.
+
+#### Phases 7+8 collapse into Phase 7
+
+With lsp-framework providing the protocol layer, LSP features and server
+replacement happen together:
+- 7a: Integrate lsp-framework subproject, verify `make test-all` passes
+- 7b: Server skeleton (lifecycle, document sync, capabilities)
+- 7c: Port semantic tokens (performance-critical, first feature)
+- 7d: Port remaining features one at a time
+- 7e: Remove pygls, lsprotocol, pybind11 shim
+
