@@ -976,15 +976,15 @@ The fork's `Makefile` provides the same target structure as tcl-lsp (`make test-
    and whenever upstream tags a new version. Use `git fetch upstream && git rebase upstream/master`.
 2. **Upstream remote configured** — the fork must have `upstream` pointing at
    `leon-bckl/lsp-framework` in addition to `origin` at `bitwisecook/lsp-framework`.
-3. **Minimise fork delta** — every fix that isn't tcl-lsp-specific should be
-   submitted as a PR to upstream. The goal is zero functional divergence;
-   the fork should only carry: Meson build, CI/CD, test suite, quality
-   enforcement config files, and the \*BSD/int64 patches (until upstreamed).
+3. **Minimise fork delta** — the fork should only carry: Meson build, CI/CD,
+   test suite, quality enforcement config files, and the \*BSD/int64 patches.
+   The goal is zero functional divergence from upstream.
 4. **No private API forks** — if we need behaviour changes in the library,
-   propose them upstream first. Only carry patches that upstream has declined
-   or that are in-flight PRs.
+   only carry patches that are clearly separable from upstream.
 5. **Track upstream releases** — when upstream tags a release, the fork should
    incorporate it within one week and verify all quality checks pass.
+6. **Upstream contributions handled by maintainer** — fixes suitable for
+   upstream are submitted by the project maintainer, not automated tooling.
 
 #### Fork improvements over upstream
 
