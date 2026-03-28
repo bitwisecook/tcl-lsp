@@ -1,21 +1,22 @@
 #pragma once
 
 #include "tcl_lsp/lsp/document_store.hpp"
+#include "tcl_lsp/lsp/python_bridge.hpp"
 
 #include <lsp/connection.h>
 #include <lsp/messagehandler.h>
 #include <lsp/messages.h>
 
 #include <atomic>
+#include <memory>
 #include <string>
 
 namespace tcl_lsp {
 
 // The native Tcl LSP server.
 //
-// Owns the lsp-framework Connection and MessageHandler, the document store,
-// and (in later phases) the Python bridge for delegating feature requests to
-// existing Python code.
+// Owns the lsp-framework MessageHandler, the document store, and the
+// Python bridge for delegating feature requests to existing Python code.
 class TclLspServer {
 public:
     explicit TclLspServer(lsp::Connection& connection);
@@ -31,6 +32,7 @@ public:
 private:
     lsp::MessageHandler handler_;
     DocumentStore documents_;
+    std::unique_ptr<PythonBridge> python_;
     std::atomic<bool> running_{false};
 
     // Lifecycle
@@ -44,6 +46,11 @@ private:
     void on_did_open(lsp::notifications::TextDocument_DidOpen::Params&& params);
     void on_did_change(lsp::notifications::TextDocument_DidChange::Params&& params);
     void on_did_close(lsp::notifications::TextDocument_DidClose::Params&& params);
+
+    // Python-delegated features: call Python bridge with JSON, return JSON.
+    [[nodiscard]] auto call_python_feature(const std::string& method,
+                                           const std::string& params_json)
+        -> lsp::json::Value;
 
     // Register all handlers with the message handler.
     void register_handlers();
