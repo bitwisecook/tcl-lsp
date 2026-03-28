@@ -1052,8 +1052,9 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
     if src is None:
         raise TclError(f'"{src_name}" does not refer to an object')
 
-    # Determine target name
+    # Determine target name and optional target namespace
     oo._next_obj_id += 1
+    target_namespace = args[2] if len(args) >= 3 else None
     if len(args) >= 2:
         tgt_name = args[1]
         if not tgt_name.startswith("::"):
@@ -1068,6 +1069,7 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
     import copy
 
     from ..oo import TclOOClass, TclOOObject
+    from ..scope import ensure_namespace
 
     # If source is a class, create a new class copy
     src_cls = oo.classes.get(src.name)
@@ -1098,9 +1100,14 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
             tgt.unexported_methods = set(src.unexported_methods)
             tgt._vars = dict(src._vars)
             tgt._arrays = {k: dict(v) for k, v in src._arrays.items()}
+            if target_namespace:
+                tgt.namespace = target_namespace
+                ensure_namespace(interp.root_namespace, target_namespace)
         return TclResult(value=tgt_name)
 
-    tgt_ns = f"::oo::Obj{oo._next_obj_id}"
+    tgt_ns = target_namespace or f"::oo::Obj{oo._next_obj_id}"
+    if target_namespace:
+        ensure_namespace(interp.root_namespace, target_namespace)
     tgt = TclOOObject(
         name=tgt_name,
         class_name=src.class_name,
