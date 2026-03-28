@@ -59,7 +59,7 @@ def _tcloo_dfs(
     non-mixin-path classes are added.
     """
     if cls in visiting:
-        return  # cycle guard (Tcl lacks this but would infinite-loop on cycles)
+        raise C3Error(f"cycle detected in class hierarchy involving {cls!r}")
     visiting.add(cls)
     try:
         # 1. Process class-level mixins (enter mixin path)
@@ -119,15 +119,8 @@ def c3_linearise(
     if mixins_map is None:
         mixins_map = {}
 
-    # Cycle detection: check for trivial self-cycles
-    parents = superclasses_map.get(class_name, [])
-    if class_name in parents:
-        raise C3Error(f"cycle detected in class hierarchy involving '{class_name}'")
-
-    # Check for two-node cycles
-    for p in parents:
-        if class_name in superclasses_map.get(p, []):
-            raise C3Error(f"cycle detected in class hierarchy involving '{class_name}'")
+    # Cycle detection is handled inside _tcloo_dfs via the visiting set.
+    # Self-cycles are caught there too (A → A raises C3Error).
 
     result: list[str] = []
 

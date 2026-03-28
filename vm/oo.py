@@ -179,34 +179,42 @@ class OORuntime:
         self.objects[obj_name] = obj
 
         # Run constructor — walk MRO to find the first constructor
-        ctor = self._resolve_constructor(cls)
+        ctor, ctor_class = self._resolve_constructor(cls)
         if ctor is not None:
-            self._invoke_method(interp, obj, ctor, args or [], defining_class=class_name)
+            self._invoke_method(interp, obj, ctor, args or [], defining_class=ctor_class)
 
         # Register the object as a command
         self._register_object_command(interp, obj)
 
         return obj_name
 
-    def _resolve_constructor(self, cls: TclOOClass) -> TclOOMethod | None:
-        """Find the constructor by walking the MRO chain."""
+    def _resolve_constructor(self, cls: TclOOClass) -> tuple[TclOOMethod | None, str | None]:
+        """Find the constructor by walking the MRO chain.
+
+        Returns ``(constructor, defining_class_qname)`` so that ``next``
+        inside the constructor resolves from the correct MRO position.
+        """
         if cls.constructor is not None:
-            return cls.constructor
+            return cls.constructor, cls.qualified_name
         for class_qname in cls.mro(self.classes):
             ancestor = self.classes.get(class_qname)
             if ancestor and ancestor.constructor is not None:
-                return ancestor.constructor
-        return None
+                return ancestor.constructor, class_qname
+        return None, None
 
-    def _resolve_destructor(self, cls: TclOOClass) -> TclOOMethod | None:
-        """Find the destructor by walking the MRO chain."""
+    def _resolve_destructor(self, cls: TclOOClass) -> tuple[TclOOMethod | None, str | None]:
+        """Find the destructor by walking the MRO chain.
+
+        Returns ``(destructor, defining_class_qname)`` so that ``next``
+        inside the destructor resolves from the correct MRO position.
+        """
         if cls.destructor is not None:
-            return cls.destructor
+            return cls.destructor, cls.qualified_name
         for class_qname in cls.mro(self.classes):
             ancestor = self.classes.get(class_qname)
             if ancestor and ancestor.destructor is not None:
-                return ancestor.destructor
-        return None
+                return ancestor.destructor, class_qname
+        return None, None
 
     def _register_object_command(self, interp: TclInterp, obj: TclOOObject) -> None:
         """Register the object as a command that dispatches method calls."""
@@ -370,8 +378,8 @@ class OORuntime:
             for var_name in all_vars:
                 try:
                     obj._vars[var_name] = frame.get_var(var_name)
-                except Exception:
-                    pass
+                except (TclError, KeyError):
+                    pass  # variable was not set in this method invocation
             interp.current_frame = old_frame
         return result
 
@@ -381,9 +389,9 @@ class OORuntime:
 
         cls = self.classes.get(obj.class_name)
         if cls:
-            dtor = self._resolve_destructor(cls)
+            dtor, dtor_class = self._resolve_destructor(cls)
             if dtor is not None:
-                self._invoke_method(interp, obj, dtor, [], defining_class=obj.class_name)
+                self._invoke_method(interp, obj, dtor, [], defining_class=dtor_class)
 
         # Remove object command and storage
         interp._runtime_commands.pop(obj.name, None)

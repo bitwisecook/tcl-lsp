@@ -2249,7 +2249,7 @@ class Analyser:
 
         # Recurse into the method body for variable analysis
         method_scope = Scope(
-            kind="proc",
+            kind="method",
             name=f"{class_def.name}::{method_name}",
             parent=scope,
             body_range=body_range,

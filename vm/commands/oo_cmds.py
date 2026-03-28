@@ -46,8 +46,9 @@ def _parse_class_body(
     """Parse a class definition body and populate the class."""
     from ..machine import _split_list
 
-    # Split body into commands (simple line-based parsing)
-    # Use the interpreter's own parser for robustness
+    # Split body into commands via simple line-based parsing with
+    # brace-balancing for multi-line commands.  This is a lightweight
+    # approach — it does not use the full Tcl parser.
     lines = body.strip().split("\n")
     i = 0
     while i < len(lines):
