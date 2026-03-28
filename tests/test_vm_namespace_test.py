@@ -94,13 +94,9 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-21.4",  # apply in namespace
     "namespace-21.5",  # apply in namespace
     "namespace-21.7",  # apply in namespace
-    # namespace qualifiers/tail
-    "namespace-22.1",  # namespace qualifiers
-    "namespace-22.2",  # namespace qualifiers
-    "namespace-22.3",  # namespace qualifiers
-    "namespace-22.7",  # namespace tail
-    # namespace exists
-    "namespace-23.1",  # namespace exists
+    # namespace code edge cases
+    "namespace-22.3",  # namespace code — whitespace in inscope check
+    "namespace-22.7",  # namespace code — local namespace proc
     # namespace current in procs
     "namespace-25.1",  # namespace current
     "namespace-25.2",  # namespace current
@@ -126,23 +122,16 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-29.2",  # error in namespace eval
     "namespace-29.3",  # error in namespace eval
     "namespace-29.6",  # error in namespace eval
-    # Namespace ensemble subcommands
-    "namespace-30.2",  # ensemble subcommand
-    "namespace-30.5",  # ensemble subcommand
-    "namespace-31.1",  # ensemble map
-    "namespace-31.4",  # ensemble map
-    "namespace-32.2",  # ensemble configure
-    "namespace-32.6",  # ensemble configure
-    "namespace-32.7",  # ensemble configure
-    "namespace-32.8",  # ensemble configure
-    "namespace-33.2",  # ensemble prefixes
-    # Ensemble unknown handler
-    "namespace-34.2",  # ensemble unknown
-    "namespace-34.3",  # ensemble unknown
-    "namespace-34.4",  # ensemble unknown
-    "namespace-34.5",  # ensemble unknown
-    "namespace-34.6",  # ensemble unknown
-    "namespace-34.7",  # ensemble unknown
+    # Namespace origin/parent/qualifiers/tail
+    "namespace-30.5",  # origin — imported command
+    "namespace-31.4",  # parent — bad namespace error message
+    "namespace-32.6",  # qualifiers — :: returns ""
+    "namespace-32.7",  # qualifiers — odd colons
+    "namespace-32.8",  # qualifiers — nested odd colons
+    # Namespace which edge cases
+    "namespace-34.5",  # which — command lookup in nested ns
+    "namespace-34.6",  # which — -command is default
+    "namespace-34.7",  # which — variable lookup
     # Ensemble parameters
     "namespace-35.2",  # ensemble parameters
     # Variable resolution order
@@ -250,7 +239,6 @@ KNOWN_FAILURES_NAMESPACE_OLD: set[str] = {
     "namespace-old-5.10",  # variable resolution
     "namespace-old-5.11",  # variable resolution
     "namespace-old-5.16",  # variable resolution
-    "namespace-old-5.18",  # variable resolution
     "namespace-old-5.19",  # variable resolution
     # Namespace children / parent / qualifiers
     "namespace-old-6.7",  # namespace children
@@ -259,8 +247,6 @@ KNOWN_FAILURES_NAMESPACE_OLD: set[str] = {
     "namespace-old-6.10",  # namespace parent
     "namespace-old-6.11",  # namespace parent
     "namespace-old-6.16",  # namespace qualifiers
-    "namespace-old-6.17",  # namespace qualifiers
-    "namespace-old-6.18",  # namespace tail
     "namespace-old-6.19",  # namespace tail
     # Command resolution / import patterns
     "namespace-old-7.3",  # command resolution

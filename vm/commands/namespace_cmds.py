@@ -39,6 +39,8 @@ def _cmd_namespace(interp: TclInterp, args: list[str]) -> TclResult:
         case "eval":
             return _ns_eval(interp, rest)
         case "current":
+            if rest:
+                raise TclError('wrong # args: should be "namespace current"')
             return TclResult(value=interp.current_namespace.qualname)
         case "export":
             return _ns_export(interp, rest)
@@ -53,11 +55,11 @@ def _cmd_namespace(interp: TclInterp, args: list[str]) -> TclResult:
         case "delete":
             return _ns_delete(interp, rest)
         case "qualifiers":
-            if not rest:
+            if len(rest) != 1:
                 raise TclError('wrong # args: should be "namespace qualifiers string"')
             return TclResult(value=namespace_qualifiers(rest[0]))
         case "tail":
-            if not rest:
+            if len(rest) != 1:
                 raise TclError('wrong # args: should be "namespace tail string"')
             return TclResult(value=namespace_tail(rest[0]))
         case "which":
@@ -205,13 +207,17 @@ def _ns_children(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _ns_parent(interp: TclInterp, args: list[str]) -> TclResult:
     """namespace parent ?ns?"""
+    if len(args) > 1:
+        raise TclError('wrong # args: should be "namespace parent ?name?"')
     if not args:
         ns = interp.current_namespace
     else:
         ns_name = _resolve_ns_name(interp, args[0])
         ns = resolve_namespace(interp.root_namespace, ns_name)
         if ns is None:
-            raise TclError(f'namespace "{args[0]}" not found')
+            raise TclError(
+                f'namespace "{ns_name}" not found in "::"'
+            )
 
     if ns.parent is None:
         return TclResult(value="")
@@ -248,22 +254,25 @@ def _cleanup_ensembles_for_namespace(interp: TclInterp, ns_name: str) -> None:
 
 def _ns_which(interp: TclInterp, args: list[str]) -> TclResult:
     """namespace which ?-command|-variable? name"""
-    which_type = "command"
-    name = ""
-    i = 0
-    while i < len(args):
-        if args[i] == "-command":
-            which_type = "command"
-            i += 1
-        elif args[i] == "-variable":
-            which_type = "variable"
-            i += 1
-        else:
-            name = args[i]
-            i += 1
+    if not args or len(args) > 2:
+        raise TclError(
+            'wrong # args: should be "namespace which ?-command? ?-variable? name"'
+        )
 
-    if not name:
-        raise TclError('wrong # args: should be "namespace which ?-command? ?-variable? name"')
+    which_type = "command"
+    if len(args) == 2:
+        if args[0] == "-command":
+            which_type = "command"
+        elif args[0] == "-variable":
+            which_type = "variable"
+        else:
+            raise TclError(
+                'wrong # args: should be "namespace which ?-command? ?-variable? name"'
+            )
+        name = args[1]
+    else:
+        # Single arg: always treated as the name (even if it looks like a flag)
+        name = args[0]
 
     if which_type == "command":
         # Check current namespace
@@ -293,10 +302,14 @@ def _ns_which(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _ns_code(interp: TclInterp, args: list[str]) -> TclResult:
     """namespace code script"""
-    if not args:
+    if len(args) != 1:
         raise TclError('wrong # args: should be "namespace code arg"')
+    script = args[0]
+    # If already scoped, return as-is
+    if script.startswith("::namespace inscope "):
+        return TclResult(value=script)
     ns = interp.current_namespace.qualname
-    return TclResult(value=f"::namespace inscope {ns} {args[0]}")
+    return TclResult(value=f"::namespace inscope {ns} {script}")
 
 
 def _ns_inscope(interp: TclInterp, args: list[str]) -> TclResult:
@@ -779,7 +792,7 @@ def _ns_origin(interp: TclInterp, args: list[str]) -> TclResult:
     *command* refers to.  If *command* is not an imported command,
     return its fully-qualified name directly.
     """
-    if not args:
+    if len(args) != 1:
         raise TclError('wrong # args: should be "namespace origin name"')
 
     name = args[0]
