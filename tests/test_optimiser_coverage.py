@@ -2319,3 +2319,7 @@ class TestO127LoadForwarding:
     def test_skip_info_between(self):
         s = "proc f {} { set x [clock seconds]\n info exists x\n puts $x }"
         assert _not_has(s, "O127")
+
+    def test_skip_aliased_read(self):
+        s = "proc f {} { upvar 1 ext a\n set temp $a\n puts $temp }"
+        assert _not_has(s, "O127")

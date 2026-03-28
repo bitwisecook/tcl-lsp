@@ -2280,6 +2280,17 @@ class TestLoadForwarding:
         _optimised, rewrites = optimise_source(source)
         assert not any(r.code == "O127" for r in rewrites)
 
+    def test_skip_aliased_read_variable(self):
+        """If the expression reads an aliased variable, skip entirely."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                upvar 1 ext a
+                set temp $a
+                puts $temp
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+
     def test_grouped_edits(self):
         """O127 inline + delete should share a group ID."""
         source = textwrap.dedent("""\

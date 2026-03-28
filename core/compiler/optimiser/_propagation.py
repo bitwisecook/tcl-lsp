@@ -784,27 +784,19 @@ def optimise_load_forwarding(
             if def_name in ctx.cross_event_vars:
                 continue
 
-            # Skip aliased variables.
+            # Skip aliased variables — both the defined variable and any
+            # variable read by the expression.  Aliases (upvar/global/variable)
+            # mean writes through one name are visible through another, so
+            # name-based intervening-modification checks are insufficient.
             if def_name in aliased_names:
+                continue
+            def_read_names = set(ssa_stmt.uses.keys())
+            if def_read_names & aliased_names:
                 continue
 
             # Must have exactly one use in the entire function.
             if use_count.get(def_key, 0) != 1:
                 continue
-
-            # Purity check: value must not have side effects.
-            if isinstance(stmt, IRAssignValue) and "[" in stmt.value:
-                # Has command substitution — skip unless we can verify purity.
-                # For now, allow it: the command is already executed at the
-                # def site, and we're just moving *where* we use its result.
-                # The execution order doesn't change because the single use
-                # is in the same block at a later index.
-                pass
-            elif isinstance(stmt, IRAssignExpr):
-                from ._expr_simplify import _expr_has_command_subst
-
-                if _expr_has_command_subst(stmt.expr):
-                    pass  # Same reasoning as above.
 
             # Find the single use: must be in the same block at a later index.
             use_idx = None
@@ -819,20 +811,19 @@ def optimise_load_forwarding(
             if use_idx is None:
                 continue
 
-            # Check no intervening barriers or side-effectful commands,
-            # and no intervening modifications to variables read by the def.
-            def_reads = set(ssa_stmt.uses.keys())
-            has_barrier = False
+            # Verify that no variable read by the expression is redefined
+            # between the def site and the use site.  If any read variable's
+            # SSA version changes, inlining would evaluate the expression
+            # with wrong values.
+            versions_changed = False
             for between_idx in range(def_idx + 1, use_idx):
-                if between_idx >= len(block.statements):
+                if between_idx >= len(ssa_block.statements):
                     break
                 between_stmt = block.statements[between_idx]
                 if isinstance(between_stmt, IRBarrier):
-                    has_barrier = True
+                    versions_changed = True
                     break
                 if isinstance(between_stmt, IRCall):
-                    # Commands that could observe variables via traces, info
-                    # exists, etc. are conservatively treated as barriers.
                     if between_stmt.command in (
                         "eval",
                         "uplevel",
@@ -842,16 +833,15 @@ def optimise_load_forwarding(
                         "namespace",
                         "interp",
                     ):
-                        has_barrier = True
+                        versions_changed = True
                         break
-                # Check if any variable read by the def is modified between
-                # def and use.  If so, inlining would evaluate the expression
-                # with different variable values than the original.
+                # If any intervening statement defines a variable that the
+                # expression reads, the SSA version has changed — unsafe.
                 between_ssa = ssa_block.statements[between_idx]
-                if def_reads & set(between_ssa.defs.keys()):
-                    has_barrier = True
+                if def_read_names & set(between_ssa.defs.keys()):
+                    versions_changed = True
                     break
-            if has_barrier:
+            if versions_changed:
                 continue
 
             # Extract the full command text from source (including closing brackets).
