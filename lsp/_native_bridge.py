@@ -42,6 +42,8 @@ def _init():
         if _initialised:
             return
 
+        # Import server module to trigger code registrations.
+        import core.common.codes_all  # noqa: F401
         from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
         from core.common.codes import default_disabled_diagnostics
         from core.formatting import FormatterConfig
@@ -50,9 +52,6 @@ def _init():
         from lsp.workspace.document_state import WorkspaceState
         from lsp.workspace.scanner import BackgroundScanner
         from lsp.workspace.workspace_index import WorkspaceIndex
-
-        # Import server module to trigger code registrations.
-        import core.common.codes_all  # noqa: F401
 
         _workspace_state = WorkspaceState()
         _workspace_index = WorkspaceIndex()
@@ -129,23 +128,27 @@ def _lsp_obj_to_dict(obj):
     # lsprotocol types have __dict__ or cattrs-based serialisation.
     try:
         from lsprotocol.converters import get_converter
+
         converter = get_converter()
         return converter.unstructure(obj)
     except Exception:
         pass
     if hasattr(obj, "__dict__"):
-        return {k: _lsp_obj_to_dict(v) for k, v in obj.__dict__.items()
-                if not k.startswith("_") and v is not None}
+        return {
+            k: _lsp_obj_to_dict(v)
+            for k, v in obj.__dict__.items()
+            if not k.startswith("_") and v is not None
+        }
     return obj
 
 
 # Document sync
 
+
 def on_did_open(uri: str, language_id: str, text: str, version: int):
     """Handle textDocument/didOpen."""
     _init()
-    _workspace_state.open(uri, text, version, language_id=language_id,
-                          analyse=False)
+    _workspace_state.open(uri, text, version, language_id=language_id, analyse=False)
     _trigger_diagnostics(uri, text, version)
 
 
@@ -171,7 +174,9 @@ def _trigger_diagnostics(uri: str, source: str, version: int | None):
     """Run analysis and publish diagnostics (synchronous for now)."""
     _init()
     state = _workspace_state.update(
-        uri, source, version,
+        uri,
+        source,
+        version,
         line_length=_feature_config.line_length,
     )
 
@@ -180,6 +185,7 @@ def _trigger_diagnostics(uri: str, source: str, version: int | None):
         return
 
     from lsp.features.diagnostics import get_basic_diagnostics
+
     basic_diags, _, _ = get_basic_diagnostics(
         source,
         analysis=state.analysis,
@@ -194,6 +200,7 @@ def _trigger_diagnostics(uri: str, source: str, version: int | None):
 
     # Update workspace index.
     from lsp.workspace.workspace_index import EntrySource
+
     if state.analysis and not state.has_partial_commands:
         _workspace_index.update(uri, state.analysis, EntrySource.OPEN)
 
@@ -217,6 +224,7 @@ def on_initialized(workspace_folders_json: str, settings_json: str):
     # Start background scanning of workspace folders.
     if folders and _background_scanner:
         from lsp.workspace.scanner import uri_to_path
+
         paths = []
         for f in folders:
             uri = f.get("uri", "") if isinstance(f, dict) else str(f)
@@ -226,20 +234,23 @@ def on_initialized(workspace_folders_json: str, settings_json: str):
                     paths.append(path)
         if paths:
             import threading
+
             def _scan():
                 for p in paths:
                     try:
                         entries = _background_scanner.scan_directory(p)
                         from lsp.workspace.workspace_index import EntrySource
+
                         for uri, analysis in entries:
-                            _workspace_index.update(uri, analysis,
-                                                    EntrySource.BACKGROUND)
+                            _workspace_index.update(uri, analysis, EntrySource.BACKGROUND)
                     except Exception:
                         log.exception("Background scan failed for %s", p)
+
             threading.Thread(target=_scan, daemon=True).start()
 
 
 # Feature handlers — each returns a JSON string or None.
+
 
 def handle_feature(method: str, params_json: str) -> str | None:
     """Dispatch an LSP feature request to the appropriate Python handler."""
@@ -272,6 +283,7 @@ def _dispatch_feature(method: str, params: dict):
             if not _feature_config.semantic_tokens_enabled:
                 return {"data": []}
             from lsp.features.semantic_tokens import semantic_tokens_full
+
             data = semantic_tokens_full(source, analysis=analysis)
             return {"data": data}
 
@@ -279,10 +291,13 @@ def _dispatch_feature(method: str, params: dict):
             if not _feature_config.completion_enabled:
                 return []
             from lsp.features.completion import get_completions
+
             line = params.get("position", {}).get("line", 0)
             char = params.get("position", {}).get("character", 0)
             return get_completions(
-                source, line, char,
+                source,
+                line,
+                char,
                 analysis=analysis,
                 workspace_procs=_workspace_index.all_proc_names(),
                 workspace_rule_init_vars=_workspace_index.all_rule_init_var_names(),
@@ -296,35 +311,35 @@ def _dispatch_feature(method: str, params: dict):
             if not _feature_config.hover_enabled:
                 return None
             from lsp.features.hover import get_hover
+
             line = params.get("position", {}).get("line", 0)
             char = params.get("position", {}).get("character", 0)
-            return get_hover(source, line, char, analysis=analysis,
-                             lines=lines)
+            return get_hover(source, line, char, analysis=analysis, lines=lines)
 
         case "textDocument/definition":
             if not _feature_config.definition_enabled:
                 return []
-            from lsp.features.definition import get_definition, get_bigip_definition
+            from lsp.features.definition import get_bigip_definition, get_definition
+
             line = params.get("position", {}).get("line", 0)
             char = params.get("position", {}).get("character", 0)
-            result = get_definition(source, uri, line, char,
-                                    analysis=analysis)
+            result = get_definition(source, uri, line, char, analysis=analysis)
             if not result:
                 # Workspace-index fallback for cross-file definitions.
                 from lsp.features.symbol_resolution import find_word_at_position
+
                 word = find_word_at_position(source, line, char, lines=lines)
                 if word and _workspace_index:
                     from lsp.features.definition import _resolve_workspace_definition
+
                     try:
-                        result = _resolve_workspace_definition(
-                            word, _workspace_index, uri)
+                        result = _resolve_workspace_definition(word, _workspace_index, uri)
                     except (ImportError, AttributeError):
                         pass
             if not result:
                 # BIG-IP config fallback.
                 try:
-                    bigip_result = get_bigip_definition(
-                        source, uri, line, char, analysis=analysis)
+                    bigip_result = get_bigip_definition(source, uri, line, char, analysis=analysis)
                     if bigip_result:
                         result = bigip_result
                 except Exception:
@@ -335,97 +350,105 @@ def _dispatch_feature(method: str, params: dict):
             if not _feature_config.references_enabled:
                 return []
             from lsp.features.references import get_references
+
             line = params.get("position", {}).get("line", 0)
             char = params.get("position", {}).get("character", 0)
             ctx = params.get("context", {})
             include_decl = ctx.get("includeDeclaration", True)
-            return get_references(source, uri, line, char,
-                                  analysis=analysis,
-                                  include_declaration=include_decl)
+            return get_references(
+                source, uri, line, char, analysis=analysis, include_declaration=include_decl
+            )
 
         case "textDocument/documentSymbol":
             if not _feature_config.document_symbols_enabled:
                 return []
             from lsp.features.document_symbols import get_document_symbols
+
             return get_document_symbols(source, analysis=analysis)
 
         case "textDocument/foldingRange":
             if not _feature_config.folding_enabled:
                 return []
             from lsp.features.folding import get_folding_ranges
-            return get_folding_ranges(source, analysis=analysis,
-                                      lines=lines)
+
+            return get_folding_ranges(source, analysis=analysis, lines=lines)
 
         case "textDocument/rename":
             if not _feature_config.rename_enabled:
                 return None
             from lsp.features.rename import get_rename_edits
+
             line = params.get("position", {}).get("line", 0)
             char = params.get("position", {}).get("character", 0)
             new_name = params.get("newName", "")
-            return get_rename_edits(source, uri, line, char, new_name,
-                                    analysis=analysis)
+            return get_rename_edits(source, uri, line, char, new_name, analysis=analysis)
 
         case "textDocument/prepareRename":
             if not _feature_config.rename_enabled:
                 return None
             from lsp.features.rename import prepare_rename
+
             line = params.get("position", {}).get("line", 0)
             char = params.get("position", {}).get("character", 0)
-            return prepare_rename(source, uri, line, char,
-                                  analysis=analysis)
+            return prepare_rename(source, uri, line, char, analysis=analysis)
 
         case "textDocument/signatureHelp":
             if not _feature_config.signature_help_enabled:
                 return None
             from lsp.features.signature_help import get_signature_help
+
             line = params.get("position", {}).get("line", 0)
             char = params.get("position", {}).get("character", 0)
-            return get_signature_help(source, line, char,
-                                      analysis=analysis)
+            return get_signature_help(source, line, char, analysis=analysis)
 
         case "textDocument/formatting":
             if not _feature_config.formatting_enabled:
                 return None
-            from lsp.features.formatting import get_formatting
             from lsprotocol.types import FormattingOptions
+
+            from lsp.features.formatting import get_formatting
+
             opts = params.get("options", {})
             fmt_opts = FormattingOptions(
                 tab_size=opts.get("tabSize", 4),
                 insert_spaces=opts.get("insertSpaces", True),
             )
-            return get_formatting(source, fmt_opts, _formatter_config,
-                                  lines=lines)
+            return get_formatting(source, fmt_opts, _formatter_config, lines=lines)
 
         case "textDocument/rangeFormatting":
             if not _feature_config.formatting_enabled:
                 return None
-            from lsp.features.formatting import get_range_formatting
             from lsprotocol.converters import get_converter
             from lsprotocol.types import DocumentRangeFormattingParams
+
+            from lsp.features.formatting import get_range_formatting
+
             converter = get_converter()
-            full_params = converter.structure(params,
-                                             DocumentRangeFormattingParams)
+            full_params = converter.structure(params, DocumentRangeFormattingParams)
             return get_range_formatting(
-                source, full_params.range, full_params.options,
-                _formatter_config, lines=lines)
+                source, full_params.range, full_params.options, _formatter_config, lines=lines
+            )
 
         case "textDocument/codeAction":
             if not _feature_config.code_actions_enabled:
                 return None
-            from lsp.features.code_actions import get_code_actions
             from lsprotocol.converters import get_converter
             from lsprotocol.types import CodeActionParams
+
+            from lsp.features.code_actions import get_code_actions
+
             converter = get_converter()
             full_params = converter.structure(params, CodeActionParams)
             actions = get_code_actions(
-                source, full_params.range, full_params.context,
+                source,
+                full_params.range,
+                full_params.context,
                 package_names=_package_resolver.all_package_names(),
-                lines=lines)
+                lines=lines,
+            )
             # Remap __current__ URI.
             for action in actions:
-                if (action.edit and action.edit.changes
-                        and "__current__" in action.edit.changes):
+                if action.edit and action.edit.changes and "__current__" in action.edit.changes:
                     remapped = {}
                     for edit_uri, edits in action.edit.changes.items():
                         if edit_uri == "__current__":
@@ -439,19 +462,21 @@ def _dispatch_feature(method: str, params: dict):
             if not _feature_config.workspace_symbols_enabled:
                 return []
             from lsp.features.workspace_symbols import get_workspace_symbols
+
             query = params.get("query", "")
             return get_workspace_symbols(query, _workspace_index)
 
         case "textDocument/inlayHint":
             if not _feature_config.inlay_hints_enabled:
                 return []
-            from lsp.features.inlay_hints import get_inlay_hints
             from lsprotocol.converters import get_converter
             from lsprotocol.types import Range as LspRange
+
+            from lsp.features.inlay_hints import get_inlay_hints
+
             converter = get_converter()
             rng = converter.structure(params.get("range", {}), LspRange)
-            return get_inlay_hints(source, rng, analysis=analysis,
-                                   lines=lines)
+            return get_inlay_hints(source, rng, analysis=analysis, lines=lines)
 
         case "textDocument/prepareCallHierarchy":
             if not _feature_config.call_hierarchy_enabled:
@@ -459,64 +484,65 @@ def _dispatch_feature(method: str, params: dict):
             from lsp.features.call_hierarchy import (
                 prepare_call_hierarchy as get_call_hierarchy,
             )
+
             line = params.get("position", {}).get("line", 0)
             char = params.get("position", {}).get("character", 0)
-            return get_call_hierarchy(source, uri, line, char,
-                                      analysis=analysis)
+            return get_call_hierarchy(source, uri, line, char, analysis=analysis)
 
         case "callHierarchy/incomingCalls":
             if not _feature_config.call_hierarchy_enabled:
                 return []
+            from lsprotocol.converters import get_converter
+            from lsprotocol.types import CallHierarchyItem
+
             from lsp.features.call_hierarchy import (
                 incoming_calls as get_incoming_calls,
             )
-            from lsprotocol.converters import get_converter
-            from lsprotocol.types import CallHierarchyItem
+
             converter = get_converter()
-            item = converter.structure(params.get("item", {}),
-                                       CallHierarchyItem)
+            item = converter.structure(params.get("item", {}), CallHierarchyItem)
             item_uri = item.uri
             item_source = _get_doc_source(item_uri)
             item_state = _workspace_state.get(item_uri)
             item_analysis = item_state.analysis if item_state else None
-            return get_incoming_calls(item, item_source, item_uri,
-                                      analysis=item_analysis)
+            return get_incoming_calls(item, item_source, item_uri, analysis=item_analysis)
 
         case "callHierarchy/outgoingCalls":
             if not _feature_config.call_hierarchy_enabled:
                 return []
+            from lsprotocol.converters import get_converter
+            from lsprotocol.types import CallHierarchyItem
+
             from lsp.features.call_hierarchy import (
                 outgoing_calls as get_outgoing_calls,
             )
-            from lsprotocol.converters import get_converter
-            from lsprotocol.types import CallHierarchyItem
+
             converter = get_converter()
-            item = converter.structure(params.get("item", {}),
-                                       CallHierarchyItem)
+            item = converter.structure(params.get("item", {}), CallHierarchyItem)
             item_uri = item.uri
             item_source = _get_doc_source(item_uri)
             item_state = _workspace_state.get(item_uri)
             item_analysis = item_state.analysis if item_state else None
-            return get_outgoing_calls(item, item_source, item_uri,
-                                      analysis=item_analysis)
+            return get_outgoing_calls(item, item_source, item_uri, analysis=item_analysis)
 
         case "textDocument/documentLink":
             if not _feature_config.document_links_enabled:
                 return []
             from lsp.features.document_links import get_document_links
+
             return get_document_links(source, analysis=analysis)
 
         case "textDocument/selectionRange":
             if not _feature_config.selection_range_enabled:
                 return None
-            from lsp.features.selection_range import get_selection_ranges
             from lsprotocol.converters import get_converter
             from lsprotocol.types import Position
+
+            from lsp.features.selection_range import get_selection_ranges
+
             converter = get_converter()
-            positions = [converter.structure(p, Position)
-                         for p in params.get("positions", [])]
-            return get_selection_ranges(source, positions,
-                                        analysis=analysis, lines=lines)
+            positions = [converter.structure(p, Position) for p in params.get("positions", [])]
+            return get_selection_ranges(source, positions, analysis=analysis, lines=lines)
 
         case "textDocument/semanticTokens/full/delta":
             # Delta is handled in C++ via previous result caching.
@@ -524,6 +550,7 @@ def _dispatch_feature(method: str, params: dict):
             if not _feature_config.semantic_tokens_enabled:
                 return {"data": []}
             from lsp.features.semantic_tokens import semantic_tokens_full
+
             data = semantic_tokens_full(source, analysis=analysis)
             return {"data": data}
 
@@ -555,6 +582,7 @@ def _dispatch_command(command: str, args: list):
     match command:
         case "tcl-lsp.optimiseDocument":
             from core.compiler.optimiser import optimise_source
+
             uri = args[0] if args else ""
             source = _get_doc_source(uri)
             optimised, opts = optimise_source(source)

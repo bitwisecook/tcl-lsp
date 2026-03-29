@@ -1,6 +1,6 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/lsp/document_store.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 // Integration tests for the TclLspServer.
 // These test the server skeleton components that don't require
@@ -10,8 +10,7 @@
 
 using tcl_lsp::DocumentStore;
 
-TEST_CASE("DocumentStore concurrent access pattern",
-          "[lsp][integration]") {
+TEST_CASE("DocumentStore concurrent access pattern", "[lsp][integration]") {
     DocumentStore store;
 
     // Simulate rapid open → change → change → close cycle.
@@ -34,8 +33,7 @@ TEST_CASE("DocumentStore concurrent access pattern",
     CHECK_FALSE(store.is_open("file:///rapid.tcl"));
 }
 
-TEST_CASE("DocumentStore handles many documents",
-          "[lsp][integration]") {
+TEST_CASE("DocumentStore handles many documents", "[lsp][integration]") {
     DocumentStore store;
 
     // Open 100 documents.
@@ -59,8 +57,7 @@ TEST_CASE("DocumentStore handles many documents",
     CHECK(store.size() == 0);
 }
 
-TEST_CASE("DocumentStore version monotonicity",
-          "[lsp][integration]") {
+TEST_CASE("DocumentStore version monotonicity", "[lsp][integration]") {
     DocumentStore store;
     store.open("file:///ver.tcl", "tcl", "v1", 1);
 
@@ -76,8 +73,7 @@ TEST_CASE("DocumentStore version monotonicity",
     CHECK(src->second == 3);
 }
 
-TEST_CASE("DocumentStore re-open after close",
-          "[lsp][integration]") {
+TEST_CASE("DocumentStore re-open after close", "[lsp][integration]") {
     DocumentStore store;
     store.open("file:///reopen.tcl", "tcl", "first", 1);
     store.close("file:///reopen.tcl");
@@ -89,8 +85,7 @@ TEST_CASE("DocumentStore re-open after close",
     CHECK(store.get_language_id("file:///reopen.tcl") == "tcl-irule");
 }
 
-TEST_CASE("DocumentStore empty source",
-          "[lsp][integration]") {
+TEST_CASE("DocumentStore empty source", "[lsp][integration]") {
     DocumentStore store;
     store.open("file:///empty.tcl", "tcl", "", 0);
 

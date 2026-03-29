@@ -1,5 +1,5 @@
-#include "tcl_lsp/analysis/analysis_result.hpp"
 #include "tcl_lsp/analysis/analyser.hpp"
+#include "tcl_lsp/analysis/analysis_result.hpp"
 #include "tcl_lsp/analysis/command_interface.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -53,7 +53,8 @@ TEST_CASE("AnalysisResult package_context conditional", "[analysis_result]") {
     REQUIRE(ctx.confidence("http") == Confidence::PROBABLE);
 }
 
-TEST_CASE("AnalysisResult package_context unconditional overrides conditional", "[analysis_result]") {
+TEST_CASE("AnalysisResult package_context unconditional overrides conditional",
+          "[analysis_result]") {
     auto result = analyse("catch { package require Tk }\npackage require Tk 8.6");
     auto ctx = result.package_context();
     REQUIRE(ctx.confidence("Tk") == Confidence::DEFINITE);
@@ -74,9 +75,8 @@ TEST_CASE("AnalysisResult regex_position_set", "[analysis_result]") {
 }
 
 TEST_CASE("AnalysisResult copy_for_snapshot creates independent copy", "[analysis_result]") {
-    auto original = analyse(
-        "proc greet {name} { set y 10 }\n"
-        "package require Tk 8.6");
+    auto original = analyse("proc greet {name} { set y 10 }\n"
+                            "package require Tk 8.6");
 
     // Create snapshot.
     auto snap = original.copy_for_snapshot();

@@ -35,7 +35,8 @@ TEST_CASE("package require: multiple", "[analyser][package]") {
     auto result = analyse("package require http\npackage require tls");
     REQUIRE(result.package_requires().size() == 2);
     std::unordered_set<std::string> names;
-    for (const auto& pr : result.package_requires()) names.insert(pr.name);
+    for (const auto& pr : result.package_requires())
+        names.insert(pr.name);
     CHECK(names.count("http") == 1);
     CHECK(names.count("tls") == 1);
 }

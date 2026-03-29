@@ -1,6 +1,6 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/lsp/semantic_token_types.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 using namespace tcl_lsp;
 

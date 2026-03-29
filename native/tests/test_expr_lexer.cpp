@@ -1,6 +1,6 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/parsing/expr_lexer.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 using namespace tcl_lsp;
 
@@ -70,7 +70,8 @@ TEST_CASE("expr lexer: operators", "[expr_lexer]") {
     // Filter out whitespace.
     std::vector<ExprToken> filtered;
     for (auto& t : tokens) {
-        if (t.type != ExprTokenType::WHITESPACE) filtered.push_back(t);
+        if (t.type != ExprTokenType::WHITESPACE)
+            filtered.push_back(t);
     }
     REQUIRE(filtered.size() == 3);
     REQUIRE(filtered[0].type == ExprTokenType::NUMBER);
@@ -83,7 +84,8 @@ TEST_CASE("expr lexer: multi-char operators", "[expr_lexer]") {
     auto tokens = tokenise_expr("$x == $y");
     std::vector<ExprToken> filtered;
     for (auto& t : tokens) {
-        if (t.type != ExprTokenType::WHITESPACE) filtered.push_back(t);
+        if (t.type != ExprTokenType::WHITESPACE)
+            filtered.push_back(t);
     }
     REQUIRE(filtered.size() == 3);
     REQUIRE(filtered[1].type == ExprTokenType::OPERATOR);
@@ -94,7 +96,8 @@ TEST_CASE("expr lexer: word operators eq/ne", "[expr_lexer]") {
     auto tokens = tokenise_expr("$a eq $b");
     std::vector<ExprToken> filtered;
     for (auto& t : tokens) {
-        if (t.type != ExprTokenType::WHITESPACE) filtered.push_back(t);
+        if (t.type != ExprTokenType::WHITESPACE)
+            filtered.push_back(t);
     }
     REQUIRE(filtered.size() == 3);
     REQUIRE(filtered[1].type == ExprTokenType::OPERATOR);
@@ -125,7 +128,8 @@ TEST_CASE("expr lexer: ternary", "[expr_lexer]") {
     auto tokens = tokenise_expr("$x ? 1 : 0");
     std::vector<ExprToken> filtered;
     for (auto& t : tokens) {
-        if (t.type != ExprTokenType::WHITESPACE) filtered.push_back(t);
+        if (t.type != ExprTokenType::WHITESPACE)
+            filtered.push_back(t);
     }
     REQUIRE(filtered[1].type == ExprTokenType::TERNARY_Q);
     REQUIRE(filtered[3].type == ExprTokenType::TERNARY_C);
@@ -135,7 +139,8 @@ TEST_CASE("expr lexer: comma", "[expr_lexer]") {
     auto tokens = tokenise_expr("max(1,2)");
     bool found_comma = false;
     for (auto& t : tokens) {
-        if (t.type == ExprTokenType::COMMA) found_comma = true;
+        if (t.type == ExprTokenType::COMMA)
+            found_comma = true;
     }
     REQUIRE(found_comma);
 }
@@ -152,7 +157,8 @@ TEST_CASE("expr lexer: 1eq4 word boundary", "[expr_lexer]") {
     auto tokens = tokenise_expr("1eq4");
     std::vector<ExprToken> filtered;
     for (auto& t : tokens) {
-        if (t.type != ExprTokenType::WHITESPACE) filtered.push_back(t);
+        if (t.type != ExprTokenType::WHITESPACE)
+            filtered.push_back(t);
     }
     REQUIRE(filtered.size() == 3);
     REQUIRE(filtered[0].type == ExprTokenType::NUMBER);

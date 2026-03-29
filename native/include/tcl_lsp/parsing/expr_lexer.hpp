@@ -8,19 +8,19 @@ namespace tcl_lsp {
 
 // Token types specific to Tcl expressions.
 enum class ExprTokenType : std::uint8_t {
-    NUMBER,       // integer or float literal
-    STRING,       // "quoted string" or {braced}
-    VARIABLE,     // $var, $ns::var, $arr(idx)
-    COMMAND,      // [cmd ...]
-    OPERATOR,     // + - * / % ** == != < > <= >= && || ! & | ^ ~ << >>
-    PAREN_OPEN,   // (
-    PAREN_CLOSE,  // )
-    COMMA,        // ,
-    FUNCTION,     // math function name: sin, cos, int, double, etc.
-    BOOL,         // true, false, yes, no, on, off
-    TERNARY_Q,    // ?
-    TERNARY_C,    // : (ternary colon)
-    WHITESPACE,   // spaces/tabs/newlines
+    NUMBER,      // integer or float literal
+    STRING,      // "quoted string" or {braced}
+    VARIABLE,    // $var, $ns::var, $arr(idx)
+    COMMAND,     // [cmd ...]
+    OPERATOR,    // + - * / % ** == != < > <= >= && || ! & | ^ ~ << >>
+    PAREN_OPEN,  // (
+    PAREN_CLOSE, // )
+    COMMA,       // ,
+    FUNCTION,    // math function name: sin, cos, int, double, etc.
+    BOOL,        // true, false, yes, no, on, off
+    TERNARY_Q,   // ?
+    TERNARY_C,   // : (ternary colon)
+    WHITESPACE,  // spaces/tabs/newlines
     EOF_,
 };
 
@@ -28,8 +28,8 @@ enum class ExprTokenType : std::uint8_t {
 struct ExprToken {
     ExprTokenType type;
     std::string_view text;
-    std::int32_t start;  // offset within the expression string
-    std::int32_t end;    // offset of last character
+    std::int32_t start; // offset within the expression string
+    std::int32_t end;   // offset of last character
 
     auto operator==(const ExprToken&) const -> bool = default;
 };

@@ -235,17 +235,20 @@ auto SegmentedCommand::name() const -> std::string {
 }
 
 auto SegmentedCommand::args() const -> std::span<const std::string> {
-    if (texts.size() <= 1) return {};
+    if (texts.size() <= 1)
+        return {};
     return {texts.data() + 1, texts.size() - 1};
 }
 
 auto SegmentedCommand::arg_tokens() const -> std::span<const Token> {
-    if (argv.size() <= 1) return {};
+    if (argv.size() <= 1)
+        return {};
     return {argv.data() + 1, argv.size() - 1};
 }
 
 auto SegmentedCommand::arg_single_token() const -> std::vector<bool> {
-    if (single_token_word.size() <= 1) return {};
+    if (single_token_word.size() <= 1)
+        return {};
     return {single_token_word.begin() + 1, single_token_word.end()};
 }
 

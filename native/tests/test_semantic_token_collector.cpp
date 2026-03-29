@@ -1,7 +1,7 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/lsp/semantic_token_collector.hpp"
 #include "tcl_lsp/lsp/semantic_token_types.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 using namespace tcl_lsp;
 
@@ -46,7 +46,8 @@ auto collect_and_decode(std::string_view source) -> std::vector<DecodedToken> {
 
 auto has_type(const std::vector<DecodedToken>& tokens, SemanticTokenType type) -> bool {
     for (auto& t : tokens) {
-        if (t.type == type) return true;
+        if (t.type == type)
+            return true;
     }
     return false;
 }
@@ -54,7 +55,8 @@ auto has_type(const std::vector<DecodedToken>& tokens, SemanticTokenType type) -
 auto count_type(const std::vector<DecodedToken>& tokens, SemanticTokenType type) -> int {
     int n = 0;
     for (auto& t : tokens) {
-        if (t.type == type) n++;
+        if (t.type == type)
+            n++;
     }
     return n;
 }
@@ -73,7 +75,7 @@ TEST_CASE("simple puts", "[semantic_tokens]") {
 
 TEST_CASE("variable", "[semantic_tokens]") {
     auto tokens = collect_and_decode("set x $y");
-    REQUIRE(has_type(tokens, SemanticTokenType::KEYWORD)); // 'set'
+    REQUIRE(has_type(tokens, SemanticTokenType::KEYWORD));  // 'set'
     REQUIRE(has_type(tokens, SemanticTokenType::VARIABLE)); // '$y'
 }
 
@@ -102,7 +104,8 @@ TEST_CASE("multiline positions", "[semantic_tokens]") {
     auto tokens = collect_and_decode("set x 1\nset y 2");
     auto kws = std::vector<DecodedToken>{};
     for (auto& t : tokens) {
-        if (t.type == SemanticTokenType::KEYWORD) kws.push_back(t);
+        if (t.type == SemanticTokenType::KEYWORD)
+            kws.push_back(t);
     }
     REQUIRE(kws.size() == 2);
     REQUIRE(kws[0].line == 0);

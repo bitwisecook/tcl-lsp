@@ -1,7 +1,7 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/analysis/analyser.hpp"
 #include "tcl_lsp/lsp/document_symbols.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 using namespace tcl_lsp;
 
@@ -12,10 +12,11 @@ auto analyse_source(std::string_view source) -> AnalysisResult {
     return analyser.analyse(source);
 }
 
-auto find_by_name(const std::vector<DocumentSymbolInfo>& syms, const std::string& name)
-    -> const DocumentSymbolInfo* {
+auto find_by_name(const std::vector<DocumentSymbolInfo>& syms,
+                  const std::string& name) -> const DocumentSymbolInfo* {
     for (auto& s : syms) {
-        if (s.name == name) return &s;
+        if (s.name == name)
+            return &s;
     }
     return nullptr;
 }
@@ -53,11 +54,10 @@ TEST_CASE("document symbols: multiple procs", "[document_symbols]") {
 }
 
 TEST_CASE("document symbols: namespace with procs", "[document_symbols]") {
-    auto analysis = analyse_source(
-        "namespace eval math {\n"
-        "    proc add {a b} { expr {$a + $b} }\n"
-        "    proc sub {a b} { expr {$a - $b} }\n"
-        "}");
+    auto analysis = analyse_source("namespace eval math {\n"
+                                   "    proc add {a b} { expr {$a + $b} }\n"
+                                   "    proc sub {a b} { expr {$a - $b} }\n"
+                                   "}");
     auto syms = get_document_symbols(analysis);
     // Should have a namespace symbol with children.
     auto* ns = find_by_name(syms, "math");

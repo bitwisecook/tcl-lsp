@@ -60,8 +60,7 @@ def main():
         if binary:
             _run_native(binary)
         else:
-            print("tcl-lsp: native binary not found and TCL_LSP_MODE=native",
-                  file=sys.stderr)
+            print("tcl-lsp: native binary not found and TCL_LSP_MODE=native", file=sys.stderr)
             sys.exit(1)
         return
 
