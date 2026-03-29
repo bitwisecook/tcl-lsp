@@ -522,13 +522,25 @@ class TclInterp:
         self.cmd_count += 1
         self._last_cmd_name = cmd_name
 
-        # Fully-qualified names (::foo::bar) resolve from root
+        # Qualified names (foo::bar or ::foo::bar) resolve via namespace
         if "::" in cmd_name:
             # Try namespace-registered procs/commands
             ns_part = cmd_name[: cmd_name.rfind("::")]
             tail = cmd_name[cmd_name.rfind("::") + 2 :]
-            ns = resolve_namespace(self.root_namespace, ns_part if ns_part else "::")
-            if ns is not None:
+            # For relative qualified names (no leading ::), try the
+            # current namespace first, then fall back to global — matching
+            # C Tcl's TclGetNamespaceForQualName resolution order.
+            _ns_candidates: list[object] = []
+            if not cmd_name.startswith("::") and self.current_namespace is not self.root_namespace:
+                cur_qn = self.current_namespace.qualname
+                rel_ns_name = f"{cur_qn}::{ns_part}" if cur_qn != "::" else f"::{ns_part}"
+                rel_ns = resolve_namespace(self.root_namespace, rel_ns_name)
+                if rel_ns is not None:
+                    _ns_candidates.append(rel_ns)
+            global_ns = resolve_namespace(self.root_namespace, ns_part if ns_part else "::")
+            if global_ns is not None and global_ns not in _ns_candidates:
+                _ns_candidates.append(global_ns)
+            for ns in _ns_candidates:
                 proc = ns.lookup_proc(tail)
                 if proc is not None:
                     return self._call_proc(proc, args)

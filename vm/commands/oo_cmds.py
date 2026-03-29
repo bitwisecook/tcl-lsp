@@ -1293,8 +1293,8 @@ def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
             # Use current class name (may have been renamed during define)
             current_qn = cls.qualified_name
             display_name = current_qn
-            if len(display_name) > 32:
-                display_name = display_name[:30] + "..."
+            if len(display_name) > 34:
+                display_name = display_name[:31] + "..."
             ctx = f'    (in definition script for class "{display_name}" line {line_no})'
             inv = f'    invoked from within\n"{full_cmd}"'
             info = list(e.error_info) if e.error_info else [e.message]
@@ -1485,8 +1485,8 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
             current_name = cls.qualified_name
             # Truncate long class names (like C Tcl, ~30 chars + "...")
             display_name = current_name
-            if len(display_name) > 32:
-                display_name = display_name[:30] + "..."
+            if len(display_name) > 34:
+                display_name = display_name[:31] + "..."
             ctx = f'    (in definition script for class "{display_name}" line {line_no})'
             inv = f'    invoked from within\n"{full_cmd}"'
             info = list(e.error_info) if e.error_info else [e.message]
@@ -1548,8 +1548,8 @@ def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
             # Use current object name (may have been renamed during define)
             current_name = obj.name
             display_name = current_name
-            if len(display_name) > 32:
-                display_name = display_name[:30] + "..."
+            if len(display_name) > 34:
+                display_name = display_name[:31] + "..."
             ctx = f'    (in definition script for object "{display_name}" line {line_no})'
             inv = f'    invoked from within\n"{full_cmd}"'
             info = list(e.error_info) if e.error_info else [e.message]

@@ -67,7 +67,6 @@ KNOWN_FAILURES_UNKNOWN: set[str] = {
 
 KNOWN_FAILURES_PROC: set[str] = {
     # Wrong # args error message format
-    "proc-1.1",  # wrong # args format
     "proc-1.2",  # wrong # args format
     "proc-1.3",  # wrong # args format
     "proc-1.6",  # wrong # args format

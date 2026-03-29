@@ -487,11 +487,21 @@ class OORuntime:
             obj._invoked_name = invoked_name
 
             if not args:
+                # No method name — try the unknown handler first (oo-24.3)
+                unknown, unknown_class = oo_self.resolve_method(obj, "unknown")
+                if unknown is not None and (
+                    not unknown.body.startswith("__builtin_")
+                    or unknown.body == "__builtin_slot_unknown__"
+                ):
+                    return oo_self._invoke_method(
+                        interp, obj, unknown, [],
+                        defining_class=unknown_class,
+                    )
                 raise TclError(f'wrong # args: should be "{short_name} method ?arg ...?"')
             method_name = args[0]
             method_args = args[1:]
 
-            method, defining_class = self.resolve_method(obj, method_name)
+            method, defining_class = oo_self.resolve_method(obj, method_name)
 
             # destroy is special: always available, but goes through filters
             # Exception: if destroy is explicitly unexported on any class in
