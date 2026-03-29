@@ -1112,3 +1112,58 @@ Diagnostics are published back to the client via a notification callback.
 Server end-to-end verified: stdio initialize → full capabilities response
 with all 21 features registered.
 
+### Phase 7f: Native C++ Semantic Tokens
+
+Phase 7f implements semantic token generation natively in C++, eliminating
+the Python bridge round-trip for `textDocument/semanticTokens/full` and
+`textDocument/semanticTokens/full/delta` — the most frequently called LSP
+methods.
+
+#### New components
+
+| Component | Files | Purpose |
+|---|---|---|
+| **SemanticTokenType enum** | `lsp/semantic_token_types.hpp` | 53 token types + 4 modifiers matching LSP legend |
+| **Expression sub-lexer** | `parsing/expr_lexer.hpp`, `parsing/expr_lexer.cpp` | Tokenises `[expr]` bodies: operators, numbers, functions, variables, commands |
+| **Arg role resolver** | `analysis/arg_role_resolver.hpp`, `analysis/arg_role_resolver.cpp` | `arg_indices_for_roles()` — determines which args are BODY/EXPR/VAR_NAME/PATTERN via CommandRegistryInterface + hardcoded fallbacks for common commands |
+| **Known commands** | `lsp/known_commands.hpp`, `lsp/known_commands.cpp` | Static keyword/operator sets for classification without registry |
+| **Semantic token collector** | `lsp/semantic_token_collector.hpp`, `lsp/semantic_token_collector.cpp` | Core algorithm: recursive token collection, classification, namespace splitting, delta encoding |
+
+#### Architecture
+
+The `SemanticTokenCollector` mirrors the Python `_collect_tokens()` algorithm:
+
+1. Compute ghost insertions for error recovery
+2. Create `TclLexer` with base offsets and shared `line_starts`
+3. Walk tokens grouping by command (SEP/EOL boundaries)
+4. For each command:
+   - Look up arg roles via `arg_indices_for_roles()`
+   - Classify tokens by role: CMD→recurse, STR+BODY→recurse, STR+EXPR→expression sub-lexer
+   - Proc name→function+definition, subcommand→keyword+defaultLibrary
+   - Variable names→variable+declaration, patterns→regexp
+   - Default: `classify_token()` (VAR→variable, STR→string, COMMENT→comment, ESC→keyword/function/number)
+   - Analysis override: regex_position_set positions → regexp type
+5. Sort by (line, character), delta-encode to LSP 5-int format
+
+The arg role resolver includes hardcoded fallbacks for 20+ common Tcl
+commands (proc, if, while, for, foreach, switch, try, catch, set, incr,
+variable, global, expr, namespace eval, etc.) so semantic tokens work
+without a full CommandRegistryInterface. With a registry, all commands
+get proper role resolution including subcommand dispatch.
+
+#### Tests
+
+| Test file | Cases | Category |
+|---|---|---|
+| `test_semantic_token_types.cpp` | 8 | Enum values, to_string, modifier bits |
+| `test_expr_lexer.cpp` | 20 | Expression tokenisation: numbers, vars, ops, functions, booleans, ternary, braces |
+| `test_semantic_token_collector.cpp` | 30 | Core classification, recursion, modifiers, namespace splitting, delta encoding, edits |
+| **Phase 7f total** | **58** | |
+| **Cumulative total** | **306** | |
+
+#### Verification
+
+| Compiler | Build | Tests | Valgrind |
+|---|---|---|---|
+| GCC 13 | clean (-Werror) | 36/36 | 36/36 (zero errors, zero leaks) |
+

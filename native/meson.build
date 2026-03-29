@@ -20,6 +20,10 @@ tcl_lsp_lib = static_library('tcl_lsp',
   'src/analysis/analyser.cpp',
   'src/analysis/analyser_commands.cpp',
   'src/analysis/analyser_helpers.cpp',
+  'src/analysis/arg_role_resolver.cpp',
+  'src/parsing/expr_lexer.cpp',
+  'src/lsp/known_commands.cpp',
+  'src/lsp/semantic_token_collector.cpp',
   include_directories: tcl_lsp_inc,
 )
 
