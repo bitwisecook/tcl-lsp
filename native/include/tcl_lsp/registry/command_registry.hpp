@@ -2,9 +2,10 @@
 
 #include "tcl_lsp/registry/command_desc.hpp"
 
-#include <algorithm>
 #include <cstdint>
 #include <expected>
+#include <flat_map>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -113,16 +114,9 @@ class CommandRegistry {
         std::span<const bool> expand_flags = {}) -> std::expected<ResolveResult, ResolveError>;
 
   private:
-    // Sorted by name for binary search. Drop-in upgradeable to std::flat_map.
-    struct Entry {
-        std::string_view name;
-        const CommandDesc* desc;
-
-        [[nodiscard]] auto operator<(const Entry& other) const -> bool {
-            return name < other.name;
-        }
-    };
-    std::vector<Entry> commands_;
+    // O(log n) lookup with contiguous storage.
+    // Requires Clang 20+ (libc++) or GCC 15+ (libstdc++).
+    std::flat_map<std::string_view, const CommandDesc*> commands_;
 };
 
 // ─── Hover rendering ───────────────────────────────────────────────

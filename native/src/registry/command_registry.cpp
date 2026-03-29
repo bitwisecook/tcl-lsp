@@ -8,23 +8,19 @@ namespace tcl_lsp {
 // ─── Construction ──────────────────────────────────────────────────
 
 CommandRegistry::CommandRegistry(std::span<const CommandDesc* const> descriptors) {
-    commands_.reserve(descriptors.size());
     for (const auto* desc : descriptors) {
         if (desc != nullptr) {
-            commands_.push_back({desc->name, desc});
+            commands_.emplace(desc->name, desc);
         }
     }
-    std::sort(commands_.begin(), commands_.end());
 }
 
 // ─── Lookup ────────────────────────────────────────────────────────
 
 auto CommandRegistry::find(std::string_view name) const -> const CommandDesc* {
-    auto it = std::lower_bound(
-        commands_.begin(), commands_.end(), name,
-        [](const Entry& e, std::string_view n) { return e.name < n; });
-    if (it != commands_.end() && it->name == name) {
-        return it->desc;
+    auto it = commands_.find(name);
+    if (it != commands_.end()) {
+        return it->second;
     }
     return nullptr;
 }
