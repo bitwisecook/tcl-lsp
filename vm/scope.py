@@ -283,6 +283,7 @@ class CallFrame:
         "_oo_filter_method_name",
         "_oo_filter_method_args",
         "_oo_instance_vars",
+        "_oo_private_var_map",
         "_info_parent",
     )
 
@@ -318,6 +319,9 @@ class CallFrame:
         # Instance variable backing store: (obj._vars dict, set of var names)
         # When set, get_var/set_var for these names proxy to obj._vars.
         self._oo_instance_vars: tuple[dict[str, str], set[str]] | None = None
+        # TIP 500: private variable name mapping.
+        # Maps local name → mangled name in obj._vars.
+        self._oo_private_var_map: dict[str, str] | None = None
         # True call parent for `info frame` depth (differs from `parent`
         # for next-chained methods where parent is skipped for upvar).
         self._info_parent: CallFrame | None = None
@@ -465,7 +469,10 @@ class CallFrame:
         # OO instance variable proxy — reads go directly to shared store
         iv = self._oo_instance_vars
         if iv is not None and "(" not in name and name in iv[1]:
-            val = iv[0].get(name)
+            # TIP 500: resolve private variable name
+            pvm = self._oo_private_var_map
+            storage_name = pvm[name] if pvm and name in pvm else name
+            val = iv[0].get(storage_name)
             if val is not None:
                 return val
             if default is not None:
@@ -512,7 +519,10 @@ class CallFrame:
         # OO instance variable proxy — writes go directly to shared store
         iv = self._oo_instance_vars
         if iv is not None and "(" not in name and name in iv[1]:
-            iv[0][name] = value
+            # TIP 500: resolve private variable name
+            pvm = self._oo_private_var_map
+            storage_name = pvm[name] if pvm and name in pvm else name
+            iv[0][storage_name] = value
             # Also update local _scalars so info vars works
             self._scalars[name] = value
             # Fire write traces
@@ -585,9 +595,11 @@ class CallFrame:
         # OO instance variable proxy — unset removes from shared store
         iv = self._oo_instance_vars
         if iv is not None and "(" not in name and name in iv[1]:
-            if name in iv[0]:
+            pvm = self._oo_private_var_map
+            storage_name = pvm[name] if pvm and name in pvm else name
+            if storage_name in iv[0]:
                 self._fire_unset_trace(name)
-                del iv[0][name]
+                del iv[0][storage_name]
                 self._scalars.pop(name, None)
                 self._cleanup_traces(name, name)
                 return

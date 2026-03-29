@@ -255,10 +255,12 @@ class OORuntime:
         if cls.qualified_name not in self.objects:
             # Determine the class-of-a-class (metaclass)
             metaclass = "::oo::class"
+            self._next_obj_id += 1
             self.objects[cls.qualified_name] = TclOOObject(
                 name=cls.qualified_name,
                 class_name=metaclass,
                 namespace=cls.qualified_name,
+                creation_id=self._next_obj_id,
             )
         # Invalidate MRO cache for all classes (a new class may affect subclasses)
         for c in self.classes.values():
@@ -1143,18 +1145,34 @@ class OORuntime:
         # full MRO).  Instance methods see only the per-object instance
         # variables from oo::objdefine.
         all_vars: list[str] = []
+        private_var_map: dict[str, str] = {}
         def_cls = self.classes.get(defining_class) if defining_class else None
         if def_cls:
             # Class method — link only the defining class's declared variables
             for v in def_cls.variables:
                 if v not in all_vars:
                     all_vars.append(v)
+            # TIP 500: private variables get mangled names
+            if def_cls.private_variables:
+                cls_obj = self.objects.get(defining_class)
+                cid = cls_obj.creation_id if cls_obj else 0
+                for v in def_cls.private_variables:
+                    if v not in all_vars:
+                        all_vars.append(v)
+                        private_var_map[v] = f"{cid} : {v}"
         else:
             # Instance method (or no defining class) — link per-object
             # instance variables only
             for v in obj.instance_variables:
                 if v not in all_vars:
                     all_vars.append(v)
+            # TIP 500: private instance variables
+            if obj.private_instance_variables:
+                cid = obj.creation_id
+                for v in obj.private_instance_variables:
+                    if v not in all_vars:
+                        all_vars.append(v)
+                        private_var_map[v] = f"{cid} : {v}"
         # Store reference to shared instance variable store.
         # The frame's get_var/set_var will proxy reads/writes for these
         # names directly to obj._vars, avoiding stale copies when nested
@@ -1162,10 +1180,13 @@ class OORuntime:
         if all_vars:
             all_vars_set = set(all_vars)
             frame._oo_instance_vars = (obj._vars, all_vars_set)
+            if private_var_map:
+                frame._oo_private_var_map = private_var_map
             # Seed local scalars for info vars visibility
             for var_name in all_vars:
-                if var_name in obj._vars:
-                    frame._scalars[var_name] = obj._vars[var_name]
+                storage = private_var_map.get(var_name, var_name)
+                if storage in obj._vars:
+                    frame._scalars[var_name] = obj._vars[storage]
 
         # Bind parameters — only strip the last "args" if has_args is True
         if method.has_args:
