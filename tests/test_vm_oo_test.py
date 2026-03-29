@@ -65,8 +65,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-13.x: Filter edge cases
     # oo-14.x: Mixin edge cases
     # oo-15.x: oo::objdefine edge cases
-    "oo-15.13.2",
-    "oo-15.14",
     # oo-16.x: info object/class edge cases
     # oo-17.x: definitionnamespace
     # oo-18.x: error traces and slot operations
@@ -109,7 +107,6 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-38.4",
     "oo-38.5",
     # oo-39.x
-    "oo-39.11",
     # oo-41.x
     # oo-42.x
     # oo-43.x (TIP 524: definitionnamespace)

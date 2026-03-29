@@ -1657,10 +1657,14 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
     from ..oo import TclOOClass, TclOOObject
     from ..scope import ensure_namespace, resolve_namespace
 
-    # Check if target namespace already exists
+    # When an explicit target name is provided, allow reusing an existing
+    # namespace.  When auto-generating a name (target is empty), an existing
+    # namespace is an error — the user didn't explicitly opt in.
     if target_namespace:
-        if resolve_namespace(interp.root_namespace, target_namespace) is not None:
-            raise TclError(f"{target_namespace} refers to an existing namespace")
+        has_explicit_name = len(args) >= 2 and args[1]
+        if not has_explicit_name:
+            if resolve_namespace(interp.root_namespace, target_namespace) is not None:
+                raise TclError(f"{target_namespace} refers to an existing namespace")
 
     # If source is a class, create a new class copy
     src_cls = oo.classes.get(src.name)
@@ -1820,7 +1824,25 @@ def _cmd_self(interp: TclInterp, args: list[str]) -> TclResult:
         obj = oo.objects.get(obj_name)
         if obj is None:
             raise TclError(f'object "{obj_name}" has been destroyed')
-        chain = oo.build_object_call_chain(obj, method_name)
+        # Determine which classes' private methods are in the active
+        # dispatch by walking up the call chain.  If a frame for this
+        # object+method exists from a given class, that class's private
+        # method was dispatched through and should appear in the chain.
+        # Use _info_parent (true call chain) rather than parent (upvar
+        # chain), since `next` sets parent to the grandparent for upvar.
+        private_classes: set[str] = set()
+        f = frame
+        while f is not None:
+            f_self = getattr(f, "_oo_self", None)
+            f_method = getattr(f, "_oo_method", None)
+            f_class = getattr(f, "_oo_class", None)
+            if f_self == obj_name and f_method == method_name and f_class:
+                private_classes.add(f_class)
+            f = getattr(f, "_info_parent", None) or f.parent
+        chain = oo.build_object_call_chain(
+            obj, method_name,
+            private_classes=private_classes if private_classes else None,
+        )
         # Format the chain
         from vm.machine import _list_escape
         chain_parts = []

@@ -1783,6 +1783,20 @@ class OORuntime:
                 interp._runtime_commands.pop(short, None)
         self.objects.pop(obj.name, None)
 
+        # Delete the object's namespace (like C Tcl).  Skip the default
+        # ``::oo::Obj*`` namespace when it matches the object name to avoid
+        # deleting namespaces that are still in use by subclasses.
+        from .scope import resolve_namespace
+
+        obj_ns = resolve_namespace(interp.root_namespace, obj.namespace)
+        if obj_ns is not None and obj_ns.qualname != "::":
+            # Only delete if no children remain (avoid wiping class namespaces
+            # that contain subclass definitions).
+            try:
+                interp.eval(f"namespace delete {obj.namespace}")
+            except TclError:
+                pass  # best-effort cleanup
+
         if dtor_error is not None:
             raise dtor_error
         return TclResult()
@@ -2102,12 +2116,17 @@ class OORuntime:
             raise
 
     def build_object_call_chain(
-        self, obj: TclOOObject, method_name: str
+        self, obj: TclOOObject, method_name: str,
+        private_classes: set[str] | None = None,
     ) -> list[tuple[str, str, str, str]]:
         """Build the call chain for a method on an object.
 
         Returns a list of ``(call_type, method_name, class_name, impl_type)``
         tuples matching what ``info object call`` returns.
+
+        *private_classes* — set of class names whose private methods should
+        be included in the chain.  When ``None``, exclude all private methods
+        (external dispatch from outside the object).
         """
         chain: list[tuple[str, str, str, str]] = []
         effective_mro = self._effective_mro(obj)
@@ -2140,6 +2159,14 @@ class OORuntime:
         def _call_type(m: TclOOMethod) -> str:
             return "private" if m.visibility == "private" else "method"
 
+        def _skip_private(m: TclOOMethod, class_qname: str) -> bool:
+            """Return True if this private method should be excluded."""
+            if m.visibility != "private":
+                return False
+            if private_classes is None:
+                return True
+            return class_qname not in private_classes
+
         # Instance mixin method entries
         for class_qname in effective_mro:
             if class_qname not in instance_mixin_classes:
@@ -2148,6 +2175,8 @@ class OORuntime:
             if ancestor and method_name in ancestor.methods:
                 m = ancestor.methods[method_name]
                 if m.body.startswith("__builtin_"):
+                    continue
+                if _skip_private(m, class_qname):
                     continue
                 impl = "forward" if m.forward_target else "method"
                 chain.append((_call_type(m), method_name, class_qname, impl))
@@ -2171,6 +2200,8 @@ class OORuntime:
             if ancestor and method_name in ancestor.methods:
                 m = ancestor.methods[method_name]
                 if m.body.startswith("__builtin_"):
+                    continue
+                if _skip_private(m, class_qname):
                     continue
                 impl = "forward" if m.forward_target else "method"
                 chain.append((_call_type(m), method_name, class_qname, impl))
@@ -2202,6 +2233,8 @@ class OORuntime:
             if ancestor and method_name in ancestor.methods:
                 m = ancestor.methods[method_name]
                 if m.body.startswith("__builtin_"):
+                    continue
+                if _skip_private(m, class_qname):
                     continue
                 impl = "forward" if m.forward_target else "method"
                 chain.append((_call_type(m), method_name, class_qname, impl))
