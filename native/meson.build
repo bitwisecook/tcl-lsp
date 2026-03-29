@@ -26,6 +26,7 @@ tcl_lsp_lib = static_library('tcl_lsp',
   'src/lsp/semantic_token_collector.cpp',
   'src/lsp/document_symbols.cpp',
   'src/lsp/folding_ranges.cpp',
+  'src/lsp/definition.cpp',
   include_directories: tcl_lsp_inc,
 )
 

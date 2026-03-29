@@ -51,6 +51,7 @@ test_sources = {
   'test_semantic_token_collector': 'test_semantic_token_collector.cpp',
   'test_document_symbols': 'test_document_symbols.cpp',
   'test_folding_ranges': 'test_folding_ranges.cpp',
+  'test_definition': 'test_definition.cpp',
 }
 
 foreach name, src : test_sources
