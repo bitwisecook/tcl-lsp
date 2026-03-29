@@ -1,5 +1,19 @@
 catch2_dep = dependency('catch2-with-main')
 
+# LSP server core tests (depend on lsp-framework, no Python).
+lsp_core_test_sources = {
+  'test_lsp_document_store': 'test_lsp_document_store.cpp',
+  'test_lsp_server_integration': 'test_lsp_server_integration.cpp',
+}
+
+foreach name, src : lsp_core_test_sources
+  exe = executable(name, src,
+    dependencies: [catch2_dep, tcl_lsp_server_core_dep],
+  )
+  test(name, exe, suite: 'tcl-lsp')
+endforeach
+
+# Core library tests (no lsp-framework dependency).
 test_sources = {
   'test_source_position': 'test_source_position.cpp',
   'test_range': 'test_range.cpp',
@@ -17,6 +31,9 @@ test_sources = {
   'test_recovery_e203': 'test_recovery_e203.cpp',
   'test_recovery_ghost': 'test_recovery_ghost.cpp',
   'test_upstream_parse': 'test_upstream_parse.cpp',
+  'test_upstream_proc': 'test_upstream_proc.cpp',
+  'test_upstream_namespace': 'test_upstream_namespace.cpp',
+  'test_upstream_var': 'test_upstream_var.cpp',
   'test_semantic_types': 'test_semantic_types.cpp',
   'test_analysis_result': 'test_analysis_result.cpp',
   'test_param_list_parser': 'test_param_list_parser.cpp',

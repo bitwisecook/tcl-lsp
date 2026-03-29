@@ -1,0 +1,8 @@
+[wrap-git]
+url = https://github.com/bitwisecook/lsp-framework.git
+revision = 19eb448a13a6c9041eb12124e7189bcad50cc6f1
+depth = 1
+patch_directory = lsp-framework
+
+[provide]
+lsp-framework = lsp_dep

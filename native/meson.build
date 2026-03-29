@@ -28,26 +28,63 @@ tcl_lsp_dep = declare_dependency(
   include_directories: tcl_lsp_inc,
 )
 
-# pybind11 extension module installed into core/ package.
-# Only built when pybind11 is available — GCC-only sanitiser and analyzer builds
-# may not have pybind11 installed.
+# LSP server core (document store — no Python dependency).
+tcl_lsp_server_core = static_library('tcl_lsp_server_core',
+  'src/lsp/document_store.cpp',
+  include_directories: tcl_lsp_inc,
+  dependencies: [tcl_lsp_dep, lsp_framework_dep],
+)
+
+tcl_lsp_server_core_dep = declare_dependency(
+  link_with: tcl_lsp_server_core,
+  include_directories: tcl_lsp_inc,
+  dependencies: [tcl_lsp_dep, lsp_framework_dep],
+)
+
+# LSP server with Python bridge (requires pybind11 for embedded interpreter).
+# Only built when pybind11 is available.
 if pybind11_dep.found()
-  # The bindings are temporary shim code — relax warnings that fire inside
-  # pybind11 headers (especially under GCC, which is more aggressive about
-  # -Warray-bounds in template-heavy code).  Our own C++ code in the core
-  # library and tests still builds with full -Werror.
-  binding_args = []
+  # Relax warnings from pybind11 template-heavy headers.
+  # Relax GCC warnings that fire in pybind11 template-heavy headers.
+  # These are well-known GCC false positives (pybind11#4412, GCC#106247).
+  # Our own non-pybind11 code builds with full -Werror.
+  bridge_args = []
   if meson.get_compiler('cpp').get_id() == 'gcc'
-    # GCC produces false positives in pybind11 template-heavy code involving
-    # std::vector and std::initializer_list operations.  These are well-known
-    # upstream issues (pybind11#4412, GCC bugzilla#106247).
-    binding_args += [
+    bridge_args += [
       '-Wno-array-bounds',
       '-Wno-stringop-overflow',
       '-Wno-stringop-overread',
+      '-Wno-attributes',
+      '-Wno-null-dereference',
     ]
   endif
 
+  py_embed_dep = py.dependency(embed: true)
+
+  tcl_lsp_server_lib = static_library('tcl_lsp_server',
+    'src/lsp/server.cpp',
+    'src/lsp/python_bridge.cpp',
+    include_directories: tcl_lsp_inc,
+    dependencies: [tcl_lsp_server_core_dep, pybind11_dep, py_embed_dep],
+    cpp_args: bridge_args,
+  )
+
+  tcl_lsp_server_dep = declare_dependency(
+    link_with: tcl_lsp_server_lib,
+    include_directories: tcl_lsp_inc,
+    dependencies: [tcl_lsp_server_core_dep, pybind11_dep, py_embed_dep],
+  )
+
+  # LSP server executable.
+  executable('tcl-lsp-server',
+    'src/lsp/main.cpp',
+    dependencies: [tcl_lsp_server_dep],
+    cpp_args: bridge_args,
+    install: true,
+  )
+
+  # pybind11 extension module installed into core/ package.
+  binding_args = bridge_args
   py.extension_module('_tcl_lsp_native',
     'bindings/core_types.cpp',
     dependencies: [pybind11_dep, tcl_lsp_dep],

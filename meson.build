@@ -10,6 +10,13 @@ project('tcl-lsp', 'cpp',
 
 cc = meson.get_compiler('cpp')
 
+# Use libc++ with Clang for full C++23 support (libstdc++-13 lacks
+# __cpp_concepts >= 202002L which gates <expected> and other C++23 headers).
+if cc.get_id() == 'clang' and cc.has_argument('-stdlib=libc++')
+  add_global_arguments('-stdlib=libc++', language: 'cpp')
+  add_global_link_arguments('-stdlib=libc++', language: 'cpp')
+endif
+
 # Hardening flags — enabled unconditionally for maximum safety during development.
 # These can be relaxed for production release builds later.
 hardening_args = []
@@ -25,8 +32,13 @@ if cc.has_argument('-D_FORTIFY_SOURCE=2')
   hardening_args += '-D_FORTIFY_SOURCE=2'
 endif
 
-# libstdc++ debug assertions: bounds checking on operator[], iterator validity, etc.
-hardening_args += '-D_GLIBCXX_ASSERTIONS'
+# Standard library debug assertions: bounds checking on operator[], iterator validity.
+# _GLIBCXX_ASSERTIONS for libstdc++, _LIBCPP_HARDENING_MODE for libc++.
+if cc.get_id() == 'clang' and cc.has_argument('-stdlib=libc++')
+  hardening_args += '-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE'
+else
+  hardening_args += '-D_GLIBCXX_ASSERTIONS'
+endif
 
 # Catch implicit fallthrough in switch statements.
 if cc.has_argument('-Wimplicit-fallthrough')
@@ -87,5 +99,7 @@ endif
 
 py = import('python').find_installation(pure: false)
 pybind11_dep = dependency('pybind11', required: false)
+lsp_framework_proj = subproject('lsp-framework')
+lsp_framework_dep = lsp_framework_proj.get_variable('lsp_dep')
 
 subdir('native')
