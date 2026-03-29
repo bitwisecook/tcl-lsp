@@ -1271,25 +1271,6 @@ def _resolve_class(interp: TclInterp, oo: OORuntime, name: str) -> TclOOClass:
     return cls
 
 
-def _resolve_class_in_caller_ns(interp: TclInterp, oo: OORuntime, name: str) -> TclOOClass:
-    """Resolve a class name using the caller's namespace context.
-
-    Like _resolve_class, but uses _defining_caller_ns when inside an
-    oo::define body (where current_namespace is ::oo::define).
-    """
-    cls = oo.classes.get(name)
-    if cls is None and not name.startswith("::"):
-        caller_ns = getattr(interp, "_defining_caller_ns", None)
-        ns = caller_ns.qualname if caller_ns is not None else interp.current_namespace.qualname
-        if ns != "::":
-            ns_qualified = f"{ns}::{name}"
-            cls = oo.classes.get(ns_qualified)
-        if cls is None:
-            cls = oo.classes.get(f"::{name}")
-    if cls is None:
-        raise TclError(f'unknown class "{name}"')
-    return cls
-
 
 def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
     """oo::class create className ?body?"""
