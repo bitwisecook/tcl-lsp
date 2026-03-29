@@ -1271,7 +1271,6 @@ def _resolve_class(interp: TclInterp, oo: OORuntime, name: str) -> TclOOClass:
     return cls
 
 
-
 def _cmd_oo_class(interp: TclInterp, args: list[str]) -> TclResult:
     """oo::class create className ?body?"""
     if len(args) < 2:

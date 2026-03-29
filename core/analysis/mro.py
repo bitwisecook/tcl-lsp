@@ -119,8 +119,23 @@ def tcloo_linearise(
     if mixins_map is None:
         mixins_map = {}
 
-    # Cycle detection is handled inside _tcloo_dfs via the visiting set.
-    # Self-cycles are caught there too (A → A raises MROError).
+    # Detect pure superclass cycles before running DFS.
+    # TclOO's DFS silently skips visited nodes (needed for mixin cycles),
+    # but pure superclass cycles should be reported as errors.
+    def _has_super_cycle(start: str, visited: set[str] | None = None) -> bool:
+        if visited is None:
+            visited = set()
+        if start in visited:
+            return True
+        visited.add(start)
+        for parent in superclasses_map.get(start, []):
+            if _has_super_cycle(parent, visited):
+                return True
+        visited.discard(start)
+        return False
+
+    if _has_super_cycle(class_name):
+        raise MROError(f"cycle detected in superclass hierarchy for {class_name}")
 
     result: list[str] = []
 
