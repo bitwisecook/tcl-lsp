@@ -59,7 +59,6 @@ KNOWN_FAILURES_OO: set[str] = {
     # oo-7.x: Inheritance edge cases
     "oo-7.10",
     # oo-11.x: Class methods
-    "oo-11.6.4",
     "oo-11.8",
     # oo-12.x: Forward method edge cases
     # oo-13.x: Filter edge cases

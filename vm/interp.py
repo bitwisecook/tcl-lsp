@@ -572,6 +572,12 @@ class TclInterp:
             if handler is not None:
                 return handler(self, args)
 
+            # Try the full name without leading :: (e.g. ::oo::define → oo::define)
+            if cmd_name.startswith("::"):
+                handler = self.lookup_command(cmd_name[2:])
+                if handler is not None:
+                    return handler(self, args)
+
             # Also try the tail as a user-defined procedure
             proc = self.procedures.get(tail)
             if proc is not None:
