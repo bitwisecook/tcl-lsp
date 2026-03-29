@@ -123,7 +123,6 @@ KNOWN_FAILURES_VAR: set[str] = {
     "var-1.17",  # variable in nested namespace
     "var-1.18",  # variable in nested namespace
     "var-1.20",  # variable resolution order
-    "var-1.21",  # variable resolution order
     # Error handling
     "var-3.5",  # wrong # args for variable
     "var-3.7",  # wrong # args for variable
@@ -137,7 +136,6 @@ KNOWN_FAILURES_VAR: set[str] = {
     "var-6.2",  # namespace delete cleans up vars
     "var-6.3",  # namespace delete cleans up vars
     # Namespace var persistence / info vars / unset
-    "var-7.9",  # namespace var persistence across evals
     "var-7.14",  # namespace var with traces
     "var-7.15",  # namespace var with traces
     # Variable traces through namespace
@@ -155,62 +153,26 @@ KNOWN_FAILURES_VAR: set[str] = {
     "var-20.11",  # array set bad initializer
     "var-20.12",  # array set bad initializer
     "var-21.0",  # compiled unset OBOE
-    # Array for loop
-    "var-23.1",
-    "var-23.2",
-    "var-23.3",
-    "var-23.4",
-    "var-23.5",
-    "var-23.6",
+    # Array for loop — lsort -stride needed
     "var-23.7",
     "var-23.9",
-    "var-23.10",
-    "var-23.11",
     "var-23.12",
     "var-23.13",
-    "var-23.14",
-    # Array for loop (nested)
-    "var-24.1",
-    "var-24.2",
-    "var-24.3",
-    "var-24.4",
-    "var-24.5",
-    "var-24.6",
-    "var-24.7",
-    "var-24.8",
-    "var-24.9",
-    "var-24.10",
-    "var-24.11",
-    "var-24.12",
+    # Array default — const/advanced tests
     "var-24.13",
     "var-24.14",
-    "var-24.15",
     "var-24.16",
     "var-24.19",
     "var-24.21",
     "var-24.23",
-    # Array for loop (error)
-    "var-25.1",
-    "var-25.2",
-    "var-25.3",
-    "var-25.4",
-    "var-25.5",
-    # Array for loop (compiled)
-    "var-26.1",
-    "var-26.2",
-    "var-26.3",
+    # Const command (compiled/advanced)
     "var-26.4",
-    "var-26.5",
-    "var-26.6",
-    "var-26.7",
     "var-26.8",
     "var-26.9.1",
     "var-26.9.2",
     "var-26.10.1",
     "var-26.10.2",
-    "var-26.11",
     "var-26.12",
-    "var-26.13",
     "var-26.14",
     "var-26.15",
     "var-26.16",
@@ -229,7 +191,6 @@ KNOWN_FAILURES_VAR: set[str] = {
     "var-27.10.2",
     "var-27.11",
     "var-27.12",
-    "var-27.13",
     "var-27.14",
     "var-27.15",
     "var-27.16",
@@ -240,7 +201,6 @@ KNOWN_FAILURES_VAR: set[str] = {
     "var-28.3",
     "var-28.4",
     "var-28.5",
-    "var-29.1",
     "var-29.2",
     "var-29.3",
     "var-29.4",

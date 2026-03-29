@@ -7,7 +7,7 @@ import logging
 from lsprotocol import types
 
 from core.analysis.analyser import analyse
-from core.analysis.semantic_model import AnalysisResult, ProcDef, Scope, VarDef
+from core.analysis.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope, VarDef
 from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -44,6 +44,51 @@ from .symbol_resolution import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _class_hover_text(class_def: ClassDef) -> str:
+    """Format hover text for a class definition."""
+    parts: list[str] = []
+    sig = f"{class_def.metaclass} create {class_def.qualified_name}"
+    if class_def.superclasses:
+        sig += f" (superclass: {', '.join(class_def.superclasses)})"
+    if class_def.mixins:
+        sig += f" (mixin: {', '.join(class_def.mixins)})"
+    parts.append(f"```tcl\n{sig}\n```")
+    details: list[str] = []
+    if class_def.methods:
+        details.append(f"**Methods**: {', '.join(sorted(class_def.methods.keys()))}")
+    if class_def.class_methods:
+        details.append(f"**Class methods**: {', '.join(sorted(class_def.class_methods.keys()))}")
+    if class_def.properties:
+        details.append(f"**Properties**: {', '.join(sorted(class_def.properties.keys()))}")
+    if class_def.variables:
+        details.append(f"**Instance variables**: {', '.join(class_def.variables)}")
+    if details:
+        parts.append("  \n".join(details))
+    if class_def.doc:
+        from core.formatting.docstring import format_docstring
+
+        parts.append(format_docstring(class_def.doc))
+    return "\n\n".join(parts)
+
+
+def _method_hover_text(method_def: MethodDef, class_name: str) -> str:
+    """Format hover text for a method definition."""
+    params = []
+    for p in method_def.params:
+        if p.has_default:
+            params.append(f"{{{p.name} {p.default_value}}}")
+        else:
+            params.append(p.name)
+    kind = method_def.kind
+    sig = f"{kind} {method_def.name} {{{' '.join(params)}}} {{...}}"
+    parts = [f"```tcl\n# {class_name}\n{sig}\n```"]
+    if method_def.doc:
+        from core.formatting.docstring import format_docstring
+
+        parts.append(format_docstring(method_def.doc))
+    return "\n\n".join(parts)
 
 
 def _proc_hover_text(proc_def: ProcDef) -> str:
@@ -894,6 +939,46 @@ def get_hover(
                     value=_proc_hover_text(proc_def),
                 ),
             )
+
+    # Check OO class names
+    for _qname, class_def in analysis.all_classes.items():
+        if (
+            class_def.name == word
+            or class_def.qualified_name == word
+            or class_def.qualified_name == f"::{word}"
+        ):
+            return types.Hover(
+                contents=types.MarkupContent(
+                    kind=types.MarkupKind.Markdown,
+                    value=_class_hover_text(class_def),
+                ),
+            )
+
+    # Check OO method names (when inside a class body)
+    scope = find_scope_at_line(analysis.global_scope, line)
+    if scope.kind == "method" and scope.parent:
+        parent_scope = scope.parent
+        for _qname, class_def in analysis.all_classes.items():
+            if class_def.name == parent_scope.name or class_def.qualified_name == parent_scope.name:
+                if word in class_def.methods:
+                    return types.Hover(
+                        contents=types.MarkupContent(
+                            kind=types.MarkupKind.Markdown,
+                            value=_method_hover_text(
+                                class_def.methods[word], class_def.qualified_name
+                            ),
+                        ),
+                    )
+                if word in class_def.class_methods:
+                    return types.Hover(
+                        contents=types.MarkupContent(
+                            kind=types.MarkupKind.Markdown,
+                            value=_method_hover_text(
+                                class_def.class_methods[word], class_def.qualified_name
+                            ),
+                        ),
+                    )
+                break
 
     # Check for IP address hover
     ip_hover = _ip_address_hover(word)

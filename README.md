@@ -502,6 +502,33 @@ try {
 try { ... }              ;# W002: command disabled in active dialect (try requires 8.6)
 ```
 
+### TclOO support
+
+Full TclOO class hierarchy analysis with method resolution order (MRO),
+class definition tracking, and object-aware introspection.
+
+```tcl
+oo::class create Animal {
+    variable name
+    constructor {n} { set name $n }
+    method speak {} { return "$name says ..." }
+}
+oo::class create Dog {
+    superclass Animal
+    method speak {} { return "[my name] says woof!" }
+}
+# Hover on 'Dog' shows class hierarchy: Dog -> Animal -> oo::object
+# Go-to-definition on 'speak' jumps to the method body
+# Type hierarchy shows Dog as a subtype of Animal
+```
+
+Features include class definition and method hover, go-to-definition for
+methods and constructors, type hierarchy (supertypes and subtypes), MRO
+computation matching C Tcl's algorithm, mixin and filter chain support,
+private variable and method visibility (TIP 500), and property/configurable
+support (TIP 558).  The VM executes TclOO code with 85% native test
+conformance against the Tcl 9.0.3 oo.test suite.
+
 ### Compiler pipeline
 
 The server lowers source to an intermediate representation, builds a
@@ -1154,7 +1181,10 @@ offline (bundles Pyodide) and CDN (loads Pyodide from jsDelivr).
 ### Tcl VM
 
 A bytecode interpreter that compiles and executes Tcl scripts using the
-compiler pipeline, with an interactive REPL and disassembly mode.
+compiler pipeline, with an interactive REPL and disassembly mode.  Supports
+TclOO classes (constructors, destructors, methods, mixins, filters, private
+variables), namespaces, coroutine-free control flow, and 85% conformance
+against Tcl 9.0.3 native test suites.
 
 ```sh
 # Execute a script

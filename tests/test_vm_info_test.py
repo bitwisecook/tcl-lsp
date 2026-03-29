@@ -33,8 +33,6 @@ KNOWN_FAILURES_INFO: set[str] = {
     "info-4.5",  # extra args to info commands
     "info-7.9",  # extra args to info exists
     "info-8.3",  # extra args to info globals
-    # info default behaviour
-    "info-2.6",  # test setup failure (subst bar)
     # info globals scope tracking
     "info-8.4",  # variable existence not tracked correctly
     # Error message format

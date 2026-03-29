@@ -67,7 +67,6 @@ KNOWN_FAILURES_UNKNOWN: set[str] = {
 
 KNOWN_FAILURES_PROC: set[str] = {
     # Wrong # args error message format
-    "proc-1.1",  # wrong # args format
     "proc-1.2",  # wrong # args format
     "proc-1.3",  # wrong # args format
     "proc-1.6",  # wrong # args format
@@ -114,14 +113,8 @@ KNOWN_FAILURES_APPLY: set[str] = {
     "apply-7.7",  # nested lambda / uplevel
     "apply-7.8",  # nested lambda / uplevel
     # Lambda in ensemble / advanced
-    "apply-8.1",  # advanced lambda usage
     "apply-8.2",  # advanced lambda usage
     "apply-8.3",  # advanced lambda usage
-    "apply-8.4",  # advanced lambda usage
-    "apply-8.5",  # advanced lambda usage
-    "apply-8.6",  # advanced lambda usage
-    "apply-8.7",  # advanced lambda usage
-    "apply-8.8",  # advanced lambda usage
     "apply-8.9",  # advanced lambda usage
     "apply-8.10",  # advanced lambda usage
 }

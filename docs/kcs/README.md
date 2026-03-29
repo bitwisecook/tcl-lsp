@@ -24,6 +24,10 @@ This folder contains small, searchable Knowledge-Centered Service (KCS) notes.
 - [kcs-dialect-stubs.md](kcs-dialect-stubs.md) — dialect command stubs: `.tcl.stubs` files and inline stubs-begin/end blocks.
 - [kcs-command-alias-resolution.md](kcs-command-alias-resolution.md) — `interp alias` resolution: argument role inheritance for EXPR, BODY, VAR_NAME, PATTERN.
 
+## TclOO
+
+- [kcs-tcloo-implementation.md](kcs-tcloo-implementation.md) — TclOO class hierarchy analysis, VM runtime, MRO algorithm, and test conformance.
+
 ## Diagnostics
 
 - [kcs-irule4005-racy-static-cross-event.md](kcs-irule4005-racy-static-cross-event.md) — IRULE4005: racy `static::` cross-event flow from non-RULE_INIT events.

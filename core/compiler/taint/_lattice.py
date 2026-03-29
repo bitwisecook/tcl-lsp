@@ -141,6 +141,15 @@ class ProcTaintSummary:
         return _UNTAINTED
 
 
+@dataclass(frozen=True, slots=True)
+class MethodTaintSummary(ProcTaintSummary):
+    """Taint summary for OO methods with instance variable tracking."""
+
+    class_name: str = ""
+    instance_var_taint: tuple[tuple[str, TaintLattice], ...] = ()
+    taints_through_fields: tuple[tuple[str, str], ...] = ()
+
+
 # Sanitisers — commands that produce a safe fixed-type result
 
 _SANITISER_RETURN_TYPES = frozenset({TclType.INT, TclType.BOOLEAN})

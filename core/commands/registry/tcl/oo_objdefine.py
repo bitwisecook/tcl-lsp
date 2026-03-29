@@ -126,6 +126,11 @@ class OoObjdefineCommand(CommandDef):
                                 "renamemethod fromName toName",
                             ),
                             _av(
+                                "property",
+                                "This slot defines a configurable property on the class, with optional getter/setter configuration.",
+                                "property ?-slotOperation? ?name ...? ?-get getBody? ?-set setBody?",
+                            ),
+                            _av(
                                 "class",
                                 "This allows the class of an object to be changed after creation.",
                                 "class className",

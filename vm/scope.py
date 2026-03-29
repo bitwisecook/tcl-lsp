@@ -47,6 +47,7 @@ class Namespace:
         "_path",
         "_unknown_handler",
         "_frame",
+        "_oo_object_name",
     )
 
     def __init__(self, name: str, parent: Namespace | None = None) -> None:
@@ -67,6 +68,7 @@ class Namespace:
         self._path: list[Namespace] = []
         self._unknown_handler: str | None = None
         self._frame: CallFrame | None = None
+        self._oo_object_name: str | None = None
 
     def get_frame(self, interp: TclInterp) -> CallFrame:
         """Return the persistent CallFrame for this namespace.
@@ -266,10 +268,23 @@ class CallFrame:
         "namespace",
         "_scalars",
         "_arrays",
+        "_array_defaults",
+        "_constants",
         "_aliases",
         "_globals",
         "_declared",
         "_interp",
+        "_oo_self",
+        "_oo_class",
+        "_oo_method",
+        "_oo_filter_chain",
+        "_oo_filter_index",
+        "_oo_filter_target",
+        "_oo_filter_method_name",
+        "_oo_filter_method_args",
+        "_oo_instance_vars",
+        "_oo_private_var_map",
+        "_info_parent",
     )
 
     def __init__(
@@ -288,6 +303,8 @@ class CallFrame:
         self.namespace = namespace
         self._scalars: dict[str, str] = {}
         self._arrays: dict[str, dict[str, str]] = {}
+        self._array_defaults: dict[str, str] = {}
+        self._constants: set[str] = set()
         # upvar aliases: local_name -> (target_frame, target_name)
         self._aliases: dict[str, tuple[CallFrame, str]] = {}
         # Names declared ``global`` in this frame.
@@ -295,6 +312,19 @@ class CallFrame:
         # Names declared via ``variable`` but not yet initialised.
         # These appear in ``info vars`` but ``info exists`` returns 0.
         self._declared: set[str] = set()
+        # OO context — set when executing a method body
+        self._oo_self: str | None = None
+        self._oo_class: str | None = None
+        self._oo_method: str | None = None
+        # Instance variable backing store: (obj._vars dict, set of var names)
+        # When set, get_var/set_var for these names proxy to obj._vars.
+        self._oo_instance_vars: tuple[dict[str, str], set[str]] | None = None
+        # TIP 500: private variable name mapping.
+        # Maps local name → mangled name in obj._vars.
+        self._oo_private_var_map: dict[str, str] | None = None
+        # True call parent for `info frame` depth (differs from `parent`
+        # for next-chained methods where parent is skipped for upvar).
+        self._info_parent: CallFrame | None = None
         # Optional interpreter reference for firing variable traces.
         self._interp = interp
 
@@ -436,6 +466,19 @@ class CallFrame:
         if interp is not None and interp.variable_traces:
             self._fire_var_traces(interp, name, "read")
 
+        # OO instance variable proxy — reads go directly to shared store
+        iv = self._oo_instance_vars
+        if iv is not None and "(" not in name and name in iv[1]:
+            # TIP 500: resolve private variable name
+            pvm = self._oo_private_var_map
+            storage_name = pvm[name] if pvm and name in pvm else name
+            val = iv[0].get(storage_name)
+            if val is not None:
+                return val
+            if default is not None:
+                return default
+            raise TclError(f'can\'t read "{name}": no such variable')
+
         frame, resolved, elem = self._locate(name)
 
         if elem is not None:
@@ -443,6 +486,10 @@ class CallFrame:
             if arr is not None:
                 if elem in arr:
                     return arr[elem]
+                # Check for array default value
+                arr_default = frame._array_defaults.get(resolved)
+                if arr_default is not None:
+                    return arr_default
                 if default is not None:
                     return default
                 raise TclError(f'can\'t read "{name}": no such element in array')
@@ -469,7 +516,26 @@ class CallFrame:
 
     def set_var(self, name: str, value: str) -> str:
         """Write a scalar or array element; returns *value*."""
+        # OO instance variable proxy — writes go directly to shared store
+        iv = self._oo_instance_vars
+        if iv is not None and "(" not in name and name in iv[1]:
+            # TIP 500: resolve private variable name
+            pvm = self._oo_private_var_map
+            storage_name = pvm[name] if pvm and name in pvm else name
+            iv[0][storage_name] = value
+            # Also update local _scalars so info vars works
+            self._scalars[name] = value
+            # Fire write traces
+            interp = self._interp
+            if interp is not None and interp.variable_traces:
+                self._fire_var_traces(interp, name, "write")
+            return value
+
         frame, resolved, elem = self._locate(name)
+
+        # Check if the variable is a constant
+        if resolved in frame._constants:
+            raise TclError(f'can\'t set "{name}": variable is a constant')
 
         # Save old value for rollback if a write trace errors
         old_scalar: str | None = None
@@ -526,7 +592,25 @@ class CallFrame:
 
     def unset_var(self, name: str, *, nocomplain: bool = False) -> None:
         """Remove a scalar or array element."""
+        # OO instance variable proxy — unset removes from shared store
+        iv = self._oo_instance_vars
+        if iv is not None and "(" not in name and name in iv[1]:
+            pvm = self._oo_private_var_map
+            storage_name = pvm[name] if pvm and name in pvm else name
+            if storage_name in iv[0]:
+                self._fire_unset_trace(name)
+                del iv[0][storage_name]
+                self._scalars.pop(name, None)
+                self._cleanup_traces(name, name)
+                return
+            if not nocomplain:
+                raise TclError(f'can\'t unset "{name}": no such variable')
+            return
+
         frame, resolved, elem = self._locate(name)
+
+        if resolved in frame._constants and not nocomplain:
+            raise TclError(f'can\'t unset "{name}": variable is a constant')
 
         if elem is not None:
             arr = frame._arrays.get(resolved)
@@ -633,3 +717,17 @@ class CallFrame:
         frame, resolved = self._resolve(name)
         arr = frame._arrays.get(resolved)
         return len(arr) if arr else 0
+
+    def array_set_default(self, name: str, value: str) -> None:
+        frame, resolved = self._resolve(name)
+        # Ensure the array exists (create empty if needed)
+        frame._arrays.setdefault(resolved, {})
+        frame._array_defaults[resolved] = value
+
+    def array_get_default(self, name: str) -> str | None:
+        frame, resolved = self._resolve(name)
+        return frame._array_defaults.get(resolved)
+
+    def array_unset_default(self, name: str) -> None:
+        frame, resolved = self._resolve(name)
+        frame._array_defaults.pop(resolved, None)

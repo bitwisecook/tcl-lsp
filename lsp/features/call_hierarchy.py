@@ -6,7 +6,7 @@ from lsprotocol import types
 
 from core.analysis.analyser import analyse
 from core.analysis.proc_lookup import find_proc_by_reference
-from core.analysis.semantic_model import AnalysisResult, ProcDef, Scope
+from core.analysis.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope
 from core.common.lsp import to_lsp_range
 
 from .references import find_proc_call_sites
@@ -42,6 +42,38 @@ def _proc_to_item(proc_def: ProcDef, uri: str) -> types.CallHierarchyItem:
     )
 
 
+def _method_to_item(
+    method_def: MethodDef, class_def: ClassDef, uri: str
+) -> types.CallHierarchyItem:
+    """Convert a MethodDef to a CallHierarchyItem."""
+    return types.CallHierarchyItem(
+        name=method_def.name,
+        kind=types.SymbolKind.Method,
+        uri=uri,
+        range=to_lsp_range(method_def.body_range),
+        selection_range=to_lsp_range(method_def.name_range),
+        detail=f"{class_def.qualified_name}::{method_def.name}",
+    )
+
+
+def _find_method_at_position(
+    analysis: AnalysisResult,
+    line: int,
+    character: int,
+    source: str,
+) -> tuple[MethodDef, ClassDef] | None:
+    """Find the method definition at the cursor position."""
+    word = find_word_at_position(source, line, character)
+    if not word:
+        return None
+    for _qname, class_def in analysis.all_classes.items():
+        if word in class_def.methods:
+            return (class_def.methods[word], class_def)
+        if word in class_def.class_methods:
+            return (class_def.class_methods[word], class_def)
+    return None
+
+
 def prepare_call_hierarchy(
     source: str,
     uri: str,
@@ -49,15 +81,20 @@ def prepare_call_hierarchy(
     character: int,
     analysis: AnalysisResult | None = None,
 ) -> list[types.CallHierarchyItem]:
-    """Return the call hierarchy item for the proc at the cursor."""
+    """Return the call hierarchy item for the proc or method at the cursor."""
     if analysis is None:
         analysis = analyse(source)
 
     proc_def = _find_proc_at_position(analysis, line, character, source)
-    if proc_def is None:
-        return []
+    if proc_def is not None:
+        return [_proc_to_item(proc_def, uri)]
 
-    return [_proc_to_item(proc_def, uri)]
+    method_match = _find_method_at_position(analysis, line, character, source)
+    if method_match is not None:
+        method_def, class_def = method_match
+        return [_method_to_item(method_def, class_def, uri)]
+
+    return []
 
 
 def _find_containing_proc(

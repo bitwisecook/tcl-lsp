@@ -47,6 +47,9 @@ class MemoryLocationKind(Enum):
     ARRAY_ELEMENT = auto()
     """Element of a Tcl array (``arrayName(index)``)."""
 
+    INSTANCE_VAR = auto()
+    """OO instance variable (``variable`` in method body)."""
+
     UNKNOWN = auto()
     """Cannot be determined statically."""
 
@@ -66,6 +69,8 @@ class MemoryLocation:
             return f"global({self.name})"
         if self.kind is MemoryLocationKind.NAMESPACE_VAR:
             return f"ns({self.qualifier}::{self.name})"
+        if self.kind is MemoryLocationKind.INSTANCE_VAR:
+            return f"ivar({self.qualifier}::{self.name})"
         if self.kind is MemoryLocationKind.ARRAY_ELEMENT:
             return f"{self.name}({self.qualifier})"
         if self.kind is MemoryLocationKind.UNKNOWN:
