@@ -124,10 +124,12 @@ Returns `std::expected<ResolveResult, ResolveError>`.
 
 ## Compiler requirements
 
-- **Minimum**: GCC 13 with C++23 (current Ubuntu 24.04 default).
-  All types compile and test cleanly.
-- **Recommended**: GCC 14+ for reliable `std::expected`.
-- **Future**: GCC 15 for `std::flat_map` (drop-in upgrade for sorted vector).
+- **Minimum**: Clang 20+ (with libc++) or GCC 15+ with C++23.
+  The project enforces this in `meson.build` at configure time.
+- Clang 20 is available via `sudo apt install clang-20` on Ubuntu 24.04.
+- GCC 15 will be accepted once it lands in apt.
+- Required C++23 features: `std::flat_map`, `std::expected`, designated
+  initializers, `constexpr` strings, pack indexing.
 
 ## Migration path
 
