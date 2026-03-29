@@ -4,6 +4,7 @@
 #include "tcl_lsp/analysis/command_interface.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+
 #include <string>
 #include <vector>
 
@@ -48,16 +49,17 @@ static auto make_diag_registry() -> TestCommandRegistry {
 static auto errors(const AnalysisResult& result) -> std::vector<Diagnostic> {
     std::vector<Diagnostic> out;
     for (const auto& d : result.diagnostics()) {
-        if (d.severity == Severity::ERROR) out.push_back(d);
+        if (d.severity == Severity::ERROR)
+            out.push_back(d);
     }
     return out;
 }
 
-static auto by_code(const AnalysisResult& result, DiagCode code)
-    -> std::vector<Diagnostic> {
+static auto by_code(const AnalysisResult& result, DiagCode code) -> std::vector<Diagnostic> {
     std::vector<Diagnostic> out;
     for (const auto& d : result.diagnostics()) {
-        if (d.code == code) out.push_back(d);
+        if (d.code == code)
+            out.push_back(d);
     }
     return out;
 }
@@ -81,8 +83,7 @@ TEST_CASE("proc call: too many args (E003)", "[analyser][diagnostics]") {
 }
 
 TEST_CASE("proc call: with default arg no error", "[analyser][diagnostics]") {
-    auto result = analyse(
-        "proc greet {name {title Mr}} { return \"$title $name\" }\ngreet Bob");
+    auto result = analyse("proc greet {name {title Mr}} { return \"$title $name\" }\ngreet Bob");
     auto e = by_code(result, DiagCode::E002);
     auto e3 = by_code(result, DiagCode::E003);
     CHECK(e.empty());

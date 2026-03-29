@@ -4,6 +4,7 @@
 #include "tcl_lsp/analysis/command_interface.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -48,7 +49,8 @@ static auto make_w123_registry() -> TestCommandRegistry {
 static auto w123_diags(const AnalysisResult& result) -> std::vector<Diagnostic> {
     std::vector<Diagnostic> out;
     for (const auto& d : result.diagnostics()) {
-        if (d.code == DiagCode::W123) out.push_back(d);
+        if (d.code == DiagCode::W123)
+            out.push_back(d);
     }
     return out;
 }
@@ -109,7 +111,8 @@ TEST_CASE("W123: stub command no warning", "[analyser][w123]") {
     auto result = analyse(R"(# tcl-lsp: stubs-begin
 # stub mycommand {arg1 arg2}
 # tcl-lsp: stubs-end
-mycommand x y)", &reg);
+mycommand x y)",
+                          &reg);
     CHECK(w123_diags(result).empty());
 }
 
@@ -184,7 +187,8 @@ TEST_CASE("W123: unknown proc info populated", "[analyser][w123]") {
         foo { puts foo }
         bar { puts bar }
     }
-})", &reg);
+})",
+                          &reg);
     auto upi = result.unknown_proc_info();
     REQUIRE(upi.has_value());
     CHECK_FALSE(upi->empty_stub);

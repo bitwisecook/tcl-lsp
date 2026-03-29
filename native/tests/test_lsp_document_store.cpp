@@ -1,6 +1,6 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/lsp/document_store.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 using tcl_lsp::DocumentStore;
 
@@ -19,8 +19,7 @@ TEST_CASE("DocumentStore open and get", "[lsp][document_store]") {
     CHECK(store.get_language_id("file:///test.tcl") == "tcl");
 }
 
-TEST_CASE("DocumentStore change updates source and version",
-          "[lsp][document_store]") {
+TEST_CASE("DocumentStore change updates source and version", "[lsp][document_store]") {
     DocumentStore store;
     store.open("file:///test.tcl", "tcl", "set x 1", 1);
     store.change("file:///test.tcl", "set x 2", 2);
@@ -41,14 +40,12 @@ TEST_CASE("DocumentStore close removes document", "[lsp][document_store]") {
     CHECK_FALSE(store.get_source("file:///test.tcl").has_value());
 }
 
-TEST_CASE("DocumentStore get_source on missing URI returns nullopt",
-          "[lsp][document_store]") {
+TEST_CASE("DocumentStore get_source on missing URI returns nullopt", "[lsp][document_store]") {
     DocumentStore store;
     CHECK_FALSE(store.get_source("file:///missing.tcl").has_value());
 }
 
-TEST_CASE("DocumentStore get_language_id on missing URI returns empty",
-          "[lsp][document_store]") {
+TEST_CASE("DocumentStore get_language_id on missing URI returns empty", "[lsp][document_store]") {
     DocumentStore store;
     CHECK(store.get_language_id("file:///missing.tcl").empty());
 }
@@ -67,8 +64,7 @@ TEST_CASE("DocumentStore multiple documents", "[lsp][document_store]") {
     CHECK(store.is_open("file:///b.tcl"));
 }
 
-TEST_CASE("DocumentStore change on missing URI is no-op",
-          "[lsp][document_store]") {
+TEST_CASE("DocumentStore change on missing URI is no-op", "[lsp][document_store]") {
     DocumentStore store;
     store.change("file:///missing.tcl", "new text", 5);
     CHECK(store.size() == 0);

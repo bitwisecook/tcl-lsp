@@ -1,5 +1,8 @@
 #include "tcl_lsp/lsp/server.hpp"
 
+#include "tcl_lsp/lsp/semantic_token_collector.hpp"
+#include "tcl_lsp/lsp/semantic_token_types.hpp"
+
 #include <lsp/json/json.h>
 #include <lsp/serialization.h>
 
@@ -69,11 +72,60 @@ void TclLspServer::register_handlers() {
                 on_did_close(std::move(p));
             });
 
-    // All feature requests delegated to Python via generic JSON handlers.
-    // Each handler serialises params to JSON, calls Python, parses the result.
+    // Helper lambda: extract URI from a textDocument/semanticTokens request.
+    auto extract_uri = [](const lsp::json::Value& params) -> std::string {
+        auto* td = params.object().find("textDocument");
+        if (td == nullptr) return {};
+        auto* u = td->object().find("uri");
+        if (u == nullptr) return {};
+        return u->string();
+    };
+
+    // Helper lambda: build the {"data": [...]} JSON response.
+    auto build_tokens_response = [](const std::vector<std::int32_t>& data)
+        -> lsp::json::Value {
+        lsp::json::Array arr;
+        arr.reserve(data.size());
+        for (auto v : data) arr.push_back(lsp::json::Value{static_cast<std::int64_t>(v)});
+        lsp::json::Object result;
+        result["data"] = lsp::json::Value{std::move(arr)};
+        return lsp::json::Value{std::move(result)};
+    };
+
+    // Native semantic tokens handler.
+    handler_.add("textDocument/semanticTokens/full",
+        [this, extract_uri, build_tokens_response](lsp::json::Value&& params) -> lsp::json::Value {
+            auto uri = extract_uri(params);
+            auto snapshot = documents_.get_source(uri);
+            if (!snapshot.has_value()) {
+                static const std::vector<std::int32_t> empty_data{};
+                return build_tokens_response(empty_data);
+            }
+
+            auto tokens = semantic_token_collector_.collect(snapshot->first);
+            auto data = delta_encode(tokens);
+            return build_tokens_response(data);
+        });
+
+    // Delta semantic tokens — fall back to full response.
+    // TODO: implement resultId tracking + edit computation using
+    // compute_semantic_token_edits() once per-URI caching is added.
+    handler_.add("textDocument/semanticTokens/full/delta",
+        [this, extract_uri, build_tokens_response](lsp::json::Value&& params) -> lsp::json::Value {
+            auto uri = extract_uri(params);
+            auto snapshot = documents_.get_source(uri);
+            if (!snapshot.has_value()) {
+                static const std::vector<std::int32_t> empty_data{};
+                return build_tokens_response(empty_data);
+            }
+
+            auto tokens = semantic_token_collector_.collect(snapshot->first);
+            auto data = delta_encode(tokens);
+            return build_tokens_response(data);
+        });
+
+    // Remaining feature requests delegated to Python via generic JSON handlers.
     static constexpr std::string_view python_features[] = {
-        "textDocument/semanticTokens/full",
-        "textDocument/semanticTokens/full/delta",
         "textDocument/completion",
         "textDocument/hover",
         "textDocument/definition",

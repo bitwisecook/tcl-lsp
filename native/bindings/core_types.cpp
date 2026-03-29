@@ -278,8 +278,7 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
                          const std::vector<CodeFix>& fixes) {
                  // The code string is ignored here — DiagCode is set by the
                  // C++ analyser, not constructed from Python strings.
-                 return Diagnostic{range, severity, DiagCode::E200,
-                                   message, fixes};
+                 return Diagnostic{range, severity, DiagCode::E200, message, fixes};
              }),
              py::arg("range"),
              py::arg("severity") = Severity::ERROR,
@@ -288,9 +287,7 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
              py::arg("fixes") = std::vector<CodeFix>{})
         .def_readonly("range", &Diagnostic::range)
         .def_readonly("severity", &Diagnostic::severity)
-        .def_property_readonly("code", [](const Diagnostic& d) {
-            return to_string(d.code);
-        })
+        .def_property_readonly("code", [](const Diagnostic& d) { return to_string(d.code); })
         .def_readonly("message", &Diagnostic::message)
         .def_readonly("fixes", &Diagnostic::fixes)
         .def("__eq__", [](const Diagnostic& a, const Diagnostic& b) { return a == b; })

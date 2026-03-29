@@ -4,6 +4,7 @@
 #include "tcl_lsp/analysis/command_interface.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+
 #include <string>
 #include <tuple>
 #include <vector>
@@ -20,10 +21,8 @@ static auto make_alias_registry() -> TestCommandRegistry {
     reg.add_command("return", CommandSig{Arity{0, 100}, {}});
     reg.add_command("proc", CommandSig{Arity{3, 3}, {}});
     reg.add_command("interp", CommandSig{Arity{1, 100}, {}});
-    reg.add_command("foreach", CommandSig{
-        Arity{3, 100},
-        {{0, ArgRole::VAR_NAME}, {2, ArgRole::BODY}}
-    });
+    reg.add_command("foreach",
+                    CommandSig{Arity{3, 100}, {{0, ArgRole::VAR_NAME}, {2, ArgRole::BODY}}});
     reg.add_command("file", CommandSig{Arity{2, 100}, {}});
     reg.add_command("lsearch", CommandSig{Arity{2, 100}, {}});
     reg.add_command("lreplace", CommandSig{Arity{3, 100}, {}});
@@ -101,7 +100,8 @@ TEST_CASE("alias: expr analysis works", "[analyser][alias]") {
     auto result = analyse("interp alias {} = {} expr\n= {1 + 2}", &reg);
     auto errors = std::vector<Diagnostic>{};
     for (const auto& d : result.diagnostics()) {
-        if (d.severity == Severity::ERROR) errors.push_back(d);
+        if (d.severity == Severity::ERROR)
+            errors.push_back(d);
     }
     CHECK(errors.empty());
 }
@@ -112,7 +112,8 @@ TEST_CASE("alias: body analysis works via eval alias", "[analyser][alias]") {
 proc foo {x} {
     myeval { set y 1 }
     return $x
-})", &reg);
+})",
+                          &reg);
     // The body should be analysed — y should appear in proc scope
     auto& children = result.global_scope().children;
     REQUIRE(children.size() == 1);
@@ -170,10 +171,12 @@ TEST_CASE("alias: expr alias suppresses W214", "[analyser][alias][w214]") {
 proc foo {x y} {
     set result [= {$x + $y}]
     return $result
-})", &reg);
+})",
+                          &reg);
     std::vector<Diagnostic> w214;
     for (const auto& d : result.diagnostics()) {
-        if (d.code == DiagCode::W214) w214.push_back(d);
+        if (d.code == DiagCode::W214)
+            w214.push_back(d);
     }
     CHECK(w214.empty());
 }
@@ -186,10 +189,12 @@ namespace eval math {
         set result [= {$x + $y}]
         return $result
     }
-})", &reg);
+})",
+                          &reg);
     std::vector<Diagnostic> w214;
     for (const auto& d : result.diagnostics()) {
-        if (d.code == DiagCode::W214) w214.push_back(d);
+        if (d.code == DiagCode::W214)
+            w214.push_back(d);
     }
     CHECK(w214.empty());
 }
@@ -202,10 +207,12 @@ namespace eval utils {
         set result [= {$x + $y}]
         return $result
     }
-})", &reg);
+})",
+                          &reg);
     std::vector<Diagnostic> w214;
     for (const auto& d : result.diagnostics()) {
-        if (d.code == DiagCode::W214) w214.push_back(d);
+        if (d.code == DiagCode::W214)
+            w214.push_back(d);
     }
     CHECK(w214.empty());
 }

@@ -4,6 +4,7 @@
 #include "tcl_lsp/analysis/command_interface.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+
 #include <algorithm>
 #include <string>
 
@@ -15,16 +16,10 @@ static auto make_regex_registry() -> TestCommandRegistry {
 
     // regexp ?options? pattern string ?matchVar? ?subMatchVar ...?
     // Simplified: pattern is at arg index 0 for the basic form.
-    reg.add_command("regexp", CommandSig{
-        Arity{2, 100},
-        {{0, ArgRole::PATTERN}}
-    });
+    reg.add_command("regexp", CommandSig{Arity{2, 100}, {{0, ArgRole::PATTERN}}});
 
     // regsub ?options? pattern string subSpec ?resultVar?
-    reg.add_command("regsub", CommandSig{
-        Arity{3, 100},
-        {{0, ArgRole::PATTERN}}
-    });
+    reg.add_command("regsub", CommandSig{Arity{3, 100}, {{0, ArgRole::PATTERN}}});
 
     // Other common commands.
     reg.add_command("set", CommandSig{Arity{1, 2}, {}});
