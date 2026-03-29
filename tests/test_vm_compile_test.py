@@ -115,10 +115,6 @@ KNOWN_FAILURES_COMPILE: set[str] = {
 }
 
 KNOWN_FAILURES_EXECUTE: set[str] = {
-    # Error message format differences
-    "execute-1.2",  # wrong # args error format
-    "execute-2.1",  # wrong # args error format
-    "execute-2.2",  # wrong # args error format
     # Numeric type handling
     "execute-4.1",  # integer type coercion
     "execute-4.2",  # integer type coercion

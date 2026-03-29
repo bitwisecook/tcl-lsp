@@ -123,7 +123,6 @@ KNOWN_FAILURES_VAR: set[str] = {
     "var-1.17",  # variable in nested namespace
     "var-1.18",  # variable in nested namespace
     "var-1.20",  # variable resolution order
-    "var-1.21",  # variable resolution order
     # Error handling
     "var-3.5",  # wrong # args for variable
     "var-3.7",  # wrong # args for variable
