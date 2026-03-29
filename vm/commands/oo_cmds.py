@@ -342,17 +342,7 @@ def _define_superclass(interp: TclInterp, args: list[str]) -> TclResult:
 
         def _qualify_super(name: str) -> str:
             """Resolve a superclass name to fully-qualified form."""
-            if name.startswith("::"):
-                return name
-            # Try current namespace first
-            ns = interp.current_namespace.qualname
-            ns_qn = f"{ns}::{name}" if ns != "::" else f"::{name}"
-            if ns_qn in oo.classes:
-                return ns_qn
-            # Fall back to global
-            if f"::{name}" in oo.classes:
-                return f"::{name}"
-            return f"::{name}"
+            return _resolve_class_name(interp, oo, name)
 
         # Handle slot-style flags
         if args[0] == "-append":
@@ -402,14 +392,12 @@ def _define_mixin(interp: TclInterp, args: list[str]) -> TclResult:
         return TclResult()
 
     if op == "-remove":
+        oo = _get_oo_runtime(interp)
         names_to_remove = args[1:]
-        # Resolve names for comparison
         resolved_remove: set[str] = set()
         for n in names_to_remove:
-            resolved_remove.add(n if n.startswith("::") else f"::{n}")
-        cls.mixins = [
-            m for m in cls.mixins if (m if m.startswith("::") else f"::{m}") not in resolved_remove
-        ]
+            resolved_remove.add(_resolve_class_name(interp, oo, n))
+        cls.mixins = [m for m in cls.mixins if m not in resolved_remove]
         return TclResult()
 
     if op == "-set":
@@ -422,13 +410,14 @@ def _define_mixin(interp: TclInterp, args: list[str]) -> TclResult:
         new_mixins = list(args)
         cls.mixins = []
 
+    oo = _get_oo_runtime(interp)
     for m in new_mixins:
-        qn = m if m.startswith("::") else f"::{m}"
+        qn = _resolve_class_name(interp, oo, m)
         if qn == cls.qualified_name:
             raise TclError("may not mix a class into itself")
-        if m in cls.mixins or qn in cls.mixins:
+        if qn in cls.mixins:
             raise TclError("class should only be a direct mixin once")
-        cls.mixins.append(m)
+        cls.mixins.append(qn)
     return TclResult()
 
 
@@ -950,9 +939,11 @@ def _parse_class_body(
     saved_cls = getattr(interp, "_defining_class", None)
     saved_obj = getattr(interp, "_defining_object", None)
     saved_define_frame = getattr(interp, "_defining_frame", None)
+    saved_caller_ns = getattr(interp, "_defining_caller_ns", None)
     interp._defining_class = cls
     interp._defining_object = None
     interp._defining_frame = interp.current_frame
+    interp._defining_caller_ns = saved_ns
     interp.current_namespace = eval_ns
     interp.current_frame.namespace = eval_ns
     try:
@@ -963,6 +954,7 @@ def _parse_class_body(
         interp._defining_class = saved_cls
         interp._defining_object = saved_obj
         interp._defining_frame = saved_define_frame
+        interp._defining_caller_ns = saved_caller_ns
         if saved_unknown is not None:
             eval_ns._unknown_handler = saved_unknown
         elif eval_ns is not oo_define_ns and saved_unknown is None:
@@ -1119,9 +1111,11 @@ def _parse_objdefine_body(
     saved_cls = getattr(interp, "_defining_class", None)
     saved_obj = getattr(interp, "_defining_object", None)
     saved_define_frame = getattr(interp, "_defining_frame", None)
+    saved_caller_ns = getattr(interp, "_defining_caller_ns", None)
     interp._defining_class = None
     interp._defining_object = obj
     interp._defining_frame = interp.current_frame
+    interp._defining_caller_ns = saved_ns
     interp.current_namespace = eval_ns
     interp.current_frame.namespace = eval_ns
     try:
@@ -1132,6 +1126,7 @@ def _parse_objdefine_body(
         interp._defining_class = saved_cls
         interp._defining_object = saved_obj
         interp._defining_frame = saved_define_frame
+        interp._defining_caller_ns = saved_caller_ns
     return result
 
 
@@ -1207,6 +1202,32 @@ def _setup_slot_instances(interp: TclInterp, oo: OORuntime) -> None:
         # for introspection (info object class, info class instances).
 
 
+def _resolve_class_name(interp: TclInterp, oo: OORuntime, name: str) -> str:
+    """Resolve a class name relative to the caller's namespace.
+
+    During oo::define/oo::objdefine body evaluation, current_namespace is
+    ``::oo::define`` (or similar), so we use ``_defining_caller_ns`` — the
+    namespace that was active when the define command was invoked.
+    """
+    if name.startswith("::"):
+        return name
+    # Use the caller's namespace (the one active when oo::define was called)
+    caller_ns = getattr(interp, "_defining_caller_ns", None)
+    if caller_ns is not None:
+        cur_ns = caller_ns.qualname
+    else:
+        cur_ns = interp.current_namespace.qualname
+    if cur_ns != "::":
+        fq = f"{cur_ns}::{name}"
+        if fq in oo.classes:
+            return fq
+    # Fall back to global
+    fq = f"::{name}"
+    if fq in oo.classes:
+        return fq
+    return fq  # Return the global form even if not found (will error later)
+
+
 def _get_oo_runtime(interp: TclInterp) -> OORuntime:
     """Get or create the OO runtime on the interpreter."""
     if not hasattr(interp, "_oo_runtime"):
@@ -1237,11 +1258,34 @@ def _resolve_class(interp: TclInterp, oo: OORuntime, name: str) -> TclOOClass:
     """Resolve a class name, checking current namespace if not qualified."""
     cls = oo.classes.get(name)
     if cls is None and not name.startswith("::"):
-        cls = oo.classes.get(f"::{name}")
-    if cls is None and not name.startswith("::"):
+        # Try current namespace first (like C Tcl)
         ns = interp.current_namespace.qualname
-        ns_qualified = f"{ns}::{name}" if ns != "::" else f"::{name}"
-        cls = oo.classes.get(ns_qualified)
+        if ns != "::":
+            ns_qualified = f"{ns}::{name}"
+            cls = oo.classes.get(ns_qualified)
+        # Then try global
+        if cls is None:
+            cls = oo.classes.get(f"::{name}")
+    if cls is None:
+        raise TclError(f'unknown class "{name}"')
+    return cls
+
+
+def _resolve_class_in_caller_ns(interp: TclInterp, oo: OORuntime, name: str) -> TclOOClass:
+    """Resolve a class name using the caller's namespace context.
+
+    Like _resolve_class, but uses _defining_caller_ns when inside an
+    oo::define body (where current_namespace is ::oo::define).
+    """
+    cls = oo.classes.get(name)
+    if cls is None and not name.startswith("::"):
+        caller_ns = getattr(interp, "_defining_caller_ns", None)
+        ns = caller_ns.qualname if caller_ns is not None else interp.current_namespace.qualname
+        if ns != "::":
+            ns_qualified = f"{ns}::{name}"
+            cls = oo.classes.get(ns_qualified)
+        if cls is None:
+            cls = oo.classes.get(f"::{name}")
     if cls is None:
         raise TclError(f'unknown class "{name}"')
     return cls
