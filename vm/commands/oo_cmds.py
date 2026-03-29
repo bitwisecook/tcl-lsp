@@ -334,28 +334,41 @@ def _define_superclass(interp: TclInterp, args: list[str]) -> TclResult:
             cls.superclasses = ["::oo::object"]
     else:
         oo = _get_oo_runtime(interp)
+
+        def _qualify_super(name: str) -> str:
+            """Resolve a superclass name to fully-qualified form."""
+            if name.startswith("::"):
+                return name
+            # Try current namespace first
+            ns = interp.current_namespace.qualname
+            ns_qn = f"{ns}::{name}" if ns != "::" else f"::{name}"
+            if ns_qn in oo.classes:
+                return ns_qn
+            # Fall back to global
+            if f"::{name}" in oo.classes:
+                return f"::{name}"
+            return f"::{name}"
+
         # Handle slot-style flags
         if args[0] == "-append":
             supers = list(args[1:])
             for s in supers:
-                qn = s if s.startswith("::") else f"::{s}"
-                # Check for duplicate
-                existing = [
-                    (x if x.startswith("::") else f"::{x}")
-                    for x in cls.superclasses
-                ]
+                qn = _qualify_super(s)
+                existing = {_qualify_super(x) for x in cls.superclasses}
                 if qn in existing:
                     raise TclError("class should only be a direct superclass once")
-                cls.superclasses.append(s)
+                cls.superclasses.append(qn)
         else:
             # Check for duplicates in the new list
             seen: set[str] = set()
+            resolved: list[str] = []
             for s in args:
-                qn = s if s.startswith("::") else f"::{s}"
+                qn = _qualify_super(s)
                 if qn in seen:
                     raise TclError("class should only be a direct superclass once")
                 seen.add(qn)
-            cls.superclasses = list(args)
+                resolved.append(qn)
+            cls.superclasses = resolved
         # Validate: no circular dependency (compute MRO and discard cache)
         try:
             cls.mro(oo.classes)

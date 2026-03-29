@@ -7,6 +7,7 @@ as ``tclOOCall.c``.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -298,13 +299,11 @@ class OORuntime:
                 raise TclError(
                     f'can\'t create object "{err_name}": command already exists with that name'
                 )
-            # Also check short name for qualified names
-            if obj_name.startswith("::"):
-                short = obj_name.rsplit("::", 1)[-1]
-                if short and short in self.objects:
-                    raise TclError(
-                        f'can\'t create object "{err_name}": command already exists with that name'
-                    )
+            # Also check if the command already exists (qualified or short)
+            if obj_name in interp._runtime_commands:
+                raise TclError(
+                    f'can\'t create object "{err_name}": command already exists with that name'
+                )
 
         # If the creating class is a metaclass, the new object is itself a class.
         if self._is_metaclass(cls):
@@ -705,12 +704,15 @@ class OORuntime:
             if obj.name in oo_self.classes and method_name in ("create", "new", "destroy"):
                 cls_cmd = interp._runtime_commands.get(obj.name)
                 if cls_cmd is not None:
-                    saved = obj.unexported_methods.copy()
-                    obj.unexported_methods -= {"create", "new", "destroy"}
+                    # Temporarily allow class methods through by removing
+                    # them from unexported_methods (only the ones that
+                    # are currently unexported to be safe for re-entrancy).
+                    removed = obj.unexported_methods & {"create", "new", "destroy"}
+                    obj.unexported_methods -= removed
                     try:
                         return cls_cmd(interp, args)
                     finally:
-                        obj.unexported_methods = saved
+                        obj.unexported_methods |= removed
             # Handle destroy via my — destroy is always available
             if method_name == "destroy":
                 return oo_self._destroy_object(interp, obj)
@@ -1042,8 +1044,6 @@ class OORuntime:
                 # method name and object instead of the internal target.
                 msg = str(e)
                 if msg.startswith("wrong # args: should be "):
-                    import re
-
                     m = re.match(
                         r'wrong # args: should be "([^"]*)"', msg
                     )
@@ -1829,14 +1829,12 @@ class OORuntime:
         if obj_name in self.classes and method_name in ("create", "new", "destroy"):
             cls_cmd = interp._runtime_commands.get(obj_name)
             if cls_cmd is not None:
-                # Temporarily clear unexport marks so the class command
-                # allows the built-in method through.
-                saved = obj.unexported_methods.copy()
-                obj.unexported_methods -= {"create", "new", "destroy"}
+                removed = obj.unexported_methods & {"create", "new", "destroy"}
+                obj.unexported_methods -= removed
                 try:
                     return cls_cmd(interp, args)
                 finally:
-                    obj.unexported_methods = saved
+                    obj.unexported_methods |= removed
 
         method, defining_class = self.resolve_method(obj, method_name)
         my_caller_class = getattr(frame, "_oo_class", None)
