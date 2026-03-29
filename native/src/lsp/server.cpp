@@ -103,6 +103,23 @@ void TclLspServer::register_handlers() {
                 return call_python_feature(m, params_json);
             });
     }
+
+    // workspace/executeCommand — route custom commands to Python bridge.
+    handler_.add("workspace/executeCommand",
+        [this](lsp::json::Value&& params) -> lsp::json::Value {
+            auto& obj = params.object();
+            std::string command;
+            if (auto* v = obj.find("command")) {
+                command = v->string();
+            }
+            std::string args_json = "[]";
+            if (auto* v = obj.find("arguments")) {
+                args_json = lsp::json::stringify(*v);
+            }
+            auto result = python_->execute_command(command, args_json);
+            if (!result.has_value()) return {};
+            return lsp::json::parse(*result);
+        });
 }
 
 // Lifecycle
@@ -221,6 +238,27 @@ auto TclLspServer::build_capabilities() -> lsp::ServerCapabilities {
         },
         .foldingRangeProvider = true,
         .selectionRangeProvider = true,
+        .executeCommandProvider = lsp::ExecuteCommandOptions{
+            .commands = std::vector<std::string>{
+                "tcl-lsp.optimiseDocument",
+                "tcl-lsp.minifyDocument",
+                "tcl-lsp.unminifyError",
+                "tcl-lsp.fixAllSafeIssues",
+                "tcl-lsp.describeIruleEvent",
+                "tcl-lsp.describeIruleCommand",
+                "tcl-lsp.listIruleEvents",
+                "tcl-lsp.listSubcommands",
+                "tcl-lsp.searchHelp",
+                "tcl-lsp.suggestPackagesForSymbol",
+                "tcl-lsp.listKnownPackages",
+                "tcl-lsp.compilerExplorer",
+                "tcl-lsp.tkPreview",
+                "tcl-lsp.diagramData",
+                "tcl-lsp.extractRule",
+                "tcl-lsp.listRules",
+                "tcl-lsp.writeRuleBack",
+            },
+        },
         .callHierarchyProvider = true,
         .semanticTokensProvider = lsp::SemanticTokensOptions{
             .legend = std::move(legend),
@@ -228,7 +266,7 @@ auto TclLspServer::build_capabilities() -> lsp::ServerCapabilities {
                 .delta = true,
             },
         },
-        .inlayHintProvider = true,
+        .inlayHintProvider = false,
     };
 }
 
