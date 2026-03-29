@@ -737,6 +737,16 @@ class OORuntime:
             if method_name == "destroy":
                 return oo_self._destroy_object(interp, obj)
 
+            # `my varname` — return fully-qualified variable name
+            if method_name == "varname":
+                if len(args) != 2:
+                    raise TclError('wrong # args: should be "my varname varName"')
+                return oo_self._my_varname(interp, obj, args[1])
+
+            # `my variable` — link variables into current frame
+            if method_name == "variable":
+                return oo_self._my_variable(interp, obj, args[1:])
+
             # TIP 500: When calling via 'my', check if the caller's
             # defining class has a private method with this name — that
             # takes priority over the normal MRO resolution.
@@ -1912,6 +1922,75 @@ class OORuntime:
             return defining_obj.name
         raise TclError('"self" may only be invoked from within a method')
 
+    def _my_varname(
+        self, interp: TclInterp, obj: TclOOObject, var_name: str
+    ) -> TclResult:
+        """Implement `my varname varName` — return fully-qualified variable name."""
+        frame = interp.current_frame
+        caller_class = getattr(frame, "_oo_class", None)
+        caller_cls = self.classes.get(caller_class) if caller_class else None
+        cls_obj = self.objects.get(caller_class) if caller_class else None
+        if caller_cls and var_name in caller_cls.private_variables and cls_obj:
+            mangled = f"{cls_obj.creation_id} : {var_name}"
+        elif var_name in obj.private_instance_variables:
+            mangled = f"{obj.creation_id} : {var_name}"
+        else:
+            mangled = var_name
+        ns = obj.namespace
+        fq = f"{ns}::{mangled}" if ns != "::" else f"::{mangled}"
+        return TclResult(value=fq)
+
+    def _my_variable(
+        self, interp: TclInterp, obj: TclOOObject, var_names: list[str]
+    ) -> TclResult:
+        """Implement `my variable ?name ...?` — link object vars into frame."""
+        if not var_names:
+            return TclResult(value="")
+        for vn in var_names:
+            if "(" in vn:
+                raise TclError(
+                    f'can\'t define "{vn}": name refers to an element in an array'
+                )
+            if "::" in vn:
+                raise TclError(
+                    f'variable name "{vn}" illegal: must not contain namespace separator'
+                )
+        frame = interp.current_frame
+        caller_class = getattr(frame, "_oo_class", None)
+        caller_cls = self.classes.get(caller_class) if caller_class else None
+        cls_obj = self.objects.get(caller_class) if caller_class else None
+        private_set = set(caller_cls.private_variables) if caller_cls else set()
+        cid = cls_obj.creation_id if cls_obj else 0
+        inst_private = set(obj.private_instance_variables)
+        obj_cid = obj.creation_id
+        iv = frame._oo_instance_vars
+        if iv is None:
+            iv = (obj._vars, set())
+            frame._oo_instance_vars = iv
+        pvm = frame._oo_private_var_map
+        if pvm is None:
+            pvm = {}
+            frame._oo_private_var_map = pvm
+        from .scope import ensure_namespace
+
+        obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
+        for vn in var_names:
+            iv[1].add(vn)
+            storage = vn
+            if vn in private_set and cid:
+                storage = f"{cid} : {vn}"
+                pvm[vn] = storage
+            elif vn in inst_private and obj_cid:
+                storage = f"{obj_cid} : {vn}"
+                pvm[vn] = storage
+            # Sync existing obj._vars value to the namespace so that
+            # `my varname` + `set` works with qualified variable names.
+            if storage in obj._vars and obj_ns is not None:
+                ns_frame = getattr(obj_ns, "_frame", None)
+                if ns_frame is not None:
+                    ns_frame._scalars[storage] = obj._vars[storage]
+        return TclResult(value="")
+
     def my_dispatch(self, interp: TclInterp, args: list[str]) -> TclResult:
         """Dispatch `my method args...` from within a method body."""
         if not args:
@@ -1927,6 +2006,16 @@ class OORuntime:
             raise TclError(f'object "{obj_name}" has been destroyed')
 
         method_name = args[0]
+
+        # `my varname` returns the fully-qualified variable name
+        if method_name == "varname":
+            if len(args) != 2:
+                raise TclError('wrong # args: should be "my varname varName"')
+            return self._my_varname(interp, obj, args[1])
+
+        # `my variable` links variables into current frame
+        if method_name == "variable":
+            return self._my_variable(interp, obj, args[1:])
 
         # For class objects, `my create`/`my new`/`my destroy` dispatch
         # directly to the class command logic, bypassing export checks

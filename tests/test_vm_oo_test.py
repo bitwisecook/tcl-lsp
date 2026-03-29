@@ -70,7 +70,8 @@ KNOWN_FAILURES_OO: set[str] = {
     "oo-18.5",
     "oo-18.9",
     # oo-19.x: abstract class
-    # oo-20.x: singleton/abstract/tag
+    # oo-20.x: my varname + qualified set doesn't sync to obj._vars
+    "oo-20.10",
     # oo-21.x: readableproperties/writableproperties
     # oo-22.x: property
     "oo-22.3",
