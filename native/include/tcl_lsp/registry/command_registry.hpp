@@ -93,6 +93,10 @@ class CommandRegistry {
     // Construct from a span of command descriptor pointers.
     explicit CommandRegistry(std::span<const CommandDesc* const> descriptors);
 
+    // Construct with command descriptors and a hover text table.
+    CommandRegistry(std::span<const CommandDesc* const> descriptors,
+                    std::span<const HoverText> hover_table);
+
     // Look up a command by name, filtered by dialect visibility.
     [[nodiscard]] auto find(std::string_view name, DialectFlags dialect) const
         -> const CommandDesc*;
@@ -107,6 +111,15 @@ class CommandRegistry {
     // Total number of registered commands.
     [[nodiscard]] auto size() const -> std::size_t { return commands_.size(); }
 
+    // Hover text lookup by index (bounds-checked, returns nullptr if invalid).
+    [[nodiscard]] auto hover_at(std::int32_t index) const -> const HoverText*;
+
+    // Hover text for a command descriptor (convenience for cmd.hover_index).
+    [[nodiscard]] auto hover_for(const CommandDesc& cmd) const -> const HoverText*;
+
+    // Hover text for a subcommand descriptor (convenience for sub.hover_index).
+    [[nodiscard]] auto hover_for(const SubCmdDesc& sub) const -> const HoverText*;
+
     // Resolve argument roles for a command invocation.
     [[nodiscard]] static auto resolve_arg_roles(
         const CommandDesc& cmd,
@@ -117,6 +130,7 @@ class CommandRegistry {
     // O(log n) lookup with contiguous storage.
     // Requires Clang 20+ (libc++) or GCC 15+ (libstdc++).
     std::flat_map<std::string_view, const CommandDesc*> commands_;
+    std::span<const HoverText> hover_table_{};
 };
 
 // ─── Hover rendering ───────────────────────────────────────────────

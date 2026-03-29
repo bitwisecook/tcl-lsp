@@ -2,6 +2,7 @@
 
 #include "tcl_lsp/lsp/semantic_token_collector.hpp"
 #include "tcl_lsp/lsp/semantic_token_types.hpp"
+#include "tcl_lsp/registry/native_registry_adapter.hpp"
 
 #include <lsp/json/json.h>
 #include <lsp/serialization.h>
@@ -15,6 +16,7 @@ namespace tcl_lsp {
 TclLspServer::TclLspServer(lsp::Connection& connection)
     : handler_{connection}
     , python_{std::make_unique<PythonBridge>()}
+    , semantic_token_collector_{&native_registry()}
 {
     register_handlers();
 

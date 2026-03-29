@@ -15,6 +15,16 @@ CommandRegistry::CommandRegistry(std::span<const CommandDesc* const> descriptors
     }
 }
 
+CommandRegistry::CommandRegistry(std::span<const CommandDesc* const> descriptors,
+                                 std::span<const HoverText> hover_table)
+    : hover_table_(hover_table) {
+    for (const auto* desc : descriptors) {
+        if (desc != nullptr) {
+            commands_.emplace(desc->name, desc);
+        }
+    }
+}
+
 // ─── Lookup ────────────────────────────────────────────────────────
 
 auto CommandRegistry::find(std::string_view name) const -> const CommandDesc* {
@@ -52,6 +62,23 @@ auto CommandRegistry::all_for_dialect(DialectFlags dialect) const
         }
     }
     return result;
+}
+
+// ─── Hover lookup ─────────────────────────────────────────────────
+
+auto CommandRegistry::hover_at(std::int32_t index) const -> const HoverText* {
+    if (index < 0 || static_cast<std::size_t>(index) >= hover_table_.size()) {
+        return nullptr;
+    }
+    return &hover_table_[static_cast<std::size_t>(index)];
+}
+
+auto CommandRegistry::hover_for(const CommandDesc& cmd) const -> const HoverText* {
+    return hover_at(cmd.hover_index);
+}
+
+auto CommandRegistry::hover_for(const SubCmdDesc& sub) const -> const HoverText* {
+    return hover_at(sub.hover_index);
 }
 
 // ─── Static pattern resolution ─────────────────────────────────────

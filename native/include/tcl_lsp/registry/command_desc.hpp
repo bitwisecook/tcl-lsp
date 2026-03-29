@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tcl_lsp/analysis/command_interface.hpp"
+
 #include <cstdint>
 #include <limits>
 #include <span>
@@ -7,26 +9,8 @@
 
 namespace tcl_lsp {
 
-// ─── Argument roles ────────────────────────────────────────────────
-// What role an argument plays in a command.
-// Extends the existing ArgRole in command_interface.hpp with the same values.
-enum class ArgRole : std::uint8_t {
-    BODY,
-    EXPR,
-    VAR_NAME,
-    VAR_READ,
-    PARAM_LIST,
-    NAME,
-    PATTERN,
-    OPTION,
-    VALUE,
-    SUBCOMMAND,
-    OPTION_TERMINATOR,
-    CHANNEL,
-    INDEX,
-    FORMAT_STRING,
-    LOOP_VAR,
-};
+// ArgRole is defined in command_interface.hpp (canonical location).
+// FORMAT_STRING and LOOP_VAR were added there for the C++ registry.
 
 // ─── Tcl internal representations ──────────────────────────────────
 enum class TclType : std::uint8_t {
@@ -155,25 +139,8 @@ struct ArgTypeDesc {
     bool shimmers = false;        // does the command force conversion?
 };
 
-// ─── Arity with modular constraint ─────────────────────────────────
-struct Arity {
-    std::int32_t min = 0;
-    std::int32_t max = std::numeric_limits<std::int32_t>::max();
-    std::int32_t modulus = 0;   // 0 = no modular constraint
-    std::int32_t remainder = 0; // (argc) % modulus == remainder
-
-    [[nodiscard]] constexpr auto accepts(std::int32_t n) const -> bool {
-        if (n < min || n > max) return false;
-        if (modulus > 0 && (n % modulus) != remainder) return false;
-        return true;
-    }
-
-    [[nodiscard]] constexpr auto is_unlimited() const -> bool {
-        return max == std::numeric_limits<std::int32_t>::max();
-    }
-
-    constexpr auto operator==(const Arity&) const -> bool = default;
-};
+// Arity is defined in command_interface.hpp (canonical location).
+// It includes modulus/remainder for modular constraints (e.g. foreach).
 
 // ─── Dialect flags ─────────────────────────────────────────────────
 enum class DialectFlags : std::uint16_t {

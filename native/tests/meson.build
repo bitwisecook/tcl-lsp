@@ -53,6 +53,8 @@ test_sources = {
   'test_folding_ranges': 'test_folding_ranges.cpp',
   'test_definition': 'test_definition.cpp',
   'test_command_registry': 'test_command_registry.cpp',
+  'test_generated_registry': 'test_generated_registry.cpp',
+  'test_registry_parity': 'test_registry_parity.cpp',
 }
 
 foreach name, src : test_sources
