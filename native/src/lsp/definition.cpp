@@ -13,47 +13,64 @@
 namespace tcl_lsp {
 namespace {
 
+// Identifier character predicate.
+auto is_ident_char(char c) -> bool {
+    return (std::isalnum(static_cast<unsigned char>(c)) != 0) || c == '_' || c == ':';
+}
+
+// Result of word_at_position: the word text and whether it's a variable.
+struct WordResult {
+    std::string word;
+    bool is_var = false;
+};
+
 // Find the word at the given position in source.
 auto word_at_position(std::string_view source, std::int32_t line, std::int32_t character)
-    -> std::string {
-    // Find the line.
+    -> WordResult {
+    // Find the start of the target line.
     std::int32_t cur_line = 0;
     std::size_t pos = 0;
     while (cur_line < line && pos < source.size()) {
         if (source[pos] == '\n') cur_line += 1;
         pos += 1;
     }
-    // Now pos is at the start of the target line.
     auto line_start = pos;
     auto col = static_cast<std::size_t>(character);
     auto target = line_start + col;
     if (target >= source.size()) return {};
 
-    // Check if we're on a variable reference ($var).
     bool is_var = false;
     auto word_start = target;
-    if (target > 0 && source[target - 1] == '$') {
+
+    // Direct checks when cursor is on or immediately after '$'.
+    if (source[target] == '$' && target + 1 < source.size()) {
         is_var = true;
-        word_start = target;
-    } else if (source[target] == '$' && target + 1 < source.size()) {
+        word_start = (source[target + 1] == '{') ? target + 2 : target + 1;
+    } else if (target > 0 && source[target - 1] == '$') {
         is_var = true;
-        word_start = target + 1;
+        word_start = (source[target] == '{') ? target + 1 : target;
+    } else {
+        // Scan left within the current word to find its start.
+        while (word_start > line_start && is_ident_char(source[word_start - 1]))
+            word_start -= 1;
+        // Check for preceding '$' (simple $var form).
+        if (word_start > line_start && source[word_start - 1] == '$') {
+            is_var = true;
+        }
+        // Check for preceding '${' (braced ${var} form).
+        else if (word_start > line_start + 1 &&
+                 source[word_start - 1] == '{' && source[word_start - 2] == '$') {
+            is_var = true;
+        }
     }
 
-    // Expand word boundaries.
-    if (!is_var) {
-        while (word_start > line_start && (std::isalnum(static_cast<unsigned char>(source[word_start - 1])) != 0 ||
-               source[word_start - 1] == '_' || source[word_start - 1] == ':'))
-            word_start -= 1;
-    }
-    auto word_end = is_var ? word_start : target;
-    while (word_end < source.size() && source[word_end] != '\n' &&
-           (std::isalnum(static_cast<unsigned char>(source[word_end])) != 0 ||
-            source[word_end] == '_' || source[word_end] == ':'))
+    // Expand word to the right.
+    auto word_end = word_start;
+    while (word_end < source.size() && source[word_end] != '\n' && is_ident_char(source[word_end]))
         word_end += 1;
 
     if (word_end <= word_start) return {};
-    return std::string(source.substr(word_start, word_end - word_start));
+    return {std::string(source.substr(word_start, word_end - word_start)), is_var};
 }
 
 // Search scope tree for a variable definition.
@@ -87,24 +104,10 @@ auto find_definition(std::string_view source,
                       std::int32_t character,
                       const AnalysisResult& analysis)
     -> std::optional<Range> {
-    auto word = word_at_position(source, line, character);
+    auto [word, is_var] = word_at_position(source, line, character);
     if (word.empty()) return std::nullopt;
 
-    // Check if it's a variable reference.
-    // Look at the character before the word to see if it's $.
-    std::int32_t cur_line = 0;
-    std::size_t pos = 0;
-    while (cur_line < line && pos < source.size()) {
-        if (source[pos] == '\n') cur_line += 1;
-        pos += 1;
-    }
-    auto col = static_cast<std::size_t>(character);
-    auto target = pos + col;
-    bool is_var = (target > 0 && target <= source.size() && source[target - 1] == '$') ||
-                   (target < source.size() && source[target] == '$');
-
     if (is_var) {
-        // Find the scope at this line and search for the variable.
         auto* scope = find_scope_at_line(analysis.global_scope(), line);
         if (scope != nullptr) {
             auto* var = find_var_in_scope(*scope, word);
@@ -129,10 +132,11 @@ auto find_references(std::string_view source,
                       std::int32_t character,
                       const AnalysisResult& analysis)
     -> std::vector<Range> {
-    auto word = word_at_position(source, line, character);
+    auto [word, is_var] = word_at_position(source, line, character);
     if (word.empty()) return {};
 
     // Find variable references.
+    if (is_var) {
     auto* scope = find_scope_at_line(analysis.global_scope(), line);
     if (scope != nullptr) {
         auto* var = find_var_in_scope(*scope, word);
@@ -143,6 +147,7 @@ auto find_references(std::string_view source,
             return refs;
         }
     }
+    } // is_var
 
     // Find proc call sites via command_invocations.
     std::vector<Range> refs;

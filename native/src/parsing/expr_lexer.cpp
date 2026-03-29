@@ -251,7 +251,7 @@ class ExprLexer {
                 level += 1;
             else if (src_[pos_] == ']')
                 level -= 1;
-            else if (src_[pos_] == '\\')
+            else if (src_[pos_] == '\\' && pos_ + 1 < len())
                 pos_ += 1; // skip escaped char
             pos_ += 1;
         }
@@ -265,7 +265,7 @@ class ExprLexer {
         auto start = pos_;
         pos_ += 1; // skip opening quote
         while (pos_ < len() && src_[pos_] != '"') {
-            if (src_[pos_] == '\\')
+            if (src_[pos_] == '\\' && pos_ + 1 < len())
                 pos_ += 1;
             pos_ += 1;
         }

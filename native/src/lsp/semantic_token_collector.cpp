@@ -29,37 +29,63 @@ auto pos_key(std::int32_t line, std::int32_t character) -> std::uint64_t {
             static_cast<std::uint64_t>(static_cast<std::uint32_t>(character));
 }
 
-// Check if a character is a digit.
+// Check if text looks like a numeric literal.
 auto is_number_text(std::string_view text) -> bool {
     if (text.empty()) return false;
-    bool has_dot = false;
-    std::size_t start = 0;
-    if (text[0] == '-' || text[0] == '+') start = 1;
-    if (start >= text.size()) return false;
-    // Hex/oct/bin prefix
-    if (text.size() > start + 1 && text[start] == '0' &&
-        (text[start + 1] == 'x' || text[start + 1] == 'X' ||
-         text[start + 1] == 'o' || text[start + 1] == 'O' ||
-         text[start + 1] == 'b' || text[start + 1] == 'B')) {
-        for (std::size_t i = start + 2; i < text.size(); i++) {
-            if (!std::isalnum(static_cast<unsigned char>(text[i]))) return false;
+    std::size_t i = 0;
+    if (text[0] == '-' || text[0] == '+') i = 1;
+    if (i >= text.size()) return false;
+    // Must start with a digit or decimal point.
+    if (!std::isdigit(static_cast<unsigned char>(text[i])) && text[i] != '.') return false;
+    // Hex/oct/bin prefix: require valid digits for the base.
+    if (text[i] == '0' && i + 1 < text.size()) {
+        char base = text[i + 1];
+        if (base == 'x' || base == 'X') {
+            if (i + 2 >= text.size()) return false;
+            for (std::size_t j = i + 2; j < text.size(); j++) {
+                if (!std::isxdigit(static_cast<unsigned char>(text[j]))) return false;
+            }
+            return true;
         }
-        return text.size() > start + 2;
+        if (base == 'o' || base == 'O') {
+            if (i + 2 >= text.size()) return false;
+            for (std::size_t j = i + 2; j < text.size(); j++) {
+                if (text[j] < '0' || text[j] > '7') return false;
+            }
+            return true;
+        }
+        if (base == 'b' || base == 'B') {
+            if (i + 2 >= text.size()) return false;
+            for (std::size_t j = i + 2; j < text.size(); j++) {
+                if (text[j] != '0' && text[j] != '1') return false;
+            }
+            return true;
+        }
     }
-    for (std::size_t i = start; i < text.size(); i++) {
+    // Decimal: digits, optional dot, optional exponent.
+    bool has_dot = false;
+    bool has_digits = false;
+    for (; i < text.size(); i++) {
         char ch = text[i];
-        if (ch == '.') {
+        if (std::isdigit(static_cast<unsigned char>(ch)) != 0) {
+            has_digits = true;
+        } else if (ch == '.') {
             if (has_dot) return false;
             has_dot = true;
         } else if (ch == 'e' || ch == 'E') {
-            // Accept scientific notation.
-            if (i + 1 < text.size() && (text[i + 1] == '+' || text[i + 1] == '-'))
+            if (!has_digits) return false; // "e" alone is not a number
+            i += 1;
+            if (i < text.size() && (text[i] == '+' || text[i] == '-')) i += 1;
+            if (i >= text.size() || std::isdigit(static_cast<unsigned char>(text[i])) == 0)
+                return false; // exponent requires at least one digit
+            while (i + 1 < text.size() &&
+                   std::isdigit(static_cast<unsigned char>(text[i + 1])) != 0)
                 i += 1;
-        } else if (!std::isdigit(static_cast<unsigned char>(ch))) {
+        } else {
             return false;
         }
     }
-    return true;
+    return has_digits;
 }
 
 // Compute text length for token rendering (accounts for delimiters).
@@ -308,13 +334,10 @@ void SemanticTokenCollector::collect_tokens(
             if (is_cmd_name && sem_type == SemanticTokenType::KEYWORD)
                 modifiers = modifier_bit(SemanticTokenModifier::DEFAULT_LIBRARY);
 
-            // Compute rendered text for proper length.
-            std::string rendered;
-            if (tok.type == TokenType::VAR) {
-                rendered = rendered_text_for_token(tok);
-            } else {
-                rendered = std::string(tok.text);
-            }
+            // Compute rendered text for proper length — accounts for
+            // delimiters ($, {}, "") that are part of the source span
+            // but not in tok.text.
+            std::string rendered = rendered_text_for_token(tok);
 
             // Namespace-qualified command names: split into namespace + command.
             if (is_cmd_name && tok.text.find("::") != std::string_view::npos &&
@@ -439,22 +462,12 @@ void SemanticTokenCollector::collect_expression_tokens(
 
         if (!sem_type.has_value()) continue;
 
-        // Compute absolute position.
+        // Compute absolute (line, col) by scanning from expression start
+        // to the token's start offset, tracking newlines.
         auto line = base_line;
-        auto col = base_col + et.start;
-        // Account for newlines within the expression.
-        for (std::int32_t i = 0; i < et.start && static_cast<std::size_t>(i) < expr_text.size(); i++) {
-            if (expr_text[static_cast<std::size_t>(i)] == '\n') {
-                line += 1;
-                col = et.start - i - 1;
-                // Reset col calculation for multi-line expressions.
-                // We need to recalculate from the last newline.
-            }
-        }
-        // More accurate: scan from start of expression to token start.
-        line = base_line;
-        col = base_col;
-        for (std::int32_t i = 0; i < et.start && static_cast<std::size_t>(i) < expr_text.size(); i++) {
+        auto col = base_col;
+        for (std::int32_t i = 0;
+             i < et.start && static_cast<std::size_t>(i) < expr_text.size(); i++) {
             if (expr_text[static_cast<std::size_t>(i)] == '\n') {
                 line += 1;
                 col = 0;

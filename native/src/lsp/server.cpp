@@ -97,19 +97,27 @@ void TclLspServer::register_handlers() {
         [this, extract_uri, build_tokens_response](lsp::json::Value&& params) -> lsp::json::Value {
             auto uri = extract_uri(params);
             auto snapshot = documents_.get_source(uri);
-            if (!snapshot.has_value()) return lsp::json::Value{lsp::json::Object{}};
+            if (!snapshot.has_value()) {
+                static const std::vector<std::int32_t> empty_data{};
+                return build_tokens_response(empty_data);
+            }
 
             auto tokens = semantic_token_collector_.collect(snapshot->first);
             auto data = delta_encode(tokens);
             return build_tokens_response(data);
         });
 
-    // Delta semantic tokens — fall back to full for now.
+    // Delta semantic tokens — fall back to full response.
+    // TODO: implement resultId tracking + edit computation using
+    // compute_semantic_token_edits() once per-URI caching is added.
     handler_.add("textDocument/semanticTokens/full/delta",
         [this, extract_uri, build_tokens_response](lsp::json::Value&& params) -> lsp::json::Value {
             auto uri = extract_uri(params);
             auto snapshot = documents_.get_source(uri);
-            if (!snapshot.has_value()) return lsp::json::Value{lsp::json::Object{}};
+            if (!snapshot.has_value()) {
+                static const std::vector<std::int32_t> empty_data{};
+                return build_tokens_response(empty_data);
+            }
 
             auto tokens = semantic_token_collector_.collect(snapshot->first);
             auto data = delta_encode(tokens);

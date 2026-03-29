@@ -44,7 +44,8 @@ TEST_CASE("definition: not found", "[definition]") {
 TEST_CASE("references: variable", "[references]") {
     auto source = "set x 1\nputs $x\nset y $x";
     auto analysis = analyse_source(source);
-    auto refs = find_references(source, 0, 4, analysis);
+    // Cursor on '$x' at line 1, col 6 (the 'x' in '$x').
+    auto refs = find_references(source, 1, 6, analysis);
     // Should find definition + at least one reference.
     REQUIRE(refs.size() >= 1);
 }
