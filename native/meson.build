@@ -27,6 +27,7 @@ tcl_lsp_lib = static_library('tcl_lsp',
   'src/lsp/document_symbols.cpp',
   'src/lsp/folding_ranges.cpp',
   'src/lsp/definition.cpp',
+  'src/registry/command_registry.cpp',
   include_directories: tcl_lsp_inc,
 )
 

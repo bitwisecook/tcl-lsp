@@ -52,6 +52,7 @@ test_sources = {
   'test_document_symbols': 'test_document_symbols.cpp',
   'test_folding_ranges': 'test_folding_ranges.cpp',
   'test_definition': 'test_definition.cpp',
+  'test_command_registry': 'test_command_registry.cpp',
 }
 
 foreach name, src : test_sources
