@@ -4,6 +4,7 @@
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
 
+#include <cstdio>
 #include <mutex>
 #include <stdexcept>
 #include <utility>
@@ -99,8 +100,8 @@ auto PythonBridge::call_feature(const std::string& method,
         if (result.is_none()) return std::nullopt;
         return result.cast<std::string>();
     } catch (const py::error_already_set& e) {
-        // Log Python exceptions but don't crash the server.
-        // TODO: forward to client as window/logMessage.
+        std::fprintf(stderr, "[tcl-lsp] Python exception in %s: %s\n",
+                     method.c_str(), e.what());
         return std::nullopt;
     }
 }
@@ -115,6 +116,8 @@ auto PythonBridge::execute_command(const std::string& command,
         if (result.is_none()) return std::nullopt;
         return result.cast<std::string>();
     } catch (const py::error_already_set& e) {
+        std::fprintf(stderr, "[tcl-lsp] Python exception in command %s: %s\n",
+                     command.c_str(), e.what());
         return std::nullopt;
     }
 }
