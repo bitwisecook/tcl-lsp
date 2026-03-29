@@ -502,6 +502,33 @@ try {
 try { ... }              ;# W002: command disabled in active dialect (try requires 8.6)
 ```
 
+### TclOO support
+
+Full TclOO class hierarchy analysis with method resolution order (MRO),
+class definition tracking, and object-aware introspection.
+
+```tcl
+oo::class create Animal {
+    variable name
+    constructor {n} { set name $n }
+    method speak {} { return "$name says ..." }
+}
+oo::class create Dog {
+    superclass Animal
+    method speak {} { return "[my name] says woof!" }
+}
+# Hover on 'Dog' shows class hierarchy: Dog -> Animal -> oo::object
+# Go-to-definition on 'speak' jumps to the method body
+# Type hierarchy shows Dog as a subtype of Animal
+```
+
+Features include class definition and method hover, go-to-definition for
+methods and constructors, type hierarchy (supertypes and subtypes), MRO
+computation matching C Tcl's algorithm, mixin and filter chain support,
+private variable and method visibility (TIP 500), and property/configurable
+support (TIP 558).  The VM executes TclOO code with 85% native test
+conformance against the Tcl 9.0.3 oo.test suite.
+
 ### Compiler pipeline
 
 The server lowers source to an intermediate representation, builds a
@@ -1154,7 +1181,10 @@ offline (bundles Pyodide) and CDN (loads Pyodide from jsDelivr).
 ### Tcl VM
 
 A bytecode interpreter that compiles and executes Tcl scripts using the
-compiler pipeline, with an interactive REPL and disassembly mode.
+compiler pipeline, with an interactive REPL and disassembly mode.  Supports
+TclOO classes (constructors, destructors, methods, mixins, filters, private
+variables), namespaces, coroutine-free control flow, and 85% conformance
+against Tcl 9.0.3 native test suites.
 
 ```sh
 # Execute a script
@@ -1435,7 +1465,7 @@ Use `# noqa: *` to suppress all diagnostics on a line.
 | W122 | Mistyped IPv4 address (octet > 255 or leading zero) | |
 | W123 | Unknown command — not found in registry, user procs, or `unknown` handler (opt-in) | Replace with suggestion |
 | W200 | Binary format modifier requires newer Tcl | |
-| W201 | Manual path concatenation (use `file join`) | Rewrite as `[file join]` |
+| W201 | Manual path concatenation — uses rendered value properties and taint suppression (use `file join`) | Rewrite as `[file join]` |
 
 ### Warnings -- Variables
 
@@ -1498,9 +1528,16 @@ through assignments, string interpolation, and phi nodes.  Commands that
 produce fixed-type results (e.g. `string length`, `llength`) act as
 sanitisers.
 
-Taint colours carry value properties (e.g. `PATH_PREFIXED` for values
-starting with `/`).  At join points, colours are intersected so only
-properties shared by all paths survive -- this suppresses false positives.
+Taint colours carry value properties (e.g. `PATH_NORMALISED` for values
+normalised via `file normalize`, `PATH_JOINED` for values assembled via
+`file join`).  At join points, colours are intersected so only properties
+shared by all paths survive -- this suppresses false positives.
+
+The **Rendered Value Properties** pass (`core/compiler/rendered_properties.py`)
+runs before taint propagation and computes per-SSA-value string content
+properties after Tcl backslash substitution.  This enables precise detection
+of path separators (resolving escape sequences like `\x2f` to `/` before
+checking) and is used by the W201 path concatenation diagnostic.
 
 | Code | Severity | Description | Quick-fix |
 |------|----------|-------------|-----------|
@@ -1761,7 +1798,7 @@ tcl-lsp/
       core_analyses.py    SCCP, liveness, type inference, dead store detection
       compilation_unit.py Compile pipeline orchestration and caching
       compiler_checks.py  IR-to-diagnostics (arity, subcommands)
-      optimiser.py        Source rewrite passes (O100–O125)
+      optimiser.py        Source rewrite passes (O100–O127)
       gvn.py              GVN/CSE/PRE/LICM redundant computation detection (O105–O106)
       interprocedural.py  Call graph, function purity/side-effect summaries
       taint.py            Data taint analysis (T100–T106, IRULE3xxx)

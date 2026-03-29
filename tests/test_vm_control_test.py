@@ -47,9 +47,7 @@ KNOWN_FAILURES_IF_OLD: set[str] = {
     "if-old-2.5",  # syntax error: "set a 2" treated as expression
     "if-old-2.8",  # syntax error: "set a 4" treated as expression
     # Error message format differences
-    "if-old-4.1",  # wrong # args format differs from Tcl
     "if-old-4.3",  # missing argument name in error message
-    "if-old-4.4",  # missing argument name in error message
     # Parsing: elseif not recognised as keyword in some positions
     "if-old-4.7",  # returns "0 {}" instead of elseif error
     "if-old-4.8",  # syntax error instead of "invalid command name"
@@ -63,8 +61,6 @@ KNOWN_FAILURES_FOREACH: set[str] = {
     "foreach-1.14",
     # Brace-quoting in foreach value list
     "foreach-2.8",  # "invalid command name }" — braced body not parsed
-    # lsort-based output vs raw iteration
-    "foreach-3.1",  # dict ordering differs from expected sorted output
     # break/continue: extra iterations or missing error
     "foreach-5.4",  # continue count: 4 instead of 1
     "foreach-5.5",  # missing "wrong # args" for continue
@@ -99,7 +95,6 @@ KNOWN_FAILURES_APPEND: set[str] = {
     "append-4.14",  # extra space in result
     "append-4.15",  # backslash-space vs braced space
     "append-4.16",  # extra space in result
-    "append-4.18",  # empty vs "{}"
     # lappend: unmatched brace/quote validation
     "append-4.9",
     "append-4.10",
@@ -109,14 +104,9 @@ KNOWN_FAILURES_APPEND: set[str] = {
     "append-4.22",
     "append-10.2",
     "append-10.4",
-    # String length: append doubles length
-    "append-5.1",  # "length mismatch: should have been 300, was 600"
     # Trace handling
     "append-7.1",  # trace on undefined var
     "append-7.5",  # trace count
-    # lappend result quoting
-    "append-9.0",  # "{new value}" vs "new value"
-    "append-9.1",  # "{new value}" vs "new value"
 }
 
 KNOWN_FAILURES_EVAL: set[str] = {
@@ -143,9 +133,6 @@ KNOWN_FAILURES_FOR: set[str] = {
 }
 
 KNOWN_FAILURES_IF: set[str] = {
-    # Wrong # args error message format
-    "if-1.1",  # generic "wrong # args" instead of 'no expression after "if"'
-    "if-5.1",  # generic "wrong # args" instead of 'no expression after "if"'
     # Unbraced expression / body not parsed
     "if-1.13",  # "invalid command name" — unbraced body not parsed
     # Expression error: "expected boolean … got a list"
@@ -156,9 +143,6 @@ KNOWN_FAILURES_IF: set[str] = {
     "if-2.4",  # errorInfo format: missing braces around expression
     "if-5.3",  # errorInfo format: missing braces in $z expansion
     "if-6.4",  # errorInfo format: missing braces in $z expansion
-    # Wrong # args: "no script following then"
-    "if-1.9",  # 'no script following expression' vs 'no script following "then"'
-    "if-5.9",  # 'no script following expression' vs 'no script following "then"'
     # if-10.x: compiled if tracing / conditional evaluation
     "if-10.1",  # "01" instead of "00"
     "if-10.2",  # "0badelseif" instead of "00"
@@ -173,7 +157,6 @@ KNOWN_FAILURES_IF: set[str] = {
     "if-7.2",  # no error for extra words after else
     # Missing validation: no expression after "elseif"
     "if-2.3",  # no error for missing elseif expression
-    "if-6.3",  # no error for missing elseif expression
     # errorInfo: missing "invoked from within" context frame
     "if-5.10",  # missing '("if" ... body line N)' frame
     "if-7.4",  # missing 'invoked from within' frame

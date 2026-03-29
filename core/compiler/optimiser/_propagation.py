@@ -657,3 +657,316 @@ def _parse_static_call_arg(
             return None
         return _literal_from_constant_str(value)
     return None
+
+
+# ---------------------------------------------------------------------------
+# O127: Inline single-use variable assignment (store-to-load forwarding)
+# ---------------------------------------------------------------------------
+
+opt(
+    "O127",
+    "Inline single-use variable assignment — eliminate redundant variable load by "
+    "folding `set` into the use site.",
+)
+
+
+def optimise_load_forwarding(
+    ctx: PassContext,
+    source: str,
+    cfg,
+    ssa,
+    analysis,
+    *,
+    is_top_level: bool = False,
+) -> None:
+    """Detect single-use variables and suggest inlining the assignment at the use site.
+
+    When ``set x [cmd]`` is followed by a single use of ``$x``, the variable
+    load is redundant — the value was just computed.  This pass suggests
+    rewriting to ``[set x [cmd]]`` at the use site (preserving the assignment)
+    and deleting the standalone ``set`` statement.
+
+    Inspired by ZJIT's store-to-load forwarding: instead of storing to a
+    variable and immediately loading it back, forward the value directly.
+
+    Uses the following SSA/SCCP infrastructure:
+
+    - **Def-use chains** (``analysis.def_use_chains``): precise single-use
+      detection — only fires when a definition has exactly one ``OPERAND``
+      use and no phi/terminator uses.
+    - **SCCP lattice** (``analysis.values``): skip constants already handled
+      by O100 — only forward OVERDEFINED (non-constant) values.
+    - **Memory-SSA aliases** (``analysis.memory_ssa``): skip variables
+      involved in aliasing (upvar/global/variable) where writes through
+      one name could be visible through another.
+    - **Side-effect classification** (``classify_side_effects``): use the
+      registry-backed effect model to determine intervening barriers,
+      replacing a hardcoded command list.
+    - **SSA versions** (``ssa_stmt.uses``/``defs``): verify that all
+      variables read by the inlined expression have unchanged SSA versions
+      between the def site and the use site.
+    """
+    from ..core_analyses import LatticeKind
+    from ..def_use import UseKind
+    from ..ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRBarrier, IRCall
+    from ..side_effects import classify_side_effects
+    from ._helpers import _full_command_range, _tokens_for_statement
+    from ._pattern_recognition import _statement_delete_rewrite_range, _statement_rewrite_context
+
+    if is_top_level:
+        return
+
+    # Require def-use chains for precise single-use detection.
+    du = analysis.def_use_chains
+    if du is None:
+        return
+
+    # Alias information from memory-SSA (pre-computed during analysis).
+    aliased_names: frozenset[str] = frozenset()
+    if analysis.memory_ssa is not None:
+        aliased_names = analysis.memory_ssa.aliased_names
+    else:
+        # Fallback: compute aliases directly.
+        from ..memory_ssa import compute_aliases
+
+        for aset in compute_aliases(ssa):
+            aliased_names = aliased_names | aset.names
+
+    executable_blocks = set(cfg.blocks) - set(analysis.unreachable_blocks)
+
+    # Build statement rewrite ranges for deletion.
+    range_by_stmt, next_start_by_stmt = _statement_rewrite_context(source, cfg)
+
+    # Build a set of source ranges already targeted by prior optimisation
+    # passes (pre-loop pattern recognition + statement-loop propagation).
+    # O127 must not emit rewrites that overlap with these.
+    rewritten_ranges: set[tuple[int, int]] = set()
+    for prior in ctx.optimisations:
+        rewritten_ranges.add((prior.range.start.offset, prior.range.end.offset))
+
+    # Walk def-use chains looking for single-use, same-block forwarding candidates.
+    for def_key, chain in du.chains.items():
+        def_name, def_ver = def_key
+
+        # Must have exactly one use, and it must be a statement operand
+        # (not a phi incoming edge or terminator condition).
+        if chain.use_count != 1:
+            continue
+        use = chain.uses[0]
+        if use.kind is not UseKind.OPERAND:
+            continue
+
+        # Def must be a statement (not a phi or parameter).
+        defsite = chain.definition
+        if defsite.statement_index < 0:
+            continue
+
+        # Def and use must be in the same executable block.
+        def_block = defsite.block
+        use_block = use.block
+        if def_block != use_block:
+            continue
+        if def_block not in executable_blocks:
+            continue
+
+        block = cfg.blocks.get(def_block)
+        ssa_block = ssa.blocks.get(def_block)
+        if block is None or ssa_block is None:
+            continue
+
+        def_idx = defsite.statement_index
+        use_idx = use.statement_index
+        if def_idx >= len(block.statements) or use_idx >= len(block.statements):
+            continue
+        if use_idx <= def_idx:
+            continue
+
+        stmt = block.statements[def_idx]
+        ssa_stmt = ssa_block.statements[def_idx]
+
+        # Only consider pure assignment statements.
+        if not isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr)):
+            continue
+
+        # Skip constants — SCCP lattice says O100 handles those.
+        lv = analysis.values.get(def_key)
+        if lv is not None and getattr(lv, "kind", None) is LatticeKind.CONST:
+            continue
+
+        # Skip definitions whose statement was already rewritten by
+        # SCCP/ICIP propagation (O100/O101/O102/O103).
+        if (def_block, def_idx) in ctx.propagated_expr_stmts:
+            continue
+
+        # Skip definitions whose use was already consumed by constant
+        # propagation into a branch condition.
+        if def_key in ctx.propagated_branch_uses:
+            continue
+
+        # Skip the use-site statement if it was already rewritten by
+        # propagation.
+        if (use_block, use_idx) in ctx.propagated_expr_stmts:
+            continue
+
+        # Skip def statements already targeted by prior passes (O104,
+        # O114, O119, etc.) — their rewrites would conflict with the
+        # delete edit.
+        def_stmt_range = range_by_stmt.get((def_block, def_idx))
+        if def_stmt_range is not None:
+            def_start = def_stmt_range.start.offset
+            def_end = def_stmt_range.end.offset
+            if any(not (e < def_start or s > def_end) for s, e in rewritten_ranges):
+                continue
+
+        # Skip cross-event variables.
+        if def_name in ctx.cross_event_vars:
+            continue
+
+        # Skip aliased variables — both the defined variable and any
+        # variable read by the expression.  Memory-SSA alias sets track
+        # upvar/global/variable bindings; writes through one alias are
+        # visible through another, so forwarding is unsafe.
+        if def_name in aliased_names:
+            continue
+        def_read_names = set(ssa_stmt.uses.keys())
+        if def_read_names & aliased_names:
+            continue
+
+        # Check intervening statements between def and use:
+        # - No barriers (IRBarrier)
+        # - No side-effectful commands or assignments with command
+        #   substitutions (IRCall, IRAssignValue/IRAssignExpr with [])
+        # - No redefinition of any variable read by the expression
+        unsafe = False
+        for between_idx in range(def_idx + 1, use_idx):
+            if between_idx >= len(block.statements):
+                break
+            between_stmt = block.statements[between_idx]
+
+            # IRBarrier is always a kill.
+            if isinstance(between_stmt, IRBarrier):
+                unsafe = True
+                break
+
+            # Assignments with command substitutions execute side effects;
+            # forwarding past them could reorder observable behaviour.
+            if isinstance(between_stmt, IRAssignValue) and "[" in between_stmt.value:
+                unsafe = True
+                break
+            if isinstance(between_stmt, IRAssignExpr):
+                from ._expr_simplify import _expr_has_command_subst
+
+                if _expr_has_command_subst(between_stmt.expr):
+                    unsafe = True
+                    break
+
+            # Use the side-effect model for command invocations.
+            if isinstance(between_stmt, IRCall):
+                callee_summary = None
+                if ctx.interproc is not None:
+                    from ..interprocedural import resolve_call_target
+
+                    known = set(ctx.interproc.procedures)
+                    target = resolve_call_target(
+                        between_stmt.command,
+                        between_stmt.args,
+                        cfg.name if hasattr(cfg, "name") else "::top",
+                        known,
+                    )
+                    if target is not None:
+                        callee_summary = ctx.interproc.procedures.get(target)
+                effect = classify_side_effects(
+                    between_stmt.command,
+                    between_stmt.args,
+                    callee_summary=callee_summary,
+                )
+                if not effect.pure:
+                    unsafe = True
+                    break
+
+            # SSA version check: if any intervening statement redefines
+            # a variable that the expression reads, inlining is unsafe.
+            between_ssa = ssa_block.statements[between_idx]
+            if def_read_names & set(between_ssa.defs.keys()):
+                unsafe = True
+                break
+        if unsafe:
+            continue
+
+        # Extract the full command text from source.
+        stmt_range = stmt.range
+        full_stmt_range = _full_command_range(source, stmt_range) or stmt_range
+        stmt_text = source[full_stmt_range.start.offset : full_stmt_range.end.offset + 1]
+
+        # Build the inline replacement: [set name value_expr]
+        inline_text = f"[{stmt_text}]"
+
+        # Find the $var token in the use-site statement and verify
+        # intra-statement evaluation order safety.
+        use_stmt = block.statements[use_idx]
+        parsed = _tokens_for_statement(use_stmt, source)
+        if parsed is None:
+            continue
+
+        _, use_argv_tokens, use_argv_single = parsed
+        var_token = None
+        has_earlier_effect = False
+        for tidx, tok in enumerate(use_argv_tokens):
+            if tok.type is TokenType.VAR and _normalise_var_name(tok.text) == def_name:
+                if tidx < len(use_argv_single) and not use_argv_single[tidx]:
+                    continue
+                var_token = tok
+                break
+            # Check for command substitutions or variable writes in tokens
+            # that appear BEFORE our $var.  These execute left-to-right in
+            # Tcl; inlining [set x ...] after them would change evaluation
+            # order if the inlined RHS reads state they modify.
+            if tok.type is TokenType.CMD:
+                has_earlier_effect = True
+            elif tok.type is TokenType.VAR:
+                # A $var by itself is a read, not a write — safe.
+                pass
+
+        if var_token is None:
+            continue
+
+        # If there are command substitutions before $var in the use
+        # statement, the inlined expression might evaluate in a
+        # different context.  Skip unless the def expression has no
+        # reads (pure constant-like) — conservative but correct.
+        if has_earlier_effect and def_read_names:
+            continue
+
+        # Emit grouped rewrite: inline at use site + delete the set line.
+        group_id = ctx.alloc_group()
+
+        # 1. Replace $var with [set name value].
+        var_range = _var_token_range(var_token)
+        ctx.optimisations.append(
+            Optimisation(
+                code="O127",
+                message=f"Inline single-use variable `${def_name}`",
+                range=var_range,
+                replacement=inline_text,
+                group=group_id,
+            )
+        )
+
+        # 2. Delete the original set statement.
+        def_stmt_key = (def_block, def_idx)
+        full_range = range_by_stmt.get(def_stmt_key)
+        if full_range is not None:
+            delete_range = _statement_delete_rewrite_range(
+                source,
+                full_range,
+                next_start_by_stmt.get(def_stmt_key),
+            )
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O127",
+                    message="Remove inlined assignment",
+                    range=delete_range,
+                    replacement="",
+                    group=group_id,
+                )
+            )

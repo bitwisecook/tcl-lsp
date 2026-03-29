@@ -27,6 +27,7 @@ Focused, high-churn compiler guidance lives in this folder.
 - [kcs-def-use-chains.md](kcs-def-use-chains.md) — def-use chain construction and consumer contracts.
 - [kcs-memory-ssa.md](kcs-memory-ssa.md) — memory-SSA, alias detection, and versioned memory operations.
 - [kcs-dataflow-graph.md](kcs-dataflow-graph.md) — data-flow graph extraction, serialisation, and consumer contracts.
+- [kcs-rendered-value-properties.md](kcs-rendered-value-properties.md) — string content analysis over SSA (may/must lattice).
 - [kcs-taint-analysis.md](kcs-taint-analysis.md) — sources, sinks, colours, and propagation.
 - [kcs-interprocedural-analysis.md](kcs-interprocedural-analysis.md) — ProcSummary construction.
 - [kcs-optimisation-passes.md](kcs-optimisation-passes.md) — O100–O126 pass table and priorities.

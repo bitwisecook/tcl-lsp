@@ -311,6 +311,7 @@ class FileCommand(CommandDef):
                     detail="Takes one or more file names and combines them, using the correct path separator for the current platform.",
                     synopsis="file join name ?name ...?",
                     return_type=TclType.STRING,
+                    taint_transform=TaintColour.PATH_JOINED,
                 ),
                 "link": SubCommand(
                     name="link",

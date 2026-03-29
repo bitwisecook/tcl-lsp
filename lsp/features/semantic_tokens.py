@@ -155,6 +155,19 @@ _KEYWORDS = (
             "deletemethod",
             "export",
             "unexport",
+            # TclOO definition-context keywords (9.0+)
+            "classmethod",
+            "definitionnamespace",
+            "initialise",
+            "initialize",
+            "private",
+            "property",
+            # TclOO method-body keywords
+            "nextto",
+            "callback",
+            "mymethod",
+            "classvariable",
+            "link",
         }
     )
 )
@@ -1296,6 +1309,8 @@ def _proc_param_list_arg_index(cmd_name: str, argv_texts: list[str]) -> int | No
         return 2
     if cmd_name == "constructor":
         return 1
+    if cmd_name == "classmethod" and len(argv_texts) >= 4:
+        return 2  # classmethod name argList bodyScript
     if cmd_name == "self" and len(argv_texts) >= 2:
         if argv_texts[1] == "method":
             return 3
@@ -1549,10 +1564,10 @@ def _procedure_name_arg_index(cmd_name: str, argv_texts: list[str]) -> int | Non
     """Return argv index containing a procedure/method name definition."""
     if cmd_name == "proc" and len(argv_texts) >= 2:
         return 1
-    if cmd_name == "method" and len(argv_texts) >= 2:
+    if cmd_name in ("method", "classmethod") and len(argv_texts) >= 2:
         return 1
     if cmd_name in ("oo::define", "oo::objdefine") and len(argv_texts) >= 4:
-        if argv_texts[2] == "method":
+        if argv_texts[2] in ("method", "classmethod"):
             return 3
         if argv_texts[2] == "self" and len(argv_texts) >= 5 and argv_texts[3] == "method":
             return 4

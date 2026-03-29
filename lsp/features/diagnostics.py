@@ -60,6 +60,7 @@ _TAINT_SEVERITY = {
     "IRULE3004": types.DiagnosticSeverity.Warning,
     "IRULE3101": types.DiagnosticSeverity.Warning,
     "IRULE3103": types.DiagnosticSeverity.Information,
+    "W201": types.DiagnosticSeverity.Hint,
 }
 
 _IRULES_FLOW_SEVERITY = {

@@ -119,3 +119,96 @@ class TestDocumentSymbols:
         assert len(symbols) == 1
         proc_symbol = symbols[0]
         assert _range_contains(proc_symbol.range, proc_symbol.selection_range)
+
+
+class TestTclOOSymbols:
+    """Tests for OO class/method symbol emission."""
+
+    def test_class_symbol_emitted(self):
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                method bark {} { return "woof" }
+            }
+        """)
+        symbols = get_document_symbols(source)
+        assert len(symbols) == 1
+        assert symbols[0].kind == types.SymbolKind.Class
+        assert symbols[0].name == "Dog"
+
+    def test_methods_nested_under_class(self):
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                method bark {} { return "woof" }
+                method fetch {item} { return $item }
+            }
+        """)
+        symbols = get_document_symbols(source)
+        cls = symbols[0]
+        assert cls.children is not None
+        method_names = [c.name for c in cls.children]
+        assert "bark" in method_names
+        assert "fetch" in method_names
+        for c in cls.children:
+            assert c.kind == types.SymbolKind.Method
+
+    def test_constructor_symbol(self):
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                constructor {name} { set n $name }
+            }
+        """)
+        symbols = get_document_symbols(source)
+        cls = symbols[0]
+        assert cls.children is not None
+        ctor = cls.children[0]
+        assert ctor.name == "constructor"
+        assert ctor.kind == types.SymbolKind.Constructor
+        assert ctor.detail is not None
+        assert "(name)" in ctor.detail
+
+    def test_property_symbol(self):
+        source = textwrap.dedent("""\
+            oo::configurable create Point {
+                property x y
+            }
+        """)
+        symbols = get_document_symbols(source)
+        cls = symbols[0]
+        assert cls.children is not None
+        prop_names = [c.name for c in cls.children if c.kind == types.SymbolKind.Property]
+        assert "x" in prop_names
+        assert "y" in prop_names
+
+    def test_class_detail_shows_superclass(self):
+        source = textwrap.dedent("""\
+            oo::class create Dog {
+                superclass Animal
+            }
+        """)
+        symbols = get_document_symbols(source)
+        assert symbols[0].detail is not None
+        assert ": Animal" in symbols[0].detail
+
+    def test_class_detail_shows_metaclass(self):
+        source = textwrap.dedent("""\
+            oo::abstract create Shape {
+                method area {} {}
+            }
+        """)
+        symbols = get_document_symbols(source)
+        assert symbols[0].detail is not None
+        assert "oo::abstract" in symbols[0].detail
+
+    def test_classmethod_detail(self):
+        source = textwrap.dedent("""\
+            oo::class create Counter {
+                classmethod count {} { return 0 }
+            }
+        """)
+        symbols = get_document_symbols(source)
+        cls = symbols[0]
+        assert cls.children is not None
+        cm = [c for c in cls.children if c.name == "count"]
+        assert len(cm) == 1
+        assert cm[0].detail is not None
+        assert "classmethod" in cm[0].detail

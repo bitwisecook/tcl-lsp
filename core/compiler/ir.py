@@ -258,10 +258,27 @@ class IRProcedure:
     base_priority: int = 500  # BigIP handler priority (0–2**32-1, default 500)
 
 
+@dataclass(frozen=True, slots=True)
+class IRMethodDef:
+    """A method definition within a class body.
+
+    Compiles like IRProcedure but carries class context for
+    interprocedural analysis and devirtualisation.
+    """
+
+    class_name: str
+    method_name: str
+    params: tuple[str, ...]
+    body: IRScript
+    kind: str = "method"  # "method" | "classmethod" | "constructor" | "destructor"
+    range: Range | None = None
+
+
 @dataclass
 class IRModule:
     top_level: IRScript = field(default_factory=IRScript)
     procedures: dict[str, IRProcedure] = field(default_factory=dict)
+    methods: dict[str, IRMethodDef] = field(default_factory=dict)
     redefined_procedures: set[str] = field(default_factory=set)
 
 

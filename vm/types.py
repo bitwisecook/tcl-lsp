@@ -69,6 +69,19 @@ class TclContinue(Exception):
     """Raised to implement ``continue``."""
 
 
+class TclTailcall(Exception):
+    """Raised to implement ``tailcall``.
+
+    The command and arguments are stored so the caller can execute them
+    after the current frame unwinds.
+    """
+
+    def __init__(self, cmd: str, args: list[str]) -> None:
+        super().__init__()
+        self.cmd = cmd
+        self.args = args
+
+
 class TclCompletionError(Exception):
     """The input is syntactically incomplete (used by the REPL)."""
 

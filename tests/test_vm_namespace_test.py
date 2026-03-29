@@ -35,8 +35,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-6.4",  # namespace export
     # namespace import
     "namespace-7.1",  # namespace import
-    "namespace-7.4",  # namespace import -force
-    "namespace-7.6",  # namespace import pattern
     "namespace-7.7",  # namespace import pattern
     "namespace-7.9",  # namespace import error
     # namespace forget
@@ -45,7 +43,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-8.4",  # namespace forget
     "namespace-8.5",  # namespace forget
     "namespace-8.6",  # namespace forget
-    "namespace-8.7",  # namespace forget
     # namespace which
     "namespace-9.1",  # namespace which
     "namespace-9.3",  # namespace which -command
@@ -68,7 +65,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-12.1",  # namespace origin
     # namespace parent
     "namespace-13.1",  # namespace parent
-    "namespace-13.2",  # namespace parent
     # namespace children
     "namespace-14.1",  # namespace children
     "namespace-14.2",  # namespace children
@@ -91,7 +87,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-18.2",  # namespace ensemble
     # namespace upvar
     "namespace-19.3",  # namespace upvar
-    "namespace-19.4",  # namespace upvar
     # namespace unknown
     "namespace-20.2",  # namespace unknown handler
     "namespace-20.3",  # namespace unknown handler
@@ -99,13 +94,9 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-21.4",  # apply in namespace
     "namespace-21.5",  # apply in namespace
     "namespace-21.7",  # apply in namespace
-    # namespace qualifiers/tail
-    "namespace-22.1",  # namespace qualifiers
-    "namespace-22.2",  # namespace qualifiers
-    "namespace-22.3",  # namespace qualifiers
-    "namespace-22.7",  # namespace tail
-    # namespace exists
-    "namespace-23.1",  # namespace exists
+    # namespace code edge cases
+    "namespace-22.3",  # namespace code — whitespace in inscope check
+    "namespace-22.7",  # namespace code — local namespace proc
     # namespace current in procs
     "namespace-25.1",  # namespace current
     "namespace-25.2",  # namespace current
@@ -131,23 +122,16 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-29.2",  # error in namespace eval
     "namespace-29.3",  # error in namespace eval
     "namespace-29.6",  # error in namespace eval
-    # Namespace ensemble subcommands
-    "namespace-30.2",  # ensemble subcommand
-    "namespace-30.5",  # ensemble subcommand
-    "namespace-31.1",  # ensemble map
-    "namespace-31.4",  # ensemble map
-    "namespace-32.2",  # ensemble configure
-    "namespace-32.6",  # ensemble configure
-    "namespace-32.7",  # ensemble configure
-    "namespace-32.8",  # ensemble configure
-    "namespace-33.2",  # ensemble prefixes
-    # Ensemble unknown handler
-    "namespace-34.2",  # ensemble unknown
-    "namespace-34.3",  # ensemble unknown
-    "namespace-34.4",  # ensemble unknown
-    "namespace-34.5",  # ensemble unknown
-    "namespace-34.6",  # ensemble unknown
-    "namespace-34.7",  # ensemble unknown
+    # Namespace origin/parent/qualifiers/tail
+    "namespace-30.5",  # origin — imported command
+    "namespace-31.4",  # parent — bad namespace error message
+    "namespace-32.6",  # qualifiers — :: returns ""
+    "namespace-32.7",  # qualifiers — odd colons
+    "namespace-32.8",  # qualifiers — nested odd colons
+    # Namespace which edge cases
+    "namespace-34.5",  # which — command lookup in nested ns
+    "namespace-34.6",  # which — -command is default
+    "namespace-34.7",  # which — variable lookup
     # Ensemble parameters
     "namespace-35.2",  # ensemble parameters
     # Variable resolution order
@@ -157,39 +141,12 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-41.2",  # tailcall
     "namespace-41.3",  # tailcall
     # Namespace ensemble create/config
-    "namespace-42.1",  # ensemble create
-    "namespace-42.2",  # ensemble create
-    "namespace-42.3",  # ensemble create
-    "namespace-42.4",  # ensemble create
-    "namespace-42.5",  # ensemble create
-    "namespace-42.8",  # ensemble create
-    "namespace-42.9",  # ensemble create
-    "namespace-42.10",  # ensemble create
-    "namespace-42.11",  # ensemble create
-    # Ensemble exists
-    "namespace-43.1",  # ensemble exists
-    "namespace-43.2",  # ensemble exists
-    "namespace-43.4",  # ensemble exists
-    "namespace-43.7",  # ensemble exists
-    "namespace-43.9",  # ensemble exists
-    "namespace-43.12",  # ensemble exists
-    "namespace-43.14",  # ensemble exists
-    "namespace-43.16",  # ensemble exists
+    "namespace-42.3",  # ensemble create — prefix matching edge case
+    "namespace-42.9",  # ensemble create — configure after create
+    "namespace-42.10",  # ensemble create — configure after create
+    "namespace-42.11",  # ensemble create — namespace eval + ensemble
     # Ensemble info
-    "namespace-44.2",  # ensemble info
-    "namespace-44.3",  # ensemble info
-    "namespace-44.4",  # ensemble info
-    "namespace-44.5",  # ensemble info
-    "namespace-44.6",  # ensemble info
-    # Ensemble error handling
-    "namespace-45.1",  # ensemble error
-    "namespace-45.2",  # ensemble error
-    "namespace-46.1",  # ensemble error
-    "namespace-46.2",  # ensemble error
-    "namespace-46.3",  # ensemble error
-    "namespace-46.4",  # ensemble error
-    "namespace-46.7",  # ensemble error
-    "namespace-46.9",  # ensemble error
+    "namespace-44.5",  # ensemble info — prefix error message
     # Ensemble dispatch
     "namespace-47.1",  # ensemble dispatch
     "namespace-47.2",  # ensemble dispatch
@@ -205,7 +162,6 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-48.3",  # ensemble + path
     # Interp alias + namespace
     "namespace-49.1",  # interp alias
-    "namespace-49.2",  # interp alias
     # TIP 314 — namespace ensemble compile
     "namespace-50.1",  # ensemble compile
     "namespace-50.2",  # ensemble compile
@@ -217,20 +173,13 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-50.8",  # ensemble compile
     "namespace-50.9",  # ensemble compile
     # TIP 400 — namespace ensemble rewrite
-    "namespace-51.2",  # ensemble rewrite
     "namespace-51.3",  # ensemble rewrite
-    "namespace-51.4",  # ensemble rewrite
-    "namespace-51.5",  # ensemble rewrite
-    "namespace-51.6",  # ensemble rewrite
     "namespace-51.7",  # ensemble rewrite
     "namespace-51.8",  # ensemble rewrite
     "namespace-51.9",  # ensemble rewrite
     "namespace-51.10",  # ensemble rewrite
-    "namespace-51.11",  # ensemble rewrite
-    "namespace-51.12",  # ensemble rewrite
     "namespace-51.13",  # ensemble rewrite
     "namespace-51.14",  # ensemble rewrite
-    "namespace-51.16",  # ensemble rewrite
     "namespace-51.17",  # ensemble rewrite
     "namespace-51.18",  # ensemble rewrite
     # Ensemble deprecation
@@ -241,6 +190,7 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-52.7",  # ensemble deprecation
     "namespace-52.8",  # ensemble deprecation
     "namespace-52.9",  # ensemble deprecation
+    "namespace-52.11",  # interp create + namespace unknown state pollution
     "namespace-52.12",  # ensemble deprecation
     # Namespace ensemble with args
     "namespace-53.1",  # ensemble args
@@ -255,11 +205,8 @@ KNOWN_FAILURES_NAMESPACE: set[str] = {
     "namespace-53.10",  # ensemble args
     "namespace-53.11",  # ensemble args
     # Ensemble compilation
-    "namespace-55.1",  # ensemble compile
     "namespace-55.2",  # ensemble compile
     # Namespace upvar + trace
-    "namespace-56.1",  # upvar + trace
-    "namespace-56.2",  # upvar + trace
     "namespace-56.3",  # upvar + trace
     "namespace-56.6",  # upvar + trace
     # Namespace path resolution
@@ -287,18 +234,10 @@ KNOWN_FAILURES_NAMESPACE_OLD: set[str] = {
     "namespace-old-5.10",  # variable resolution
     "namespace-old-5.11",  # variable resolution
     "namespace-old-5.16",  # variable resolution
-    "namespace-old-5.18",  # variable resolution
     "namespace-old-5.19",  # variable resolution
     # Namespace children / parent / qualifiers
-    "namespace-old-6.7",  # namespace children
     "namespace-old-6.8",  # namespace children
-    "namespace-old-6.9",  # namespace children
-    "namespace-old-6.10",  # namespace parent
-    "namespace-old-6.11",  # namespace parent
     "namespace-old-6.16",  # namespace qualifiers
-    "namespace-old-6.17",  # namespace qualifiers
-    "namespace-old-6.18",  # namespace tail
-    "namespace-old-6.19",  # namespace tail
     # Command resolution / import patterns
     "namespace-old-7.3",  # command resolution
     "namespace-old-7.4",  # command resolution

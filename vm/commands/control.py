@@ -298,10 +298,8 @@ def _cmd_try(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _cmd_if(interp: TclInterp, args: list[str]) -> TclResult:
     """if expr1 ?then? body1 elseif expr2 ?then? body2 ... ?else? ?bodyN?"""
-    if not args:
-        raise TclError(
-            'wrong # args: should be "if expr1 ?then? body1 elseif expr2 ?then? body2 ... ?else? ?bodyN?"'
-        )
+    if len(args) < 2:
+        raise TclError('wrong # args: no expression after "if" argument')
 
     # Pre-validate: if "else" appears, it must be followed by exactly one
     # argument (the body) with nothing after it.  Tcl checks this before
@@ -313,6 +311,13 @@ def _cmd_if(interp: TclInterp, args: list[str]) -> TclResult:
             if k + 2 < len(args):
                 raise TclError('wrong # args: extra words after "else" clause in "if" command')
             break
+        if a == "elseif":
+            if k + 1 >= len(args):
+                raise TclError('wrong # args: no expression after "elseif" argument')
+            # The next word after elseif must be an expression, not else/then
+            nxt = args[k + 1] if k + 1 < len(args) else ""
+            if nxt in ("else", "elseif", ""):
+                raise TclError('wrong # args: no expression after "elseif" argument')
 
     i = 0
     while i < len(args):
@@ -328,10 +333,14 @@ def _cmd_if(interp: TclInterp, args: list[str]) -> TclResult:
         cond_result = interp.eval_expr(cond_str)
         i += 1
 
+        saw_then = False
         if i < len(args) and args[i] == "then":
+            saw_then = True
             i += 1
 
         if i >= len(args):
+            if saw_then:
+                raise TclError('wrong # args: no script following "then" argument')
             raise TclError("wrong # args: no script following expression")
 
         if _tcl_bool(cond_result):

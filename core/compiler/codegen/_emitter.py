@@ -63,9 +63,18 @@ class _Emitter(
         self._optimise = optimise
         self._is_proc = is_proc
         self._proc_defs = proc_defs
+
         # Pending proc defs sorted by source line for interleaved emission.
+        def _is_static_proc(p: IRProcedure) -> bool:
+            """Only emit literal proc defs when name, params, and body are
+            all free of variable/command substitutions."""
+            for s in (p.name, p.params_raw, p.body_source or ""):
+                if "$" in s or "[" in s:
+                    return False
+            return True
+
         self._pending_proc_defs: list[IRProcedure] = sorted(
-            (p for p in proc_defs if "$" not in p.name and "[" not in p.name),
+            (p for p in proc_defs if _is_static_proc(p)),
             key=lambda p: p.range.start.line,
         )
         # Loop context for compiling break/continue as jump instructions.

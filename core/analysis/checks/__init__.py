@@ -48,7 +48,6 @@ from ._style import (
     check_name_vs_value,
     check_namespace_var_declaration,
     check_non_ascii,
-    check_path_concatenation,
     check_redundant_expr,
     check_string_compare_in_expr,
     check_string_list_confusion,

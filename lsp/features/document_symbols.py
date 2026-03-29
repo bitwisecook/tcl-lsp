@@ -5,7 +5,7 @@ from __future__ import annotations
 from lsprotocol import types
 
 from core.analysis.analyser import analyse
-from core.analysis.semantic_model import AnalysisResult, ProcDef, Scope
+from core.analysis.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope
 from core.common.lsp import to_lsp_range
 
 
@@ -34,9 +34,116 @@ def _merge_symbol_range(first: types.Range, second: types.Range) -> types.Range:
     return types.Range(start=start, end=end)
 
 
+def _method_detail(method_def: MethodDef) -> str:
+    """Format a short parameter list string for a method."""
+    parts: list[str] = []
+    for p in method_def.params:
+        if p.has_default:
+            parts.append(f"{{{p.name} {p.default_value}}}")
+        else:
+            parts.append(p.name)
+    return f"({' '.join(parts)})" if parts else "()"
+
+
+def _class_detail(class_def: ClassDef) -> str:
+    """Format a short detail string for a class."""
+    parts: list[str] = []
+    if class_def.metaclass != "oo::class":
+        parts.append(class_def.metaclass)
+    if class_def.superclasses:
+        parts.append(f": {', '.join(class_def.superclasses)}")
+    return " ".join(parts)
+
+
+def _class_method_symbols(class_def: ClassDef) -> list[types.DocumentSymbol]:
+    """Build child symbols for a class: methods, constructors, properties."""
+    children: list[types.DocumentSymbol] = []
+
+    for ctor in class_def.constructors:
+        ctor_range = to_lsp_range(ctor.body_range)
+        children.append(
+            types.DocumentSymbol(
+                name="constructor",
+                kind=types.SymbolKind.Constructor,
+                range=ctor_range,
+                selection_range=ctor_range,
+                detail=_method_detail(ctor),
+            )
+        )
+
+    if class_def.destructor:
+        dtor_range = to_lsp_range(class_def.destructor.body_range)
+        children.append(
+            types.DocumentSymbol(
+                name="destructor",
+                kind=types.SymbolKind.Method,
+                range=dtor_range,
+                selection_range=dtor_range,
+            )
+        )
+
+    for md in class_def.methods.values():
+        body_range = to_lsp_range(md.body_range)
+        name_range = to_lsp_range(md.name_range)
+        sym_range = _merge_symbol_range(name_range, body_range)
+        children.append(
+            types.DocumentSymbol(
+                name=md.name,
+                kind=types.SymbolKind.Method,
+                range=sym_range,
+                selection_range=name_range,
+                detail=_method_detail(md),
+            )
+        )
+
+    for md in class_def.class_methods.values():
+        body_range = to_lsp_range(md.body_range)
+        name_range = to_lsp_range(md.name_range)
+        sym_range = _merge_symbol_range(name_range, body_range)
+        children.append(
+            types.DocumentSymbol(
+                name=md.name,
+                kind=types.SymbolKind.Method,
+                range=sym_range,
+                selection_range=name_range,
+                detail=f"classmethod {_method_detail(md)}",
+            )
+        )
+
+    for pd in class_def.properties.values():
+        prop_range = to_lsp_range(pd.name_range)
+        children.append(
+            types.DocumentSymbol(
+                name=pd.name,
+                kind=types.SymbolKind.Property,
+                range=prop_range,
+                selection_range=prop_range,
+            )
+        )
+
+    return children
+
+
 def _scope_symbols(scope: Scope) -> list[types.DocumentSymbol]:
     """Recursively collect symbols from a scope and its children."""
     symbols: list[types.DocumentSymbol] = []
+
+    # Classes defined in this scope
+    for class_def in scope.classes.values():
+        body_range = to_lsp_range(class_def.body_range)
+        name_range = to_lsp_range(class_def.name_range)
+        symbol_range = _merge_symbol_range(name_range, body_range)
+        child_symbols = _class_method_symbols(class_def)
+        symbols.append(
+            types.DocumentSymbol(
+                name=class_def.name,
+                kind=types.SymbolKind.Class,
+                range=symbol_range,
+                selection_range=name_range,
+                detail=_class_detail(class_def),
+                children=child_symbols or None,
+            )
+        )
 
     # Procs defined in this scope
     for proc_def in scope.procs.values():

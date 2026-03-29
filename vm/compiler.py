@@ -398,6 +398,13 @@ def _reinsert_proc_defs(
 
         body_text = proc.body_source if proc.body_source else ""
         params_raw = proc.params_raw if proc.params_raw else ""
+
+        # Skip procs whose params or body contain variable/command
+        # references — the original IRCall with proper expansion is
+        # still in the statement list and handles these correctly.
+        if any("$" in s or "[" in s for s in (proc.name, params_raw, body_text)):
+            continue
+
         barrier = IRBarrier(
             range=proc.range,
             reason="proc runtime",

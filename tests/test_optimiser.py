@@ -2176,3 +2176,194 @@ class TestCodeSinking:
         assert any(r.code == "O112" for r in rewrites)
         # Both insertions and orphaned comments must be dropped.
         assert not any(r.code == "O125" for r in rewrites)
+
+
+class TestLoadForwarding:
+    """O127: inline single-use variable assignment (store-to-load forwarding)."""
+
+    def test_basic_inline_command_subst(self):
+        """Single-use variable with command substitution is inlined."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set x [clock seconds]
+                puts $x
+            }""")
+        optimised, rewrites = optimise_source(source)
+        assert any(r.code == "O127" for r in rewrites)
+        assert "[set x [clock seconds]]" in optimised
+        assert "puts [set x [clock seconds]]" in optimised
+
+    def test_basic_inline_var_copy(self):
+        """Single-use variable copying another variable is inlined."""
+        source = textwrap.dedent("""\
+            proc test {arg} {
+                set x $arg
+                puts $x
+            }""")
+        optimised, rewrites = optimise_source(source)
+        assert any(r.code == "O127" for r in rewrites)
+        assert "puts [set x $arg]" in optimised
+
+    def test_skip_constant_value(self):
+        """Constants are handled by O100, not O127."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set x 42
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+        assert any(r.code == "O100" for r in rewrites)
+
+    def test_skip_multiple_uses(self):
+        """Variable used more than once should not be inlined."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set x [clock seconds]
+                puts $x
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_top_level(self):
+        """Top-level variables should not be inlined."""
+        source = "set x [clock seconds]\nputs $x"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_barrier_between_def_and_use(self):
+        """Intervening barrier prevents inlining."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set x [clock seconds]
+                eval {}
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_aliased_variable(self):
+        """Upvar-aliased variables should not be inlined."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                upvar 1 ext x
+                set x [clock seconds]
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_phi_use(self):
+        """Variable used via phi node (cross-branch) should not be inlined."""
+        source = textwrap.dedent("""\
+            proc test {c} {
+                if {$c} {
+                    set x [clock seconds]
+                } else {
+                    set x [clock clicks]
+                }
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_intervening_modification_of_read_var(self):
+        """If a variable read by the def is modified before the use, skip."""
+        source = textwrap.dedent("""\
+            proc swap {a_name b_name} {
+                upvar 1 $a_name a $b_name b
+                set temp $a
+                set a $b
+                set b $temp
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_when_sccp_resolves_constant(self):
+        """If SCCP + expr folding makes the value constant, O100 handles it."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set c 1
+                set x [expr {$c + 2}]
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        # SCCP sees x=CONST(3) after folding — O100 propagates, O127 defers.
+        assert not any(r.code == "O127" for r in rewrites)
+        assert any(r.code == "O100" for r in rewrites)
+
+    def test_skip_when_propagation_already_rewrote_use_site(self):
+        """If O100/O102 already rewrote the use-site statement, O127 defers."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set c 1
+                set x [clock seconds]
+                set y [expr {$c + $x}]
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        codes = [r.code for r in rewrites]
+        # O100 propagates $c into the expr. O127 should not also try
+        # to inline $x into the same (already rewritten) statement.
+        if "O100" in codes:
+            assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_aliased_read_variable(self):
+        """If the expression reads an aliased variable, skip entirely."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                upvar 1 ext a
+                set temp $a
+                puts $temp
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_when_pre_loop_pass_already_rewrites_def(self):
+        """If O114 (incr idiom) already targets the def, O127 must not conflict."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set x [expr {$x + 1}]
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        # O114 rewrites the set→incr. O127 should not also try to
+        # inline and delete the same statement.
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_use_site_with_earlier_cmd_subst(self):
+        """Inlining after an earlier command substitution can reorder effects."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set a 5
+                set x $a
+                return [list [set a 2] $x]
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        # [set a 2] executes before $x in the original; inlining would
+        # move $a evaluation after [set a 2], changing the result.
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_skip_intervening_assign_with_cmd_subst(self):
+        """IRAssignValue with [cmd] between def and use is effectful."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set x [clock seconds]
+                set y [clock clicks]
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O127" for r in rewrites)
+
+    def test_grouped_edits(self):
+        """O127 inline + delete should share a group ID."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set x [clock seconds]
+                puts $x
+            }""")
+        _optimised, rewrites = optimise_source(source)
+        o127 = [r for r in rewrites if r.code == "O127"]
+        assert len(o127) == 2
+        assert o127[0].group is not None
+        assert o127[0].group == o127[1].group

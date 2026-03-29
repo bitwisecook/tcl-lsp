@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ...analysis.semantic_model import Range
+from ...analysis.semantic_model import CodeFix, Range
 
 if TYPE_CHECKING:
     from ..ssa import SSAValueKey
@@ -21,6 +21,7 @@ class TaintWarning:
     sink_command: str
     code: str  # T100
     message: str
+    fixes: tuple[CodeFix, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

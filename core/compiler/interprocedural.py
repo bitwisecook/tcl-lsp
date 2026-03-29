@@ -86,8 +86,21 @@ class ProcSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class MethodSummary(ProcSummary):
+    """Extended summary for OO methods with class context."""
+
+    class_name: str = ""
+    method_kind: str = "method"  # method/classmethod/constructor/destructor
+    reads_instance_vars: frozenset[str] = frozenset()
+    writes_instance_vars: frozenset[str] = frozenset()
+    calls_my: tuple[str, ...] = ()  # methods called via `my method`
+    calls_next: bool = False  # calls `next` (MRO chain dispatch)
+
+
+@dataclass(frozen=True, slots=True)
 class InterproceduralAnalysis:
     procedures: dict[str, ProcSummary]
+    methods: dict[str, MethodSummary] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

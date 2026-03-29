@@ -36,7 +36,7 @@ from .commands import CommandHandler, register_builtins
 from .compiler import compile_script
 from .machine import BytecodeVM
 from .scope import CallFrame, Namespace, ensure_namespace, resolve_namespace
-from .types import ReturnCode, TclBreak, TclContinue, TclError, TclResult, TclReturn
+from .types import ReturnCode, TclBreak, TclContinue, TclError, TclResult, TclReturn, TclTailcall
 
 
 @dataclass
@@ -51,6 +51,18 @@ class ProcDef:
     compiled_asm: FunctionAsm | None = None
     def_namespace: str = "::"
     body_start_line: int = 0  # 1-based line of first body statement (for errorInfo)
+
+
+@dataclass
+class EnsembleConfig:
+    """Configuration for a namespace ensemble command."""
+
+    namespace: str  # FQ namespace that owns the ensemble
+    map: dict[str, str]  # subcommand -> implementation (may be multi-word)
+    subcommands: list[str]  # explicit subcommand list (empty = use exports)
+    unknown: str  # unknown handler script (empty = none)
+    prefixes: bool  # whether prefix matching is enabled
+    parameters: list[str]  # fixed leading parameters before subcommand
 
 
 # Matches ``::tcl::<base>::<sub>`` — FQ ensemble command names emitted
@@ -113,6 +125,7 @@ class TclInterp:
         self.procedures: dict[str, ProcDef] = {}
         self.script_file: str | None = None
         self.cmd_count = 0
+        self._last_cmd_name: str | None = None
         # Cache compiled bytecode for short, repeatedly-evaluated scripts.
         # This is especially important for tight loops (e.g. foreach/lmap)
         # that invoke ``eval`` with the same body many times.
@@ -134,6 +147,11 @@ class TclInterp:
 
         # Variable traces: var_name -> list of (ops, script)
         self.variable_traces: dict[str, list[tuple[list[str], str]]] = {}
+        # Command traces: cmd_name -> list of (ops, script)
+        self.command_traces: dict[str, list[tuple[list[str], str]]] = {}
+
+        # Ensemble metadata: fully-qualified command name -> EnsembleConfig
+        self.ensembles: dict[str, EnsembleConfig] = {}
 
         # I/O channels
         self.channels: dict[str, TextIO] = {
@@ -173,6 +191,22 @@ class TclInterp:
         }
         self.packages["Tcl"] = _tcl_pkg
         self.packages["tcl"] = _tcl_pkg
+
+        # Pre-provide the tcl::oo package so ``package require tcl::oo`` works.
+        # TclOO is a built-in package in Tcl 9.0.
+        _oo_pkg: dict[str, str | bool | dict[str, str] | None] = {
+            "version": "1.3.1",
+            "loaded": True,
+            "ifneeded": {"1.3.1": ""},
+        }
+        self.packages["tcl::oo"] = _oo_pkg
+
+        # Set ::oo:: namespace variables that the oo.test suite reads at
+        # the top level before any OO commands run.
+        oo_ns = ensure_namespace(self.root_namespace, "::oo")
+        oo_frame = oo_ns.get_frame(self)
+        oo_frame.set_var("patchlevel", "1.3.1")
+        oo_frame.set_var("version", "1.3.1")
 
         # Register the tcltest package so ``package require tcltest`` works
         from .commands.tcltest_cmds import setup_tcltest
@@ -486,14 +520,27 @@ class TclInterp:
     def _invoke_inner(self, cmd_name: str, args: list[str]) -> TclResult:
         """Dispatch a command by name (inner implementation)."""
         self.cmd_count += 1
+        self._last_cmd_name = cmd_name
 
-        # Fully-qualified names (::foo::bar) resolve from root
+        # Qualified names (foo::bar or ::foo::bar) resolve via namespace
         if "::" in cmd_name:
             # Try namespace-registered procs/commands
             ns_part = cmd_name[: cmd_name.rfind("::")]
             tail = cmd_name[cmd_name.rfind("::") + 2 :]
-            ns = resolve_namespace(self.root_namespace, ns_part if ns_part else "::")
-            if ns is not None:
+            # For relative qualified names (no leading ::), try the
+            # current namespace first, then fall back to global — matching
+            # C Tcl's TclGetNamespaceForQualName resolution order.
+            _ns_candidates: list[object] = []
+            if not cmd_name.startswith("::") and self.current_namespace is not self.root_namespace:
+                cur_qn = self.current_namespace.qualname
+                rel_ns_name = f"{cur_qn}::{ns_part}" if cur_qn != "::" else f"::{ns_part}"
+                rel_ns = resolve_namespace(self.root_namespace, rel_ns_name)
+                if rel_ns is not None:
+                    _ns_candidates.append(rel_ns)
+            global_ns = resolve_namespace(self.root_namespace, ns_part if ns_part else "::")
+            if global_ns is not None and global_ns not in _ns_candidates:
+                _ns_candidates.append(global_ns)
+            for ns in _ns_candidates:
                 proc = ns.lookup_proc(tail)
                 if proc is not None:
                     return self._call_proc(proc, args)
@@ -513,10 +560,23 @@ class TclInterp:
             if proc is not None:
                 return self._call_proc(proc, args)
 
+            # Check runtime commands by full qualified name (e.g. ::oo::Obj1::my)
+            handler = self._runtime_commands.get(cmd_name)
+            if handler is None and not cmd_name.startswith("::"):
+                handler = self._runtime_commands.get(f"::{cmd_name}")
+            if handler is not None:
+                return handler(self, args)
+
             # Also try the tail as a built-in command (e.g. ::set → set)
             handler = self.lookup_command(tail)
             if handler is not None:
                 return handler(self, args)
+
+            # Try the full name without leading :: (e.g. ::oo::define → oo::define)
+            if cmd_name.startswith("::"):
+                handler = self.lookup_command(cmd_name[2:])
+                if handler is not None:
+                    return handler(self, args)
 
             # Also try the tail as a user-defined procedure
             proc = self.procedures.get(tail)
@@ -534,6 +594,29 @@ class TclInterp:
             ns_handler = self.current_namespace.lookup_command(cmd_name)
             if callable(ns_handler):
                 return ns_handler(self, args)
+
+            # Runtime commands registered under fully-qualified name
+            # (e.g. ::oo::define::method when current namespace is ::oo::define)
+            ns_qn = self.current_namespace.qualname
+            fq_name = f"{ns_qn}::{cmd_name}" if ns_qn != "::" else f"::{cmd_name}"
+            rt_handler = self._runtime_commands.get(fq_name)
+            if rt_handler is not None:
+                return rt_handler(self, args)
+
+            # Namespace path resolution: check each namespace in the path
+            for path_ns in self.current_namespace._path:
+                path_proc = path_ns.lookup_proc(cmd_name)
+                if isinstance(path_proc, ProcDef):
+                    return self._call_proc(path_proc, args)
+                path_handler = path_ns.lookup_command(cmd_name)
+                if callable(path_handler):
+                    return path_handler(self, args)
+                # Check runtime commands in path namespace
+                path_qn = path_ns.qualname
+                path_fq = f"{path_qn}::{cmd_name}" if path_qn != "::" else f"::{cmd_name}"
+                path_rt = self._runtime_commands.get(path_fq)
+                if path_rt is not None:
+                    return path_rt(self, args)
 
         # Built-in commands (global registry)
         handler = self.lookup_command(cmd_name)
@@ -555,6 +638,15 @@ class TclInterp:
         ns_handler = self.root_namespace.lookup_command(cmd_name)
         if ns_handler is not None:
             return ns_handler(self, args)
+
+        # Namespace unknown handler (e.g. for oo::define abbreviation).
+        # Checked after global lookup so standard commands are always found.
+        if self.current_namespace is not self.root_namespace:
+            ns_unknown = self.current_namespace._unknown_handler
+            if ns_unknown:
+                ns_unknown_handler = self._runtime_commands.get(ns_unknown)
+                if ns_unknown_handler is not None:
+                    return ns_unknown_handler(self, [cmd_name] + args)
 
         # Try unknown handler (for auto-loading).  User-defined ``unknown``
         # procs may be stored under the qualified key ``::unknown``.
@@ -702,6 +794,11 @@ class TclInterp:
                 error_info=ret.error_info,
                 error_code=ret.error_code,
             ) from None
+        except TclTailcall as tc:
+            # tailcall: unwind this frame, then execute command in caller
+            self.current_frame = saved_frame
+            self.current_namespace = saved_ns
+            return self.invoke(tc.cmd, tc.args)
         finally:
             self.current_frame = saved_frame
             self.current_namespace = saved_ns

@@ -176,6 +176,9 @@ def _pkg_provide(interp: TclInterp, args: list[str]) -> TclResult:
     version = args[1]
     pkg["version"] = version
     pkg["loaded"] = True
+    # Ensure version appears in `package versions` output
+    if version not in pkg["ifneeded"]:
+        pkg["ifneeded"][version] = ""
     return TclResult()
 
 

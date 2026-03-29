@@ -68,11 +68,14 @@ namespace eval ::tmm {
         dict
         lassign
         lmap
+        oo::abstract
         oo::class
+        oo::configurable
         oo::copy
         oo::define
         oo::objdefine
         oo::object
+        oo::singleton
         tailcall
         throw
         try

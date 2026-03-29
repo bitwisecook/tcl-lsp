@@ -1769,6 +1769,22 @@ def wasm_codegen_module(
         module.functions.append(proc_func)
         module.data_segments.extend(proc_emitter.data_segments)
 
+    # Compile methods (method bodies compile identically to proc bodies,
+    # matching Tcl 9.0's OO-agnostic bytecode design)
+    for key, cfg_func in cfg_module.procedures.items():
+        if key not in ir_module.procedures and key in (ir_module.methods or {}):
+            ir_method = ir_module.methods[key]
+            method_emitter = _WasmEmitter(
+                cfg_func,
+                params=ir_method.params,
+                optimise=optimise,
+                is_proc=True,
+            )
+            method_func = method_emitter.generate()
+            method_func.name = key
+            module.functions.append(method_func)
+            module.data_segments.extend(method_emitter.data_segments)
+
     # Ensure types are registered
     for func in module.functions:
         module._intern_type(func.params, func.results)

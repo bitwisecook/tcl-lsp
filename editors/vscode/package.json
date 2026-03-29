@@ -4029,6 +4029,12 @@
             "default": true,
             "markdownDescription": "**O126:** Remove unused variable assignments — eliminate `set` statements for variables that are never read.",
             "order": 27
+          },
+          "tclLsp.optimiser.O127": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**O127:** Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site.",
+            "order": 28
           }
         }
       },
