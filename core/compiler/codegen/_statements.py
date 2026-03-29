@@ -20,6 +20,7 @@ from ._types import Instruction
 from .opcodes import Op
 
 if TYPE_CHECKING:
+    from ..ir import CommandTokens
     from ._emitter import _Emitter
 
 
@@ -460,7 +461,7 @@ class _StatementsMixin:
                             if tok.type == TokenType.STR:
                                 is_braced = True
                         if is_braced:
-                            parts.append(f'{{{a}}}')
+                            parts.append(f"{{{a}}}")
                         else:
                             parts.append(f'"{a}"')
                     else:

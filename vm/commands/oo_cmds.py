@@ -11,9 +11,7 @@ if TYPE_CHECKING:
     from ..interp import TclInterp
 
 
-def _copy_namespace_contents(
-    interp: "TclInterp", src_ns_name: str, tgt_ns_name: str
-) -> None:
+def _copy_namespace_contents(interp: "TclInterp", src_ns_name: str, tgt_ns_name: str) -> None:
     """Copy procs and variables from one namespace to another during oo::copy."""
     import copy as copymod
 
@@ -36,8 +34,8 @@ def _copy_namespace_contents(
         interp.procedures[fq_name] = new_proc
 
     # Copy namespace-level variables (frame scalars/arrays)
-    if hasattr(src_ns, '_frame') and src_ns._frame is not None:
-        if not hasattr(tgt_ns, '_frame') or tgt_ns._frame is None:
+    if hasattr(src_ns, "_frame") and src_ns._frame is not None:
+        if not hasattr(tgt_ns, "_frame") or tgt_ns._frame is None:
             tgt_ns._frame = CallFrame(namespace=tgt_ns)
         for vn, vv in src_ns._frame._scalars.items():
             tgt_ns._frame._scalars[vn] = vv
@@ -56,12 +54,11 @@ def _estimate_error_line(body: str, error: TclError) -> int:
     # (skip inner eval/body contexts which also contain "line N)")
     if error.error_info:
         for entry in error.error_info:
-            m = re.search(r'definition script.*line (\d+)\)', str(entry))
+            m = re.search(r"definition script.*line (\d+)\)", str(entry))
             if m:
                 return int(m.group(1))
 
     # Fallback: find the error command in the body and count newlines before it
-    msg = error.message
     # Try to find the erroring command text from errorInfo
     if error.error_info:
         for entry in error.error_info:
@@ -70,12 +67,12 @@ def _estimate_error_line(body: str, error: TclError) -> int:
                 cmd_text = m2.group(1)
                 pos = body.find(cmd_text)
                 if pos >= 0:
-                    return body[:pos].count('\n') + 1
+                    return body[:pos].count("\n") + 1
 
     # Final fallback: count leading whitespace/newlines to first content
     stripped = body.lstrip()
     leading = body[: len(body) - len(stripped)]
-    return leading.count('\n') + 1
+    return leading.count("\n") + 1
 
 
 def _parse_method_params(
@@ -209,7 +206,9 @@ def _define_method(interp: TclInterp, args: list[str]) -> TclResult:
     cls = getattr(interp, "_defining_class", None)
     obj = getattr(interp, "_defining_object", None)
     if cls is None and obj is None:
-        raise TclError("this command may only be called from within the body of an oo::define command")
+        raise TclError(
+            "this command may only be called from within the body of an oo::define command"
+        )
     # Check if the class has been downgraded to a non-class (e.g., via self class oo::object)
     if cls is not None and obj is None:
         oo = _get_oo_runtime(interp)
@@ -229,9 +228,7 @@ def _define_method(interp: TclInterp, args: list[str]) -> TclResult:
         elif flag == "-private":
             flag_vis = "private"
         else:
-            raise TclError(
-                f'bad export flag "{flag}": must be -export, -private, or -unexport'
-            )
+            raise TclError(f'bad export flag "{flag}": must be -export, -private, or -unexport')
         param_str, method_body = args[2], args[3]
     else:
         param_str, method_body = args[1], args[2]
@@ -265,7 +262,9 @@ def _define_classmethod(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::define::classmethod"""
     cls = getattr(interp, "_defining_class", None)
     if cls is None:
-        raise TclError("this command may only be called from within the body of an oo::define command")
+        raise TclError(
+            "this command may only be called from within the body of an oo::define command"
+        )
     if len(args) < 3:
         raise TclError('wrong # args: should be "classmethod name args body"')
     name, param_str, method_body = args[0], args[1], args[2]
@@ -284,7 +283,9 @@ def _define_constructor(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::define::constructor"""
     cls = getattr(interp, "_defining_class", None)
     if cls is None:
-        raise TclError("this command may only be called from within the body of an oo::define command")
+        raise TclError(
+            "this command may only be called from within the body of an oo::define command"
+        )
     if len(args) < 2:
         raise TclError('wrong # args: should be "constructor args body"')
     param_str, ctor_body = args[0], args[1]
@@ -303,7 +304,9 @@ def _define_destructor(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::define::destructor"""
     cls = getattr(interp, "_defining_class", None)
     if cls is None:
-        raise TclError("this command may only be called from within the body of an oo::define command")
+        raise TclError(
+            "this command may only be called from within the body of an oo::define command"
+        )
     if len(args) < 1:
         raise TclError('wrong # args: should be "destructor body"')
     cls.destructor = TclOOMethod(
@@ -319,7 +322,9 @@ def _define_superclass(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::define::superclass"""
     cls = getattr(interp, "_defining_class", None)
     if cls is None:
-        raise TclError("this command may only be called from within the body of an oo::define command")
+        raise TclError(
+            "this command may only be called from within the body of an oo::define command"
+        )
     if not args:
         # No args resets to default superclass
         # Metaclasses (subclasses of oo::class) default to ::oo::class
@@ -383,9 +388,9 @@ def _define_mixin(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::define::mixin"""
     cls = getattr(interp, "_defining_class", None)
     if cls is None:
-        raise TclError("this command may only be called from within the body of an oo::define command")
-    oo = _get_oo_runtime(interp)
-
+        raise TclError(
+            "this command may only be called from within the body of an oo::define command"
+        )
     if not args:
         cls.mixins = []
         return TclResult()
@@ -403,8 +408,7 @@ def _define_mixin(interp: TclInterp, args: list[str]) -> TclResult:
         for n in names_to_remove:
             resolved_remove.add(n if n.startswith("::") else f"::{n}")
         cls.mixins = [
-            m for m in cls.mixins
-            if (m if m.startswith("::") else f"::{m}") not in resolved_remove
+            m for m in cls.mixins if (m if m.startswith("::") else f"::{m}") not in resolved_remove
         ]
         return TclResult()
 
@@ -433,13 +437,11 @@ def _validate_var_names(names: list[str]) -> None:
     for name in names:
         if "::" in name:
             raise TclError(
-                f'invalid declared variable name "{name}":'
-                " must not contain namespace separators"
+                f'invalid declared variable name "{name}": must not contain namespace separators'
             )
         if "(" in name:
             raise TclError(
-                f'invalid declared variable name "{name}":'
-                " must not refer to an array element"
+                f'invalid declared variable name "{name}": must not refer to an array element'
             )
 
 
@@ -514,9 +516,7 @@ def _define_variable(interp: TclInterp, args: list[str]) -> TclResult:
             cls.variables = _apply_slot_op(cls.variables, args)
     elif obj is not None:
         if is_private:
-            obj.private_instance_variables = _apply_slot_op(
-                obj.private_instance_variables, args
-            )
+            obj.private_instance_variables = _apply_slot_op(obj.private_instance_variables, args)
         else:
             obj.instance_variables = _apply_slot_op(obj.instance_variables, args)
     return TclResult()
@@ -677,6 +677,7 @@ def _define_private(interp: TclInterp, args: list[str]) -> TclResult:
         interp._oo_private_mode = True
         try:
             from ..machine import _list_escape
+
             cmd = " ".join(_list_escape(a) for a in args)
             interp.eval(cmd)
         finally:
@@ -697,28 +698,30 @@ def _define_self(interp: TclInterp, args: list[str]) -> TclResult:
     obj = oo.objects.get(cls.qualified_name)
     if obj is None:
         if args:
-            raise TclError(
-                "this command cannot be called when the object has been deleted"
-            )
+            raise TclError("this command cannot be called when the object has been deleted")
         return TclResult()
     if not args:
         return TclResult(value=cls.qualified_name)
     body = args[0] if len(args) == 1 else None
     if body is None:
         from ..machine import _list_escape
+
         body = " ".join(_list_escape(a) for a in args)
     try:
         _parse_objdefine_body(interp, obj, body)
     except TclError as e:
         # Add "class object" context to errorInfo
-        from ..machine import _list_escape as _le
         line_no = _estimate_error_line(body, e)
         current_name = obj.name
         display_name = current_name
         if len(display_name) > 32:
             display_name = display_name[:30] + "..."
         ctx = f'    (in definition script for class object "{display_name}" line {line_no})'
-        inv = f'    invoked from within\n"self {{{body}}}"' if len(args) == 1 else f'    invoked from within\n"self {body}"'
+        inv = (
+            f'    invoked from within\n"self {{{body}}}"'
+            if len(args) == 1
+            else f'    invoked from within\n"self {body}"'
+        )
         info = list(e.error_info) if e.error_info else [e.message]
         info.append(ctx)
         info.append(inv)
@@ -736,9 +739,7 @@ def _define_definitionnamespace(interp: TclInterp, args: list[str]) -> TclResult
             "this command may only be called from within the body of an oo::define command"
         )
     if not args or len(args) > 2:
-        raise TclError(
-            'wrong # args: should be "definitionnamespace ?kind? namespace"'
-        )
+        raise TclError('wrong # args: should be "definitionnamespace ?kind? namespace"')
     if len(args) == 2:
         kind = args[0]
         ns_name = args[1]
@@ -777,6 +778,7 @@ def _define_unknown(interp: TclInterp, args: list[str]) -> TclResult:
     # against commands available there (procs, runtime commands).
     cur_ns = interp.current_namespace
     from ..scope import resolve_namespace
+
     define_ns = resolve_namespace(interp.root_namespace, "::oo::define")
     if cur_ns is not define_ns and cur_ns is not None:
         # Collect available command names in the custom namespace
@@ -789,7 +791,7 @@ def _define_unknown(interp: TclInterp, args: list[str]) -> TclResult:
         ns_qn = cur_ns.qualname
         for rt_name in interp._runtime_commands:
             if rt_name.startswith(ns_qn + "::"):
-                short = rt_name[len(ns_qn) + 2:]
+                short = rt_name[len(ns_qn) + 2 :]
                 if "::" not in short and short not in avail_cmds:
                     avail_cmds.append(short)
         if avail_cmds:
@@ -800,6 +802,7 @@ def _define_unknown(interp: TclInterp, args: list[str]) -> TclResult:
                 proc = cur_ns.lookup_proc(full_ns)
                 if proc is not None:
                     from ..interp import ProcDef
+
                     if isinstance(proc, ProcDef):
                         return interp._call_proc(proc, args[1:])
                 handler = interp._runtime_commands.get(fq_cmd)
@@ -824,6 +827,7 @@ def _objdefine_unknown(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _require_class_context(handler):
     """Wrap a define handler to require class context (not objdefine)."""
+
     def _wrapper(interp: TclInterp, args: list[str]) -> TclResult:
         cls = getattr(interp, "_defining_class", None)
         if cls is None:
@@ -831,6 +835,7 @@ def _require_class_context(handler):
             if obj is not None:
                 raise TclError("attempt to misuse API")
         return handler(interp, args)
+
     return _wrapper
 
 
@@ -927,9 +932,7 @@ def _parse_class_body(
     if obj is not None:
         metaclass = oo.classes.get(obj.class_name)
         if metaclass is not None and metaclass.definition_namespace:
-            custom_ns = resolve_namespace(
-                interp.root_namespace, metaclass.definition_namespace
-            )
+            custom_ns = resolve_namespace(interp.root_namespace, metaclass.definition_namespace)
             if custom_ns is not None:
                 eval_ns = custom_ns
 
@@ -937,7 +940,7 @@ def _parse_class_body(
     # handler so abbreviation works for commands in that namespace too.
     saved_unknown = None
     if eval_ns is not oo_define_ns:
-        saved_unknown = getattr(eval_ns, '_unknown_handler', None)
+        saved_unknown = getattr(eval_ns, "_unknown_handler", None)
         unknown_key = f"{eval_ns.qualname}::__unknown__"
         interp._runtime_commands[unknown_key] = _define_unknown
         eval_ns._unknown_handler = unknown_key
@@ -971,7 +974,9 @@ def _objdefine_mixin(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::objdefine::mixin"""
     obj = getattr(interp, "_defining_object", None)
     if obj is None:
-        raise TclError("this command may only be called from within the body of an oo::objdefine command")
+        raise TclError(
+            "this command may only be called from within the body of an oo::objdefine command"
+        )
 
     if not args:
         obj.instance_mixins = []
@@ -988,7 +993,8 @@ def _objdefine_mixin(interp: TclInterp, args: list[str]) -> TclResult:
         for n in args[1:]:
             names_to_remove.add(n if n.startswith("::") else f"::{n}")
         obj.instance_mixins = [
-            m for m in obj.instance_mixins
+            m
+            for m in obj.instance_mixins
             if (m if m.startswith("::") else f"::{m}") not in names_to_remove
         ]
         return TclResult()
@@ -1016,7 +1022,9 @@ def _objdefine_class(interp: TclInterp, args: list[str]) -> TclResult:
     """::oo::objdefine::class"""
     obj = getattr(interp, "_defining_object", None)
     if obj is None:
-        raise TclError("this command may only be called from within the body of an oo::objdefine command")
+        raise TclError(
+            "this command may only be called from within the body of an oo::objdefine command"
+        )
     if len(args) < 1:
         raise TclError('wrong # args: should be "class className"')
     new_class = args[0]
@@ -1034,7 +1042,6 @@ def _objdefine_class(interp: TclInterp, args: list[str]) -> TclResult:
         raise TclError("may not modify the class of the root object class")
     if obj.name == "::oo::class":
         raise TclError("may not modify the class of the class of classes")
-    old_class_name = obj.class_name
     obj.class_name = cls.qualified_name
 
     # If downgrading from a class (metaclass) to a non-class (oo::object):
@@ -1049,8 +1056,7 @@ def _objdefine_class(interp: TclInterp, args: list[str]) -> TclResult:
                 continue
             # Check if old_cls is a superclass (may be stored qualified or unqualified)
             is_super = any(
-                s == old_qn or s == old_short or f"::{s}" == old_qn
-                for s in sub_cls.superclasses
+                s == old_qn or s == old_short or f"::{s}" == old_qn for s in sub_cls.superclasses
             )
             if is_super:
                 sub_obj = oo.objects.get(sub_cls.qualified_name)
@@ -1104,9 +1110,7 @@ def _parse_objdefine_body(
     oo = _get_oo_runtime(interp)
     metaclass = oo.classes.get(obj.class_name)
     if metaclass is not None and metaclass.instance_definition_namespace:
-        custom_ns = _resolve_ns(
-            interp.root_namespace, metaclass.instance_definition_namespace
-        )
+        custom_ns = _resolve_ns(interp.root_namespace, metaclass.instance_definition_namespace)
         if custom_ns is not None:
             eval_ns = custom_ns
 
@@ -1137,9 +1141,6 @@ def _setup_slot_instances(interp: TclInterp, oo: OORuntime) -> None:
     These slot objects implement the standard -set/-append/-clear/-prepend
     /-remove protocol for filter, mixin, superclass, and variable commands.
     """
-    from ..scope import ensure_namespace
-
-    slot_cls = oo.classes["::oo::Slot"]
 
     # Define the slot instances we need to create.
     # Each entry: (slot_name, has_resolve, has_default_op)
@@ -1218,14 +1219,15 @@ def _get_oo_runtime(interp: TclInterp) -> OORuntime:
         oo_frame.set_var("patchlevel", "1.3.1")
         oo_frame.set_var("version", "1.3.1")
         # Register tcl::oo as a provided package
-        interp.eval('package provide tcl::oo 1.3.1')
+        interp.eval("package provide tcl::oo 1.3.1")
         # Eagerly register define/objdefine subcommands so they are
         # accessible by FQ name (e.g. oo::define::private) from any context.
         _ensure_define_commands(interp)
         _ensure_objdefine_commands(interp)
         # Register oo::Slot class command
-        _register_class_command(interp, interp._oo_runtime, "::oo::Slot",
-                                interp._oo_runtime.classes["::oo::Slot"])
+        _register_class_command(
+            interp, interp._oo_runtime, "::oo::Slot", interp._oo_runtime.classes["::oo::Slot"]
+        )
         # Create slot instances for define/objdefine namespaces
         _setup_slot_instances(interp, interp._oo_runtime)
     return interp._oo_runtime
@@ -1352,13 +1354,18 @@ def _register_class_command(
             while "::::" in create_name:
                 create_name = create_name.replace("::::", "::")
             obj_name = oo.create_object(
-                interp, qualified, obj_name=create_name, args=cmd_args[2:],
+                interp,
+                qualified,
+                obj_name=create_name,
+                args=cmd_args[2:],
                 display_name=cmd_args[1],
             )
             return TclResult(value=obj_name)
         if method == "createWithNamespace" and not is_unexported:
             if len(cmd_args) < 3:
-                raise TclError(f'wrong # args: should be "{qualified} createWithNamespace name nsName ?arg ...?"')
+                raise TclError(
+                    f'wrong # args: should be "{qualified} createWithNamespace name nsName ?arg ...?"'
+                )
             create_name = cmd_args[1]
             ns_name = cmd_args[2]
             if not create_name:
@@ -1379,10 +1386,14 @@ def _register_class_command(
                 else:
                     ns_name = f"{cur_ns}::{ns_name}"
             from ..scope import resolve_namespace
+
             if resolve_namespace(interp.root_namespace, ns_name) is not None:
                 raise TclError(f'can\'t create namespace "{ns_name}": already exists')
             obj_name = oo.create_object(
-                interp, qualified, obj_name=create_name, args=cmd_args[3:],
+                interp,
+                qualified,
+                obj_name=create_name,
+                args=cmd_args[3:],
                 display_name=cmd_args[1],
             )
             # Override the auto-generated namespace with the specified one
@@ -1392,6 +1403,7 @@ def _register_class_command(
                 created_obj.namespace = ns_name
                 # Create the new namespace and set back-reference
                 from ..scope import ensure_namespace, resolve_namespace
+
                 new_ns = ensure_namespace(interp.root_namespace, ns_name)
                 new_ns._oo_object_name = obj_name
                 # Clean up old auto-generated namespace
@@ -1446,10 +1458,7 @@ def _register_class_command(
         else:
             available.extend(["create", "new"])
         available = sorted(set(available))
-        raise TclError(
-            f'unknown method "{method}": must be '
-            + _format_method_list(available)
-        )
+        raise TclError(f'unknown method "{method}": must be ' + _format_method_list(available))
 
     interp._runtime_commands[qualified] = _class_cmd
     # Also register short name
@@ -1506,8 +1515,8 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
         except TclError as e:
             # Rewrite "wrong # args" to include oo::define prefix
             msg = e.message
-            if msg.startswith("wrong # args: should be \""):
-                inner = msg[len("wrong # args: should be \""):-1]
+            if msg.startswith('wrong # args: should be "'):
+                inner = msg[len('wrong # args: should be "') : -1]
                 msg = f'wrong # args: should be "oo::define {class_name} {inner}"'
             # Build proper error_info with full command text
             full_cmd = "oo::define " + " ".join(args)
@@ -1566,8 +1575,8 @@ def _cmd_oo_objdefine(interp: TclInterp, args: list[str]) -> TclResult:
             body_result = _parse_objdefine_body(interp, obj, reconstructed)
         except TclError as e:
             msg = e.message
-            if msg.startswith("wrong # args: should be \""):
-                inner = msg[len("wrong # args: should be \""):-1]
+            if msg.startswith('wrong # args: should be "'):
+                inner = msg[len('wrong # args: should be "') : -1]
                 msg = f'wrong # args: should be "oo::objdefine {obj_name} {inner}"'
             full_cmd = "oo::objdefine " + " ".join(args)
             error_info = [msg, f'    while executing\n"{full_cmd}"']
@@ -1605,7 +1614,9 @@ def _cmd_oo_object(interp: TclInterp, args: list[str]) -> TclResult:
                 name = f"::{name}"
             else:
                 name = f"{ns}::{name}"
-        obj_name = oo.create_object(interp, "::oo::object", obj_name=name, args=args[2:], display_name=args[1])
+        obj_name = oo.create_object(
+            interp, "::oo::object", obj_name=name, args=args[2:], display_name=args[1]
+        )
         return TclResult(value=obj_name)
     elif subcmd == "destroy":
         # oo::object itself cannot be destroyed in normal usage
@@ -1701,7 +1712,9 @@ def _cmd_oo_copy(interp: TclInterp, args: list[str]) -> TclResult:
             # Invoke <cloned> method on the new class object
             cloned_method, cloned_class = oo.resolve_method(tgt, "<cloned>")
             if cloned_method is not None:
-                oo._invoke_method(interp, tgt, cloned_method, [src.name], defining_class=cloned_class)
+                oo._invoke_method(
+                    interp, tgt, cloned_method, [src.name], defining_class=cloned_class
+                )
         return TclResult(value=tgt_name)
 
     tgt_ns = target_namespace or f"::oo::Obj{oo._next_obj_id}"
@@ -1745,7 +1758,7 @@ def _cmd_self(interp: TclInterp, args: list[str]) -> TclResult:
         defining_cls = getattr(interp, "_defining_class", None)
         defining_obj = getattr(interp, "_defining_object", None)
         defining_frame = getattr(interp, "_defining_frame", None)
-        in_define = (defining_cls is not None or defining_obj is not None)
+        in_define = defining_cls is not None or defining_obj is not None
         if in_define and frame is defining_frame:
             if args:
                 raise TclError('wrong # args: should be "self"')
@@ -1840,11 +1853,11 @@ def _cmd_self(interp: TclInterp, args: list[str]) -> TclResult:
                 private_classes.add(f_class)
             f = getattr(f, "_info_parent", None) or f.parent
         chain = oo.build_object_call_chain(
-            obj, method_name,
+            obj,
+            method_name,
             private_classes=private_classes if private_classes else None,
         )
         # Format the chain
-        from vm.machine import _list_escape
         chain_parts = []
         for call_type, mname, cname, impl_type in chain:
             chain_parts.append(f"{{{call_type} {mname} {cname} {impl_type}}}")

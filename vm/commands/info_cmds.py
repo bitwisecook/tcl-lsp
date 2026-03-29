@@ -304,12 +304,12 @@ def _info_frame(interp: TclInterp, level: int) -> TclResult:
         target = interp.current_frame
     elif level > 0:
         if level > len(frames):
-            raise TclError(f"bad level \"{level}\"")
+            raise TclError(f'bad level "{level}"')
         target = frames[level - 1]
     else:
         idx = len(frames) + level
         if idx < 0:
-            raise TclError(f"bad level \"{level}\"")
+            raise TclError(f'bad level "{level}"')
         target = frames[idx]
 
     # Build result dict as key-value pairs
@@ -620,7 +620,9 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
                 pass
             elif private_flag:
                 # -private without -all: show public + unexported (not private)
-                methods = {k: v for k, v in methods.items() if v in ("public", "exported", "unexported")}
+                methods = {
+                    k: v for k, v in methods.items() if v in ("public", "exported", "unexported")
+                }
             elif all_flag:
                 # -all without -private: show public methods (inherited + built-in public)
                 methods = {k: v for k, v in methods.items() if v in ("public", "exported")}
@@ -638,9 +640,7 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
 
         case "creationid":
             if len(rest) != 1:
-                raise TclError(
-                    'wrong # args: should be "info object creationid objName"'
-                )
+                raise TclError('wrong # args: should be "info object creationid objName"')
             oo, obj = _resolve_object(interp, rest[0])
             return TclResult(value=str(obj.creation_id))
 
@@ -694,7 +694,9 @@ def _info_object(interp: TclInterp, args: list[str]) -> TclResult:
             method = obj.instance_methods.get(method_name)
             if method is None:
                 raise TclError(f'unknown method "{method_name}"')
-            param_parts = [f"{{{n} {d}}}" if d is not None else _list_escape(n) for n, d in method.params]
+            param_parts = [
+                f"{{{n} {d}}}" if d is not None else _list_escape(n) for n, d in method.params
+            ]
             param_str = " ".join(param_parts)
             return TclResult(value=f"{{{param_str}}} {{{method.body}}}")
 
@@ -893,7 +895,9 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                 methods = list(methods_dict.keys())
             elif private_flag:
                 # -private without -all: show public + unexported (not private)
-                methods = [k for k, v in methods_dict.items() if v in ("public", "exported", "unexported")]
+                methods = [
+                    k for k, v in methods_dict.items() if v in ("public", "exported", "unexported")
+                ]
             elif all_flag:
                 # -all without -private: show public methods (inherited + built-in public)
                 methods = [k for k, v in methods_dict.items() if v in ("public", "exported")]
@@ -929,7 +933,9 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                 raise TclError(
                     f'unknown method "{method_name}": must be {_format_or_list(sorted(cls.methods.keys()))}'
                 )
-            param_parts = [f"{{{n} {d}}}" if d is not None else _list_escape(n) for n, d in method.params]
+            param_parts = [
+                f"{{{n} {d}}}" if d is not None else _list_escape(n) for n, d in method.params
+            ]
             param_str = " ".join(param_parts)
             return TclResult(value=f"{{{param_str}}} {{{method.body}}}")
 
@@ -1019,9 +1025,7 @@ def _info_class(interp: TclInterp, args: list[str]) -> TclResult:
                 defns = getattr(cls, "instance_definition_namespace", None) or ""
                 return TclResult(value=defns)
             else:
-                raise TclError(
-                    f'bad kind "{kind}": must be -class or -instance'
-                )
+                raise TclError(f'bad kind "{kind}": must be -class or -instance')
 
         case _:
             return TclResult()

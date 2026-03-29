@@ -63,6 +63,7 @@ class _Emitter(
         self._optimise = optimise
         self._is_proc = is_proc
         self._proc_defs = proc_defs
+
         # Pending proc defs sorted by source line for interleaved emission.
         def _is_static_proc(p: IRProcedure) -> bool:
             """Only emit literal proc defs when name, params, and body are

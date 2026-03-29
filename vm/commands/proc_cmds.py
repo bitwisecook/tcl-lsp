@@ -208,6 +208,7 @@ def _cmd_rename(interp: TclInterp, args: list[str]) -> TclResult:
             if new_name:
                 if "::" in new_name:
                     from ..scope import ensure_namespace
+
                     new_ns_part = new_name[: new_name.rfind("::")]
                     new_tail = new_name[new_name.rfind("::") + 2 :]
                     new_ns = ensure_namespace(

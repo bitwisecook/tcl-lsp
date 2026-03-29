@@ -525,7 +525,7 @@ class CallFrame:
 
         # Check if the variable is a constant
         if resolved in frame._constants:
-            raise TclError(f"can't set \"{name}\": variable is a constant")
+            raise TclError(f'can\'t set "{name}": variable is a constant')
 
         # Save old value for rollback if a write trace errors
         old_scalar: str | None = None
@@ -598,7 +598,7 @@ class CallFrame:
         frame, resolved, elem = self._locate(name)
 
         if resolved in frame._constants and not nocomplain:
-            raise TclError(f"can't unset \"{name}\": variable is a constant")
+            raise TclError(f'can\'t unset "{name}": variable is a constant')
 
         if elem is not None:
             arr = frame._arrays.get(resolved)

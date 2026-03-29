@@ -28,9 +28,7 @@ def _cmd_trace(interp: TclInterp, args: list[str]) -> TclResult:
         case "add":
             if is_variable:
                 if len(args) < 5:
-                    raise TclError(
-                        'wrong # args: should be "trace add variable name ops command"'
-                    )
+                    raise TclError('wrong # args: should be "trace add variable name ops command"')
                 var_name = args[2]
                 ops = _split_list(args[3])
                 script = args[4]
@@ -39,9 +37,7 @@ def _cmd_trace(interp: TclInterp, args: list[str]) -> TclResult:
                 return TclResult()
             if is_command:
                 if len(args) < 5:
-                    raise TclError(
-                        'wrong # args: should be "trace add command name ops command"'
-                    )
+                    raise TclError('wrong # args: should be "trace add command name ops command"')
                 cmd_name = args[2]
                 ops = _split_list(args[3])
                 script = args[4]
@@ -50,14 +46,10 @@ def _cmd_trace(interp: TclInterp, args: list[str]) -> TclResult:
                 return TclResult()
             if is_execution:
                 if len(args) < 5:
-                    raise TclError(
-                        'wrong # args: should be "trace add execution name ops command"'
-                    )
+                    raise TclError('wrong # args: should be "trace add execution name ops command"')
                 # Stub: accept but don't fire execution traces
                 return TclResult()
-            raise TclError(
-                f'bad option "{kind}": must be command, execution, or variable'
-            )
+            raise TclError(f'bad option "{kind}": must be command, execution, or variable')
 
         case "remove":
             if is_variable:
@@ -94,9 +86,7 @@ def _cmd_trace(interp: TclInterp, args: list[str]) -> TclResult:
                         'wrong # args: should be "trace remove execution name ops command"'
                     )
                 return TclResult()
-            raise TclError(
-                f'bad option "{kind}": must be command, execution, or variable'
-            )
+            raise TclError(f'bad option "{kind}": must be command, execution, or variable')
 
         case "info":
             if is_variable:
@@ -125,9 +115,7 @@ def _cmd_trace(interp: TclInterp, args: list[str]) -> TclResult:
                 if len(args) < 3:
                     raise TclError('wrong # args: should be "trace info execution name"')
                 return TclResult(value="")
-            raise TclError(
-                f'bad option "{kind}": must be command, execution, or variable'
-            )
+            raise TclError(f'bad option "{kind}": must be command, execution, or variable')
 
         case _:
             raise TclError(f'bad option "{action}": must be add, info, or remove')

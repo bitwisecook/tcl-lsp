@@ -14,7 +14,8 @@ from ..scope import (
 from ..types import TclError, TclResult
 
 if TYPE_CHECKING:
-    from ..interp import TclInterp
+    from ..commands import CommandHandler
+    from ..interp import EnsembleConfig, TclInterp
 
 
 def _resolve_ns_name(interp: TclInterp, name: str) -> str:
@@ -215,9 +216,7 @@ def _ns_parent(interp: TclInterp, args: list[str]) -> TclResult:
         ns_name = _resolve_ns_name(interp, args[0])
         ns = resolve_namespace(interp.root_namespace, ns_name)
         if ns is None:
-            raise TclError(
-                f'namespace "{ns_name}" not found in "::"'
-            )
+            raise TclError(f'namespace "{ns_name}" not found in "::"')
 
     if ns.parent is None:
         return TclResult(value="")
@@ -252,9 +251,7 @@ def _ns_delete(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _cleanup_ensembles_for_namespace(interp: TclInterp, ns_name: str) -> None:
     """Remove ensemble metadata and commands when a namespace is deleted."""
-    to_remove = [
-        fqn for fqn, cfg in interp.ensembles.items() if cfg.namespace == ns_name
-    ]
+    to_remove = [fqn for fqn, cfg in interp.ensembles.items() if cfg.namespace == ns_name]
     for fqn in to_remove:
         del interp.ensembles[fqn]
         # Remove the registered command (use tail name for unqualified commands)
@@ -266,9 +263,7 @@ def _cleanup_ensembles_for_namespace(interp: TclInterp, ns_name: str) -> None:
 def _ns_which(interp: TclInterp, args: list[str]) -> TclResult:
     """namespace which ?-command|-variable? name"""
     if not args or len(args) > 2:
-        raise TclError(
-            'wrong # args: should be "namespace which ?-command? ?-variable? name"'
-        )
+        raise TclError('wrong # args: should be "namespace which ?-command? ?-variable? name"')
 
     which_type = "command"
     if len(args) == 2:
@@ -277,9 +272,7 @@ def _ns_which(interp: TclInterp, args: list[str]) -> TclResult:
         elif args[0] == "-variable":
             which_type = "variable"
         else:
-            raise TclError(
-                'wrong # args: should be "namespace which ?-command? ?-variable? name"'
-            )
+            raise TclError('wrong # args: should be "namespace which ?-command? ?-variable? name"')
         name = args[1]
     else:
         # Single arg: always treated as the name (even if it looks like a flag)
@@ -423,9 +416,7 @@ def _ns_ensemble(interp: TclInterp, args: list[str]) -> TclResult:
             fqn = _resolve_ns_name(interp, rest[0])
             return TclResult(value="1" if fqn in interp.ensembles else "0")
         case _:
-            raise TclError(
-                f'bad subcommand "{subcmd}": must be configure, create, or exists'
-            )
+            raise TclError(f'bad subcommand "{subcmd}": must be configure, create, or exists')
 
 
 def _parse_ensemble_options(
@@ -435,9 +426,7 @@ def _parse_ensemble_options(
     from ..machine import _split_list
 
     if len(args) % 2 != 0:
-        raise TclError(
-            'wrong # args: should be "namespace ensemble create ?option value ...?"'
-        )
+        raise TclError('wrong # args: should be "namespace ensemble create ?option value ...?"')
 
     result: dict[str, str | list[str] | dict[str, str] | bool] = {}
     i = 0
@@ -530,8 +519,7 @@ def _ns_ensemble_configure(interp: TclInterp, args: list[str]) -> TclResult:
     """namespace ensemble configure cmdname ?-option? ?value? ..."""
     if not args:
         raise TclError(
-            'wrong # args: should be "namespace ensemble configure cmdname '
-            '?-option? ?value ...?"'
+            'wrong # args: should be "namespace ensemble configure cmdname ?-option? ?value ...?"'
         )
 
     cmd_name = args[0]
@@ -578,9 +566,7 @@ def _ns_ensemble_configure(interp: TclInterp, args: list[str]) -> TclResult:
                         )
                     if not impl.startswith("::"):
                         ns_qual = config.namespace
-                        impl = (
-                            f"{ns_qual}::{impl}" if ns_qual != "::" else f"::{impl}"
-                        )
+                        impl = f"{ns_qual}::{impl}" if ns_qual != "::" else f"::{impl}"
                     m[items[j]] = impl
                 config.map = m
             case "-subcommands":
@@ -611,12 +597,18 @@ def _ensemble_config_dict(config: "EnsembleConfig") -> str:
     prefix_str = "1" if config.prefixes else "0"
 
     parts = [
-        "-map", _tcl_list_value(map_str),
-        "-namespace", config.namespace,
-        "-parameters", _tcl_list_value(params_str),
-        "-prefixes", prefix_str,
-        "-subcommands", _tcl_list_value(subcmds_str),
-        "-unknown", _tcl_list_value(config.unknown),
+        "-map",
+        _tcl_list_value(map_str),
+        "-namespace",
+        config.namespace,
+        "-parameters",
+        _tcl_list_value(params_str),
+        "-prefixes",
+        prefix_str,
+        "-subcommands",
+        _tcl_list_value(subcmds_str),
+        "-unknown",
+        _tcl_list_value(config.unknown),
     ]
     return " ".join(parts)
 
@@ -651,9 +643,7 @@ def _tcl_dict_str(d: dict[str, str]) -> str:
     return " ".join(parts)
 
 
-def _get_ensemble_subcommands(
-    interp: TclInterp, config: "EnsembleConfig"
-) -> list[str]:
+def _get_ensemble_subcommands(interp: TclInterp, config: "EnsembleConfig") -> list[str]:
     """Get the effective subcommand names for an ensemble."""
     if config.subcommands:
         return config.subcommands
@@ -686,20 +676,15 @@ def _make_ensemble_handler(fqn: str) -> "CommandHandler":
             if len(handler_args) < len(params) + 1:
                 param_usage = " ".join(params)
                 raise TclError(
-                    f'wrong # args: should be "{display} {param_usage} '
-                    f'subcommand ?arg ...?"'
+                    f'wrong # args: should be "{display} {param_usage} subcommand ?arg ...?"'
                 )
             # Skip parameter values, keep them for potential forwarding
-            param_values = handler_args[: len(params)]
             remaining = handler_args[len(params) :]
         else:
-            param_values = []
             remaining = handler_args
 
         if not remaining:
-            raise TclError(
-                f'wrong # args: should be "{display} subcommand ?arg ...?"'
-            )
+            raise TclError(f'wrong # args: should be "{display} subcommand ?arg ...?"')
 
         sub = remaining[0]
         sub_args = remaining[1:]
@@ -713,9 +698,7 @@ def _make_ensemble_handler(fqn: str) -> "CommandHandler":
             if sub in config.subcommands:
                 # If there's a map entry, use it; otherwise dispatch to namespace
                 if sub in effective_map:
-                    return _dispatch_ensemble_target(
-                        interp_, effective_map[sub], sub_args
-                    )
+                    return _dispatch_ensemble_target(interp_, effective_map[sub], sub_args)
                 qual = f"{config.namespace}::{sub}"
                 return interp_.invoke(qual, sub_args)
             # Try prefix matching if enabled
@@ -724,24 +707,18 @@ def _make_ensemble_handler(fqn: str) -> "CommandHandler":
                 if len(matches) == 1:
                     matched = matches[0]
                     if matched in effective_map:
-                        return _dispatch_ensemble_target(
-                            interp_, effective_map[matched], sub_args
-                        )
+                        return _dispatch_ensemble_target(interp_, effective_map[matched], sub_args)
                     qual = f"{config.namespace}::{matched}"
                     return interp_.invoke(qual, sub_args)
             # Fall through to unknown handler / error
         elif effective_map:
             # No -subcommands, dispatch from map
             if sub in effective_map:
-                return _dispatch_ensemble_target(
-                    interp_, effective_map[sub], sub_args
-                )
+                return _dispatch_ensemble_target(interp_, effective_map[sub], sub_args)
             if config.prefixes:
                 matches = [s for s in effective_map if s.startswith(sub)]
                 if len(matches) == 1:
-                    return _dispatch_ensemble_target(
-                        interp_, effective_map[matches[0]], sub_args
-                    )
+                    return _dispatch_ensemble_target(interp_, effective_map[matches[0]], sub_args)
         else:
             # No map, no subcommands — use namespace exports
             ns = resolve_namespace(interp_.root_namespace, config.namespace)
@@ -793,9 +770,7 @@ def _make_ensemble_handler(fqn: str) -> "CommandHandler":
     return ensemble_handler
 
 
-def _dispatch_ensemble_target(
-    interp: TclInterp, target: str, args: list[str]
-) -> TclResult:
+def _dispatch_ensemble_target(interp: TclInterp, target: str, args: list[str]) -> TclResult:
     """Dispatch to an ensemble target, handling multi-word map values."""
     from ..machine import _split_list
 

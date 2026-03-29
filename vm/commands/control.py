@@ -309,9 +309,7 @@ def _cmd_if(interp: TclInterp, args: list[str]) -> TclResult:
             if k + 1 >= len(args):
                 raise TclError('wrong # args: no script following "else" argument')
             if k + 2 < len(args):
-                raise TclError(
-                    'wrong # args: extra words after "else" clause in "if" command'
-                )
+                raise TclError('wrong # args: extra words after "else" clause in "if" command')
             break
         if a == "elseif":
             if k + 1 >= len(args):

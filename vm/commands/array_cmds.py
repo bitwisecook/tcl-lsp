@@ -342,32 +342,24 @@ def _array_default(interp: TclInterp, args: list[str]) -> TclResult:
     match sub:
         case "set":
             if len(args) != 3:
-                raise TclError(
-                    'wrong # args: should be "array default set arrayName value"'
-                )
+                raise TclError('wrong # args: should be "array default set arrayName value"')
             interp.current_frame.array_set_default(array_name, args[2])
             return TclResult()
         case "get":
             if len(args) != 2:
-                raise TclError(
-                    'wrong # args: should be "array default get arrayName"'
-                )
+                raise TclError('wrong # args: should be "array default get arrayName"')
             val = interp.current_frame.array_get_default(array_name)
             if val is None:
                 raise TclError(f'"{array_name}" isn\'t an array or has no default')
             return TclResult(value=val)
         case "exists":
             if len(args) != 2:
-                raise TclError(
-                    'wrong # args: should be "array default exists arrayName"'
-                )
+                raise TclError('wrong # args: should be "array default exists arrayName"')
             val = interp.current_frame.array_get_default(array_name)
             return TclResult(value="1" if val is not None else "0")
         case "unset":
             if len(args) != 2:
-                raise TclError(
-                    'wrong # args: should be "array default unset arrayName"'
-                )
+                raise TclError('wrong # args: should be "array default unset arrayName"')
             interp.current_frame.array_unset_default(array_name)
             return TclResult()
         case _:

@@ -195,7 +195,14 @@ class OORuntime:
                 has_args=True,
                 visibility="public",
             )
-        slot_cls.exported_methods = {"-set", "-append", "-clear", "-prepend", "-remove", "-appendifnew"}
+        slot_cls.exported_methods = {
+            "-set",
+            "-append",
+            "-clear",
+            "-prepend",
+            "-remove",
+            "-appendifnew",
+        }
         # Get and Set are unexported (overridden by subclasses)
         for vmethod in ("Get", "Set"):
             slot_cls.methods[vmethod] = TclOOMethod(
@@ -343,6 +350,7 @@ class OORuntime:
         # Create the actual Tcl namespace for this object so that
         # `namespace delete` and variable access work correctly.
         from .scope import ensure_namespace
+
         obj_ns = ensure_namespace(interp.root_namespace, ns)
         # Store a back-reference so namespace delete can trigger destruction
         obj_ns._oo_object_name = obj_name
@@ -494,7 +502,10 @@ class OORuntime:
                     or unknown.body == "__builtin_slot_unknown__"
                 ):
                     return oo_self._invoke_method(
-                        interp, obj, unknown, [],
+                        interp,
+                        obj,
+                        unknown,
+                        [],
                         defining_class=unknown_class,
                     )
                 raise TclError(f'wrong # args: should be "{short_name} method ?arg ...?"')
@@ -534,17 +545,12 @@ class OORuntime:
                 # is in the same class (TIP 500 cross-object access)
                 frame = interp.current_frame
                 err_caller_class = getattr(frame, "_oo_class", None)
-                avail = self._available_methods(
-                    obj, caller_class=err_caller_class
-                )
+                avail = self._available_methods(obj, caller_class=err_caller_class)
                 if avail:
                     raise TclError(
-                        f'unknown method "{method_name}": must be '
-                        + _format_method_list(avail)
+                        f'unknown method "{method_name}": must be ' + _format_method_list(avail)
                     )
-                raise TclError(
-                    f'object "{obj.name}" has no visible methods'
-                )
+                raise TclError(f'object "{obj.name}" has no visible methods')
 
             if not is_destroy:
                 # Check visibility — unexported methods are not callable from
@@ -587,7 +593,9 @@ class OORuntime:
                         # Private method not accessible — try to find a
                         # non-private implementation further down the MRO
                         alt_method, alt_class = oo_self.resolve_method(
-                            obj, method_name, skip_private_from=defining_class,
+                            obj,
+                            method_name,
+                            skip_private_from=defining_class,
                         )
                         if alt_method is not None:
                             method = alt_method
@@ -619,7 +627,9 @@ class OORuntime:
                             or unknown.body == "__builtin_slot_unknown__"
                         ):
                             return oo_self._invoke_method(
-                                interp, obj, unknown,
+                                interp,
+                                obj,
+                                unknown,
                                 [method_name] + method_args,
                                 defining_class=unknown_class,
                             )
@@ -629,9 +639,7 @@ class OORuntime:
                                 f'unknown method "{method_name}": must be '
                                 + _format_method_list(avail)
                             )
-                        raise TclError(
-                            f'object "{obj.name}" has no visible methods'
-                        )
+                        raise TclError(f'object "{obj.name}" has no visible methods')
 
             # Check for filters — filters intercept all method calls
             # including destroy (but not the filter methods themselves).
@@ -708,7 +716,7 @@ class OORuntime:
                 raise TclError('wrong # args: should be "my method ?arg ...?"')
             # Check if object has been destroyed
             if obj.name not in oo_self.objects:
-                raise TclError(f'invalid command name "my"')
+                raise TclError('invalid command name "my"')
             method_name = args[0]
             # For class objects, route create/new/destroy to the class command
             if obj.name in oo_self.classes and method_name in ("create", "new", "destroy"):
@@ -747,8 +755,7 @@ class OORuntime:
                 avail = oo_self._available_methods(obj, include_all=True, caller_class=caller_class)
                 if avail:
                     raise TclError(
-                        f'unknown method "{method_name}": must be '
-                        + _format_method_list(avail)
+                        f'unknown method "{method_name}": must be ' + _format_method_list(avail)
                     )
                 raise TclError(f'unknown method "{method_name}"')
             # TIP 500: private methods are only accessible from the
@@ -774,7 +781,9 @@ class OORuntime:
                         method = alt_method
                         defining_class = alt_class
                     else:
-                        avail = oo_self._available_methods(obj, include_all=True, caller_class=caller_class)
+                        avail = oo_self._available_methods(
+                            obj, include_all=True, caller_class=caller_class
+                        )
                         if avail:
                             raise TclError(
                                 f'unknown method "{method_name}": must be '
@@ -793,10 +802,18 @@ class OORuntime:
                             chain.append((fm, cqn))
                     if chain:
                         return oo_self._invoke_with_filters(
-                            interp, obj, chain, 0, method_name, args[1:],
-                            method, defining_class,
+                            interp,
+                            obj,
+                            chain,
+                            0,
+                            method_name,
+                            args[1:],
+                            method,
+                            defining_class,
                         )
-            return oo_self._invoke_method(interp, obj, method, args[1:], defining_class=defining_class)
+            return oo_self._invoke_method(
+                interp, obj, method, args[1:], defining_class=defining_class
+            )
 
         ns_my_name = f"{obj.namespace}::my"
         interp._runtime_commands[ns_my_name] = _ns_my
@@ -808,7 +825,7 @@ class OORuntime:
                 raise TclError('wrong # args: should be "myclass method ?arg ...?"')
             # Check if object has been destroyed
             if obj.name not in oo_self.objects:
-                raise TclError(f'invalid command name "myclass"')
+                raise TclError('invalid command name "myclass"')
             # Look up the class command and dispatch, allowing unexported access
             cls_cmd = interp._runtime_commands.get(obj.class_name)
             if cls_cmd is not None:
@@ -824,8 +841,11 @@ class OORuntime:
         interp._runtime_commands[ns_myclass_name] = _ns_myclass
 
     def resolve_method(
-        self, obj: TclOOObject, method_name: str,
-        *, skip_private_from: str | None = None,
+        self,
+        obj: TclOOObject,
+        method_name: str,
+        *,
+        skip_private_from: str | None = None,
     ) -> tuple[TclOOMethod | None, str | None]:
         """Resolve a method on an object using MRO.
 
@@ -846,26 +866,36 @@ class OORuntime:
             # Insert instance method check right before the direct class
             if class_qname == obj.class_name and method_name in obj.instance_methods:
                 m = obj.instance_methods[method_name]
-                if not (skip_private_from and inst_dc == skip_private_from and m.visibility == "private"):
+                if not (
+                    skip_private_from and inst_dc == skip_private_from and m.visibility == "private"
+                ):
                     return m, inst_dc
 
             ancestor = self.classes.get(class_qname)
             if ancestor and method_name in ancestor.methods:
                 m = ancestor.methods[method_name]
-                if skip_private_from and class_qname == skip_private_from and m.visibility == "private":
+                if (
+                    skip_private_from
+                    and class_qname == skip_private_from
+                    and m.visibility == "private"
+                ):
                     continue
                 return m, class_qname
 
         # Fallback: if direct class not in MRO, still check instance methods
         if method_name in obj.instance_methods:
             m = obj.instance_methods[method_name]
-            if not (skip_private_from and inst_dc == skip_private_from and m.visibility == "private"):
+            if not (
+                skip_private_from and inst_dc == skip_private_from and m.visibility == "private"
+            ):
                 return m, inst_dc
 
         return None, None
 
     def _resolve_all_methods(
-        self, obj: TclOOObject, method_name: str,
+        self,
+        obj: TclOOObject,
+        method_name: str,
     ) -> list[tuple[str, TclOOMethod]]:
         """Resolve ALL implementations of a method in MRO order.
 
@@ -968,9 +998,11 @@ class OORuntime:
                                 continue
                             elif md.visibility == "public":
                                 methods.add(m)
-                            elif (md.visibility == "private"
-                                  and caller_class is not None
-                                  and class_qname == caller_class):
+                            elif (
+                                md.visibility == "private"
+                                and caller_class is not None
+                                and class_qname == caller_class
+                            ):
                                 methods.add(m)
         return sorted(methods)
 
@@ -1044,6 +1076,7 @@ class OORuntime:
             frame._oo_method = method.name
             # Resolve non-qualified commands in the object's namespace
             from .scope import ensure_namespace
+
             obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
             saved_ns = interp.current_namespace
             interp.current_namespace = obj_ns
@@ -1054,9 +1087,7 @@ class OORuntime:
                 # method name and object instead of the internal target.
                 msg = str(e)
                 if msg.startswith("wrong # args: should be "):
-                    m = re.match(
-                        r'wrong # args: should be "([^"]*)"', msg
-                    )
+                    m = re.match(r'wrong # args: should be "([^"]*)"', msg)
                     if m:
                         original = m.group(1).split()
                         prefix_count = len(method.forward_target)
@@ -1076,7 +1107,6 @@ class OORuntime:
 
         from .scope import CallFrame, ensure_namespace
 
-        cls = self.classes.get(obj.class_name)
         # Method bodies execute in the object's per-instance namespace
         # so that commands like ``proc`` create definitions scoped to
         # the object rather than polluting the global namespace.
@@ -1210,13 +1240,17 @@ class OORuntime:
                 # when invoked via my, or (in "::obj eval" script line N)
                 # when invoked externally.
                 caller_frame = frame.parent
-                via_my = getattr(caller_frame, '_oo_self', None) == obj.name if caller_frame else False
+                via_my = (
+                    getattr(caller_frame, "_oo_self", None) == obj.name if caller_frame else False
+                )
                 if via_my:
-                    eval_ctx = f'    (in "my eval" script line 1)'
+                    eval_ctx = '    (in "my eval" script line 1)'
                     eval_inv = f'    invoked from within\n"my eval {{{args[0] if args else ""}}}"'
                 else:
                     eval_ctx = f'    (in "{obj.name} eval" script line 1)'
-                    eval_inv = f'    invoked from within\n"{obj.name} eval {{{args[0] if args else ""}}}"'
+                    eval_inv = (
+                        f'    invoked from within\n"{obj.name} eval {{{args[0] if args else ""}}}"'
+                    )
                 info.append(eval_ctx)
                 info.append(eval_inv)
             else:
@@ -1261,7 +1295,11 @@ class OORuntime:
             from .machine import _list_escape
             from .scope import ensure_namespace
 
-            script = " ".join(_list_escape(a) for a in args) if len(args) > 1 else (args[0] if args else "")
+            script = (
+                " ".join(_list_escape(a) for a in args)
+                if len(args) > 1
+                else (args[0] if args else "")
+            )
             obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
             ns_frame = obj_ns.get_frame(interp)
 
@@ -1274,12 +1312,12 @@ class OORuntime:
             # Propagate OO context so self/my work inside eval.
             saved_frame = interp.current_frame
             saved_ns = interp.current_namespace
-            saved_oo_self = getattr(ns_frame, '_oo_self', None)
-            saved_oo_class = getattr(ns_frame, '_oo_class', None)
-            saved_oo_method = getattr(ns_frame, '_oo_method', None)
+            saved_oo_self = getattr(ns_frame, "_oo_self", None)
+            saved_oo_class = getattr(ns_frame, "_oo_class", None)
+            saved_oo_method = getattr(ns_frame, "_oo_method", None)
             ns_frame._oo_self = obj.name
-            ns_frame._oo_class = getattr(frame, '_oo_class', None)
-            ns_frame._oo_method = getattr(frame, '_oo_method', None)
+            ns_frame._oo_class = getattr(frame, "_oo_class", None)
+            ns_frame._oo_method = getattr(frame, "_oo_method", None)
             interp.current_frame = ns_frame
             interp.current_namespace = obj_ns
             try:
@@ -1312,7 +1350,7 @@ class OORuntime:
                     )
                 # Add to the instance variable proxy on the caller's frame,
                 # so that reads/writes go directly through obj._vars.
-                proxy = getattr(caller, '_oo_instance_vars', None)
+                proxy = getattr(caller, "_oo_instance_vars", None)
                 if proxy is not None:
                     vars_dict, vars_set = proxy
                     vars_set.add(var_name)
@@ -1331,6 +1369,7 @@ class OORuntime:
             # Check if the variable has an upvar alias in the caller's
             # frame or the object's namespace frame (Bug 2da1cb0c80)
             from .scope import ensure_namespace
+
             caller = interp.current_frame
             # First check caller's frame (for `my variable` context)
             check_frame = None
@@ -1352,15 +1391,18 @@ class OORuntime:
                     seen.add(key)
                     target_frame, target_name = target_frame._aliases[target_name]
                 # If the target is in a namespace frame, return qualified
-                ns_ref = getattr(target_frame, 'namespace', None)
-                if ns_ref is not None and hasattr(ns_ref, 'qualname'):
+                ns_ref = getattr(target_frame, "namespace", None)
+                if ns_ref is not None and hasattr(ns_ref, "qualname"):
                     qn_ref = ns_ref.qualname
-                    return TclResult(value=f"{qn_ref}::{target_name}" if qn_ref != "::" else f"::{target_name}")
+                    return TclResult(
+                        value=f"{qn_ref}::{target_name}" if qn_ref != "::" else f"::{target_name}"
+                    )
                 # For global vars, return ::name
                 if target_frame.parent is None:
                     return TclResult(value=f"::{target_name}")
             # Ensure variable is accessible in the object's namespace frame
             from .scope import ensure_namespace
+
             obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
             ns_frame = obj_ns.get_frame(interp)
             # Sync: if the variable exists in obj._vars, make it visible
@@ -1368,7 +1410,7 @@ class OORuntime:
             if var_name in obj._vars:
                 ns_frame._scalars[var_name] = obj._vars[var_name]
             # Set up a proxy so future reads/writes go through obj._vars
-            existing = getattr(ns_frame, '_oo_instance_vars', None)
+            existing = getattr(ns_frame, "_oo_instance_vars", None)
             if existing is not None:
                 existing[1].add(var_name)
             else:
@@ -1385,8 +1427,7 @@ class OORuntime:
                 avail = self._available_methods(obj)
                 if avail:
                     raise TclError(
-                        f'unknown method "{called_method}": must be '
-                        + _format_method_list(avail)
+                        f'unknown method "{called_method}": must be ' + _format_method_list(avail)
                     )
                 raise TclError(f'unknown method "{called_method}"')
             all_args = list(args)
@@ -1395,7 +1436,7 @@ class OORuntime:
             defop_method = self._find_method(obj, "--default-operation")
             # Pop frame so the sub-call runs at the correct level
             saved_frame = interp.current_frame
-            parent = getattr(frame, 'parent', None)
+            parent = getattr(frame, "parent", None)
             if parent is not None:
                 interp.current_frame = parent
             try:
@@ -1409,8 +1450,7 @@ class OORuntime:
                 avail = self._available_methods(obj)
                 if avail:
                     raise TclError(
-                        f'unknown method "{method_name}": must be '
-                        + _format_method_list(avail)
+                        f'unknown method "{method_name}": must be ' + _format_method_list(avail)
                     )
                 raise TclError(f'unknown method "{method_name}"')
             raise TclError("no method name given")
@@ -1421,6 +1461,7 @@ class OORuntime:
             # Default <cloned> handler — copy variables from origin object
             if args:
                 from .scope import ensure_namespace
+
                 origin_name = args[0]
                 origin = self.objects.get(origin_name)
                 if origin is None and not origin_name.startswith("::"):
@@ -1432,9 +1473,10 @@ class OORuntime:
                     # `variable` command inside methods/constructors).
                     origin_ns = ensure_namespace(interp.root_namespace, origin.namespace)
                     obj_ns = ensure_namespace(interp.root_namespace, obj.namespace)
-                    if hasattr(origin_ns, '_frame') and origin_ns._frame is not None:
-                        if not hasattr(obj_ns, '_frame') or obj_ns._frame is None:
+                    if hasattr(origin_ns, "_frame") and origin_ns._frame is not None:
+                        if not hasattr(obj_ns, "_frame") or obj_ns._frame is None:
                             from .scope import CallFrame
+
                             obj_ns._frame = CallFrame(namespace=obj_ns)
                         for vn, vv in origin_ns._frame._scalars.items():
                             obj_ns._frame._scalars[vn] = vv
@@ -1442,8 +1484,17 @@ class OORuntime:
                             obj_ns._frame._arrays[vn] = dict(vv)
             return TclResult()
         # oo::Slot builtin operations
-        if name in ("-set", "-append", "-clear", "-prepend", "-remove",
-                     "-appendifnew", "--default-operation", "Get", "Set"):
+        if name in (
+            "-set",
+            "-append",
+            "-clear",
+            "-prepend",
+            "-remove",
+            "-appendifnew",
+            "--default-operation",
+            "Get",
+            "Set",
+        ):
             return self._exec_slot_builtin(interp, obj, name, args, frame)
 
         # Define-namespace slot builtins (Get/Set/Resolve for filter/mixin/etc.)
@@ -1481,14 +1532,17 @@ class OORuntime:
         # frame so sub-method calls (Get/Set/Resolve) execute at the
         # same level as the slot command invocation.
         saved_frame = interp.current_frame
-        parent = getattr(frame, 'parent', None)
+        parent = getattr(frame, "parent", None)
         if parent is not None:
             interp.current_frame = parent
 
         def _call(method_name: str, margs: list[str]) -> TclResult:
             return self._invoke_method(
-                interp, obj, self._find_method(obj, method_name),
-                margs, defining_class=None,
+                interp,
+                obj,
+                self._find_method(obj, method_name),
+                margs,
+                defining_class=None,
             )
 
         def _resolve_args(raw_args: list[str]) -> list[str]:
@@ -1555,11 +1609,11 @@ class OORuntime:
         # Extract the operation and slot name from the body string
         # Format: __builtin_define_slot_{Op}_{slot_name}__
         # e.g.: __builtin_define_slot_Get_::oo::define::filter__
-        inner = body[len("__builtin_define_slot_"):-2]  # strip prefix and trailing __
+        inner = body[len("__builtin_define_slot_") : -2]  # strip prefix and trailing __
         # Split at first underscore after Op name
         for op_name in ("Get", "Set", "Resolve", "default"):
             if inner.startswith(op_name + "_"):
-                slot_name = inner[len(op_name) + 1:]
+                slot_name = inner[len(op_name) + 1 :]
                 break
         else:
             raise TclError(f"unknown define slot builtin: {body}")
@@ -1576,11 +1630,17 @@ class OORuntime:
                 raise TclError("this command may only be used within objdefine")
             if op_name == "Get":
                 if prop == "filter":
-                    return TclResult(value=" ".join(_list_escape(f) for f in target_obj.instance_filters))
+                    return TclResult(
+                        value=" ".join(_list_escape(f) for f in target_obj.instance_filters)
+                    )
                 elif prop == "mixin":
-                    return TclResult(value=" ".join(_list_escape(m) for m in target_obj.instance_mixins))
+                    return TclResult(
+                        value=" ".join(_list_escape(m) for m in target_obj.instance_mixins)
+                    )
                 elif prop == "variable":
-                    return TclResult(value=" ".join(_list_escape(v) for v in target_obj.instance_variables))
+                    return TclResult(
+                        value=" ".join(_list_escape(v) for v in target_obj.instance_variables)
+                    )
             elif op_name == "Set":
                 lst = _split_list(args[0]) if args and args[0] else []
                 if prop == "filter":
@@ -1704,9 +1764,9 @@ class OORuntime:
                 return False
 
             mixin_objs = [
-                o for o in list(self.objects.values())
-                if o.name != obj.name
-                and any(_matches_class(m) for m in o.instance_mixins)
+                o
+                for o in list(self.objects.values())
+                if o.name != obj.name and any(_matches_class(m) for m in o.instance_mixins)
             ]
             for mo in mixin_objs:
                 if mo.name in self.objects:
@@ -1714,9 +1774,9 @@ class OORuntime:
 
             # Destroy classes that have this class as a class mixin
             mixin_classes = [
-                c for c in list(self.classes.values())
-                if c.qualified_name != qn
-                and any(_matches_class(m) for m in c.mixins)
+                c
+                for c in list(self.classes.values())
+                if c.qualified_name != qn and any(_matches_class(m) for m in c.mixins)
             ]
             for mc in mixin_classes:
                 mc_obj = self.objects.get(mc.qualified_name)
@@ -1768,9 +1828,9 @@ class OORuntime:
         if obj.namespace != obj.name:
             prefixes.add(obj.namespace + "::")
         ns_children = [
-            o for o in list(self.objects.values())
-            if o.name in self.objects
-            and any(o.name.startswith(p) for p in prefixes)
+            o
+            for o in list(self.objects.values())
+            if o.name in self.objects and any(o.name.startswith(p) for p in prefixes)
         ]
         for child in ns_children:
             if child.name in self.objects:
@@ -1866,8 +1926,7 @@ class OORuntime:
             avail = self._available_methods(obj, include_all=True, caller_class=my_caller_class)
             if avail:
                 raise TclError(
-                    f'unknown method "{method_name}": must be '
-                    + _format_method_list(avail)
+                    f'unknown method "{method_name}": must be ' + _format_method_list(avail)
                 )
             raise TclError(f'unknown method "{method_name}"')
 
@@ -1878,8 +1937,7 @@ class OORuntime:
                 avail = self._available_methods(obj, include_all=True, caller_class=my_caller_class)
                 if avail:
                     raise TclError(
-                        f'unknown method "{method_name}": must be '
-                        + _format_method_list(avail)
+                        f'unknown method "{method_name}": must be ' + _format_method_list(avail)
                     )
                 raise TclError(f'unknown method "{method_name}"')
 
@@ -1895,8 +1953,14 @@ class OORuntime:
                         chain.append((fm, cqn))
                 if chain:
                     return self._invoke_with_filters(
-                        interp, obj, chain, 0, method_name, args[1:],
-                        method, defining_class,
+                        interp,
+                        obj,
+                        chain,
+                        0,
+                        method_name,
+                        args[1:],
+                        method,
+                        defining_class,
                     )
 
         return self._invoke_method(interp, obj, method, args[1:], defining_class=defining_class)
@@ -1988,11 +2052,16 @@ class OORuntime:
             """Invoke method and augment errorInfo with 'next' context."""
             try:
                 return self._invoke_method(
-                    interp, obj, m, args,
-                    defining_class=class_qname, via_next=True,
+                    interp,
+                    obj,
+                    m,
+                    args,
+                    defining_class=class_qname,
+                    via_next=True,
                 )
             except TclError as e:
                 from .machine import _list_escape
+
                 next_cmd = "next" + (" " + " ".join(_list_escape(a) for a in args) if args else " ")
                 info = list(e.error_info) if e.error_info else [e.message]
                 info.append(f'    invoked from within\n"{next_cmd}"')
@@ -2066,45 +2135,41 @@ class OORuntime:
         caller_class = getattr(frame, "_oo_class", None)
         if target_class not in mro:
             short_name = target_class.lstrip(":")
-            raise TclError(
-                f'method has no non-filter implementation by "{short_name}"'
-            )
+            raise TclError(f'method has no non-filter implementation by "{short_name}"')
         if caller_class and caller_class in mro:
             caller_idx = mro.index(caller_class)
             target_idx = mro.index(target_class)
             if target_idx <= caller_idx:
                 short_name = target_class.split("::")[-1] if "::" in target_class else target_class
-                raise TclError(
-                    f'method implementation by "{short_name}" not reachable from here'
-                )
+                raise TclError(f'method implementation by "{short_name}" not reachable from here')
 
         # Handle constructors and destructors specially
         if method_name == "<constructor>":
             if ancestor.constructor is None:
                 short_name = target_class.lstrip(":")
-                raise TclError(
-                    f'method has no non-filter implementation by "{short_name}"'
-                )
+                raise TclError(f'method has no non-filter implementation by "{short_name}"')
             return self._invoke_method(
-                interp, obj, ancestor.constructor, args,
+                interp,
+                obj,
+                ancestor.constructor,
+                args,
                 defining_class=target_class,
             )
         elif method_name == "<destructor>":
             if ancestor.destructor is None:
                 short_name = target_class.lstrip(":")
-                raise TclError(
-                    f'method has no non-filter implementation by "{short_name}"'
-                )
+                raise TclError(f'method has no non-filter implementation by "{short_name}"')
             return self._invoke_method(
-                interp, obj, ancestor.destructor, args,
+                interp,
+                obj,
+                ancestor.destructor,
+                args,
                 defining_class=target_class,
             )
 
         if method_name not in ancestor.methods:
             short_name = target_class.lstrip(":")
-            raise TclError(
-                f'method has no non-filter implementation by "{short_name}"'
-            )
+            raise TclError(f'method has no non-filter implementation by "{short_name}"')
 
         target_method = ancestor.methods[method_name]
         try:
@@ -2126,7 +2191,9 @@ class OORuntime:
             raise
 
     def build_object_call_chain(
-        self, obj: TclOOObject, method_name: str,
+        self,
+        obj: TclOOObject,
+        method_name: str,
         private_classes: set[str] | None = None,
     ) -> list[tuple[str, str, str, str]]:
         """Build the call chain for a method on an object.
@@ -2330,7 +2397,6 @@ class OORuntime:
         # Handle "destroy" as a core method
         if method_name == "destroy":
             # Walk MRO for user-defined destroy methods first
-            found_user = False
             for class_qname in cls.mro(self.classes):
                 ancestor = self.classes.get(class_qname)
                 if ancestor and "destroy" in ancestor.methods:
@@ -2338,7 +2404,6 @@ class OORuntime:
                     if not m.body.startswith("__builtin_"):
                         impl = "forward" if m.forward_target else "method"
                         chain.append(("method", "destroy", class_qname, impl))
-                        found_user = True
             chain.append(("method", "destroy", "::oo::object", '{core method: "destroy"}'))
             return chain
 
