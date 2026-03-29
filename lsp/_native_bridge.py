@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import logging
 import threading
-import time
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +43,6 @@ def _init():
             return
 
         from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
-        from core.commands.registry.runtime import configure_signatures
         from core.common.codes import default_disabled_diagnostics
         from core.formatting import FormatterConfig
         from core.packages import PackageResolver
@@ -209,7 +207,36 @@ def on_did_change_configuration(settings_json: str):
 def on_initialized(workspace_folders_json: str, settings_json: str):
     """Handle initialized notification — start workspace scanning."""
     _init()
-    # TODO: parse workspace folders and start background scanning
+    folders = json.loads(workspace_folders_json) if workspace_folders_json else []
+    settings = json.loads(settings_json) if settings_json else {}
+
+    # Apply settings if provided.
+    if settings:
+        on_did_change_configuration(json.dumps(settings))
+
+    # Start background scanning of workspace folders.
+    if folders and _background_scanner:
+        from lsp.workspace.scanner import uri_to_path
+        paths = []
+        for f in folders:
+            uri = f.get("uri", "") if isinstance(f, dict) else str(f)
+            if uri:
+                path = uri_to_path(uri)
+                if path:
+                    paths.append(path)
+        if paths:
+            import threading
+            def _scan():
+                for p in paths:
+                    try:
+                        entries = _background_scanner.scan_directory(p)
+                        from lsp.workspace.workspace_index import EntrySource
+                        for uri, analysis in entries:
+                            _workspace_index.update(uri, analysis,
+                                                    EntrySource.BACKGROUND)
+                    except Exception:
+                        log.exception("Background scan failed for %s", p)
+            threading.Thread(target=_scan, daemon=True).start()
 
 
 # Feature handlers — each returns a JSON string or None.
@@ -277,11 +304,32 @@ def _dispatch_feature(method: str, params: dict):
         case "textDocument/definition":
             if not _feature_config.definition_enabled:
                 return []
-            from lsp.features.definition import get_definition
+            from lsp.features.definition import get_definition, get_bigip_definition
             line = params.get("position", {}).get("line", 0)
             char = params.get("position", {}).get("character", 0)
-            return get_definition(source, uri, line, char,
-                                  analysis=analysis)
+            result = get_definition(source, uri, line, char,
+                                    analysis=analysis)
+            if not result:
+                # Workspace-index fallback for cross-file definitions.
+                from lsp.features.symbol_resolution import find_word_at_position
+                word = find_word_at_position(source, line, char, lines=lines)
+                if word and _workspace_index:
+                    from lsp.features.definition import _resolve_workspace_definition
+                    try:
+                        result = _resolve_workspace_definition(
+                            word, _workspace_index, uri)
+                    except (ImportError, AttributeError):
+                        pass
+            if not result:
+                # BIG-IP config fallback.
+                try:
+                    bigip_result = get_bigip_definition(
+                        source, uri, line, char, analysis=analysis)
+                    if bigip_result:
+                        result = bigip_result
+                except Exception:
+                    pass
+            return result
 
         case "textDocument/references":
             if not _feature_config.references_enabled:

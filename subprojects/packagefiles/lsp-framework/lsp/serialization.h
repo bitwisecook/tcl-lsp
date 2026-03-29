@@ -289,13 +289,14 @@ bool canDeserializeTupleFromJson(const json::Array& array)
 
 	using T = std::tuple_element_t<Index, TupleType>;
 
-	if(canDeserializeTypeFromJson<T>(array[Index]))
-		return true;
+	// All tuple elements must be deserializable; fail fast on first mismatch.
+	if(!canDeserializeTypeFromJson<T>(array[Index]))
+		return false;
 
 	if constexpr(Index + 1 < std::tuple_size_v<TupleType>)
 		return canDeserializeTupleFromJson<Index + 1, TupleType>(array);
 	else
-		return false;
+		return true;
 }
 
 template<std::size_t Index, typename VariantType>
