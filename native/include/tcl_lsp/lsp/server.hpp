@@ -2,6 +2,7 @@
 
 #include "tcl_lsp/lsp/document_store.hpp"
 #include "tcl_lsp/lsp/python_bridge.hpp"
+#include "tcl_lsp/lsp/semantic_token_collector.hpp"
 
 #include <lsp/connection.h>
 #include <lsp/messagehandler.h>
@@ -33,6 +34,7 @@ private:
     lsp::MessageHandler handler_;
     DocumentStore documents_;
     std::unique_ptr<PythonBridge> python_;
+    SemanticTokenCollector semantic_token_collector_;
     std::atomic<bool> running_{false};
 
     // Lifecycle
