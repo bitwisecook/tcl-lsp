@@ -1922,9 +1922,7 @@ class OORuntime:
             return defining_obj.name
         raise TclError('"self" may only be invoked from within a method')
 
-    def _my_varname(
-        self, interp: TclInterp, obj: TclOOObject, var_name: str
-    ) -> TclResult:
+    def _my_varname(self, interp: TclInterp, obj: TclOOObject, var_name: str) -> TclResult:
         """Implement `my varname varName` — return fully-qualified variable name."""
         frame = interp.current_frame
         caller_class = getattr(frame, "_oo_class", None)
@@ -1940,17 +1938,13 @@ class OORuntime:
         fq = f"{ns}::{mangled}" if ns != "::" else f"::{mangled}"
         return TclResult(value=fq)
 
-    def _my_variable(
-        self, interp: TclInterp, obj: TclOOObject, var_names: list[str]
-    ) -> TclResult:
+    def _my_variable(self, interp: TclInterp, obj: TclOOObject, var_names: list[str]) -> TclResult:
         """Implement `my variable ?name ...?` — link object vars into frame."""
         if not var_names:
             return TclResult(value="")
         for vn in var_names:
             if "(" in vn:
-                raise TclError(
-                    f'can\'t define "{vn}": name refers to an element in an array'
-                )
+                raise TclError(f'can\'t define "{vn}": name refers to an element in an array')
             if "::" in vn:
                 raise TclError(
                     f'variable name "{vn}" illegal: must not contain namespace separator'
