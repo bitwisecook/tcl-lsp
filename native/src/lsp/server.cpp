@@ -177,8 +177,20 @@ void TclLspServer::register_handlers() {
 // Lifecycle
 
 auto TclLspServer::on_initialize(
-    [[maybe_unused]] lsp::requests::Initialize::Params&& params)
+    lsp::requests::Initialize::Params&& params)
     -> lsp::requests::Initialize::Result {
+    // Capture init data for on_initialized, which fires later.
+    if (params.workspaceFolders.has_value() &&
+        params.workspaceFolders->has_value()) {
+        auto folders = std::move(**params.workspaceFolders);
+        init_workspace_folders_ = lsp::json::stringify(
+            lsp::toJson(std::move(folders)));
+    }
+    if (params.initializationOptions.has_value()) {
+        auto opts = std::move(*params.initializationOptions);
+        init_settings_ = lsp::json::stringify(lsp::toJson(std::move(opts)));
+    }
+
     return lsp::requests::Initialize::Result{
         .capabilities = build_capabilities(),
         .serverInfo = lsp::InitializeResultServerInfo{
@@ -190,7 +202,7 @@ auto TclLspServer::on_initialize(
 
 void TclLspServer::on_initialized(
     [[maybe_unused]] lsp::notifications::Initialized::Params&& params) {
-    python_->on_initialized("{}", "{}");
+    python_->on_initialized(init_workspace_folders_, init_settings_);
 }
 
 auto TclLspServer::on_shutdown() -> lsp::requests::Shutdown::Result {

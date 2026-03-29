@@ -849,6 +849,11 @@ native-build: ## Build the C++ native module
 	meson compile -C $(NATIVE_BUILDDIR)
 
 native-test: ## Run C++ unit tests
+	@if [ ! -d "$(NATIVE_BUILDDIR)" ]; then \
+		echo "==> build directory not found — configuring..."; \
+		$(MAKE) native-setup; \
+	fi
+	meson compile -C $(NATIVE_BUILDDIR)
 	meson test -C $(NATIVE_BUILDDIR) --suite tcl-lsp --print-errorlogs
 
 test-cpp: ## Run all C++ tests: all compilers, sanitisers, static analysis, valgrind
@@ -868,10 +873,13 @@ ifeq ($(HAS_COMPILER_RT),1)
 else
 	@echo "==> compiler-rt not available — attempting to install libclang-rt-18-dev"
 	@if command -v apt-get >/dev/null 2>&1; then \
-		sudo apt-get install -y libclang-rt-18-dev && \
-		echo "==> installed compiler-rt — running CFI + fuzz" && \
-		$(MAKE) native-test-cfi && \
-		$(MAKE) native-fuzz FUZZ_SECONDS=10; \
+		if sudo apt-get install -y libclang-rt-18-dev 2>/dev/null; then \
+			echo "==> installed compiler-rt — running CFI + fuzz"; \
+			$(MAKE) native-test-cfi; \
+			$(MAKE) native-fuzz FUZZ_SECONDS=10; \
+		else \
+			echo "==> SKIP: could not install compiler-rt (no sudo or package unavailable)"; \
+		fi; \
 	else \
 		echo "==> SKIP: no apt-get and no compiler-rt — install libclang-rt-18-dev manually"; \
 	fi

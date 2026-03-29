@@ -37,6 +37,10 @@ private:
     SemanticTokenCollector semantic_token_collector_;
     std::atomic<bool> running_{false};
 
+    // Captured from initialize request, forwarded in on_initialized.
+    std::string init_workspace_folders_ = "[]";
+    std::string init_settings_ = "{}";
+
     // Lifecycle
     auto on_initialize(lsp::requests::Initialize::Params&& params)
         -> lsp::requests::Initialize::Result;
