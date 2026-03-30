@@ -1252,8 +1252,55 @@ class TestNonLiteralCommand:
         assert "Non-literal" in diags[0].message
         assert diags[0].severity == Severity.WARNING
 
+    def test_command_substitution_as_command(self):
+        diags = _diag_with_code("[get_cmd] arg1", "W307")
+        assert len(diags) == 1
+        assert "Non-literal" in diags[0].message
+
     def test_literal_command_clean(self):
         diags = _diag_with_code("puts hello", "W307")
+        assert len(diags) == 0
+
+    def test_tcloo_var_command_no_w307(self):
+        """$obj method should NOT emit W307 when obj is a TclOO instance."""
+        source = """\
+oo::class create MyClass {
+    method greet {name} {
+        puts "hello $name"
+    }
+}
+set obj [MyClass new]
+$obj greet world
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_tcloo_unknown_method_w308(self):
+        """$obj nonexistent should emit W308 when method doesn't exist."""
+        source = """\
+oo::class create MyClass {
+    method greet {name} {
+        puts "hello $name"
+    }
+}
+set obj [MyClass new]
+$obj nonexistent_method
+"""
+        diags = _diag_with_code(source, "W308")
+        assert len(diags) == 1
+        assert "Unknown method" in diags[0].message
+        assert "nonexistent_method" in diags[0].message
+
+    def test_tcloo_destroy_is_valid(self):
+        """$obj destroy should not emit W308 (built-in method)."""
+        source = """\
+oo::class create MyClass {
+    method greet {} { puts hello }
+}
+set obj [MyClass new]
+$obj destroy
+"""
+        diags = _diag_with_code(source, "W308")
         assert len(diags) == 0
 
 

@@ -1071,10 +1071,27 @@ _TYPE_UNKNOWN = TypeLattice.unknown()
 _TYPE_OVERDEFINED = TypeLattice.overdefined()
 
 
-def _return_type_for_command(command: str, args: tuple[str, ...]) -> TypeLattice:
-    """Look up the return type of a command from TYPE_HINTS."""
+def _return_type_for_command(
+    command: str,
+    args: tuple[str, ...],
+    known_classes: frozenset[str] = frozenset(),
+) -> TypeLattice:
+    """Look up the return type of a command from TYPE_HINTS.
+
+    When *known_classes* is provided, user-defined TclOO class names
+    followed by ``new`` or ``create`` are recognised as returning
+    ``TypeLattice.object_of(class_name)``.
+    """
     hint = TYPE_HINTS.get(command)
     if hint is None:
+        # Check user-defined TclOO class constructors.
+        if known_classes and args and args[0] in ("new", "create"):
+            # Try the command as-is (qualified) and with :: prefix.
+            if command in known_classes:
+                return TypeLattice.object_of(command)
+            qualified = f"::{command}" if not command.startswith("::") else command
+            if qualified in known_classes:
+                return TypeLattice.object_of(qualified)
         return _TYPE_OVERDEFINED
     if isinstance(hint, SubcommandTypeHint):
         if not args:
@@ -1107,6 +1124,7 @@ def _evaluate_type_def(
     ssa_stmt: SSAStatement,
     values: dict[SSAValueKey, LatticeValue],
     types: dict[SSAValueKey, TypeLattice],
+    known_classes: frozenset[str] = frozenset(),
 ) -> TypeLattice:
     """Determine the type of a variable definition."""
     match stmt:
@@ -1139,7 +1157,7 @@ def _evaluate_type_def(
                 if parts:
                     cmd_name = parts[0]
                     cmd_args = tuple(parts[1].split()) if len(parts) > 1 else ()
-                    return _return_type_for_command(cmd_name, cmd_args)
+                    return _return_type_for_command(cmd_name, cmd_args, known_classes)
             # String interpolation or complex value → STRING
             if "$" in value or "[" in value:
                 return TypeLattice.of(TclType.STRING)
@@ -1150,7 +1168,7 @@ def _evaluate_type_def(
             return TypeLattice.of(TclType.INT)
 
         case IRCall(command=cmd, args=call_args) if stmt.defs:
-            return _return_type_for_command(cmd, call_args)
+            return _return_type_for_command(cmd, call_args, known_classes)
 
         case _:
             return _TYPE_OVERDEFINED
@@ -1162,6 +1180,7 @@ def _type_propagation(
     values: dict[SSAValueKey, LatticeValue],
     executable_blocks: set[str],
     executable_edges: set[tuple[str, str]],
+    known_classes: frozenset[str] = frozenset(),
 ) -> dict[SSAValueKey, TypeLattice]:
     """Run type propagation over the SSA graph."""
     preds = _compute_predecessors(cfg)
@@ -1216,7 +1235,7 @@ def _type_propagation(
                             changed = True
                     continue
                 for var, ver in s.defs.items():
-                    inferred = _evaluate_type_def(stmt, s, values, types)
+                    inferred = _evaluate_type_def(stmt, s, values, types, known_classes)
                     if set_type((var, ver), inferred):
                         changed = True
         time.sleep(0)  # Yield GIL between fixed-point iterations
@@ -1230,11 +1249,14 @@ def analyse_function(
     *,
     params: frozenset[str] = frozenset(),
     param_constants: dict[SSAValueKey, LatticeValue] | None = None,
+    known_classes: frozenset[str] = frozenset(),
 ) -> FunctionAnalysis:
     values, executable_blocks, executable_edges, constant_branches = _sccp(
         cfg, ssa, param_constants=param_constants
     )
-    inferred_types = _type_propagation(cfg, ssa, values, executable_blocks, executable_edges)
+    inferred_types = _type_propagation(
+        cfg, ssa, values, executable_blocks, executable_edges, known_classes
+    )
 
     from .rendered_properties import rendered_properties_propagation
 
@@ -1314,17 +1336,20 @@ def analyse_function(
     )
 
 
-def analyse_ir_module(ir_module: IRModule) -> ModuleAnalysis:
+def analyse_ir_module(
+    ir_module: IRModule,
+    known_classes: frozenset[str] = frozenset(),
+) -> ModuleAnalysis:
     cfg_module = build_cfg(ir_module)
     top_ssa = build_ssa(cfg_module.top_level)
-    top = analyse_function(cfg_module.top_level, top_ssa)
+    top = analyse_function(cfg_module.top_level, top_ssa, known_classes=known_classes)
 
     procs: dict[str, FunctionAnalysis] = {}
     for qname, cfg in cfg_module.procedures.items():
         ssa = build_ssa(cfg)
         ir_proc = ir_module.procedures.get(qname)
         proc_params = frozenset(ir_proc.params) if ir_proc else frozenset()
-        procs[qname] = analyse_function(cfg, ssa, params=proc_params)
+        procs[qname] = analyse_function(cfg, ssa, params=proc_params, known_classes=known_classes)
 
     return ModuleAnalysis(top_level=top, procedures=procs)
 

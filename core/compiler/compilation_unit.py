@@ -19,9 +19,37 @@ from .interprocedural import (
     ProcLocalSummary,
     analyse_interprocedural_ir,
 )
-from .ir import IRModule
+from .ir import IRBarrier, IRCall, IRModule, IRStatement
 from .lowering import lower_to_ir
 from .ssa import SSAFunction, build_ssa
+
+_OO_METACLASSES = frozenset({"oo::class", "oo::configurable", "oo::abstract", "oo::singleton"})
+
+
+def _extract_class_names(ir_module: IRModule) -> frozenset[str]:
+    """Extract user-defined TclOO class names from IR statements.
+
+    Scans ``oo::class create ClassName`` (and similar metaclass) patterns
+    in the top-level script and procedure bodies.
+    """
+    names: set[str] = set()
+
+    def _scan(stmts: tuple[IRStatement, ...]) -> None:
+        for stmt in stmts:
+            cmd: str = ""
+            args: tuple[str, ...] = ()
+            if isinstance(stmt, IRCall):
+                cmd, args = stmt.command, stmt.args
+            elif isinstance(stmt, IRBarrier):
+                cmd, args = stmt.command, stmt.args
+            if cmd in _OO_METACLASSES and len(args) >= 2 and args[0] in ("create", "createWithNamespace"):
+                class_name = args[1]
+                names.add(f"::{class_name}" if not class_name.startswith("::") else class_name)
+
+    _scan(ir_module.top_level.statements)
+    for proc in ir_module.procedures.values():
+        _scan(proc.body.statements)
+    return frozenset(names)
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +82,7 @@ def ensure_compilation_unit(
     logger: logging.Logger | None = None,
     context: str = "compiler",
     failure_detail: str = "compilation failed; continuing without CompilationUnit",
+    known_classes: frozenset[str] = frozenset(),
 ) -> CompilationUnit | None:
     """Return a usable ``CompilationUnit`` by reusing or compiling.
 
@@ -63,7 +92,7 @@ def ensure_compilation_unit(
     if cu is not None:
         return cu
     try:
-        return compile_source(source)
+        return compile_source(source, known_classes=known_classes)
     except Exception:
         if logger is not None:
             logger.debug(
@@ -94,6 +123,7 @@ def compile_source(
     proc_cache: dict[tuple[str, int], FunctionUnit] | None = None,
     interproc_cache: dict[tuple[str, int], ProcLocalSummary] | None = None,
     prune_interproc_cache: bool = True,
+    known_classes: frozenset[str] = frozenset(),
 ) -> CompilationUnit:
     """Run the full pipeline once and return cached artefacts.
 
@@ -113,6 +143,11 @@ def compile_source(
     if ir_module is None:
         ir_module = lower_to_ir(source)
 
+    # Extract TclOO class names from the IR so type propagation can
+    # recognise ``[ClassName new]`` as returning an OBJECT instance.
+    if not known_classes:
+        known_classes = _extract_class_names(ir_module)
+
     upvar_procs, all_proc_params = prepare_cfg_context(ir_module)
     top_cfg = build_cfg_function(
         "::top",
@@ -121,7 +156,7 @@ def compile_source(
         proc_params=all_proc_params,
     )
     top_ssa = build_ssa(top_cfg)
-    top_analysis = analyse_function(top_cfg, top_ssa)
+    top_analysis = analyse_function(top_cfg, top_ssa, known_classes=known_classes)
     top_unit = FunctionUnit(
         cfg=top_cfg,
         ssa=top_ssa,
@@ -156,7 +191,7 @@ def compile_source(
         proc_cfgs[qname] = cfg
         ssa = build_ssa(cfg)
         proc_params = frozenset(ir_proc.params)
-        analysis = analyse_function(cfg, ssa, params=proc_params)
+        analysis = analyse_function(cfg, ssa, params=proc_params, known_classes=known_classes)
         proc_units[qname] = FunctionUnit(
             cfg=cfg,
             ssa=ssa,

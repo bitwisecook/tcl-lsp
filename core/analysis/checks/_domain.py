@@ -204,9 +204,13 @@ def check_non_literal_command(
     all_tokens: list[Token],
     source: str,
 ) -> list[Diagnostic]:
-    """W307: Warn when a command name is a variable or command substitution."""
+    """W307: Warn when a command name is a command substitution.
+
+    Variable-as-command (``$obj method``) is deferred to the analyser's
+    post-analysis pass which checks the type lattice for TclOO objects.
+    """
     cmd_tok = all_tokens[0] if all_tokens else None
-    if cmd_tok is not None and cmd_tok.type in (TokenType.VAR, TokenType.CMD):
+    if cmd_tok is not None and cmd_tok.type is TokenType.CMD:
         return [
             Diagnostic(
                 range=range_from_token(cmd_tok),

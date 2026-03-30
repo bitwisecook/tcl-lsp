@@ -244,6 +244,8 @@ class AnalyserSnapshot:
     command_aliases: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
     # Map from old scope id → scope object for scope identity reconstruction.
     scope_id_map: dict[int, Scope] = field(default_factory=dict)
+    # Variable-as-command sites: (var_name, method_name_or_None, token_range).
+    var_command_sites: list[tuple[str, str | None, Range]] = field(default_factory=list)
 
 
 class Analyser:
@@ -275,6 +277,12 @@ class Analyser:
         # Command aliases: alias_name -> (target_cmd, prepended_args).
         # Populated from ``interp alias {} name {} target ?arg ...?``.
         self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
+        # Variable-as-command sites: records where a $var is used as a
+        # command name.  The post-analysis pass checks the type lattice to
+        # determine whether the variable holds a TclOO object (suppress W307)
+        # or not (emit W307).
+        # Each entry: (var_name, method_name_or_None, cmd_token_range).
+        self._var_command_sites: list[tuple[str, str | None, Range]] = []
         # Cache: id(scope) -> namespace string, for _namespace_from_scope.
         self._ns_cache: dict[int, str] = {}
         # Guard against double W123 emission across analyse_commands/analyse_irule_event.
@@ -307,6 +315,8 @@ class Analyser:
             # Shallow copy — values are immutable (str, tuple) so no deep copy needed.
             command_aliases=dict(self._command_aliases),
             scope_id_map=scope_id_map,
+            # Tuples inside the list are immutable — shallow copy suffices.
+            var_command_sites=list(self._var_command_sites),
         )
 
     def restore(self, snap: AnalyserSnapshot) -> None:
@@ -350,6 +360,10 @@ class Analyser:
         for old_sid, var_name in snap.regex_vars:
             new_sid = id_remap.get(old_sid, old_sid)
             self._regex_vars.add((new_sid, var_name))
+
+        # Restore _var_command_sites (no scope-id remapping needed;
+        # entries store Range, not scope references).
+        self._var_command_sites = list(snap.var_command_sites)
 
     @staticmethod
     def _build_scope_id_map(
@@ -1232,6 +1246,17 @@ class Analyser:
                 resolved_qualified_name=resolved_proc.qualified_name if resolved_proc else None,
             )
         )
+
+        # Record variable-as-command sites for post-analysis method resolution.
+        # When ``$obj method ...`` is used, the type lattice post-pass checks
+        # whether ``obj`` holds a TclOO object and validates the method name.
+        # Use cmd_tok.text (raw var name "obj") not cmd_name ("${obj}").
+        cmd_tok = all_tokens[0] if all_tokens else None
+        if cmd_tok is not None and cmd_tok.type is TokenType.VAR:
+            method_name = args[0] if args else None
+            self._var_command_sites.append(
+                (cmd_tok.text, method_name, range_from_token(cmd_tok))
+            )
 
         # IRULE5005: direct proc invocation without ``call`` in iRules.
         # In iRules, procs must be invoked via ``call proc_name``, not
@@ -2838,7 +2863,13 @@ class Analyser:
         cu: CompilationUnit | None = None,
     ) -> None:
         """Emit diagnostics backed by CFG/SSA core analyses."""
-        cu = ensure_compilation_unit(source, cu, logger=log, context="analyser")
+        cu = ensure_compilation_unit(
+            source,
+            cu,
+            logger=log,
+            context="analyser",
+            known_classes=frozenset(self.result.all_classes),
+        )
         if cu is None:
             return
 
@@ -2870,6 +2901,91 @@ class Analyser:
                 event = when_event_name(qname)
                 if event != "RULE_INIT":
                     self._emit_racy_static_diagnostics(fu, conn.racy_static_defs)
+
+        # Post-pass: resolve $var-as-command sites using the type lattice.
+        self._emit_var_command_diagnostics(cu)
+
+    def _emit_var_command_diagnostics(self, cu: CompilationUnit) -> None:
+        """Resolve ``$var method`` patterns using the type lattice.
+
+        For each recorded variable-as-command site:
+        - If the variable has ``TclType.OBJECT`` with a known class, validate
+          the method name against the class hierarchy.  Emit W308 if the
+          method doesn't exist.
+        - Otherwise emit W307 (non-literal command name).
+        """
+        if not self._var_command_sites:
+            return
+        if "W307" in self._disabled_diagnostics and "W308" in self._disabled_diagnostics:
+            return
+
+        from .class_hierarchy import build_class_hierarchy
+        from ..compiler.types import TclType, TypeKind
+
+        # Collect all SSA type entries across top-level and procedures.
+        all_types: dict[str, set[str]] = {}  # var_name → set of class_names
+        all_typed_vars: set[str] = set()  # vars known to be OBJECT
+        for analysis in [cu.top_level.analysis, *(fu.analysis for fu in cu.procedures.values())]:
+            for (var_name, _ver), tl in analysis.types.items():
+                if tl.kind is TypeKind.KNOWN and tl.tcl_type is TclType.OBJECT and tl.class_name:
+                    all_typed_vars.add(var_name)
+                    all_types.setdefault(var_name, set()).add(tl.class_name)
+
+        # Build class hierarchy for method resolution.
+        hierarchy = build_class_hierarchy(self.result.all_classes) if self.result.all_classes else None
+
+        for var_name, method_name, site_range in self._var_command_sites:
+            class_names = all_types.get(var_name)
+            if class_names:
+                # Variable is a TclOO object — validate the method if we have
+                # a class hierarchy and a method name.
+                if (
+                    hierarchy is not None
+                    and method_name is not None
+                    and "W308" not in self._disabled_diagnostics
+                ):
+                    # Check if the method exists on any of the possible classes.
+                    found = False
+                    for cls in class_names:
+                        # Check direct methods on the class and its MRO.
+                        if hierarchy.method_target(cls, method_name) is not None:
+                            found = True
+                            break
+                        # Also check the class definition directly (for classes
+                        # not in the hierarchy, e.g. missing superclass).
+                        cd = self.result.all_classes.get(cls)
+                        if cd is not None and (
+                            method_name in cd.methods
+                            or method_name in cd.class_methods
+                            or method_name == "new"
+                            or method_name == "create"
+                            or method_name == "destroy"
+                            or method_name == "configure"
+                            or method_name == "cget"
+                        ):
+                            found = True
+                            break
+                    if not found:
+                        cls_display = ", ".join(sorted(class_names))
+                        self.result.diagnostics.append(
+                            Diagnostic(
+                                range=site_range,
+                                message=f"Unknown method '{method_name}' on class '{cls_display}'",
+                                severity=Severity.WARNING,
+                                code="W308",
+                            )
+                        )
+            else:
+                # Variable is not a known TclOO object — emit W307.
+                if "W307" not in self._disabled_diagnostics:
+                    self.result.diagnostics.append(
+                        Diagnostic(
+                            range=site_range,
+                            message="Non-literal command name \u2014 cannot statically analyze",
+                            severity=Severity.WARNING,
+                            code="W307",
+                        )
+                    )
 
     def _emit_cfg_ssa_diagnostics_for_function(
         self,
