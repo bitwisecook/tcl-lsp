@@ -598,19 +598,20 @@ def _check_simple_arity(
     """Check argument count for a simple (non-subcommand) signature.
 
     When the signature declares ``leading_options``, leading arguments
-    that match a declared option (or ``--``) are skipped before counting
-    positional arguments.  This lets ``puts -nonewline channel string``
-    (3 raw args) pass arity ``(1, 2)`` because only 2 are positional.
+    that match a declared option are skipped before counting positional
+    arguments.  ``--`` is only recognised as an option terminator when the
+    command explicitly declares it.  This lets ``puts -nonewline channel
+    string`` (3 raw args) pass arity ``(1, 2)`` because only 2 are
+    positional.
     """
     # Count positional args by skipping leading declared options.
     positional_start = 0
     if sig.leading_options:
         for i, arg in enumerate(args):
-            if arg == "--":
-                positional_start = i + 1
-                break
             if arg in sig.leading_options:
                 positional_start = i + 1
+                if arg == "--":
+                    break  # -- terminates option parsing
             else:
                 break
     nargs = len(args) - positional_start
