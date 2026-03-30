@@ -6,10 +6,11 @@
   "patterns": [
     { "include": "#comment" },
     { "include": "#regexp-command" },
+    { "include": "#definitions" },
     { "include": "#command-substitution" },
     { "include": "#variable" },
     { "include": "#string-quoted" },
-    { "include": "#string-braced" },
+    { "include": "#braces" },
     { "include": "#keyword" },
     { "include": "#operator" },
     { "include": "#number" },
@@ -23,6 +24,19 @@
           "match": "(?:^|;)\\s*(#.*)$",
           "captures": {
             "1": { "name": "comment.line.number-sign.tcl" }
+          }
+        }
+      ]
+    },
+    "definitions": {
+      "comment": "Command definitions that introduce a named entity",
+      "patterns": [
+        {
+          "comment": "proc/method name — capture the command name as entity.name.function",
+          "match": "(?<=^|\\s|;|\\[)(proc|method)\\s+(\\S+)",
+          "captures": {
+            "1": { "name": "keyword.other.tcl" },
+            "2": { "name": "entity.name.function.tcl" }
           }
         }
       ]
@@ -259,19 +273,13 @@
       "patterns": [
         {
           "comment": "Braced variable: ${name with spaces}",
-          "name": "variable.other.tcl",
-          "match": "\\$\\{[^}]+\\}",
-          "captures": {
-            "0": { "name": "variable.other.braced.tcl" }
-          }
+          "name": "variable.other.braced.tcl",
+          "match": "\\$\\{[^}]+\\}"
         },
         {
           "comment": "Namespace-qualified variable with optional array: $ns::var(idx)",
           "name": "variable.other.tcl",
-          "match": "\\$(?:[a-zA-Z_][a-zA-Z0-9_]*::)*[a-zA-Z_][a-zA-Z0-9_]*(?:\\([^)]*\\))?",
-          "captures": {
-            "0": { "name": "variable.other.tcl" }
-          }
+          "match": "\\$(?:[a-zA-Z_][a-zA-Z0-9_]*::)*[a-zA-Z_][a-zA-Z0-9_]*(?:\\([^)]*\\))?"
         }
       ]
     },
@@ -295,22 +303,20 @@
         }
       ]
     },
-    "string-braced": {
+    "braces": {
+      "comment": "Braced content — recurses as Tcl source so proc/if/while bodies get highlighting",
       "patterns": [
         {
-          "comment": "Braced strings — no interpolation inside",
-          "name": "string.other.braced.tcl",
           "begin": "\\{",
           "end": "\\}",
           "beginCaptures": {
-            "0": { "name": "punctuation.definition.string.begin.tcl" }
+            "0": { "name": "punctuation.section.braces.begin.tcl" }
           },
           "endCaptures": {
-            "0": { "name": "punctuation.definition.string.end.tcl" }
+            "0": { "name": "punctuation.section.braces.end.tcl" }
           },
           "patterns": [
-            { "include": "#string-braced" },
-            { "include": "#escape" }
+            { "include": "source.tcl" }
           ]
         }
       ]
@@ -318,14 +324,14 @@
     "keyword": {
       "patterns": [
         {
-          "comment": "Control flow keywords",
+          "comment": "Control flow keywords (when is iRule-specific but this grammar serves all dialects)",
           "name": "keyword.control.tcl",
-          "match": "(?<=^|\\s|;|\\[)(?:if|else|elseif|for|foreach|while|switch|break|continue|return|catch|try|throw|yield|yieldto|tailcall)(?=\\s|$|;)"
+          "match": "(?<=^|\\s|;|\\[)(?:if|else|elseif|for|foreach|while|when|switch|break|continue|return|catch|try|throw|on|trap|finally|yield|yieldto|tailcall)(?=\\s|$|;)"
         },
         {
-          "comment": "Definition keywords",
+          "comment": "Definition keywords (proc/method handled in #definitions for name capture)",
           "name": "keyword.other.tcl",
-          "match": "(?<=^|\\s|;|\\[)(?:proc|namespace|variable|global|upvar|uplevel|package|source|rename|interp|coroutine|apply)(?=\\s|$|;)"
+          "match": "(?<=^|\\s|;|\\[)(?:proc|method|constructor|destructor|namespace|variable|global|upvar|uplevel|package|source|rename|interp|coroutine|apply|oo::class|oo::define|oo::objdefine)(?=\\s|$|;)"
         },
         {
           "comment": "Common built-in commands",
