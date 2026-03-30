@@ -23,12 +23,18 @@ auto compute_line_starts(std::string_view source) -> std::vector<int32_t> {
 
 DocumentBuffer::DocumentBuffer(std::string source,
                                std::optional<int> version,
-                               std::vector<int32_t> line_starts)
-    : source_(std::move(source)), version_(version), line_starts_(std::move(line_starts)) {}
+                               std::vector<int32_t> line_starts,
+                               uint64_t epoch)
+    : source_(std::move(source))
+    , version_(version)
+    , line_starts_(std::move(line_starts))
+    , epoch_(epoch) {}
 
-auto DocumentBuffer::from_source(std::string source, std::optional<int> version) -> DocumentBuffer {
+auto DocumentBuffer::from_source(std::string source,
+                                 std::optional<int> version,
+                                 uint64_t epoch) -> DocumentBuffer {
     auto line_starts = compute_line_starts(source);
-    return {std::move(source), version, std::move(line_starts)};
+    return {std::move(source), version, std::move(line_starts), epoch};
 }
 
 auto DocumentBuffer::source() const noexcept -> std::string_view {
@@ -37,6 +43,10 @@ auto DocumentBuffer::source() const noexcept -> std::string_view {
 
 auto DocumentBuffer::version() const noexcept -> std::optional<int> {
     return version_;
+}
+
+auto DocumentBuffer::epoch() const noexcept -> uint64_t {
+    return epoch_;
 }
 
 auto DocumentBuffer::lines() const -> std::span<const std::string_view> {

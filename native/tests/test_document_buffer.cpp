@@ -399,3 +399,23 @@ TEST_CASE("DocumentBuffer::range_from_offsets cross_line", "[document_buffer]") 
     CHECK(r.end.line == 1);
     CHECK(r.end.character == 2);
 }
+
+TEST_CASE("DocumentBuffer epoch defaults to zero", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("hello");
+    CHECK(buf.epoch() == 0);
+}
+
+TEST_CASE("DocumentBuffer epoch can be set", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("hello", 1, 42);
+    CHECK(buf.epoch() == 42);
+    CHECK(buf.version() == 1);
+    CHECK(buf.source() == "hello");
+}
+
+TEST_CASE("DocumentBuffer is move-constructible", "[document_buffer]") {
+    auto buf = DocumentBuffer::from_source("test", 3, 7);
+    auto moved = std::move(buf);
+    CHECK(moved.source() == "test");
+    CHECK(moved.version() == 3);
+    CHECK(moved.epoch() == 7);
+}

@@ -21,11 +21,17 @@ namespace tcl_lsp {
 // and ad-hoc SourceMap construction in Python.
 class DocumentBuffer {
   public:
-    static auto from_source(std::string source, std::optional<int> version = std::nullopt)
-        -> DocumentBuffer;
+    static auto from_source(std::string source, std::optional<int> version = std::nullopt,
+                            uint64_t epoch = 0) -> DocumentBuffer;
+
+    DocumentBuffer(DocumentBuffer&&) = default;
+    DocumentBuffer& operator=(DocumentBuffer&&) = default;
+    DocumentBuffer(const DocumentBuffer&) = delete;
+    DocumentBuffer& operator=(const DocumentBuffer&) = delete;
 
     [[nodiscard]] auto source() const noexcept -> std::string_view;
     [[nodiscard]] auto version() const noexcept -> std::optional<int>;
+    [[nodiscard]] auto epoch() const noexcept -> uint64_t;
 
     [[nodiscard]] auto line_starts() const noexcept -> const std::vector<int32_t>& {
         return line_starts_;
@@ -53,11 +59,13 @@ class DocumentBuffer {
   private:
     DocumentBuffer(std::string source,
                    std::optional<int> version,
-                   std::vector<int32_t> line_starts);
+                   std::vector<int32_t> line_starts,
+                   uint64_t epoch);
 
     std::string source_;
     std::optional<int> version_;
     std::vector<int32_t> line_starts_;
+    uint64_t epoch_;
     mutable std::optional<std::vector<std::string_view>> lines_cache_;
 };
 

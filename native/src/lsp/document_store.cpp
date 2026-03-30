@@ -7,19 +7,19 @@ namespace tcl_lsp {
 // DocumentState
 
 DocumentState::DocumentState(std::string uri, std::string language_id,
-                             std::string source, int32_t version)
+                             std::string source, int32_t version,
+                             uint64_t epoch)
     : uri{std::move(uri)}
     , language_id{std::move(language_id)}
-    , source{std::move(source)}
-    , version{version}
-    , buffer{DocumentBuffer::from_source(this->source)}
+    , snapshot{std::make_shared<DocumentBuffer>(
+          DocumentBuffer::from_source(std::move(source), version, epoch))}
 {
 }
 
-void DocumentState::update_full(std::string new_source, int32_t new_version) {
-    source = std::move(new_source);
-    version = new_version;
-    buffer = DocumentBuffer::from_source(source);
+void DocumentState::update_full(std::string new_source, int32_t new_version,
+                                uint64_t epoch) {
+    snapshot = std::make_shared<DocumentBuffer>(
+        DocumentBuffer::from_source(std::move(new_source), new_version, epoch));
 }
 
 // DocumentStore
@@ -27,11 +27,12 @@ void DocumentState::update_full(std::string new_source, int32_t new_version) {
 void DocumentStore::open(std::string uri, std::string language_id,
                          std::string source, int32_t version) {
     std::unique_lock lock{mutex_};
+    ++epoch_;
     auto key = uri;  // copy before move
     docs_.insert_or_assign(
         std::move(key),
         DocumentState{std::move(uri), std::move(language_id),
-                      std::move(source), version});
+                      std::move(source), version, epoch_});
 }
 
 void DocumentStore::change(const std::string& uri, std::string new_source,
@@ -39,13 +40,23 @@ void DocumentStore::change(const std::string& uri, std::string new_source,
     std::unique_lock lock{mutex_};
     auto it = docs_.find(uri);
     if (it != docs_.end()) {
-        it->second.update_full(std::move(new_source), new_version);
+        ++epoch_;
+        it->second.update_full(std::move(new_source), new_version, epoch_);
     }
 }
 
 void DocumentStore::close(const std::string& uri) {
     std::unique_lock lock{mutex_};
+    ++epoch_;
     docs_.erase(uri);
+}
+
+auto DocumentStore::get_snapshot(const std::string& uri) const
+    -> BufferSnapshot {
+    std::shared_lock lock{mutex_};
+    auto it = docs_.find(uri);
+    if (it == docs_.end()) return nullptr;
+    return it->second.snapshot;
 }
 
 auto DocumentStore::get_source(const std::string& uri) const
@@ -53,7 +64,9 @@ auto DocumentStore::get_source(const std::string& uri) const
     std::shared_lock lock{mutex_};
     auto it = docs_.find(uri);
     if (it == docs_.end()) return std::nullopt;
-    return std::pair{it->second.source, it->second.version};
+    const auto& snap = it->second.snapshot;
+    return std::pair{std::string(snap->source()),
+                     snap->version().value_or(0)};
 }
 
 auto DocumentStore::get_language_id(const std::string& uri) const
@@ -72,6 +85,11 @@ auto DocumentStore::is_open(const std::string& uri) const -> bool {
 auto DocumentStore::size() const -> std::size_t {
     std::shared_lock lock{mutex_};
     return docs_.size();
+}
+
+auto DocumentStore::epoch() const noexcept -> uint64_t {
+    std::shared_lock lock{mutex_};
+    return epoch_;
 }
 
 } // namespace tcl_lsp

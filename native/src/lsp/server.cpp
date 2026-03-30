@@ -98,13 +98,13 @@ void TclLspServer::register_handlers() {
     handler_.add("textDocument/semanticTokens/full",
         [this, extract_uri, build_tokens_response](lsp::json::Value&& params) -> lsp::json::Value {
             auto uri = extract_uri(params);
-            auto snapshot = documents_.get_source(uri);
-            if (!snapshot.has_value()) {
+            auto snapshot = documents_.get_snapshot(uri);
+            if (!snapshot) {
                 static const std::vector<std::int32_t> empty_data{};
                 return build_tokens_response(empty_data);
             }
 
-            auto tokens = semantic_token_collector_.collect(snapshot->first);
+            auto tokens = semantic_token_collector_.collect(snapshot->source());
             auto data = delta_encode(tokens);
             return build_tokens_response(data);
         });
@@ -115,13 +115,13 @@ void TclLspServer::register_handlers() {
     handler_.add("textDocument/semanticTokens/full/delta",
         [this, extract_uri, build_tokens_response](lsp::json::Value&& params) -> lsp::json::Value {
             auto uri = extract_uri(params);
-            auto snapshot = documents_.get_source(uri);
-            if (!snapshot.has_value()) {
+            auto snapshot = documents_.get_snapshot(uri);
+            if (!snapshot) {
                 static const std::vector<std::int32_t> empty_data{};
                 return build_tokens_response(empty_data);
             }
 
-            auto tokens = semantic_token_collector_.collect(snapshot->first);
+            auto tokens = semantic_token_collector_.collect(snapshot->source());
             auto data = delta_encode(tokens);
             return build_tokens_response(data);
         });
@@ -237,14 +237,16 @@ void TclLspServer::on_did_change(
     if (params.contentChanges.empty()) return;
 
     auto uri = params.textDocument.uri.toString();
-    const auto& last = params.contentChanges.back();
+    auto& last = params.contentChanges.back();
     auto text = std::visit(
-        [](const auto& change) -> std::string { return change.text; },
+        [](auto& change) -> std::string { return std::move(change.text); },
         last);
-    documents_.change(uri, text, params.textDocument.version);
 
-    // Forward to Python for re-analysis + diagnostics.
+    // Python needs its own copy (crosses the FFI boundary).
     python_->on_did_change(uri, text, params.textDocument.version);
+
+    // Move into the document store (no further use of text after this).
+    documents_.change(uri, std::move(text), params.textDocument.version);
 }
 
 void TclLspServer::on_did_close(
