@@ -1205,6 +1205,14 @@ def _find_hoistable_constants(
             # Skip static:: variables — they're already scoped.
             if var_name.startswith("static::"):
                 continue
+            # Skip assignments to empty/default values — these are
+            # per-request initialisations (reset to blank each request),
+            # not constants.  Hoisting them would carry stale values
+            # from previous requests on the same connection.
+            if isinstance(stmt, (IRAssignConst, IRAssignValue)):
+                v = stmt.value
+                if v in ("", "{}", "[list]"):
+                    continue
 
             # Try each candidate event (earliest first).
             hoistable_stmt: IRAssignConst | IRAssignValue | IRIncr | IRCall = stmt  # type: ignore[assignment, invalid-assignment]
