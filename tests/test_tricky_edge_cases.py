@@ -239,8 +239,8 @@ class TestIssue27ThirdDoubleQuote:
     def test_three_quoted_strings_semantic_tokens(self):
         source = 'set a "first"; set b "second"; set c "third"'
         types = sem_types(source)
-        # Should have 3 'keyword' for 'set', 3 variable names, 3 strings
-        assert types.count("keyword") == 3
+        # Should have 3 'function' for 'set', 3 variable names, 3 strings
+        assert types.count("function") == 3
 
     def test_quoted_string_with_dollar_interpolation(self):
         """Specific pattern from the issue: quotes with $var inside."""

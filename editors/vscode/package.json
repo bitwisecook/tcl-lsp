@@ -903,6 +903,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -980,6 +983,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1057,6 +1063,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1217,6 +1226,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1294,6 +1306,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1371,6 +1386,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1448,6 +1466,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1525,6 +1546,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1602,6 +1626,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1679,6 +1706,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1756,6 +1786,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1833,6 +1866,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       },
@@ -1910,6 +1946,9 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
           ]
         }
       }
@@ -3457,17 +3496,23 @@
             "markdownDescription": "**W122:** Mistyped IPv4 address (octet > 255 or leading zero).",
             "order": 17
           },
+          "tclLsp.diagnostics.W124": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W124:** Invalid IP address literal.",
+            "order": 18
+          },
           "tclLsp.diagnostics.W200": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 18
+            "order": 19
           },
           "tclLsp.diagnostics.W201": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
-            "order": 19
+            "order": 20
           }
         }
       },

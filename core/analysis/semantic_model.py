@@ -71,6 +71,7 @@ class Diagnostic:
     severity: Severity = Severity.ERROR
     code: str = ""
     fixes: tuple[CodeFix, ...] = ()
+    related_ranges: tuple[tuple[Range, str], ...] = ()
 
 
 # Variable definition

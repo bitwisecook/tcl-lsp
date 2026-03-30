@@ -87,6 +87,7 @@ SEMANTIC_TOKEN_MODIFIERS = [
     "declaration",  # bit 0
     "definition",  # bit 1
     "readonly",  # bit 2
+    "defaultLibrary",  # bit 3
 ]
 
 LSP_SEVERITY = {1: "ERROR", 2: "WARNING", 3: "INFO", 4: "HINT"}

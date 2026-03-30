@@ -2177,71 +2177,151 @@ class TestInvalidSubnetMask:
 # W122: Mistyped IPv4 address
 
 
+def _ip_diags(source: str) -> list:
+    """Return all W122 or W124 diagnostics (IP validation from either pass)."""
+    result = analyse(source)
+    return [d for d in result.diagnostics if d.code in ("W122", "W124")]
+
+
 class TestMistypedIPv4:
-    """W122 -- dotted-quad with out-of-range octets or leading zeros."""
+    """W122/W124 -- dotted-quad with out-of-range octets or leading zeros."""
 
     def test_octet_over_255(self):
-        """192.168.1.256 has octet > 255 → W122."""
-        diags = _diag_with_code("set addr 192.168.1.256", "W122")
+        """192.168.1.256 has octet > 255 → W122 or W124."""
+        diags = _ip_diags("set addr 192.168.1.256")
         assert len(diags) == 1
         assert "exceeds 255" in diags[0].message
         assert diags[0].severity == Severity.ERROR
 
     def test_leading_zero(self):
-        """192.168.01.1 has leading zero → W122."""
-        diags = _diag_with_code("set addr 192.168.01.1", "W122")
+        """192.168.01.1 has leading zero → W122 or W124."""
+        diags = _ip_diags("set addr 192.168.01.1")
         assert len(diags) == 1
         assert "leading zero" in diags[0].message
         assert diags[0].severity == Severity.WARNING
 
     def test_valid_ip_clean(self):
-        """192.168.1.1 is valid → no W122."""
-        diags = _diag_with_code("set addr 192.168.1.1", "W122")
+        """192.168.1.1 is valid → no W122/W124."""
+        diags = _ip_diags("set addr 192.168.1.1")
         assert len(diags) == 0
 
     def test_valid_ip_10_0_0_1_clean(self):
-        """10.0.0.1 is valid → no W122."""
-        diags = _diag_with_code("set addr 10.0.0.1", "W122")
+        """10.0.0.1 is valid → no W122/W124."""
+        diags = _ip_diags("set addr 10.0.0.1")
         assert len(diags) == 0
 
     def test_octet_999(self):
-        """10.0.0.999 has octet > 255 → W122."""
-        diags = _diag_with_code("set addr 10.0.0.999", "W122")
+        """10.0.0.999 has octet > 255 → W122 or W124."""
+        diags = _ip_diags("set addr 10.0.0.999")
         assert len(diags) == 1
 
     def test_all_zeros_clean(self):
-        """0.0.0.0 is valid → no W122."""
-        diags = _diag_with_code("set addr 0.0.0.0", "W122")
+        """0.0.0.0 is valid → no W122/W124."""
+        diags = _ip_diags("set addr 0.0.0.0")
         assert len(diags) == 0
 
     def test_leading_zero_non_octal_digit(self):
-        """192.168.09.1 has leading zero but '9' is not octal → no W122."""
-        diags = _diag_with_code("set addr 192.168.09.1", "W122")
+        """192.168.09.1 has leading zero but '9' is not octal → no W122/W124."""
+        diags = _ip_diags("set addr 192.168.09.1")
         assert len(diags) == 0
 
     def test_leading_zero_08_not_octal(self):
-        """10.0.08.1 — '08' contains '8' which is not octal → no W122."""
-        diags = _diag_with_code("set addr 10.0.08.1", "W122")
+        """10.0.08.1 — '08' contains '8' which is not octal → no W122/W124."""
+        diags = _ip_diags("set addr 10.0.08.1")
         assert len(diags) == 0
 
     def test_leading_zero_099_not_octal(self):
-        """192.168.099.1 — '099' contains '9' → no W122."""
-        diags = _diag_with_code("set addr 192.168.099.1", "W122")
+        """192.168.099.1 — '099' contains '9' → no W122/W124."""
+        diags = _ip_diags("set addr 192.168.099.1")
         assert len(diags) == 0
 
     def test_leading_zero_octal_ambiguous(self):
-        """192.168.077.1 — '077' is valid octal → W122."""
-        diags = _diag_with_code("set addr 192.168.077.1", "W122")
+        """192.168.077.1 — '077' is valid octal → W122 or W124."""
+        diags = _ip_diags("set addr 192.168.077.1")
         assert len(diags) == 1
         assert "leading zero" in diags[0].message
 
     def test_leading_zero_00_octal_ambiguous(self):
-        """10.00.0.1 — '00' is valid octal → W122."""
-        diags = _diag_with_code("set addr 10.00.0.1", "W122")
+        """10.00.0.1 — '00' is valid octal → W122 or W124."""
+        diags = _ip_diags("set addr 10.00.0.1")
         assert len(diags) == 1
         assert "leading zero" in diags[0].message
 
     def test_valid_mask_clean(self):
-        """255.255.255.0 is valid → no W122."""
-        diags = _diag_with_code("set mask 255.255.255.0", "W122")
+        """255.255.255.0 is valid → no W122/W124."""
+        diags = _ip_diags("set mask 255.255.255.0")
         assert len(diags) == 0
+
+    def test_version_number_after_slash_not_flagged(self):
+        """Chrome/28.0.1550.0 is a version, not an IP → no W122/W124."""
+        diags = _ip_diags('set ua "Mozilla/5.0 Chrome/28.0.1550.0 Safari/537.36"')
+        assert len(diags) == 0
+
+    def test_range_covers_only_quad(self):
+        """IP diagnostic range should be reasonable, not the whole file."""
+        diags = _ip_diags('set x "prefix 192.168.1.999 suffix"')
+        assert len(diags) == 1
+
+    def test_version_number_in_user_agent_string(self):
+        """Realistic User-Agent string with version numbers → no W122/W124."""
+        source = (
+            'HSL::send $hsl "GET / HTTP/1.0\\r\\n'
+            "User-Agent: Iron/28.0.1550.0 Chrome/28.0.1550.0\\r\\n\\r\\n"
+            '"'
+        )
+        diags = _ip_diags(source)
+        assert len(diags) == 0
+
+
+# W124: SSA-traced IP address validation
+
+
+class TestSSATracedIPValidation:
+    """W124 -- CFG-SSA pass that validates IP addresses via SCCP constants."""
+
+    def test_ipv4_bad_octet_in_proc(self):
+        """IPv4 address with octet > 255 inside a proc → W124."""
+        diags = _diag_with_code("proc f {} { set a 192.168.1.256 }", "W124")
+        assert len(diags) == 1
+        assert "exceeds 255" in diags[0].message
+        assert diags[0].severity == Severity.ERROR
+
+    def test_ipv4_leading_zero_in_proc(self):
+        """IPv4 address with leading zero inside a proc → W124."""
+        diags = _diag_with_code("proc f {} { set a 192.168.01.1 }", "W124")
+        assert len(diags) == 1
+        assert "leading zero" in diags[0].message
+        assert diags[0].severity == Severity.WARNING
+
+    def test_valid_ipv4_clean(self):
+        """Valid IPv4 inside a proc → no W124."""
+        diags = _diag_with_code("proc f {} { set a 10.0.0.1 }", "W124")
+        assert len(diags) == 0
+
+    def test_version_number_not_flagged(self):
+        """Version number in User-Agent string → no W124."""
+        diags = _diag_with_code('proc f {} { set ua "Chrome/28.0.1550.0" }', "W124")
+        assert len(diags) == 0
+
+    def test_variable_trace_with_use(self):
+        """Bad IP traced to use site → W124 with related_ranges."""
+        source = "proc f {} {\n    set a 10.0.0.999\n    puts $a\n}"
+        diags = _diag_with_code(source, "W124")
+        assert len(diags) == 1
+        assert diags[0].related_ranges  # at least one use site
+
+    def test_w122_suppressed_when_w124_fires(self):
+        """W122 should be suppressed on the same line where W124 fires."""
+        source = "proc f {} { set a 192.168.1.256 }"
+        result = analyse(source)
+        w122 = [d for d in result.diagnostics if d.code == "W122"]
+        w124 = [d for d in result.diagnostics if d.code == "W124"]
+        assert len(w124) == 1
+        # W122 should be suppressed (deduped) on the same line
+        for d122 in w122:
+            assert d122.range.start.line != w124[0].range.start.line
+
+    def test_top_level_gets_w124(self):
+        """Top-level bad IP gets W124 (SSA analysis covers top-level too)."""
+        diags = _diag_with_code("set a 192.168.1.256", "W124")
+        assert len(diags) == 1

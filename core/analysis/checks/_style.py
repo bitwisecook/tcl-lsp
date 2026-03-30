@@ -1475,6 +1475,10 @@ def check_mistyped_ipv4(
     Catches typos like ``192.168.1.256`` (octet > 255) and ambiguous
     leading zeros like ``192.168.01.1`` which may be interpreted as
     octal in some contexts.
+
+    Skips dotted quads that are preceded by ``/`` (version numbers like
+    ``Chrome/28.0.1550.0``) and narrows the diagnostic range to the
+    matched quad rather than the entire token.
     """
     diagnostics: list[Diagnostic] = []
     seen_offsets: set[int] = set()
@@ -1484,6 +1488,10 @@ def check_mistyped_ipv4(
             continue
 
         for m in _DOTTED_QUAD_LOOSE_RE.finditer(text):
+            # Skip version-number patterns: preceded by '/' (e.g. Chrome/28.0.1550.0)
+            if m.start() > 0 and text[m.start() - 1] == "/":
+                continue
+
             octets_str = [m.group(i) for i in range(1, 5)]
 
             # Check each octet
@@ -1491,9 +1499,23 @@ def check_mistyped_ipv4(
                 val = int(octet_s)
                 if val > 255:
                     seen_offsets.add(tok.start.offset)
+                    match_start = position_from_relative(
+                        text,
+                        m.start(),
+                        base_line=tok.start.line,
+                        base_col=tok.start.character,
+                        base_offset=tok.start.offset,
+                    )
+                    match_end = position_from_relative(
+                        text,
+                        m.end(),
+                        base_line=tok.start.line,
+                        base_col=tok.start.character,
+                        base_offset=tok.start.offset,
+                    )
                     diagnostics.append(
                         Diagnostic(
-                            range=range_from_token(tok),
+                            range=Range(start=match_start, end=match_end),
                             message=(
                                 f"IPv4 octet {i + 1} ({octet_s}) exceeds 255 "
                                 "— this is not a valid IP address."
@@ -1505,9 +1527,23 @@ def check_mistyped_ipv4(
                     break
                 if len(octet_s) > 1 and octet_s[0] == "0" and all(c in "01234567" for c in octet_s):
                     seen_offsets.add(tok.start.offset)
+                    match_start = position_from_relative(
+                        text,
+                        m.start(),
+                        base_line=tok.start.line,
+                        base_col=tok.start.character,
+                        base_offset=tok.start.offset,
+                    )
+                    match_end = position_from_relative(
+                        text,
+                        m.end(),
+                        base_line=tok.start.line,
+                        base_col=tok.start.character,
+                        base_offset=tok.start.offset,
+                    )
                     diagnostics.append(
                         Diagnostic(
-                            range=range_from_token(tok),
+                            range=Range(start=match_start, end=match_end),
                             message=(
                                 f"IPv4 octet {i + 1} ({octet_s}) has a leading zero "
                                 "— may be interpreted as octal in some contexts."

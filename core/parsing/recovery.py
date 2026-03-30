@@ -103,6 +103,12 @@ def _is_unterminated_cmd(tok: Token, source: str, base_offset: int) -> bool:
     close_local = tok.end.offset - base_offset + 1
     if 0 <= close_local < len(source) and source[close_local] == "]":
         return False
+    # Empty command substitution ``[]``: end.offset points AT the ``]``
+    # itself (there are no content characters) so the +1 overshoots.
+    if not tok.text:
+        close_local -= 1
+        if 0 <= close_local < len(source) and source[close_local] == "]":
+            return False
     return True
 
 

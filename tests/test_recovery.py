@@ -196,10 +196,10 @@ class TestE201CommentBreak:
         # comment type index is 4
         assert any(row[3] == 4 for row in line1_tokens)
 
-        # Line 2 should have "set" as keyword (type 0)
+        # Line 2 should have "set" as function (type 1)
         line2_tokens = [row for row in abs_tokens if row[0] == 2]
         assert len(line2_tokens) >= 1
-        assert any(row[3] == 0 for row in line2_tokens)
+        assert any(row[3] == 1 for row in line2_tokens)
 
     def test_comment_break_priority_over_brace(self):
         """Comment-break takes priority when both # and { are present."""
@@ -325,10 +325,10 @@ class TestE201CommandBreak:
             prev_line = line
             prev_char = char
 
-        # Line 1 should have "set" as keyword (type 0), not part of CMD
+        # Line 1 should have "set" as function (type 1), not part of CMD
         line1_tokens = [row for row in abs_tokens if row[0] == 1]
         assert len(line1_tokens) >= 1
-        assert any(row[3] == 0 for row in line1_tokens)
+        assert any(row[3] == 1 for row in line1_tokens)
 
 
 class TestE201BraceBreak:
@@ -526,10 +526,10 @@ class TestE202UnterminatedQuote:
             prev_line = line
             prev_char = char
 
-        # Line 1 should have "set" as keyword (type 0), not part of quoted string
+        # Line 1 should have "set" as function (type 1), not part of quoted string
         line1_tokens = [row for row in abs_tokens if row[0] == 1]
         assert len(line1_tokens) >= 1
-        assert any(row[3] == 0 for row in line1_tokens)
+        assert any(row[3] == 1 for row in line1_tokens)
 
 
 class TestE203UnterminatedBrace:
@@ -642,7 +642,7 @@ class TestE203UnterminatedBrace:
             prev_line = line
             prev_char = char
 
-        # Line 2 should have "set" as keyword (type 0)
+        # Line 2 should have "set" as function (type 1)
         line2_tokens = [row for row in abs_tokens if row[0] == 2]
         assert len(line2_tokens) >= 1
-        assert any(row[3] == 0 for row in line2_tokens)
+        assert any(row[3] == 1 for row in line2_tokens)

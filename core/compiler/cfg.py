@@ -284,6 +284,37 @@ def _defs_from_expr(expr: ExprNode) -> list[str]:
                 if body.startswith("{") and body.endswith("}"):
                     body = body[1:-1]
                 defs.extend(_defs_from_body_script(body))
+
+        # Recursively scan command substitutions in arguments so that
+        # ``[lsearch $tags [set full_tag [string tolower $x]]]``
+        # correctly reports ``full_tag`` as defined.
+        lexer2 = TclLexer(text)
+        for tok in lexer2.tokenise_all():
+            if tok.type is TokenType.CMD and tok.text:
+                nested_text = tok.text
+                nested_lexer = TclLexer(nested_text)
+                nested_words: list[str] = []
+                np = TokenType.EOL
+                for nt in nested_lexer.tokenise_all():
+                    if nt.type in (TokenType.SEP, TokenType.EOL, TokenType.EOF):
+                        np = nt.type
+                        continue
+                    if np in (TokenType.SEP, TokenType.EOL):
+                        nested_words.append(nt.text)
+                    elif nested_words:
+                        nested_words[-1] += nt.text
+                    else:
+                        nested_words.append(nt.text)
+                    np = nt.type
+                if not nested_words:
+                    continue
+                ncmd = nested_words[0]
+                nargs = nested_words[1:]
+                for idx in sorted(arg_indices_for_role(ncmd, nargs, ArgRole.VAR_NAME)):
+                    if idx < len(nargs):
+                        name = _normalise_var_name(nargs[idx])
+                        if name:
+                            defs.append(name)
     return defs
 
 

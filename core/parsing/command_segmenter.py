@@ -227,6 +227,10 @@ def _segment_raw(
         if tok.type is TokenType.SEP:
             prev_type = tok.type
             continue
+        # Backslash-newline continuation between words is whitespace.
+        if tok.type is TokenType.ESC and tok.text == "\\\n":
+            prev_type = TokenType.SEP
+            continue
         if tok.type is TokenType.EXPAND:
             # {*} prefix — mark the next word for expansion
             all_tokens.append(tok)

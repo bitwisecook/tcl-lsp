@@ -140,6 +140,21 @@ class _CompilerOptimiser:
         for qname, fu in cu.procedures.items():
             if conn is not None and qname.startswith("::when::"):
                 ctx.cross_event_vars = conn.cross_event_defs | conn.cross_event_imports
+                # RULE_INIT's purpose is to initialise static:: variables for
+                # all other events.  Any static:: def there is inherently
+                # cross-event, even when the cross-event analysis can't prove
+                # a matching read (e.g. reads inside quoted expr strings).
+                from ..ir import when_event_name
+
+                if when_event_name(qname) == "RULE_INIT":
+                    rule_init_statics = frozenset(
+                        name
+                        for block in fu.ssa.blocks.values()
+                        for stmt in block.statements
+                        for name in stmt.defs
+                        if name.startswith("static::")
+                    )
+                    ctx.cross_event_vars = ctx.cross_event_vars | rule_init_statics
             else:
                 ctx.cross_event_vars = frozenset()
             ir_proc = cu.ir_module.procedures.get(qname)

@@ -98,10 +98,19 @@ _DIAGNOSTIC_DOCS: dict[str, str] = {
 }
 
 
-def _to_lsp_diagnostic(d: Diagnostic) -> types.Diagnostic:
+def _to_lsp_diagnostic(d: Diagnostic, *, uri: str | None = None) -> types.Diagnostic:
     code_desc = None
     if d.code and d.code in _DIAGNOSTIC_DOCS:
         code_desc = types.CodeDescription(href=_DIAGNOSTIC_DOCS[d.code])
+    related: list[types.DiagnosticRelatedInformation] | None = None
+    if uri and d.related_ranges:
+        related = [
+            types.DiagnosticRelatedInformation(
+                location=types.Location(uri=uri, range=to_lsp_range(r)),
+                message=msg,
+            )
+            for r, msg in d.related_ranges
+        ]
     return types.Diagnostic(
         range=to_lsp_range(d.range),
         message=d.message,
@@ -109,6 +118,7 @@ def _to_lsp_diagnostic(d: Diagnostic) -> types.Diagnostic:
         source="tcl-lsp",
         code=d.code or None,
         code_description=code_desc,
+        related_information=related or None,
     )
 
 
@@ -611,7 +621,7 @@ def get_basic_diagnostics(
             cmd = d.message.split("'")[1] if "'" in d.message else ""
             if cmd in _ws_proc_tails:
                 continue
-        diags.append(_to_lsp_diagnostic(d))
+        diags.append(_to_lsp_diagnostic(d, uri=uri))
         if (
             optimiser_enabled
             and d.code == "W100"

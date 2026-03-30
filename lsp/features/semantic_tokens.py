@@ -132,44 +132,84 @@ _KEYWORD_TAILS = frozenset(
     for name in _REGISTRY_NAMES
     if "::" in name and name.rsplit("::", 1)[0] in _IMPORTED_UNQUALIFIED_NAMESPACES
 )
-_KEYWORDS = (
-    _REGISTRY_NAMES
-    | _KEYWORD_TAILS
-    | frozenset(
-        {
-            # Control-flow words that appear as arguments, not standalone commands
-            "else",
-            "elseif",
-            # TclOO definition-context keywords (valid inside oo::define bodies)
-            "constructor",
-            "destructor",
-            "method",
-            "my",
-            "next",
-            "self",
-            "forward",
-            "mixin",
-            "filter",
-            "superclass",
-            "renamemethod",
-            "deletemethod",
-            "export",
-            "unexport",
-            # TclOO definition-context keywords (9.0+)
-            "classmethod",
-            "definitionnamespace",
-            "initialise",
-            "initialize",
-            "private",
-            "property",
-            # TclOO method-body keywords
-            "nextto",
-            "callback",
-            "mymethod",
-            "classvariable",
-            "link",
-        }
-    )
+
+# All known built-in commands (registry + imported tails).
+# Used to decide whether a command name gets the ``defaultLibrary`` modifier.
+_BUILTIN_COMMANDS = _REGISTRY_NAMES | _KEYWORD_TAILS
+
+# Language keywords — control-flow, definition syntax, and TclOO framework
+# words.  These are the commands the TextMate grammar classifies as
+# ``keyword.control.tcl`` or ``keyword.other.tcl``.  Everything else in
+# the registry is a built-in *function* (``support.function.tcl`` in the
+# TM grammar) and should get ``function`` + ``defaultLibrary`` from the LSP.
+_LANGUAGE_KEYWORDS = frozenset(
+    {
+        # keyword.control.tcl
+        "if",
+        "else",
+        "elseif",
+        "for",
+        "foreach",
+        "while",
+        "when",
+        "switch",
+        "break",
+        "continue",
+        "return",
+        "catch",
+        "try",
+        "throw",
+        "on",
+        "trap",
+        "finally",
+        "yield",
+        "yieldto",
+        "tailcall",
+        # keyword.other.tcl — definition / declaration
+        "proc",
+        "method",
+        "constructor",
+        "destructor",
+        "namespace",
+        "variable",
+        "global",
+        "upvar",
+        "uplevel",
+        "package",
+        "source",
+        "rename",
+        "interp",
+        "coroutine",
+        "apply",
+        "oo::class",
+        "oo::define",
+        "oo::objdefine",
+        # TclOO definition-context keywords (valid inside oo::define bodies)
+        "my",
+        "next",
+        "self",
+        "forward",
+        "mixin",
+        "filter",
+        "superclass",
+        "renamemethod",
+        "deletemethod",
+        "export",
+        "unexport",
+        # TclOO definition-context keywords (9.0+)
+        "classmethod",
+        "definitionnamespace",
+        "initialise",
+        "initialize",
+        "private",
+        "property",
+        # TclOO method-body keywords
+        "nextto",
+        "callback",
+        "mymethod",
+        "classvariable",
+        "link",
+    }
 )
 
 # Prefix math/comparison operators
@@ -881,7 +921,7 @@ def _classify_token(tok_type: TokenType, text: str, *, is_command_name: bool) ->
             return _TYPE_INDEX["comment"]
         case TokenType.ESC:
             if is_command_name:
-                if text in _KEYWORDS:
+                if text in _LANGUAGE_KEYWORDS:
                     return _TYPE_INDEX["keyword"]
                 if text in _OPERATORS:
                     return _TYPE_INDEX["operator"]
@@ -2829,9 +2869,13 @@ def _collect_tokens(
             if type_idx is None:
                 continue
 
-            # defaultLibrary modifier for built-in command keywords
+            # defaultLibrary modifier for built-in commands (registry functions)
             modifiers = 0
-            if is_cmd_name and type_idx == _TYPE_INDEX["keyword"]:
+            if (
+                is_cmd_name
+                and type_idx == _TYPE_INDEX["function"]
+                and tok.text in _BUILTIN_COMMANDS
+            ):
                 modifiers = 1 << _MOD_INDEX["defaultLibrary"]
 
             # Reconstruct the full source representation so

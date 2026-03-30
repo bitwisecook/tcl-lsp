@@ -149,6 +149,12 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W124",
+    section: "warning",
+    description: "Invalid IP address literal.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",

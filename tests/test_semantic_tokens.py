@@ -43,14 +43,14 @@ class TestSemanticTokens:
     def test_simple_puts(self):
         tokens = _decode_tokens(semantic_tokens_full("puts hello"))
         assert len(tokens) == 2
-        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["type"] == "function"
         assert tokens[0]["length"] == 4
         assert tokens[1]["type"] == "string"
 
     def test_variable(self):
         tokens = _decode_tokens(semantic_tokens_full("set x $y"))
         types = [t["type"] for t in tokens]
-        assert "keyword" in types  # 'set'
+        assert "function" in types  # 'set'
         assert "variable" in types  # '$y'
 
     def test_number(self):
@@ -95,7 +95,7 @@ class TestSemanticTokens:
         source = "set x 1\nset y 2"
         tokens = _decode_tokens(semantic_tokens_full(source))
         # Second 'set' should be on line 1
-        set_tokens = [t for t in tokens if t["type"] == "keyword"]
+        set_tokens = [t for t in tokens if t["type"] == "function" and t["length"] == 3]
         assert len(set_tokens) == 2
         assert set_tokens[0]["line"] == 0
         assert set_tokens[1]["line"] == 1
@@ -114,7 +114,7 @@ class TestSemanticTokens:
     def test_string_in_quotes(self):
         tokens = _decode_tokens(semantic_tokens_full('puts "hello"'))
         types = [t["type"] for t in tokens]
-        assert "keyword" in types
+        assert "function" in types
         assert "string" in types
 
     def test_braced_string(self):
@@ -125,8 +125,8 @@ class TestSemanticTokens:
     def test_if_elseif_else_body_recursion(self):
         source = "if {$x} { set a 1 } elseif {$y} { set b 2 } else { set c 3 }"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        set_keywords = [t for t in tokens if t["type"] == "keyword" and t["length"] == 3]
-        assert len(set_keywords) == 3
+        set_functions = [t for t in tokens if t["type"] == "function" and t["length"] == 3]
+        assert len(set_functions) == 3
 
     def test_if_expression_tokenised(self):
         source = "if {$x > 0} { puts ok }"
@@ -139,13 +139,13 @@ class TestSemanticTokens:
     def test_command_subst_inside_expression_tokenised(self):
         source = "set n [expr {[llength $xs] + 1}]"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert any(t["type"] == "keyword" and t["length"] == 7 for t in tokens)  # llength
+        assert any(t["type"] == "function" and t["length"] == 7 for t in tokens)  # llength
         assert any(t["type"] == "variable" for t in tokens)
 
     def test_regexp_pattern_braced(self):
         source = "regexp {^[a-z]+$} $str"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert tokens[0]["type"] == "keyword"  # 'regexp'
+        assert tokens[0]["type"] == "function"  # 'regexp'
         # Sub-tokenised: ^ → anchor, [a-z] → charClass, + → quantifier, $ → anchor
         re_types = {
             "regexp",
@@ -164,7 +164,7 @@ class TestSemanticTokens:
     def test_regexp_pattern_bare(self):
         source = "regexp foo $str"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert tokens[0]["type"] == "keyword"  # 'regexp'
+        assert tokens[0]["type"] == "function"  # 'regexp'
         # Bare literal "foo" with no metacharacters → single regexp token
         regex_tokens = [t for t in tokens if t["type"] == "regexp"]
         assert len(regex_tokens) == 1
@@ -172,7 +172,7 @@ class TestSemanticTokens:
     def test_regexp_with_options(self):
         source = "regexp -nocase {pattern} $str"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert tokens[0]["type"] == "keyword"  # 'regexp'
+        assert tokens[0]["type"] == "function"  # 'regexp'
         regex_tokens = [t for t in tokens if t["type"] == "regexp"]
         assert len(regex_tokens) == 1
 
@@ -195,7 +195,7 @@ class TestSemanticTokens:
     def test_regsub_pattern(self):
         source = "regsub {\\d+} $str replacement result"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert tokens[0]["type"] == "keyword"  # 'regsub'
+        assert tokens[0]["type"] == "function"  # 'regsub'
         # \d+ is sub-tokenized: \d → regexpCharClass, + → regexpQuantifier
         cc_tokens = [t for t in tokens if t["type"] == "regexpCharClass"]
         assert any(t["length"] == 2 for t in cc_tokens)  # \d
@@ -293,9 +293,9 @@ class TestSemanticTokens:
         assert any(t["type"] == "keyword" and t["length"] == len("method") for t in tokens)
 
         # Nested method/constructor bodies should recurse so these inner commands
-        # are highlighted as keywords (instead of one big string token).
-        assert any(t["type"] == "keyword" and t["length"] == len("set") for t in tokens)
-        assert any(t["type"] == "keyword" and t["length"] == len("puts") for t in tokens)
+        # are highlighted (instead of one big string token).
+        assert any(t["type"] == "function" and t["length"] == len("set") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("puts") for t in tokens)
         assert any(t["type"] == "variable" for t in tokens)
 
     def test_tcloo_define_method_body_recurses(self):
@@ -303,13 +303,13 @@ class TestSemanticTokens:
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert any(t["type"] == "namespace" and t["length"] == len("oo::") for t in tokens)
         assert any(t["type"] == "keyword" and t["length"] == len("define") for t in tokens)
-        assert any(t["type"] == "keyword" and t["length"] == len("set") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("set") for t in tokens)
 
     def test_switch_braced_case_list_recurses_case_bodies(self):
         source = "switch $x {a {set a 1} b {set b 2} default {set c 3}}"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        set_keywords = [t for t in tokens if t["type"] == "keyword" and t["length"] == len("set")]
-        assert len(set_keywords) == 3
+        set_functions = [t for t in tokens if t["type"] == "function" and t["length"] == len("set")]
+        assert len(set_functions) == 3
 
     def test_proc_parameter_list_highlighted_as_parameters(self):
         source = 'proc greet {name {title Mr} args} { return "$title $name" }'
@@ -388,7 +388,7 @@ class TestSemanticTokens:
     def test_subcommand_highlighted_as_keyword(self):
         source = "string length $value"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert any(t["type"] == "keyword" and t["length"] == len("string") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("string") for t in tokens)
         assert any(t["type"] == "keyword" and t["length"] == len("length") for t in tokens)
 
     def test_namespace_eval_subcommand_highlighted(self):
@@ -409,7 +409,7 @@ class TestSemanticTokens:
         )
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert any(t["type"] == "namespace" and t["length"] == len("oo::") for t in tokens)
-        assert any(t["type"] == "keyword" and t["length"] == len("configurable") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("configurable") for t in tokens)
         assert any(t["type"] == "keyword" and t["length"] == len("property") for t in tokens)
         assert any(t["type"] == "keyword" and t["length"] == len("constructor") for t in tokens)
         assert any(t["type"] == "keyword" and t["length"] == len("method") for t in tokens)
@@ -418,15 +418,15 @@ class TestSemanticTokens:
         source = "oo::abstract create Shape { method draw {} {} }"
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert any(t["type"] == "namespace" and t["length"] == len("oo::") for t in tokens)
-        assert any(t["type"] == "keyword" and t["length"] == len("abstract") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("abstract") for t in tokens)
         assert any(t["type"] == "keyword" and t["length"] == len("method") for t in tokens)
 
     def test_oo_singleton_highlighted_as_keyword(self):
         source = "oo::singleton create Logger { method log {msg} { puts $msg } }"
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert any(t["type"] == "namespace" and t["length"] == len("oo::") for t in tokens)
-        assert any(t["type"] == "keyword" and t["length"] == len("singleton") for t in tokens)
-        assert any(t["type"] == "keyword" and t["length"] == len("puts") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("singleton") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("puts") for t in tokens)
 
     def test_property_keyword_in_oo_define_body(self):
         source = "oo::define Dog { property name }"
@@ -462,7 +462,7 @@ class TestSemanticTokens:
         source = "oo::define Foo { initialise { set x 1 } }"
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert any(t["type"] == "keyword" and t["length"] == len("initialise") for t in tokens)
-        assert any(t["type"] == "keyword" and t["length"] == len("set") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("set") for t in tokens)
 
     def test_nextto_highlighted_as_keyword(self):
         source = "oo::class create Sub {\n    superclass Base\n    method foo {} { nextto Base }\n}"
@@ -482,7 +482,7 @@ class TestSemanticTokens:
     def test_oo_configurable_body_recurses(self):
         source = "oo::configurable create Pt { property x; method r {} { puts ok } }"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert any(t["type"] == "keyword" and t["length"] == len("puts") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("puts") for t in tokens)
 
 
 class TestAnalysisDrivenRegexHighlighting:
@@ -618,7 +618,7 @@ class TestDefaultLibraryModifier:
 
     def test_builtin_command_has_default_library(self):
         tokens = _decode_tokens(semantic_tokens_full("puts hello"))
-        cmd = next(t for t in tokens if t["type"] == "keyword")
+        cmd = next(t for t in tokens if t["type"] == "function")
         assert cmd["modifiers"] & self._DL_BIT
 
     def test_user_command_no_default_library(self):
@@ -1023,13 +1023,13 @@ class TestE100StrayBracketRecovery:
         )
         tokens = _decode_tokens(semantic_tokens_full(source))
         types = [t["type"] for t in tokens]
-        # 'set' inside the switch body should be a keyword (not buried in a string)
-        keyword_texts = [
+        # 'set' inside the switch body should be a function (not buried in a string)
+        function_texts = [
             source.split("\n")[t["line"]][t["char"] : t["char"] + t["length"]]
             for t in tokens
-            if t["type"] == "keyword"
+            if t["type"] == "function"
         ]
-        assert "set" in keyword_texts
+        assert "set" in function_texts
         # The virtual CMD content should produce namespace + keyword tokens
         assert "namespace" in types
 
@@ -1064,7 +1064,7 @@ class TestE101MissingBraceRecovery:
     """E101: orphaned switch case semantic token recovery."""
 
     def test_e101_orphaned_case_body_highlighted(self):
-        """After E101 recovery, orphaned case body gets keyword tokens."""
+        """After E101 recovery, orphaned case body gets function tokens."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
             "    switch [ACCESS::policy agent_id] \n"
@@ -1078,17 +1078,16 @@ class TestE101MissingBraceRecovery:
             "}"
         )
         tokens = _decode_tokens(semantic_tokens_full(source))
-        keyword_texts = [
+        function_texts = [
             source.split("\n")[t["line"]][t["char"] : t["char"] + t["length"]]
             for t in tokens
-            if t["type"] == "keyword"
+            if t["type"] == "function"
         ]
-        # Both "set" commands should be keywords
-        assert keyword_texts.count("set") == 2
-        # Orphaned case pattern should be a string, not a function
+        # Both "set" commands should be functions
+        assert function_texts.count("set") == 2
+        # Orphaned case pattern should be a string, not a user function
         line5_tokens = [t for t in tokens if t["line"] == 5]
         assert any(t["type"] == "string" for t in line5_tokens)
-        assert not any(t["type"] == "function" for t in line5_tokens)
 
     def test_e101_recovery_body_contents_match_valid(self):
         """E101 recovery produces same body token types as valid switch."""
@@ -1121,6 +1120,8 @@ class TestE101MissingBraceRecovery:
         # The body content tokens (set, x, 1, set, y, 2) should be identical.
         # Valid has 12 tokens (no case patterns shown), broken has 15 (patterns + stray })
         # But the keyword/variable/number tokens for body content should match.
+        # Use keyword+variable+number (not function) to avoid the stray }
+        # token from recovery being included in the comparison.
         valid_body = [t for t in valid_tokens if t["type"] in ("keyword", "variable", "number")]
         broken_body = [t for t in broken_tokens if t["type"] in ("keyword", "variable", "number")]
         assert [t["type"] for t in valid_body] == [t["type"] for t in broken_body]
@@ -1140,13 +1141,13 @@ class TestE101MissingBraceRecovery:
             "}"
         )
         tokens = _decode_tokens(semantic_tokens_full(source))
-        keyword_texts = [
+        function_texts = [
             source.split("\n")[t["line"]][t["char"] : t["char"] + t["length"]]
             for t in tokens
-            if t["type"] == "keyword"
+            if t["type"] == "function"
         ]
-        # Both "set" commands should be keywords
-        assert keyword_texts.count("set") == 2
+        # Both "set" commands should be functions
+        assert function_texts.count("set") == 2
 
 
 class TestBigipSemanticTokens:
@@ -1450,57 +1451,57 @@ class TestTcltestHighlighting:
     _DL_BIT = 1 << SEMANTIC_TOKEN_MODIFIERS.index("defaultLibrary")
 
     def test_tcltest_qualified_test_keyword(self):
-        """``tcltest::test`` is split into namespace + keyword tokens."""
+        """``tcltest::test`` is split into namespace + function tokens."""
         source = "tcltest::test mytest {desc}"
         tokens = _decode_tokens(semantic_tokens_full(source))
         ns_tokens = [t for t in tokens if t["type"] == "namespace"]
-        kw_tokens = [t for t in tokens if t["type"] == "keyword"]
+        fn_tokens = [t for t in tokens if t["type"] == "function"]
         assert len(ns_tokens) == 1
         assert ns_tokens[0]["length"] == len("tcltest::")
-        assert any(t["length"] == len("test") for t in kw_tokens)
+        assert any(t["length"] == len("test") for t in fn_tokens)
 
     def test_tcltest_qualified_cleanup_keyword(self):
-        """``tcltest::cleanupTests`` is split into namespace + keyword."""
+        """``tcltest::cleanupTests`` is split into namespace + function."""
         source = "tcltest::cleanupTests"
         tokens = _decode_tokens(semantic_tokens_full(source))
         ns_tokens = [t for t in tokens if t["type"] == "namespace"]
-        kw_tokens = [t for t in tokens if t["type"] == "keyword"]
+        fn_tokens = [t for t in tokens if t["type"] == "function"]
         assert len(ns_tokens) == 1
-        assert len(kw_tokens) == 1
-        assert kw_tokens[0]["length"] == len("cleanupTests")
+        assert len(fn_tokens) == 1
+        assert fn_tokens[0]["length"] == len("cleanupTests")
 
     def test_bare_test_after_namespace_import(self):
-        """Bare ``test`` is keyword after ``namespace import ::tcltest::*``."""
+        """Bare ``test`` is function after ``namespace import ::tcltest::*``."""
         source = "package require tcltest\nnamespace import ::tcltest::*\ntest mytest {desc}"
         tokens = _decode_tokens(semantic_tokens_full(source))
         # Find the 'test' token on line 2
         test_tok = [t for t in tokens if t["line"] == 2 and t["char"] == 0]
         assert len(test_tok) == 1
-        assert test_tok[0]["type"] == "keyword"
+        assert test_tok[0]["type"] == "function"
         assert test_tok[0]["length"] == len("test")
         assert test_tok[0]["modifiers"] & self._DL_BIT
 
     def test_bare_cleanup_after_namespace_import(self):
-        """Bare ``cleanupTests`` is keyword after namespace import."""
+        """Bare ``cleanupTests`` is function after namespace import."""
         source = "package require tcltest\nnamespace import ::tcltest::*\ncleanupTests"
         tokens = _decode_tokens(semantic_tokens_full(source))
         cleanup_tok = [t for t in tokens if t["line"] == 2 and t["char"] == 0]
         assert len(cleanup_tok) == 1
-        assert cleanup_tok[0]["type"] == "keyword"
+        assert cleanup_tok[0]["type"] == "function"
         assert cleanup_tok[0]["length"] == len("cleanupTests")
 
     def test_bare_test_constraint_keyword(self):
-        """Bare ``testConstraint`` is keyword."""
+        """Bare ``testConstraint`` is function."""
         source = "testConstraint unix 1"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["type"] == "function"
         assert tokens[0]["length"] == len("testConstraint")
 
     def test_bare_make_file_keyword(self):
-        """Bare ``makeFile`` is keyword."""
+        """Bare ``makeFile`` is function."""
         source = 'makeFile "contents" test.txt'
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["type"] == "function"
         assert tokens[0]["length"] == len("makeFile")
 
     def test_multiple_tcltest_commands_in_file(self):
@@ -1517,14 +1518,14 @@ class TestTcltestHighlighting:
         tokens = _decode_tokens(semantic_tokens_full(source))
         # testConstraint on line 2
         tc_tok = [t for t in tokens if t["line"] == 2 and t["char"] == 0]
-        assert tc_tok[0]["type"] == "keyword"
+        assert tc_tok[0]["type"] == "function"
         # test on line 3
         test_tok = [t for t in tokens if t["line"] == 3 and t["char"] == 0]
-        assert test_tok[0]["type"] == "keyword"
+        assert test_tok[0]["type"] == "function"
         assert test_tok[0]["length"] == len("test")
         # cleanupTests on line 6
         cleanup = [t for t in tokens if t["line"] == 6 and t["char"] == 0]
-        assert cleanup[0]["type"] == "keyword"
+        assert cleanup[0]["type"] == "function"
         assert cleanup[0]["length"] == len("cleanupTests")
 
     def test_tcltest_body_option_value_is_string(self):
@@ -1536,22 +1537,22 @@ class TestTcltestHighlighting:
         assert len(str_tokens) >= 1
 
     def test_c_test_command_highlighted(self):
-        """C test binary commands like ``testchannel`` are keywords."""
+        """C test binary commands like ``testchannel`` are functions."""
         source = "testchannel open"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["type"] == "function"
         assert tokens[0]["length"] == len("testchannel")
 
     def test_c_test_command_testobj(self):
-        """``testobj`` from tclTest.c is highlighted as keyword."""
+        """``testobj`` from tclTest.c is highlighted as function."""
         source = "testobj freeallvars"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["type"] == "function"
         assert tokens[0]["length"] == len("testobj")
 
     def test_deprecated_accessor_highlighted(self):
-        """Deprecated accessor ``verbose`` is highlighted as keyword."""
+        """Deprecated accessor ``verbose`` is highlighted as function."""
         source = "verbose {body error}"
         tokens = _decode_tokens(semantic_tokens_full(source))
-        assert tokens[0]["type"] == "keyword"
+        assert tokens[0]["type"] == "function"
         assert tokens[0]["length"] == len("verbose")

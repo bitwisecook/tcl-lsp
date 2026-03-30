@@ -272,25 +272,36 @@ def check_literal_expected(
     if cmd_name == "class" and args:
         sub = args[0]
         if sub in ("match", "search"):
-            # Skip options after subcommand to find class name arg.
-            # class match ?options? ?--? item operator class_obj
-            # The class object is the last argument.
-            if len(args) >= 4:
+            # class match ?options? ?--? item operator class_obj → LAST arg
+            # class search ?options? ?--? class_name operator string → 3rd-from-last
+            # Skip the subcommand (args[0]) and options (-value, -nocase, --).
+            first_positional = 1
+            while first_positional < len(args) and (
+                args[first_positional].startswith("-") or args[first_positional] == "--"
+            ):
+                first_positional += 1
+                if first_positional > 1 and args[first_positional - 1] == "--":
+                    break
+            if sub == "match":
+                # class_obj is the last positional argument
                 cls_idx = len(args) - 1
-                if cls_idx < len(arg_tokens):
-                    tok = arg_tokens[cls_idx]
-                    text = args[cls_idx]
-                    if not _first_token_is_braced(tok) and _has_substitution(text, tok):
-                        diagnostics.append(
-                            Diagnostic(
-                                range=range_from_token(tok),
-                                message=(
-                                    f"Literal expected for class name in 'class {sub}' \u2014 "
-                                    "found substitution. Use braces or a literal class name."
-                                ),
-                                severity=Severity.ERROR,
-                                code="W306",
-                            )
+            else:
+                # class search: class_name is the first positional argument
+                cls_idx = first_positional
+            if cls_idx < len(args) and cls_idx < len(arg_tokens):
+                tok = arg_tokens[cls_idx]
+                text = args[cls_idx]
+                if not _first_token_is_braced(tok) and _has_substitution(text, tok):
+                    diagnostics.append(
+                        Diagnostic(
+                            range=range_from_token(tok),
+                            message=(
+                                f"Literal expected for class name in 'class {sub}' \u2014 "
+                                "found substitution. Use braces or a literal class name."
+                            ),
+                            severity=Severity.ERROR,
+                            code="W306",
                         )
+                    )
 
     return diagnostics
