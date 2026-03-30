@@ -1903,6 +1903,17 @@ async def _publish_diagnostics(
         needs_analysis = state.update_source_quick(source, version)
     quick_ms = (time.perf_counter() - t_quick) * 1000
 
+    # Eagerly precompute syntax-only tokens on the event loop (~200 ms)
+    # so that semantic token requests get instant cache hits while the
+    # heavy analysis thread holds the GIL.  Only for newly opened files
+    # that don't have a token cache yet.
+    if state.get_semantic_token_cache() is None and state.chunks:
+        state.precompute_syntax_tokens(
+            is_irules=_is_irules_source(uri),
+            is_bigip_conf=_is_bigip_conf(uri),
+            is_apl=_is_apl_source(uri),
+        )
+
     # Yield the event loop so queued requests (e.g. semantic tokens)
     # can be dispatched with the new source text before the heavy
     # analysis pass blocks.
@@ -2331,11 +2342,16 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
             params.text_document.version,
         )
         return
-    await _publish_diagnostics(
+    # Fire-and-forget: let the event loop serve requests immediately
+    # (semantic tokens, document symbols, etc.) while analysis runs in
+    # a background thread.  Awaiting here would block this coroutine
+    # for the entire analysis duration (~seconds on large files),
+    # starving the event loop due to GIL contention.
+    asyncio.create_task(_publish_diagnostics(
         uri,
         params.text_document.text,
         params.text_document.version,
-    )
+    ))
     log.info("[timing] did_open total %.0fms (uri=%s)", (time.perf_counter() - t_open) * 1000, uri)
 
 
@@ -2604,13 +2620,27 @@ def _switch_dialect(dialect: str) -> dict:
             )
         )
         # Re-analyse all open documents with the new dialect.
+        # Use async tasks so the event loop stays responsive.
+        diagnostic_scheduler.cancel_all()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
         for uri, state in workspace_state.items():
-            _publish_diagnostics_sync(
-                uri,
-                state.source,
-                state.version,
-                force_reanalyse=True,
-            )
+            if loop is not None:
+                loop.create_task(_publish_diagnostics(
+                    uri,
+                    state.source,
+                    state.version,
+                    force_reanalyse=True,
+                ))
+            else:
+                _publish_diagnostics_sync(
+                    uri,
+                    state.source,
+                    state.version,
+                    force_reanalyse=True,
+                )
 
     return {"success": True, "dialect": current}
 
@@ -2995,13 +3025,33 @@ def _apply_all_settings_now() -> None:
         # with stale results computed under the old dialect/signatures.
         diagnostic_scheduler.cancel_all()
 
+    # Dialect/signature changes: use async re-analysis so the event
+    # loop stays responsive — semantic token requests can be served
+    # while analysis runs in a background thread.
+    #
+    # Feature-only changes: use the sync path because state.update()
+    # properly detects files that haven't been analyzed yet (analysis
+    # is None) and triggers initial analysis, which the async path's
+    # update_source_quick does not detect.
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
     for uri, state in workspace_state.items():
-        _publish_diagnostics_sync(
-            uri,
-            state.source,
-            state.version,
-            force_reanalyse=signatures_changed,
-        )
+        if signatures_changed and loop is not None:
+            loop.create_task(_publish_diagnostics(
+                uri,
+                state.source,
+                state.version,
+                force_reanalyse=True,
+            ))
+        else:
+            _publish_diagnostics_sync(
+                uri,
+                state.source,
+                state.version,
+                force_reanalyse=signatures_changed,
+            )
 
 
 def _pull_and_apply_configuration() -> None:

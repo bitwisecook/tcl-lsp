@@ -452,6 +452,73 @@ class DocumentState:
             ):
                 self._chunk_caches[i].semantic_tokens_abs = tokens  # type: ignore[union-attr, invalid-assignment]
 
+    def precompute_syntax_tokens(
+        self,
+        *,
+        is_irules: bool = False,
+        is_bigip_conf: bool = False,
+        is_apl: bool = False,
+    ) -> bool:
+        """Eagerly precompute syntax-only semantic tokens.
+
+        Builds minimal ``ChunkCache`` entries with just token data so
+        that ``get_semantic_token_cache()`` returns a full cache hit
+        before the heavy analysis pipeline runs.  Returns ``True`` if
+        tokens were precomputed, ``False`` if skipped (cache exists or
+        chunks unavailable).
+
+        This runs on the event loop (~200 ms for large files) and is
+        overwritten when ``_update_full`` builds analysis-enriched
+        caches later.
+        """
+        snap = self._snap
+        if snap.chunk_caches or not snap.chunks or snap.buffer is None:
+            return False  # already have caches, or no chunks to work from
+
+        from lsp.features.semantic_tokens import precompute_chunk_tokens
+
+        t0 = time.perf_counter()
+        buf = snap.buffer
+        chunk_ranges = [
+            _chunk_line_range(buf, chunk) for chunk in snap.chunks
+        ]
+        token_lists = precompute_chunk_tokens(
+            snap.source,
+            chunk_ranges,
+            analysis=None,
+            is_bigip_conf=is_bigip_conf,
+            is_irules=is_irules,
+            is_apl=is_apl,
+        )
+        # Build minimal chunk caches with just token data.
+        caches: list[ChunkCache | None] = []
+        for i, chunk in enumerate(snap.chunks):
+            cc = ChunkCache(
+                chunk_hash=chunk.source_hash,
+                ir_statements=(),
+                procedures={},
+                analyser_snapshot_after=None,
+                semantic_tokens_abs=token_lists[i] if i < len(token_lists) else None,
+            )
+            caches.append(cc)
+        # Atomic swap: readers see either old (no caches) or new (with tokens).
+        self._snap = _StateSnapshot(
+            source=snap.source,
+            version=snap.version,
+            chunks=snap.chunks,
+            has_partial_commands=snap.has_partial_commands,
+            buffer=snap.buffer,
+            chunk_caches=caches,
+            file_profiles=snap.file_profiles,
+        )
+        log.info(
+            "[timing] precompute_syntax_tokens %.0fms (tokens=%d, chunks=%d)",
+            (time.perf_counter() - t0) * 1000,
+            sum(len(t) for t in token_lists),
+            len(snap.chunks),
+        )
+        return True
+
     def get_deep_diag_proc_key(self) -> frozenset[tuple[str, int]]:
         """Compute the identity key for deep diagnostic caching.
 
@@ -1123,9 +1190,22 @@ class WorkspaceState:
         if analyse:
             state.update(source, version, force_reanalyse=force_reanalyse, line_length=line_length)
         else:
-            # Lightweight open: store source and version without analysis.
-            # Swap a fresh snapshot so no mutable setter touches a live one.
-            state._snap = _StateSnapshot(source=source, version=version)
+            # Lightweight open: store source, version, and chunks without
+            # running the analysis pipeline.  Segmenting chunks and building
+            # a DocumentBuffer here (~30ms for large files) enables eager
+            # semantic-token precomputation in _publish_diagnostics so the
+            # editor gets syntax highlighting before the heavy analysis.
+            chunks = segment_top_level_chunks(source)
+            has_partial = any(
+                cmd.is_partial for chunk in chunks for cmd in chunk.commands
+            )
+            state._snap = _StateSnapshot(
+                source=source,
+                version=version,
+                chunks=chunks,
+                has_partial_commands=has_partial,
+                buffer=DocumentBuffer.from_source(source, version),
+            )
         self._documents[uri] = state
         return state
 
