@@ -326,7 +326,7 @@
         {
           "comment": "Control flow keywords",
           "name": "keyword.control.tcl",
-          "match": "(?<=^|\\s|;|\\[)(?:if|else|elseif|for|foreach|while|switch|break|continue|return|catch|try|throw|on|trap|finally|yield|yieldto|tailcall)(?=\\s|$|;)"
+          "match": "(?<=^|\\s|;|\\[)(?:if|else|elseif|for|foreach|while|when|switch|break|continue|return|catch|try|throw|on|trap|finally|yield|yieldto|tailcall)(?=\\s|$|;)"
         },
         {
           "comment": "Definition keywords (proc/method handled in #definitions for name capture)",
