@@ -158,9 +158,13 @@ class TestDiagnostics:
         assert len(errors) == 0
 
     def test_puts_too_many_args(self):
-        # puts accepts up to 3 args: puts ?-nonewline? ?channelId? string
-        result = analyse("puts a b c d")
-        errors = [d for d in result.diagnostics if d.severity == Severity.ERROR]
+        # puts -nonewline channel string is valid (3 raw, 2 positional)
+        result = analyse("puts -nonewline stderr hello")
+        errors = [d for d in result.diagnostics if d.code == "E003"]
+        assert len(errors) == 0
+        # puts a b c is invalid (3 positional args, max is 2)
+        result = analyse("puts a b c")
+        errors = [d for d in result.diagnostics if d.code == "E003"]
         assert len(errors) >= 1
 
     def test_while_too_few_args(self):

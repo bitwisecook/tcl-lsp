@@ -432,7 +432,18 @@ class _CompilerCheckRunner:
 
 
 def _resolve_signature(cmd_name: str) -> CommandSig | SubcommandSig | None:
-    """Look up the command signature from the registry."""
+    """Look up the command signature from the registry.
+
+    Prefers the pre-built ``SIGNATURES`` dict which carries the full
+    ``CommandSig`` (including ``leading_options`` for option-aware arity).
+    Falls back to raw ``REGISTRY.validation`` only when SIGNATURES has no
+    entry.
+    """
+    # Pre-built signature has the richest metadata (leading_options, etc.).
+    cached = SIGNATURES.get(cmd_name)
+    if cached is not None:
+        return cached
+
     dialect = active_dialect()
     spec = REGISTRY.get(cmd_name, dialect)
     if spec is not None and spec.subcommands:
@@ -449,7 +460,7 @@ def _resolve_signature(cmd_name: str) -> CommandSig | SubcommandSig | None:
     validation = REGISTRY.validation(cmd_name, dialect)
     if validation is not None:
         return CommandSig(arity=validation.arity)
-    return SIGNATURES.get(cmd_name)
+    return None
 
 
 def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
@@ -584,8 +595,25 @@ def _check_simple_arity(
     diag_range: Range,
     diagnostics: list[Diagnostic],
 ) -> None:
-    """Check argument count for a simple (non-subcommand) signature."""
-    nargs = len(args)
+    """Check argument count for a simple (non-subcommand) signature.
+
+    When the signature declares ``leading_options``, leading arguments
+    that match a declared option (or ``--``) are skipped before counting
+    positional arguments.  This lets ``puts -nonewline channel string``
+    (3 raw args) pass arity ``(1, 2)`` because only 2 are positional.
+    """
+    # Count positional args by skipping leading declared options.
+    positional_start = 0
+    if sig.leading_options:
+        for i, arg in enumerate(args):
+            if arg == "--":
+                positional_start = i + 1
+                break
+            if arg in sig.leading_options:
+                positional_start = i + 1
+            else:
+                break
+    nargs = len(args) - positional_start
     if nargs < sig.arity.min:
         diagnostics.append(
             Diagnostic(

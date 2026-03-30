@@ -71,6 +71,15 @@ class CommandSig:
     arg_role_resolver: Callable[[list[str]], dict[int, ArgRole]] | None = field(
         default=None, hash=False, compare=False
     )
+    leading_options: frozenset[str] = field(default_factory=frozenset)
+    """Declared option flags (e.g. ``-nonewline``, ``-nocase``).
+
+    When non-empty, the arity checker skips leading arguments that match
+    a declared option before counting positional arguments.  This lets
+    ``Arity(1, 2)`` correctly accept ``puts -nonewline channel string``
+    (3 raw args, but only 2 positional) while rejecting ``puts a b c``
+    (3 positional args, exceeds max 2).
+    """
 
 
 @dataclass(frozen=True, slots=True)

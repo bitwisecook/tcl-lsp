@@ -441,6 +441,9 @@ def _signature_from_spec(spec: "CommandSpec") -> CommandSig | SubcommandSig:
     For simple commands: reads arg_roles from CommandSpec.arg_roles,
     falling back to _signature_from_validation when empty.
     """
+    # Collect declared option names from all forms for option-aware arity.
+    opts = frozenset(spec.switch_names()) if spec.forms else frozenset()
+
     if spec.subcommands:
         return SubcommandSig(
             subcommands={
@@ -453,14 +456,18 @@ def _signature_from_spec(spec: "CommandSpec") -> CommandSig | SubcommandSig:
             allow_unknown=spec.allow_unknown_subcommands,
         )
     # Simple command: use inline arg_roles if available.
+    arity = spec.validation.arity if spec.validation else Arity()
     if spec.arg_roles or spec.arg_role_resolver:
-        arity = spec.validation.arity if spec.validation else Arity()
         return CommandSig(
             arity=arity,
             arg_roles=dict(spec.arg_roles) if spec.arg_roles else {},
             arg_role_resolver=spec.arg_role_resolver,
+            leading_options=opts,
         )
-    return _signature_from_validation(spec.validation)
+    sig = _signature_from_validation(spec.validation)
+    if opts:
+        return CommandSig(arity=sig.arity, arg_roles=sig.arg_roles, leading_options=opts)
+    return sig
 
 
 def _registry_signatures_for_dialect(dialect: str) -> dict[str, CommandSig | SubcommandSig]:
