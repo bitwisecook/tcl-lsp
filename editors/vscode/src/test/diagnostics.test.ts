@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, sleep, waitForDiagnostics } from "./helper";
 
 suite("Diagnostics", () => {
   const docUri = getDocUri("diagnostics.tcl");
@@ -57,6 +57,10 @@ suite("Diagnostics", () => {
     // Disable optimiser so info-level suggestions (O1xx) don't count.
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
     await config.update("enabled", false, vscode.ConfigurationTarget.Global);
+
+    // Allow the pull-model config round-trip to complete so the
+    // server applies optimiser.enabled=false before analysing.
+    await sleep(500);
 
     try {
       await activate(cleanUri);

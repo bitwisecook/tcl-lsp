@@ -2290,28 +2290,32 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
         analyse=False,
     )
 
-    # Auto-detect dialect when the user hasn't explicitly configured one.
-    if not feature_config.dialect_explicitly_set:
-        if not is_irules_dialect() and _is_irules_source(uri):
-            log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
-            configure_signatures(dialect="f5-irules")
-            server.window_show_message(
-                types.ShowMessageParams(
-                    type=types.MessageType.Info,
-                    message="Switched to iRules dialect for F5 iRules support.",
-                )
+    # Auto-detect dialect from unambiguous file extension (always) or
+    # from source content (only when the user hasn't explicitly configured
+    # a dialect).  The .irul extension is a strong enough signal to
+    # override the editor's default setting — the pull-model config
+    # reports the package.json default ("tcl8.6") which would otherwise
+    # suppress auto-detection via dialect_explicitly_set.
+    if not is_irules_dialect() and _is_irules_source(uri):
+        log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
+        configure_signatures(dialect="f5-irules")
+        server.window_show_message(
+            types.ShowMessageParams(
+                type=types.MessageType.Info,
+                message="Switched to iRules dialect for F5 iRules support.",
             )
-        else:
-            from core.common.dialect import detect_dialect_from_source
+        )
+    elif not feature_config.dialect_explicitly_set:
+        from core.common.dialect import detect_dialect_from_source
 
-            source_dialect = detect_dialect_from_source(params.text_document.text)
-            if source_dialect:
-                changed = configure_signatures(dialect=source_dialect)
-                if changed:
-                    log.info(
-                        "Auto-switched to %s dialect (detected from source)",
-                        source_dialect,
-                    )
+        source_dialect = detect_dialect_from_source(params.text_document.text)
+        if source_dialect:
+            changed = configure_signatures(dialect=source_dialect)
+            if changed:
+                log.info(
+                    "Auto-switched to %s dialect (detected from source)",
+                    source_dialect,
+                )
 
     if _is_bigip_conf(uri):
         _publish_bigip_diagnostics(
