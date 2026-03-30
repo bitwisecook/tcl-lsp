@@ -281,9 +281,7 @@ def get_rename_edits(
         for ref in var_def.references:
             if ref.start.line < len(lines):
                 ref_line = lines[ref.start.line]
-                adj_range, replacement = _build_var_replacement(
-                    ref_line, ref, ns_prefix, new_name
-                )
+                adj_range, replacement = _build_var_replacement(ref_line, ref, ns_prefix, new_name)
                 edits.append(_range_to_text_edit(adj_range, replacement))
             else:
                 edits.append(_range_to_text_edit(ref, new_qualified))

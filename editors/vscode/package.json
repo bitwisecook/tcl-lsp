@@ -3502,17 +3502,23 @@
             "markdownDescription": "**W124:** Invalid IP address literal.",
             "order": 18
           },
+          "tclLsp.diagnostics.W126": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W126:** Non-channel value in channel argument position.",
+            "order": 19
+          },
           "tclLsp.diagnostics.W200": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 19
+            "order": 20
           },
           "tclLsp.diagnostics.W201": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
-            "order": 20
+            "order": 21
           }
         }
       },

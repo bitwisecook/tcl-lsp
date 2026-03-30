@@ -92,6 +92,7 @@ class TclLspSettingsPanel {
     private val diagW121 = JBCheckBox("W121: Subnet mask has non-contiguous bits")
     private val diagW122 = JBCheckBox("W122: Mistyped IPv4 address (octet > 255 or leading zero)")
     private val diagW124 = JBCheckBox("W124: Invalid IP address literal")
+    private val diagW126 = JBCheckBox("W126: Non-channel value in channel argument position")
     private val diagW200 = JBCheckBox("W200: exec result not captured or binary format modifier r...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
 
@@ -297,7 +298,7 @@ class TclLspSettingsPanel {
             diagW001, diagW002, diagW100, diagW104, diagW105, diagW106,
             diagW108, diagW110, diagW111, diagW112, diagW113, diagW114,
             diagW115, diagW116, diagW117, diagW120, diagW121, diagW122,
-            diagW124, diagW200, diagW201,
+            diagW124, diagW126, diagW200, diagW201,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -479,6 +480,7 @@ class TclLspSettingsPanel {
             diagW121.isSelected != s.diagnosticW121 ||
             diagW122.isSelected != s.diagnosticW122 ||
             diagW124.isSelected != s.diagnosticW124 ||
+            diagW126.isSelected != s.diagnosticW126 ||
             diagW200.isSelected != s.diagnosticW200 ||
             diagW201.isSelected != s.diagnosticW201 ||
             diagW210.isSelected != s.diagnosticW210 ||
@@ -663,6 +665,7 @@ class TclLspSettingsPanel {
         s.diagnosticW121 = diagW121.isSelected
         s.diagnosticW122 = diagW122.isSelected
         s.diagnosticW124 = diagW124.isSelected
+        s.diagnosticW126 = diagW126.isSelected
         s.diagnosticW200 = diagW200.isSelected
         s.diagnosticW201 = diagW201.isSelected
         s.diagnosticW210 = diagW210.isSelected
@@ -844,6 +847,7 @@ class TclLspSettingsPanel {
         diagW121.isSelected = s.diagnosticW121
         diagW122.isSelected = s.diagnosticW122
         diagW124.isSelected = s.diagnosticW124
+        diagW126.isSelected = s.diagnosticW126
         diagW200.isSelected = s.diagnosticW200
         diagW201.isSelected = s.diagnosticW201
         diagW210.isSelected = s.diagnosticW210

@@ -2325,3 +2325,53 @@ class TestSSATracedIPValidation:
         """Top-level bad IP gets W124 (SSA analysis covers top-level too)."""
         diags = _diag_with_code("set a 192.168.1.256", "W124")
         assert len(diags) == 1
+
+
+# W126: Channel type validation
+
+
+class TestChannelValidation:
+    """W126 -- non-channel value passed to channel argument position."""
+
+    def test_valid_open_channel(self):
+        """Variable from open is CHANNEL type → no W126."""
+        diags = _diag_with_code(
+            "proc f {} { set fd [open /tmp/t r]; gets $fd line; close $fd }",
+            "W126",
+        )
+        assert len(diags) == 0
+
+    def test_valid_socket_channel(self):
+        """Variable from socket is CHANNEL type → no W126."""
+        diags = _diag_with_code(
+            "proc f {} { set s [socket localhost 80]; close $s }",
+            "W126",
+        )
+        assert len(diags) == 0
+
+    def test_valid_stdout(self):
+        """stdout is a standard channel → no W126."""
+        diags = _diag_with_code("proc f {} { puts stdout hello }", "W126")
+        assert len(diags) == 0
+
+    def test_valid_stderr(self):
+        """stderr is a standard channel → no W126."""
+        diags = _diag_with_code("proc f {} { puts stderr hello }", "W126")
+        assert len(diags) == 0
+
+    def test_int_var_as_channel(self):
+        """INT variable used as channel → W126."""
+        diags = _diag_with_code("proc f {} { set x 42; close $x }", "W126")
+        assert len(diags) == 1
+        assert "INT" in diags[0].message
+
+    def test_literal_non_channel(self):
+        """String literal that isn't stdout/stderr/stdin → W126."""
+        diags = _diag_with_code("proc f {} { gets notachannel line }", "W126")
+        assert len(diags) == 1
+        assert "notachannel" in diags[0].message
+
+    def test_overdefined_no_warn(self):
+        """OVERDEFINED variable (e.g. from proc param) → no W126 (conservative)."""
+        diags = _diag_with_code("proc f {fd} { close $fd }", "W126")
+        assert len(diags) == 0
