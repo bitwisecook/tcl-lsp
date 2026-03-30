@@ -694,7 +694,6 @@ def _run_deep_diagnostics(
     is the source string and config flags.
     """
     import core.common.codes_all  # noqa: F401
-
     from core.commands.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect)

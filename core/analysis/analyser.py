@@ -1254,9 +1254,7 @@ class Analyser:
         cmd_tok = all_tokens[0] if all_tokens else None
         if cmd_tok is not None and cmd_tok.type is TokenType.VAR:
             method_name = args[0] if args else None
-            self._var_command_sites.append(
-                (cmd_tok.text, method_name, range_from_token(cmd_tok))
-            )
+            self._var_command_sites.append((cmd_tok.text, method_name, range_from_token(cmd_tok)))
 
         # IRULE5005: direct proc invocation without ``call`` in iRules.
         # In iRules, procs must be invoked via ``call proc_name``, not
@@ -2919,8 +2917,8 @@ class Analyser:
         if "W307" in self._disabled_diagnostics and "W308" in self._disabled_diagnostics:
             return
 
-        from .class_hierarchy import build_class_hierarchy
         from ..compiler.types import TclType, TypeKind
+        from .class_hierarchy import build_class_hierarchy
 
         # Collect all SSA type entries across top-level and procedures.
         all_types: dict[str, set[str]] = {}  # var_name → set of class_names
@@ -2932,7 +2930,9 @@ class Analyser:
                     all_types.setdefault(var_name, set()).add(tl.class_name)
 
         # Build class hierarchy for method resolution.
-        hierarchy = build_class_hierarchy(self.result.all_classes) if self.result.all_classes else None
+        hierarchy = (
+            build_class_hierarchy(self.result.all_classes) if self.result.all_classes else None
+        )
 
         for var_name, method_name, site_range in self._var_command_sites:
             class_names = all_types.get(var_name)

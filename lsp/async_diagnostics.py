@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from lsprotocol import types
@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 # Type aliases for the two callback signatures.
 DeepDiagnosticsFn = Callable[[], list[types.Diagnostic]]
-AsyncDeepDiagnosticsFn = Callable[[], "asyncio.coroutines.coroutine"]
+AsyncDeepDiagnosticsFn = Callable[[], Awaitable[list[types.Diagnostic]]]
 PublishFn = Callable[[str, list[types.Diagnostic], int | None], None]
 
 

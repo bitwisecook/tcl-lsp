@@ -1973,13 +1973,17 @@ async def _publish_diagnostics(
                 global _process_pool
                 _process_pool = None
                 await asyncio.to_thread(
-                    state.update, source, version,
+                    state.update,
+                    source,
+                    version,
                     force_reanalyse=force_reanalyse,
                     line_length=line_length,
                 )
         else:
             await asyncio.to_thread(
-                state.update, source, version,
+                state.update,
+                source,
+                version,
                 force_reanalyse=force_reanalyse,
                 line_length=line_length,
             )

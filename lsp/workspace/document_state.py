@@ -145,6 +145,7 @@ log = logging.getLogger(__name__)
 # Subprocess worker function for ProcessPoolExecutor
 # ---------------------------------------------------------------------------
 
+
 def _analyse_document_fresh(
     source: str,
     version: int | None,
@@ -161,7 +162,6 @@ def _analyse_document_fresh(
     """
     # Ensure diagnostic codes are registered in the subprocess.
     import core.common.codes_all  # noqa: F401
-
     from core.commands.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect)
@@ -197,7 +197,11 @@ def _analyse_document_fresh(
     # Build chunk caches (without semantic token precompute — that's
     # done in-process after the result is applied).
     chunk_caches = _build_chunk_caches_standalone(
-        source, chunks, chunk_snapshots, compilation_unit, line_length=line_length,
+        source,
+        chunks,
+        chunk_snapshots,
+        compilation_unit,
+        line_length=line_length,
     )
 
     buf = DocumentBuffer.from_source(source, version)

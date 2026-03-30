@@ -42,7 +42,11 @@ def _extract_class_names(ir_module: IRModule) -> frozenset[str]:
                 cmd, args = stmt.command, stmt.args
             elif isinstance(stmt, IRBarrier):
                 cmd, args = stmt.command, stmt.args
-            if cmd in _OO_METACLASSES and len(args) >= 2 and args[0] in ("create", "createWithNamespace"):
+            if (
+                cmd in _OO_METACLASSES
+                and len(args) >= 2
+                and args[0] in ("create", "createWithNamespace")
+            ):
                 class_name = args[1]
                 names.add(f"::{class_name}" if not class_name.startswith("::") else class_name)
 
