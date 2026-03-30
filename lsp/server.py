@@ -2347,11 +2347,13 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     # a background thread.  Awaiting here would block this coroutine
     # for the entire analysis duration (~seconds on large files),
     # starving the event loop due to GIL contention.
-    asyncio.create_task(_publish_diagnostics(
-        uri,
-        params.text_document.text,
-        params.text_document.version,
-    ))
+    asyncio.create_task(
+        _publish_diagnostics(
+            uri,
+            params.text_document.text,
+            params.text_document.version,
+        )
+    )
     log.info("[timing] did_open total %.0fms (uri=%s)", (time.perf_counter() - t_open) * 1000, uri)
 
 
@@ -2628,12 +2630,14 @@ def _switch_dialect(dialect: str) -> dict:
             loop = None
         for uri, state in workspace_state.items():
             if loop is not None:
-                loop.create_task(_publish_diagnostics(
-                    uri,
-                    state.source,
-                    state.version,
-                    force_reanalyse=True,
-                ))
+                loop.create_task(
+                    _publish_diagnostics(
+                        uri,
+                        state.source,
+                        state.version,
+                        force_reanalyse=True,
+                    )
+                )
             else:
                 _publish_diagnostics_sync(
                     uri,
@@ -3039,12 +3043,14 @@ def _apply_all_settings_now() -> None:
         loop = None
     for uri, state in workspace_state.items():
         if signatures_changed and loop is not None:
-            loop.create_task(_publish_diagnostics(
-                uri,
-                state.source,
-                state.version,
-                force_reanalyse=True,
-            ))
+            loop.create_task(
+                _publish_diagnostics(
+                    uri,
+                    state.source,
+                    state.version,
+                    force_reanalyse=True,
+                )
+            )
         else:
             _publish_diagnostics_sync(
                 uri,

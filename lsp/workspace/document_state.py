@@ -479,9 +479,7 @@ class DocumentState:
 
         t0 = time.perf_counter()
         buf = snap.buffer
-        chunk_ranges = [
-            _chunk_line_range(buf, chunk) for chunk in snap.chunks
-        ]
+        chunk_ranges = [_chunk_line_range(buf, chunk) for chunk in snap.chunks]
         token_lists = precompute_chunk_tokens(
             snap.source,
             chunk_ranges,
@@ -1196,9 +1194,7 @@ class WorkspaceState:
             # semantic-token precomputation in _publish_diagnostics so the
             # editor gets syntax highlighting before the heavy analysis.
             chunks = segment_top_level_chunks(source)
-            has_partial = any(
-                cmd.is_partial for chunk in chunks for cmd in chunk.commands
-            )
+            has_partial = any(cmd.is_partial for chunk in chunks for cmd in chunk.commands)
             state._snap = _StateSnapshot(
                 source=source,
                 version=version,
