@@ -41,7 +41,7 @@ class FileeventCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2, 3),
             ),
-            arg_roles={2: ArgRole.BODY},
+            arg_roles={0: ArgRole.CHANNEL, 2: ArgRole.BODY},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

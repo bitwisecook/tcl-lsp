@@ -6,7 +6,7 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "Tcl close(1)"
@@ -35,6 +35,7 @@ class CloseCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1, 2),
             ),
+            arg_roles={0: ArgRole.CHANNEL},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

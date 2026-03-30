@@ -8,7 +8,7 @@ from ....compiler.types import TclType
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "Tcl man page tell.n"
@@ -38,6 +38,7 @@ class TellCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1, 1),
             ),
+            arg_roles={0: ArgRole.CHANNEL},
             return_type=TclType.INT,
             side_effect_hints=(
                 SideEffect(

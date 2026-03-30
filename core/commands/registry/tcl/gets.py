@@ -39,7 +39,7 @@ class GetsCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1, 2),
             ),
-            arg_roles={1: ArgRole.VAR_NAME},
+            arg_roles={0: ArgRole.CHANNEL, 1: ArgRole.VAR_NAME},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

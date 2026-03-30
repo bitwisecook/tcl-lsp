@@ -8,7 +8,7 @@ from ....compiler.types import TclType
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "Tcl man page fcopy.n"
@@ -38,6 +38,7 @@ class FcopyCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2),
             ),
+            arg_roles={0: ArgRole.CHANNEL, 1: ArgRole.CHANNEL},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

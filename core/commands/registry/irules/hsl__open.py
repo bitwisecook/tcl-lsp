@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import (
     CommandSpec,
@@ -81,6 +82,7 @@ class HslOpenCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
+            return_type=TclType.CHANNEL,
             event_requires=EventRequires(),
             side_effect_hints=(
                 SideEffect(

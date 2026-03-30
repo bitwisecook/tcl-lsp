@@ -39,6 +39,7 @@ class TclType(Enum):
     BYTEARRAY = auto()
     NUMERIC = auto()  # abstract join of INT and DOUBLE
     OBJECT = auto()  # TclOO object instance
+    CHANNEL = auto()  # I/O channel handle (from open, socket, chan create)
 
 
 class TypeKind(Enum):

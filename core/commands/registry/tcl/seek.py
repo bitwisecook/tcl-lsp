@@ -14,7 +14,7 @@ from ..models import (
     HoverSnippet,
     ValidationSpec,
 )
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "Tcl man page seek.n"
@@ -62,6 +62,7 @@ class SeekCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(2, 3)),
+            arg_roles={0: ArgRole.CHANNEL},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

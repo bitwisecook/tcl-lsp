@@ -37,6 +37,7 @@ class TaintColour(Flag):
     IP_ADDRESS = auto()  # IPv4 or IPv6 address (digits, dots, colons)
     PORT = auto()  # integer 0-65535
     FQDN = auto()  # fully qualified domain name
+    CHANNEL = auto()  # I/O channel handle (from open, socket, chan create, HSL::open)
 
 
 @dataclass(frozen=True, slots=True)

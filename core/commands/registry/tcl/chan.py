@@ -174,7 +174,7 @@ class ChanCommand(CommandDef):
                     arity=Arity(2, 2),
                     detail="Create a script-level channel.",
                     synopsis="chan create mode cmdPrefix",
-                    return_type=TclType.STRING,
+                    return_type=TclType.CHANNEL,
                 ),
                 "eof": SubCommand(
                     name="eof",

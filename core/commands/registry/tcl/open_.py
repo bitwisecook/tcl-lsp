@@ -81,7 +81,7 @@ class OpenCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(1, 3)),
-            return_type=TclType.STRING,
+            return_type=TclType.CHANNEL,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.FILE_IO,

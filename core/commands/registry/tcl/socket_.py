@@ -114,7 +114,7 @@ class SocketCommand(CommandDef):
                 arity=Arity(2),
             ),
             taint_network_sink_args=(0, 1),
-            return_type=TclType.STRING,
+            return_type=TclType.CHANNEL,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.NETWORK_IO,

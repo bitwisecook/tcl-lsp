@@ -7,7 +7,7 @@ from ....compiler.types import TclType
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "Tcl fconfigure(1)"
@@ -45,6 +45,7 @@ class FconfigureCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
+            arg_roles={0: ArgRole.CHANNEL},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(
