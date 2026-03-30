@@ -3139,7 +3139,12 @@ def _apply_all_settings_now() -> None:
                     force_reanalyse=True,
                 )
             )
-        else:
+        elif state.analysis is not None:
+            # Only sync-republish files that already have analysis.
+            # Files with analysis=None are being analysed in a subprocess
+            # and will publish diagnostics when complete — running
+            # state.update synchronously here would trigger a redundant
+            # full rebuild on the main thread, blocking the event loop.
             _publish_diagnostics_sync(
                 uri,
                 state.source,

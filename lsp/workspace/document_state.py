@@ -194,14 +194,20 @@ def _analyse_document_fresh(
         cu=compilation_unit,
     )
 
-    # Build chunk caches (without semantic token precompute — that's
-    # done in-process after the result is applied).
+    # Determine dialect flags for semantic token precompute.
+    uri_lower = uri.lower() if uri else ""
+    is_irules_file = uri_lower.endswith(".irul") or uri_lower.endswith(".irule")
+
     chunk_caches = _build_chunk_caches_standalone(
         source,
         chunks,
         chunk_snapshots,
         compilation_unit,
         line_length=line_length,
+        analysis=analysis,
+        is_irules=is_irules_file or is_irules_dialect(),
+        is_bigip_conf=uri_lower.endswith(".conf"),
+        is_apl=uri_lower.endswith(".apl"),
     )
 
     buf = DocumentBuffer.from_source(source, version)
@@ -234,13 +240,15 @@ def _build_chunk_caches_standalone(
     compilation_unit: CompilationUnit | None,
     *,
     line_length: int = 120,
+    analysis: AnalysisResult | None = None,
+    is_irules: bool = False,
+    is_bigip_conf: bool = False,
+    is_apl: bool = False,
 ) -> list[ChunkCache | None]:
-    """Build chunk caches without semantic token precompute.
+    """Build chunk caches including semantic token precompute.
 
     Standalone version of ``DocumentState._build_full_chunk_caches``
     suitable for subprocess execution (no ``self`` dependency).
-    Semantic tokens are precomputed in-process after the result is
-    applied, since that step needs the URI for dialect detection.
     """
     from bisect import bisect_left, bisect_right
 
@@ -292,6 +300,24 @@ def _build_chunk_caches_standalone(
             )
         )
         time.sleep(0)  # Yield GIL between chunks
+
+    # Precompute semantic tokens per chunk so the first
+    # semanticTokens/full request gets a full cache hit.
+    try:
+        chunk_line_ranges = [_chunk_line_range(buf, c) for c in chunks]
+        chunk_toks = _get_precompute_chunk_tokens_fn()(
+            source,
+            chunk_line_ranges,
+            analysis=analysis,
+            is_irules=is_irules,
+            is_bigip_conf=is_bigip_conf,
+            is_apl=is_apl,
+        )
+        for ci, cc in enumerate(caches):
+            if cc is not None and ci < len(chunk_toks):
+                cc.semantic_tokens_abs = chunk_toks[ci]
+    except Exception:
+        log.debug("_build_chunk_caches_standalone: token precompute failed", exc_info=True)
 
     return caches
 
