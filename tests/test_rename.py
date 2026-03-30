@@ -88,7 +88,9 @@ class TestRenameVariable:
         assert TEST_URI in edit.changes
         edits = edit.changes[TEST_URI]
         assert len(edits) >= 1
-        assert all(e.new_text == "newvar" for e in edits)
+        # Definition gets bare name, references get $-prefixed
+        assert any(e.new_text == "newvar" for e in edits)  # def site
+        assert any(e.new_text == "$newvar" for e in edits)  # ref site
 
     def test_rename_var_from_definition_site(self):
         source = textwrap.dedent("""\
@@ -101,7 +103,22 @@ class TestRenameVariable:
         assert TEST_URI in edit.changes
         edits = edit.changes[TEST_URI]
         assert len(edits) >= 2
-        assert all(e.new_text == "newvar" for e in edits)
+        texts = {e.new_text for e in edits}
+        assert "newvar" in texts  # definition site
+        assert "$newvar" in texts  # reference site
+
+    def test_rename_var_preserves_braced_form(self):
+        source = textwrap.dedent("""\
+            set x 1
+            puts ${x}
+        """)
+        edit = get_rename_edits(source, TEST_URI, 0, 4, "newvar")
+        assert edit is not None
+        assert edit.changes is not None
+        edits = edit.changes[TEST_URI]
+        texts = {e.new_text for e in edits}
+        assert "newvar" in texts  # definition
+        assert "${newvar}" in texts  # braced reference
 
     def test_rename_respects_scope(self):
         source = textwrap.dedent("""\

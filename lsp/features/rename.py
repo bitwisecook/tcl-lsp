@@ -9,6 +9,7 @@ from lsprotocol import types
 from core.analysis.analyser import analyse
 from core.analysis.proc_lookup import find_proc_by_reference
 from core.analysis.semantic_model import AnalysisResult, Range, Scope, VarDef
+from core.parsing.tokens import SourcePosition
 from core.commands.registry import REGISTRY
 from core.common.lsp import find_var_in_scopes, to_lsp_range
 
@@ -155,11 +156,42 @@ def get_rename_edits(
             return None
 
         edits: list[types.TextEdit] = []
-        # Definition site
+        lines = source.splitlines()
+        # Definition site (bare name, no $)
         edits.append(_range_to_text_edit(var_def.definition_range, new_name))
-        # Reference sites
+        # Reference sites — these may include $ or ${...} prefixes
         for ref in var_def.references:
-            edits.append(_range_to_text_edit(ref, new_name))
+            if ref.start.line < len(lines):
+                ref_line = lines[ref.start.line]
+                ch = ref.start.character
+                if ch < len(ref_line) and ref_line[ch] == "$":
+                    if ch + 1 < len(ref_line) and ref_line[ch + 1] == "{":
+                        # ${name} form — include the closing }
+                        replacement = "${" + new_name + "}"
+                        # Extend range to cover the closing brace
+                        end = ref.end
+                        close_ch = end.character + 1
+                        if close_ch < len(ref_line) and ref_line[close_ch] == "}":
+                            end = Range(
+                                start=ref.start,
+                                end=SourcePosition(
+                                    line=end.line,
+                                    character=close_ch,
+                                    offset=end.offset + 1,
+                                ),
+                            ).end
+                            edits.append(_range_to_text_edit(
+                                Range(start=ref.start, end=end),
+                                replacement,
+                            ))
+                            continue
+                    # $name form
+                    replacement = "$" + new_name
+                else:
+                    replacement = new_name
+            else:
+                replacement = new_name
+            edits.append(_range_to_text_edit(ref, replacement))
 
         return types.WorkspaceEdit(changes={uri: edits})
 
