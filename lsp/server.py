@@ -2070,6 +2070,14 @@ async def _publish_diagnostics(
     if partial_mode:
         return
 
+    # Skip deep diagnostics when no analysis has been performed yet —
+    # the subprocess analysis hasn't returned, so deep passes would
+    # just waste ProcessPoolExecutor slots doing redundant compilation.
+    # The dialect-change or settings-change path will schedule proper
+    # deep diagnostics after analysis completes.
+    if not did_analyse and state.analysis is None:
+        return
+
     # Capture current config for the closure (avoid races if config changes).
     opt_enabled = feature_config.optimiser_enabled and not partial_mode
     shimmer_enabled = feature_config.shimmer_enabled and not partial_mode
