@@ -1,57 +1,25 @@
-# v1.3.0
+# v1.3.1
 
 ## New Features
-
-- **TclOO support**: full TclOO runtime in the Tcl VM — classes, objects,
-  method dispatch, MRO computation, mixins, filters, properties, private
-  variables (TIP 500), and constructor/destructor lifecycle.  85% native
-  test conformance against Tcl 9.0.3 `oo.test` / `ooNext2.test` suites.
-- **Type hierarchy**: supertypes/subtypes visualisation for class
-  hierarchies via the standard LSP type-hierarchy protocol.
-- **Per-file dialect directives**: `# tcl-dialect: <dialect>` comment in
-  the first five lines pins a specific dialect for that file, overriding
-  global settings.
-- **Platform-native config paths**: configuration file now follows
-  platform conventions (`~/.config/tcl-lsp/config.ini` on Linux,
-  `~/Library/Application Support/tcl-lsp/config.ini` on macOS,
-  `%APPDATA%\tcl-lsp\config.ini` on Windows).
-- **O127 optimisation**: inline single-use variable assignments
-  (store-to-load forwarding).
-- **New commands**: `tailcall`, `array for`, `array default`, `const`,
-  `namespace ensemble`, `info frame` with OO method context, and full
-  slot operations for mixin/filter commands.
+- **W124 — SSA-traced IP address validation**: validates IPv4/IPv6 address literals discovered via SCCP constant propagation, with related-information links from definition to use sites.
+- **W126 — Channel type checking**: detects non-channel values (e.g. integers, plain strings) passed to channel argument positions in commands like `close`, `gets`, `puts`, `flush`, `eof`, `seek`, `tell`, `fcopy`, `fileevent`, `fconfigure`, `fblocked`, and `HSL::send`.
+- **Channel tracking infrastructure**: `TclType.CHANNEL` type, `ArgRole.CHANNEL` annotations, and `TaintColour.CHANNEL` allow the type system to trace I/O handles from `open`, `socket`, `chan create`, and `HSL::open` through to channel-consuming commands.
 
 ## Improvements
-
-- W201 (path concatenation) migrated to the taint system using Rendered
-  Value Properties for more precise escape-sequence detection.
-- W210 (variable used before definition) no longer false-positives inside
-  `tcltest::test` script arguments.
-- W214 (unused parameter) fixed for variables appearing in
-  `return [expr {...}]` substitutions.
-- E204/E205 no longer false-positive on valid backslash-newline
-  continuation after closing braces.
-- Immediate dominator computation optimised from O(n²) to O(n);
-  side-effect cache pre-computed and reused across passes.
-- Semantic token pre-computation eliminates redundant work for faster
-  highlighting.
-- iRules dialect auto-detection now always triggers for `.irul`/`.irule`
-  files, even when the editor reports its default `tcl8.6` setting.
+- **Semantic token reclassification**: built-in commands (e.g. `set`, `puts`, `string`, `regexp`) are now emitted as `function` with the `defaultLibrary` modifier instead of `keyword`, aligning with the LSP semantic token specification and enabling distinct theme colouring for language keywords vs library functions.
+- **TextMate grammar overhaul**: braced content now recurses as full Tcl source (highlighting proc/if/while bodies); `proc`/`method` names are captured as `entity.name.function`; added `when`, `on`, `trap`, `finally`, TclOO, and `oo::*` keywords; simplified variable scopes.
+- **Option-aware arity checking**: commands that declare leading options (e.g. `puts -nonewline`) now correctly skip option flags before counting positional arguments, eliminating false-positive arity errors.
+- **Faster file-open responsiveness**: `didOpen` and dialect changes now use async tasks to unblock the event loop, and syntax-only semantic tokens are eagerly precomputed so the editor gets instant highlighting before heavy analysis completes.
+- **Diagnostic related information**: the LSP now emits `relatedInformation` on diagnostics that carry use-site references (currently W124).
 
 ## Bug Fixes
-
-- Fixed compiler re-inserting proc definitions with dynamic params/body.
-- Fixed namespace-relative class resolution in `oo::define`/`oo::objdefine`.
-- Fixed MRO cycle detection for pure superclass cycles.
-- Fixed method/filter call chain ordering to match C Tcl.
-- Fixed `next`/`nextto` dispatch, private-method visibility, and
-  cross-object private access.
-- Fixed instance variable scoping per defining-class and variable slot
-  operations.
-- Fixed `oo::copy` namespace handling and private call chains.
-- Fixed stale trace cleanup and auto-removal of traces with deleted
-  commands.
-- Fixed line-ending handling for `\r` and `\r\n` in
-  backslash-continuation guards.
-- Over 120 additional bug fixes for OO semantics, variable scoping,
-  namespace resolution, and error reporting.
+- Fixed `--` only being treated as an option terminator when the command explicitly declares it, preventing false arity errors on commands that accept `--`.
+- Fixed W122 (regex-based IP check) false positives on version numbers following `/` (e.g. `Chrome/28.0.1550.0`); narrowed diagnostic range to the matched quad.
+- W122 is now suppressed on lines where the more precise W124 (SSA-based) check fires.
+- Fixed `class search` argument position detection in W306 (literal expected) — the class name is now correctly identified as the first positional argument rather than the last.
+- Fixed CFG definition tracking for variables assigned inside command substitutions within expressions (e.g. `[set full_tag [string tolower $x]]` inside `lsearch`).
+- Fixed backslash-newline continuation between words being treated as a word boundary instead of whitespace in command segmentation.
+- Fixed empty command substitution `[]` being incorrectly flagged as unterminated in the recovery parser.
+- Fixed constant-hoisting optimiser incorrectly suggesting hoisting of empty/default-value initialisations (`""`, `{}`, `[list]`) that must reset per-request.
+- Fixed RULE_INIT `static::` definitions not being recognised as cross-event variables by the optimiser, preventing false "unused variable" or "hoist" suggestions.
+- Rename now correctly preserves `$`, `${...}`, and namespace qualifiers at variable reference and proc call sites.
