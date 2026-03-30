@@ -2,6 +2,7 @@
 
 #include "tcl_lsp/analysis/analyser.hpp"
 #include "tcl_lsp/analysis/command_interface.hpp"
+#include "tcl_lsp/registry/native_registry_adapter.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -181,4 +182,63 @@ TEST_CASE("return: cmd subst no W214", "[analyser][w214]") {
     auto reg = make_diag_registry();
     auto result = analyse("proc foo {x} { return [string length $x] }", &reg);
     CHECK(by_code(result, DiagCode::W214).empty());
+}
+
+// ---------------------------------------------------------------------------
+// E001 arity diagnostics via native registry (Phase 4j)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("E001: too few args for puts (0 args)", "[analyser][e001][registry]") {
+    auto& reg = native_registry();
+    auto result = analyse("puts", &reg);
+    auto diags = by_code(result, DiagCode::E001);
+    REQUIRE(diags.size() == 1);
+    CHECK(diags[0].message.find("Too few") != std::string::npos);
+}
+
+TEST_CASE("E001: too many args for set (3 args)", "[analyser][e001][registry]") {
+    auto& reg = native_registry();
+    auto result = analyse("set x 1 extra", &reg);
+    auto diags = by_code(result, DiagCode::E001);
+    REQUIRE(diags.size() == 1);
+    CHECK(diags[0].message.find("Too many") != std::string::npos);
+}
+
+TEST_CASE("E001: break with args", "[analyser][e001][registry]") {
+    auto& reg = native_registry();
+    auto result = analyse("break extra", &reg);
+    auto diags = by_code(result, DiagCode::E001);
+    REQUIRE(diags.size() == 1);
+}
+
+TEST_CASE("E001: no false positive for valid command", "[analyser][e001][registry]") {
+    auto& reg = native_registry();
+    auto result = analyse("puts hello", &reg);
+    CHECK(by_code(result, DiagCode::E001).empty());
+}
+
+TEST_CASE("E001: no false positive for unlimited max args", "[analyser][e001][registry]") {
+    auto& reg = native_registry();
+    auto result = analyse("list a b c d e f g h i j", &reg);
+    CHECK(by_code(result, DiagCode::E001).empty());
+}
+
+TEST_CASE("E001: subcommand arity (string length)", "[analyser][e001][registry]") {
+    auto reg = make_diag_registry();
+    auto result = analyse("string length a b", &reg);
+    auto diags = by_code(result, DiagCode::E001);
+    REQUIRE(diags.size() == 1);
+    CHECK(diags[0].message.find("string length") != std::string::npos);
+}
+
+TEST_CASE("E001: noqa suppression", "[analyser][e001][registry]") {
+    auto& reg = native_registry();
+    auto result = analyse("# noqa: E001\nputs", &reg);
+    CHECK(by_code(result, DiagCode::E001).empty());
+}
+
+TEST_CASE("E001: {*} expansion suppresses arity check", "[analyser][e001][registry]") {
+    auto& reg = native_registry();
+    auto result = analyse("puts {*}$args", &reg);
+    CHECK(by_code(result, DiagCode::E001).empty());
 }

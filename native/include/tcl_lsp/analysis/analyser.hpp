@@ -18,6 +18,9 @@
 
 namespace tcl_lsp {
 
+// Forward declaration.
+struct AnalyserSnapshot;
+
 // Single-pass Tcl analyser.
 //
 // Walks segmented commands, builds a semantic model of the source: scopes,
@@ -35,6 +38,15 @@ class Analyser {
                           const std::vector<SegmentedCommand>& commands,
                           bool finalise = true) -> AnalysisResult;
 
+    // Snapshot/restore for incremental analysis.
+    auto snapshot() -> AnalyserSnapshot;
+    void restore(AnalyserSnapshot snap);
+
+    // Analyse chunk-by-chunk, returning per-chunk snapshots.
+    auto analyse_chunked(std::string_view source,
+                         const std::vector<std::vector<SegmentedCommand>>& chunks)
+        -> std::pair<AnalysisResult, std::vector<AnalyserSnapshot>>;
+
   private:
     // --- Immutable config (survives across analyse() calls) ---
     const CommandRegistryInterface* registry_;
@@ -49,6 +61,13 @@ class Analyser {
                      std::span<const std::string> args,
                      const std::string& ns) const
             -> std::pair<std::string, std::vector<std::string>>;
+
+        // Snapshot support.
+        [[nodiscard]] auto aliases() const
+            -> const std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>>&
+        { return aliases_; }
+        void set_aliases(std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>> a)
+        { aliases_ = std::move(a); }
 
       private:
         std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>>
@@ -96,6 +115,7 @@ class Analyser {
     void handle_package(const SegmentedCommand& cmd);
     void handle_source(const SegmentedCommand& cmd);
     void handle_expr(const SegmentedCommand& cmd, Scope* scope);
+    void handle_regexp(const SegmentedCommand& cmd, Scope* scope);
 
     // --- Switch body parsing ---
     void parse_switch_body(std::string_view body_text, const Token* body_token,
@@ -149,6 +169,15 @@ class Analyser {
 
     // --- Scan for variable references in token stream ---
     void scan_var_references(const std::vector<Token>& tokens, Scope* scope);
+};
+
+// Checkpoint of analyser state at a chunk boundary.
+struct AnalyserSnapshot {
+    AnalysisResult result;
+    std::string last_comment;
+    int32_t conditional_depth = 0;
+    std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>>
+        alias_state;
 };
 
 // Convenience wrapper.

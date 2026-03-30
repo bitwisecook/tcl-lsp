@@ -2,11 +2,13 @@
 
 #include "tcl_lsp/analysis/analyser.hpp"
 #include "tcl_lsp/analysis/command_interface.hpp"
+#include "tcl_lsp/registry/native_registry_adapter.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <string>
+#include <unordered_set>
 
 using namespace tcl_lsp;
 
@@ -184,4 +186,100 @@ TEST_CASE("regex var propagation: literal and variable mixed", "[analyser][regex
     std::sort(patterns.begin(), patterns.end());
     CHECK(std::count(patterns.begin(), patterns.end(), "^a") >= 1);
     CHECK(std::count(patterns.begin(), patterns.end(), "^b") >= 1);
+}
+
+// ---------------------------------------------------------------------------
+// Option-aware pattern detection (Phase 4e)
+// These tests use native_registry() for correct option handling.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("regexp with -nocase -expanded options", "[analyser][regex][options]") {
+    auto& reg = native_registry();
+    auto result = analyse("regexp -nocase -expanded {\\d+} $str", &reg);
+    REQUIRE(result.regex_patterns().size() == 1);
+    CHECK(result.regex_patterns()[0].pattern == "\\d+");
+    CHECK(result.regex_patterns()[0].command == "regexp");
+}
+
+TEST_CASE("regexp with -- option terminator", "[analyser][regex][options]") {
+    auto& reg = native_registry();
+    auto result = analyse("regexp -nocase -- {^test} $str", &reg);
+    REQUIRE(result.regex_patterns().size() == 1);
+    CHECK(result.regex_patterns()[0].pattern == "^test");
+}
+
+TEST_CASE("regexp with -start value-consuming option", "[analyser][regex][options]") {
+    auto& reg = native_registry();
+    auto result = analyse("regexp -start 5 {pattern} $str", &reg);
+    REQUIRE(result.regex_patterns().size() == 1);
+    CHECK(result.regex_patterns()[0].pattern == "pattern");
+}
+
+TEST_CASE("regsub with -all -nocase options", "[analyser][regex][options]") {
+    auto& reg = native_registry();
+    auto result = analyse("regsub -all -nocase {foo} $str bar result", &reg);
+    REQUIRE(result.regex_patterns().size() == 1);
+    CHECK(result.regex_patterns()[0].pattern == "foo");
+    CHECK(result.regex_patterns()[0].command == "regsub");
+}
+
+TEST_CASE("regexp range points at pattern token", "[analyser][regex][options]") {
+    auto& reg = native_registry();
+    auto result = analyse("regexp {^\\d+$} $str", &reg);
+    REQUIRE(result.regex_patterns().size() == 1);
+    // Pattern starts at column 7 (after "regexp ")
+    CHECK(result.regex_patterns()[0].range.start.character == 7);
+}
+
+// ---------------------------------------------------------------------------
+// Variable propagation edge cases (Phase 4e)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("regex var propagation: set then switch -regexp", "[analyser][regex][propagation]") {
+    auto result = analyse("set pat {^hello}\nswitch -regexp $x $pat {puts matched}");
+    // The set site should be marked as regex due to propagation.
+    bool found_set_site = false;
+    for (const auto& rp : result.regex_patterns()) {
+        if (rp.pattern == "^hello")
+            found_set_site = true;
+    }
+    CHECK(found_set_site);
+}
+
+TEST_CASE("regex var propagation: interpolated string not constant",
+          "[analyser][regex][propagation]") {
+    auto reg = make_regex_registry();
+    auto result = analyse("set pat \"^$prefix\"\nregexp $pat $str", &reg);
+    // Interpolated strings are not constant — no regex patterns.
+    CHECK(result.regex_patterns().empty());
+}
+
+TEST_CASE("regex var propagation: definition site marked", "[analyser][regex][propagation]") {
+    auto& reg = native_registry();
+    auto result = analyse("set pat {^test}\nregexp $pat $str", &reg);
+    REQUIRE(result.regex_patterns().size() == 2);
+    // One pattern is from the definition site (set), one from use (regexp).
+    std::unordered_set<std::string> commands;
+    for (const auto& rp : result.regex_patterns()) {
+        commands.insert(rp.command);
+        CHECK(rp.pattern == "^test");
+    }
+    // Both should exist: the set site is marked as "regexp" (the command
+    // that triggered the recognition).
+    CHECK(commands.count("regexp") == 1);
+}
+
+TEST_CASE("regex var propagation: use site at correct line", "[analyser][regex][propagation]") {
+    auto& reg = native_registry();
+    auto result = analyse("set pat {^test}\nregexp $pat $str", &reg);
+    REQUIRE(result.regex_patterns().size() == 2);
+    // Find the use site (line 1, regexp command).
+    bool found_use = false;
+    for (const auto& rp : result.regex_patterns()) {
+        if (rp.range.start.line == 1) {
+            CHECK(rp.command == "regexp");
+            found_use = true;
+        }
+    }
+    CHECK(found_use);
 }

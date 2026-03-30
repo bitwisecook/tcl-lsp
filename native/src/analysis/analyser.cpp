@@ -148,6 +148,54 @@ void Analyser::analyse_commands_inner(const std::vector<SegmentedCommand>& comma
 }
 
 // ---------------------------------------------------------------------------
+// Snapshot / Restore for incremental analysis
+// ---------------------------------------------------------------------------
+
+auto Analyser::snapshot() -> AnalyserSnapshot {
+    return AnalyserSnapshot{
+        s_.result.copy_for_snapshot(),
+        s_.last_comment,
+        s_.conditional_depth,
+        s_.alias_resolver.aliases(),
+    };
+}
+
+void Analyser::restore(AnalyserSnapshot snap) {
+    s_ = Session{};
+    s_.result = std::move(snap.result);
+    s_.last_comment = std::move(snap.last_comment);
+    s_.conditional_depth = snap.conditional_depth;
+    s_.alias_resolver.set_aliases(std::move(snap.alias_state));
+    s_.current_scope = &s_.result.global_scope();
+}
+
+// ---------------------------------------------------------------------------
+// Chunked analysis with per-chunk snapshots
+// ---------------------------------------------------------------------------
+
+auto Analyser::analyse_chunked(std::string_view source,
+                               const std::vector<std::vector<SegmentedCommand>>& chunks)
+    -> std::pair<AnalysisResult, std::vector<AnalyserSnapshot>> {
+    // If not restored, start fresh. If restored, continue from restored state.
+    if (s_.current_scope == nullptr) {
+        s_ = Session{};
+        s_.current_scope = &s_.result.global_scope();
+    }
+
+    std::vector<AnalyserSnapshot> snapshots;
+    snapshots.reserve(chunks.size());
+
+    for (const auto& chunk : chunks) {
+        analyse_commands_inner(chunk, &s_.result.global_scope(), source);
+        snapshots.push_back(snapshot());
+    }
+
+    emit_unresolved_command_diagnostics();
+    dedupe_diagnostics();
+    return {std::move(s_.result), std::move(snapshots)};
+}
+
+// ---------------------------------------------------------------------------
 // Convenience free function
 // ---------------------------------------------------------------------------
 

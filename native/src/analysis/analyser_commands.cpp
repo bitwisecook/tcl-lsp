@@ -1,6 +1,7 @@
 // Command dispatch and command-specific handlers.
 
 #include "tcl_lsp/analysis/analyser.hpp"
+#include "tcl_lsp/analysis/arg_role_resolver.hpp"
 #include "tcl_lsp/analysis/param_list_parser.hpp"
 #include "tcl_lsp/parsing/recovery.hpp"
 
@@ -74,6 +75,8 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
         {"variable", &Analyser::handle_variable_decl},
         {"global",   &Analyser::handle_variable_decl},
         {"expr",     &Analyser::handle_expr},
+        {"regexp",   &Analyser::handle_regexp},
+        {"regsub",   &Analyser::handle_regexp},
     };
     if (auto it = non_consuming_handlers.find(cmd_name); it != non_consuming_handlers.end()) {
         (this->*(it->second))(cmd, scope);
@@ -82,12 +85,27 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
         handle_interp_alias(cmd);
     }
 
+    // array set arrayName list — defines the array variable.
+    if (cmd_name == "array" && args.size() >= 2 && args[0] == "set") {
+        const auto atoks = cmd.arg_tokens();
+        Range r = atoks.size() >= 2 ? range_from_token(atoks[1]) : range_from_token(cmd.argv[0]);
+        define_var(args[1], r, scope, false);
+    }
+
     // --- Generic arg-role analysis via registry ---
     analyse_body_args(cmd, scope);
 
     // --- Arity checking ---
+    // Skip arity checking when {*} expansion is used — we cannot know
+    // the actual argument count at analysis time.
+    bool has_expand = false;
+    if (cmd.expand_word.has_value()) {
+        for (bool ew : *cmd.expand_word) {
+            if (ew) { has_expand = true; break; }
+        }
+    }
     bool has_sig = false;
-    if (registry_) {
+    if (registry_ && !has_expand) {
         auto arity_opt = registry_->validation(cmd_name);
         if (arity_opt.has_value()) {
             has_sig = true;
@@ -98,6 +116,33 @@ void Analyser::process_command(const SegmentedCommand& cmd, Scope* scope,
             } else if (nargs > arity_opt->max) {
                 emit_diagnostic(range_from_token(cmd.argv[0]), Severity::ERROR, DiagCode::E001,
                                 "Too many arguments for '" + cmd_name + "'");
+            }
+        }
+        // Subcommand-level arity check.
+        if (!has_sig) {
+            auto sig_opt = registry_->signature(cmd_name);
+            if (sig_opt.has_value()) {
+                if (auto* ss = std::get_if<SubcommandSig>(&*sig_opt)) {
+                    has_sig = true;
+                    if (!args.empty()) {
+                        auto it = ss->subcommands.find(args[0]);
+                        if (it != ss->subcommands.end()) {
+                            // Args to the subcommand (excluding subcommand name itself).
+                            auto sub_nargs = static_cast<int32_t>(args.size()) - 1;
+                            if (sub_nargs < it->second.arity.min) {
+                                emit_diagnostic(range_from_token(cmd.argv[0]), Severity::ERROR,
+                                                DiagCode::E001,
+                                                "Too few arguments for '" + cmd_name +
+                                                    " " + args[0] + "'");
+                            } else if (sub_nargs > it->second.arity.max) {
+                                emit_diagnostic(range_from_token(cmd.argv[0]), Severity::ERROR,
+                                                DiagCode::E001,
+                                                "Too many arguments for '" + cmd_name +
+                                                    " " + args[0] + "'");
+                            }
+                        }
+                    }
+                }
             }
         }
         if (!has_sig) {
@@ -503,6 +548,13 @@ auto Analyser::handle_try(const SegmentedCommand& cmd, Scope* scope) -> bool {
             analyse_body(args[i + 1], scope, ftok);
             i += 2;
         } else if ((args[i] == "on" || args[i] == "trap") && i + 3 < args.size()) {
+            // args[i+2] is the variable list (e.g. {msg opts}).
+            auto var_list = parse_param_list(args[i + 2]);
+            for (const auto& p : var_list) {
+                Range vr = (i + 2) < atoks.size() ? range_from_token(atoks[i + 2])
+                                                  : Range::zero();
+                define_var(p.name, vr, scope, false);
+            }
             const Token* htok = (i + 3) < atoks.size() ? &atoks[i + 3] : nullptr;
             analyse_body(args[i + 3], scope, htok);
             i += 4;
@@ -618,6 +670,35 @@ void Analyser::handle_expr(const SegmentedCommand& cmd, Scope* scope) {
     if (args.empty()) return;
     for (const auto& arg : args) {
         analyse_expr(arg, scope);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// handle_regexp — option-aware pattern detection for regexp/regsub
+// ---------------------------------------------------------------------------
+
+void Analyser::handle_regexp(const SegmentedCommand& cmd, Scope* scope) {
+    const auto& cmd_name = cmd.texts[0];
+    const auto args = cmd.args();
+    const auto atoks = cmd.arg_tokens();
+
+    auto pattern_indices = arg_indices_for_role(registry_, cmd_name, args, ArgRole::PATTERN);
+    for (auto idx : pattern_indices) {
+        auto uidx = static_cast<std::size_t>(idx);
+        if (uidx >= atoks.size()) continue;
+        const auto& pt = atoks[uidx];
+        if (pt.type == TokenType::VAR) {
+            auto cv = lookup_const_string(pt.text, scope);
+            if (cv.has_value()) {
+                s_.result.regex_patterns_.push_back(
+                    RegexPattern{range_from_token(pt), cv->first, cmd_name});
+                scope->regex_vars.insert(pt.text);
+                record_defining_set_as_regex(pt.text, scope, cmd_name);
+            }
+        } else {
+            s_.result.regex_patterns_.push_back(
+                RegexPattern{range_from_token(pt), args[uidx], cmd_name});
+        }
     }
 }
 
@@ -764,6 +845,10 @@ void Analyser::analyse_body_args(const SegmentedCommand& cmd, Scope* scope) {
                 }
                 break;
             case ArgRole::PATTERN:
+                // regexp/regsub are handled by handle_regexp with proper
+                // option-aware index resolution. Skip here to avoid
+                // double-counting or using incorrect FIXED indices.
+                if (role_cmd == "regexp" || role_cmd == "regsub") break;
                 if (uidx < atoks.size()) {
                     const auto& pt = atoks[uidx];
                     if (pt.type == TokenType::VAR) {

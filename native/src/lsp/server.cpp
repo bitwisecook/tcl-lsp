@@ -88,10 +88,10 @@ void TclLspServer::register_handlers() {
         -> lsp::json::Value {
         lsp::json::Array arr;
         arr.reserve(data.size());
-        for (auto v : data) arr.push_back(lsp::json::Value{static_cast<std::int64_t>(v)});
+        for (auto v : data) arr.push_back(static_cast<lsp::json::Integer>(v));
         lsp::json::Object result;
-        result["data"] = lsp::json::Value{std::move(arr)};
-        return lsp::json::Value{std::move(result)};
+        result["data"] = std::move(arr);
+        return result;
     };
 
     // Native semantic tokens handler.
@@ -183,7 +183,7 @@ auto TclLspServer::on_initialize(
     -> lsp::requests::Initialize::Result {
     // Capture init data for on_initialized, which fires later.
     if (params.workspaceFolders.has_value() &&
-        params.workspaceFolders->has_value()) {
+        !params.workspaceFolders->isNull()) {
         auto folders = std::move(**params.workspaceFolders);
         init_workspace_folders_ = lsp::json::stringify(
             lsp::toJson(std::move(folders)));

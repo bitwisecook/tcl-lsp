@@ -14,6 +14,9 @@
 namespace py = pybind11;
 using namespace tcl_lsp;
 
+// Phase 4: analysis type bindings (defined in analysis_types.cpp).
+void register_analysis_bindings(py::module_& m);
+
 PYBIND11_MODULE(_tcl_lsp_native, m) {
     m.doc() = "Native C++ core types for tcl-lsp";
 
@@ -447,4 +450,7 @@ PYBIND11_MODULE(_tcl_lsp_native, m) {
           py::arg("base_line"),
           py::arg("base_col"),
           py::arg("base_offset"));
+
+    // --- Phase 4: Analysis types ---
+    register_analysis_bindings(m);
 }

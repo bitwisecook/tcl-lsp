@@ -34,6 +34,11 @@ inline auto operator|(ProcArgTraits a, ProcArgTrait b) -> ProcArgTraits {
     return a | static_cast<ProcArgTraits>(b);
 }
 
+inline auto operator|=(ProcArgTraits& a, ProcArgTrait b) -> ProcArgTraits& {
+    a = a | static_cast<ProcArgTraits>(b);
+    return a;
+}
+
 inline auto has_trait(ProcArgTraits traits, ProcArgTrait t) -> bool {
     return (traits & static_cast<ProcArgTraits>(t)) != 0;
 }

@@ -1,10 +1,10 @@
 // Tests for the generated command registry (all 1840 commands).
 // Validates correctness of the codegen output.
 
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/registry/command_desc.hpp"
 #include "tcl_lsp/registry/command_registry.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 // Include generated commands.
 #include "../src/registry/generated/all_commands.cpp"
@@ -280,7 +280,8 @@ TEST_CASE("Generated registry: lassign has tail pattern", "[generated][resolve]"
     SECTION("resolves tail VAR_NAME past index 19") {
         std::string_view args[22];
         args[0] = "myList";
-        for (int i = 1; i < 22; ++i) args[i] = "v";
+        for (int i = 1; i < 22; ++i)
+            args[i] = "v";
         auto result = CommandRegistry::resolve_arg_roles(*desc, args);
         REQUIRE(result.has_value());
         auto roles = result->roles();
@@ -301,8 +302,10 @@ TEST_CASE("Generated registry: HTTP::uri forms", "[generated][irules]") {
     // Should have getter and setter forms
     bool found_getter = false, found_setter = false;
     for (const auto& f : desc->forms) {
-        if (f.kind == FormKind::GETTER) found_getter = true;
-        if (f.kind == FormKind::SETTER) found_setter = true;
+        if (f.kind == FormKind::GETTER)
+            found_getter = true;
+        if (f.kind == FormKind::SETTER)
+            found_setter = true;
     }
     CHECK(found_getter);
     CHECK(found_setter);
@@ -317,7 +320,10 @@ TEST_CASE("Generated registry: string subcommands", "[generated][subcommand]") {
     // Find length subcommand
     const SubCmdDesc* len = nullptr;
     for (const auto& sub : desc->subcommands) {
-        if (sub.name == "length") { len = &sub; break; }
+        if (sub.name == "length") {
+            len = &sub;
+            break;
+        }
     }
     REQUIRE(len != nullptr);
     CHECK(len->pure);

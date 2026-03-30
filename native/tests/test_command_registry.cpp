@@ -1,7 +1,7 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/registry/command_desc.hpp"
 #include "tcl_lsp/registry/command_registry.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 // Include sample commands (header-only constexpr data).
 #include "../src/registry/sample_commands.cpp"
@@ -78,12 +78,15 @@ TEST_CASE("Dialect filtering", "[registry][dialect]") {
         // Should include ALL-dialect commands + IRULES-specific
         bool found_proc = false, found_llookup = false, found_oo_define = false;
         for (auto* d : irules) {
-            if (d->name == "proc") found_proc = true;
-            if (d->name == "llookup") found_llookup = true;
-            if (d->name == "oo::define") found_oo_define = true;
+            if (d->name == "proc")
+                found_proc = true;
+            if (d->name == "llookup")
+                found_llookup = true;
+            if (d->name == "oo::define")
+                found_oo_define = true;
         }
-        CHECK(found_proc);     // ALL-dialect
-        CHECK(found_llookup);  // IRULES-specific
+        CHECK(found_proc);            // ALL-dialect
+        CHECK(found_llookup);         // IRULES-specific
         CHECK_FALSE(found_oo_define); // tcl8.6+ only, not in iRules
     }
 }
@@ -106,8 +109,8 @@ TEST_CASE("Arity constraints", "[registry][arity]") {
     }
 
     SECTION("modular arity (foreach: min 3, odd)") {
-        CHECK(foreach_cmd.arity.accepts(3));  // varList list body
-        CHECK(foreach_cmd.arity.accepts(5));  // vL1 l1 vL2 l2 body
+        CHECK(foreach_cmd.arity.accepts(3));       // varList list body
+        CHECK(foreach_cmd.arity.accepts(5));       // vL1 l1 vL2 l2 body
         CHECK_FALSE(foreach_cmd.arity.accepts(4)); // even = invalid
         CHECK_FALSE(foreach_cmd.arity.accepts(2)); // too few
     }
@@ -152,7 +155,8 @@ TEST_CASE("Shape 2: Unlimited tail — lassign", "[registry][resolve]") {
     SECTION("with many args — no index-19 limit") {
         std::string_view args[22];
         args[0] = "myList";
-        for (int i = 1; i < 22; ++i) args[i] = "v";
+        for (int i = 1; i < 22; ++i)
+            args[i] = "v";
         auto result = CommandRegistry::resolve_arg_roles(lassign_cmd, args);
         REQUIRE(result.has_value());
         auto roles = result->roles();
@@ -202,9 +206,9 @@ TEST_CASE("Shape 4: Option value roles — option desc", "[registry][resolve]") 
     auto result = CommandRegistry::resolve_arg_roles(tcltest_cmd, args);
     REQUIRE(result.has_value());
     auto roles = result->roles();
-    CHECK(roles[0] == NAME);   // test name
-    CHECK(roles[1] == VALUE);  // description
-    CHECK(roles[3] == BODY);   // -body value marked as BODY via OptionDesc
+    CHECK(roles[0] == NAME);  // test name
+    CHECK(roles[1] == VALUE); // description
+    CHECK(roles[3] == BODY);  // -body value marked as BODY via OptionDesc
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -237,7 +241,10 @@ TEST_CASE("Shape 6: Subcommands — string", "[registry][subcommand]") {
     SECTION("find compare subcommand") {
         const SubCmdDesc* cmp = nullptr;
         for (const auto& sub : string_cmd.subcommands) {
-            if (sub.name == "compare") { cmp = &sub; break; }
+            if (sub.name == "compare") {
+                cmp = &sub;
+                break;
+            }
         }
         REQUIRE(cmp != nullptr);
         CHECK(cmp->pure);
@@ -248,7 +255,10 @@ TEST_CASE("Shape 6: Subcommands — string", "[registry][subcommand]") {
     SECTION("string length has type hint") {
         const SubCmdDesc* len = nullptr;
         for (const auto& sub : string_cmd.subcommands) {
-            if (sub.name == "length") { len = &sub; break; }
+            if (sub.name == "length") {
+                len = &sub;
+                break;
+            }
         }
         REQUIRE(len != nullptr);
         REQUIRE_FALSE(len->arg_types.empty());
@@ -258,7 +268,10 @@ TEST_CASE("Shape 6: Subcommands — string", "[registry][subcommand]") {
     SECTION("string is has -failindex with VAR_NAME role") {
         const SubCmdDesc* is = nullptr;
         for (const auto& sub : string_cmd.subcommands) {
-            if (sub.name == "is") { is = &sub; break; }
+            if (sub.name == "is") {
+                is = &sub;
+                break;
+            }
         }
         REQUIRE(is != nullptr);
         bool found = false;
@@ -320,10 +333,7 @@ TEST_CASE("Shape 8: Variable-layout — if", "[registry][resolve][if]") {
 
     SECTION("if expr body elseif expr body else body") {
         std::string_view args[] = {
-            "$x > 0", "{ puts a }",
-            "elseif", "$x < 0", "{ puts b }",
-            "else", "{ puts c }"
-        };
+            "$x > 0", "{ puts a }", "elseif", "$x < 0", "{ puts b }", "else", "{ puts c }"};
         auto result = CommandRegistry::resolve_arg_roles(if_cmd, args);
         REQUIRE(result.has_value());
         auto roles = result->roles();
@@ -347,7 +357,7 @@ TEST_CASE("Shape 8b: Variable-layout — switch", "[registry][resolve][switch]")
         auto result = CommandRegistry::resolve_arg_roles(switch_cmd, args);
         REQUIRE(result.has_value());
         auto roles = result->roles();
-        CHECK(roles[0] == VALUE);   // string to match
+        CHECK(roles[0] == VALUE); // string to match
         CHECK(roles[1] == PATTERN);
         CHECK(roles[2] == BODY);
         CHECK(roles[3] == PATTERN);
@@ -386,11 +396,11 @@ TEST_CASE("Shape 8c: Variable-layout — try", "[registry][resolve][try]") {
         auto result = CommandRegistry::resolve_arg_roles(try_cmd, args);
         REQUIRE(result.has_value());
         auto roles = result->roles();
-        CHECK(roles[0] == BODY);   // try body
-        CHECK(roles[1] == VALUE);  // "on"
-        CHECK(roles[2] == VALUE);  // code
-        CHECK(roles[3] == VALUE);  // varList
-        CHECK(roles[4] == BODY);   // handler body
+        CHECK(roles[0] == BODY);  // try body
+        CHECK(roles[1] == VALUE); // "on"
+        CHECK(roles[2] == VALUE); // code
+        CHECK(roles[3] == VALUE); // varList
+        CHECK(roles[4] == BODY);  // handler body
     }
 
     SECTION("try body finally body") {
@@ -399,7 +409,7 @@ TEST_CASE("Shape 8c: Variable-layout — try", "[registry][resolve][try]") {
         REQUIRE(result.has_value());
         auto roles = result->roles();
         CHECK(roles[0] == BODY);
-        CHECK(roles[1] == VALUE);  // "finally"
+        CHECK(roles[1] == VALUE); // "finally"
         CHECK(roles[2] == BODY);
     }
 }
@@ -416,13 +426,17 @@ TEST_CASE("Shape 9: TclOO — oo::define", "[registry][oo]") {
     SECTION("method subcommand has visibility options") {
         const SubCmdDesc* method = nullptr;
         for (const auto& sub : oo_define_cmd.subcommands) {
-            if (sub.name == "method") { method = &sub; break; }
+            if (sub.name == "method") {
+                method = &sub;
+                break;
+            }
         }
         REQUIRE(method != nullptr);
         CHECK(method->defines_procedure);
         bool found_private = false;
         for (const auto& opt : method->options) {
-            if (opt.name == "-private") found_private = true;
+            if (opt.name == "-private")
+                found_private = true;
         }
         CHECK(found_private);
     }
@@ -430,14 +444,19 @@ TEST_CASE("Shape 9: TclOO — oo::define", "[registry][oo]") {
     SECTION("slot commands have slot operations") {
         const SubCmdDesc* var = nullptr;
         for (const auto& sub : oo_define_cmd.subcommands) {
-            if (sub.name == "variable") { var = &sub; break; }
+            if (sub.name == "variable") {
+                var = &sub;
+                break;
+            }
         }
         REQUIRE(var != nullptr);
         CHECK(var->is_slot_command);
         bool found_clear = false, found_appendifnew = false;
         for (const auto& opt : var->options) {
-            if (opt.name == "-clear") found_clear = true;
-            if (opt.name == "-appendifnew") found_appendifnew = true;
+            if (opt.name == "-clear")
+                found_clear = true;
+            if (opt.name == "-appendifnew")
+                found_appendifnew = true;
         }
         CHECK(found_clear);
         CHECK(found_appendifnew);
@@ -446,7 +465,10 @@ TEST_CASE("Shape 9: TclOO — oo::define", "[registry][oo]") {
     SECTION("constructor has body pattern") {
         const SubCmdDesc* ctor = nullptr;
         for (const auto& sub : oo_define_cmd.subcommands) {
-            if (sub.name == "constructor") { ctor = &sub; break; }
+            if (sub.name == "constructor") {
+                ctor = &sub;
+                break;
+            }
         }
         REQUIRE(ctor != nullptr);
         CHECK(ctor->defines_procedure);
@@ -506,10 +528,10 @@ TEST_CASE("binary scan — tail VAR_NAME fixes index-19 limit", "[registry][reso
     // binary scan subcommand: scan string formatString ?varName ...?
     auto result = CommandRegistry::resolve_arg_roles(
         CommandDesc{.arity = {2}, .arg_patterns = binary_scan_args},
-        std::array<std::string_view, 24>{
-            "data", "a4a4a4", "v1", "v2", "v3", "v4", "v5", "v6",
-            "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14",
-            "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22"});
+        std::array<std::string_view, 24>{"data", "a4a4a4", "v1",  "v2",  "v3",  "v4",
+                                         "v5",   "v6",     "v7",  "v8",  "v9",  "v10",
+                                         "v11",  "v12",    "v13", "v14", "v15", "v16",
+                                         "v17",  "v18",    "v19", "v20", "v21", "v22"});
     REQUIRE(result.has_value());
     auto roles = result->roles();
     CHECK(roles[0] == VALUE);
@@ -596,7 +618,7 @@ TEST_CASE("dialect_visibility expansion", "[registry][dialect]") {
     auto irules_vis = dialect_visibility(IRULES);
     CHECK((irules_vis & TCL84) != NONE);
     CHECK((irules_vis & IRULES) != NONE);
-    CHECK((irules_vis & TCL86) == NONE);  // iRules doesn't see tcl8.6
+    CHECK((irules_vis & TCL86) == NONE); // iRules doesn't see tcl8.6
 
     auto tmsh_vis = dialect_visibility(TMSH);
     CHECK((tmsh_vis & TCL84) != NONE);

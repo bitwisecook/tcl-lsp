@@ -11,17 +11,15 @@ project('tcl-lsp', 'cpp',
 cc = meson.get_compiler('cpp')
 
 # ── Minimum compiler versions ───────────────────────────────────────
-# Clang 20 is the required compiler (apt install clang-20 on Ubuntu 24.04).
-# It provides: std::flat_map (libc++), std::expected, pack indexing,
-# = delete("reason"), and resolves the __cpp_concepts issue with libstdc++.
-# GCC 15 will be accepted once it lands in apt (adds std::flat_map to libstdc++).
+# Clang 21+ or GCC 15+ required.
+# Both provide: std::flat_map, std::expected, pack indexing, = delete("reason").
 if cc.get_id() == 'clang'
-  if cc.version().version_compare('< 20')
-    error('Clang 20+ is required. Install with: sudo apt install clang-20')
+  if cc.version().version_compare('< 21')
+    error('Clang 21+ is required. Install with: sudo apt install clang-21')
   endif
 elif cc.get_id() == 'gcc'
   if cc.version().version_compare('< 15')
-    error('GCC 15+ is required (not yet in apt). Use Clang 20: sudo apt install clang-20')
+    error('GCC 15+ is required. Install with: sudo apt install gcc-15 g++-15')
   endif
 endif
 

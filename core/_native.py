@@ -45,11 +45,42 @@ try:
 except ImportError:
     pass
 
+# Phase 4: analyser types (optional, only when native is available).
+NATIVE_ANALYSER = False
+try:
+    from _tcl_lsp_native import (  # type: ignore[import-not-found]
+        NativeAnalysisResult,
+        NativeCommandInvocation,
+        NativeConfidence,
+        NativePackageContext,
+        NativePackageProvide,
+        NativePackageRequire,
+        NativeParamDef,
+        NativeProcArgTrait,
+        NativeProcDef,
+        NativeRegexPattern,
+        NativeScope,
+        NativeScopeKind,
+        NativeSourceTarget,
+        NativeStubArgDef,
+        NativeStubCommandDef,
+        NativeStubExprDef,
+        NativeUnknownProcInfo,
+        NativeVarDef,
+        native_analyse,
+        native_infer_param_traits_shallow,
+    )
+
+    NATIVE_ANALYSER = True
+except ImportError:
+    pass
+
 _log = _logging.getLogger(__name__)
 _log.debug(
-    "Native C++ acceleration: core_types=%s, segmenter=%s",
+    "Native C++ acceleration: core_types=%s, segmenter=%s, analyser=%s",
     NATIVE,
     NATIVE_SEGMENTER,
+    NATIVE_ANALYSER,
 )
 
 __all__ = [
@@ -58,6 +89,7 @@ __all__ = [
     "DocumentBuffer",
     "NATIVE",
     "NATIVE_SEGMENTER",
+    "NATIVE_ANALYSER",
     # Phase 3 re-exports (only available when NATIVE_SEGMENTER is True).
     "CodeFix",
     "Diagnostic",
@@ -71,4 +103,25 @@ __all__ = [
     "segment_commands",
     "segment_top_level_chunks",
     "segment_with_recovery",
+    # Phase 4 re-exports (only available when NATIVE_ANALYSER is True).
+    "NativeAnalysisResult",
+    "NativeCommandInvocation",
+    "NativeConfidence",
+    "NativePackageContext",
+    "NativePackageProvide",
+    "NativePackageRequire",
+    "NativeParamDef",
+    "NativeProcArgTrait",
+    "NativeProcDef",
+    "NativeRegexPattern",
+    "NativeScope",
+    "NativeScopeKind",
+    "NativeSourceTarget",
+    "NativeStubArgDef",
+    "NativeStubCommandDef",
+    "NativeStubExprDef",
+    "NativeUnknownProcInfo",
+    "NativeVarDef",
+    "native_analyse",
+    "native_infer_param_traits_shallow",
 ]

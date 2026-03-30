@@ -44,10 +44,8 @@
 #   make native-test-tsan  Run C++ tests with ThreadSanitizer
 #   make native-scan-build Run Clang Static Analyzer
 #   make native-valgrind   Run C++ tests under Valgrind memcheck
-#   make native-test-gcc13 Build and test with GCC 13 (-Werror)
-#   make native-test-gcc14 Build and test with GCC 14 (-Werror)
-#   make native-test-gcc13-asan  GCC 13 with ASan + UBSan
-#   make native-test-gcc14-asan  GCC 14 with ASan + UBSan
+#   make native-test-gcc15 Build and test with GCC 15 (-Werror)
+#   make native-test-gcc15-asan  GCC 15 with ASan + UBSan
 #   make native-gcc-analyze  Run GCC static analyzer (-fanalyzer)
 #   make native-clean  Remove C++ build artifacts
 #   make format-cpp    Format C++ code with clang-format
@@ -311,10 +309,10 @@ coverage-ext: compile $(NPM_STAMP) ## Run VS Code extension tests with coverage 
 
 # Phase targets for parallel prep-pr execution
 _prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings lint-cpp native-scan-build native-gcc-analyze
-_prep-pr-tests: test-py test-opt native-test native-test-asan native-test-tsan native-valgrind native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan
+_prep-pr-tests: test-py test-opt native-test native-test-asan native-test-tsan native-valgrind native-test-gcc15 native-test-gcc15-asan
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
-# CFI and fuzzing require clang compiler-rt (libclang-rt-18-dev).
+# CFI and fuzzing require clang compiler-rt (libclang-rt-21-dev).
 # Detect availability and run them when possible.
 HAS_COMPILER_RT := $(shell echo 'int main(){}' | clang++ -fsanitize=cfi -flto -fvisibility=hidden -x c++ - -o /dev/null 2>/dev/null && echo 1 || echo 0)
 
@@ -828,10 +826,8 @@ NATIVE_BUILDDIR_ASAN := builddir-asan
 NATIVE_BUILDDIR_TSAN := builddir-tsan
 NATIVE_BUILDDIR_FUZZ := builddir-fuzz
 NATIVE_BUILDDIR_CFI  := builddir-cfi
-NATIVE_BUILDDIR_GCC13      := builddir-gcc13
-NATIVE_BUILDDIR_GCC13_ASAN := builddir-gcc13-asan
-NATIVE_BUILDDIR_GCC14      := builddir-gcc14
-NATIVE_BUILDDIR_GCC14_ASAN := builddir-gcc14-asan
+NATIVE_BUILDDIR_GCC15      := builddir-gcc15
+NATIVE_BUILDDIR_GCC15_ASAN := builddir-gcc15-asan
 NATIVE_BUILDDIR_GCC_ANALYZE := builddir-gcc-analyze
 
 # C++ source file lists for formatting/linting (excludes pybind11 bindings).
@@ -842,8 +838,8 @@ CPP_FUZZ := $(wildcard native/fuzz/*.cpp)
 CPP_BINDINGS := $(wildcard native/bindings/*.cpp)
 CPP_ALL := $(CPP_SOURCES) $(CPP_HEADERS) $(CPP_TESTS) $(CPP_FUZZ) $(CPP_BINDINGS)
 
-native-setup: ## Configure the C++ native build (Meson + Clang)
-	CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR) --wipe 2>/dev/null || CC=clang CXX=clang++ meson setup $(NATIVE_BUILDDIR)
+native-setup: ## Configure the C++ native build (Meson + Clang 21)
+	CC=clang-21 CXX=clang++-21 meson setup $(NATIVE_BUILDDIR) --wipe 2>/dev/null || CC=clang-21 CXX=clang++-21 meson setup $(NATIVE_BUILDDIR)
 
 native-build: ## Build the C++ native module
 	meson compile -C $(NATIVE_BUILDDIR)
@@ -860,7 +856,7 @@ test-cpp: ## Run all C++ tests: all compilers, sanitisers, static analysis, valg
 	@echo "==> test-cpp: comprehensive C++ verification (all compilers + sanitisers + static analysis)"
 	@$(MAKE) -j $(NPROC) lint-cpp native-scan-build native-gcc-analyze
 	@$(MAKE) -j $(NPROC) native-test native-test-asan native-test-tsan native-valgrind \
-		native-test-gcc13 native-test-gcc14 native-test-gcc13-asan native-test-gcc14-asan
+		native-test-gcc15 native-test-gcc15-asan
 	@$(MAKE) _test-cpp-compiler-rt
 	@echo "==> test-cpp: all passes clean"
 
@@ -871,9 +867,9 @@ ifeq ($(HAS_COMPILER_RT),1)
 	@$(MAKE) native-test-cfi
 	@$(MAKE) native-fuzz FUZZ_SECONDS=10
 else
-	@echo "==> compiler-rt not available — attempting to install libclang-rt-18-dev"
+	@echo "==> compiler-rt not available — attempting to install libclang-rt-21-dev"
 	@if command -v apt-get >/dev/null 2>&1; then \
-		if sudo apt-get install -y libclang-rt-18-dev 2>/dev/null; then \
+		if sudo apt-get install -y libclang-rt-21-dev 2>/dev/null; then \
 			echo "==> installed compiler-rt — running CFI + fuzz"; \
 			$(MAKE) native-test-cfi; \
 			$(MAKE) native-fuzz FUZZ_SECONDS=10; \
@@ -881,16 +877,16 @@ else
 			echo "==> SKIP: could not install compiler-rt (no sudo or package unavailable)"; \
 		fi; \
 	else \
-		echo "==> SKIP: no apt-get and no compiler-rt — install libclang-rt-18-dev manually"; \
+		echo "==> SKIP: no apt-get and no compiler-rt — install libclang-rt-21-dev manually"; \
 	fi
 endif
 
 # --- Sanitizer builds ---
-# We try clang first (if libclang-rt-18-dev is installed), then fall back to GCC.
+# We try clang first (if libclang-rt-21-dev is installed), then fall back to GCC.
 # GCC 13's libasan/libubsan/libtsan are always available on Ubuntu 24.04.
 # The pybind11 bindings build with relaxed warnings (see native/meson.build).
-SANITIZER_CC  := $(shell echo 'int main(){}' | clang++ -fsanitize=address -x c++ - -o /dev/null 2>/dev/null && echo clang || echo gcc)
-SANITIZER_CXX := $(shell echo 'int main(){}' | clang++ -fsanitize=address -x c++ - -o /dev/null 2>/dev/null && echo clang++ || echo g++)
+SANITIZER_CC  := $(shell echo 'int main(){}' | clang++-21 -fsanitize=address -x c++ - -o /dev/null 2>/dev/null && echo clang-21 || echo gcc-15)
+SANITIZER_CXX := $(shell echo 'int main(){}' | clang++-21 -fsanitize=address -x c++ - -o /dev/null 2>/dev/null && echo clang++-21 || echo g++-15)
 
 # ASan + UBSan: catches memory errors (buffer overflow, use-after-free, stack overflow)
 # and undefined behaviour (signed overflow, null deref, alignment, shift errors).
@@ -936,7 +932,7 @@ native-test-tsan: ## Build and test with ThreadSanitizer
 native-scan-build: ## Run Clang Static Analyzer (path-sensitive analysis)
 	@echo "==> Running Clang Static Analyzer (scan-build)"
 	@if [ ! -f $(NATIVE_BUILDDIR)/build.ninja ]; then $(MAKE) native-setup; fi
-	scan-build-18 --use-analyzer=/usr/bin/clang-18 --status-bugs \
+	scan-build-21 --use-analyzer=/usr/bin/clang-21 --status-bugs \
 		-enable-checker core \
 		-enable-checker deadcode \
 		-enable-checker security \
@@ -946,7 +942,7 @@ native-scan-build: ## Run Clang Static Analyzer (path-sensitive analysis)
 		-enable-checker optin.cplusplus.VirtualCall \
 		-enable-checker optin.portability.UnixAPI \
 		meson compile -C $(NATIVE_BUILDDIR) --clean && \
-	scan-build-18 --use-analyzer=/usr/bin/clang-18 --status-bugs \
+	scan-build-21 --use-analyzer=/usr/bin/clang-21 --status-bugs \
 		-enable-checker core \
 		-enable-checker deadcode \
 		-enable-checker security \
@@ -968,7 +964,7 @@ native-valgrind: ## Run C++ tests under Valgrind memcheck
 		--wrap='valgrind --leak-check=full --track-origins=yes --error-exitcode=1 --errors-for-leak-kinds=definite'
 
 # --- Fuzzing ---
-# libFuzzer harness for the lexer.  Requires clang + libclang-rt-18-dev.
+# libFuzzer harness for the lexer.  Requires clang + libclang-rt-21-dev.
 # Seeds in native/fuzz/corpus/.  Run duration defaults to 60s for CI;
 # override with FUZZ_SECONDS=N for longer campaigns.
 FUZZ_SECONDS ?= 60
@@ -1017,16 +1013,15 @@ native-test-cfi: ## Build and test with Control Flow Integrity
 
 native-clean: ## Remove C++ build artifacts
 	rm -rf $(NATIVE_BUILDDIR) $(NATIVE_BUILDDIR_ASAN) $(NATIVE_BUILDDIR_TSAN) $(NATIVE_BUILDDIR_FUZZ) $(NATIVE_BUILDDIR_CFI) \
-		$(NATIVE_BUILDDIR_GCC13) $(NATIVE_BUILDDIR_GCC13_ASAN) $(NATIVE_BUILDDIR_GCC14) $(NATIVE_BUILDDIR_GCC14_ASAN) $(NATIVE_BUILDDIR_GCC_ANALYZE)
+		$(NATIVE_BUILDDIR_GCC15) $(NATIVE_BUILDDIR_GCC15_ASAN) $(NATIVE_BUILDDIR_GCC_ANALYZE)
 
 # --- GCC dual-compiler verification ---
-# All native C++ must build clean under both Clang 18+ and GCC 13+/14+ with -Werror.
+# All native C++ must build clean under both Clang 21+ and GCC 15+ with -Werror.
 # GCC has its own static analyzer (-fanalyzer) and sanitizer implementations.
 # These targets are explicit — no fallback, no guessing.
 
-# Detect available GCC versions.
-HAS_GCC13 := $(shell which g++-13 >/dev/null 2>&1 && echo 1 || echo 0)
-HAS_GCC14 := $(shell which g++-14 >/dev/null 2>&1 && echo 1 || echo 0)
+# Detect available GCC version.
+HAS_GCC15 := $(shell which g++-15 >/dev/null 2>&1 && echo 1 || echo 0)
 
 # Helper: setup a GCC build directory (usage: $(call gcc_setup,CC,CXX,builddir,extra_args))
 define gcc_setup
@@ -1035,72 +1030,42 @@ define gcc_setup
 	$(1) $(2) meson setup $(3) $(4)
 endef
 
-native-test-gcc13: ## Build and test with GCC 13 (-Werror)
-ifeq ($(HAS_GCC13),1)
-	@echo "==> Building and testing with GCC 13 (-Werror)"
-	@if [ ! -f $(NATIVE_BUILDDIR_GCC13)/build.ninja ]; then \
-		CC=gcc-13 CXX=g++-13 meson setup $(NATIVE_BUILDDIR_GCC13) --wipe 2>/dev/null || \
-		CC=gcc-13 CXX=g++-13 meson setup $(NATIVE_BUILDDIR_GCC13); \
+native-test-gcc15: ## Build and test with GCC 15 (-Werror)
+ifeq ($(HAS_GCC15),1)
+	@echo "==> Building and testing with GCC 15 (-Werror)"
+	@if [ ! -f $(NATIVE_BUILDDIR_GCC15)/build.ninja ]; then \
+		CC=gcc-15 CXX=g++-15 meson setup $(NATIVE_BUILDDIR_GCC15) --wipe 2>/dev/null || \
+		CC=gcc-15 CXX=g++-15 meson setup $(NATIVE_BUILDDIR_GCC15); \
 	fi
-	meson compile -C $(NATIVE_BUILDDIR_GCC13)
-	meson test -C $(NATIVE_BUILDDIR_GCC13) --suite tcl-lsp --print-errorlogs
+	meson compile -C $(NATIVE_BUILDDIR_GCC15)
+	meson test -C $(NATIVE_BUILDDIR_GCC15) --suite tcl-lsp --print-errorlogs
 else
-	@echo "==> SKIP: g++-13 not found (install gcc-13 g++-13)"
+	@echo "==> SKIP: g++-15 not found (install gcc-15 g++-15)"
 endif
 
-native-test-gcc14: ## Build and test with GCC 14 (-Werror)
-ifeq ($(HAS_GCC14),1)
-	@echo "==> Building and testing with GCC 14 (-Werror)"
-	@if [ ! -f $(NATIVE_BUILDDIR_GCC14)/build.ninja ]; then \
-		CC=gcc-14 CXX=g++-14 meson setup $(NATIVE_BUILDDIR_GCC14) --wipe 2>/dev/null || \
-		CC=gcc-14 CXX=g++-14 meson setup $(NATIVE_BUILDDIR_GCC14); \
-	fi
-	meson compile -C $(NATIVE_BUILDDIR_GCC14)
-	meson test -C $(NATIVE_BUILDDIR_GCC14) --suite tcl-lsp --print-errorlogs
-else
-	@echo "==> SKIP: g++-14 not found (install gcc-14 g++-14)"
-endif
-
-native-test-gcc13-asan: ## Build and test with GCC 13 ASan + UBSan
-ifeq ($(HAS_GCC13),1)
-	@echo "==> Building and testing with GCC 13 ASan + UBSan"
-	@if [ ! -f $(NATIVE_BUILDDIR_GCC13_ASAN)/build.ninja ]; then \
-		CC=gcc-13 CXX=g++-13 meson setup $(NATIVE_BUILDDIR_GCC13_ASAN) \
+native-test-gcc15-asan: ## Build and test with GCC 15 ASan + UBSan
+ifeq ($(HAS_GCC15),1)
+	@echo "==> Building and testing with GCC 15 ASan + UBSan"
+	@if [ ! -f $(NATIVE_BUILDDIR_GCC15_ASAN)/build.ninja ]; then \
+		CC=gcc-15 CXX=g++-15 meson setup $(NATIVE_BUILDDIR_GCC15_ASAN) \
 			-Db_sanitize=address,undefined -Db_lundef=false -Dwerror=false \
 			--wipe 2>/dev/null || \
-		CC=gcc-13 CXX=g++-13 meson setup $(NATIVE_BUILDDIR_GCC13_ASAN) \
+		CC=gcc-15 CXX=g++-15 meson setup $(NATIVE_BUILDDIR_GCC15_ASAN) \
 			-Db_sanitize=address,undefined -Db_lundef=false -Dwerror=false; \
 	fi
-	meson compile -C $(NATIVE_BUILDDIR_GCC13_ASAN)
-	meson test -C $(NATIVE_BUILDDIR_GCC13_ASAN) --suite tcl-lsp --print-errorlogs
+	meson compile -C $(NATIVE_BUILDDIR_GCC15_ASAN)
+	meson test -C $(NATIVE_BUILDDIR_GCC15_ASAN) --suite tcl-lsp --print-errorlogs
 else
-	@echo "==> SKIP: g++-13 not found"
-endif
-
-native-test-gcc14-asan: ## Build and test with GCC 14 ASan + UBSan
-ifeq ($(HAS_GCC14),1)
-	@echo "==> Building and testing with GCC 14 ASan + UBSan"
-	@if [ ! -f $(NATIVE_BUILDDIR_GCC14_ASAN)/build.ninja ]; then \
-		CC=gcc-14 CXX=g++-14 meson setup $(NATIVE_BUILDDIR_GCC14_ASAN) \
-			-Db_sanitize=address,undefined -Db_lundef=false -Dwerror=false \
-			--wipe 2>/dev/null || \
-		CC=gcc-14 CXX=g++-14 meson setup $(NATIVE_BUILDDIR_GCC14_ASAN) \
-			-Db_sanitize=address,undefined -Db_lundef=false -Dwerror=false; \
-	fi
-	meson compile -C $(NATIVE_BUILDDIR_GCC14_ASAN)
-	meson test -C $(NATIVE_BUILDDIR_GCC14_ASAN) --suite tcl-lsp --print-errorlogs
-else
-	@echo "==> SKIP: g++-14 not found"
+	@echo "==> SKIP: g++-15 not found"
 endif
 
 # GCC's built-in static analyzer (-fanalyzer).  Path-sensitive analysis similar to
-# Clang's scan-build but catches different bug classes.  GCC 14 adds infinite-loop
-# detection, overlapping-buffer checks, and enabled-by-default taint analysis.
-# Uses the highest available GCC version for best coverage.
+# Clang's scan-build but catches different bug classes.  GCC 15 adds improved
+# infinite-loop detection, overlapping-buffer checks, and taint analysis.
 #
 # We compile each source file individually with -fanalyzer to avoid false positives
 # from Catch2 and pybind11 headers.  Only our native/src/ files are analysed.
-GCC_ANALYZE_CXX := $(shell which g++-14 >/dev/null 2>&1 && echo g++-14 || (which g++-13 >/dev/null 2>&1 && echo g++-13 || echo ""))
+GCC_ANALYZE_CXX := $(shell which g++-15 >/dev/null 2>&1 && echo g++-15 || echo "")
 GCC_ANALYZE_FLAGS := -std=c++23 -fanalyzer -fsyntax-only -I native/include \
 	-D_GLIBCXX_ASSERTIONS -Wall -Wextra
 
@@ -1126,9 +1091,11 @@ else
 	@echo "==> SKIP: no GCC 13/14 found for -fanalyzer"
 endif
 
+CLANG_FORMAT := $(shell command -v clang-format-21 2>/dev/null || command -v clang-format 2>/dev/null || echo clang-format)
+
 format-cpp: ## Format C++ code with clang-format
-	@echo "==> Formatting C++ code with clang-format"
-	clang-format -i $(CPP_ALL)
+	@echo "==> Formatting C++ code with $(CLANG_FORMAT)"
+	$(CLANG_FORMAT) -i $(CPP_ALL)
 
 lint-cpp: ## Lint C++ code with clang-tidy and cppcheck
 	@echo "==> Linting C++ with clang-tidy (core + parsing)"

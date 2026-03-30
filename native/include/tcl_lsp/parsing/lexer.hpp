@@ -81,8 +81,8 @@ class TclLexer {
     [[nodiscard]] auto insidequote() const noexcept -> bool { return insidequote_; }
 
     // Non-fatal warnings collected in non-strict mode.
-    [[nodiscard]] auto
-    warnings() const noexcept -> const std::vector<std::pair<SourcePosition, std::string>>& {
+    [[nodiscard]] auto warnings() const noexcept
+        -> const std::vector<std::pair<SourcePosition, std::string>>& {
         return warnings_;
     }
 

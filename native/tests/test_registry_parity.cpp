@@ -6,9 +6,9 @@
 // validates name coverage and arity compatibility, allowing documented
 // mismatches where C++ intentionally diverges.
 
-#include <catch2/catch_test_macros.hpp>
-
 #include "tcl_lsp/registry/native_registry_adapter.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 using namespace tcl_lsp;
 
@@ -28,7 +28,7 @@ TEST_CASE("Registry parity: NativeCommandRegistry basics", "[parity]") {
         CHECK(reg.is_known("HTTP::uri"));
         CHECK(reg.is_known("tmsh::create"));
         CHECK(reg.is_known("expect"));
-        CHECK(reg.is_known("analyze"));  // EDA
+        CHECK(reg.is_known("analyze")); // EDA
     }
 
     SECTION("unknown command returns false") {
@@ -94,9 +94,9 @@ TEST_CASE("Registry parity: signatures", "[parity]") {
         REQUIRE(sig.has_value());
         REQUIRE(std::holds_alternative<CommandSig>(*sig));
         auto& cs = std::get<CommandSig>(*sig);
-        CHECK(cs.arg_roles.count(0) > 0);  // NAME
-        CHECK(cs.arg_roles.count(1) > 0);  // PARAM_LIST
-        CHECK(cs.arg_roles.count(2) > 0);  // BODY
+        CHECK(cs.arg_roles.count(0) > 0); // NAME
+        CHECK(cs.arg_roles.count(1) > 0); // PARAM_LIST
+        CHECK(cs.arg_roles.count(2) > 0); // BODY
         CHECK(cs.arg_roles.at(0) == ArgRole::NAME);
         CHECK(cs.arg_roles.at(1) == ArgRole::PARAM_LIST);
         CHECK(cs.arg_roles.at(2) == ArgRole::BODY);
@@ -142,8 +142,8 @@ TEST_CASE("Registry parity: signatures", "[parity]") {
         REQUIRE(sig.has_value());
         REQUIRE(std::holds_alternative<CommandSig>(*sig));
         auto& cs = std::get<CommandSig>(*sig);
-        CHECK(cs.arg_roles.at(1) == ArgRole::EXPR);  // test
-        CHECK(cs.arg_roles.at(3) == ArgRole::BODY);   // body
+        CHECK(cs.arg_roles.at(1) == ArgRole::EXPR); // test
+        CHECK(cs.arg_roles.at(3) == ArgRole::BODY); // body
     }
 }
 

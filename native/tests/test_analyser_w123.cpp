@@ -216,3 +216,61 @@ TEST_CASE("W123: alias in did you mean", "[analyser][w123]") {
     REQUIRE(diags.size() == 1);
     CHECK(diags[0].message.find("myput") != std::string::npos);
 }
+
+// ---------------------------------------------------------------------------
+// Unknown proc analysis (Phase 4f)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("unknown: empty stub detected", "[analyser][unknown]") {
+    auto reg = make_w123_registry();
+    reg.add_command("string", CommandSig{Arity{2, 100}, {}});
+    auto result = analyse("proc unknown {args} {}", &reg);
+    REQUIRE(result.unknown_proc_info().has_value());
+    CHECK(result.unknown_proc_info()->empty_stub == true);
+}
+
+TEST_CASE("unknown: chains original handler", "[analyser][unknown]") {
+    auto reg = make_w123_registry();
+    reg.add_command("string", CommandSig{Arity{2, 100}, {}});
+    auto result = analyse("proc unknown {cmd args} {\n"
+                          "    _original_unknown $cmd {*}$args\n"
+                          "}",
+                          &reg);
+    REQUIRE(result.unknown_proc_info().has_value());
+    CHECK(result.unknown_proc_info()->chains_original == true);
+    CHECK(result.unknown_proc_info()->empty_stub == false);
+}
+
+TEST_CASE("unknown: exec-based handler", "[analyser][unknown]") {
+    auto reg = make_w123_registry();
+    reg.add_command("string", CommandSig{Arity{2, 100}, {}});
+    auto result = analyse("proc unknown {cmd args} {\n"
+                          "    exec $cmd {*}$args\n"
+                          "}",
+                          &reg);
+    REQUIRE(result.unknown_proc_info().has_value());
+    CHECK(result.unknown_proc_info()->has_exec == true);
+}
+
+TEST_CASE("unknown: auto_load handler", "[analyser][unknown]") {
+    auto reg = make_w123_registry();
+    reg.add_command("string", CommandSig{Arity{2, 100}, {}});
+    auto result = analyse("proc unknown {cmd args} {\n"
+                          "    if {[auto_load $cmd]} { return [$cmd {*}$args] }\n"
+                          "}",
+                          &reg);
+    REQUIRE(result.unknown_proc_info().has_value());
+    CHECK(result.unknown_proc_info()->has_auto_load == true);
+}
+
+TEST_CASE("unknown: case-insensitive dispatch", "[analyser][unknown]") {
+    auto reg = make_w123_registry();
+    reg.add_command("string", CommandSig{Arity{2, 100}, {}});
+    auto result = analyse("proc unknown {cmd args} {\n"
+                          "    set lcmd [string tolower $cmd]\n"
+                          "    switch $lcmd { foo { puts foo } }\n"
+                          "}",
+                          &reg);
+    REQUIRE(result.unknown_proc_info().has_value());
+    CHECK(result.unknown_proc_info()->case_insensitive == true);
+}

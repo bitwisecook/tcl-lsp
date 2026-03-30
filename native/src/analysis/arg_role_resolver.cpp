@@ -420,8 +420,10 @@ auto regsub_subspec_arg_index(std::string_view cmd, std::span<const std::string>
     -> std::optional<std::int32_t> {
     if (cmd != "regsub") return std::nullopt;
     // regsub ?options? pattern string subSpec ?varName?
-    // Skip options, then: pattern, string, subSpec
-    auto i = skip_options(args, {});
+    // Skip options, then: pattern, string, subSpec.
+    // -start takes a value argument.
+    static const std::unordered_set<std::string> value_opts{"-start"};
+    auto i = skip_options(args, value_opts);
     // pattern
     if (static_cast<std::size_t>(i) >= args.size()) return std::nullopt;
     i += 1;
@@ -447,7 +449,9 @@ auto option_arg_indices(std::string_view /*cmd*/,
 
 auto regexp_pattern_index(std::span<const std::string> args)
     -> std::optional<std::int32_t> {
-    auto i = skip_options(args, {});
+    // -start takes a value argument; skip both the flag and its value.
+    static const std::unordered_set<std::string> value_opts{"-start"};
+    auto i = skip_options(args, value_opts);
     if (static_cast<std::size_t>(i) < args.size()) return i;
     return std::nullopt;
 }

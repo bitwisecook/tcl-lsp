@@ -246,7 +246,7 @@ void Analyser::define_vars_from_list(const std::string& var_list_text,
 }
 
 // ---------------------------------------------------------------------------
-// Unknown proc analysis (stubbed — requires IR lowering)
+// Unknown proc analysis (lightweight keyword scan)
 // ---------------------------------------------------------------------------
 
 void Analyser::extract_unknown_proc_info(const std::string& proc_body) {
@@ -256,9 +256,46 @@ void Analyser::extract_unknown_proc_info(const std::string& proc_body) {
         s_.result.unknown_proc_info_ = UnknownProcInfo{{}, false, true, false, false, false, false};
         return;
     }
-    // Without IR analysis, be conservative — treat as opaque handler.
+
+    // Lightweight keyword scan (without full IR lowering).
+    // Detects common patterns in user-defined unknown handlers.
+    bool chains_original = false;
+    bool has_exec = false;
+    bool has_auto_load = false;
+    bool case_insensitive = false;
+    bool has_pattern_dispatch = false;
+
+    // Chain targets: delegating to the original unknown handler.
+    static constexpr std::string_view chain_targets[] = {
+        "_original_unknown", "_orig_unknown", "::tcl::unknown",
+        "tcl::unknown", "original_unknown",
+    };
+    for (auto target : chain_targets) {
+        if (proc_body.find(target) != std::string::npos) {
+            chains_original = true;
+            break;
+        }
+    }
+
+    has_exec = proc_body.find("exec") != std::string::npos;
+    has_auto_load = proc_body.find("auto_load") != std::string::npos;
+
+    // Case-insensitive dispatch detection.
+    if (proc_body.find("string tolower") != std::string::npos ||
+        proc_body.find("string toupper") != std::string::npos) {
+        case_insensitive = true;
+    }
+
+    // Pattern dispatch: switch -glob or -regexp.
+    if (proc_body.find("-glob") != std::string::npos ||
+        proc_body.find("-regexp") != std::string::npos) {
+        has_pattern_dispatch = true;
+    }
+
+    // Dispatch targets from switch would require IR; leave empty for now.
     s_.result.unknown_proc_info_ =
-        UnknownProcInfo{{}, true, false, true, true, true, true};
+        UnknownProcInfo{{}, chains_original, false, case_insensitive,
+                        has_pattern_dispatch, has_exec, has_auto_load};
 }
 
 // ---------------------------------------------------------------------------

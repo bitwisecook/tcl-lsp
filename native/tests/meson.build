@@ -46,6 +46,8 @@ test_sources = {
   'test_analyser_alias': 'test_analyser_alias.cpp',
   'test_analyser_w123': 'test_analyser_w123.cpp',
   'test_analyser_diagnostics': 'test_analyser_diagnostics.cpp',
+  'test_proc_arg_traits': 'test_proc_arg_traits.cpp',
+  'test_analyser_snapshot': 'test_analyser_snapshot.cpp',
   'test_semantic_token_types': 'test_semantic_token_types.cpp',
   'test_expr_lexer': 'test_expr_lexer.cpp',
   'test_semantic_token_collector': 'test_semantic_token_collector.cpp',

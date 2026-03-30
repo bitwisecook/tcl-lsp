@@ -127,7 +127,7 @@ New edits cancel in-flight analysis. Semantic tokens are always the priority.
 | Choice | Decision | Rationale |
 |---|---|---|
 | Language | C++23/26 | Latest standard features: `expected`, `ranges`, `format`, spaceship operator, `deducing this` |
-| Compilers | Clang 18+, GCC 13+, GCC 14+ | All native code must build clean under all three with `-Werror` and zero analyzer findings |
+| Compilers | Clang 21+, GCC 15+ | All native code must build clean under both with `-Werror` and zero analyzer findings |
 | Build | Meson | Clean readable syntax, first-class pybind11 support, WrapDB for dependencies |
 | Bindings | pybind11 | Native Python extension, exposes C++ types directly to Python |
 | Testing | Catch2 (C++) + pytest (Python) | Catch2 for C++ unit tests; full pytest suite validates through pybind11 shim |
@@ -172,9 +172,8 @@ The Meson build enables these unconditionally (see `meson.build`):
 All native C++ code (`native/src/`, `native/include/`, `native/tests/`) must
 build with **zero warnings under `-Werror`** on all of:
 
-- **Clang 18+** — primary development compiler, source of clang-tidy/clang-format
-- **GCC 13** — baseline GCC, different warning heuristics and template diagnostics
-- **GCC 14** — latest available, adds `-fanalyzer` improvements and `-fhardened`
+- **Clang 21+** — primary development compiler, source of clang-tidy/clang-format
+- **GCC 15+** — different warning heuristics, template diagnostics, `-fanalyzer` improvements, `-fhardened`
 
 The pybind11 bindings (`native/bindings/`) are temporary shim code — excluded
 from clang-tidy, cppcheck, and GCC's `-fanalyzer`. GCC-specific false
@@ -185,8 +184,8 @@ External libraries (Catch2, pybind11) are not our code and not analysed.
 
 ```bash
 # Ubuntu 24.04
-apt install clang-18 clang-format-18 clang-tidy-18 clang-tools-18 \
-  libclang-rt-18-dev gcc-13 g++-13 gcc-14 g++-14 cppcheck valgrind
+apt install clang-21 clang-format-21 clang-tidy-21 clang-tools-21 \
+  libclang-rt-21-dev gcc-15 g++-15 cppcheck valgrind
 
 # Python (for pybind11 bindings — optional for pure C++ analysis)
 pip install pybind11 meson ninja
@@ -194,7 +193,7 @@ pip install pybind11 meson ninja
 
 ### Makefile targets
 
-#### Clang 18 (primary)
+#### Clang 21 (primary)
 
 | Target | In prep-pr? | Purpose |
 |---|---|---|
@@ -208,22 +207,18 @@ pip install pybind11 meson ninja
 | `make native-fuzz` | Yes* | libFuzzer harness (requires compiler-rt) |
 | `make native-valgrind` | No | Valgrind memcheck (periodic deep check) |
 
-*Only when `libclang-rt-18-dev` is installed.
+*Only when `libclang-rt-21-dev` is installed.
 
-#### GCC 13 + GCC 14
+#### GCC 15
 
 | Target | In prep-pr? | Purpose |
 |---|---|---|
-| `make native-test-gcc13` | Yes | Catch2 unit tests (GCC 13, `-Werror`) |
-| `make native-test-gcc14` | Yes | Catch2 unit tests (GCC 14, `-Werror`) |
-| `make native-test-gcc13-asan` | Yes | Tests under GCC 13 ASan + UBSan |
-| `make native-test-gcc14-asan` | Yes | Tests under GCC 14 ASan + UBSan |
+| `make native-test-gcc15` | Yes | Catch2 unit tests (GCC 15, `-Werror`) |
+| `make native-test-gcc15-asan` | Yes | Tests under GCC 15 ASan + UBSan |
 | `make native-gcc-analyze` | Yes | GCC static analyzer (`-fanalyzer`) |
 
 GCC targets auto-skip when the compiler isn't installed (prints a message, does
-not fail). The GCC `-fanalyzer` target uses the highest available GCC version
-(prefers 14 for its improved checks: infinite-loop detection, overlapping-buffer
-checks, enabled-by-default taint analysis).
+not fail).
 
 #### What each tool catches
 
@@ -477,14 +472,13 @@ Plus 127 Python tests (75 segmenter + 52 recovery) passing through pybind11 shim
 
 **Tri-compiler verification:**
 
-All native C++ code builds clean under Clang 18, GCC 13, and GCC 14 with
+All native C++ code builds clean under Clang 21, and GCC 15 with
 `-Werror` and all hardening flags. All compilers pass their sanitiser suites:
 
 | Compiler | Build | ASan+UBSan | TSan | Valgrind |
 |---|---|---|---|---|
-| Clang 18 | clean | 16/16 | 16/16 | 16/16 |
-| GCC 13 | clean | 16/16 | — | — |
-| GCC 14 | clean | 16/16 | — | — |
+| Clang 21 | clean | 16/16 | 16/16 | 16/16 |
+| GCC 15 | clean | 16/16 | — | — |
 
 Static analysis — all clean on our code (shim and external libraries excluded):
 
@@ -494,7 +488,7 @@ Static analysis — all clean on our code (shim and external libraries excluded)
 | cppcheck | 0 errors |
 | clang-format | compliant |
 | Clang scan-build | 0 bugs found |
-| GCC 14 -fanalyzer | 0 findings |
+| GCC 15 -fanalyzer | 0 findings |
 
 **pybind11 bindings:**
 
@@ -853,30 +847,130 @@ branch/arm) — these require CFG/SSA analysis.
 
 Plus 8,041 Python tests passing through pybind11 shim (unchanged).
 
-#### Verification (Phase 4d checkpoint)
+#### Verification (Phase 4 final)
 
-| Compiler | Build | Tests | ASan+UBSan | TSan | Valgrind |
-|---|---|---|---|---|---|
-| Clang 18 | clean | 28/28 | 28/28 | 28/28 | 28/28 |
-| GCC 13 | clean | 28/28 | 28/28 | 28/28 | — |
+| Compiler | Build | Tests | ASan+UBSan | TSan |
+|---|---|---|---|---|
+| Clang 21 | clean | 44/44 | 44/44 | 44/44 |
+| GCC 15 | clean | 44/44 | 44/44 | — |
 
-Static analysis — all clean:
+#### Phase 4e: Regex pattern tracking + package context
 
-| Tool | Result |
-|---|---|
-| clang-tidy | 0 errors (5 NOLINT suppressions) |
-| clang-format | compliant |
+Option-aware regex pattern detection via `handle_regexp` for `regexp` and
+`regsub` commands. Uses `arg_indices_for_role()` to find pattern arguments
+while correctly skipping option flags like `-nocase` and `-start`.
+Package context confidence levels (DEFINITE, PROBABLE, UNKNOWN) based on
+conditional vs unconditional `package require` invocations.
 
-#### Remaining Phase 4 sub-phases
+#### Phase 4f: Alias utilities + unknown handler analysis
 
-- 4e: Regex pattern tracking edge cases + package context analysis
-- 4f: Full command alias resolution + unknown handler analysis (with IR lowering)
-- 4g: Incremental analysis + snapshot/restore
-- 4h: Shallow proc arg traits
-- 4i: pybind11 bindings + Python integration
-- 4j: Arity diagnostics via full registry bridge
-- 4k: Upstream Tcl tests (proc.test, namespace.test)
-- 4l: Documentation + benchmark
+Command alias lookup utilities (`alias_utils.hpp/cpp`) for expr alias
+detection and namespace-qualified resolution. Lightweight keyword scan in
+`extract_unknown_proc_info()` to detect `unknown` proc characteristics
+(chains_original, has_exec, has_auto_load, case_insensitive,
+has_pattern_dispatch) without full IR lowering.
+
+#### Phase 4g: Incremental analysis + snapshot/restore
+
+`Analyser::snapshot()` and `Analyser::restore()` methods capture and
+restore analysis state for chunk-based incremental re-analysis.
+`analyse_chunked()` processes a vector of pre-segmented command chunks,
+emitting per-chunk `AnalyserSnapshot` structs. The `AliasResolver` state
+is preserved across chunk boundaries.
+
+#### Phase 4h: Shallow proc arg traits
+
+`infer_param_traits_shallow()` (`proc_arg_traits.hpp/cpp`) performs
+single-pass lexical scanning of proc bodies to detect parameter usage
+patterns. Handles: `eval`/`uplevel`/`subst` (EVAL), loop bodies (BODY),
+`upvar` + `set`/`incr`/`append` chains (VAR_WRITE/VAR_READ),
+expressions (EXPR), `foreach`/`lmap` lists (LOOP_LIST), `scan`/`lassign`
+(VAR_WRITE), `regexp`/`regsub` match variables (VAR_WRITE), `binary scan`
+(VAR_WRITE), and `after` callbacks (EVAL). Upvar alias chaining correctly
+propagates writes through local aliases back to parameters.
+
+#### Phase 4i: pybind11 bindings
+
+All Phase 4 types exposed to Python via `analysis_types.cpp`:
+
+| Binding | C++ type | Holder/policy |
+|---|---|---|
+| `NativeAnalysisResult` | `AnalysisResult` | `shared_ptr` (move-only) |
+| `NativeScope` | `Scope` | `reference_internal` (tree ownership) |
+| `NativeProcDef` | `ProcDef` | reference |
+| `NativeVarDef` | `VarDef` | reference |
+| `NativeParamDef` | `ParamDef` | value |
+| `NativeScopeKind` | `ScopeKind` | enum |
+| `NativeProcArgTrait` | `ProcArgTrait` | enum |
+| `NativeConfidence` | `Confidence` | enum |
+| `NativeRegexPattern` | `RegexPattern` | value |
+| `NativeCommandInvocation` | `CommandInvocation` | value |
+| `NativePackageRequire` | `PackageRequire` | value |
+| `NativePackageProvide` | `PackageProvide` | value |
+| `NativeSourceTarget` | `SourceTarget` | value |
+| `NativePackageContext` | `PackageContext` | value |
+| `NativeUnknownProcInfo` | `UnknownProcInfo` | value |
+| `NativeStubCommandDef` | `StubCommandDef` | value |
+| `NativeStubArgDef` | `StubArgDef` | value |
+| `NativeStubExprDef` | `StubExprDef` | value |
+
+Functions: `native_analyse(source, disabled_diagnostics=None)` uses the
+native registry (1,840 commands). `native_infer_param_traits_shallow()`
+exposes trait inference. `ProcDef.param_traits` is converted to
+`dict[str, frozenset[str]]` at the binding boundary.
+
+The `NATIVE_ANALYSER` flag in `core/_native.py` gates availability.
+
+#### Phase 4j: Arity diagnostics via registry
+
+E001 arity checking via `CommandRegistryInterface::validation()` and
+subcommand-level arity via `SubcommandSig` lookup. Guards:
+
+- `{*}` expansion detected via `expand_word` flag — suppresses arity
+  checking (cannot know actual argument count at analysis time)
+- `# noqa: E001` preceding comment suppresses the diagnostic
+- Subcommand arity checked when top-level command has `SubcommandSig`
+  (e.g. `string length a b` → E001 for too many args)
+
+Also added: `array set` variable definition handler and `try on/trap`
+handler variable list parsing (variables from `on error {msg opts}`
+are now defined in scope).
+
+#### Phase 4k: Upstream Tcl tests
+
+| Test file | Tests | Ported from |
+|---|---|---|
+| `test_upstream_proc.cpp` | 22 | Tcl proc.test |
+| `test_upstream_namespace.cpp` | 48 | Tcl namespace.test |
+| `test_upstream_var.cpp` | 41 | Tcl var.test |
+
+W210/W211/W220 tests (44 from Python) explicitly deferred to Phase 6
+(require CFG/SSA analysis).
+
+#### Phase 4 test coverage (final)
+
+| Test file | Tests | Scope |
+|---|---|---|
+| `test_semantic_types.cpp` | 7 | Type construction + scope tree |
+| `test_analysis_result.cpp` | 8 | AnalysisResult methods |
+| `test_param_list_parser.cpp` | 4 | Parameter list parsing |
+| `test_stub_parser.cpp` | 12 | Stub comment parsing |
+| `test_analyser_proc.cpp` | 10 | Proc analysis |
+| `test_analyser_variable.cpp` | 8 | Variable tracking |
+| `test_analyser_control_flow.cpp` | 12 | Control flow handlers |
+| `test_analyser_regex.cpp` | 26 | Regex pattern tracking |
+| `test_analyser_package.cpp` | 16 | Package require/provide |
+| `test_analyser_alias.cpp` | 14 | Command alias resolution |
+| `test_analyser_w123.cpp` | 24 | Unresolved command detection |
+| `test_analyser_diagnostics.cpp` | 28 | Diagnostics + W214 + E001 |
+| `test_analyser_snapshot.cpp` | 4 | Incremental snapshot/restore |
+| `test_proc_arg_traits.cpp` | 23 | Parameter trait inference |
+| `test_upstream_proc.cpp` | 22 | Upstream proc.test |
+| `test_upstream_namespace.cpp` | 48 | Upstream namespace.test |
+| `test_upstream_var.cpp` | 41 | Upstream var.test |
+| **Phase 4 total** | **307** | |
+
+Plus 8,041 Python tests passing (unchanged).
 
 ### Direction: Phase 5 and beyond
 
@@ -957,7 +1051,7 @@ the full tcl-lsp compiler and sanitizer matrix:
 
 | Requirement | Detail |
 |---|---|
-| **Compilers** | Clang 18, GCC 13, GCC 14 — all with `-Werror` |
+| **Compilers** | Clang 21, GCC 15 — all with `-Werror` |
 | **Warning level** | 3 (all warnings) + hardening flags |
 | **Hardening flags** | `-fstack-protector-strong`, `-D_FORTIFY_SOURCE=2`, `-D_GLIBCXX_ASSERTIONS`, `-Wconversion`, `-Wsign-conversion`, `-Wfloat-conversion`, `-Wvla`, `-Wdouble-promotion`, `-Wmissing-field-initializers`, `-Wnull-dereference`, `-Wformat=2`, `-Wunused-result`, `-Wimplicit-fallthrough` |
 | **Sanitizers** | ASan+UBSan, ThreadSanitizer, Valgrind memcheck |
@@ -992,7 +1086,7 @@ The fork's `Makefile` provides the same target structure as tcl-lsp (`make test-
    pre-generated LSP types checked into `lsp/generated/` with forwarding headers
 2. **\*BSD support** — FreeBSD/OpenBSD/NetBSD/DragonFlyBSD added to socket and
    process platform detection (`#if defined(__unix__) && !defined(_WIN32)`)
-3. **CI/CD** — GitHub Actions matrix: Linux (GCC 13/14, Clang 18), macOS
+3. **CI/CD** — GitHub Actions matrix: Linux (GCC 15, Clang 21), macOS
    (Apple Clang), Windows (MSVC), FreeBSD (Clang). ASan+UBSan. clang-format check.
 4. **Quality enforcement** — AGENTS.md, CLAUDE.md, Makefile (26 targets),
    .clang-format, .clang-tidy, .cppcheck-suppress, full hardening flags in
@@ -1028,7 +1122,7 @@ replacement happen together:
 - 7a: Integrate lsp-framework subproject, verify `make test-all` passes
 - 7b: Server skeleton (lifecycle, document sync, capabilities)
 - 7c: Python bridge wiring all 21 LSP features through C++ server
-- 7d: Integration testing, GCC 13 verification, valgrind memcheck
+- 7d: Integration testing, GCC 15 verification, valgrind memcheck
 - 7e: Remove pygls, lsprotocol dependency
 
 ### Phase 7: LSP Server (pygls replacement)
@@ -1106,8 +1200,8 @@ Diagnostics are published back to the client via a notification callback.
 
 | Compiler | Build | Tests | Valgrind |
 |---|---|---|---|
-| Clang 18 | clean | 30/30 | 30/30 (zero errors) |
-| GCC 13 | clean | 31/31 | — |
+| Clang 21 | clean | 30/30 | 30/30 (zero errors) |
+| GCC 15 | clean | 31/31 | — |
 
 Server end-to-end verified: stdio initialize → full capabilities response
 with all 21 features registered.
@@ -1165,7 +1259,7 @@ get proper role resolution including subcommand dispatch.
 
 | Compiler | Build | Tests | Valgrind |
 |---|---|---|---|
-| GCC 13 | clean (-Werror) | 36/36 | 36/36 (zero errors, zero leaks) |
+| GCC 15 | clean (-Werror) | 36/36 | 36/36 (zero errors, zero leaks) |
 
 The C++ server now handles `textDocument/semanticTokens/full` and
 `textDocument/semanticTokens/full/delta` natively, bypassing the Python

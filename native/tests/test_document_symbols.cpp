@@ -12,8 +12,8 @@ auto analyse_source(std::string_view source) -> AnalysisResult {
     return analyser.analyse(source);
 }
 
-auto find_by_name(const std::vector<DocumentSymbolInfo>& syms,
-                  const std::string& name) -> const DocumentSymbolInfo* {
+auto find_by_name(const std::vector<DocumentSymbolInfo>& syms, const std::string& name)
+    -> const DocumentSymbolInfo* {
     for (auto& s : syms) {
         if (s.name == name)
             return &s;

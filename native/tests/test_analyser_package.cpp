@@ -1,6 +1,7 @@
 // Ported from tests/test_analyser.py — TestPackageRequire + TestSourceTargets.
 
 #include "tcl_lsp/analysis/analyser.hpp"
+#include "tcl_lsp/analysis/auxiliary_types.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -96,4 +97,41 @@ TEST_CASE("source: multiple", "[analyser][source]") {
     CHECK(result.source_targets()[0].is_literal == true);
     CHECK(result.source_targets()[1].is_literal == true);
     CHECK(result.source_targets()[2].is_literal == false);
+}
+
+// ---------------------------------------------------------------------------
+// PackageContext confidence levels (Phase 4e)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("package context: unconditional is definite", "[analyser][package][context]") {
+    auto result = analyse("package require http 2.9");
+    auto ctx = result.package_context();
+    CHECK(ctx.confidence("http") == Confidence::DEFINITE);
+    CHECK(ctx.definite.count("http") == 1);
+    CHECK(ctx.probable.empty());
+}
+
+TEST_CASE("package context: conditional inside catch is probable", "[analyser][package][context]") {
+    auto result = analyse("catch { package require optional_pkg }");
+    auto ctx = result.package_context();
+    CHECK(ctx.confidence("optional_pkg") == Confidence::PROBABLE);
+    CHECK(ctx.probable.count("optional_pkg") == 1);
+    CHECK(ctx.definite.empty());
+}
+
+TEST_CASE("package context: unconditional overrides conditional", "[analyser][package][context]") {
+    auto result = analyse("catch { package require http }\n"
+                          "package require http 2.9");
+    auto ctx = result.package_context();
+    // Unconditional require overrides the conditional one.
+    CHECK(ctx.confidence("http") == Confidence::DEFINITE);
+    CHECK(ctx.definite.count("http") == 1);
+    CHECK(ctx.probable.count("http") == 0);
+}
+
+TEST_CASE("package context: unknown package is UNKNOWN confidence",
+          "[analyser][package][context]") {
+    auto result = analyse("set x 42");
+    auto ctx = result.package_context();
+    CHECK(ctx.confidence("nonexistent") == Confidence::UNKNOWN);
 }

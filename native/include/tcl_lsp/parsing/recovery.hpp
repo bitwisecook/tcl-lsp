@@ -39,17 +39,20 @@ struct RecoveryResult {
                                           int32_t base_offset) -> SourcePosition;
 
 // E201 detectors (unterminated [).
-[[nodiscard]] auto detect_missing_bracket_at_comment(
-    const Token& tok, std::string_view source, int32_t base_offset) -> std::optional<GhostToken>;
+[[nodiscard]] auto
+detect_missing_bracket_at_comment(const Token& tok, std::string_view source, int32_t base_offset)
+    -> std::optional<GhostToken>;
 
-[[nodiscard]] auto detect_missing_bracket_at_command(
-    const Token& tok,
-    std::string_view source,
-    int32_t base_offset,
-    const std::unordered_set<std::string>& known_commands) -> std::optional<GhostToken>;
+[[nodiscard]] auto
+detect_missing_bracket_at_command(const Token& tok,
+                                  std::string_view source,
+                                  int32_t base_offset,
+                                  const std::unordered_set<std::string>& known_commands)
+    -> std::optional<GhostToken>;
 
-[[nodiscard]] auto detect_missing_bracket_at_brace(
-    const Token& tok, std::string_view source, int32_t base_offset) -> std::optional<GhostToken>;
+[[nodiscard]] auto
+detect_missing_bracket_at_brace(const Token& tok, std::string_view source, int32_t base_offset)
+    -> std::optional<GhostToken>;
 
 [[nodiscard]] auto detect_missing_bracket_no_heuristic(const Token& tok) -> Diagnostic;
 
@@ -59,25 +62,27 @@ struct RecoveryResult {
                                        std::string_view source,
                                        int32_t base_offset) -> bool;
 
-[[nodiscard]] auto detect_missing_quote_at_newline(
-    const Token& tok,
-    std::string_view source,
-    int32_t base_offset,
-    const std::unordered_set<std::string>& known_commands) -> std::optional<GhostToken>;
+[[nodiscard]] auto
+detect_missing_quote_at_newline(const Token& tok,
+                                std::string_view source,
+                                int32_t base_offset,
+                                const std::unordered_set<std::string>& known_commands)
+    -> std::optional<GhostToken>;
 
 [[nodiscard]] auto detect_missing_quote_no_heuristic(const Token& tok,
                                                      std::string_view source,
                                                      int32_t base_offset) -> Diagnostic;
 
 // E203 detectors (unterminated {).
-[[nodiscard]] auto
-is_suspicious_str(const Token& tok, std::string_view source, int32_t base_offset) -> bool;
+[[nodiscard]] auto is_suspicious_str(const Token& tok, std::string_view source, int32_t base_offset)
+    -> bool;
 
-[[nodiscard]] auto detect_missing_brace_at_command(
-    const Token& tok,
-    std::string_view source,
-    int32_t base_offset,
-    const std::unordered_set<std::string>& known_commands) -> std::optional<GhostToken>;
+[[nodiscard]] auto
+detect_missing_brace_at_command(const Token& tok,
+                                std::string_view source,
+                                int32_t base_offset,
+                                const std::unordered_set<std::string>& known_commands)
+    -> std::optional<GhostToken>;
 
 [[nodiscard]] auto detect_missing_brace_no_heuristic(const Token& tok,
                                                      std::string_view source,
@@ -90,17 +95,19 @@ is_unterminated_cmd(const Token& tok, std::string_view source, int32_t base_offs
 // Compute ghost token insertions for error recovery.
 // Does a first parse, detects imbalances, and returns the insertions dict.
 // When known_commands is provided, command-break heuristics are enabled.
-[[nodiscard]] auto compute_ghost_insertions(std::string_view source,
-                                            const Token* body_token = nullptr,
-                                            const std::unordered_set<std::string>* known_commands =
-                                                nullptr) -> std::unordered_map<int32_t, char>;
+[[nodiscard]] auto
+compute_ghost_insertions(std::string_view source,
+                         const Token* body_token = nullptr,
+                         const std::unordered_set<std::string>* known_commands = nullptr)
+    -> std::unordered_map<int32_t, char>;
 
 // Parse source, detect imbalances, re-parse with ghost tokens.
 // Returns (clean_commands, diagnostics).
 // When known_commands is provided, command-break heuristics are enabled.
-[[nodiscard]] auto segment_with_recovery(
-    std::string_view source,
-    const Token* body_token = nullptr,
-    const std::unordered_set<std::string>* known_commands = nullptr) -> RecoveryResult;
+[[nodiscard]] auto
+segment_with_recovery(std::string_view source,
+                      const Token* body_token = nullptr,
+                      const std::unordered_set<std::string>* known_commands = nullptr)
+    -> RecoveryResult;
 
 } // namespace tcl_lsp
