@@ -85,7 +85,9 @@ suite("Code Actions", () => {
 
   test("provides guided collect bootstrap fix for IRULE1005", async () => {
     await activate(irulesDocUri);
-    const diagnostics = await waitForDiagnostics(irulesDocUri, { minCount: 1 });
+    // IRULE1005 is a deep diagnostic — wait for at least 4 diagnostics
+    // (3 basic + 1 deep) so the async deep pass has time to complete.
+    const diagnostics = await waitForDiagnostics(irulesDocUri, { minCount: 4 });
 
     const irule1005 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;

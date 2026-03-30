@@ -23,7 +23,7 @@ Example ``config.ini``::
         ^log_(level|server|enabled)$
 
     # Comma-separated diagnostic codes to disable.
-    disabled = W111, T100, IRULE1005
+    disabled = W111, T100
 
     [optimiser]
     enabled = true
