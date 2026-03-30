@@ -673,6 +673,47 @@ def get_basic_diagnostics(
     return diags, result, suppressed
 
 
+def _run_deep_diagnostics(
+    source: str,
+    suppressed: dict[int, frozenset[str]],
+    dialect: str,
+    optimiser_enabled: bool = True,
+    shimmer_enabled: bool = True,
+    taint_enabled: bool = True,
+    xc_diagnostics_enabled: bool = False,
+    disabled_diagnostics: set[str] | None = None,
+    disabled_optimisations: set[str] | None = None,
+    uri: str | None = None,
+    generic_variable_patterns: list[str] | None = None,
+) -> list[types.Diagnostic]:
+    """Subprocess-safe wrapper for deep diagnostics.
+
+    Module-level function suitable for ``ProcessPoolExecutor``.
+    Rebuilds the CompilationUnit from source (no pre-built CU or
+    analysis needed) so the only data crossing the process boundary
+    is the source string and config flags.
+    """
+    import core.common.codes_all  # noqa: F401
+
+    from core.commands.registry.runtime import configure_signatures
+
+    configure_signatures(dialect=dialect)
+    return get_deep_diagnostics(
+        source,
+        suppressed,
+        cu=None,
+        analysis=None,
+        optimiser_enabled=optimiser_enabled,
+        shimmer_enabled=shimmer_enabled,
+        taint_enabled=taint_enabled,
+        xc_diagnostics_enabled=xc_diagnostics_enabled,
+        disabled_diagnostics=disabled_diagnostics,
+        disabled_optimisations=disabled_optimisations,
+        uri=uri,
+        generic_variable_patterns=generic_variable_patterns,
+    )
+
+
 def get_deep_diagnostics(
     source: str,
     suppressed: dict[int, frozenset[str]],

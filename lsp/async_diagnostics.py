@@ -26,6 +26,7 @@ log = logging.getLogger(__name__)
 
 # Type aliases for the two callback signatures.
 DeepDiagnosticsFn = Callable[[], list[types.Diagnostic]]
+AsyncDeepDiagnosticsFn = Callable[[], "asyncio.coroutines.coroutine"]
 PublishFn = Callable[[str, list[types.Diagnostic], int | None], None]
 
 
@@ -116,6 +117,59 @@ class DiagnosticScheduler:
         )
 
         # Merge basic + deep and publish.
+        publish_fn(uri, basic_diags + deep_diags, version)
+
+    def schedule_async(
+        self,
+        uri: str,
+        version: int | None,
+        basic_diags: list[types.Diagnostic],
+        deep_coro_fn: AsyncDeepDiagnosticsFn,
+        publish_fn: PublishFn,
+    ) -> None:
+        """Schedule a deep diagnostic pass using an async callable.
+
+        Like :meth:`schedule` but *deep_coro_fn* is an ``async def``
+        that is awaited directly (e.g. wrapping
+        ``loop.run_in_executor(ProcessPoolExecutor, ...)``).
+        """
+        prev = self._pending.pop(uri, None)
+        if prev is not None and not prev.task.done():
+            prev.task.cancel()
+            log.debug("Cancelled stale deep diagnostics for %s (v%s)", uri, prev.version)
+
+        task = asyncio.create_task(
+            self._run_async(uri, version, basic_diags, deep_coro_fn, publish_fn),
+        )
+        self._pending[uri] = _PendingTask(task=task, version=version)
+
+    async def _run_async(
+        self,
+        uri: str,
+        version: int | None,
+        basic_diags: list[types.Diagnostic],
+        deep_coro_fn: AsyncDeepDiagnosticsFn,
+        publish_fn: PublishFn,
+    ) -> None:
+        """Execute the deep pass via an async callable and publish."""
+        t0 = time.perf_counter()
+        try:
+            deep_diags: list[types.Diagnostic] = await deep_coro_fn()
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            log.debug("Deep diagnostics failed for %s", uri, exc_info=True)
+            return
+        finally:
+            pending = self._pending.get(uri)
+            if pending is not None and pending.version == version:
+                self._pending.pop(uri, None)
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log.info(
+            "[timing] deep diagnostics %.0fms (uri=%s, diags=%d)", elapsed_ms, uri, len(deep_diags)
+        )
+
         publish_fn(uri, basic_diags + deep_diags, version)
 
     def cancel(self, uri: str) -> None:

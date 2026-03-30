@@ -141,6 +141,157 @@ def _extract_chunk_ir(
 log = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Subprocess worker function for ProcessPoolExecutor
+# ---------------------------------------------------------------------------
+
+def _analyse_document_fresh(
+    source: str,
+    version: int | None,
+    line_length: int,
+    dialect: str,
+    uri: str,
+) -> dict:
+    """Run the full analysis pipeline in a subprocess.
+
+    This is a module-level function (picklable) that replicates
+    ``_update_full`` but returns a result dict instead of mutating
+    ``DocumentState``.  Called via ``ProcessPoolExecutor`` to escape
+    the GIL and achieve true parallelism.
+    """
+    # Ensure diagnostic codes are registered in the subprocess.
+    import core.common.codes_all  # noqa: F401
+
+    from core.commands.registry.runtime import configure_signatures
+
+    configure_signatures(dialect=dialect)
+
+    t0 = time.perf_counter()
+
+    chunks = segment_top_level_chunks(source)
+    has_partial = any(cmd.is_partial for chunk in chunks for cmd in chunk.commands)
+
+    file_profiles: frozenset[str] = frozenset()
+    try:
+        from core.commands.registry.runtime import is_irules_dialect
+
+        if is_irules_dialect():
+            file_profiles = EVENT_REGISTRY.compute_file_profiles(source)
+    except Exception:
+        pass
+
+    compilation_unit: CompilationUnit | None = None
+    try:
+        compilation_unit = compile_source(source)
+    except Exception:
+        log.debug("subprocess: compilation failed", exc_info=True)
+
+    chunk_commands = [list(chunk.commands) for chunk in chunks]
+    analyser = Analyser(disabled_diagnostics=default_disabled_diagnostics())
+    analysis, chunk_snapshots = analyser.analyse_chunked(
+        source,
+        chunk_commands,
+        cu=compilation_unit,
+    )
+
+    # Build chunk caches (without semantic token precompute — that's
+    # done in-process after the result is applied).
+    chunk_caches = _build_chunk_caches_standalone(
+        source, chunks, chunk_snapshots, compilation_unit, line_length=line_length,
+    )
+
+    buf = DocumentBuffer.from_source(source, version)
+
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    n_procs = len(compilation_unit.procedures) if compilation_unit else 0
+    log.info(
+        "[timing] _analyse_document_fresh %.0fms (procs=%d, chunks=%d, lines=%d)",
+        elapsed_ms,
+        n_procs,
+        len(chunks),
+        source.count("\n") + 1,
+    )
+
+    return {
+        "analysis": analysis,
+        "compilation_unit": compilation_unit,
+        "chunks": chunks,
+        "has_partial": has_partial,
+        "chunk_caches": chunk_caches,
+        "file_profiles": file_profiles,
+        "buffer": buf,
+    }
+
+
+def _build_chunk_caches_standalone(
+    source: str,
+    chunks: list[TopLevelChunk],
+    chunk_snapshots: list[AnalyserSnapshot] | None,
+    compilation_unit: CompilationUnit | None,
+    *,
+    line_length: int = 120,
+) -> list[ChunkCache | None]:
+    """Build chunk caches without semantic token precompute.
+
+    Standalone version of ``DocumentState._build_full_chunk_caches``
+    suitable for subprocess execution (no ``self`` dependency).
+    Semantic tokens are precomputed in-process after the result is
+    applied, since that step needs the URI for dialect detection.
+    """
+    from bisect import bisect_left, bisect_right
+
+    buf = DocumentBuffer.from_source(source)
+    caches: list[ChunkCache | None] = []
+
+    all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
+    diag_lines = [d.range.start.line for d in all_style_diags]
+
+    chunk_ir_map = _extract_chunk_ir(compilation_unit, chunks)
+
+    snapshot_analyser: Analyser | None = None
+    if chunk_snapshots is None:
+        snapshot_analyser = Analyser()
+        snapshot_analyser._source = source
+
+    for ci, chunk in enumerate(chunks):
+        if chunk_ir_map is not None:
+            ir_stmts, ir_procs = chunk_ir_map[ci]
+        else:
+            from core.compiler.lowering import lower_commands_to_ir
+
+            ir_stmts, ir_procs = lower_commands_to_ir(source, list(chunk.commands))
+
+        if chunk_snapshots is not None:
+            snap = chunk_snapshots[ci]
+        else:
+            assert snapshot_analyser is not None
+            snapshot_analyser._analyse_commands_inner(
+                list(chunk.commands),
+                snapshot_analyser._current_scope,
+                source,
+            )
+            snap = snapshot_analyser.snapshot()
+
+        start_line, _sc, end_line, _ec = _chunk_line_range(buf, chunk)
+        lo = bisect_left(diag_lines, start_line)
+        hi = bisect_right(diag_lines, end_line)
+        style_diags = all_style_diags[lo:hi]
+
+        caches.append(
+            ChunkCache(
+                chunk_hash=chunk.source_hash,
+                ir_statements=ir_stmts,
+                procedures=ir_procs,
+                analyser_snapshot_after=snap,
+                style_diagnostics=style_diags,
+                style_line_length=line_length,
+            )
+        )
+        time.sleep(0)  # Yield GIL between chunks
+
+    return caches
+
+
 def _build_proc_cache(
     cu: CompilationUnit,
 ) -> dict[tuple[str, int], FunctionUnit]:
@@ -451,6 +602,28 @@ class DocumentState:
                 and self._chunk_caches[i] is not None
             ):
                 self._chunk_caches[i].semantic_tokens_abs = tokens  # type: ignore[union-attr, invalid-assignment]
+
+    def apply_subprocess_result(self, result: dict, version: int | None) -> None:
+        """Apply the result from ``_analyse_document_fresh`` (subprocess).
+
+        Builds and swaps a new ``_StateSnapshot`` from the subprocess
+        output, and seeds ``_proc_cache`` so subsequent incremental
+        edits benefit from procedure-level caching.
+        """
+        cu = result.get("compilation_unit")
+        has_partial = result.get("has_partial", False)
+        self._do_update_proc_cache(cu, has_partial)
+        self._snap = _StateSnapshot(
+            source=result.get("source", self._snap.source),
+            version=version,
+            analysis=result.get("analysis"),
+            compilation_unit=cu,
+            chunks=result.get("chunks", []),
+            has_partial_commands=has_partial,
+            file_profiles=result.get("file_profiles", frozenset()),
+            chunk_caches=result.get("chunk_caches", []),
+            buffer=result.get("buffer"),
+        )
 
     def precompute_syntax_tokens(
         self,

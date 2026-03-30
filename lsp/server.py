@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import itertools
 import logging
 import re
 import threading
 import time
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
 
 from lsprotocol import types
@@ -303,6 +306,17 @@ package_resolver = PackageResolver()
 formatter_config = FormatterConfig()
 feature_config = FeatureConfig()
 diagnostic_scheduler = DiagnosticScheduler()
+_process_pool: ProcessPoolExecutor | None = None
+
+
+def _get_process_pool() -> ProcessPoolExecutor:
+    """Lazy singleton ProcessPoolExecutor for CPU-intensive analysis."""
+    global _process_pool
+    if _process_pool is None:
+        _process_pool = ProcessPoolExecutor(max_workers=2)
+    return _process_pool
+
+
 _loaded_packages: set[str] = set()
 _SAFE_FIX_CODES = frozenset(
     {
@@ -1928,19 +1942,47 @@ async def _publish_diagnostics(
     disabled_optimisations = set(feature_config.disabled_optimisations)
 
     # Full analysis: compile, analyse, build chunk caches.
-    # Run in a background thread so the event loop stays responsive —
-    # semantic token requests can be served with syntax-only tokens
-    # (from update_source_quick above) while analysis runs.
+    # Fresh analysis uses ProcessPoolExecutor for true GIL-free
+    # parallelism.  Incremental edits stay on asyncio.to_thread to
+    # preserve the in-process proc/interproc caches.
     t_update = time.perf_counter()
     did_analyse = needs_analysis or force_reanalyse
     if did_analyse:
-        await asyncio.to_thread(
-            state.update,
-            source,
-            version,
-            force_reanalyse=force_reanalyse,
-            line_length=line_length,
-        )
+        is_fresh = state.analysis is None or force_reanalyse
+        if is_fresh:
+            from core.common.dialect import active_dialect
+            from lsp.workspace.document_state import _analyse_document_fresh
+
+            try:
+                loop = asyncio.get_running_loop()
+                pool = _get_process_pool()
+                result = await loop.run_in_executor(
+                    pool,
+                    functools.partial(
+                        _analyse_document_fresh,
+                        source=source,
+                        version=version,
+                        line_length=line_length,
+                        dialect=active_dialect(),
+                        uri=uri,
+                    ),
+                )
+                state.apply_subprocess_result(result, version)
+            except BrokenProcessPool:
+                log.warning("Process pool broken, falling back to thread")
+                global _process_pool
+                _process_pool = None
+                await asyncio.to_thread(
+                    state.update, source, version,
+                    force_reanalyse=force_reanalyse,
+                    line_length=line_length,
+                )
+        else:
+            await asyncio.to_thread(
+                state.update, source, version,
+                force_reanalyse=force_reanalyse,
+                line_length=line_length,
+            )
     update_ms = (time.perf_counter() - t_update) * 1000
     log.info(
         "[timing] workspace_state.update %.0fms (quick=%.0fms, uri=%s, lines=%d)",
@@ -2035,38 +2077,76 @@ async def _publish_diagnostics(
 
     # Deep diagnostic proc cache: if all procs are unchanged, reuse.
     cached_deep = state.get_cached_deep_diagnostics()
+
+    if cached_deep is not None:
+        # Cache hit — publish immediately, no subprocess needed.
+        _publish_diags_to_client(uri, basic_diags + cached_deep, version)
+        return
+
     # Capture state ref and version for the closure so a stale background
-    # thread does not overwrite a newer document's cached diagnostics.
+    # task does not overwrite a newer document's cached diagnostics.
     _state_ref = state
     _scheduled_version = version
 
-    def _deep_fn() -> list[types.Diagnostic]:
-        if cached_deep is not None:
-            return cached_deep
-        result = get_deep_diagnostics(
-            source,
-            suppressed,
-            cu=cu,
-            analysis=analysis_result,
-            optimiser_enabled=opt_enabled,
-            shimmer_enabled=shimmer_enabled,
-            taint_enabled=taint_enabled,
-            xc_diagnostics_enabled=xc_enabled,
-            disabled_diagnostics=disabled_diags,
-            disabled_optimisations=disabled_opts,
-            uri=uri,
-            generic_variable_patterns=feature_config.generic_variable_patterns,
-        )
-        # Only store if the document hasn't been updated since we started.
+    from core.common.dialect import active_dialect
+    from lsp.features.diagnostics import _run_deep_diagnostics
+
+    _dialect = active_dialect()
+    _pool = _get_process_pool()
+    _generic_var_patterns = (
+        list(feature_config.generic_variable_patterns)
+        if feature_config.generic_variable_patterns
+        else None
+    )
+
+    async def _deep_coro() -> list[types.Diagnostic]:
+        try:
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                _pool,
+                functools.partial(
+                    _run_deep_diagnostics,
+                    source=source,
+                    suppressed=dict(suppressed),
+                    dialect=_dialect,
+                    optimiser_enabled=opt_enabled,
+                    shimmer_enabled=shimmer_enabled,
+                    taint_enabled=taint_enabled,
+                    xc_diagnostics_enabled=xc_enabled,
+                    disabled_diagnostics=disabled_diags,
+                    disabled_optimisations=disabled_opts,
+                    uri=uri,
+                    generic_variable_patterns=_generic_var_patterns,
+                ),
+            )
+        except BrokenProcessPool:
+            log.warning("Process pool broken in deep diagnostics, falling back to thread")
+            global _process_pool
+            _process_pool = None
+            result = await asyncio.to_thread(
+                get_deep_diagnostics,
+                source,
+                suppressed,
+                cu=cu,
+                analysis=analysis_result,
+                optimiser_enabled=opt_enabled,
+                shimmer_enabled=shimmer_enabled,
+                taint_enabled=taint_enabled,
+                xc_diagnostics_enabled=xc_enabled,
+                disabled_diagnostics=disabled_diags,
+                disabled_optimisations=disabled_opts,
+                uri=uri,
+                generic_variable_patterns=_generic_var_patterns,
+            )
         if _state_ref.version == _scheduled_version:
             _state_ref.store_deep_diagnostics(result)
         return result
 
-    diagnostic_scheduler.schedule(
+    diagnostic_scheduler.schedule_async(
         uri,
         version,
         basic_diags,
-        _deep_fn,
+        _deep_coro,
         _publish_diags_to_client,
     )
 
@@ -2717,8 +2797,12 @@ def _export_config() -> dict:
 
 @server.feature(types.SHUTDOWN)
 def on_shutdown(params: None) -> None:
-    """Cancel pending background tasks on shutdown."""
+    """Cancel pending background tasks and shut down process pool."""
     diagnostic_scheduler.cancel_all()
+    global _process_pool
+    if _process_pool is not None:
+        _process_pool.shutdown(wait=False, cancel_futures=True)
+        _process_pool = None
 
 
 @server.feature(types.WORKSPACE_DID_CHANGE_WATCHED_FILES)
