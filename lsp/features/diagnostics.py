@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from lsprotocol import types
 
@@ -777,6 +778,7 @@ def get_deep_diagnostics(
                 emitted_groups.add(opt.group)
             else:
                 diags.append(_optimisation_to_diagnostic(opt))
+    time.sleep(0)  # Yield GIL between deep diagnostic passes
     if shimmer_enabled:
         for w in find_shimmer_warnings(source, cu=cu):
             if disabled_diagnostics and w.code in disabled_diagnostics:
@@ -784,6 +786,7 @@ def get_deep_diagnostics(
             if suppressed and _is_suppressed(w.code, w.range.start.line, suppressed):
                 continue
             diags.append(_shimmer_to_diagnostic(w, uri=uri))
+    time.sleep(0)  # Yield GIL between deep diagnostic passes
     if taint_enabled:
         for w in find_taint_warnings(source, cu=cu):
             if disabled_diagnostics and w.code in disabled_diagnostics:
@@ -791,6 +794,7 @@ def get_deep_diagnostics(
             if suppressed and _is_suppressed(w.code, w.range.start.line, suppressed):
                 continue
             diags.append(_taint_to_diagnostic(w))
+    time.sleep(0)  # Yield GIL between deep diagnostic passes
     for w in find_irules_flow_warnings(
         source,
         cu=cu,
@@ -801,6 +805,7 @@ def get_deep_diagnostics(
         if suppressed and _is_suppressed(w.code, w.range.start.line, suppressed):
             continue
         diags.append(_irules_flow_to_diagnostic(w))
+    time.sleep(0)  # Yield GIL between deep diagnostic passes
     if optimiser_enabled:
         for w in find_redundant_computations(source, cu=cu):
             if disabled_optimisations and w.code in disabled_optimisations:

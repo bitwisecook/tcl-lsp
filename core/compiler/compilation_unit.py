@@ -7,6 +7,7 @@ shimmer analysis, and compiler checks.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 
 from .cfg import CFGFunction, CFGModule, build_cfg_function, prepare_cfg_context
@@ -162,6 +163,7 @@ def compile_source(
             analysis=analysis,
             execution_intent=build_function_execution_intent(cfg),
         )
+        time.sleep(0)  # Yield GIL between procedures
 
     cfg_module = CFGModule(top_level=top_cfg, procedures=proc_cfgs)
 

@@ -1100,6 +1100,7 @@ class DocumentState:
                         style_line_length=line_length,
                     )
                 )
+                time.sleep(0)  # Yield GIL between chunks
             # Pre-compute semantic tokens per chunk so the first
             # semanticTokens/full request gets a full cache hit.
             try:

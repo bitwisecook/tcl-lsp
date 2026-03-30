@@ -29,6 +29,7 @@ The public entry point is ``analyse_function`` / ``analyse_source``.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING
@@ -655,6 +656,7 @@ def _sccp(
                             changed = True
                 case _:
                     pass
+        time.sleep(0)  # Yield GIL between fixed-point iterations
 
     constant_branches: list[ConstantBranch] = []
     for bn in order:
@@ -768,6 +770,7 @@ def _liveness(
                 live_in[bn] = new_in
                 live_out[bn] = out
                 changed = True
+        time.sleep(0)  # Yield GIL between fixed-point iterations
 
     return live_in, live_out
 
@@ -1216,6 +1219,7 @@ def _type_propagation(
                     inferred = _evaluate_type_def(stmt, s, values, types)
                     if set_type((var, ver), inferred):
                         changed = True
+        time.sleep(0)  # Yield GIL between fixed-point iterations
 
     return types
 

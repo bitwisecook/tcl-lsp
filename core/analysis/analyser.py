@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 
 from ..commands.registry import REGISTRY
@@ -394,6 +395,7 @@ class Analyser:
         for cmds in chunk_commands:
             self._analyse_commands_inner(cmds, self._current_scope, source)
             snapshots.append(self.snapshot())
+            time.sleep(0)  # Yield GIL between chunks
         self._emit_unresolved_command_diagnostics()
         self._emit_variable_usage_diagnostics()
         self._emit_cfg_ssa_diagnostics(source, cu=cu)
