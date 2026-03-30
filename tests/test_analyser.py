@@ -158,7 +158,8 @@ class TestDiagnostics:
         assert len(errors) == 0
 
     def test_puts_too_many_args(self):
-        result = analyse("puts a b c")
+        # puts accepts up to 3 args: puts ?-nonewline? ?channelId? string
+        result = analyse("puts a b c d")
         errors = [d for d in result.diagnostics if d.severity == Severity.ERROR]
         assert len(errors) >= 1
 

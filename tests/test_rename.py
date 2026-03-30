@@ -63,6 +63,21 @@ class TestRenameProc:
         # All edits should replace with the new name
         assert all(e.new_text == "welcome" for e in edits)
 
+    def test_rename_namespaced_proc_preserves_qualifier_at_call(self):
+        source = textwrap.dedent("""\
+            namespace eval utils {
+                proc helper {x} { return $x }
+            }
+            utils::helper 42
+        """)
+        edit = get_rename_edits(source, TEST_URI, 1, 10, "assist")
+        assert edit is not None
+        assert edit.changes is not None
+        edits = edit.changes[TEST_URI]
+        texts = {e.new_text for e in edits}
+        assert "assist" in texts  # definition
+        assert "utils::assist" in texts  # qualified call site
+
     def test_rename_from_call_site(self):
         source = textwrap.dedent("""\
             proc greet {name} { puts "Hello $name" }
@@ -119,6 +134,34 @@ class TestRenameVariable:
         texts = {e.new_text for e in edits}
         assert "newvar" in texts  # definition
         assert "${newvar}" in texts  # braced reference
+
+    def test_rename_qualified_var_preserves_namespace(self):
+        """Renaming a namespace-qualified variable preserves the ns:: prefix."""
+        source = textwrap.dedent("""\
+            set myns::count 0
+            puts $myns::count
+        """)
+        edit = get_rename_edits(source, TEST_URI, 0, 10, "total")
+        assert edit is not None
+        assert edit.changes is not None
+        edits = edit.changes[TEST_URI]
+        texts = {e.new_text for e in edits}
+        assert "myns::total" in texts  # definition
+        assert "$myns::total" in texts  # reference
+
+    def test_rename_qualified_var_braced_form(self):
+        """Renaming ${ns::var} preserves braces and namespace."""
+        source = textwrap.dedent("""\
+            set myns::count 0
+            puts ${myns::count}
+        """)
+        edit = get_rename_edits(source, TEST_URI, 0, 10, "total")
+        assert edit is not None
+        assert edit.changes is not None
+        edits = edit.changes[TEST_URI]
+        texts = {e.new_text for e in edits}
+        assert "myns::total" in texts  # definition
+        assert "${myns::total}" in texts  # braced reference
 
     def test_rename_respects_scope(self):
         source = textwrap.dedent("""\
