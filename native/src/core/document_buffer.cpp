@@ -28,13 +28,58 @@ DocumentBuffer::DocumentBuffer(std::string source,
     : source_(std::move(source))
     , version_(version)
     , line_starts_(std::move(line_starts))
-    , epoch_(epoch) {}
+    , epoch_(epoch) {
+    compute_lines();
+}
 
-auto DocumentBuffer::from_source(std::string source,
-                                 std::optional<int> version,
+DocumentBuffer::DocumentBuffer(DocumentBuffer&& other) noexcept
+    : source_(std::move(other.source_))
+    , version_(other.version_)
+    , line_starts_(std::move(other.line_starts_))
+    , epoch_(other.epoch_)
+    // lines_ deliberately left empty — views into moved-from source_ would
+    // dangle (SSO can relocate the buffer). Recompute from the new source_.
+{
+    compute_lines();
+}
+
+DocumentBuffer& DocumentBuffer::operator=(DocumentBuffer&& other) noexcept {
+    if (this != &other) {
+        source_ = std::move(other.source_);
+        version_ = other.version_;
+        line_starts_ = std::move(other.line_starts_);
+        epoch_ = other.epoch_;
+        lines_.clear();
+        compute_lines();
+    }
+    return *this;
+}
+
+void DocumentBuffer::compute_lines() {
+    lines_.clear();
+    lines_.reserve(line_starts_.size());
+    for (std::size_t i = 0; i < line_starts_.size(); ++i) {
+        auto start = static_cast<std::size_t>(line_starts_[i]);
+        std::size_t end = 0;
+        if (i + 1 < line_starts_.size()) {
+            // Exclude the trailing '\n'.
+            end = static_cast<std::size_t>(line_starts_[i + 1]) - 1;
+        } else {
+            end = source_.size();
+        }
+        lines_.push_back(std::string_view(source_).substr(start, end - start));
+    }
+}
+
+auto DocumentBuffer::from_source(std::string source, std::optional<int> version,
                                  uint64_t epoch) -> DocumentBuffer {
     auto line_starts = compute_line_starts(source);
     return {std::move(source), version, std::move(line_starts), epoch};
+}
+
+auto DocumentBuffer::from_source(std::string source, std::optional<int> version)
+    -> DocumentBuffer {
+    return from_source(std::move(source), std::move(version), 0);
 }
 
 auto DocumentBuffer::source() const noexcept -> std::string_view {
@@ -49,24 +94,8 @@ auto DocumentBuffer::epoch() const noexcept -> uint64_t {
     return epoch_;
 }
 
-auto DocumentBuffer::lines() const -> std::span<const std::string_view> {
-    if (!lines_cache_) {
-        std::vector<std::string_view> result;
-        result.reserve(line_starts_.size());
-        for (std::size_t i = 0; i < line_starts_.size(); ++i) {
-            auto start = static_cast<std::size_t>(line_starts_[i]);
-            std::size_t end = 0;
-            if (i + 1 < line_starts_.size()) {
-                // Exclude the trailing '\n'.
-                end = static_cast<std::size_t>(line_starts_[i + 1]) - 1;
-            } else {
-                end = source_.size();
-            }
-            result.push_back(std::string_view(source_).substr(start, end - start));
-        }
-        lines_cache_ = std::move(result);
-    }
-    return *lines_cache_;
+auto DocumentBuffer::lines() const noexcept -> std::span<const std::string_view> {
+    return lines_;
 }
 
 auto DocumentBuffer::offset_to_line_col(int32_t offset) const -> std::pair<int32_t, int32_t> {

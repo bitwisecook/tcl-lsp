@@ -158,3 +158,10 @@ TEST_CASE("DocumentStore change on missing URI does not bump epoch", "[lsp][docu
     store.change("file:///missing.tcl", "text", 1);
     CHECK(store.epoch() == e0);
 }
+
+TEST_CASE("DocumentStore close on missing URI does not bump epoch", "[lsp][document_store]") {
+    DocumentStore store;
+    auto e0 = store.epoch();
+    store.close("file:///missing.tcl");
+    CHECK(store.epoch() == e0);
+}

@@ -47,8 +47,9 @@ void DocumentStore::change(const std::string& uri, std::string new_source,
 
 void DocumentStore::close(const std::string& uri) {
     std::unique_lock lock{mutex_};
-    ++epoch_;
-    docs_.erase(uri);
+    if (docs_.erase(uri) > 0) {
+        ++epoch_;
+    }
 }
 
 auto DocumentStore::get_snapshot(const std::string& uri) const

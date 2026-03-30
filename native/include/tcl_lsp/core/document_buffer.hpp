@@ -19,13 +19,28 @@ namespace tcl_lsp {
 // Owns the source text and provides O(log n) offset-to-position conversion
 // via a precomputed line-starts index. Replaces scattered source.split("\n")
 // and ad-hoc SourceMap construction in Python.
+//
+// Thread safety: all const methods are safe to call concurrently. This is
+// important because BufferSnapshot (shared_ptr<const DocumentBuffer>) may
+// be accessed from multiple threads simultaneously.
 class DocumentBuffer {
   public:
-    static auto from_source(std::string source, std::optional<int> version = std::nullopt,
-                            uint64_t epoch = 0) -> DocumentBuffer;
+    static auto from_source(std::string source, std::optional<int> version,
+                            uint64_t epoch) -> DocumentBuffer;
 
-    DocumentBuffer(DocumentBuffer&&) = default;
-    DocumentBuffer& operator=(DocumentBuffer&&) = default;
+    // Overload for callers that bind by function pointer (e.g. pybind11)
+    // where C++ default arguments are not visible.
+    static auto from_source(std::string source,
+                            std::optional<int> version = std::nullopt)
+        -> DocumentBuffer;
+
+    // Custom move ops: lines_ contains string_views into source_, so a
+    // default move would dangle them (SSO can relocate the buffer).
+    // We clear lines_ on move and let the new owner recompute lazily —
+    // but in practice, moved-from buffers are immediately placed into
+    // make_shared and never moved again.
+    DocumentBuffer(DocumentBuffer&& other) noexcept;
+    DocumentBuffer& operator=(DocumentBuffer&& other) noexcept;
     DocumentBuffer(const DocumentBuffer&) = delete;
     DocumentBuffer& operator=(const DocumentBuffer&) = delete;
 
@@ -37,8 +52,9 @@ class DocumentBuffer {
         return line_starts_;
     }
 
-    // Source split by '\n', lazily cached.
-    [[nodiscard]] auto lines() const -> std::span<const std::string_view>;
+    // Source split by '\n'. Computed eagerly in the constructor — safe for
+    // concurrent access on shared snapshots.
+    [[nodiscard]] auto lines() const noexcept -> std::span<const std::string_view>;
 
     // O(log n) offset -> position via binary search on line_starts.
     [[nodiscard]] auto offset_to_position(int32_t offset) const -> SourcePosition;
@@ -62,11 +78,13 @@ class DocumentBuffer {
                    std::vector<int32_t> line_starts,
                    uint64_t epoch);
 
+    void compute_lines();
+
     std::string source_;
     std::optional<int> version_;
     std::vector<int32_t> line_starts_;
     uint64_t epoch_;
-    mutable std::optional<std::vector<std::string_view>> lines_cache_;
+    std::vector<std::string_view> lines_;
 };
 
 } // namespace tcl_lsp
