@@ -39,7 +39,7 @@ class PutsCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(1, 2),
+                arity=Arity(1, 3),
             ),
             taint_output_sink="T101",
             return_type=TclType.STRING,
