@@ -498,6 +498,32 @@ class TestOptimiser:
         assert o110.replacement == "{$x}"
 
 
+class TestUnusedVariableElimination:
+    """O126: remove unused variable assignments."""
+
+    def test_return_value_not_removed(self):
+        """O126 should not flag a ``set`` when the variable is returned."""
+        source = textwrap.dedent("""\
+            proc calcDb {mag} {
+                set db [expr {10*log($mag)}]
+                return $db
+            }
+        """)
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O126" for r in rewrites)
+
+    def test_braced_return_still_removed(self):
+        """O126 should flag a ``set`` when the return is braced (literal)."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                set result 42
+                return {$result}
+            }
+        """)
+        _optimised, rewrites = optimise_source(source)
+        assert any(r.code == "O126" for r in rewrites)
+
+
 class TestStructureElimination:
     """O112: structural elimination of constant-condition compound statements."""
 

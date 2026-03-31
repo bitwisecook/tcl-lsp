@@ -681,6 +681,18 @@ class TestUnusedVariables:
         result_diags = [d for d in diags if "result" in d.message]
         assert len(result_diags) == 0
 
+    def test_braced_return_still_flags_unused(self):
+        """A braced return like ``return {$result}`` is literal — variable is unused."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                set result 42
+                return {$result}
+            }
+        """)
+        diags = _diag_with_code(source, "W211")
+        result_diags = [d for d in diags if "result" in d.message]
+        assert len(result_diags) >= 1
+
     def test_used_in_expr_counts(self):
         """A variable referenced in an ``expr`` is considered used."""
         source = textwrap.dedent("""\

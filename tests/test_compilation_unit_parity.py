@@ -31,7 +31,7 @@ def _diag_key(d):
 
 
 def test_analyse_parity_with_prebuilt_compilation_unit():
-    source = "proc foo {x} {\n  set y [expr {$x + 1}]\n  return $y\n}\nfoo 1\n"
+    source = "proc foo {x} {\n  set y [expr {$x + 1}]\n  set z 99\n  return $y\n}\nfoo 1\n"
     cu = compile_source(source)
 
     result_from_source = analyse(source)
