@@ -677,6 +677,11 @@ class TclLexer:
                 ch = text[pos]
                 if ch == "\\":
                     if pos + 1 < _len:
+                        # Save position before advancing (for mid-word
+                        # backslash-newline rewind).
+                        bs_pos = pos
+                        bs_line = line
+                        bs_col = col
                         # Advance past backslash.
                         col += 1
                         pos += 1
@@ -686,16 +691,28 @@ class TclLexer:
                             col = 0
                             pos += 1
                             # Backslash-newline at the very start of a
-                            # new-word position is pure line-continuation
-                            # whitespace.  Emit it as a SEP so the *next*
-                            # token can recognise { or " as brace/quote
-                            # delimiters (and plain words start fresh).
-                            if newword and not insidequote and pos == self._start + 2:
+                            # token is pure line-continuation whitespace.
+                            # Emit it as a SEP so the *next* token can
+                            # recognise { or " as brace/quote delimiters
+                            # (and plain words start fresh).
+                            if not insidequote and pos == self._start + 2:
                                 self.pos = pos
                                 self._line = line
                                 self._col = col
                                 self._end = pos - 1
                                 self._type = TokenType.SEP
+                                return
+                            # Mid-word backslash-newline in unquoted
+                            # context: end the current word before the
+                            # backslash.  The next get_token() call will
+                            # see \<newline> at _start and emit SEP,
+                            # allowing { or " to start a new word.
+                            if not insidequote:
+                                self._end = bs_pos - 1
+                                self._type = TokenType.ESC
+                                self.pos = bs_pos
+                                self._line = bs_line
+                                self._col = bs_col
                                 return
                             continue
                         else:
@@ -777,19 +794,21 @@ class TclLexer:
             if ch == "\\":
                 if self.remaining >= 2:
                     next_ch = self.text[self.pos + 1] if self.pos + 1 < self._len else ""
-                    if (
-                        next_ch == "\n"
-                        and newword
-                        and not self.insidequote
-                        and self.pos == self._start
-                    ):
-                        # Backslash-newline at the very start of a
-                        # new-word position — emit as SEP so the next
-                        # token can recognise { or " delimiters.
-                        self._advance(2)
-                        self._end = self.pos - 1
-                        self._type = TokenType.SEP
-                        return
+                    if next_ch == "\n" and not self.insidequote:
+                        if self.pos == self._start:
+                            # Backslash-newline at the very start of a
+                            # token — emit as SEP so the next token can
+                            # recognise { or " delimiters.
+                            self._advance(2)
+                            self._end = self.pos - 1
+                            self._type = TokenType.SEP
+                            return
+                        else:
+                            # Mid-word backslash-newline: end current
+                            # word before the backslash.
+                            self._end = self.pos - 1
+                            self._type = TokenType.ESC
+                            return
                     # Handle backslash-newline continuation
                     self._advance()
             elif ch in ("$", "["):
