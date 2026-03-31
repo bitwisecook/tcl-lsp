@@ -211,19 +211,13 @@ class TestArityErrors:
         """Backslash-newline continuation before a braced arg must not split words."""
         # Regression: the lexer consumed \\n{... as a single token, causing
         # the braced string to be split into multiple arguments.
-        source = (
-            "proc foo {a b c} { puts ok }\n"
-            "foo x \\\n{hello world} z\n"
-        )
+        source = "proc foo {a b c} { puts ok }\nfoo x \\\n{hello world} z\n"
         codes = _diag_codes(source)
         assert "E003" not in codes
 
     def test_backslash_newline_before_brace_arg_indented(self):
         """Backslash-newline with indentation before braced arg works."""
-        source = (
-            "proc foo {a b c} { puts ok }\n"
-            "foo x \\\n    {hello world} z\n"
-        )
+        source = "proc foo {a b c} { puts ok }\nfoo x \\\n    {hello world} z\n"
         codes = _diag_codes(source)
         assert "E003" not in codes
 
