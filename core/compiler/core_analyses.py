@@ -994,6 +994,7 @@ def _unused_variables(
         ssa,
         executable_blocks=executable_blocks,
         executable_edges=executable_edges,
+        include_return_vars=True,
     )
 
     # Now find variables that are defined but never used.
