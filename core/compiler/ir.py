@@ -101,6 +101,7 @@ class IRReturn:
     range: Range
     value: str | None = None
     expr: ExprNode | None = None
+    braced: bool = False
 
 
 @dataclass(frozen=True, slots=True)

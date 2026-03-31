@@ -670,13 +670,7 @@ class TestUnusedVariables:
         assert len(diags) >= 3
 
     def test_return_value_counts_as_use(self):
-        """A variable used in a ``return`` statement is considered used.
-
-        The SSA-based analysis may still flag the assignment as unused
-        because ``return`` terminates the function — the value is never
-        "read" in SSA terms.  This is an acceptable trade-off in the
-        current implementation: the test documents the actual behaviour.
-        """
+        """A variable used in a ``return`` statement is considered used."""
         source = textwrap.dedent("""\
             proc foo {} {
                 set result 42
@@ -685,8 +679,18 @@ class TestUnusedVariables:
         """)
         diags = _diag_with_code(source, "W211")
         result_diags = [d for d in diags if "result" in d.message]
-        # The SSA analysis flags this as unused because the return value
-        # is not consumed within the function body.
+        assert len(result_diags) == 0
+
+    def test_braced_return_still_flags_unused(self):
+        """A braced return like ``return {$result}`` is literal — variable is unused."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                set result 42
+                return {$result}
+            }
+        """)
+        diags = _diag_with_code(source, "W211")
+        result_diags = [d for d in diags if "result" in d.message]
         assert len(result_diags) >= 1
 
     def test_used_in_expr_counts(self):

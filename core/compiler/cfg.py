@@ -397,6 +397,7 @@ class CFGReturn:
     value: str | None = None
     range: Range | None = None
     expr: ExprNode | None = None
+    braced: bool = False
 
 
 CFGTerminator = CFGGoto | CFGBranch | CFGReturn
@@ -763,7 +764,9 @@ class _CFGBuilder:
                     if current is None:
                         return None
                 case IRReturn(value=value, range=r):
-                    block.terminator = CFGReturn(value=value, range=r, expr=stmt.expr)
+                    block.terminator = CFGReturn(
+                        value=value, range=r, expr=stmt.expr, braced=stmt.braced
+                    )
                     return None
                 case _:
                     stmt = self._apply_upvar_invalidation(stmt, block)

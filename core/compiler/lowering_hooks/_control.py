@@ -44,15 +44,18 @@ def lower_return(lowerer: object, cmd: _Command) -> object | None:
         )
     value = args[0] if args else None
     expr = None
+    braced = False
     if value is not None and cmd.arg_single_token and cmd.arg_single_token[0]:
         tok = cmd.arg_tokens[0]
-        if tok.type is TokenType.CMD:
+        if tok.type is TokenType.STR:
+            braced = True
+        elif tok.type is TokenType.CMD:
             aliases: CommandAliasMap = getattr(lowerer, "_command_aliases", {})
             alias_names = _expr_alias_names(aliases)
             expr_arg = extract_single_expr_argument(tok.text, expr_aliases=alias_names or None)
             if expr_arg is not None:
                 expr = _parse_expr(expr_arg)
-    return IRReturn(range=cmd.range, value=value, expr=expr)
+    return IRReturn(range=cmd.range, value=value, expr=expr, braced=braced)
 
 
 def register() -> None:

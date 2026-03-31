@@ -809,7 +809,7 @@ def _collect_used_names(
         term = cfg.blocks[bn].terminator
         if isinstance(term, CFGBranch):
             used_names.update(vars_in_expr_node(term.condition))
-        if include_return_vars and isinstance(term, CFGReturn):
+        if include_return_vars and isinstance(term, CFGReturn) and not term.braced:
             if term.value is not None:
                 for name in _vars_in_return(term.value):
                     used_names.add(name)
@@ -994,6 +994,7 @@ def _unused_variables(
         ssa,
         executable_blocks=executable_blocks,
         executable_edges=executable_edges,
+        include_return_vars=True,
     )
 
     # Now find variables that are defined but never used.
