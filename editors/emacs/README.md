@@ -77,6 +77,18 @@ Pass settings via eglot workspace configuration:
 (add-to-list 'auto-mode-alist '("\\.apl\\'" . tcl-mode))
 ```
 
+## Bracket matching and auto-pairs
+
+Emacs's `tcl-mode` provides bracket matching out of the box via
+`show-paren-mode` (enabled by default in Emacs 29+).  For automatic
+insertion of closing brackets and quotes, enable `electric-pair-mode`:
+
+```elisp
+(add-hook 'tcl-mode-hook #'electric-pair-mode)
+```
+
+This auto-closes `{}`, `[]`, `()`, and `""` as you type.
+
 ## Configuration File
 
 tcl-lsp reads a platform-native configuration file for editor-agnostic

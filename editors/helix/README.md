@@ -33,6 +33,7 @@ file-types = ["tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "i
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 ```
 
 ## Settings
