@@ -199,12 +199,87 @@ def _scope_symbols(scope: Scope) -> list[types.DocumentSymbol]:
     return symbols
 
 
+def _symbols_from_chunks(
+    chunks: list,
+) -> list[types.DocumentSymbol]:
+    """Build basic symbols from pre-segmented chunks (no analysis needed).
+
+    Returns event handlers (``when EVENT``) and procedures (``proc NAME``)
+    extracted from the command text in each chunk.  This gives the editor
+    a useful outline immediately while the full analysis runs in the
+    subprocess.
+    """
+    symbols: list[types.DocumentSymbol] = []
+    irules_events = frozenset({
+        "when", "priority",
+    })
+    for chunk in chunks:
+        for cmd in chunk.commands:
+            name = cmd.name
+            args = cmd.args
+            r = to_lsp_range(cmd.range)
+            if name in irules_events and args:
+                symbols.append(
+                    types.DocumentSymbol(
+                        name=args[0],
+                        kind=types.SymbolKind.Event,
+                        range=r,
+                        selection_range=r,
+                    )
+                )
+            elif name == "proc" and args:
+                detail = ""
+                if len(args) >= 2:
+                    detail = f"({args[1]})" if args[1] else "()"
+                symbols.append(
+                    types.DocumentSymbol(
+                        name=args[0],
+                        kind=types.SymbolKind.Function,
+                        range=r,
+                        selection_range=r,
+                        detail=detail,
+                    )
+                )
+            elif name == "namespace" and args and args[0] == "eval" and len(args) >= 2:
+                symbols.append(
+                    types.DocumentSymbol(
+                        name=args[1],
+                        kind=types.SymbolKind.Namespace,
+                        range=r,
+                        selection_range=r,
+                    )
+                )
+            elif name in ("oo::class", "oo::configurable", "oo::abstract") and args and args[0] == "create" and len(args) >= 2:
+                symbols.append(
+                    types.DocumentSymbol(
+                        name=args[1],
+                        kind=types.SymbolKind.Class,
+                        range=r,
+                        selection_range=r,
+                    )
+                )
+    return symbols
+
+
 def get_document_symbols(
     source: str,
     analysis: AnalysisResult | None = None,
+    chunks: list | None = None,
 ) -> list[types.DocumentSymbol]:
-    """Return the document symbol hierarchy for a Tcl source file."""
-    if analysis is None:
-        analysis = analyse(source)
+    """Return the document symbol hierarchy for a Tcl source file.
 
+    When *analysis* is available, returns the full symbol tree from the
+    scope hierarchy.  When only *chunks* are available (analysis not yet
+    complete), returns basic event/proc symbols extracted from command
+    text — enough for a useful outline while the subprocess runs.
+    """
+    if analysis is not None:
+        return _scope_symbols(analysis.global_scope)
+
+    # Fast path: build symbols from chunks without running analysis.
+    if chunks is not None:
+        return _symbols_from_chunks(chunks)
+
+    # Fallback: run analysis synchronously (legacy path).
+    analysis = analyse(source)
     return _scope_symbols(analysis.global_scope)

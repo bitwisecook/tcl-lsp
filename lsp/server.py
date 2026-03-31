@@ -784,7 +784,8 @@ def on_document_symbol(
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
-    return get_document_symbols(source, analysis=analysis)
+    chunks = state.chunks if state else None
+    return get_document_symbols(source, analysis=analysis, chunks=chunks)
 
 
 # Folding ranges
@@ -797,8 +798,10 @@ def on_folding_range(
     if not feature_config.folding_enabled:
         return []
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
     state = workspace_state.get(uri)
+    if state is not None and state.analysis is None:
+        return []
+    source = _get_doc_source(uri)
     analysis = state.analysis if state else None
     return get_folding_ranges(source, analysis=analysis, lines=state.lines if state else None)
 
@@ -894,8 +897,10 @@ def on_inlay_hint(
     if not feature_config.inlay_hints_enabled:
         return []
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
     state = workspace_state.get(uri)
+    if state is not None and state.analysis is None:
+        return []
+    source = _get_doc_source(uri)
     analysis = state.analysis if state else None
     return get_inlay_hints(
         source, params.range, analysis=analysis, lines=state.lines if state else None
@@ -1006,8 +1011,12 @@ def on_document_link(
     if not feature_config.document_links_enabled:
         return []
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
     state = workspace_state.get(uri)
+    # Return empty when analysis hasn't completed — get_document_links
+    # would call analyse(source) synchronously, blocking the event loop.
+    if state is not None and state.analysis is None:
+        return []
+    source = _get_doc_source(uri)
     analysis = state.analysis if state else None
     return get_document_links(source, analysis=analysis)
 
@@ -1054,6 +1063,12 @@ def on_code_action(
     uri = params.text_document.uri
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
+    # Skip code actions when analysis hasn't completed yet — running
+    # analyse(source) synchronously here would block the event loop
+    # for the entire analysis duration.  Code actions depend on
+    # diagnostics, which aren't available until analysis finishes.
+    if state is not None and state.analysis is None:
+        return None
     actions = get_code_actions(
         source,
         params.range,
