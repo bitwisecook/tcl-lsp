@@ -2971,9 +2971,7 @@ class Analyser:
             if func_has_dw:
                 ir_proc = cu.ir_module.procedures.get(qname)
                 if ir_proc is not None:
-                    dict_with_ranges.append(
-                        (ir_proc.range.start.offset, ir_proc.range.end.offset)
-                    )
+                    dict_with_ranges.append((ir_proc.range.start.offset, ir_proc.range.end.offset))
                 else:
                     # Top-level: covers entire source.
                     dict_with_ranges.append((0, 2**31))
@@ -3039,9 +3037,7 @@ class Analyser:
                 # Variable is not a known TclOO object — emit W307
                 # unless inside a method body or a function with dict-with
                 # where $var is very likely an object from dict unpacking.
-                in_dict_with = any(
-                    s <= site_range.start.offset <= e for s, e in dict_with_ranges
-                )
+                in_dict_with = any(s <= site_range.start.offset <= e for s, e in dict_with_ranges)
                 if not in_method and not in_dict_with and "W307" not in self._disabled_diagnostics:
                     self.result.diagnostics.append(
                         Diagnostic(
