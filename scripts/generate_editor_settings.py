@@ -8,7 +8,9 @@ Imports the compiler's code registry and generates:
 - ``editors/jetbrains/.../TclLspSettingsPanel.kt``  (@generated blocks)
 - ``editors/vscode/src/generated/diagnosticCatalog.ts``     (TypeScript data)
 - ``editors/vscode/package.json``  (VS Code configuration sections)
-- ``docs/generated/diagnostic_tables.md``  (README-includable tables)
+- ``docs/generated/diagnostic_tables.md``  (README-includable combined tables)
+- ``docs/generated/diagnostic_codes.md``   (diagnostic codes only)
+- ``docs/generated/optimisation_codes.md`` (optimisation codes only)
 
 Run ``make gen-editor-settings`` to regenerate, or
 ``make check-editor-settings`` to verify they are up to date.
@@ -652,40 +654,69 @@ def generate_vscode_package_json(*, dry_run: bool = False) -> tuple[Path, str]:
 
 # Generate README tables
 
-_TABLES_PATH = ROOT / "docs" / "generated" / "diagnostic_tables.md"
+_GENERATED_DOCS = ROOT / "docs" / "generated"
+_TABLES_PATH = _GENERATED_DOCS / "diagnostic_tables.md"
+_DIAG_CODES_PATH = _GENERATED_DOCS / "diagnostic_codes.md"
+_OPT_CODES_PATH = _GENERATED_DOCS / "optimisation_codes.md"
+
+
+def _diag_dicts() -> list[dict]:
+    return [
+        {
+            "code": d.code,
+            "section": d.section,
+            "description": d.description,
+            "default": d.default,
+        }
+        for d in diagnostics_sorted()
+    ]
+
+
+def _opt_dicts() -> list[dict]:
+    return [
+        {
+            "code": o.code,
+            "description": o.description,
+            "default": o.default,
+        }
+        for o in optimisations_sorted()
+    ]
 
 
 def generate_readme_tables(*, dry_run: bool = False) -> tuple[Path, str]:
-    """Generate markdown tables from registry."""
-    diags = diagnostics_sorted()
-    opts = optimisations_sorted()
-
+    """Generate combined markdown tables from registry."""
     env = _jinja_env(_TABLES_PATH.parent)
     template = env.get_template("diagnostic_tables.md.j2")
-    content = template.render(
-        diagnostics=[
-            {
-                "code": d.code,
-                "section": d.section,
-                "description": d.description,
-                "default": d.default,
-            }
-            for d in diags
-        ],
-        optimisations=[
-            {
-                "code": o.code,
-                "description": o.description,
-                "default": o.default,
-            }
-            for o in opts
-        ],
-    )
+    content = template.render(diagnostics=_diag_dicts(), optimisations=_opt_dicts())
 
     if not dry_run:
         _TABLES_PATH.parent.mkdir(parents=True, exist_ok=True)
         _TABLES_PATH.write_text(content, encoding="utf-8")
     return _TABLES_PATH, content
+
+
+def generate_diagnostic_codes(*, dry_run: bool = False) -> tuple[Path, str]:
+    """Generate diagnostic-only markdown table from registry."""
+    env = _jinja_env(_GENERATED_DOCS)
+    template = env.get_template("diagnostic_codes.md.j2")
+    content = template.render(diagnostics=_diag_dicts())
+
+    if not dry_run:
+        _GENERATED_DOCS.mkdir(parents=True, exist_ok=True)
+        _DIAG_CODES_PATH.write_text(content, encoding="utf-8")
+    return _DIAG_CODES_PATH, content
+
+
+def generate_optimisation_codes(*, dry_run: bool = False) -> tuple[Path, str]:
+    """Generate optimisation-only markdown table from registry."""
+    env = _jinja_env(_GENERATED_DOCS)
+    template = env.get_template("optimisation_codes.md.j2")
+    content = template.render(optimisations=_opt_dicts())
+
+    if not dry_run:
+        _GENERATED_DOCS.mkdir(parents=True, exist_ok=True)
+        _OPT_CODES_PATH.write_text(content, encoding="utf-8")
+    return _OPT_CODES_PATH, content
 
 
 # Render all — used by tests and --check mode
@@ -700,6 +731,8 @@ def render_all(*, dry_run: bool = False) -> list[tuple[Path, str]]:
         generate_vscode_catalog(dry_run=dry_run),
         generate_vscode_package_json(dry_run=dry_run),
         generate_readme_tables(dry_run=dry_run),
+        generate_diagnostic_codes(dry_run=dry_run),
+        generate_optimisation_codes(dry_run=dry_run),
     ]
 
 

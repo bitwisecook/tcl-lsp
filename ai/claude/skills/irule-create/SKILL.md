@@ -1,14 +1,12 @@
 ---
 name: irule-create
-description: >
-  Create a new iRule from a description. Generates the code, validates
-  it with the LSP, and iterates until clean.
+description: "Create a new F5 iRule from a natural-language description. Generates the code following security best practices, validates with the LSP analyser, and iterates until clean. Use when creating new iRules, generating F5 iRule code from descriptions, writing iRule event handlers, or scaffolding iRule logic."
 allowed-tools: Bash, Read, Write
 ---
 
 # iRule Create
 
-Generate a new iRule from a user description, validate with LSP, and iterate.
+Generate a new iRule from a user description, validate with LSP, and iterate until clean.
 
 ## Steps
 
@@ -23,8 +21,10 @@ Generate a new iRule from a user description, validate with LSP, and iterate.
    ```bash
    uv run --no-dev python ai/claude/tcl_ai.py diagnostics $FILE
    ```
-5. If there are errors or warnings, fix them and re-validate (up to 5 iterations)
-6. Report the final status: clean or remaining issues
+5. If the tool fails (e.g. parse error), report the error and adjust the generated code
+6. If there are errors or warnings, fix them and re-validate (up to 5 iterations)
+7. If validation still fails after 5 iterations, report remaining issues and explain what could not be resolved
+8. Report the final status: clean or remaining issues
 
 ## Output format
 

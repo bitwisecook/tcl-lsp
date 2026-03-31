@@ -1,14 +1,12 @@
 ---
 name: tk-create
-description: >
-  Create Tk GUI code from a description. Generates the code with proper widget
-  hierarchy, validates it with the LSP, and iterates until clean.
+description: "Create Tk GUI code from a description with proper widget hierarchy. Generates the code, validates with the LSP analyser (including TK-specific checks), and iterates until clean. Use when creating Tk GUIs, generating Tcl/Tk code from descriptions, building Tk widget layouts, or scaffolding Tk applications."
 allowed-tools: Bash, Read, Write
 ---
 
 # Tk Create
 
-Generate Tk GUI code from a user description, validate with LSP, and iterate.
+Generate Tk GUI code from a user description, validate with LSP, and iterate until clean.
 
 ## Steps
 
@@ -30,13 +28,15 @@ Generate Tk GUI code from a user description, validate with LSP, and iterate.
    ```bash
    uv run --no-dev python ai/claude/tcl_ai.py diagnostics $FILE
    ```
-5. If there are errors or warnings (especially TK1001 geometry conflicts,
+5. If the tool fails (e.g. parse error), report the error and adjust the generated code
+6. If there are errors or warnings (especially TK1001 geometry conflicts,
    TK1002 invalid widget paths, or TK1003 unknown options), fix them and
    re-validate (up to 5 iterations)
-6. Optionally extract the layout to verify widget hierarchy:
+7. If validation still fails after 5 iterations, report remaining issues and explain what could not be resolved
+8. Optionally extract the layout to verify widget hierarchy:
    ```bash
    uv run --no-dev python ai/claude/tcl_ai.py tk-layout $FILE
    ```
-7. Report the final status
+9. Report the final status with a summary of the generated widget structure
 
 $ARGUMENTS

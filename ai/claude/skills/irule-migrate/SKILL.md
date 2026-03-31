@@ -1,8 +1,6 @@
 ---
 name: irule-migrate
-description: >
-  Convert nginx, Apache, or HAProxy configuration to an F5 BIG-IP iRule.
-  Detects the source format and applies appropriate construct mappings.
+description: "Convert nginx, Apache, or HAProxy configuration to an F5 BIG-IP iRule. Detects the source format and applies appropriate construct mappings. Use when migrating load balancer config to iRules, converting nginx rules to F5, translating Apache RewriteRule to iRules, or converting HAProxy ACLs to iRule logic."
 allowed-tools: Bash, Read, Write
 ---
 
@@ -45,8 +43,10 @@ Convert load balancer configuration from nginx, Apache, or HAProxy to an iRule.
    ```bash
    uv run --no-dev python ai/claude/tcl_ai.py diagnostics $FILE
    ```
-6. Fix any issues and re-validate (up to 5 iterations)
-7. Add comments explaining the mapping from the original config
-8. Note anything that cannot be directly translated (e.g., backend health checks, rate limiting)
+6. If the tool fails (e.g. parse error), report the error and adjust the generated code
+7. Fix any issues and re-validate (up to 5 iterations)
+8. If issues persist after 5 iterations, report what was migrated and what remains
+9. Add comments explaining the mapping from the original config
+10. Note anything that cannot be directly translated (e.g., backend health checks, rate limiting)
 
 $ARGUMENTS

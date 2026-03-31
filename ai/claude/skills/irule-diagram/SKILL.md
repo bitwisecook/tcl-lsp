@@ -1,9 +1,6 @@
 ---
 name: irule-diagram
-description: >
-  Generate a Mermaid flowchart of an iRule's logic flow.
-  Extracts structured data from the compiler IR and produces
-  a visual diagram with event subgraphs, decision points, and actions.
+description: "Generate a Mermaid flowchart of an iRule's logic flow. Extracts structured data from the compiler IR and produces a visual diagram with event subgraphs, decision points, and actions. Use when visualising iRule logic, generating F5 iRule flowcharts, diagramming iRule event flow, or documenting iRule architecture."
 allowed-tools: Bash, Read
 ---
 
@@ -19,7 +16,8 @@ Generate a Mermaid flowchart from an iRule using compiler IR analysis.
    ```bash
    uv run --no-dev python ai/claude/tcl_ai.py diagram $FILE
    ```
-4. Using the structured data (authoritative, from the compiler IR) and the source code (for reference), generate a Mermaid flowchart diagram
+4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
+5. Using the structured data (authoritative, from the compiler IR) and the source code (for reference), generate a Mermaid flowchart diagram
 
 ## Mermaid diagram rules
 
@@ -32,7 +30,7 @@ Generate a Mermaid flowchart from an iRule using compiler IR analysis.
   - Use **stadium shapes** `([Loop])` for loops
   - Connect decision points to their branches with labeled edges (the pattern or condition on the arrow)
 - If procedures are called, show them as separate subgraphs linked from the call site
-- Keep node labels concise (under 40 characters) — abbreviate long strings with "..."
+- Keep node labels concise (under 40 characters) -- abbreviate long strings with "..."
 - Use meaningful node IDs (e.g., `hr_switch` not `A1`)
 - Show the event subgraphs in firing order (top to bottom)
 - If events have a non-default priority (not 500), mention it in the subgraph label
