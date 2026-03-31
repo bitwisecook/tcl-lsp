@@ -210,9 +210,12 @@ def _symbols_from_chunks(
     subprocess.
     """
     symbols: list[types.DocumentSymbol] = []
-    irules_events = frozenset({
-        "when", "priority",
-    })
+    irules_events = frozenset(
+        {
+            "when",
+            "priority",
+        }
+    )
     for chunk in chunks:
         for cmd in chunk.commands:
             name = cmd.name
@@ -249,7 +252,12 @@ def _symbols_from_chunks(
                         selection_range=r,
                     )
                 )
-            elif name in ("oo::class", "oo::configurable", "oo::abstract") and args and args[0] == "create" and len(args) >= 2:
+            elif (
+                name in ("oo::class", "oo::configurable", "oo::abstract")
+                and args
+                and args[0] == "create"
+                and len(args) >= 2
+            ):
                 symbols.append(
                     types.DocumentSymbol(
                         name=args[1],

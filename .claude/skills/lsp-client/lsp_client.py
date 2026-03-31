@@ -1200,13 +1200,6 @@ def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1)
     print()
 
     td = {"textDocument": {"uri": uri}}
-    full_range = {
-        "textDocument": {"uri": uri},
-        "range": {
-            "start": {"line": 0, "character": 0},
-            "end": {"line": n_lines, "character": 0},
-        },
-    }
 
     for i in range(iterations):
         client.clear_timing()
