@@ -6,6 +6,7 @@ import asyncio
 import functools
 import itertools
 import logging
+import multiprocessing
 import re
 import threading
 import time
@@ -310,10 +311,20 @@ _process_pool: ProcessPoolExecutor | None = None
 
 
 def _get_process_pool() -> ProcessPoolExecutor:
-    """Lazy singleton ProcessPoolExecutor for CPU-intensive analysis."""
+    """Lazy singleton ProcessPoolExecutor for CPU-intensive analysis.
+
+    Uses "forkserver" on platforms that support it to avoid deadlocks
+    when forking a multi-threaded process (asyncio + pygls threads).
+    The default "fork" start method can deadlock when a thread holds
+    a lock at fork time.
+    """
     global _process_pool
     if _process_pool is None:
-        _process_pool = ProcessPoolExecutor(max_workers=2)
+        try:
+            ctx = multiprocessing.get_context("forkserver")
+        except ValueError:
+            ctx = None  # Windows — use default
+        _process_pool = ProcessPoolExecutor(max_workers=2, mp_context=ctx)
     return _process_pool
 
 
@@ -1977,19 +1988,22 @@ async def _publish_diagnostics(
             try:
                 loop = asyncio.get_running_loop()
                 pool = _get_process_pool()
-                result = await loop.run_in_executor(
-                    pool,
-                    functools.partial(
-                        _analyse_document_fresh,
-                        source=source,
-                        version=version,
-                        line_length=line_length,
-                        dialect=active_dialect(),
-                        uri=uri,
-                        disabled_diagnostics=disabled_diagnostics,
-                        disabled_optimisations=disabled_optimisations,
-                        optimiser_enabled=optimiser_enabled,
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        pool,
+                        functools.partial(
+                            _analyse_document_fresh,
+                            source=source,
+                            version=version,
+                            line_length=line_length,
+                            dialect=active_dialect(),
+                            uri=uri,
+                            disabled_diagnostics=disabled_diagnostics,
+                            disabled_optimisations=disabled_optimisations,
+                            optimiser_enabled=optimiser_enabled,
+                        ),
                     ),
+                    timeout=15.0,
                 )
                 state.apply_subprocess_result(result, version)
                 subprocess_result = result
@@ -1997,6 +2011,15 @@ async def _publish_diagnostics(
                 log.warning("Process pool broken, falling back to thread")
                 global _process_pool
                 _process_pool = None
+                await asyncio.to_thread(
+                    state.update,
+                    source,
+                    version,
+                    force_reanalyse=force_reanalyse,
+                    line_length=line_length,
+                )
+            except Exception:
+                log.warning("Subprocess analysis failed, falling back to thread", exc_info=True)
                 await asyncio.to_thread(
                     state.update,
                     source,
@@ -2168,6 +2191,23 @@ async def _publish_diagnostics(
             log.warning("Process pool broken in deep diagnostics, falling back to thread")
             global _process_pool
             _process_pool = None
+            result = await asyncio.to_thread(
+                get_deep_diagnostics,
+                source,
+                suppressed,
+                cu=cu,
+                analysis=analysis_result,
+                optimiser_enabled=opt_enabled,
+                shimmer_enabled=shimmer_enabled,
+                taint_enabled=taint_enabled,
+                xc_diagnostics_enabled=xc_enabled,
+                disabled_diagnostics=disabled_diags,
+                disabled_optimisations=disabled_opts,
+                uri=uri,
+                generic_variable_patterns=_generic_var_patterns,
+            )
+        except Exception:
+            log.warning("Subprocess deep diagnostics failed, falling back to thread", exc_info=True)
             result = await asyncio.to_thread(
                 get_deep_diagnostics,
                 source,
