@@ -38,7 +38,7 @@ def active_dialect() -> str:
 _DIALECT_DIRECTIVE_RE = re.compile(r"^#\s*tcl-dialect:\s*(\S+)", re.IGNORECASE)
 _SHEBANG_EXPECT_RE = re.compile(r"^#!.*\bexpect\b", re.IGNORECASE)
 _SHEBANG_TCLSH_RE = re.compile(r"^#!.*\btclsh(\d+\.\d+)\b", re.IGNORECASE)
-_PKG_REQUIRE_TCL_RE = re.compile(r"^\s*package\s+require\s+(?:-exact\s+)?Tcl\s+(\d+\.\d+)")
+_PKG_REQUIRE_TCL_RE = re.compile(r"^\s*package\s+require\s+(?:-exact\s+)?Tcl\s*(\d+\.\d+)")
 
 _TCL_VERSION_MAP: dict[str, str] = {
     "8.4": "tcl8.4",

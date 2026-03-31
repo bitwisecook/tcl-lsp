@@ -929,6 +929,22 @@ def _read_before_set(
     considered = executable_blocks if executable_blocks is not None else set(cfg.blocks)
     skip = _IMPLICIT_VARS | params
 
+    # dict with/update creates local variables from dict keys at runtime.
+    # We cannot know which variables statically, so suppress all
+    # read-before-set warnings in functions that contain such a barrier.
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None:
+            continue
+        for stmt in block.statements:
+            if (
+                isinstance(stmt, IRBarrier)
+                and stmt.command == "dict"
+                and stmt.args
+                and stmt.args[0] in ("with", "update")
+            ):
+                return ()
+
     # Track which version-0 variables we've already reported to avoid
     # duplicate warnings for the same variable in the same function.
     reported: set[str] = set()

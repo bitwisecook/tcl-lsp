@@ -77,6 +77,11 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
     if isinstance(stmt, IRBarrier) and stmt.command == "trace" and len(stmt.args) >= 3:
         if stmt.args[0] == "add" and stmt.args[1] == "variable":
             return (_normalise_var_name(stmt.args[2]),)
+    # dict for/map barriers: extract iteration variable names from the
+    # varList arg so SSA sees them as definitions.
+    if isinstance(stmt, IRBarrier) and stmt.command.endswith(("::for", "::map")):
+        if stmt.args:
+            return tuple(stmt.args[0].split())
     return ()
 
 

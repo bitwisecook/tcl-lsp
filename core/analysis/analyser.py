@@ -2947,6 +2947,28 @@ class Analyser:
             build_class_hierarchy(self.result.all_classes) if self.result.all_classes else None
         )
 
+        # Detect functions containing ``dict with``/``dict update`` barriers.
+        # Variables in these scopes may have been created by dict unpacking,
+        # so $var-as-command is likely a legitimate object dispatch.
+        from ..compiler.ir import IRBarrier
+
+        has_dict_with = False
+        for fu_cfg in [cu.top_level.cfg, *(fu.cfg for fu in cu.procedures.values())]:
+            for block in fu_cfg.blocks.values():
+                for stmt in block.statements:
+                    if (
+                        isinstance(stmt, IRBarrier)
+                        and stmt.command == "dict"
+                        and stmt.args
+                        and stmt.args[0] in ("with", "update")
+                    ):
+                        has_dict_with = True
+                        break
+                if has_dict_with:
+                    break
+            if has_dict_with:
+                break
+
         for var_name, method_name, site_range, in_method in self._var_command_sites:
             class_names = all_types.get(var_name)
             if class_names:
@@ -3006,8 +3028,9 @@ class Analyser:
                         )
             else:
                 # Variable is not a known TclOO object — emit W307
-                # unless inside a method body where $var is very likely an object.
-                if not in_method and "W307" not in self._disabled_diagnostics:
+                # unless inside a method body or a dict-with scope where
+                # $var is very likely an object from dict unpacking.
+                if not in_method and not has_dict_with and "W307" not in self._disabled_diagnostics:
                     self.result.diagnostics.append(
                         Diagnostic(
                             range=site_range,

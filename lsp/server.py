@@ -2492,6 +2492,10 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
                     "Auto-switched to %s dialect (detected from source)",
                     source_dialect,
                 )
+        else:
+            # No dialect hint in this file — check workspace for a higher
+            # Tcl version (e.g. another file has package require Tcl 9.0).
+            _upgrade_dialect_from_workspace()
 
     if _is_bigip_conf(uri):
         _publish_bigip_diagnostics(
@@ -2609,6 +2613,48 @@ def _warm_imports() -> None:
 
 _scan_lock = threading.Lock()
 
+_TCL_VERSION_ORDER = {"tcl8.4": 0, "tcl8.5": 1, "tcl8.6": 2, "tcl9.0": 3}
+
+
+def _upgrade_dialect_from_workspace() -> None:
+    """Upgrade the global dialect if any workspace file requires a higher Tcl version.
+
+    Scans ``package_requires`` across all indexed files for ``Tcl``
+    version requirements and switches the dialect when a higher version
+    is found (e.g. ``package require Tcl 9.0`` upgrades from tcl8.6 to
+    tcl9.0).
+    """
+    from core.common.dialect import active_dialect
+
+    current = active_dialect()
+    current_rank = _TCL_VERSION_ORDER.get(current, 2)
+    best_dialect = current
+    best_rank = current_rank
+
+    for uri in workspace_index.all_uris():
+        analysis = workspace_index.get_analysis(uri)
+        if analysis is None:
+            continue
+        for pr in analysis.package_requires:
+            if pr.name != "Tcl":
+                continue
+            ver = pr.version or ""
+            # Strip trailing range markers (e.g. "9.0-" → "9.0")
+            ver_clean = ver.rstrip("-")
+            dialect_key = f"tcl{ver_clean}" if not ver_clean.startswith("tcl") else ver_clean
+            rank = _TCL_VERSION_ORDER.get(dialect_key)
+            if rank is not None and rank > best_rank:
+                best_rank = rank
+                best_dialect = dialect_key
+
+    if best_dialect != current:
+        changed = configure_signatures(dialect=best_dialect)
+        if changed:
+            log.info(
+                "Auto-upgraded dialect to %s (detected from workspace Tcl version)",
+                best_dialect,
+            )
+
 
 def _run_background_scan() -> None:
     """Execute background scan in a daemon thread.
@@ -2653,6 +2699,9 @@ def _run_background_scan() -> None:
                     EntrySource.AUTO_INDEX,
                 )
                 auto_loaded += 1
+        # Auto-upgrade dialect based on workspace-level Tcl version.
+        if not feature_config.dialect_explicitly_set:
+            _upgrade_dialect_from_workspace()
         elapsed_ms = (time.perf_counter() - t0) * 1000
         log.info(
             "[timing] background scan %.0fms (%d files, %d auto-index)",
