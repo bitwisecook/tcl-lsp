@@ -1823,9 +1823,7 @@ def _build_workspace_diagnostic_context():
             if names:
                 pkg_by_uri[pkg_uri] = names
             if analysis.command_aliases:
-                tails = frozenset(
-                    qn.rsplit("::", 1)[-1] for qn in analysis.command_aliases if qn
-                )
+                tails = frozenset(qn.rsplit("::", 1)[-1] for qn in analysis.command_aliases if qn)
                 if tails:
                     alias_by_uri[pkg_uri] = tails
 
