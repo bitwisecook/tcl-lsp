@@ -690,7 +690,7 @@ class TclLexer:
                             # whitespace.  Emit it as a SEP so the *next*
                             # token can recognise { or " as brace/quote
                             # delimiters (and plain words start fresh).
-                            if newword and pos == self._start + 2:
+                            if newword and not insidequote and pos == self._start + 2:
                                 self.pos = pos
                                 self._line = line
                                 self._col = col
@@ -777,7 +777,7 @@ class TclLexer:
             if ch == "\\":
                 if self.remaining >= 2:
                     next_ch = self.text[self.pos + 1] if self.pos + 1 < self._len else ""
-                    if next_ch == "\n" and newword and self.pos == self._start:
+                    if next_ch == "\n" and newword and not self.insidequote and self.pos == self._start:
                         # Backslash-newline at the very start of a
                         # new-word position — emit as SEP so the next
                         # token can recognise { or " delimiters.

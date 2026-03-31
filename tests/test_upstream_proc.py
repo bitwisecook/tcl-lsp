@@ -237,6 +237,15 @@ class TestArityErrors:
         codes = _diag_codes(source)
         assert "E003" not in codes
 
+    def test_backslash_newline_inside_quote_preserves_brace(self):
+        """Backslash-newline inside quotes must not treat { as brace delimiter."""
+        source = 'set x "\\\n{abc}"\n'
+        result = analyse(source)
+        # The quoted string should parse without errors — braces are literal
+        # inside quotes, so the backslash-newline SEP special-case must not
+        # fire when insidequote is True.
+        assert not any(d.code == "E200" for d in result.diagnostics)
+
 
 class TestProcScopeIsolation:
     """Variables defined inside a proc are not visible globally, and vice versa."""
