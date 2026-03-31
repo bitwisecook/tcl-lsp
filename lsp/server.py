@@ -2004,6 +2004,15 @@ async def _publish_diagnostics(
                     force_reanalyse=force_reanalyse,
                     line_length=line_length,
                 )
+            except Exception:
+                log.warning("Subprocess analysis failed, falling back to thread", exc_info=True)
+                await asyncio.to_thread(
+                    state.update,
+                    source,
+                    version,
+                    force_reanalyse=force_reanalyse,
+                    line_length=line_length,
+                )
         else:
             await asyncio.to_thread(
                 state.update,
@@ -2168,6 +2177,23 @@ async def _publish_diagnostics(
             log.warning("Process pool broken in deep diagnostics, falling back to thread")
             global _process_pool
             _process_pool = None
+            result = await asyncio.to_thread(
+                get_deep_diagnostics,
+                source,
+                suppressed,
+                cu=cu,
+                analysis=analysis_result,
+                optimiser_enabled=opt_enabled,
+                shimmer_enabled=shimmer_enabled,
+                taint_enabled=taint_enabled,
+                xc_diagnostics_enabled=xc_enabled,
+                disabled_diagnostics=disabled_diags,
+                disabled_optimisations=disabled_opts,
+                uri=uri,
+                generic_variable_patterns=_generic_var_patterns,
+            )
+        except Exception:
+            log.warning("Subprocess deep diagnostics failed, falling back to thread", exc_info=True)
             result = await asyncio.to_thread(
                 get_deep_diagnostics,
                 source,
