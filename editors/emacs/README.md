@@ -127,6 +127,7 @@ If the server gets into a bad state:
 - `M-x eglot-shutdown` — stop the server for the current project
 - `M-x eglot-reconnect` — restart without closing buffers
 
+
 ## Configuration File
 
 tcl-lsp reads a platform-native configuration file for editor-agnostic
