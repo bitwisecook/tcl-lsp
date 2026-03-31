@@ -684,6 +684,20 @@ class TclLexer:
                         if text[pos] == "\n":
                             line += 1
                             col = 0
+                            pos += 1
+                            # Backslash-newline at the very start of a
+                            # new-word position is pure line-continuation
+                            # whitespace.  Emit it as a SEP so the *next*
+                            # token can recognise { or " as brace/quote
+                            # delimiters (and plain words start fresh).
+                            if newword and pos == self._start + 2:
+                                self.pos = pos
+                                self._line = line
+                                self._col = col
+                                self._end = pos - 1
+                                self._type = TokenType.SEP
+                                return
+                            continue
                         else:
                             col += 1
                         pos += 1
@@ -762,6 +776,15 @@ class TclLexer:
             ch = self._cur()
             if ch == "\\":
                 if self.remaining >= 2:
+                    next_ch = self.text[self.pos + 1] if self.pos + 1 < self._len else ""
+                    if next_ch == "\n" and newword and self.pos == self._start:
+                        # Backslash-newline at the very start of a
+                        # new-word position — emit as SEP so the next
+                        # token can recognise { or " delimiters.
+                        self._advance(2)
+                        self._end = self.pos - 1
+                        self._type = TokenType.SEP
+                        return
                     # Handle backslash-newline continuation
                     self._advance()
             elif ch in ("$", "["):

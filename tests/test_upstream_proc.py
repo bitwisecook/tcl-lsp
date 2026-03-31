@@ -207,6 +207,36 @@ class TestArityErrors:
         errors = _diag_with_code(source, "E002")
         assert len(errors) >= 1
 
+    def test_backslash_newline_before_brace_arg(self):
+        """Backslash-newline continuation before a braced arg must not split words."""
+        # Regression: the lexer consumed \\n{... as a single token, causing
+        # the braced string to be split into multiple arguments.
+        source = (
+            "proc foo {a b c} { puts ok }\n"
+            "foo x \\\n{hello world} z\n"
+        )
+        codes = _diag_codes(source)
+        assert "E003" not in codes
+
+    def test_backslash_newline_before_brace_arg_indented(self):
+        """Backslash-newline with indentation before braced arg works."""
+        source = (
+            "proc foo {a b c} { puts ok }\n"
+            "foo x \\\n    {hello world} z\n"
+        )
+        codes = _diag_codes(source)
+        assert "E003" not in codes
+
+    def test_backslash_newline_before_multiline_brace_arg(self):
+        """Backslash-newline before a multi-line braced arg is a single word."""
+        source = (
+            "proc tp {a b c d e {f {}}} { puts ok }\n"
+            "tp test1 {} $loc file.cir \\\n"
+            "{line1\nline2\nline3} {cleanup}\n"
+        )
+        codes = _diag_codes(source)
+        assert "E003" not in codes
+
 
 class TestProcScopeIsolation:
     """Variables defined inside a proc are not visible globally, and vice versa."""
