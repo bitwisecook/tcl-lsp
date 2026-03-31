@@ -314,6 +314,8 @@ class WorkspaceDiagnosticContext:
     package_names_by_uri: dict[str, frozenset[str]] = field(default_factory=dict)
     # Source dependency graph: uri -> set of URIs that file sources.
     source_graph: dict[str, frozenset[str]] = field(default_factory=dict)
+    # Per-URI alias tail names (from ``interp alias`` definitions).
+    alias_names_by_uri: dict[str, frozenset[str]] = field(default_factory=dict)
 
 
 # Stub command definition from structured comments

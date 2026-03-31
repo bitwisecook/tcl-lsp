@@ -1811,9 +1811,10 @@ def _build_workspace_diagnostic_context():
     """
     from core.analysis.semantic_model import WorkspaceDiagnosticContext
 
-    # Collect per-URI and global package names across the workspace.
+    # Collect per-URI package names and alias names across the workspace.
     ws_pkg_names: set[str] = set()
     pkg_by_uri: dict[str, frozenset[str]] = {}
+    alias_by_uri: dict[str, frozenset[str]] = {}
     for pkg_uri in workspace_index.all_uris():
         analysis = workspace_index.get_analysis(pkg_uri)
         if analysis is not None:
@@ -1821,12 +1822,19 @@ def _build_workspace_diagnostic_context():
             ws_pkg_names.update(names)
             if names:
                 pkg_by_uri[pkg_uri] = names
+            if analysis.command_aliases:
+                tails = frozenset(
+                    qn.rsplit("::", 1)[-1] for qn in analysis.command_aliases if qn
+                )
+                if tails:
+                    alias_by_uri[pkg_uri] = tails
 
     return WorkspaceDiagnosticContext(
         workspace_proc_names=frozenset(workspace_index.all_proc_names()),
         workspace_package_names=frozenset(ws_pkg_names),
         package_names_by_uri=pkg_by_uri,
         source_graph=workspace_index.source_graph_snapshot(),
+        alias_names_by_uri=alias_by_uri,
     )
 
 

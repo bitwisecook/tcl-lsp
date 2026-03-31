@@ -498,6 +498,56 @@ def _inherited_packages(
     return frozenset(inherited)
 
 
+def _inherited_aliases(
+    uri: str | None,
+    ctx: WorkspaceDiagnosticContext,
+) -> frozenset[str]:
+    """Return alias tail names inherited via the source graph.
+
+    For file F, collect aliases from all files transitively sourced by
+    any file that ``source``-includes F.  This handles the common pattern
+    where a package init file sources both an aliases file and the
+    library files that use those aliases.
+    """
+    if not uri or not ctx.source_graph or not ctx.alias_names_by_uri:
+        # Fallback: return all workspace aliases.
+        all_aliases: set[str] = set()
+        for tails in ctx.alias_names_by_uri.values():
+            all_aliases.update(tails)
+        return frozenset(all_aliases)
+
+    # Reverse lookup: find parent files that source this URI.
+    parents: set[str] = set()
+    for src_uri, targets in ctx.source_graph.items():
+        if uri in targets:
+            parents.add(src_uri)
+
+    if not parents:
+        # Not in the source graph — fall back to all workspace aliases.
+        all_aliases_fb: set[str] = set()
+        for tails in ctx.alias_names_by_uri.values():
+            all_aliases_fb.update(tails)
+        return frozenset(all_aliases_fb)
+
+    # Collect aliases from parents and all files they transitively source.
+    inherited: set[str] = set()
+    for parent in parents:
+        # Aliases defined in the parent itself.
+        inherited.update(ctx.alias_names_by_uri.get(parent, frozenset()))
+        # Aliases from files the parent sources (transitive closure).
+        visited: set[str] = set()
+        stack = list(ctx.source_graph.get(parent, frozenset()))
+        while stack:
+            dep = stack.pop()
+            if dep in visited or dep == uri:
+                continue
+            visited.add(dep)
+            inherited.update(ctx.alias_names_by_uri.get(dep, frozenset()))
+            stack.extend(ctx.source_graph.get(dep, frozenset()))
+
+    return frozenset(inherited)
+
+
 @diag("W120", "Command used without a corresponding `package require`.", section="warning")
 def _check_missing_package_require(
     result: AnalysisResult,
@@ -603,12 +653,15 @@ def get_basic_diagnostics(
     result = analysis if analysis is not None else analyse(source, cu=cu)
     suppressed = result.suppressed_lines
 
-    # Pre-compute workspace proc tail names for W123 filtering.
+    # Pre-compute workspace proc tail names and alias names for W123 filtering.
     _ws_proc_tails: frozenset[str] | None = None
+    _ws_alias_tails: frozenset[str] | None = None
     if workspace_context and workspace_context.workspace_proc_names:
         _ws_proc_tails = frozenset(
             qn.rsplit("::", 1)[-1] for qn in workspace_context.workspace_proc_names
         )
+    if workspace_context and workspace_context.alias_names_by_uri:
+        _ws_alias_tails = _inherited_aliases(uri, workspace_context)
 
     diags: list[types.Diagnostic] = []
     for d in result.diagnostics:
@@ -616,11 +669,12 @@ def get_basic_diagnostics(
             continue
         if suppressed and _is_suppressed(d.code, d.range.start.line, suppressed):
             continue
-        # W123: suppress if the unknown command is a workspace proc.
-        if d.code == "W123" and _ws_proc_tails is not None:
-            # Extract command name from message: "Unknown command 'foo'"
+        # W123: suppress if the unknown command is a workspace proc or alias.
+        if d.code == "W123":
             cmd = d.message.split("'")[1] if "'" in d.message else ""
-            if cmd in _ws_proc_tails:
+            if _ws_proc_tails is not None and cmd in _ws_proc_tails:
+                continue
+            if _ws_alias_tails is not None and cmd in _ws_alias_tails:
                 continue
         diags.append(_to_lsp_diagnostic(d, uri=uri))
         if (
