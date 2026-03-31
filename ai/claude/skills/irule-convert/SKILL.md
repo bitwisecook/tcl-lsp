@@ -35,6 +35,6 @@ Detect and convert legacy iRule patterns to modern best practices.
 
 ## Diagnostic codes reference
 
-See `docs/generated/diagnostic_tables.md` for the full auto-generated table of all diagnostic codes.
+See `docs/generated/diagnostic_codes.md` for the full auto-generated table of all diagnostic codes.
 
 $ARGUMENTS

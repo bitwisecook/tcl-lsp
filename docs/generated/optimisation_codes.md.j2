@@ -1,0 +1,7 @@
+### Optimisation Codes
+
+| Code | Description | Default |
+|------|-------------|---------|
+{% for o in optimisations %}
+| {{ o.code }} | {{ o.description }} | {{ "✓" if o.default else "✗" }} |
+{% endfor %}

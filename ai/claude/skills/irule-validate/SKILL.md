@@ -25,7 +25,7 @@ Run full validation on an iRule file and produce a categorised diagnostic report
 
 ## Diagnostic codes reference
 
-See `docs/generated/diagnostic_tables.md` for the full auto-generated table of all diagnostic and optimisation codes with descriptions and defaults.
+See `docs/generated/diagnostic_codes.md` for the full auto-generated table of all diagnostic codes with descriptions and defaults.
 
 ## Output format
 

@@ -30,7 +30,7 @@ Apply LSP optimiser suggestions to Tcl files with safety explanations for each t
 
 ## Optimisation codes reference
 
-See `docs/generated/diagnostic_tables.md` for the full auto-generated table of O100+ codes.
+See `docs/generated/optimisation_codes.md` for the full auto-generated table of O100+ codes.
 Key categories:
 
 - **Constant folding/propagation** (O100-O105): Inline and simplify known values

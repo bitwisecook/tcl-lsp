@@ -31,7 +31,7 @@ Fix diagnostics in a Tcl file iteratively using LSP analysis.
 
 ## Diagnostic codes reference
 
-See `docs/generated/diagnostic_tables.md` for the full auto-generated table of all diagnostic codes.
+See `docs/generated/diagnostic_codes.md` for the full auto-generated table of all diagnostic codes.
 
 ## Important
 

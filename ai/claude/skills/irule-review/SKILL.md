@@ -30,7 +30,7 @@ Perform a comprehensive security review combining static analysis with deep anal
 
 ## Diagnostic codes reference
 
-See `docs/generated/diagnostic_tables.md` for the full auto-generated table of security and taint diagnostic codes.
+See `docs/generated/diagnostic_codes.md` for the full auto-generated table of security and taint diagnostic codes.
 
 ## Output format
 
