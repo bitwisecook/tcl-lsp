@@ -19,7 +19,7 @@ class LremoveCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="lremove",
-            dialects=frozenset({"tcl8.6", "tcl9.0"}),
+            dialects=frozenset({"tcl9.0"}),
             hover=HoverSnippet(
                 summary="Remove elements from a list",
                 synopsis=("lremove list ?index ...?",),

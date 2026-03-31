@@ -2947,14 +2947,16 @@ class Analyser:
             build_class_hierarchy(self.result.all_classes) if self.result.all_classes else None
         )
 
-        # Detect functions containing ``dict with``/``dict update`` barriers.
-        # Variables in these scopes may have been created by dict unpacking,
-        # so $var-as-command is likely a legitimate object dispatch.
+        # Collect source offset ranges of procedures that contain
+        # ``dict with``/``dict update`` barriers.  Variables in these
+        # scopes may have been created by dict unpacking — suppress W307.
         from ..compiler.ir import IRBarrier
 
-        has_dict_with = False
-        for fu_cfg in [cu.top_level.cfg, *(fu.cfg for fu in cu.procedures.values())]:
-            for block in fu_cfg.blocks.values():
+        dict_with_ranges: list[tuple[int, int]] = []
+        _all_fus = [("::top", cu.top_level)] + list(cu.procedures.items())
+        for qname, fu_unit in _all_fus:
+            func_has_dw = False
+            for block in fu_unit.cfg.blocks.values():
                 for stmt in block.statements:
                     if (
                         isinstance(stmt, IRBarrier)
@@ -2962,12 +2964,19 @@ class Analyser:
                         and stmt.args
                         and stmt.args[0] in ("with", "update")
                     ):
-                        has_dict_with = True
+                        func_has_dw = True
                         break
-                if has_dict_with:
+                if func_has_dw:
                     break
-            if has_dict_with:
-                break
+            if func_has_dw:
+                ir_proc = cu.ir_module.procedures.get(qname)
+                if ir_proc is not None:
+                    dict_with_ranges.append(
+                        (ir_proc.range.start.offset, ir_proc.range.end.offset)
+                    )
+                else:
+                    # Top-level: covers entire source.
+                    dict_with_ranges.append((0, 2**31))
 
         for var_name, method_name, site_range, in_method in self._var_command_sites:
             class_names = all_types.get(var_name)
@@ -3028,9 +3037,12 @@ class Analyser:
                         )
             else:
                 # Variable is not a known TclOO object — emit W307
-                # unless inside a method body or a dict-with scope where
-                # $var is very likely an object from dict unpacking.
-                if not in_method and not has_dict_with and "W307" not in self._disabled_diagnostics:
+                # unless inside a method body or a function with dict-with
+                # where $var is very likely an object from dict unpacking.
+                in_dict_with = any(
+                    s <= site_range.start.offset <= e for s, e in dict_with_ranges
+                )
+                if not in_method and not in_dict_with and "W307" not in self._disabled_diagnostics:
                     self.result.diagnostics.append(
                         Diagnostic(
                             range=site_range,
