@@ -254,3 +254,52 @@ class TestTrailingWhitespace:
         assert "table" in texts
         table_tok = next(t for t in toks if t.text == "table")
         assert table_tok.type == TokenType.ESC
+
+
+class TestBackslashNewlineMidWord:
+    """Regression tests for mid-word backslash-newline in unquoted context.
+
+    When a backslash-newline appears mid-word (e.g. ``foo\\<newline>{bar}``),
+    the lexer must emit a word boundary (SEP) so that ``{`` on the next line
+    is recognised as a brace delimiter and tokenised as STR.
+    """
+
+    def test_midword_backslash_newline_brace_is_str(self):
+        """foo\\<NL>{bar} must tokenise {bar} as STR, not absorb it."""
+        source = "foo\\\n{bar}"
+        toks = _tokens(source, include_sep=True)
+        non_sep = [t for t in toks if t.type not in (TokenType.SEP, TokenType.EOL)]
+        # First token is the word before the backslash.
+        assert non_sep[0].type == TokenType.ESC
+        assert non_sep[0].text == "foo"
+        # Second token is the braced string.
+        assert non_sep[1].type == TokenType.STR
+        assert non_sep[1].text == "bar"
+
+    def test_midword_backslash_newline_emits_sep(self):
+        """A SEP must appear between the word and the braced string."""
+        source = "foo\\\n{bar}"
+        toks = _tokens(source, include_sep=True)
+        types = [t.type for t in toks]
+        foo_idx = next(i for i, t in enumerate(toks) if t.text == "foo")
+        bar_idx = next(i for i, t in enumerate(toks) if t.text == "bar")
+        # There must be at least one SEP between foo and {bar}.
+        assert TokenType.SEP in types[foo_idx + 1 : bar_idx]
+
+    def test_midword_backslash_newline_quoted_no_split(self):
+        """Inside double quotes, backslash-newline does NOT split the word."""
+        source = '"foo\\\nbar"'
+        toks = _tokens(source)
+        # The whole thing is a single token (ESC).
+        assert len(toks) == 1
+        assert toks[0].type == TokenType.ESC
+
+    def test_cmd_backslash_newline_brace_arg(self):
+        """Realistic case: command with backslash-newline before braced arg."""
+        source = "testCmd arg1 \\\n{braced body}"
+        toks = _tokens(source)
+        texts = [t.text for t in toks]
+        assert texts[0] == "testCmd"
+        assert texts[1] == "arg1"
+        brace_tok = next(t for t in toks if t.text == "braced body")
+        assert brace_tok.type == TokenType.STR

@@ -18,7 +18,7 @@ The server needs to be accessible via one of:
 
 ```sh
 # Option A — run from source (requires uv)
-uv run --directory /path/to/tcl-lsp --no-dev python -m server
+uv run --directory /path/to/tcl-lsp --no-dev python -m lsp
 
 # Option B — standalone zipapp (just needs Python 3.10+)
 python3 /path/to/tcl-lsp-server.pyz
@@ -35,7 +35,7 @@ Add to your `init.el`:
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
                '(tcl-mode . ("uv" "run" "--directory" "/path/to/tcl-lsp"
-                             "--no-dev" "python" "-m" "server"))))
+                             "--no-dev" "python" "-m" "lsp"))))
 
 ;; Auto-start on Tcl files
 (add-hook 'tcl-mode-hook #'eglot-ensure)
@@ -57,7 +57,7 @@ Or with the standalone zipapp:
    (make-lsp-client
     :new-connection (lsp-stdio-connection
                      '("uv" "run" "--directory" "/path/to/tcl-lsp"
-                       "--no-dev" "python" "-m" "server"))
+                       "--no-dev" "python" "-m" "lsp"))
     :activation-fn (lsp-activate-on "tcl")
     :server-id 'tcl-lsp)))
 
@@ -76,6 +76,56 @@ Pass settings via eglot workspace configuration:
 ;; Register .apl files for tcl-mode so eglot activates
 (add-to-list 'auto-mode-alist '("\\.apl\\'" . tcl-mode))
 ```
+
+## Bracket matching and auto-pairs
+
+Emacs's `tcl-mode` provides bracket matching out of the box via
+`show-paren-mode` (enabled by default in Emacs 29+).  For automatic
+insertion of closing brackets and quotes, enable `electric-pair-mode`:
+
+```elisp
+(add-hook 'tcl-mode-hook #'electric-pair-mode)
+```
+
+This auto-closes `{}`, `[]`, `()`, and `""` as you type.
+
+## Debugging
+
+### Viewing LSP logs
+
+`M-x eglot-events-buffer` opens the `*EVENTS for <project>*` buffer
+showing all JSON-RPC messages between Emacs and the server.
+
+`M-x eglot-stderr-buffer` opens the `*STDERR for <project>*` buffer
+showing server-side log output.
+
+### Verbose logging
+
+By default eglot truncates large messages.  To capture full
+request/response payloads, add to your `init.el`:
+
+```elisp
+(setq eglot-events-buffer-config '(:size 2000000 :format full))
+```
+
+Or set it interactively in a running session:
+
+    M-x set-variable RET eglot-events-buffer-config RET (:size 2000000 :format full)
+
+### Viewing diagnostics
+
+- `C-h .` — show the diagnostic at point (hover)
+- `M-x flymake-show-buffer-diagnostics` — list all diagnostics in the
+  current buffer
+- `M-x flymake-show-project-diagnostics` — list diagnostics across the
+  project
+
+### Restarting the server
+
+If the server gets into a bad state:
+
+- `M-x eglot-shutdown` — stop the server for the current project
+- `M-x eglot-reconnect` — restart without closing buffers
 
 ## Configuration File
 

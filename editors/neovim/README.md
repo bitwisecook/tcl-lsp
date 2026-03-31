@@ -18,7 +18,7 @@ The server needs to be accessible via one of:
 
 ```sh
 # Option A — run from source (requires uv)
-uv run --directory /path/to/tcl-lsp --no-dev python -m server
+uv run --directory /path/to/tcl-lsp --no-dev python -m lsp
 
 # Option B — standalone zipapp (just needs Python 3.10+)
 python3 /path/to/tcl-lsp-server.pyz
@@ -89,6 +89,26 @@ vim.api.nvim_create_autocmd('FileType', {
   end,
 })
 ```
+
+## Bracket matching and auto-pairs
+
+Neovim's built-in `matchparen` plugin highlights matching `{}`, `[]`,
+and `()` pairs automatically — no configuration needed.
+
+For auto-closing brackets and quotes as you type, use a plugin such as
+[nvim-autopairs](https://github.com/windwp/nvim-autopairs):
+
+```lua
+require('nvim-autopairs').setup({})
+```
+
+Or with [mini.pairs](https://github.com/echasnovski/mini.pairs):
+
+```lua
+require('mini.pairs').setup()
+```
+
+Both handle `{}`, `[]`, `()`, and `""` out of the box.
 
 ## Settings reference
 
