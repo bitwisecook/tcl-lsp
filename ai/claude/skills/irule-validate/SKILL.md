@@ -37,14 +37,14 @@ Use headings for each category. For each diagnostic, show:
 Example structure:
 
 ```
-### Errors (2)
-- **E100** (line 12): Missing closing brace — add `}` to close the `if` block
+### Errors (1)
+- **E001** (line 12): Missing subcommand — add the required subcommand after `string`
 
 ### Security (1)
-- **S200** (line 5): Tainted input in eval — sanitise user input before passing to eval
+- **T100** (line 5): Tainted data in eval — sanitise user input before passing to eval
 
 ### Summary
-- Errors: 2, Security: 1, Total: 3
+- Errors: 1, Security: 1, Total: 2
 ```
 
 $ARGUMENTS
