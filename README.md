@@ -2177,6 +2177,12 @@ This project used AI very heavily.
   VM, and compiler to Tcl bytecode were all entirely vibe coded.
 - The Claude skills, AI integrations were vibe coded with hand work on the prompts
   .. they need more of that.
+- AI Skill Improvement by Rohan Pagar
+  ([@rohan-tessl](https://github.com/rohan-tessl)) from
+  [Tessl](https://tessl.io/). Thanks to Tessl for the work -- they develop
+  tooling to support the creation and improvement of AI skills and agent
+  workflows. These contributions were made using an internal review process to
+  identify clear, practical improvements.
 - The vast bulk of tests were AI written, AI ported from sources like Tcl, but all 
   largely directed by me in their creation. If I'd been doing that by hand you'd
   see 3 tests and they'd all be "make install worked for me, good luck"
