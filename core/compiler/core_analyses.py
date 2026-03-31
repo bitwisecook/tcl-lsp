@@ -872,6 +872,9 @@ def _dead_stores(
                 key = (n, v)
                 if key in used:
                     continue
+                # Global variables are consumed externally.
+                if n.startswith("::"):
+                    continue
                 ir_stmt = stmt.statement
                 if isinstance(ir_stmt, IRAssignConst):
                     dead.append(DeadStore(block=bn, statement_index=idx, variable=n, version=v))
@@ -1017,6 +1020,9 @@ def _unused_variables(
                 if name in params:
                     continue
                 if name.startswith("_"):
+                    continue
+                # Global variables are consumed externally.
+                if name.startswith("::"):
                     continue
                 # Only report for safe (side-effect-free) assignments.
                 ir_stmt = stmt.statement

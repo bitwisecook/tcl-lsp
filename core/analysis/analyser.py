@@ -245,7 +245,7 @@ class AnalyserSnapshot:
     # Map from old scope id → scope object for scope identity reconstruction.
     scope_id_map: dict[int, Scope] = field(default_factory=dict)
     # Variable-as-command sites: (var_name, method_name_or_None, token_range).
-    var_command_sites: list[tuple[str, str | None, Range]] = field(default_factory=list)
+    var_command_sites: list[tuple[str, str | None, Range, bool]] = field(default_factory=list)
 
 
 class Analyser:
@@ -282,7 +282,7 @@ class Analyser:
         # determine whether the variable holds a TclOO object (suppress W307)
         # or not (emit W307).
         # Each entry: (var_name, method_name_or_None, cmd_token_range).
-        self._var_command_sites: list[tuple[str, str | None, Range]] = []
+        self._var_command_sites: list[tuple[str, str | None, Range, bool]] = []
         # Cache: id(scope) -> namespace string, for _namespace_from_scope.
         self._ns_cache: dict[int, str] = {}
         # Guard against double W123 emission across analyse_commands/analyse_irule_event.
@@ -1222,6 +1222,16 @@ class Analyser:
             return CommandSig(arity=validation.arity)
         return SIGNATURES.get(cmd_name)
 
+    @staticmethod
+    def _scope_is_method(scope: Scope) -> bool:
+        """Return True if *scope* or any ancestor is a TclOO method body."""
+        s: Scope | None = scope
+        while s is not None:
+            if s.kind == "method":
+                return True
+            s = s.parent
+        return False
+
     def _process_command(
         self,
         argv: list[Token],
@@ -1254,7 +1264,10 @@ class Analyser:
         cmd_tok = all_tokens[0] if all_tokens else None
         if cmd_tok is not None and cmd_tok.type is TokenType.VAR:
             method_name = args[0] if args else None
-            self._var_command_sites.append((cmd_tok.text, method_name, range_from_token(cmd_tok)))
+            in_method = self._scope_is_method(scope)
+            self._var_command_sites.append(
+                (cmd_tok.text, method_name, range_from_token(cmd_tok), in_method)
+            )
 
         # IRULE5005: direct proc invocation without ``call`` in iRules.
         # In iRules, procs must be invoked via ``call proc_name``, not
@@ -2934,7 +2947,7 @@ class Analyser:
             build_class_hierarchy(self.result.all_classes) if self.result.all_classes else None
         )
 
-        for var_name, method_name, site_range in self._var_command_sites:
+        for var_name, method_name, site_range, in_method in self._var_command_sites:
             class_names = all_types.get(var_name)
             if class_names:
                 # Variable is a TclOO object — validate the method if we have
@@ -2968,6 +2981,19 @@ class Analyser:
                             ):
                                 found = True
                                 break
+                    # If the class has an external superclass the method
+                    # might be inherited — skip W308.
+                    if not found and has_local_class:
+                        for cls in class_names:
+                            cd = self.result.all_classes.get(cls)
+                            if cd is not None and cd.superclasses:
+                                _OO_BASE = {"oo::object", "oo::class"}
+                                if any(
+                                    s not in self.result.all_classes and s not in _OO_BASE
+                                    for s in cd.superclasses
+                                ):
+                                    found = True
+                                    break
                     if not found and has_local_class:
                         cls_display = ", ".join(sorted(class_names))
                         self.result.diagnostics.append(
@@ -2979,8 +3005,9 @@ class Analyser:
                             )
                         )
             else:
-                # Variable is not a known TclOO object — emit W307.
-                if "W307" not in self._disabled_diagnostics:
+                # Variable is not a known TclOO object — emit W307
+                # unless inside a method body where $var is very likely an object.
+                if not in_method and "W307" not in self._disabled_diagnostics:
                     self.result.diagnostics.append(
                         Diagnostic(
                             range=site_range,
