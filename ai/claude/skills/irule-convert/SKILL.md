@@ -1,9 +1,6 @@
 ---
 name: irule-convert
-description: >
-  Modernise legacy iRule patterns to current best practices.
-  Detects unbraced expressions, string concat for lists, deprecated
-  matchclass, ungated logs, and other convertible patterns.
+description: "Modernise legacy iRule patterns to current best practices. Detects unbraced expressions, string concatenation for lists, deprecated matchclass, ungated logs, and other convertible patterns. Use when modernising iRules, converting legacy F5 iRule code, upgrading iRule syntax, or applying iRule best practices."
 allowed-tools: Bash, Read, Edit
 ---
 
@@ -19,19 +16,25 @@ Detect and convert legacy iRule patterns to modern best practices.
    ```bash
    uv run --no-dev python ai/claude/tcl_ai.py convert $FILE
    ```
-4. If no legacy patterns are found, report the iRule already follows best practices
-5. Otherwise, apply these conversions using the Edit tool:
+4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
+5. If no legacy patterns are found, report the iRule already follows best practices
+6. Otherwise, apply these conversions using the Edit tool:
    - `matchclass` -> `class match` (IRULE2001)
    - Unbraced expr -> braced expr (W100)
    - String concat for lists -> `lappend` (W104)
    - `==` / `!=` for strings -> `eq` / `ne` (W110)
    - Missing `--` option terminator -> add `--` (W304)
    - Ungated log in hot event -> add `CLIENT_ACCEPTED { set debug 0 }` and wrap with `if {$debug}` (IRULE5001)
-6. After editing, re-run diagnostics to verify the changes are clean:
+7. After editing, re-run diagnostics to verify the changes are clean:
    ```bash
    uv run --no-dev python ai/claude/tcl_ai.py diagnostics $FILE
    ```
-7. If new issues appeared, fix them (up to 3 iterations)
-8. Report what was converted and the final validation status
+8. If new issues appeared, fix them (up to 3 iterations)
+9. If issues persist after 3 iterations, report what was converted and what remains
+10. Report what was converted and the final validation status
+
+## Diagnostic codes reference
+
+See `docs/generated/diagnostic_tables.md` for the full auto-generated table of all diagnostic codes.
 
 $ARGUMENTS

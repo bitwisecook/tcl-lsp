@@ -1,9 +1,6 @@
 ---
 name: irule-xc
-description: >
-  Translate an F5 BIG-IP iRule to F5 Distributed Cloud (XC) configuration.
-  Produces Terraform HCL and JSON API output with coverage analysis.
-  Highlights untranslatable constructs and suggests XC alternatives.
+description: "Translate an F5 BIG-IP iRule to F5 Distributed Cloud (XC) configuration. Produces Terraform HCL and JSON API output with coverage analysis. Highlights untranslatable constructs and suggests XC alternatives. Use when migrating iRules to F5 XC, converting BIG-IP iRules to Distributed Cloud, translating iRule logic to Terraform, or planning F5 XC migration."
 allowed-tools: Bash, Read, Write
 ---
 
@@ -46,7 +43,8 @@ Translate an iRule to F5 XC routes, service policies, origin pools, WAF exclusio
                print(f'- {item.irule_command}: {item.xc_description}')
    "
    ```
-4. Review the output:
+4. If the tool fails (e.g. file not found or import error), report the error clearly and suggest fixes
+5. Review the output:
    - If coverage >= 80%, the static translation is sufficient
    - If coverage < 80%, review untranslatable constructs and suggest alternatives:
      - For complex routing: suggest XC custom route objects
@@ -56,10 +54,10 @@ Translate an iRule to F5 XC routes, service policies, origin pools, WAF exclusio
      - For WAF/ASM events: suggest XC App Firewall or WAF exclusion rules
      - For bot defence: suggest XC Bot Defence
      - For rate limiting patterns: suggest XC Rate Limiting
-5. Write Terraform output to `$FILE.tf`
-6. Write JSON API output to `$FILE.xc.json`
-7. Validate the generated Terraform is syntactically valid
-8. Add comments explaining each mapping from the original iRule to XC constructs
+6. Write Terraform output to `$FILE.tf`
+7. Write JSON API output to `$FILE.xc.json`
+8. Validate the generated Terraform is syntactically valid
+9. Add comments explaining each mapping from the original iRule to XC constructs
 
 ## XC Mapping Reference
 
@@ -85,12 +83,12 @@ Translate an iRule to F5 XC routes, service policies, origin pools, WAF exclusio
 | `ASM::disable` | WAF exclusion rule with `app_firewall_detection_control` |
 | `ASM::enable` | No action (WAF enabled by default) |
 | `class match` | Service policy rules (data-group entries) |
-| `RULE_INIT` | No equivalent — use static XC config |
-| `CLIENT_ACCEPTED` | No equivalent — L4 event |
+| `RULE_INIT` | No equivalent -- use static XC config |
+| `CLIENT_ACCEPTED` | No equivalent -- L4 event |
 | `CLIENTSSL_HANDSHAKE` | XC TLS settings |
 | `ASM_*` events | XC App Firewall |
-| `eval`, `uplevel` | No equivalent — consider App Stack |
-| `TCP::*`, `UDP::*` | No equivalent — L4 commands |
+| `eval`, `uplevel` | No equivalent -- consider App Stack |
+| `TCP::*`, `UDP::*` | No equivalent -- L4 commands |
 
 ## WAF Exclusion Rule Actions
 

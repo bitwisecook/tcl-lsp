@@ -1,9 +1,6 @@
 ---
 name: irule-event
-description: >
-  Look up iRules event or command reference. Shows which commands
-  are valid in an event, or which events support a command.
-  Uses authoritative registry metadata from the LSP.
+description: "Look up iRules event or command reference from authoritative LSP registry metadata. Shows which commands are valid in an event, or which events support a command. Use when looking up iRules events, checking F5 iRule command availability, querying iRule event-command compatibility, or finding which events support a specific iRules command."
 allowed-tools: Bash, Read
 ---
 
@@ -30,7 +27,8 @@ Look up event or command information from the iRules registry.
    uv run --no-dev python ai/claude/tcl_ai.py command-info COMMAND_NAME
    ```
 
-4. Present the registry metadata (authoritative facts), then provide practical guidance:
+4. If the tool fails (e.g. unknown event/command name), report the error and suggest similar event/command names if possible
+5. Present the registry metadata (authoritative facts), then provide practical guidance:
 
    For events:
    - When it fires
@@ -47,7 +45,7 @@ Look up event or command information from the iRules registry.
 
 ## Important
 
-The registry metadata is authoritative — always present it as facts.
+The registry metadata is authoritative -- always present it as facts.
 Supplement with practical guidance, but clearly separate facts from advice.
 
 $ARGUMENTS

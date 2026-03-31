@@ -1,9 +1,6 @@
 ---
 name: irule-review
-description: >
-  Security and safety review of an iRule. Combines LSP static analysis
-  (security, taint, thread safety diagnostics) with deep analysis of
-  input validation, information leakage, race conditions, and DoS vectors.
+description: "Security and safety review of an F5 iRule. Combines LSP static analysis (security, taint, thread safety diagnostics) with deep analysis of input validation, information leakage, race conditions, and DoS vectors. Use when reviewing iRule security, auditing F5 iRule safety, performing iRule penetration testing, or checking iRule code for vulnerabilities."
 allowed-tools: Bash, Read
 ---
 
@@ -19,8 +16,9 @@ Perform a comprehensive security review combining static analysis with deep anal
    ```bash
    uv run --no-dev python ai/claude/tcl_ai.py review $FILE
    ```
-4. Present the static analysis findings (security, taint, thread safety)
-5. Go beyond the static analysis. Check for:
+4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
+5. Present the static analysis findings (security, taint, thread safety)
+6. Go beyond the static analysis. Check for:
    - Input validation gaps (HTTP::uri, HTTP::query, HTTP::header, HTTP::cookie used without sanitisation)
    - Information leakage in logs or HTTP::respond bodies
    - Race conditions with shared state (static:: variables, table commands)
@@ -28,7 +26,11 @@ Perform a comprehensive security review combining static analysis with deep anal
    - Header injection possibilities (user data in HTTP::header insert/replace)
    - Open redirect vulnerabilities (HTTP::redirect with user-controlled values)
    - Session handling issues
-6. For each finding, explain the risk and suggest a fix
+7. For each finding, explain the risk and suggest a fix
+
+## Diagnostic codes reference
+
+See `docs/generated/diagnostic_tables.md` for the full auto-generated table of security and taint diagnostic codes.
 
 ## Output format
 

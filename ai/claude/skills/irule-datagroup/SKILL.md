@@ -1,10 +1,6 @@
 ---
 name: irule-datagroup
-description: >
-  Analyse an iRule for opportunities to extract inline lookup patterns
-  into BIG-IP data-groups. Uses the static extraction engine for
-  mechanical conversions and AI reasoning for complex patterns.
-  Type-aware: detects IP/CIDR, integer, and string data-groups.
+description: "Analyse an F5 iRule for opportunities to extract inline lookup patterns into BIG-IP data-groups. Uses the static extraction engine for mechanical conversions and AI reasoning for complex patterns. Type-aware: detects IP/CIDR, integer, and string data-groups. Use when extracting data-groups from iRules, optimising iRule lookup performance, converting inline iRule patterns to data-groups, or refactoring iRule switch/if chains."
 allowed-tools: Bash, Read, Edit
 ---
 
@@ -26,18 +22,19 @@ Analyse an iRule for data-group extraction opportunities.
    - Whether CIDR notation is present
    - Body shape (identical, set_mapping, return_mapping, complex)
    - Confidence level (high = mechanical, medium = needs review, low = use judgement)
-4. For **high-confidence** candidates, run the static extractor:
+4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
+5. For **high-confidence** candidates, run the static extractor:
    ```bash
    uv run --no-dev python ai/claude/tcl_ai.py extract-datagroup $FILE --line <LINE>
    ```
    This produces both the rewritten iRule code and the tmsh data-group definition.
-5. For **medium/low-confidence** candidates, use AI reasoning to:
+6. For **medium/low-confidence** candidates, use AI reasoning to:
    - Choose an appropriate data-group name based on the domain context
    - Decide whether to consolidate related patterns into a single data-group
    - Determine the correct `class match` operator (equals, contains, starts_with)
    - Handle CIDR ranges correctly (IP data-groups with network prefixes)
    - Generate the data-group definition with proper typing
-6. For each extraction, provide:
+7. For each extraction, provide:
    - The original inline code
    - The replacement using `class match` / `class lookup`
    - The complete tmsh data-group definition:
@@ -50,8 +47,8 @@ Analyse an iRule for data-group extraction opportunities.
      }
      ```
    - The performance benefit explanation
-7. Apply the changes to the file using the Edit tool
-8. If no data-group opportunities exist, explain why the current approach is acceptable
+8. Apply the changes to the file using the Edit tool
+9. If no data-group opportunities exist, explain why the current approach is acceptable
 
 ## Data-group type reference
 
