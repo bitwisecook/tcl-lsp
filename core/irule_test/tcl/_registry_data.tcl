@@ -13,6 +13,25 @@ namespace eval ::tmm {
     # Derived from: tcl8.4 dialect minus f5-irules dialect.
 
     variable _gen_disabled_commands {
+        !
+        !=
+        %
+        &
+        &&
+        *
+        **
+        +
+        -
+        /
+        <
+        <<
+        <=
+        ==
+        >
+        >=
+        >>
+        @
+        ^
         auto_execok
         auto_import
         auto_load
@@ -23,6 +42,7 @@ namespace eval ::tmm {
         bgerror
         cd
         eof
+        eq
         exec
         exit
         fblocked
@@ -35,10 +55,13 @@ namespace eval ::tmm {
         gets
         glob
         http
+        in
         interp
         load
         memory
         namespace
+        ne
+        ni
         open
         package
         pid
@@ -58,16 +81,24 @@ namespace eval ::tmm {
         unknown
         update
         vwait
+        |
+        ||
+        ~
     }
 
     # Commands from Tcl 8.5+ that do not exist in 8.4 or iRules.
     # Derived from: (tcl8.5 | tcl8.6 | tcl9.0) - tcl8.4 - f5-irules.
 
     variable _gen_post84_commands {
+        classvariable
         coroutine
         dict
         lassign
         lmap
+        lremove
+        my
+        next
+        nextto
         oo::abstract
         oo::class
         oo::configurable
@@ -76,6 +107,7 @@ namespace eval ::tmm {
         oo::objdefine
         oo::object
         oo::singleton
+        self
         tailcall
         throw
         try

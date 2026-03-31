@@ -8,7 +8,7 @@ from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..dialects import DIALECTS_EXCEPT_IRULES
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
-from ..signatures import ArgRole, Arity
+from ..signatures import Arity
 from ._base import register
 
 _SOURCE = "Tcl man page package.n"
@@ -121,7 +121,6 @@ class PackageCommand(CommandDef):
                     detail="This command typically appears only in system configuration scripts to set up the package database.",
                     synopsis="package ifneeded package version ?script?",
                     return_type=TclType.STRING,
-                    arg_roles={2: ArgRole.BODY},
                 ),
                 "names": SubCommand(
                     name="names",

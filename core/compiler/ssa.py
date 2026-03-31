@@ -77,6 +77,11 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
     if isinstance(stmt, IRBarrier) and stmt.command == "trace" and len(stmt.args) >= 3:
         if stmt.args[0] == "add" and stmt.args[1] == "variable":
             return (_normalise_var_name(stmt.args[2]),)
+    # dict for/map barriers: extract iteration variable names from the
+    # varList arg so SSA sees them as definitions.
+    if isinstance(stmt, IRBarrier) and stmt.command.endswith(("::for", "::map")):
+        if stmt.args:
+            return tuple(stmt.args[0].split())
     return ()
 
 
@@ -221,6 +226,12 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                 if idx in body_indices:
                     continue
                 vars_found |= _vars_in_word(arg)
+            # dict with/update: the dict variable name is a plain string,
+            # not a $-substitution, so _vars_in_word misses it.
+            if command == "dict" and len(args) >= 2 and args[0] in ("with", "update"):
+                dict_var = _normalise_var_name(args[1])
+                if dict_var:
+                    vars_found.add(dict_var)
         case _:
             pass
 

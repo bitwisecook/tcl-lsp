@@ -245,7 +245,7 @@ class AnalyserSnapshot:
     # Map from old scope id → scope object for scope identity reconstruction.
     scope_id_map: dict[int, Scope] = field(default_factory=dict)
     # Variable-as-command sites: (var_name, method_name_or_None, token_range).
-    var_command_sites: list[tuple[str, str | None, Range]] = field(default_factory=list)
+    var_command_sites: list[tuple[str, str | None, Range, bool]] = field(default_factory=list)
 
 
 class Analyser:
@@ -282,7 +282,7 @@ class Analyser:
         # determine whether the variable holds a TclOO object (suppress W307)
         # or not (emit W307).
         # Each entry: (var_name, method_name_or_None, cmd_token_range).
-        self._var_command_sites: list[tuple[str, str | None, Range]] = []
+        self._var_command_sites: list[tuple[str, str | None, Range, bool]] = []
         # Cache: id(scope) -> namespace string, for _namespace_from_scope.
         self._ns_cache: dict[int, str] = {}
         # Guard against double W123 emission across analyse_commands/analyse_irule_event.
@@ -1222,6 +1222,16 @@ class Analyser:
             return CommandSig(arity=validation.arity)
         return SIGNATURES.get(cmd_name)
 
+    @staticmethod
+    def _scope_is_method(scope: Scope) -> bool:
+        """Return True if *scope* or any ancestor is a TclOO method body."""
+        s: Scope | None = scope
+        while s is not None:
+            if s.kind == "method":
+                return True
+            s = s.parent
+        return False
+
     def _process_command(
         self,
         argv: list[Token],
@@ -1254,7 +1264,10 @@ class Analyser:
         cmd_tok = all_tokens[0] if all_tokens else None
         if cmd_tok is not None and cmd_tok.type is TokenType.VAR:
             method_name = args[0] if args else None
-            self._var_command_sites.append((cmd_tok.text, method_name, range_from_token(cmd_tok)))
+            in_method = self._scope_is_method(scope)
+            self._var_command_sites.append(
+                (cmd_tok.text, method_name, range_from_token(cmd_tok), in_method)
+            )
 
         # IRULE5005: direct proc invocation without ``call`` in iRules.
         # In iRules, procs must be invoked via ``call proc_name``, not
@@ -2934,7 +2947,36 @@ class Analyser:
             build_class_hierarchy(self.result.all_classes) if self.result.all_classes else None
         )
 
-        for var_name, method_name, site_range in self._var_command_sites:
+        # Collect source offset ranges of procedures that contain
+        # ``dict with``/``dict update`` barriers.  Variables in these
+        # scopes may have been created by dict unpacking — suppress W307.
+        from ..compiler.ir import IRBarrier
+
+        dict_with_ranges: list[tuple[int, int]] = []
+        _all_fus = [("::top", cu.top_level)] + list(cu.procedures.items())
+        for qname, fu_unit in _all_fus:
+            func_has_dw = False
+            for block in fu_unit.cfg.blocks.values():
+                for stmt in block.statements:
+                    if (
+                        isinstance(stmt, IRBarrier)
+                        and stmt.command == "dict"
+                        and stmt.args
+                        and stmt.args[0] in ("with", "update")
+                    ):
+                        func_has_dw = True
+                        break
+                if func_has_dw:
+                    break
+            if func_has_dw:
+                ir_proc = cu.ir_module.procedures.get(qname)
+                if ir_proc is not None:
+                    dict_with_ranges.append((ir_proc.range.start.offset, ir_proc.range.end.offset))
+                else:
+                    # Top-level: covers entire source.
+                    dict_with_ranges.append((0, 2**31))
+
+        for var_name, method_name, site_range, in_method in self._var_command_sites:
             class_names = all_types.get(var_name)
             if class_names:
                 # Variable is a TclOO object — validate the method if we have
@@ -2946,6 +2988,7 @@ class Analyser:
                 ):
                     # Check if the method exists on any of the possible classes.
                     found = False
+                    has_local_class = False
                     for cls in class_names:
                         # Check direct methods on the class and its MRO.
                         if hierarchy.method_target(cls, method_name) is not None:
@@ -2954,18 +2997,33 @@ class Analyser:
                         # Also check the class definition directly (for classes
                         # not in the hierarchy, e.g. missing superclass).
                         cd = self.result.all_classes.get(cls)
-                        if cd is not None and (
-                            method_name in cd.methods
-                            or method_name in cd.class_methods
-                            or method_name == "new"
-                            or method_name == "create"
-                            or method_name == "destroy"
-                            or method_name == "configure"
-                            or method_name == "cget"
-                        ):
-                            found = True
-                            break
-                    if not found:
+                        if cd is not None:
+                            has_local_class = True
+                            if (
+                                method_name in cd.methods
+                                or method_name in cd.class_methods
+                                or method_name == "new"
+                                or method_name == "create"
+                                or method_name == "destroy"
+                                or method_name == "configure"
+                                or method_name == "cget"
+                            ):
+                                found = True
+                                break
+                    # If the class has an external superclass the method
+                    # might be inherited — skip W308.
+                    if not found and has_local_class:
+                        for cls in class_names:
+                            cd = self.result.all_classes.get(cls)
+                            if cd is not None and cd.superclasses:
+                                _OO_BASE = {"oo::object", "oo::class"}
+                                if any(
+                                    s not in self.result.all_classes and s not in _OO_BASE
+                                    for s in cd.superclasses
+                                ):
+                                    found = True
+                                    break
+                    if not found and has_local_class:
                         cls_display = ", ".join(sorted(class_names))
                         self.result.diagnostics.append(
                             Diagnostic(
@@ -2976,8 +3034,11 @@ class Analyser:
                             )
                         )
             else:
-                # Variable is not a known TclOO object — emit W307.
-                if "W307" not in self._disabled_diagnostics:
+                # Variable is not a known TclOO object — emit W307
+                # unless inside a method body or a function with dict-with
+                # where $var is very likely an object from dict unpacking.
+                in_dict_with = any(s <= site_range.start.offset <= e for s, e in dict_with_ranges)
+                if not in_method and not in_dict_with and "W307" not in self._disabled_diagnostics:
                     self.result.diagnostics.append(
                         Diagnostic(
                             range=site_range,

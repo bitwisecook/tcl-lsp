@@ -38,8 +38,9 @@ def active_dialect() -> str:
 _DIALECT_DIRECTIVE_RE = re.compile(r"^#\s*tcl-dialect:\s*(\S+)", re.IGNORECASE)
 _SHEBANG_EXPECT_RE = re.compile(r"^#!.*\bexpect\b", re.IGNORECASE)
 _SHEBANG_TCLSH_RE = re.compile(r"^#!.*\btclsh(\d+\.\d+)\b", re.IGNORECASE)
+_PKG_REQUIRE_TCL_RE = re.compile(r"^\s*package\s+require\s+(?:-exact\s+)?Tcl\s*(\d+\.\d+)")
 
-_SHEBANG_VERSION_MAP: dict[str, str] = {
+_TCL_VERSION_MAP: dict[str, str] = {
     "8.4": "tcl8.4",
     "8.5": "tcl8.5",
     "8.6": "tcl8.6",
@@ -48,17 +49,23 @@ _SHEBANG_VERSION_MAP: dict[str, str] = {
 
 DIALECT_DIRECTIVE_SCAN_LINES = 5
 
+# Scan more lines for package require — it often appears after comments.
+_PKG_REQUIRE_SCAN_LINES = 30
+
 
 def detect_dialect_from_source(source: str) -> str | None:
-    """Detect a dialect from source content via comment directive or shebang.
+    """Detect a dialect from source content.
 
-    Checks the first few lines for a ``# tcl-dialect: <dialect>`` comment
-    directive, then falls back to shebang detection.  Returns ``None`` if
-    no dialect hint is found.
+    Checks (in priority order):
+    1. ``# tcl-dialect: <dialect>`` comment directive (first 5 lines)
+    2. Shebang (first line)
+    3. ``package require Tcl <version>`` (first 30 lines)
+
+    Returns ``None`` if no dialect hint is found.
     """
     from ..commands.registry.dialects import KNOWN_DIALECTS
 
-    lines = source.split("\n", DIALECT_DIRECTIVE_SCAN_LINES)
+    lines = source.split("\n", _PKG_REQUIRE_SCAN_LINES)
 
     # Comment directive (``# tcl-dialect: <dialect>``)
     for line in lines[:DIALECT_DIRECTIVE_SCAN_LINES]:
@@ -75,6 +82,12 @@ def detect_dialect_from_source(source: str) -> str | None:
             return "expect"
         m = _SHEBANG_TCLSH_RE.match(first)
         if m:
-            return _SHEBANG_VERSION_MAP.get(m.group(1))
+            return _TCL_VERSION_MAP.get(m.group(1))
+
+    # package require Tcl <version>
+    for line in lines[:_PKG_REQUIRE_SCAN_LINES]:
+        m = _PKG_REQUIRE_TCL_RE.match(line)
+        if m:
+            return _TCL_VERSION_MAP.get(m.group(1))
 
     return None

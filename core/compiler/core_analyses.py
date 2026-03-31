@@ -872,6 +872,9 @@ def _dead_stores(
                 key = (n, v)
                 if key in used:
                     continue
+                # Global variables are consumed externally.
+                if n.startswith("::"):
+                    continue
                 ir_stmt = stmt.statement
                 if isinstance(ir_stmt, IRAssignConst):
                     dead.append(DeadStore(block=bn, statement_index=idx, variable=n, version=v))
@@ -926,6 +929,46 @@ def _read_before_set(
     considered = executable_blocks if executable_blocks is not None else set(cfg.blocks)
     skip = _IMPLICIT_VARS | params
 
+    # dict with/update creates local variables from dict keys at runtime.
+    # We cannot know which variables statically, so suppress
+    # read-before-set for variables that could have been unpacked.
+    # Collect dict variable names and mark the function as having dict-with.
+    _has_dict_with = False
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None:
+            continue
+        for stmt in block.statements:
+            if (
+                isinstance(stmt, IRBarrier)
+                and stmt.command == "dict"
+                and stmt.args
+                and stmt.args[0] in ("with", "update")
+            ):
+                _has_dict_with = True
+                # The dict variable itself is read by dict with.
+                dict_var = stmt.args[1] if len(stmt.args) >= 2 else ""
+                if dict_var:
+                    skip = skip | {dict_var}
+
+    # When dict with/update is present, collect all variable names that
+    # have an explicit definition somewhere in the function.  Variables
+    # that are ONLY seen via version-0 uses are likely dict-unpacked
+    # keys and should be exempted.
+    if _has_dict_with:
+        explicitly_defined: set[str] = set()
+        for bn2 in considered:
+            ssa_block2 = ssa.blocks.get(bn2)
+            if ssa_block2 is None:
+                continue
+            for s in ssa_block2.statements:
+                for n, v in s.defs.items():
+                    if v > 0:
+                        explicitly_defined.add(n)
+            for phi in ssa_block2.phis:
+                if phi.version > 0:
+                    explicitly_defined.add(phi.name)
+
     # Track which version-0 variables we've already reported to avoid
     # duplicate warnings for the same variable in the same function.
     reported: set[str] = set()
@@ -944,6 +987,10 @@ def _read_before_set(
                 if ver != 0:
                     continue
                 if name in skip or name in reported:
+                    continue
+                # In dict-with scopes, suppress for variables that have
+                # no explicit definition — they were likely unpacked.
+                if _has_dict_with and name not in explicitly_defined:
                     continue
                 if name.startswith("::") or name.startswith("static::"):
                     continue
@@ -1018,6 +1065,9 @@ def _unused_variables(
                     continue
                 if name.startswith("_"):
                     continue
+                # Global variables are consumed externally.
+                if name.startswith("::"):
+                    continue
                 # Only report for safe (side-effect-free) assignments.
                 ir_stmt = stmt.statement
                 if isinstance(ir_stmt, IRBarrier):
@@ -1085,14 +1135,20 @@ def _return_type_for_command(
     """
     hint = TYPE_HINTS.get(command)
     if hint is None:
-        # Check user-defined TclOO class constructors.
-        if known_classes and args and args[0] in ("new", "create"):
+        # Check TclOO class constructors.
+        if args and args[0] in ("new", "create"):
             # Try the command as-is (qualified) and with :: prefix.
-            if command in known_classes:
+            if known_classes:
+                if command in known_classes:
+                    return TypeLattice.object_of(command)
+                qualified = f"::{command}" if not command.startswith("::") else command
+                if qualified in known_classes:
+                    return TypeLattice.object_of(qualified)
+            # ``new`` is unique to TclOO — treat unknown commands calling
+            # ``new`` as external class constructors so the type lattice
+            # suppresses W307 for ``$obj method`` patterns.
+            if args[0] == "new":
                 return TypeLattice.object_of(command)
-            qualified = f"::{command}" if not command.startswith("::") else command
-            if qualified in known_classes:
-                return TypeLattice.object_of(qualified)
         return _TYPE_OVERDEFINED
     if isinstance(hint, SubcommandTypeHint):
         if not args:
