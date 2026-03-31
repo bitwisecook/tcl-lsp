@@ -1,14 +1,12 @@
 ---
 name: tcl-optimise
-description: >
-  Apply LSP optimiser suggestions to a Tcl file and explain why each
-  optimisation is safe and beneficial.
+description: "Apply LSP optimiser suggestions to a Tcl file and explain why each optimisation is safe and beneficial. Covers constant folding, propagation, dead code elimination, strength reduction, and expression canonicalisation. Use when optimising Tcl code, improving .tcl file performance, refactoring Tcl scripts, or applying language server protocol optimisation suggestions."
 allowed-tools: Bash, Read, Edit
 ---
 
 # Tcl Optimise
 
-Apply LSP optimiser suggestions with explanations.
+Apply LSP optimiser suggestions to Tcl files with safety explanations for each transformation.
 
 ## Steps
 
@@ -23,37 +21,21 @@ Apply LSP optimiser suggestions with explanations.
 6. For each optimisation applied, explain in 1-2 sentences:
    - Why it is safe (preserves behaviour)
    - What benefit it provides
+7. Validate the optimised file to confirm no regressions:
+   ```bash
+   uv run --no-dev python ai/claude/tcl_ai.py diagnostics $FILE
+   ```
+8. If validation finds new issues, revert the problematic optimisation and explain why
 
 ## Optimisation codes reference
 
-- O100: Constant propagation — inline known constant values
-- O101: Constant folding — evaluate compile-time constant expressions
-- O102: Expr folding — fold constant expressions inside expr
-- O103: Proc call folding — fold calls to known pure procedures
-- O104: String chain folding — combine consecutive string operations
-- O105: Redundant computation / CSE — eliminate duplicate expressions
-- O106: Loop-invariant code motion — hoist loop-invariant computations
-- O107: Dead code elimination — remove unreachable code
-- O108: Aggressive dead code elimination — remove unused computations
-- O109: Dead store elimination — remove writes to never-read variables
-- O110: InstCombine — expression canonicalisation, De Morgan's law, comparison inversion
-- O111: Brace expression text for bytecode compilation (paired with W100)
-- O112: Structure elimination — remove constant-condition compound statements
-- O113: Strength reduction — `x**2` → `x*x`, `x%8` → `x&7`
-- O114: Incr idiom — `set x [expr {$x + N}]` → `incr x N`
-- O115: Nested expr removal — redundant `[expr {...}]` in expression context
-- O116: List folding — `[list a b c]` → literal value
-- O117: Strlen simplification — `[string length $s] == 0` → `$s eq ""`
-- O118: Lindex folding — `[lindex {a b c} 1]` → element
-- O119: Set packing — consecutive `set` literals → `lassign`/`foreach`
-- O120: String comparison — prefer `eq`/`ne` over `==`/`!=` for string comparisons
-- O121: Tail-call — rewrite self-recursive tail calls to `tailcall`
-- O122: Recursion elimination — convert fully tail-recursive proc to iterative loop
-- O123: Accumulator hint — detect non-tail recursion eligible for accumulator introduction (advisory only)
-- O124: Unused proc commenting — comment out procs not called from any event in iRules (iRules dialect only)
-- O125: Code sinking — sink side-effect-free assignments into decision blocks
-- O126: Unused variable removal — remove `set` statements for variables never read
-- O127: Inline single-use assignment — fold `set` into use site to eliminate redundant variable load
+See `references/optimisation-codes.md` for the full table of O100–O127 codes. Key categories:
+
+- **Constant folding/propagation** (O100–O105): Inline and simplify known values
+- **Dead code** (O107–O109, O126): Remove unreachable or unused code and stores
+- **Expression** (O110–O115): Canonicalise, brace, and simplify expressions
+- **Strength reduction** (O113, O117–O118): Replace expensive ops with cheaper equivalents
+- **Restructuring** (O112, O119, O121–O122, O125, O127): Simplify control flow and variable usage
 
 ## Grouped optimisations
 
