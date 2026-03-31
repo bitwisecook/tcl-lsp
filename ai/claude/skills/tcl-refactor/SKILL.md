@@ -28,10 +28,10 @@ Apply refactorings to Tcl source code using the LSP refactoring engine.
 
 ## Available refactorings
 
-- **Extract variable**: select an expression -> introduce a named variable
-- **Inline variable**: single-use `set var value` -> substitute value at use site
-- **if/elseif -> switch**: chain of `$var eq "literal"` tests -> `switch -exact`
-- **switch -> dict**: every arm sets the same variable -> `dict create` + `dict get`
-- **Brace expr**: `expr "$a + $b"` -> `expr {$a + $b}` (performance + safety)
+- **Extract variable**: select an expression → introduce a named variable
+- **Inline variable**: single-use `set var value` → substitute value at use site
+- **if/elseif → switch**: chain of `$var eq "literal"` tests → `switch -exact`
+- **switch → dict**: every arm sets the same variable → `dict create` + `dict get`
+- **Brace expr**: `expr "$a + $b"` → `expr {$a + $b}` (performance + safety)
 
 $ARGUMENTS

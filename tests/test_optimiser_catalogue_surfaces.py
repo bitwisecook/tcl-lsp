@@ -43,6 +43,12 @@ def _extract_prompt_optimiser_codes(rel_path: str) -> list[str]:
 
 
 def _extract_skill_codes(rel_path: str) -> list[str]:
+    """Extract O-codes from a skill file.
+
+    Skills may either inline codes (``- O100: ...``) or reference the
+    generated ``docs/generated/optimisation_codes.md``.  When a reference
+    is found, codes are extracted from the generated file instead.
+    """
     text = _read(rel_path)
     marker = "## Optimisation codes reference"
     start = text.find(marker)
@@ -51,6 +57,13 @@ def _extract_skill_codes(rel_path: str) -> list[str]:
     if end == -1:
         end = len(text)
     section = text[start:end]
+
+    # Check for reference to generated file
+    generated_ref = "docs/generated/optimisation_codes.md"
+    if generated_ref in section:
+        gen_text = _read(generated_ref)
+        return re.findall(r"\| (O\d{3}) \|", gen_text)
+
     return re.findall(r"^- (O\d{3}):", section, flags=re.MULTILINE)
 
 
