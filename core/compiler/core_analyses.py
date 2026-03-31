@@ -1085,14 +1085,20 @@ def _return_type_for_command(
     """
     hint = TYPE_HINTS.get(command)
     if hint is None:
-        # Check user-defined TclOO class constructors.
-        if known_classes and args and args[0] in ("new", "create"):
+        # Check TclOO class constructors.
+        if args and args[0] in ("new", "create"):
             # Try the command as-is (qualified) and with :: prefix.
-            if command in known_classes:
+            if known_classes:
+                if command in known_classes:
+                    return TypeLattice.object_of(command)
+                qualified = f"::{command}" if not command.startswith("::") else command
+                if qualified in known_classes:
+                    return TypeLattice.object_of(qualified)
+            # ``new`` is unique to TclOO — treat unknown commands calling
+            # ``new`` as external class constructors so the type lattice
+            # suppresses W307 for ``$obj method`` patterns.
+            if args[0] == "new":
                 return TypeLattice.object_of(command)
-            qualified = f"::{command}" if not command.startswith("::") else command
-            if qualified in known_classes:
-                return TypeLattice.object_of(qualified)
         return _TYPE_OVERDEFINED
     if isinstance(hint, SubcommandTypeHint):
         if not args:

@@ -2946,6 +2946,7 @@ class Analyser:
                 ):
                     # Check if the method exists on any of the possible classes.
                     found = False
+                    has_local_class = False
                     for cls in class_names:
                         # Check direct methods on the class and its MRO.
                         if hierarchy.method_target(cls, method_name) is not None:
@@ -2954,18 +2955,20 @@ class Analyser:
                         # Also check the class definition directly (for classes
                         # not in the hierarchy, e.g. missing superclass).
                         cd = self.result.all_classes.get(cls)
-                        if cd is not None and (
-                            method_name in cd.methods
-                            or method_name in cd.class_methods
-                            or method_name == "new"
-                            or method_name == "create"
-                            or method_name == "destroy"
-                            or method_name == "configure"
-                            or method_name == "cget"
-                        ):
-                            found = True
-                            break
-                    if not found:
+                        if cd is not None:
+                            has_local_class = True
+                            if (
+                                method_name in cd.methods
+                                or method_name in cd.class_methods
+                                or method_name == "new"
+                                or method_name == "create"
+                                or method_name == "destroy"
+                                or method_name == "configure"
+                                or method_name == "cget"
+                            ):
+                                found = True
+                                break
+                    if not found and has_local_class:
                         cls_display = ", ".join(sorted(class_names))
                         self.result.diagnostics.append(
                             Diagnostic(

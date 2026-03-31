@@ -1303,6 +1303,24 @@ $obj destroy
         diags = _diag_with_code(source, "W308")
         assert len(diags) == 0
 
+    def test_external_class_new_no_w307(self):
+        """$obj method should NOT emit W307 when obj was set from [ExternalClass new]."""
+        source = """\
+set circuit [Circuit new {Monte-Carlo}]
+$circuit runAndRead
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_external_class_no_w308(self):
+        """Methods on external classes should not emit W308."""
+        source = """\
+set circuit [Circuit new {Monte-Carlo}]
+$circuit runAndRead
+"""
+        diags = _diag_with_code(source, "W308")
+        assert len(diags) == 0
+
 
 # W108: Non-ASCII token content
 
