@@ -1177,13 +1177,36 @@ _TIMING_RE = re.compile(r"\[timing\]\s+(\S+)\s+([\d.]+)ms")
 
 
 def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1) -> None:
-    """Benchmark time-to-semantic-tokens and collect server timing breakdown."""
+    """Benchmark time-to-semantic-tokens replicating VS Code's request pattern.
+
+    VS Code sends requests sequentially after didOpen:
+      1. didOpen (fire-and-forget notification)
+      2. workspace/didChangeConfiguration (dialect)
+      3. documentSymbol
+      4. codeAction (after diagnostics arrive)
+      5. documentLink
+      6. inlayHint
+      7. foldingRange
+      8. documentSymbol (re-request)
+      9. semanticTokens/full
+    Each request waits for the previous response, matching the editor's
+    sequential processing model.
+    """
     n_lines = content.count("\n") + 1
-    print("=== Benchmark ===")
+    print("=== Benchmark (VS Code pattern) ===")
     print(f"  File: {uri.split('/')[-1]}")
     print(f"  Lines: {n_lines}, Size: {len(content)} bytes")
     print(f"  Iterations: {iterations}")
     print()
+
+    td = {"textDocument": {"uri": uri}}
+    full_range = {
+        "textDocument": {"uri": uri},
+        "range": {
+            "start": {"line": 0, "character": 0},
+            "end": {"line": n_lines, "character": 0},
+        },
+    }
 
     for i in range(iterations):
         client.clear_timing()
@@ -1205,21 +1228,58 @@ def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1)
                     }
                 },
             )
-            time.sleep(0.01)
 
-        t0 = time.perf_counter()
-        result = client.send_request(
-            "textDocument/semanticTokens/full",
-            {"textDocument": {"uri": uri}},
-        )
-        t1 = time.perf_counter()
+        t_open = time.perf_counter()
 
+        # VS Code sends didChangeConfiguration shortly after didOpen.
+        ext = uri.rsplit(".", 1)[-1].lower() if "." in uri else ""
+        if ext in ("irul", "irule"):
+            client.send_notification(
+                "workspace/didChangeConfiguration",
+                {"settings": {"tclLsp": {"dialect": "f5-irules"}}},
+            )
+
+        # Sequential request chain — each waits for its response.
+        step_times: list[tuple[str, float]] = []
+
+        def _step(name: str, method: str, params: dict) -> object:
+            t = time.perf_counter()
+            result = client.send_request(method, params, timeout=120.0)
+            elapsed = (time.perf_counter() - t) * 1000
+            step_times.append((name, elapsed))
+            return result
+
+        code_action_params = {
+            "textDocument": {"uri": uri},
+            "range": {
+                "start": {"line": 0, "character": 0},
+                "end": {"line": 0, "character": 0},
+            },
+            "context": {"diagnostics": []},
+        }
+        inlay_hint_params = {
+            "textDocument": {"uri": uri},
+            "range": {
+                "start": {"line": 0, "character": 0},
+                "end": {"line": min(n_lines, 50), "character": 0},
+            },
+        }
+        _step("documentSymbol", "textDocument/documentSymbol", td)
+        _step("codeAction", "textDocument/codeAction", code_action_params)
+        _step("documentLink", "textDocument/documentLink", td)
+        _step("inlayHint", "textDocument/inlayHint", inlay_hint_params)
+        _step("foldingRange", "textDocument/foldingRange", td)
+        _step("documentSymbol", "textDocument/documentSymbol", td)
+
+        result = _step("semanticTokens/full", "textDocument/semanticTokens/full", td)
+
+        t_tokens = time.perf_counter()
+        total_ms = (t_tokens - t_open) * 1000
         data = result.get("data", []) if result else []
         n_tokens = len(data) // 5
-        wall_ms = (t1 - t0) * 1000
 
         # Wait for timing logs to arrive.
-        time.sleep(0.3)
+        time.sleep(0.5)
 
         timing_lines = client.get_timing_lines()
         server_timings: dict[str, float] = {}
@@ -1229,8 +1289,11 @@ def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1)
                 server_timings[m.group(1)] = float(m.group(2))
 
         print(f"  Iteration {i + 1}:")
-        print(f"    Wall clock (request → response): {wall_ms:.1f}ms")
+        print(f"    Total (didOpen → tokens): {total_ms:.0f}ms")
         print(f"    Tokens: {n_tokens}")
+        print("    Request chain:")
+        for name, ms in step_times:
+            print(f"      {name}: {ms:.0f}ms")
         if server_timings:
             print("    Server timings:")
             for label, ms in sorted(server_timings.items()):
