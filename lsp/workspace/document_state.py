@@ -152,6 +152,9 @@ def _analyse_document_fresh(
     line_length: int,
     dialect: str,
     uri: str,
+    disabled_diagnostics: set[str] | None = None,
+    disabled_optimisations: set[str] | None = None,
+    optimiser_enabled: bool = True,
 ) -> dict:
     """Run the full analysis pipeline in a subprocess.
 
@@ -212,6 +215,30 @@ def _analyse_document_fresh(
 
     buf = DocumentBuffer.from_source(source, version)
 
+    # Compute basic diagnostics in the subprocess so the main process
+    # doesn't need to run _phase1 in asyncio.to_thread (which would
+    # hold the GIL and block the event loop).
+    basic_diags = []
+    suppressed: dict[int, frozenset[str]] = {}
+    try:
+        from lsp.features.diagnostics import get_basic_diagnostics
+
+        partial = any(cmd.is_partial for chunk in chunks for cmd in chunk.commands)
+        basic_diags, _analysis_out, suppressed = get_basic_diagnostics(
+            source,
+            analysis=analysis,
+            cu=compilation_unit,
+            optimiser_enabled=optimiser_enabled and not partial,
+            disabled_diagnostics=disabled_diagnostics or set(),
+            disabled_optimisations=disabled_optimisations or set(),
+            line_length=line_length,
+            cached_style_diagnostics=None,
+            workspace_context=None,
+            uri=uri,
+        )
+    except Exception:
+        log.debug("subprocess: basic diagnostics failed", exc_info=True)
+
     elapsed_ms = (time.perf_counter() - t0) * 1000
     n_procs = len(compilation_unit.procedures) if compilation_unit else 0
     log.info(
@@ -230,6 +257,8 @@ def _analyse_document_fresh(
         "chunk_caches": chunk_caches,
         "file_profiles": file_profiles,
         "buffer": buf,
+        "basic_diags": basic_diags,
+        "suppressed": suppressed,
     }
 
 

@@ -1231,9 +1231,11 @@ def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1)
 
         t_open = time.perf_counter()
 
-        # VS Code sends didChangeConfiguration shortly after didOpen.
+        # VS Code sends didChangeConfiguration shortly after didOpen —
+        # detect iRules content or extension to match real editor behavior.
         ext = uri.rsplit(".", 1)[-1].lower() if "." in uri else ""
-        if ext in ("irul", "irule"):
+        is_irules = ext in ("irul", "irule") or "when " in content[:2000]
+        if is_irules:
             client.send_notification(
                 "workspace/didChangeConfiguration",
                 {"settings": {"tclLsp": {"dialect": "f5-irules"}}},

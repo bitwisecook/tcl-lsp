@@ -1947,6 +1947,7 @@ async def _publish_diagnostics(
     # preserve the in-process proc/interproc caches.
     t_update = time.perf_counter()
     did_analyse = needs_analysis or force_reanalyse
+    subprocess_result: dict | None = None
     if did_analyse:
         is_fresh = state.analysis is None or force_reanalyse
         if is_fresh:
@@ -1965,9 +1966,13 @@ async def _publish_diagnostics(
                         line_length=line_length,
                         dialect=active_dialect(),
                         uri=uri,
+                        disabled_diagnostics=disabled_diagnostics,
+                        disabled_optimisations=disabled_optimisations,
+                        optimiser_enabled=optimiser_enabled,
                     ),
                 )
                 state.apply_subprocess_result(result, version)
+                subprocess_result = result
             except BrokenProcessPool:
                 log.warning("Process pool broken, falling back to thread")
                 global _process_pool
@@ -2022,6 +2027,14 @@ async def _publish_diagnostics(
         basic_diags: list[types.Diagnostic] = []
         analysis_result = None
         suppressed: set[str] = set()
+    elif subprocess_result is not None and "basic_diags" in subprocess_result:
+        # Use pre-computed diagnostics from the subprocess — avoids
+        # running _phase1 in asyncio.to_thread which would hold the
+        # GIL and block the event loop.
+        basic_diags = subprocess_result["basic_diags"]
+        analysis_result = subprocess_result.get("analysis")
+        suppressed = subprocess_result.get("suppressed", {})
+        log.info("[timing] phase1 diagnostics 0ms (from subprocess, diags=%d)", len(basic_diags))
     else:
         # Cache lookup also touches state — do it on the event loop.
         cached_style = state.get_cached_style_diagnostics(
