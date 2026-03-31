@@ -20,7 +20,7 @@ full details on Python setup across platforms.
 ```toml
 [language-server.tcl-lsp]
 command = "uv"
-args = ["run", "--directory", "/path/to/tcl-lsp", "--no-dev", "python", "-m", "server"]
+args = ["run", "--directory", "/path/to/tcl-lsp", "--no-dev", "python", "-m", "lsp"]
 
 # Or with the standalone zipapp:
 # command = "python3"

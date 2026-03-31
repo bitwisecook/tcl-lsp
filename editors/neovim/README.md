@@ -18,7 +18,7 @@ The server needs to be accessible via one of:
 
 ```sh
 # Option A — run from source (requires uv)
-uv run --directory /path/to/tcl-lsp --no-dev python -m server
+uv run --directory /path/to/tcl-lsp --no-dev python -m lsp
 
 # Option B — standalone zipapp (just needs Python 3.10+)
 python3 /path/to/tcl-lsp-server.pyz
