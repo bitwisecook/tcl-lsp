@@ -1930,6 +1930,11 @@ async def _publish_diagnostics(
         needs_analysis = True
     else:
         needs_analysis = state.update_source_quick(source, version)
+        # If the source is unchanged but analysis hasn't run yet (e.g.
+        # didOpen created the state with analyse=False), we still need
+        # to perform analysis.
+        if not needs_analysis and state.analysis is None:
+            needs_analysis = True
     quick_ms = (time.perf_counter() - t_quick) * 1000
 
     # Eagerly precompute syntax-only tokens on the event loop (~200 ms)
