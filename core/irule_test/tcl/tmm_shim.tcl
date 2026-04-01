@@ -48,6 +48,14 @@ namespace eval ::tmm {
     # Commands that exist in 8.5+ but not in 8.4 TMM -- from generated registry data.
     variable post84_commands $_gen_post84_commands
 
+    # ── Helpers ────────────────────────────────────────────────────────
+
+    # Escape glob-special characters so operator-named commands like *,
+    # ?, [, ] are not treated as patterns by [info commands].
+    proc _glob_escape {s} {
+        string map {* \\* ? \\? [ \\[ ] \\] \\ \\\\} $s
+    }
+
     # ── Initialisation ────────────────────────────────────────────────
 
     proc init {args} {
@@ -103,7 +111,7 @@ namespace eval ::tmm {
             if {$cmd eq "rename"} continue
 
             # Save the original if it exists (for framework internal use)
-            if {[llength [::info commands ::$cmd]]} {
+            if {[llength [::info commands ::[_glob_escape $cmd]]]} {
                 ::tmm::_orig_rename ::$cmd ::tmm::_orig_$cmd
             }
             # Install the blocker -- matches real TMM error
@@ -133,7 +141,7 @@ namespace eval ::tmm {
         variable post84_commands
 
         foreach cmd $post84_commands {
-            if {[llength [::info commands ::$cmd]]} {
+            if {[llength [::info commands ::[_glob_escape $cmd]]]} {
                 ::tmm::_orig_rename ::$cmd ::tmm::_orig_$cmd
                 # Smart blocker: checks caller namespace at call time.
                 # By call time, _install_namespace_restriction has run so
@@ -359,7 +367,7 @@ namespace eval ::tmm {
         # is the tool we use to restore everything else.
         foreach cmd [concat $disabled_commands $post84_commands] {
             if {$cmd eq "rename"} continue
-            if {[llength [::tmm::_orig_info commands ::tmm::_orig_$cmd]]} {
+            if {[llength [::tmm::_orig_info commands ::tmm::_orig_[_glob_escape $cmd]]]} {
                 catch { ::tmm::_orig_rename ::$cmd {} }
                 ::tmm::_orig_rename ::tmm::_orig_$cmd ::$cmd
             }
