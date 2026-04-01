@@ -88,6 +88,7 @@ class TclLspSettingsPanel {
     private val diagW115 = JBCheckBox("W115: Backslash-newline in comment silently swallows the n...")
     private val diagW116 = JBCheckBox("W116: Stub command shadows built-in command")
     private val diagW117 = JBCheckBox("W117: Stub expression definition shadows built-in function...")
+    private val diagW118 = JBCheckBox("W118: Inconsistent line endings")
     private val diagW120 = JBCheckBox("W120: Command used without a corresponding package require")
     private val diagW121 = JBCheckBox("W121: Subnet mask has non-contiguous bits")
     private val diagW122 = JBCheckBox("W122: Mistyped IPv4 address (octet > 255 or leading zero)")
@@ -297,8 +298,8 @@ class TclLspSettingsPanel {
         listOf(
             diagW001, diagW002, diagW100, diagW104, diagW105, diagW106,
             diagW108, diagW110, diagW111, diagW112, diagW113, diagW114,
-            diagW115, diagW116, diagW117, diagW120, diagW121, diagW122,
-            diagW124, diagW126, diagW200, diagW201,
+            diagW115, diagW116, diagW117, diagW118, diagW120, diagW121,
+            diagW122, diagW124, diagW126, diagW200, diagW201,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -476,6 +477,7 @@ class TclLspSettingsPanel {
             diagW115.isSelected != s.diagnosticW115 ||
             diagW116.isSelected != s.diagnosticW116 ||
             diagW117.isSelected != s.diagnosticW117 ||
+            diagW118.isSelected != s.diagnosticW118 ||
             diagW120.isSelected != s.diagnosticW120 ||
             diagW121.isSelected != s.diagnosticW121 ||
             diagW122.isSelected != s.diagnosticW122 ||
@@ -661,6 +663,7 @@ class TclLspSettingsPanel {
         s.diagnosticW115 = diagW115.isSelected
         s.diagnosticW116 = diagW116.isSelected
         s.diagnosticW117 = diagW117.isSelected
+        s.diagnosticW118 = diagW118.isSelected
         s.diagnosticW120 = diagW120.isSelected
         s.diagnosticW121 = diagW121.isSelected
         s.diagnosticW122 = diagW122.isSelected
@@ -843,6 +846,7 @@ class TclLspSettingsPanel {
         diagW115.isSelected = s.diagnosticW115
         diagW116.isSelected = s.diagnosticW116
         diagW117.isSelected = s.diagnosticW117
+        diagW118.isSelected = s.diagnosticW118
         diagW120.isSelected = s.diagnosticW120
         diagW121.isSelected = s.diagnosticW121
         diagW122.isSelected = s.diagnosticW122

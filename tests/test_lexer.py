@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.parsing.lexer import TclLexer
+from core.parsing.substitution import backslash_subst
 from core.parsing.tokens import Token, TokenType
 
 
@@ -303,3 +304,128 @@ class TestBackslashNewlineMidWord:
         assert texts[1] == "arg1"
         brace_tok = next(t for t in toks if t.text == "braced body")
         assert brace_tok.type == TokenType.STR
+
+
+class TestBackslashCRLFContinuation:
+    """Backslash followed by CR, CRLF, or LF must all act as line continuations.
+
+    Mirrors C Tcl's ``TclParseBackslash`` behaviour where ``\\<CR>``,
+    ``\\<CR><LF>``, and ``\\<LF>`` are all valid line continuations.
+    """
+
+    # -- Unquoted context: word splitting ------------------------------------
+
+    def test_crlf_continuation_splits_word(self):
+        """foo\\<CR><LF>{bar} must split into foo + {bar} like \\<LF>."""
+        source = "foo\\\r\n{bar}"
+        toks = _tokens(source, include_sep=True)
+        non_sep = [t for t in toks if t.type not in (TokenType.SEP, TokenType.EOL)]
+        assert non_sep[0].text == "foo"
+        assert non_sep[1].type == TokenType.STR
+        assert non_sep[1].text == "bar"
+
+    def test_cr_continuation_splits_word(self):
+        """foo\\<CR>{bar} must split into foo + {bar} like \\<LF>."""
+        source = "foo\\\r{bar}"
+        toks = _tokens(source, include_sep=True)
+        non_sep = [t for t in toks if t.type not in (TokenType.SEP, TokenType.EOL)]
+        assert non_sep[0].text == "foo"
+        assert non_sep[1].type == TokenType.STR
+        assert non_sep[1].text == "bar"
+
+    def test_crlf_continuation_emits_sep(self):
+        """A SEP must appear between the word and the next token."""
+        source = "foo\\\r\n{bar}"
+        toks = _tokens(source, include_sep=True)
+        types = [t.type for t in toks]
+        foo_idx = next(i for i, t in enumerate(toks) if t.text == "foo")
+        bar_idx = next(i for i, t in enumerate(toks) if t.text == "bar")
+        assert TokenType.SEP in types[foo_idx + 1 : bar_idx]
+
+    # -- Command continuation ------------------------------------------------
+
+    def test_crlf_cmd_continuation(self):
+        """A command split across CRLF continuation must parse correctly."""
+        source = "testCmd arg1 \\\r\n{braced body}"
+        toks = _tokens(source)
+        texts = [t.text for t in toks]
+        assert texts[0] == "testCmd"
+        assert texts[1] == "arg1"
+        brace_tok = next(t for t in toks if t.text == "braced body")
+        assert brace_tok.type == TokenType.STR
+
+    def test_cr_cmd_continuation(self):
+        """A command split across CR continuation must parse correctly."""
+        source = "testCmd arg1 \\\r{braced body}"
+        toks = _tokens(source)
+        texts = [t.text for t in toks]
+        assert texts[0] == "testCmd"
+        assert texts[1] == "arg1"
+        brace_tok = next(t for t in toks if t.text == "braced body")
+        assert brace_tok.type == TokenType.STR
+
+    # -- Inside double quotes ------------------------------------------------
+
+    def test_crlf_inside_quotes_no_split(self):
+        """Inside double quotes, \\<CRLF> does NOT split the word."""
+        source = '"foo\\\r\nbar"'
+        toks = _tokens(source)
+        assert len(toks) == 1
+        assert toks[0].type == TokenType.ESC
+
+    def test_cr_inside_quotes_no_split(self):
+        """Inside double quotes, \\<CR> does NOT split the word."""
+        source = '"foo\\\rbar"'
+        toks = _tokens(source)
+        assert len(toks) == 1
+        assert toks[0].type == TokenType.ESC
+
+    # -- Inside braces -------------------------------------------------------
+
+    def test_crlf_inside_braces(self):
+        """Backslash-CRLF inside braces is preserved (braces are literal)."""
+        source = "{foo\\\r\nbar}"
+        toks = _tokens(source)
+        assert len(toks) == 1
+        assert toks[0].type == TokenType.STR
+
+    # -- Comments ------------------------------------------------------------
+
+    def test_crlf_comment_continuation(self):
+        """Backslash-CRLF in a comment continues to the next line."""
+        source = "# hello \\\r\nworld\nputs hi"
+        toks = _tokens(source)
+        comment_tok = next(t for t in toks if t.type == TokenType.COMMENT)
+        # Comment should swallow "world" via continuation.
+        assert "world" in comment_tok.text
+
+    def test_cr_comment_continuation(self):
+        """Backslash-CR in a comment continues to the next line."""
+        source = "# hello \\\rworld\nputs hi"
+        toks = _tokens(source)
+        comment_tok = next(t for t in toks if t.type == TokenType.COMMENT)
+        assert "world" in comment_tok.text
+
+
+class TestBackslashSubstCRLF:
+    """backslash_subst must handle CR and CRLF line continuations."""
+
+    def test_lf_continuation(self):
+        """Standard \\<LF> continuation produces a single space."""
+        assert backslash_subst("hello\\\nworld") == "hello world"
+
+    def test_crlf_continuation(self):
+        """\\<CRLF> continuation produces a single space."""
+        assert backslash_subst("hello\\\r\nworld") == "hello world"
+
+    def test_cr_continuation(self):
+        """\\<CR> continuation produces a single space."""
+        assert backslash_subst("hello\\\rworld") == "hello world"
+
+    def test_crlf_continuation_strips_leading_whitespace(self):
+        """Leading whitespace after \\<CRLF> is consumed."""
+        assert backslash_subst("hello\\\r\n   world") == "hello world"
+
+    def test_r_escape_preserved(self):
+        r"""The two-character sequence \\r (backslash + letter r) still produces literal CR."""
+        assert backslash_subst("hello\\rworld") == "hello\rworld"
