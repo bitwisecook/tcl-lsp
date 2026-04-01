@@ -43,9 +43,12 @@ def backslash_subst(text: str) -> str:
             if c in _BACKSLASH_MAP:
                 result.append(_BACKSLASH_MAP[c])
                 i += 2
-            elif c == "\n":
+            elif c == "\n" or c == "\r":
                 # continuation line — skip newline and leading whitespace
                 i += 2
+                # Consume LF half of CRLF.
+                if c == "\r" and i < n and text[i] == "\n":
+                    i += 1
                 while i < n and text[i] in " \t":
                     i += 1
                 result.append(" ")

@@ -275,12 +275,20 @@ class TclLexer:
                     pos += 1
                     # Skip escaped char.
                     if pos < _len:
-                        if text[pos] == "\n":
+                        esc = text[pos]
+                        if esc == "\n":
                             line += 1
                             col = 0
+                            pos += 1
+                        elif esc == "\r":
+                            line += 1
+                            col = 0
+                            pos += 1
+                            if pos < _len and text[pos] == "\n":
+                                pos += 1
                         else:
                             col += 1
-                        pos += 1
+                            pos += 1
                 elif ch == "$" and not in_quotes and blevel == 0:
                     # ${...} inside command — scan for matching }.
                     if pos + 1 < _len and text[pos + 1] == "{":
@@ -502,12 +510,20 @@ class TclLexer:
                     pos += 1
                     # Skip escaped char if available.
                     if pos < _len:
-                        if text[pos] == "\n":
+                        esc = text[pos]
+                        if esc == "\n":
                             line += 1
                             col = 0
+                            pos += 1
+                        elif esc == "\r":
+                            line += 1
+                            col = 0
+                            pos += 1
+                            if pos < _len and text[pos] == "\n":
+                                pos += 1
                         else:
                             col += 1
-                        pos += 1
+                            pos += 1
                     continue
                 elif ch == "}":
                     level -= 1
@@ -686,16 +702,20 @@ class TclLexer:
                         col += 1
                         pos += 1
                         # Advance past escaped char.
-                        if text[pos] == "\n":
+                        esc = text[pos]
+                        if esc == "\n" or esc == "\r":
                             line += 1
                             col = 0
                             pos += 1
+                            # Consume the LF half of a CRLF pair.
+                            if esc == "\r" and pos < _len and text[pos] == "\n":
+                                pos += 1
                             # Backslash-newline at the very start of a
                             # token is pure line-continuation whitespace.
                             # Emit it as a SEP so the *next* token can
                             # recognise { or " as brace/quote delimiters
                             # (and plain words start fresh).
-                            if not insidequote and pos == self._start + 2:
+                            if not insidequote and bs_pos == self._start:
                                 self.pos = pos
                                 self._line = line
                                 self._col = col
@@ -794,12 +814,15 @@ class TclLexer:
             if ch == "\\":
                 if self.remaining >= 2:
                     next_ch = self.text[self.pos + 1] if self.pos + 1 < self._len else ""
-                    if next_ch == "\n" and not self.insidequote:
+                    if next_ch in ("\n", "\r") and not self.insidequote:
                         if self.pos == self._start:
                             # Backslash-newline at the very start of a
                             # token — emit as SEP so the next token can
                             # recognise { or " delimiters.
                             self._advance(2)
+                            # Consume LF half of CRLF.
+                            if next_ch == "\r" and self.remaining and self._cur() == "\n":
+                                self._advance()
                             self._end = self.pos - 1
                             self._type = TokenType.SEP
                             return
@@ -863,24 +886,35 @@ class TclLexer:
                     next_pos = pos + 1
                     if next_pos < _len:
                         next_ch = text[next_pos]
-                        if next_ch == "\n":
+                        if next_ch == "\n" or next_ch == "\r":
                             # Backslash-newline continuation.
                             col += 1
                             pos += 1
                             line += 1
                             col = 0
                             pos += 1
+                            # Consume LF half of CRLF.
+                            if next_ch == "\r" and pos < _len and text[pos] == "\n":
+                                pos += 1
                             continue
                         else:
                             # Backslash followed by another char.
                             col += 1
                             pos += 1
-                            if text[pos] == "\n":
+                            esc2 = text[pos]
+                            if esc2 == "\n":
                                 line += 1
                                 col = 0
+                                pos += 1
+                            elif esc2 == "\r":
+                                line += 1
+                                col = 0
+                                pos += 1
+                                if pos < _len and text[pos] == "\n":
+                                    pos += 1
                             else:
                                 col += 1
-                            pos += 1
+                                pos += 1
                             continue
                 if ch == "\n":
                     break
@@ -898,9 +932,12 @@ class TclLexer:
                     next_pos = self.pos + 1
                     if next_pos < self._len:
                         next_ch = self.text[next_pos]
-                        if next_ch == "\n":
+                        if next_ch == "\n" or next_ch == "\r":
                             self._advance()  # skip backslash
-                            self._advance()  # skip newline
+                            self._advance()  # skip CR or LF
+                            # Consume LF half of CRLF.
+                            if next_ch == "\r" and self.remaining and self._cur() == "\n":
+                                self._advance()
                             continue
                         else:
                             self._advance()  # skip backslash
