@@ -240,7 +240,8 @@ def _check_line_length(
     diagnostics: list[Diagnostic] = []
     offset = 0
     for lineno, line in enumerate(lines):
-        length = len(line)
+        # Strip \r so CRLF line endings don't inflate the count.
+        length = len(line.rstrip("\r"))
         if length > max_length:
             diagnostics.append(
                 Diagnostic(
@@ -308,6 +309,61 @@ def _check_trailing_whitespace(source: str, *, lines: list[str] | None = None) -
             )
         offset += len(line) + 1  # +1 for the \n
     return diagnostics
+
+
+@diag("W118", "Inconsistent line endings.", section="warning")
+def _check_line_endings(source: str, *, expected: str = "\n") -> list[Diagnostic]:
+    """W118: Flag files with line endings that don't match the configured style.
+
+    Scans the source for ``\\r\\n``, ``\\r``, and ``\\n`` occurrences and emits
+    a single file-level diagnostic when the file contains line endings that
+    differ from *expected* (``"\\n"``, ``"\\r\\n"``, or ``"\\r"``).
+    """
+    # Count each line-ending style.
+    crlf = source.count("\r\n")
+    # Lone \r = total \r minus those that are part of \r\n.
+    cr = source.count("\r") - crlf
+    lf = source.count("\n") - crlf
+
+    # Build the set of endings actually present.
+    present: dict[str, int] = {}
+    if lf:
+        present["\n"] = lf
+    if crlf:
+        present["\r\n"] = crlf
+    if cr:
+        present["\r"] = cr
+
+    if not present:
+        return []
+
+    # Only fire when there are endings that differ from the expected style.
+    unexpected = {k: v for k, v in present.items() if k != expected}
+    if not unexpected:
+        return []
+
+    labels = {"\n": "LF", "\r\n": "CRLF", "\r": "CR"}
+    expected_label = labels.get(expected, repr(expected))
+
+    if len(present) > 1:
+        parts = ", ".join(f"{labels.get(k, repr(k))} ({v})" for k, v in present.items())
+        message = f"Mixed line endings: {parts}; expected {expected_label}"
+    else:
+        (actual_ending,) = unexpected
+        actual_label = labels.get(actual_ending, repr(actual_ending))
+        count = unexpected[actual_ending]
+        message = f"File uses {actual_label} line endings ({count}); expected {expected_label}"
+
+    # File-level diagnostic anchored at (0, 0).
+    pos = SourcePosition(line=0, character=0, offset=0)
+    return [
+        Diagnostic(
+            range=Range(start=pos, end=pos),
+            message=message,
+            severity=Severity.HINT,
+            code="W118",
+        )
+    ]
 
 
 @diag("W115", "Backslash-newline in comment silently swallows the next line.", section="warning")
@@ -455,6 +511,10 @@ def compute_all_style_diagnostics(
     need per-chunk partitioning should use :func:`bisect` on the result
     rather than calling :func:`compute_style_diagnostics_for_range`
     once per chunk (which re-scans the full source each time).
+
+    W118 (line endings) is a file-level diagnostic emitted by
+    :func:`get_basic_diagnostics` instead, to avoid duplication with
+    the per-chunk cache path.
     """
     diags: list[types.Diagnostic] = []
     lines = source.split("\n")
@@ -637,6 +697,7 @@ def get_basic_diagnostics(
     disabled_diagnostics: set[str] | None = None,
     disabled_optimisations: set[str] | None = None,
     line_length: int = 120,
+    line_ending: str = "\n",
     cached_style_diagnostics: list[types.Diagnostic] | None = None,
     workspace_context: WorkspaceDiagnosticContext | None = None,
     uri: str | None = None,
@@ -720,6 +781,11 @@ def get_basic_diagnostics(
                 if suppressed and _is_suppressed(d.code, d.range.start.line, suppressed):
                     continue
                 diags.append(_to_lsp_diagnostic(d))
+
+    # W118: inconsistent line endings
+    if not (disabled_diagnostics and "W118" in disabled_diagnostics):
+        for d in _check_line_endings(source, expected=line_ending):
+            diags.append(_to_lsp_diagnostic(d))
 
     # W120: command without package require
     if not (disabled_diagnostics and "W120" in disabled_diagnostics):

@@ -383,3 +383,77 @@ class TestW112LineEndings:
         w112 = [d for d in diags if d.code == "W112"]
         assert len(w112) == 1
         assert w112[0].range.start.line == 1
+
+
+class TestW111LineEndings:
+    """W111 line-length must not count \\r from CRLF as a character."""
+
+    def test_crlf_does_not_inflate_length(self):
+        """A 120-char line with CRLF ending must not trigger W111 (default max=120)."""
+        line = "x" * 120
+        src = f"{line}\r\n"
+        diags, _, _ = get_basic_diagnostics(src)
+        assert "W111" not in [d.code for d in diags]
+
+    def test_crlf_over_limit_still_fires(self):
+        """A 121-char line with CRLF ending must still trigger W111."""
+        line = "x" * 121
+        src = f"{line}\r\n"
+        diags, _, _ = get_basic_diagnostics(src)
+        assert "W111" in [d.code for d in diags]
+
+
+class TestW118LineEndings:
+    """W118: inconsistent or mismatched line endings (GH-95)."""
+
+    def test_lf_expected_lf_no_warning(self):
+        """Pure LF file with LF configured — no W118."""
+        diags, _, _ = get_basic_diagnostics("set x 1\nset y 2\n", line_ending="\n")
+        assert "W118" not in [d.code for d in diags]
+
+    def test_crlf_expected_crlf_no_warning(self):
+        """Pure CRLF file with CRLF configured — no W118."""
+        diags, _, _ = get_basic_diagnostics("set x 1\r\nset y 2\r\n", line_ending="\r\n")
+        assert "W118" not in [d.code for d in diags]
+
+    def test_crlf_expected_lf_fires(self):
+        """CRLF file with LF configured — W118 fires."""
+        diags, _, _ = get_basic_diagnostics("set x 1\r\nset y 2\r\n", line_ending="\n")
+        w118 = [d for d in diags if d.code == "W118"]
+        assert len(w118) == 1
+        assert "CRLF" in w118[0].message
+        assert "expected LF" in w118[0].message
+
+    def test_lf_expected_crlf_fires(self):
+        """LF file with CRLF configured — W118 fires."""
+        diags, _, _ = get_basic_diagnostics("set x 1\nset y 2\n", line_ending="\r\n")
+        w118 = [d for d in diags if d.code == "W118"]
+        assert len(w118) == 1
+        assert "LF" in w118[0].message
+        assert "expected CRLF" in w118[0].message
+
+    def test_mixed_endings_fires(self):
+        """Mixed LF/CRLF file — W118 fires with 'Mixed' message."""
+        diags, _, _ = get_basic_diagnostics("set x 1\nset y 2\r\nset z 3\n", line_ending="\n")
+        w118 = [d for d in diags if d.code == "W118"]
+        assert len(w118) == 1
+        assert "Mixed" in w118[0].message
+
+    def test_no_newlines_no_warning(self):
+        """Single-line file with no newlines — no W118."""
+        diags, _, _ = get_basic_diagnostics("set x 1", line_ending="\n")
+        assert "W118" not in [d.code for d in diags]
+
+    def test_cr_expected_lf_fires(self):
+        """CR-only line endings with LF configured — W118 fires."""
+        diags, _, _ = get_basic_diagnostics("set x 1\rset y 2\r", line_ending="\n")
+        w118 = [d for d in diags if d.code == "W118"]
+        assert len(w118) == 1
+        assert "CR" in w118[0].message
+
+    def test_default_line_ending_is_lf(self):
+        """Default line_ending parameter is LF."""
+        # CRLF file without explicit line_ending should warn (default=LF)
+        diags, _, _ = get_basic_diagnostics("set x 1\r\nset y 2\r\n")
+        w118 = [d for d in diags if d.code == "W118"]
+        assert len(w118) == 1

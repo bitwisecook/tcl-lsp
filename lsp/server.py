@@ -2105,6 +2105,7 @@ async def _publish_diagnostics(
                 disabled_diagnostics=disabled_diagnostics,
                 disabled_optimisations=disabled_optimisations,
                 line_length=line_length,
+                line_ending=formatter_config.line_ending,
                 cached_style_diagnostics=cached_style,
                 workspace_context=ws_ctx,
                 uri=uri,
