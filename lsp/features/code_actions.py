@@ -592,10 +592,12 @@ def _extract_proc_action(
     proc_name = _next_extract_proc_name(analysis)
     params = _selection_param_names(selection)
 
-    dedented = _dedent_block(selection).strip("\n")
+    dedented = _dedent_block(selection).strip("\r\n")
     if not dedented.strip():
         return None
-    indented_body = "\n".join(f"    {line}" if line else "" for line in dedented.split("\n"))
+    indented_body = "\n".join(
+        f"    {line}" if line else "" for line in dedented.replace("\r\n", "\n").split("\n")
+    )
     param_list = " ".join(params)
     proc_text = f"proc {proc_name} {{{param_list}}} {{\n{indented_body}\n}}\n\n"
 
@@ -605,7 +607,7 @@ def _extract_proc_action(
     replacement = call
     if range_.start.character == 0:
         replacement = f"{_line_indent(source, range_.start.line)}{call}"
-        if selection.endswith("\n"):
+        if selection.endswith(("\n", "\r\n", "\r")):
             replacement += "\n"
 
     insert_line = _package_insert_line(source)
