@@ -267,10 +267,12 @@ def _check_trailing_whitespace(source: str, *, lines: list[str] | None = None) -
     diagnostics: list[Diagnostic] = []
     offset = 0
     for lineno, line in enumerate(lines):
-        stripped = line.rstrip()
-        if len(stripped) < len(line):
+        # Strip \r so CRLF line endings aren't flagged as trailing whitespace.
+        line_no_cr = line.rstrip("\r")
+        stripped = line_no_cr.rstrip()
+        if len(stripped) < len(line_no_cr):
             ws_start = len(stripped)
-            ws_end = len(line)
+            ws_end = len(line_no_cr)
             diagnostics.append(
                 Diagnostic(
                     range=Range(

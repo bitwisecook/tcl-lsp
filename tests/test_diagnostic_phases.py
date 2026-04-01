@@ -71,6 +71,18 @@ class TestBasicDiagnostics:
         codes = [d.code for d in diags]
         assert "W112" in codes
 
+    def test_w112_crlf_no_false_positive(self):
+        """W112 must not fire on bare CRLF line endings (GH-95)."""
+        diags, _result, _suppressed = get_basic_diagnostics("set x 1\r\nset y 2\r\n")
+        codes = [d.code for d in diags]
+        assert "W112" not in codes
+
+    def test_w112_crlf_with_real_trailing_space(self):
+        """W112 should still fire for actual trailing spaces before CRLF."""
+        diags, _result, _suppressed = get_basic_diagnostics("set x 1   \r\n")
+        codes = [d.code for d in diags]
+        assert "W112" in codes
+
     def test_w115_comment_continuation(self):
         """W115 (backslash-newline in comment) is a style check in the basic phase."""
         diags, _result, _suppressed = get_basic_diagnostics("# hello \\\nworld\nputs hi")
@@ -284,3 +296,90 @@ class TestCombinedGetDiagnostics:
                 snippet = source[start_off : end_off + 1]
                 # The replacement should make sense for the full snippet.
                 assert len(snippet) > 0, f"empty snippet for group edit {ge}"
+
+
+class TestW112LineEndings:
+    """W112 trailing-whitespace detection across LF, CRLF, and CR line endings (GH-95)."""
+
+    # -- LF (Unix) -----------------------------------------------------------
+
+    def test_lf_clean(self):
+        """No trailing whitespace with LF endings."""
+        diags, _, _ = get_basic_diagnostics("set x 1\nset y 2\n")
+        assert "W112" not in [d.code for d in diags]
+
+    def test_lf_trailing_spaces(self):
+        """Trailing spaces detected with LF endings."""
+        diags, _, _ = get_basic_diagnostics("set x 1   \nset y 2\n")
+        assert "W112" in [d.code for d in diags]
+
+    def test_lf_trailing_tab(self):
+        """Trailing tab detected with LF endings."""
+        diags, _, _ = get_basic_diagnostics("set x 1\t\nset y 2\n")
+        assert "W112" in [d.code for d in diags]
+
+    def test_lf_blank_line_no_false_positive(self):
+        """Blank LF-only lines must not trigger W112."""
+        diags, _, _ = get_basic_diagnostics("set x 1\n\nset y 2\n")
+        assert "W112" not in [d.code for d in diags]
+
+    # -- CRLF (Windows) ------------------------------------------------------
+
+    def test_crlf_clean(self):
+        """No false positive with bare CRLF endings."""
+        diags, _, _ = get_basic_diagnostics("set x 1\r\nset y 2\r\n")
+        assert "W112" not in [d.code for d in diags]
+
+    def test_crlf_trailing_spaces(self):
+        """Real trailing spaces before CRLF are detected."""
+        diags, _, _ = get_basic_diagnostics("set x 1   \r\nset y 2\r\n")
+        assert "W112" in [d.code for d in diags]
+
+    def test_crlf_trailing_tab(self):
+        """Trailing tab before CRLF is detected."""
+        diags, _, _ = get_basic_diagnostics("set x 1\t\r\nset y 2\r\n")
+        assert "W112" in [d.code for d in diags]
+
+    def test_crlf_blank_line_no_false_positive(self):
+        """Blank CRLF-only lines must not trigger W112."""
+        diags, _, _ = get_basic_diagnostics("set x 1\r\n\r\nset y 2\r\n")
+        assert "W112" not in [d.code for d in diags]
+
+    def test_crlf_multiple_lines_one_trailing(self):
+        """Only the line with actual trailing whitespace fires W112."""
+        src = "set a 1\r\nset b 2   \r\nset c 3\r\n"
+        diags, _, _ = get_basic_diagnostics(src)
+        w112 = [d for d in diags if d.code == "W112"]
+        assert len(w112) == 1
+        assert w112[0].range.start.line == 1
+
+    # -- CR (Classic Mac OS 9) ------------------------------------------------
+    # Pure CR files are not split into separate lines (split("\n") sees them
+    # as a single line), so W112 only fires for trailing whitespace at the
+    # very end of the "line" (i.e. end of file).
+
+    def test_cr_clean(self):
+        """No false positive with bare CR endings."""
+        diags, _, _ = get_basic_diagnostics("set x 1\rset y 2\r")
+        assert "W112" not in [d.code for d in diags]
+
+    def test_cr_trailing_spaces_at_end(self):
+        """Trailing spaces at the very end of a CR-only file are detected."""
+        diags, _, _ = get_basic_diagnostics("set x 1\rset y 2   ")
+        assert "W112" in [d.code for d in diags]
+
+    # -- Mixed ----------------------------------------------------------------
+
+    def test_mixed_endings_no_false_positive(self):
+        """File with mixed LF/CRLF, no trailing whitespace."""
+        src = "set x 1\nset y 2\r\nset z 3\n"
+        diags, _, _ = get_basic_diagnostics(src)
+        assert "W112" not in [d.code for d in diags]
+
+    def test_mixed_endings_with_trailing(self):
+        """File with mixed endings, trailing space only on CRLF line."""
+        src = "set x 1\nset y 2   \r\nset z 3\n"
+        diags, _, _ = get_basic_diagnostics(src)
+        w112 = [d for d in diags if d.code == "W112"]
+        assert len(w112) == 1
+        assert w112[0].range.start.line == 1
