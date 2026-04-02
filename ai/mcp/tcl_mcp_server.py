@@ -537,15 +537,49 @@ def _tool_convert(source: str, dialect: str = "") -> str:
     params={
         "source": {**_STR, "description": "Tcl or iRules source code to optimize"},
         "dialect": {**_STR, "description": "Language dialect. Auto-detected if empty."},
+        "profile": {
+            **_STR,
+            "description": (
+                "Optimisation profile: off, readability, standard, full, aggressive. Default: full."
+            ),
+        },
     },
     required=["source"],
 )
-def _tool_optimize(source: str, dialect: str = "") -> str:
+def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.compiler.optimiser import apply_optimisations, find_optimisations
+    from core.common.optimisation_profiles import (
+        DEFAULT_ACTION_PROFILE,
+        profile_from_name,
+        profile_spec,
+        profile_to_disabled,
+    )
+    from core.compiler.optimiser import (
+        apply_optimisations,
+        find_optimisations,
+        optimise_source_multipass,
+    )
 
-    opts = find_optimisations(source)
+    try:
+        prof = profile_from_name(profile)
+    except ValueError:
+        prof = DEFAULT_ACTION_PROFILE
+    spec = profile_spec(prof)
+    disabled = profile_to_disabled(prof)
+
+    if spec.multi_pass:
+        optimized, opts, iterations = optimise_source_multipass(
+            source,
+            max_iterations=spec.max_iterations,
+            disabled=disabled,
+        )
+    else:
+        all_opts = find_optimisations(source)
+        opts = [o for o in all_opts if o.code not in disabled]
+        optimized = apply_optimisations(source, opts) if opts else source
+        iterations = 1
+
     items = []
     for o in opts:
         item: dict = {
@@ -585,15 +619,16 @@ def _tool_optimize(source: str, dialect: str = "") -> str:
         )
     grouped_items.extend(ungrouped)
 
-    optimized = apply_optimisations(source, opts) if opts else source
-    return json.dumps(
-        {
-            "optimizations": grouped_items,
-            "total": len(grouped_items),
-            "optimized_source": optimized,
-            "changed": optimized != source,
-        }
-    )
+    result: dict = {
+        "optimizations": grouped_items,
+        "total": len(grouped_items),
+        "optimized_source": optimized,
+        "changed": optimized != source,
+        "profile": spec.name,
+    }
+    if spec.multi_pass:
+        result["iterations"] = iterations
+    return json.dumps(result)
 
 
 # LSP-equivalent tools

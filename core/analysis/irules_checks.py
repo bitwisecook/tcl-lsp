@@ -160,7 +160,13 @@ def check_command_event_validity(
 # IRULE2001: Deprecated matchclass → class match
 
 
-@diag("IRULE2001", "Deprecated `matchclass` — use `class match` instead.", section="irules")
+@diag(
+    code="IRULE2001",
+    description="Deprecated `matchclass` — use `class match` instead.",
+    section="irules",
+    ai_category="style",
+    conversion_label="Deprecated matchclass -> class match",
+)
 def check_matchclass(
     cmd_name: str,
     args: list[str],
@@ -213,9 +219,10 @@ def check_matchclass(
 
 
 @diag(
-    "IRULE2101",
-    "Heavy `regexp` in a high-frequency event — consider `string match` or data-group.",
+    code="IRULE2101",
+    description="Heavy `regexp` in a high-frequency event — consider `string match` or data-group.",
     section="irules",
+    ai_category="performance",
 )
 def check_heavy_regex_in_hot_event(
     cmd_name: str,
@@ -249,7 +256,13 @@ def check_heavy_regex_in_hot_event(
 # IRULE5001: Ungated log in hot event
 
 
-@diag("IRULE5001", "Ungated `log` in a high-frequency event.", section="irules")
+@diag(
+    code="IRULE5001",
+    description="Ungated `log` in a high-frequency event.",
+    section="irules",
+    ai_category="performance",
+    conversion_label="Ungated log in hot event -> add debug gating",
+)
 def check_ungated_log(
     cmd_name: str,
     args: list[str],

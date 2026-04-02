@@ -208,6 +208,7 @@ class _CliConfig:
     diagnostics_enabled: bool = True
     disabled_diagnostics: set[str] = field(default_factory=set)
     optimiser_enabled: bool = True
+    optimiser_profile: str = "full"  # CLI default is full (explicit action)
     disabled_optimisations: set[str] = field(default_factory=set)
 
 
@@ -290,10 +291,28 @@ def _load_config() -> _CliConfig:
         sec = cp["optimiser"]
         enabled = sec.get("enabled", "true").strip().lower()
         cfg.optimiser_enabled = enabled != "false"
+        profile_raw = sec.get("profile", "").strip().lower()
+        if profile_raw:
+            cfg.optimiser_profile = profile_raw
+        # Resolve profile to baseline disabled set.
+        from core.common.optimisation_profiles import (
+            DEFAULT_ACTION_PROFILE,
+            profile_from_name,
+            profile_to_disabled,
+        )
+
+        try:
+            profile = profile_from_name(cfg.optimiser_profile)
+        except ValueError:
+            profile = DEFAULT_ACTION_PROFILE
+        cfg.disabled_optimisations = set(profile_to_disabled(profile))
+        # Per-code overrides layer on top of profile.
         for code in _ALL_OPTIMISATION_CODES:
-            val = sec.get(code, "true").strip().lower()
-            if val == "false":
+            raw_val = sec.get(code, "").strip().lower()
+            if raw_val == "false":
                 cfg.disabled_optimisations.add(code)
+            elif raw_val == "true":
+                cfg.disabled_optimisations.discard(code)
 
     return cfg
 
@@ -653,13 +672,45 @@ def _resolve_disabled_diagnostics(args: argparse.Namespace) -> set[str]:
     return disabled
 
 
-def _resolve_disabled_optimisations(args: argparse.Namespace) -> set[str]:
-    """Build the set of optimisation codes to suppress."""
+def _resolve_disabled_optimisations(args: argparse.Namespace) -> tuple[set[str], bool, int]:
+    """Build the set of optimisation codes to suppress and multi-pass params.
+
+    Returns ``(disabled_codes, multi_pass, max_iterations)``.
+    """
+    from core.common.optimisation_profiles import (
+        DEFAULT_ACTION_PROFILE,
+        profile_from_name,
+        profile_spec,
+        profile_to_disabled,
+    )
+
     cfg: _CliConfig | None = getattr(args, "cli_config", None)
-    disabled = set(cfg.disabled_optimisations) if cfg else set()
+    profile_name = getattr(args, "profile", None)
+    if profile_name:
+        # CLI --profile overrides config file.
+        try:
+            profile = profile_from_name(profile_name)
+        except ValueError:
+            profile = DEFAULT_ACTION_PROFILE
+    elif cfg and cfg.optimiser_profile:
+        try:
+            profile = profile_from_name(cfg.optimiser_profile)
+        except ValueError:
+            profile = DEFAULT_ACTION_PROFILE
+    else:
+        profile = DEFAULT_ACTION_PROFILE
+
+    spec = profile_spec(profile)
+    disabled = set(profile_to_disabled(profile))
+    # Per-code overrides from config file.
+    if cfg:
+        disabled = set(cfg.disabled_optimisations)
+        # Re-apply profile if --profile overrides config.
+        if profile_name:
+            disabled = set(profile_to_disabled(profile))
     disabled |= _parse_code_set(getattr(args, "disable", None))
     disabled -= _parse_code_set(getattr(args, "enable", None))
-    return disabled
+    return disabled, spec.multi_pass, spec.max_iterations
 
 
 def _add_formatter_arguments(parser: argparse.ArgumentParser) -> None:
@@ -852,10 +903,19 @@ def _run_opt(args: argparse.Namespace) -> int:
     configure_signatures(dialect=args.dialect)
 
     source = _combine_sources(documents)
-    disabled = _resolve_disabled_optimisations(args)
-    all_optimisations = find_optimisations(source)
-    optimisations = [o for o in all_optimisations if o.code not in disabled]
-    optimised_source = apply_optimisations(source, optimisations)
+    disabled, multi_pass, max_iterations = _resolve_disabled_optimisations(args)
+    if multi_pass:
+        from core.compiler.optimiser import optimise_source_multipass
+
+        optimised_source, optimisations, _iters = optimise_source_multipass(
+            source,
+            max_iterations=max_iterations,
+            disabled=frozenset(disabled),
+        )
+    else:
+        all_optimisations = find_optimisations(source)
+        optimisations = [o for o in all_optimisations if o.code not in disabled]
+        optimised_source = apply_optimisations(source, optimisations)
 
     # Summary: append a styled comment block when writing to stdout,
     # otherwise emit a one-liner on stderr.
@@ -2278,6 +2338,12 @@ def parse_args(
     )
     _add_input_arguments(opt_p, include_output=True, default_dialect=default_dialect)
     _add_colour_arguments(opt_p)
+    opt_p.add_argument(
+        "--profile",
+        default=None,
+        choices=["off", "readability", "standard", "full", "aggressive"],
+        help="Optimisation profile (default: full). Overrides config file.",
+    )
     _add_toggle_arguments(opt_p, kind="optimisation")
     opt_p.set_defaults(handler=_run_opt)
 

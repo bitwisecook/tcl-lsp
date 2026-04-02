@@ -27,7 +27,9 @@ Example ``config.ini``::
 
     [optimiser]
     enabled = true
-    # Comma-separated optimisation codes to disable.
+    # Profile: off, readability, standard, full, aggressive.
+    profile = readability
+    # Comma-separated optimisation codes to disable (overrides profile).
     disabled = O109, O126
 
     [shimmer]
@@ -216,6 +218,8 @@ def get_all_settings(
             val = _parse_bool(config.get("optimiser", "enabled"))
             if val is not None:
                 opt["enabled"] = val
+        if config.has_option("optimiser", "profile"):
+            opt["profile"] = config.get("optimiser", "profile").strip()
         if config.has_option("optimiser", "disabled"):
             raw = config.get("optimiser", "disabled", fallback="")
             for code in _parse_comma_list(raw):
@@ -335,7 +339,13 @@ def save_settings_to_config(
         enabled = opt.get("enabled")
         if isinstance(enabled, bool) and _differs("optimiser", "enabled", enabled):
             items.append(("enabled", str(enabled).lower()))
-        disabled_opts = [k for k, v in opt.items() if k != "enabled" and v is False]
+        profile = opt.get("profile")
+        if isinstance(profile, str) and _differs("optimiser", "profile", profile):
+            items.append(("profile", profile))
+        # Only write per-code disables that differ from the profile baseline
+        # so the exported config stays minimal.
+        _NON_CODE_KEYS = {"enabled", "profile"}
+        disabled_opts = [k for k, v in opt.items() if k not in _NON_CODE_KEYS and v is False]
         if disabled_opts:
             items.append(("disabled", ", ".join(sorted(disabled_opts))))
         if items:

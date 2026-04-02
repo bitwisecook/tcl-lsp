@@ -21,9 +21,21 @@ from ._helpers import (
 from ._propagation import _substitute_expr_proc_calls
 from ._types import Optimisation, PassContext
 
-opt("O100", "Propagate constant variables into expressions and command arguments.")
-opt("O101", "Fold constant integer expressions.")
-opt("O115", "Remove redundant nested `[expr {...}]` in expression context.")
+opt(
+    code="O100",
+    description="Propagate constant variables into expressions and command arguments.",
+    opt_category="constant_folding",
+)
+opt(
+    code="O101",
+    description="Fold constant integer expressions.",
+    opt_category="constant_folding",
+)
+opt(
+    code="O115",
+    description="Remove redundant nested `[expr {...}]` in expression context.",
+    opt_category="readability",
+)
 
 
 def optimise_branch_proc_calls(

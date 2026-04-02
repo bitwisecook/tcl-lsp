@@ -7,7 +7,12 @@ Current safe subset -- see individual pass modules for details:
 from __future__ import annotations
 
 from ._expr_simplify import demorgan_transform, invert_expression
-from ._manager import apply_optimisations, find_optimisations, optimise_source
+from ._manager import (
+    apply_optimisations,
+    find_optimisations,
+    optimise_source,
+    optimise_source_multipass,
+)
 from ._types import Optimisation
 
 __all__ = [
@@ -17,4 +22,5 @@ __all__ = [
     "find_optimisations",
     "invert_expression",
     "optimise_source",
+    "optimise_source_multipass",
 ]

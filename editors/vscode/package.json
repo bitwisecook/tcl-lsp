@@ -3926,173 +3926,277 @@
             "description": "Enable optimiser suggestions as diagnostics.",
             "order": 0
           },
-          "tclLsp.optimiser.O100": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O100:** Propagate constant variables into expressions and command arguments.",
+          "tclLsp.optimiser.profile": {
+            "type": "string",
+            "enum": [
+              "off",
+              "readability",
+              "standard",
+              "full",
+              "aggressive"
+            ],
+            "default": "readability",
+            "enumDescriptions": [
+              "All optimisations disabled.",
+              "Readability improvements only — idiomatic rewrites, no code removal.",
+              "Readability + constant folding and pattern recognition.",
+              "All optimisations enabled (single pass).",
+              "All optimisations with multi-pass to fixpoint."
+            ],
+            "markdownDescription": "Optimisation profile controlling which passes run as diagnostics. Individual `O1xx` toggles below override the profile when explicitly set.",
             "order": 1
           },
-          "tclLsp.optimiser.O101": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O101:** Fold constant integer expressions.",
+          "tclLsp.optimiser.O100": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O100:** Propagate constant variables into expressions and command arguments. (`null` = inherit from profile)",
             "order": 2
           },
-          "tclLsp.optimiser.O102": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O102:** Fold constant `[expr {...}]` command substitutions.",
+          "tclLsp.optimiser.O101": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O101:** Fold constant integer expressions. (`null` = inherit from profile)",
             "order": 3
           },
-          "tclLsp.optimiser.O103": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O103:** Fold static procedure calls using interprocedural summaries.",
+          "tclLsp.optimiser.O102": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O102:** Fold constant `[expr {...}]` command substitutions. (`null` = inherit from profile)",
             "order": 4
           },
-          "tclLsp.optimiser.O104": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O104:** Fold static string build chains into a single assignment.",
+          "tclLsp.optimiser.O103": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O103:** Fold static procedure calls using interprocedural summaries. (`null` = inherit from profile)",
             "order": 5
           },
-          "tclLsp.optimiser.O105": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O105:** Propagate constants into variable references and detect redundant computations (GVN/CSE).",
+          "tclLsp.optimiser.O104": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O104:** Fold static string build chains into a single assignment. (`null` = inherit from profile)",
             "order": 6
           },
-          "tclLsp.optimiser.O106": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O106:** Hoist loop-invariant computations.",
+          "tclLsp.optimiser.O105": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O105:** Propagate constants into variable references and detect redundant computations (GVN/CSE). (`null` = inherit from profile)",
             "order": 7
           },
-          "tclLsp.optimiser.O107": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O107:** Eliminate unreachable dead code.",
+          "tclLsp.optimiser.O106": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O106:** Hoist loop-invariant computations. (`null` = inherit from profile)",
             "order": 8
           },
-          "tclLsp.optimiser.O108": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O108:** Eliminate transitively dead code.",
+          "tclLsp.optimiser.O107": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O107:** Eliminate unreachable dead code. (`null` = inherit from profile)",
             "order": 9
           },
-          "tclLsp.optimiser.O109": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O109:** Eliminate dead stores.",
+          "tclLsp.optimiser.O108": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O108:** Eliminate transitively dead code. (`null` = inherit from profile)",
             "order": 10
           },
-          "tclLsp.optimiser.O110": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O110:** Canonicalise expressions (InstCombine).",
+          "tclLsp.optimiser.O109": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O109:** Eliminate dead stores. (`null` = inherit from profile)",
             "order": 11
           },
-          "tclLsp.optimiser.O111": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O111:** Brace expression performance hints (paired with W100).",
+          "tclLsp.optimiser.O110": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O110:** Canonicalise expressions (InstCombine). (`null` = inherit from profile)",
             "order": 12
           },
-          "tclLsp.optimiser.O112": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O112:** Eliminate constant-condition compound statements.",
+          "tclLsp.optimiser.O111": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O111:** Brace expression performance hints (paired with W100). (`null` = inherit from profile)",
             "order": 13
           },
-          "tclLsp.optimiser.O113": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O113:** Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`).",
+          "tclLsp.optimiser.O112": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O112:** Eliminate constant-condition compound statements. (`null` = inherit from profile)",
             "order": 14
           },
-          "tclLsp.optimiser.O114": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O114:** Recognise `incr` idiom (`set x [expr {$x + N}]` → `incr x N`).",
+          "tclLsp.optimiser.O113": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O113:** Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`). (`null` = inherit from profile)",
             "order": 15
           },
-          "tclLsp.optimiser.O115": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O115:** Remove redundant nested `[expr {...}]` in expression context.",
+          "tclLsp.optimiser.O114": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O114:** Recognise `incr` idiom (`set x [expr {$x + N}]` → `incr x N`). (`null` = inherit from profile)",
             "order": 16
           },
-          "tclLsp.optimiser.O116": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O116:** Fold constant `[list a b c]` to literal value.",
+          "tclLsp.optimiser.O115": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O115:** Remove redundant nested `[expr {...}]` in expression context. (`null` = inherit from profile)",
             "order": 17
           },
-          "tclLsp.optimiser.O117": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O117:** Simplify `[string length $s] == 0` → `$s eq \"\"`.",
+          "tclLsp.optimiser.O116": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O116:** Fold constant `[list a b c]` to literal value. (`null` = inherit from profile)",
             "order": 18
           },
-          "tclLsp.optimiser.O118": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O118:** Fold constant `[lindex {a b c} 1]` to element.",
+          "tclLsp.optimiser.O117": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O117:** Simplify `[string length $s] == 0` → `$s eq \"\"`. (`null` = inherit from profile)",
             "order": 19
           },
-          "tclLsp.optimiser.O119": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O119:** Pack consecutive `set` literals into `lassign`/`foreach`.",
+          "tclLsp.optimiser.O118": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O118:** Fold constant `[lindex {a b c} 1]` to element. (`null` = inherit from profile)",
             "order": 20
           },
-          "tclLsp.optimiser.O120": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O120:** Prefer `eq`/`ne` over `==`/`!=` for string comparisons.",
+          "tclLsp.optimiser.O119": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O119:** Pack consecutive `set` literals into `lassign`/`foreach`. (`null` = inherit from profile)",
             "order": 21
           },
-          "tclLsp.optimiser.O121": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O121:** Rewrite self-recursive tail calls to `tailcall`.",
+          "tclLsp.optimiser.O120": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O120:** Prefer `eq`/`ne` over `==`/`!=` for string comparisons. (`null` = inherit from profile)",
             "order": 22
           },
-          "tclLsp.optimiser.O122": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O122:** Convert fully tail-recursive proc to iterative `while` loop.",
+          "tclLsp.optimiser.O121": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O121:** Rewrite self-recursive tail calls to `tailcall`. (`null` = inherit from profile)",
             "order": 23
           },
-          "tclLsp.optimiser.O123": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O123:** Detect non-tail recursion eligible for accumulator introduction (hint only).",
+          "tclLsp.optimiser.O122": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O122:** Convert fully tail-recursive proc to iterative `while` loop. (`null` = inherit from profile)",
             "order": 24
           },
-          "tclLsp.optimiser.O124": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O124:** Comment out unused procs in iRules (not called from any event).",
+          "tclLsp.optimiser.O123": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O123:** Detect non-tail recursion eligible for accumulator introduction (hint only). (`null` = inherit from profile)",
             "order": 25
           },
-          "tclLsp.optimiser.O125": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O125:** Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) that uses them.",
+          "tclLsp.optimiser.O124": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O124:** Comment out unused procs in iRules (not called from any event). (`null` = inherit from profile)",
             "order": 26
           },
-          "tclLsp.optimiser.O126": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O126:** Remove unused variable assignments — eliminate `set` statements for variables that are never read.",
+          "tclLsp.optimiser.O125": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O125:** Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) that uses them. (`null` = inherit from profile)",
             "order": 27
           },
-          "tclLsp.optimiser.O127": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**O127:** Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site.",
+          "tclLsp.optimiser.O126": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O126:** Remove unused variable assignments — eliminate `set` statements for variables that are never read. (`null` = inherit from profile)",
             "order": 28
+          },
+          "tclLsp.optimiser.O127": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O127:** Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site. (`null` = inherit from profile)",
+            "order": 29
           }
         }
       },

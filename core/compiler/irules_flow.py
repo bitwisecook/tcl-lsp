@@ -66,27 +66,41 @@ from .value_shapes import parse_command_substitution
 log = logging.getLogger(__name__)
 
 # iRules flow diagnostic codes
-diag("IRULE1005", "Data event without a matching `*::collect` call.", section="irules")
-diag("IRULE1006", "`*::payload` without a matching `*::collect` call.", section="irules")
 diag(
-    "IRULE1007",
-    "`*::collect` without a matching `*::release` on the same connection side.",
+    code="IRULE1005",
+    description="Data event without a matching `*::collect` call.",
     section="irules",
+    ai_category="control_flow",
 )
 diag(
-    "IRULE1008",
-    "`*::release` without a matching `*::collect` on the same connection side.",
+    code="IRULE1006",
+    description="`*::payload` without a matching `*::collect` call.",
     section="irules",
+    ai_category="control_flow",
 )
 diag(
-    "IRULE1201",
-    "HTTP command used after `HTTP::respond`/`HTTP::redirect`.",
+    code="IRULE1007",
+    description="`*::collect` without a matching `*::release` on the same connection side.",
     section="irules",
+    ai_category="control_flow",
 )
 diag(
-    "IRULE1202",
-    "Multiple `HTTP::respond`/`HTTP::redirect` on different branches.",
+    code="IRULE1008",
+    description="`*::release` without a matching `*::collect` on the same connection side.",
     section="irules",
+    ai_category="control_flow",
+)
+diag(
+    code="IRULE1201",
+    description="HTTP command used after `HTTP::respond`/`HTTP::redirect`.",
+    section="irules",
+    ai_category="control_flow",
+)
+diag(
+    code="IRULE1202",
+    description="Multiple `HTTP::respond`/`HTTP::redirect` on different branches.",
+    section="irules",
+    ai_category="control_flow",
 )
 diag(
     "IRULE4002",

@@ -44,19 +44,58 @@ from ._helpers import (
 from ._types import Optimisation, PassContext
 
 # O-code registrations for codes primarily emitted from this module
-opt("O102", "Fold constant `[expr {...}]` command substitutions.")
-opt("O103", "Fold static procedure calls using interprocedural summaries.")
 opt(
-    "O105",
-    "Propagate constants into variable references and detect redundant computations (GVN/CSE).",
+    code="O102",
+    description="Fold constant `[expr {...}]` command substitutions.",
+    opt_category="constant_folding",
 )
-opt("O110", "Canonicalise expressions (InstCombine).")
-opt("O111", "Brace expression performance hints (paired with W100).")
-opt("O113", "Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`).")
-opt("O116", "Fold constant `[list a b c]` to literal value.")
-opt("O117", 'Simplify `[string length $s] == 0` → `$s eq ""`.')
-opt("O118", "Fold constant `[lindex {a b c} 1]` to element.")
-opt("O120", "Prefer `eq`/`ne` over `==`/`!=` for string comparisons.")
+opt(
+    code="O103",
+    description="Fold static procedure calls using interprocedural summaries.",
+    opt_category="constant_folding",
+)
+opt(
+    code="O105",
+    description=(
+        "Propagate constants into variable references and detect redundant computations (GVN/CSE)."
+    ),
+    opt_category="constant_folding",
+)
+opt(
+    code="O110",
+    description="Canonicalise expressions (InstCombine).",
+    opt_category="constant_folding",
+)
+opt(
+    code="O111",
+    description="Brace expression performance hints (paired with W100).",
+    opt_category="readability",
+)
+opt(
+    code="O113",
+    description="Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`).",
+    opt_category="constant_folding",
+)
+opt(
+    code="O116",
+    description="Fold constant `[list a b c]` to literal value.",
+    opt_category="constant_folding",
+)
+opt(
+    code="O117",
+    description='Simplify `[string length $s] == 0` → `$s eq ""`.',
+    opt_category="readability",
+)
+opt(
+    code="O118",
+    description="Fold constant `[lindex {a b c} 1]` to element.",
+    opt_category="constant_folding",
+)
+opt(
+    code="O120",
+    description="Prefer `eq`/`ne` over `==`/`!=` for string comparisons.",
+    opt_category="readability",
+)
 
 
 def optimise_expression_args(
@@ -664,9 +703,12 @@ def _parse_static_call_arg(
 # ---------------------------------------------------------------------------
 
 opt(
-    "O127",
-    "Inline single-use variable assignment — eliminate redundant variable load by "
-    "folding `set` into the use site.",
+    code="O127",
+    description=(
+        "Inline single-use variable assignment — eliminate redundant variable load by "
+        "folding `set` into the use site."
+    ),
+    opt_category="code_motion",
 )
 
 

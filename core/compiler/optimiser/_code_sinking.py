@@ -452,8 +452,12 @@ def _body_insertion_replacement(
 
 
 @opt(
-    "O125",
-    "Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) that uses them.",
+    code="O125",
+    description=(
+        "Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) "
+        "that uses them."
+    ),
+    opt_category="code_motion",
 )
 def _emit_sinking_opts(
     ctx: PassContext,
