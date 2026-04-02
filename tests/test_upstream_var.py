@@ -435,6 +435,28 @@ class TestReadBeforeSet:
         diags = _diag_with_code(source, "W210")
         assert not any("result" in d.message for d in diags)
 
+    def test_dict_set_without_prior_set_no_w210(self):
+        """``dict set`` safely creates an uninitialised dict variable."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                dict set d key value
+                return $d
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        assert not any("d" in d.message for d in diags)
+
+    def test_dict_lappend_without_prior_set_no_w210(self):
+        """``dict lappend`` safely creates an uninitialised dict variable."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                dict lappend d key value
+                return $d
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        assert not any("'d'" in d.message for d in diags)
+
     def test_incr_after_set_no_w210(self):
         """``set x 0; incr x`` — 'x' is initialised, so no W210."""
         source = textwrap.dedent("""\
