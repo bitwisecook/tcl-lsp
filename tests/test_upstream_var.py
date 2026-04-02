@@ -414,6 +414,24 @@ class TestReadBeforeSet:
         finally:
             configure_signatures(dialect="tcl8.6")
 
+    def test_incr_without_prior_set_warns_irules(self):
+        """iRules is based on Tcl 8.4.6 — ``incr`` on uninit var errors."""
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="f5-irules")
+        try:
+            source = textwrap.dedent("""\
+                when HTTP_REQUEST {
+                    incr x
+                    log local0. $x
+                }
+            """)
+            diags = _diag_with_code(source, "W210")
+            x_diags = [d for d in diags if "x" in d.message]
+            assert len(x_diags) >= 1
+        finally:
+            configure_signatures(dialect="tcl8.6")
+
     def test_lappend_without_prior_set_no_w210(self):
         """``lappend`` safely creates an uninitialised variable — no W210."""
         source = textwrap.dedent("""\
