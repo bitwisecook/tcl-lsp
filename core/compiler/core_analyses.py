@@ -355,6 +355,56 @@ def _fold_interpolation(
     return LatticeValue.const(result)
 
 
+def _fold_interpolation_set(
+    value: str,
+    uses: dict[str, int],
+    values: dict[SSAValueKey, LatticeValue],
+) -> frozenset[str] | None:
+    """Resolve a Tcl word with variable substitutions to a set of strings.
+
+    Like ``_fold_interpolation`` but handles CONSTSET variables by computing
+    the Cartesian product of all possible interpolated strings.
+
+    Returns ``None`` if any variable is unresolvable (OVERDEFINED/UNKNOWN).
+    """
+    # Each element is either a literal string or a set of possible values.
+    segments: list[list[str]] = []
+    lexer = TclLexer(value)
+    while True:
+        tok = lexer.get_token()
+        if tok is None:
+            break
+        if tok.type is TokenType.VAR:
+            name = _normalise_var_name(tok.text)
+            ver = uses.get(name, 0)
+            lv = values.get((name, ver), UNKNOWN)
+            vs = _to_set(lv)
+            if vs is None:
+                return None  # OVERDEFINED or UNKNOWN
+            segments.append([str(v) for v in vs])
+        elif tok.type is TokenType.CMD:
+            return None
+        else:
+            segments.append([tok.text])
+
+    if not segments:
+        return None
+
+    # Compute Cartesian product, bounded by _MAX_CONSTSET_SIZE.
+    result: set[str] = set()
+    # Use iterative expansion to avoid importing itertools.
+    current: list[str] = [""]
+    for seg in segments:
+        next_round: list[str] = []
+        for prefix in current:
+            for piece in seg:
+                next_round.append(prefix + piece)
+                if len(next_round) > _MAX_CONSTSET_SIZE:
+                    return None  # too many combinations
+        current = next_round
+    return frozenset(current) if current else None
+
+
 _LIST_CMD_RE = re.compile(r"^\s*\[\s*list\s+(.*?)\s*\]\s*$", re.DOTALL)
 
 
@@ -398,6 +448,40 @@ def _extract_foreach_elements(list_text: str) -> list[str] | None:
     return None
 
 
+def _resolve_foreach_list_via_lattice(
+    list_text: str,
+    uses: dict[str, int],
+    values: dict[SSAValueKey, LatticeValue],
+) -> list[str] | None:
+    """Resolve a foreach list argument through the SCCP lattice.
+
+    Handles cases like ``foreach x $mylist`` where ``mylist`` has a known
+    constant value, and ``foreach x "a $sep b"`` where interpolation
+    produces a known constant string.
+    """
+    stripped = list_text.strip()
+    if not stripped:
+        return None
+
+    # Case 1: pure variable reference — foreach x $mylist
+    if is_pure_var_ref(stripped):
+        name = _normalise_var_name(stripped)
+        ver = uses.get(name, 0)
+        lv = values.get((name, ver), UNKNOWN)
+        if lv.kind is LatticeKind.CONST and isinstance(lv.value, str):
+            return _split_tcl_list(lv.value)
+        return None
+
+    # Case 2: interpolated string — foreach x "prefix_${v}_suffix"
+    # Only if it contains variable substitutions (no command subs).
+    if "$" in stripped and "[" not in stripped:
+        resolved = _fold_interpolation(stripped, uses, values)
+        if resolved.kind is LatticeKind.CONST and isinstance(resolved.value, str):
+            return _split_tcl_list(resolved.value)
+
+    return None
+
+
 def _evaluate_def(
     stmt: IRStatement,
     ssa_stmt: SSAStatement,
@@ -416,6 +500,12 @@ def _evaluate_def(
                 # command substitutions (which have runtime results).
                 if "[" not in value:
                     return LatticeValue.const(_parse_literal_value(value))
+                # Try folding [list ...] with all literal args.
+                m = _LIST_CMD_RE.match(value.strip())
+                if m:
+                    args_text = m.group(1)
+                    if "$" not in args_text and "[" not in args_text:
+                        return LatticeValue.const(args_text)
                 return OVERDEFINED
             stripped = value.strip()
             if is_pure_var_ref(stripped):
@@ -483,6 +573,12 @@ def _evaluate_def(
             # foreach x {a b c} or foreach x [list a b c] — extract the
             # set of constant values the iteration variable can take.
             elements = _extract_foreach_elements(args[0])
+            if elements is None:
+                # Try resolving variable references in the list arg
+                # through the SCCP lattice (e.g. foreach x $mylist).
+                elements = _resolve_foreach_list_via_lattice(
+                    args[0], ssa_stmt.uses, values,
+                )
             if elements is not None and len(elements) > 0:
                 vals = frozenset(_parse_literal_value(e) for e in elements)
                 return LatticeValue.constset(vals)

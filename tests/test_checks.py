@@ -1378,6 +1378,65 @@ foreach obj [list a b] {
         diags = _diag_with_code(source, "W307")
         assert len(diags) == 0
 
+    def test_foreach_var_mediated_list_no_w307(self):
+        """$cmd from foreach over $cmds (known const list) suppresses W307."""
+        source = """\
+proc a {} {puts a}
+proc b {} {puts b}
+set cmds {a b}
+foreach cmd $cmds {
+    $cmd
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_foreach_list_cmd_var_no_w307(self):
+        """$cmd from set items [list a b]; foreach cmd $items suppresses W307."""
+        source = """\
+proc x {} {puts x}
+proc y {} {puts y}
+set items [list x y]
+foreach cmd $items {
+    $cmd
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_interpolated_cmd_name_no_w123(self):
+        """cmd_$var with all resolved names known suppresses W123."""
+        source = """\
+proc cmd_a {} {puts a}
+proc cmd_b {} {puts b}
+foreach cmd {a b} {
+    cmd_$cmd
+}
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_proc_return_constant_no_w307(self):
+        """$h from [get_handler] where proc returns constant suppresses W307."""
+        source = """\
+proc get_handler {} { return puts }
+set h [get_handler]
+$h hello
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_proc_return_user_proc_no_w307(self):
+        """$h from [get_handler] returning a user-defined proc suppresses W307."""
+        source = """\
+proc my_handler {x} { puts $x }
+proc get_handler {} { return my_handler }
+set h [get_handler]
+$h hello
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
 
 # W108: Non-ASCII token content
 

@@ -35,7 +35,7 @@ from ..common.ranges import position_from_relative, range_from_token
 from ..compiler.cfg import CFGBranch, CFGFunction
 from ..compiler.compilation_unit import CompilationUnit, FunctionUnit, ensure_compilation_unit
 from ..compiler.compiler_checks import iter_ir_statements, run_compiler_checks
-from ..compiler.core_analyses import FunctionAnalysis, LatticeKind
+from ..compiler.core_analyses import FunctionAnalysis, LatticeKind, LatticeValue
 from ..compiler.ir import (
     IRAssignConst,
     IRAssignValue,
@@ -2917,6 +2917,9 @@ class Analyser:
         # Post-pass: resolve $var-as-command sites using the type lattice.
         self._emit_var_command_diagnostics(cu)
 
+        # Post-pass: resolve interpolated command names using CONSTSET.
+        self._resolve_interpolated_commands(cu)
+
     def _emit_var_command_diagnostics(self, cu: CompilationUnit) -> None:
         """Resolve ``$var method`` patterns using the type lattice.
 
@@ -2978,6 +2981,35 @@ class Analyser:
                                 all_constsets[var_name] = frozenset(
                                     _parse_literal_value(e) for e in elements
                                 )
+
+        # Interprocedural constant return resolution: if a variable was
+        # assigned from [known_proc] and that proc always returns a constant,
+        # record the constant value so W307 can check it.
+        if cu.interproc is not None:
+            import re as _re
+
+            _CMD_SUB_RE = _re.compile(r"^\[(\S+?)(?:\s.*)?\]$")
+            from ..compiler.ir import IRAssignValue
+
+            for fu_unit in [cu.top_level, *cu.procedures.values()]:
+                for block in fu_unit.cfg.blocks.values():
+                    for stmt in block.statements:
+                        if not isinstance(stmt, IRAssignValue):
+                            continue
+                        val = stmt.value.strip()
+                        m = _CMD_SUB_RE.match(val)
+                        if m is None:
+                            continue
+                        called = m.group(1)
+                        for qn, summary in cu.interproc.procedures.items():
+                            bare = qn.rsplit("::", 1)[-1]
+                            if bare == called or qn == called:
+                                if summary.returns_constant and summary.constant_return:
+                                    if stmt.name not in all_constsets:
+                                        all_constsets[stmt.name] = frozenset(
+                                            (summary.constant_return,)
+                                        )
+                                break
 
         # Build a set of known command names for CONSTSET resolution.
         _known_cmds = known_command_names()
@@ -3110,6 +3142,87 @@ class Analyser:
                             code="W307",
                         )
                     )
+
+    def _resolve_interpolated_commands(self, cu: CompilationUnit) -> None:
+        """Suppress W123 for interpolated command names resolvable via CONSTSET.
+
+        When a command name like ``cmd_${var}`` contains variable references
+        and those variables have CONSTSET (or CONST) values in the SCCP
+        lattice, we compute all possible interpolated strings.  If every
+        resolved name is a known command or proc, the W123 diagnostic is
+        removed.
+        """
+        # Quick exit if no W123 diagnostics to resolve.
+        w123_diags = [d for d in self.result.diagnostics if d.code == "W123"]
+        if not w123_diags:
+            return
+
+        from ..compiler.core_analyses import _fold_interpolation_set
+
+        # Collect SCCP values across all functions.
+        all_values: dict[str, LatticeValue] = {}
+        for analysis in [cu.top_level.analysis, *(fu.analysis for fu in cu.procedures.values())]:
+            for (var_name, _ver), lv in analysis.values.items():
+                existing = all_values.get(var_name)
+                if existing is None:
+                    all_values[var_name] = lv
+                else:
+                    # Merge: pick the more informative value.
+                    from ..compiler.core_analyses import _join as _lv_join
+
+                    all_values[var_name] = _lv_join(existing, lv)
+
+        # Build SSA-like uses dict (var_name → version 1 for all).
+        # This is a simplification: we use version 1 for everything since
+        # we already merged all versions above.
+        fake_uses: dict[str, int] = {name: 1 for name in all_values}
+        fake_values: dict[tuple[str, int], LatticeValue] = {
+            (name, 1): lv for name, lv in all_values.items()
+        }
+
+        # Build known command/proc sets.
+        _known_cmds = known_command_names()
+        _known_procs = frozenset(self.result.all_procs)
+        _known_proc_bare = frozenset(
+            qn.rsplit("::", 1)[-1] for qn in _known_procs if "::" in qn
+        )
+
+        resolved_ranges: set[tuple[int, int]] = set()
+        for diag in w123_diags:
+            # Extract the command name from the message.
+            # Format: "Unknown command 'cmd_${var}'"
+            msg = diag.message
+            if "'" not in msg:
+                continue
+            start = msg.index("'") + 1
+            end = msg.index("'", start)
+            cmd_name = msg[start:end]
+
+            # Only process interpolated names (contain $ references).
+            if "$" not in cmd_name:
+                continue
+
+            resolved = _fold_interpolation_set(cmd_name, fake_uses, fake_values)
+            if resolved is None:
+                continue
+
+            # Check if all resolved names are known.
+            if all(
+                name in _known_cmds
+                or name in _known_procs
+                or name in _known_proc_bare
+                or f"::{name}" in _known_procs
+                for name in resolved
+            ):
+                resolved_ranges.add((diag.range.start.offset, diag.range.end.offset))
+
+        if resolved_ranges:
+            self.result.diagnostics = [
+                d
+                for d in self.result.diagnostics
+                if d.code != "W123"
+                or (d.range.start.offset, d.range.end.offset) not in resolved_ranges
+            ]
 
     def _emit_cfg_ssa_diagnostics_for_function(
         self,

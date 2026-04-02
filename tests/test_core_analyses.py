@@ -303,14 +303,46 @@ proc wire_namespace_vars {} {
         assert len(x_vals) >= 1
         assert x_vals[0].value == "only"
 
-    def test_foreach_with_var_substitution_is_overdefined(self):
-        """foreach over a list with $var is OVERDEFINED (not statically known)."""
+    def test_foreach_with_var_ref_resolves_through_lattice(self):
+        """foreach over $items where items is a known constant resolves to CONSTSET."""
         source = "set items {a b}\nforeach x $items {puts $x}"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONSTSET
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].values == frozenset({"a", "b"})
+
+    def test_foreach_with_unknown_var_is_overdefined(self):
+        """foreach over $items where items is unknown remains OVERDEFINED."""
+        source = "foreach x $items {puts $x}"
         analysis = analyse_source(source).top_level
         x_vals = [
             v for (name, _ver), v in analysis.values.items()
             if name == "x"
         ]
-        # Should be OVERDEFINED since $items is not a literal list arg.
         for v in x_vals:
             assert v.kind is not LatticeKind.CONSTSET
+
+    def test_set_list_cmd_folds_to_const(self):
+        """set x [list a b c] should fold to CONST."""
+        source = "set x [list a b c]"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONST
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].value == "a b c"
+
+    def test_set_list_cmd_through_foreach(self):
+        """set items [list a b]; foreach x $items should resolve CONSTSET."""
+        source = "set items [list a b]\nforeach x $items {puts $x}"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONSTSET
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].values == frozenset({"a", "b"})
