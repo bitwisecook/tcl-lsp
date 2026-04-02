@@ -561,6 +561,13 @@ def _evaluate_def(
                     if "$" not in args_text and "[" not in args_text:
                         return LatticeValue.const(args_text)
                 return OVERDEFINED
+            # Handle [list $x $y ...] where all vars are known constants.
+            stripped_v = value.strip()
+            m = _LIST_CMD_RE.match(stripped_v)
+            if m and "[" not in m.group(1):
+                folded = _fold_interpolation(m.group(1), ssa_stmt.uses, values)
+                if folded.kind is LatticeKind.CONST:
+                    return folded
             stripped = value.strip()
             if is_pure_var_ref(stripped):
                 name = _normalise_var_name(stripped)

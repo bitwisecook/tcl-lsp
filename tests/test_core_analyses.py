@@ -336,6 +336,17 @@ proc wire_namespace_vars {} {
         assert len(x_vals) >= 1
         assert x_vals[0].value == "a b c"
 
+    def test_list_cmd_with_const_vars_folds(self):
+        """[list $x $y] with known-const vars should fold to CONST."""
+        source = "set x puts\nset y hello\nset cmd [list $x $y]"
+        analysis = analyse_source(source).top_level
+        cmd_vals = [
+            v for (name, _ver), v in analysis.values.items()
+            if name == "cmd" and v.kind is LatticeKind.CONST
+        ]
+        assert len(cmd_vals) >= 1
+        assert cmd_vals[0].value == "puts hello"
+
     def test_set_list_cmd_through_foreach(self):
         """set items [list a b]; foreach x $items should resolve CONSTSET."""
         source = "set items [list a b]\nforeach x $items {puts $x}"
