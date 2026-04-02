@@ -586,13 +586,32 @@ def _build_vscode_optimiser_section(*, order: int) -> dict:
             "default": True,
             "description": "Enable optimiser suggestions as diagnostics.",
             "order": 0,
-        }
+        },
+        "tclLsp.optimiser.profile": {
+            "type": "string",
+            "enum": ["off", "readability", "standard", "full", "aggressive"],
+            "default": "readability",
+            "enumDescriptions": [
+                "All optimisations disabled.",
+                "Readability improvements only — idiomatic rewrites, no code removal.",
+                "Readability + constant folding and pattern recognition.",
+                "All optimisations enabled (single pass).",
+                "All optimisations with multi-pass to fixpoint.",
+            ],
+            "markdownDescription": (
+                "Optimisation profile controlling which passes run as diagnostics. "
+                "Individual `O1xx` toggles below override the profile when explicitly set."
+            ),
+            "order": 1,
+        },
     }
-    for i, o in enumerate(opts, start=1):
+    for i, o in enumerate(opts, start=2):
         props[f"tclLsp.optimiser.{o.code}"] = {
-            "type": "boolean",
-            "default": o.default,
-            "markdownDescription": f"**{o.code}:** {o.description}",
+            "type": ["boolean", "null"],
+            "default": None,
+            "markdownDescription": (
+                f"**{o.code}:** {o.description} (`null` = inherit from profile)"
+            ),
             "order": i,
         }
     return {

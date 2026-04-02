@@ -450,8 +450,51 @@ def apply_optimisations(source: str, optimisations: list[Optimisation]) -> str:
     return apply_edits(source, edits)
 
 
-def optimise_source(source: str) -> tuple[str, list[Optimisation]]:
-    """Return optimised source and the optimisation rewrites used."""
+def optimise_source(
+    source: str,
+    *,
+    disabled: frozenset[str] = frozenset(),
+) -> tuple[str, list[Optimisation]]:
+    """Return optimised source and the optimisation rewrites used.
+
+    When *disabled* is non-empty, optimisations with matching codes are
+    excluded before applying rewrites.
+    """
     cu = ensure_compilation_unit(source, logger=log, context="optimise_source")
     optimisations = find_optimisations(source, cu=cu)
+    if disabled:
+        optimisations = [o for o in optimisations if o.code not in disabled]
     return apply_optimisations(source, optimisations), optimisations
+
+
+def optimise_source_multipass(
+    source: str,
+    *,
+    max_iterations: int = 5,
+    disabled: frozenset[str] = frozenset(),
+) -> tuple[str, list[Optimisation], int]:
+    """Iteratively optimise until fixpoint or *max_iterations*.
+
+    After each pass, the source is recompiled and re-analysed so that
+    optimisations exposed by earlier passes (e.g. constant folding enabling
+    dead-store removal) are discovered.
+
+    Returns ``(final_source, all_optimisations, iterations_used)``.
+    """
+    all_opts: list[Optimisation] = []
+    iterations = 0
+    for _ in range(max_iterations):
+        iterations += 1
+        cu = ensure_compilation_unit(source, logger=log, context="multipass")
+        opts = find_optimisations(source, cu=cu)
+        if disabled:
+            opts = [o for o in opts if o.code not in disabled]
+        if not opts:
+            break
+        new_source = apply_optimisations(source, opts)
+        all_opts.extend(opts)
+        if new_source == source:
+            # Source unchanged (e.g. only hint-only passes remain) — fixpoint.
+            break
+        source = new_source
+    return source, all_opts, iterations

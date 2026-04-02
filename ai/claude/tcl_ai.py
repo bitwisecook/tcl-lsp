@@ -157,10 +157,38 @@ def cmd_diagram(source: str, file_path: str) -> None:
 # Subcommand: optimize
 
 
-def cmd_optimize(source: str, file_path: str) -> None:
-    from core.compiler.optimiser import Optimisation, apply_optimisations, find_optimisations
+def cmd_optimize(source: str, file_path: str, *, profile: str = "full") -> None:
+    from core.common.optimisation_profiles import (
+        DEFAULT_ACTION_PROFILE,
+        profile_from_name,
+        profile_spec,
+        profile_to_disabled,
+    )
+    from core.compiler.optimiser import (
+        Optimisation,
+        apply_optimisations,
+        find_optimisations,
+        optimise_source_multipass,
+    )
 
-    opts = find_optimisations(source)
+    try:
+        prof = profile_from_name(profile)
+    except ValueError:
+        prof = DEFAULT_ACTION_PROFILE
+    spec = profile_spec(prof)
+    disabled = profile_to_disabled(prof)
+
+    optimized: str | None = None  # set by multi-pass path
+    if spec.multi_pass:
+        optimized, opts, iters = optimise_source_multipass(
+            source,
+            max_iterations=spec.max_iterations,
+            disabled=disabled,
+        )
+        print(f"(profile={spec.name}, {iters} iteration(s))")
+    else:
+        all_opts = find_optimisations(source)
+        opts = [o for o in all_opts if o.code not in disabled]
 
     # Group related optimisations for display.
     _ELIM_CODES = frozenset(("O107", "O108", "O109"))
@@ -211,7 +239,8 @@ def cmd_optimize(source: str, file_path: str) -> None:
                 f"  {primary.code:<5s}  line {line}:{col}  {primary.message}  \u2192  {primary.replacement!r}"
             )
 
-    optimized = apply_optimisations(source, opts)
+    if optimized is None:
+        optimized = apply_optimisations(source, opts)
     if optimized != source:
         print()
         print("=== Optimized Source ===")
@@ -2020,6 +2049,12 @@ examples:
 
     p = sub.add_parser("optimize", help="Show optimization suggestions and rewritten source")
     p.add_argument("file", help="Tcl/iRule file to optimize")
+    p.add_argument(
+        "--profile",
+        default="full",
+        choices=["off", "readability", "standard", "full", "aggressive"],
+        help="Optimisation profile (default: full).",
+    )
 
     p = sub.add_parser("event-order", help="Show events in canonical firing order")
     p.add_argument("file", help="Tcl/iRule file to analyze")
@@ -2123,7 +2158,7 @@ examples:
         case "diagram":
             cmd_diagram(source, file_path)
         case "optimize":
-            cmd_optimize(source, file_path)
+            cmd_optimize(source, file_path, profile=args.profile)
         case "event-order":
             cmd_event_order(source, file_path)
         case "call-graph":

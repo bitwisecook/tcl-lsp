@@ -20,11 +20,17 @@ export async function handleOptimise(ctx: CommandContext): Promise<vscode.ChatRe
 
   const uri = editor.document.uri.toString();
 
-  ctx.response.progress("Running LSP optimiser...");
+  // Accept an optional profile from the prompt (e.g. "/optimise aggressive").
+  const VALID_PROFILES = new Set(["off", "readability", "standard", "full", "aggressive"]);
+  const promptWords = (ctx.request?.prompt ?? "").trim().split(/\s+/);
+  const profile =
+    promptWords.find((w) => VALID_PROFILES.has(w.toLowerCase()))?.toLowerCase() ?? "full";
+
+  ctx.response.progress(`Running LSP optimiser (profile: ${profile})...`);
 
   const result = (await ctx.client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.optimiseDocument",
-    arguments: [uri],
+    arguments: [uri, profile],
   })) as { optimisations: OptEntry[]; source: string } | null;
 
   if (!result || !result.optimisations || result.optimisations.length === 0) {

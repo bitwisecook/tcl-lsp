@@ -27,6 +27,12 @@ from core.commands.registry.runtime import configure_signatures, is_irules_diale
 from core.common.codes import default_disabled_diagnostics, diagnostic_codes, optimisation_codes
 from core.common.document_buffer import DocumentBuffer
 from core.common.lsp import to_lsp_location
+from core.common.optimisation_profiles import (
+    DEFAULT_EDITOR_PROFILE,
+    PROFILE_NAMES,
+    profile_from_name,
+    profile_to_disabled,
+)
 from core.common.user_config import (
     get_all_settings,
     load_user_config,
@@ -117,9 +123,12 @@ class FeatureConfig:
         default_factory=lambda: set(default_disabled_diagnostics())
     )
 
-    # Optimiser master switch + per-code filters.
+    # Optimiser master switch, profile, and per-code filters.
     optimiser_enabled: bool = True
-    disabled_optimisations: set[str] = field(default_factory=set)
+    optimiser_profile: str = DEFAULT_EDITOR_PROFILE.value
+    disabled_optimisations: set[str] = field(
+        default_factory=lambda: set(profile_to_disabled(DEFAULT_EDITOR_PROFILE))
+    )
 
     # Shimmer detection master switch.
     shimmer_enabled: bool = True
@@ -1104,9 +1113,34 @@ def on_code_action(
 
 
 @server.command("tcl-lsp.optimiseDocument")
-def on_optimise_document(uri: str) -> dict | None:
+def on_optimise_document(uri: str, profile: str = "full") -> dict | None:
+    from core.common.optimisation_profiles import (
+        DEFAULT_ACTION_PROFILE,
+        profile_from_name,
+    )
+    from core.common.optimisation_profiles import (
+        profile_spec as _profile_spec,
+    )
+    from core.common.optimisation_profiles import (
+        profile_to_disabled as _profile_to_disabled,
+    )
+    from core.compiler.optimiser import optimise_source_multipass
+
     source = _get_doc_source(uri)
-    optimised, opts = optimise_source(source)
+    try:
+        prof = profile_from_name(profile)
+    except ValueError:
+        prof = DEFAULT_ACTION_PROFILE
+    spec = _profile_spec(prof)
+    disabled = _profile_to_disabled(prof)
+    if spec.multi_pass:
+        optimised, opts, _iters = optimise_source_multipass(
+            source,
+            max_iterations=spec.max_iterations,
+            disabled=disabled,
+        )
+    else:
+        optimised, opts = optimise_source(source, disabled=disabled)
     items = []
     for o in opts:
         item: dict = {
@@ -3095,7 +3129,7 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             feature_config.xc_diagnostics_enabled = xc_enabled
             changed = True
 
-    # Optimiser master switch + per-code  (tclLsp.optimiser.*)
+    # Optimiser master switch, profile, + per-code  (tclLsp.optimiser.*)
     optimiser_section = tcl_settings.get("optimiser")
     if isinstance(optimiser_section, dict):
         master = optimiser_section.get("enabled")
@@ -3103,19 +3137,40 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             feature_config.optimiser_enabled = master
             changed = True
 
-        new_disabled_opts: set[str] = set()
+        # Profile setting (tclLsp.optimiser.profile).
+        profile_name = optimiser_section.get("profile")
+        if isinstance(profile_name, str) and profile_name in PROFILE_NAMES:
+            if profile_name != feature_config.optimiser_profile:
+                feature_config.optimiser_profile = profile_name
+                changed = True
+        elif isinstance(profile_name, str) and profile_name:
+            log.warning("Unknown optimiser profile %r (ignored)", profile_name)
+
+        # Start from profile baseline, then apply per-code overrides.
+        # null/missing = inherit from profile; true = force-enable; false = force-disable.
+        try:
+            base_disabled = set(
+                profile_to_disabled(profile_from_name(feature_config.optimiser_profile))
+            )
+        except ValueError:
+            base_disabled = set(profile_to_disabled(DEFAULT_EDITOR_PROFILE))
+
         for code in _ALL_OPTIMISATION_CODES:
             val = optimiser_section.get(code)
-            if isinstance(val, bool) and not val:
-                new_disabled_opts.add(code)
-        if new_disabled_opts != feature_config.disabled_optimisations:
-            feature_config.disabled_optimisations = new_disabled_opts
+            if val is True:
+                base_disabled.discard(code)
+            elif val is False:
+                base_disabled.add(code)
+            # val is None/missing → inherit from profile (no change)
+
+        if base_disabled != feature_config.disabled_optimisations:
+            feature_config.disabled_optimisations = base_disabled
             changed = True
 
         unknown_opt = {
             k
             for k, v in optimiser_section.items()
-            if v is False and k not in _ALL_OPTIMISATION_CODES and k != "enabled"
+            if v is False and k not in _ALL_OPTIMISATION_CODES and k not in ("enabled", "profile")
         }
         if unknown_opt:
             log.warning(

@@ -14,8 +14,10 @@ def test_optimiser_filters_include_o103_o104():
     original = server_module.feature_config
     try:
         server_module.feature_config = server_module.FeatureConfig()
+        # Use ``full`` profile as baseline so all codes start enabled,
+        # then disable O103/O104 to verify the per-code override works.
         changed = server_module._apply_feature_settings(
-            {"optimiser": {"O103": False, "O104": False}}
+            {"optimiser": {"profile": "full", "O103": False, "O104": False}}
         )
         assert changed
         assert "O103" in server_module.feature_config.disabled_optimisations
@@ -110,7 +112,11 @@ class TestApplyFeatureSettings:
         assert "IRULE1005" in cfg.disabled_diagnostics
 
     def test_disable_optimisations(self):
-        changed, cfg = self._with_fresh_config({"optimiser": {"O109": False, "O126": False}})
+        # Use ``full`` profile so all codes start enabled, then verify
+        # per-code overrides disable them.
+        changed, cfg = self._with_fresh_config(
+            {"optimiser": {"profile": "full", "O109": False, "O126": False}}
+        )
         assert changed
         assert "O109" in cfg.disabled_optimisations
         assert "O126" in cfg.disabled_optimisations

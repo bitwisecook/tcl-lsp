@@ -27,7 +27,9 @@ Example ``config.ini``::
 
     [optimiser]
     enabled = true
-    # Comma-separated optimisation codes to disable.
+    # Profile: off, readability, standard, full, aggressive.
+    profile = readability
+    # Comma-separated optimisation codes to disable (overrides profile).
     disabled = O109, O126
 
     [shimmer]
@@ -216,6 +218,8 @@ def get_all_settings(
             val = _parse_bool(config.get("optimiser", "enabled"))
             if val is not None:
                 opt["enabled"] = val
+        if config.has_option("optimiser", "profile"):
+            opt["profile"] = config.get("optimiser", "profile").strip()
         if config.has_option("optimiser", "disabled"):
             raw = config.get("optimiser", "disabled", fallback="")
             for code in _parse_comma_list(raw):
