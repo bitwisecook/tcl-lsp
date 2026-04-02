@@ -855,6 +855,9 @@ class _Lowerer:
                     args=tuple(args),
                     defs=(var_name,),
                     reads_own_defs=True,
+                    safe_on_uninit=REGISTRY.is_safe_on_uninit(
+                        cmd.name, sub, _active_dialect(),
+                    ),
                     tokens=cmd.cmd_tokens,
                 )
 

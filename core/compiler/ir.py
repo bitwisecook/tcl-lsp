@@ -59,6 +59,7 @@ class IRIncr:
     range: Range
     name: str
     amount: str | None = None
+    safe_on_uninit: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +94,7 @@ class IRCall:
     defs: tuple[str, ...] = ()
     reads: tuple[str, ...] = ()
     reads_own_defs: bool = False
+    safe_on_uninit: bool = False
     tokens: CommandTokens | None = None
 
 

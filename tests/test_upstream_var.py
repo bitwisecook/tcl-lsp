@@ -383,13 +383,8 @@ class TestReadBeforeSet:
         x_diags = [d for d in diags if "x" in d.message]
         assert len(x_diags) == 0
 
-    def test_incr_without_prior_set_warns(self):
-        """``incr x`` without a prior ``set`` reads x first, so W210 fires.
-
-        In Tcl, ``incr`` reads the current value before incrementing.
-        If the variable has not been initialised, the analyser correctly
-        detects a read-before-set condition.
-        """
+    def test_incr_without_prior_set_no_w210_tcl86(self):
+        """``incr x`` on uninitialised var is safe in 8.5+ — no W210."""
         source = textwrap.dedent("""\
             proc foo {} {
                 incr x
@@ -398,7 +393,26 @@ class TestReadBeforeSet:
         """)
         diags = _diag_with_code(source, "W210")
         x_diags = [d for d in diags if "x" in d.message]
-        assert len(x_diags) >= 1
+        assert len(x_diags) == 0
+
+    def test_incr_without_prior_set_warns_tcl84(self):
+        """``incr x`` on uninitialised var errors in Tcl 8.4 — W210 fires."""
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="tcl8.4")
+        try:
+            source = textwrap.dedent("""\
+                # tcl-dialect: tcl8.4
+                proc foo {} {
+                    incr x
+                    puts $x
+                }
+            """)
+            diags = _diag_with_code(source, "W210")
+            x_diags = [d for d in diags if "x" in d.message]
+            assert len(x_diags) >= 1
+        finally:
+            configure_signatures(dialect="tcl8.6")
 
     def test_lappend_without_prior_set_no_w210(self):
         """``lappend`` safely creates an uninitialised variable — no W210."""

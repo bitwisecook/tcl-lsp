@@ -41,6 +41,7 @@ from ..compiler.ir import (
     IRAssignValue,
     IRBarrier,
     IRCall,
+    IRIncr,
     IRProcedure,
     IRStatement,
     IRSwitch,
@@ -3246,6 +3247,11 @@ class Analyser:
                 )
             elif rbs.variable in cross_event_vars:
                 # Variable is set in another event — not a real read-before-set.
+                continue
+            elif getattr(stmt, "safe_on_uninit", False):
+                # Commands like lappend/append/dict set/incr safely
+                # initialise an uninitialised variable (set from the
+                # command registry at lowering time).
                 continue
             else:
                 self.result.diagnostics.append(

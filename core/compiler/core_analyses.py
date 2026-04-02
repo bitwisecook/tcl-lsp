@@ -914,23 +914,6 @@ _IMPLICIT_VARS = frozenset(
 )
 
 
-# Commands whose ``reads_own_defs`` read is safe on an uninitialised
-# variable: ``lappend`` creates an empty list, ``append`` an empty string,
-# and ``dict set/append/lappend/incr`` create an empty dict.
-_SAFE_INIT_COMMANDS = frozenset({"append", "lappend"})
-_SAFE_DICT_SUBCOMMANDS = frozenset({"set", "append", "lappend", "incr"})
-
-
-def _is_safe_init_command(ir: IRCall) -> bool:
-    """Return True if the command safely creates an uninitialised variable."""
-    if ir.command in _SAFE_INIT_COMMANDS:
-        return True
-    # ``dict set/append/lappend/incr`` create the dict variable if absent.
-    # ``dict unset`` does *not* — it errors on a missing variable.
-    if ir.command == "dict" and ir.args and ir.args[0] in _SAFE_DICT_SUBCOMMANDS:
-        return True
-    return False
-
 
 def _read_before_set(
     cfg: CFGFunction,
@@ -1011,17 +994,6 @@ def _read_before_set(
                 if _has_dict_with and name not in explicitly_defined:
                     continue
                 if name.startswith("::") or name.startswith("static::"):
-                    continue
-                # lappend/append/dict set/… safely initialise
-                # uninitialized variables, so the implicit read of the
-                # prior value is not a true read-before-set.
-                ir = stmt.statement
-                if (
-                    isinstance(ir, IRCall)
-                    and ir.reads_own_defs
-                    and name in stmt.defs
-                    and _is_safe_init_command(ir)
-                ):
                     continue
                 reported.add(name)
                 result.append(ReadBeforeSet(block=bn, statement_index=idx, variable=name))

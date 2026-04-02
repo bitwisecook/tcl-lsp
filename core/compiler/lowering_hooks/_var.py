@@ -92,7 +92,20 @@ def lower_incr(lowerer: object, cmd: _Command) -> object | None:
         return IRCall(range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens)
     name = args[0]
     amount = args[1] if len(args) > 1 else None
-    return IRIncr(range=cmd.range, name=name, amount=amount)
+    return IRIncr(
+        range=cmd.range,
+        name=name,
+        amount=amount,
+        safe_on_uninit=_check_safe_on_uninit(cmd.name),
+    )
+
+
+def _check_safe_on_uninit(command: str, subcommand: str | None = None) -> bool:
+    """Query the registry for the ``safe_on_uninit`` trait."""
+    from core.commands.registry import REGISTRY
+    from core.common.dialect import active_dialect
+
+    return REGISTRY.is_safe_on_uninit(command, subcommand, active_dialect())
 
 
 def lower_append_lappend(lowerer: object, cmd: _Command) -> object | None:
@@ -107,6 +120,7 @@ def lower_append_lappend(lowerer: object, cmd: _Command) -> object | None:
         args=tuple(args),
         defs=(name,),
         reads_own_defs=True,
+        safe_on_uninit=_check_safe_on_uninit(cmd.name),
         tokens=cmd.cmd_tokens,
     )
 

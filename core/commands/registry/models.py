@@ -399,6 +399,11 @@ class SubCommand:
     # Whether this subcommand creates a scope alias (upvar-like binding).
     creates_scope_alias: bool = False
 
+    # Whether this subcommand safely initialises an uninitialised variable.
+    # Semantics match CommandSpec.safe_on_uninit: ``None`` = not safe,
+    # empty frozenset = safe in all dialects, non-empty = safe in listed dialects.
+    safe_on_uninit: frozenset[str] | None = None
+
     def resolve_form(self, args: tuple[str, ...] | list[str]) -> FormSpec | None:
         """Given actual arguments (after the subcommand word), return the matching form.
 
@@ -559,6 +564,13 @@ class CommandSpec:
 
     # Variable assignment semantics.
     assigns_variable_at: int | None = None
+
+    # Whether the command safely initialises an uninitialised variable
+    # (e.g. ``lappend`` creates an empty list, ``append`` an empty string).
+    # ``None`` means *not* safe.  A frozenset of dialect strings means safe
+    # only in those dialects (e.g. ``incr`` is safe in 8.5+ but not 8.4).
+    # An empty frozenset is treated as "safe in all dialects".
+    safe_on_uninit: frozenset[str] | None = None
 
     # Procedure definition semantics.
     defines_procedure: bool = False
