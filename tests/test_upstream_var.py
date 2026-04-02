@@ -400,6 +400,41 @@ class TestReadBeforeSet:
         x_diags = [d for d in diags if "x" in d.message]
         assert len(x_diags) >= 1
 
+    def test_lappend_without_prior_set_no_w210(self):
+        """``lappend`` safely creates an uninitialised variable — no W210."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                lappend mylist a b c
+                puts $mylist
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        assert not any("mylist" in d.message for d in diags)
+
+    def test_append_without_prior_set_no_w210(self):
+        """``append`` safely creates an uninitialised variable — no W210."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                append result "hello"
+                puts $result
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        assert not any("result" in d.message for d in diags)
+
+    def test_lappend_in_loop_no_w210(self):
+        """``lappend`` inside a loop to accumulate values — no W210."""
+        source = textwrap.dedent("""\
+            proc foo {items} {
+                foreach item $items {
+                    lappend result $item
+                }
+                return $result
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        assert not any("result" in d.message for d in diags)
+
     def test_incr_after_set_no_w210(self):
         """``set x 0; incr x`` — 'x' is initialised, so no W210."""
         source = textwrap.dedent("""\

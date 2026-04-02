@@ -914,6 +914,11 @@ _IMPLICIT_VARS = frozenset(
 )
 
 
+# Commands whose ``reads_own_defs`` read is safe on an uninitialised
+# variable: ``lappend`` creates an empty list, ``append`` an empty string.
+_SAFE_INIT_COMMANDS = frozenset({"append", "lappend"})
+
+
 def _read_before_set(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -993,6 +998,17 @@ def _read_before_set(
                 if _has_dict_with and name not in explicitly_defined:
                     continue
                 if name.startswith("::") or name.startswith("static::"):
+                    continue
+                # lappend/append safely initialise uninitialized variables
+                # (empty list / empty string), so the implicit read of
+                # the prior value is not a true read-before-set.
+                ir = stmt.statement
+                if (
+                    isinstance(ir, IRCall)
+                    and ir.reads_own_defs
+                    and name in stmt.defs
+                    and ir.command in _SAFE_INIT_COMMANDS
+                ):
                     continue
                 reported.add(name)
                 result.append(ReadBeforeSet(block=bn, statement_index=idx, variable=name))
