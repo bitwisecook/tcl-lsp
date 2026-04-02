@@ -3,11 +3,12 @@
 This module runs the main analysis passes after SSA construction:
 
 - **SCCP** (Sparse Conditional Constant Propagation): propagates
-  integer/boolean constants through the SSA graph using a three-point
+  integer/boolean constants through the SSA graph using a four-point
   lattice per variable version:
 
     - ``UNKNOWN`` – not yet analysed (bottom).
     - ``CONST(v)`` – provably the constant *v*.
+    - ``CONSTSET(vs)`` – provably one of a finite set of constants.
     - ``OVERDEFINED`` – may hold more than one value (top).
 
   Values flow upward through the lattice; once a variable reaches
@@ -69,7 +70,7 @@ from .static_loops import (
     evaluate_expr_with_constants,
     summarise_static_for_ir,
 )
-from .tcl_expr_eval import eval_tcl_expr
+from .tcl_expr_eval import _split_tcl_list, eval_tcl_expr
 from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
 from .var_refs import VarReferenceScanner
@@ -111,13 +112,20 @@ _COMP_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_:]*)\s*(==|!=|eq|ne|<=|>=|<|>)\
 class LatticeKind(Enum):
     UNKNOWN = auto()
     CONST = auto()
+    CONSTSET = auto()
     OVERDEFINED = auto()
+
+
+# Maximum number of elements in a CONSTSET before we widen to OVERDEFINED.
+_MAX_CONSTSET_SIZE = 32
 
 
 @dataclass(frozen=True, slots=True)
 class LatticeValue:
     kind: LatticeKind
     value: int | float | bool | str | None = None
+    # For CONSTSET: the finite set of possible constant values.
+    values: frozenset[int | float | bool | str] | None = None
 
     @staticmethod
     def unknown() -> "LatticeValue":
@@ -131,9 +139,33 @@ class LatticeValue:
     def const(value: int | float | bool | str) -> "LatticeValue":
         return LatticeValue(LatticeKind.CONST, value)
 
+    @staticmethod
+    def constset(vals: frozenset[int | float | bool | str]) -> "LatticeValue":
+        """Create a CONSTSET lattice value from a finite set of constants.
+
+        If the set has exactly one element, returns a CONST instead.
+        If the set exceeds ``_MAX_CONSTSET_SIZE``, returns OVERDEFINED.
+        """
+        if len(vals) == 0:
+            return OVERDEFINED
+        if len(vals) == 1:
+            return LatticeValue.const(next(iter(vals)))
+        if len(vals) > _MAX_CONSTSET_SIZE:
+            return OVERDEFINED
+        return LatticeValue(LatticeKind.CONSTSET, None, vals)
+
 
 UNKNOWN = LatticeValue.unknown()
 OVERDEFINED = LatticeValue.overdefined()
+
+
+def _to_set(lv: LatticeValue) -> frozenset[int | float | bool | str] | None:
+    """Extract the set of possible values from a CONST or CONSTSET."""
+    if lv.kind is LatticeKind.CONST and lv.value is not None:
+        return frozenset((lv.value,))
+    if lv.kind is LatticeKind.CONSTSET and lv.values is not None:
+        return lv.values
+    return None
 
 
 def _join(old: LatticeValue, new: LatticeValue) -> LatticeValue:
@@ -143,8 +175,15 @@ def _join(old: LatticeValue, new: LatticeValue) -> LatticeValue:
         return new
     if old.kind is LatticeKind.OVERDEFINED or new.kind is LatticeKind.OVERDEFINED:
         return OVERDEFINED
-    if old.value == new.value:
-        return old
+    # Both are CONST or CONSTSET — merge the value sets.
+    old_set = _to_set(old)
+    new_set = _to_set(new)
+    if old_set is not None and new_set is not None:
+        merged = old_set | new_set
+        if merged == old_set:
+            return old
+        return LatticeValue.constset(merged)
+    # Fallback (should not happen): widen.
     return OVERDEFINED
 
 
@@ -316,6 +355,49 @@ def _fold_interpolation(
     return LatticeValue.const(result)
 
 
+_LIST_CMD_RE = re.compile(r"^\s*\[\s*list\s+(.*?)\s*\]\s*$", re.DOTALL)
+
+
+def _extract_foreach_elements(list_text: str) -> list[str] | None:
+    """Extract constant list elements from a foreach list argument.
+
+    Handles three patterns:
+    - Braced literal list: ``{a b c}``
+    - ``[list ...]`` command with all literal arguments: ``[list a b c]``
+    - Bare literal list (braces already stripped by lowering): ``a b c``
+
+    Returns ``None`` if the list cannot be statically resolved.
+    """
+    stripped = list_text.strip()
+    if not stripped:
+        return None
+
+    # Pattern 1: braced literal list {a b c}
+    if stripped.startswith("{") and stripped.endswith("}"):
+        inner = stripped[1:-1].strip()
+        if not inner:
+            return None
+        # Must not contain variable or command substitutions.
+        if "$" in inner or "[" in inner:
+            return None
+        return _split_tcl_list(inner)
+
+    # Pattern 2: [list elem1 elem2 ...] with all literal args
+    m = _LIST_CMD_RE.match(stripped)
+    if m:
+        args_text = m.group(1)
+        if "$" in args_text or "[" in args_text:
+            return None
+        return _split_tcl_list(args_text)
+
+    # Pattern 3: bare literal list (braces stripped by IR lowering)
+    # Must not contain variable or command substitutions.
+    if "$" not in stripped and "[" not in stripped:
+        return _split_tcl_list(stripped)
+
+    return None
+
+
 def _evaluate_def(
     stmt: IRStatement,
     ssa_stmt: SSAStatement,
@@ -398,14 +480,12 @@ def _evaluate_def(
             and len(defs) == 1
             and len(args) == 1
         ):
-            # foreach x {val} { ... } — if the list has exactly one element,
-            # the iteration variable is constant.
-            list_text = args[0].strip()
-            if list_text.startswith("{") and list_text.endswith("}"):
-                inner = list_text[1:-1].strip()
-                # Single element: no whitespace inside
-                if inner and " " not in inner and "\t" not in inner and "\n" not in inner:
-                    return LatticeValue.const(_parse_literal_value(inner))
+            # foreach x {a b c} or foreach x [list a b c] — extract the
+            # set of constant values the iteration variable can take.
+            elements = _extract_foreach_elements(args[0])
+            if elements is not None and len(elements) > 0:
+                vals = frozenset(_parse_literal_value(e) for e in elements)
+                return LatticeValue.constset(vals)
             return OVERDEFINED
 
         case _:

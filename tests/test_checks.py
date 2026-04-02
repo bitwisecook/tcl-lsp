@@ -1321,6 +1321,63 @@ $circuit runAndRead
         diags = _diag_with_code(source, "W308")
         assert len(diags) == 0
 
+    def test_foreach_known_commands_no_w307(self):
+        """$cmd in foreach over known built-in commands should NOT emit W307."""
+        source = """\
+foreach cmd [list puts set expr] {
+    $cmd hello
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_foreach_braced_known_commands_no_w307(self):
+        """$cmd in foreach over braced list of known commands should NOT emit W307."""
+        source = """\
+foreach cmd {puts set expr} {
+    $cmd hello
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_foreach_known_procs_no_w307(self):
+        """$cmd iterating over locally-defined procs should NOT emit W307."""
+        source = """\
+proc handler_a {x} { puts $x }
+proc handler_b {x} { puts $x }
+foreach cmd [list handler_a handler_b] {
+    $cmd value
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_foreach_unknown_commands_still_w307(self):
+        """$cmd iterating over unknown names should still emit W307."""
+        source = """\
+foreach cmd [list unknown_cmd_a unknown_cmd_b] {
+    $cmd value
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) >= 1
+
+    def test_foreach_oo_objects_no_w307(self):
+        """$elem iterating over names of known TclOO objects suppresses W307."""
+        source = """\
+oo::class create Widget {
+    method render {} { puts rendering }
+}
+set a [Widget new]
+set b [Widget new]
+foreach obj [list a b] {
+    $obj render
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
 
 # W108: Non-ASCII token content
 

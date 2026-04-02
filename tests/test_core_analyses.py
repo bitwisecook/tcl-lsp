@@ -266,3 +266,51 @@ proc wire_namespace_vars {} {
 """
         analysis = analyse_source(source).top_level
         assert not analysis.dead_stores
+
+    # --- CONSTSET lattice tests ---
+
+    def test_foreach_braced_list_constset(self):
+        """foreach over a braced literal list produces CONSTSET."""
+        source = "foreach x {a b c} {puts $x}"
+        analysis = analyse_source(source).top_level
+        # x should be CONSTSET with values {a, b, c}
+        x_vals = [
+            v for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONSTSET
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].values == frozenset({"a", "b", "c"})
+
+    def test_foreach_list_cmd_constset(self):
+        """foreach over [list ...] with literal args produces CONSTSET."""
+        source = "foreach x [list a b c] {puts $x}"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONSTSET
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].values == frozenset({"a", "b", "c"})
+
+    def test_foreach_single_element_is_const(self):
+        """foreach over a single-element list produces CONST (not CONSTSET)."""
+        source = "foreach x {only} {puts $x}"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONST
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].value == "only"
+
+    def test_foreach_with_var_substitution_is_overdefined(self):
+        """foreach over a list with $var is OVERDEFINED (not statically known)."""
+        source = "set items {a b}\nforeach x $items {puts $x}"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v for (name, _ver), v in analysis.values.items()
+            if name == "x"
+        ]
+        # Should be OVERDEFINED since $items is not a literal list arg.
+        for v in x_vals:
+            assert v.kind is not LatticeKind.CONSTSET

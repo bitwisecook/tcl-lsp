@@ -2924,6 +2924,9 @@ class Analyser:
         - If the variable has ``TclType.OBJECT`` with a known class, validate
           the method name against the class hierarchy.  Emit W308 if the
           method doesn't exist.
+        - If the variable has a ``CONSTSET`` (or ``CONST``) SCCP value whose
+          elements are all resolvable to known commands, procs, or TclOO
+          objects, suppress W307 (the set of command names is statically known).
         - Otherwise emit W307 (non-literal command name).
         """
         if not self._var_command_sites:
@@ -2931,17 +2934,58 @@ class Analyser:
         if "W307" in self._disabled_diagnostics and "W308" in self._disabled_diagnostics:
             return
 
+        from ..compiler.core_analyses import (
+            _extract_foreach_elements,
+            _parse_literal_value,
+            _to_set as _lattice_to_set,
+        )
+        from ..compiler.ir import IRCall
         from ..compiler.types import TclType, TypeKind
         from .class_hierarchy import build_class_hierarchy
 
         # Collect all SSA type entries across top-level and procedures.
         all_types: dict[str, set[str]] = {}  # var_name → set of class_names
         all_typed_vars: set[str] = set()  # vars known to be OBJECT
+        # Also collect SCCP CONSTSET/CONST values per variable name.
+        all_constsets: dict[str, frozenset[int | float | bool | str]] = {}
         for analysis in [cu.top_level.analysis, *(fu.analysis for fu in cu.procedures.values())]:
             for (var_name, _ver), tl in analysis.types.items():
                 if tl.kind is TypeKind.KNOWN and tl.tcl_type is TclType.OBJECT and tl.class_name:
                     all_typed_vars.add(var_name)
                     all_types.setdefault(var_name, set()).add(tl.class_name)
+            for (var_name, _ver), lv in analysis.values.items():
+                vs = _lattice_to_set(lv)
+                if vs is not None:
+                    existing = all_constsets.get(var_name)
+                    all_constsets[var_name] = (existing | vs) if existing else vs
+
+        # Fallback: directly extract foreach iteration elements from the CFG.
+        # SCCP barriers (e.g. oo::class create) may have widened foreach
+        # variables to OVERDEFINED even when the list is statically known.
+        for fu_unit in [cu.top_level, *cu.procedures.values()]:
+            for block in fu_unit.cfg.blocks.values():
+                for stmt in block.statements:
+                    if (
+                        isinstance(stmt, IRCall)
+                        and stmt.command in ("foreach", "lmap")
+                        and len(stmt.defs) == 1
+                        and len(stmt.args) == 1
+                    ):
+                        var_name = stmt.defs[0]
+                        if var_name not in all_constsets:
+                            elements = _extract_foreach_elements(stmt.args[0])
+                            if elements:
+                                all_constsets[var_name] = frozenset(
+                                    _parse_literal_value(e) for e in elements
+                                )
+
+        # Build a set of known command names for CONSTSET resolution.
+        _known_cmds = known_command_names()
+        _known_procs = frozenset(self.result.all_procs)
+        # Also include bare proc names (without :: prefix) for matching.
+        _known_proc_bare = frozenset(
+            qn.rsplit("::", 1)[-1] for qn in _known_procs if "::" in qn
+        )
 
         # Build class hierarchy for method resolution.
         hierarchy = (
@@ -3035,9 +3079,27 @@ class Analyser:
                             )
                         )
             else:
-                # Variable is not a known TclOO object — emit W307
-                # unless inside a method body or a function with dict-with
-                # where $var is very likely an object from dict unpacking.
+                # Variable is not a known TclOO object — check if SCCP
+                # resolved it to a finite set of known command names.
+                constset_vals = all_constsets.get(var_name)
+                if constset_vals is not None and all(
+                    isinstance(v, str)
+                    and (
+                        v in _known_cmds
+                        or v in _known_procs
+                        or v in _known_proc_bare
+                        or f"::{v}" in _known_procs
+                        or v in all_typed_vars
+                    )
+                    for v in constset_vals
+                ):
+                    # All possible command names are statically known —
+                    # suppress W307.
+                    continue
+
+                # Emit W307 unless inside a method body or a function with
+                # dict-with where $var is very likely an object from dict
+                # unpacking.
                 in_dict_with = any(s <= site_range.start.offset <= e for s, e in dict_with_ranges)
                 if not in_method and not in_dict_with and "W307" not in self._disabled_diagnostics:
                     self.result.diagnostics.append(
