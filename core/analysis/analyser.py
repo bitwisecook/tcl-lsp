@@ -411,7 +411,7 @@ class Analyser:
             self._analyse_commands_inner(cmds, self._current_scope, source)
             snapshots.append(self.snapshot())
             time.sleep(0)  # Yield GIL between chunks
-        self._emit_unresolved_command_diagnostics()
+        self._emit_unresolved_command_diagnostics(cu=cu)
         self._emit_variable_usage_diagnostics()
         self._emit_cfg_ssa_diagnostics(source, cu=cu)
         self._dedupe_diagnostics()
@@ -584,7 +584,7 @@ class Analyser:
         self.result.stub_expr_defs.extend(expr_stubs)
         self._check_stub_shadows()
         self._analyse_body(source, self._current_scope)
-        self._emit_unresolved_command_diagnostics()
+        self._emit_unresolved_command_diagnostics(cu=cu)
         self._emit_variable_usage_diagnostics()
         self._emit_cfg_ssa_diagnostics(source, cu=cu)
         self._dedupe_diagnostics()
@@ -2454,7 +2454,10 @@ class Analyser:
     # W123 — unresolved command (post-analysis pass)
     # ------------------------------------------------------------------
 
-    def _emit_unresolved_command_diagnostics(self) -> None:
+    def _emit_unresolved_command_diagnostics(
+        self,
+        cu: CompilationUnit | None = None,
+    ) -> None:
         """Emit W123 for commands that cannot be resolved.
 
         Runs as a post-analysis pass so that all procs (including
@@ -2523,6 +2526,34 @@ class Analyser:
         candidates.update(dispatch_targets)
         candidates.update(alias_names)
 
+        # TclOO class names are commands (oo::class create Foo creates "Foo").
+        _class_tail_names: set[str] = set()
+        for qname in self.result.all_classes:
+            tail = qname.rsplit("::", 1)[-1]
+            if tail:
+                _class_tail_names.add(tail)
+        candidates.update(_class_tail_names)
+
+        # Build SCCP value maps for interpolated command name resolution.
+        _interp_sccp_values: dict[tuple[str, int], object] | None = None
+        _interp_sccp_uses: dict[str, int] = {}
+        if cu is not None and "$" in "".join(
+            inv.name for inv in self.result.command_invocations
+        ):
+            from ..compiler.ssa import SSAValueKey
+
+            _interp_sccp_values = {}
+            for analysis in [
+                cu.top_level.analysis,
+                *(fu.analysis for fu in cu.procedures.values()),
+            ]:
+                for key, lv in analysis.values.items():
+                    _interp_sccp_values[key] = lv
+            # Build a simple uses map: variable name → latest known version.
+            for (name, ver) in _interp_sccp_values:
+                if name not in _interp_sccp_uses or ver > _interp_sccp_uses[name]:
+                    _interp_sccp_uses[name] = ver
+
         for inv in self.result.command_invocations:
             cmd_name = inv.name
 
@@ -2557,6 +2588,30 @@ class Analyser:
             # Skip if known as a proc tail name (e.g. forward-defined proc).
             if cmd_name in proc_tail_names:
                 continue
+
+            # Skip TclOO class names used as commands (e.g. "Logger new").
+            # oo::class create ClassName creates a command named ClassName.
+            if cmd_name in _class_tail_names:
+                continue
+
+            # Skip interpolated command names that resolve to known commands
+            # via the CONSTSET lattice (e.g. cmd_$var where $var is CONSTSET).
+            if "$" in cmd_name and _interp_sccp_values is not None:
+                from ..compiler.core_analyses import _fold_interpolation_set
+
+                resolved = _fold_interpolation_set(
+                    cmd_name, _interp_sccp_uses, _interp_sccp_values,
+                )
+                if resolved is not None and all(
+                    r in registry_names
+                    or r in proc_tail_names
+                    or f"::{r}" in self.result.all_procs
+                    or r in _class_tail_names
+                    or r in stub_names
+                    or r in alias_names
+                    for r in resolved
+                ):
+                    continue
 
             # Build suggestion.
             msg = f"Unknown command '{cmd_name}'"

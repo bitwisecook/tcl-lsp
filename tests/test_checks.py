@@ -1437,6 +1437,69 @@ $h hello
         diags = _diag_with_code(source, "W307")
         assert len(diags) == 0
 
+    def test_oo_class_name_as_command_no_w123(self):
+        """oo::class create Foo makes 'Foo' a known command — no W123."""
+        source = """\
+oo::class create Logger {
+    method add {msg} { puts $msg }
+}
+set log [Logger new]
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_oo_forward_method_no_w123(self):
+        """Forward methods on known classes suppress W123."""
+        source = """\
+oo::class create Proxy {
+    forward myput puts
+}
+set p [Proxy new]
+$p myput hello
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_oo_mixin_method_no_w123(self):
+        """Methods from mixins should be resolved — no W123 on class command."""
+        source = """\
+oo::class create Loggable {
+    method log {msg} { puts $msg }
+}
+oo::class create Service {
+    method run {} { puts running }
+}
+oo::define Service mixin Loggable
+set svc [Service new]
+$svc log hello
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_foreach_var_mediated_list_no_w307(self):
+        """foreach over $var where var is constant list suppresses W307."""
+        source = """\
+proc a {} {puts a}
+proc b {} {puts b}
+set cmds {a b}
+foreach cmd $cmds {
+    $cmd
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_interpolated_handler_no_w123(self):
+        """handler_$action where action is CONST resolves to known proc."""
+        source = """\
+proc handler_start {} { puts starting }
+proc handler_stop {} { puts stopping }
+set action start
+handler_$action
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
 
 # W108: Non-ASCII token content
 
