@@ -50,6 +50,9 @@ class CodeInfo:
     section: str = ""
     default: bool = True
     internal: bool = False
+    ai_category: str | None = None
+    conversion_label: str | None = None
+    opt_category: str | None = None
 
 
 # Ordered list of valid diagnostic sections with display titles.  Controls
@@ -76,6 +79,32 @@ SECTION_TITLES: dict[str, str] = dict(SECTIONS)
 
 _registry: dict[str, CodeInfo] = {}
 
+AI_CATEGORIES: frozenset[str] = frozenset(
+    {
+        "error",
+        "security",
+        "taint",
+        "thread_safety",
+        "control_flow",
+        "performance",
+        "style",
+        "optimiser",
+        "irules",
+        "tk",
+    }
+)
+
+OPT_CATEGORIES: frozenset[str] = frozenset(
+    {
+        "readability",
+        "constant_folding",
+        "pattern",
+        "dce",
+        "code_motion",
+        "recursion",
+    }
+)
+
 
 def diag(
     code: str,
@@ -84,6 +113,8 @@ def diag(
     section: str,
     default: bool = True,
     internal: bool = False,
+    ai_category: str | None = None,
+    conversion_label: str | None = None,
 ) -> Callable[[_F], _F]:
     """Register a diagnostic code.  Use as ``@diag(...)`` decorator or bare call.
 
@@ -96,6 +127,8 @@ def diag(
             existing.description == description
             and existing.default == default
             and existing.internal == internal
+            and existing.ai_category == ai_category
+            and existing.conversion_label == conversion_label
         ):
 
             def _identity_dup(fn: _F) -> _F:
@@ -108,6 +141,13 @@ def diag(
             f"Unknown section {section!r} for code {code}. "
             f"Add it to SECTIONS in core/common/codes.py."
         )
+    if ai_category is not None and ai_category not in AI_CATEGORIES:
+        raise ValueError(
+            f"Unknown ai_category {ai_category!r} for code {code}. "
+            f"Valid values: {', '.join(sorted(AI_CATEGORIES))}."
+        )
+    if conversion_label is not None and not conversion_label.strip():
+        raise ValueError(f"conversion_label must be non-empty for code {code}.")
     _registry[code] = CodeInfo(
         code=code,
         description=description,
@@ -115,6 +155,8 @@ def diag(
         section=section,
         default=default,
         internal=internal,
+        ai_category=ai_category,
+        conversion_label=conversion_label,
     )
 
     def _identity(fn: _F) -> _F:
@@ -128,22 +170,33 @@ def opt(
     description: str,
     *,
     default: bool = True,
+    opt_category: str,
 ) -> Callable[[_F], _F]:
     """Register an optimisation code.  Use as ``@opt(...)`` decorator or bare call."""
     if code in _registry:
         existing = _registry[code]
-        if existing.description == description and existing.default == default:
+        if (
+            existing.description == description
+            and existing.default == default
+            and existing.opt_category == opt_category
+        ):
 
             def _identity_dup(fn: _F) -> _F:
                 return fn
 
             return _identity_dup
         raise ValueError(f"Duplicate optimisation code: {code}")
+    if opt_category not in OPT_CATEGORIES:
+        raise ValueError(
+            f"Unknown opt_category {opt_category!r} for code {code}. "
+            f"Valid values: {', '.join(sorted(OPT_CATEGORIES))}."
+        )
     _registry[code] = CodeInfo(
         code=code,
         description=description,
         kind=CodeKind.OPTIMISATION,
         default=default,
+        opt_category=opt_category,
     )
 
     def _identity(fn: _F) -> _F:
@@ -217,3 +270,35 @@ def codes_by_section() -> dict[str, list[CodeInfo]]:
     for codes in groups.values():
         codes.sort(key=lambda i: i.code)
     return groups
+
+
+def optimisation_codes_by_category() -> dict[str, frozenset[str]]:
+    """Return optimisation codes grouped by their ``opt_category`` metadata."""
+    groups: dict[str, set[str]] = {key: set() for key in OPT_CATEGORIES}
+    for info in _registry.values():
+        if info.kind is not CodeKind.OPTIMISATION or info.opt_category is None:
+            continue
+        groups.setdefault(info.opt_category, set()).add(info.code)
+    return {key: frozenset(sorted(groups.get(key, set()))) for key in sorted(OPT_CATEGORIES)}
+
+
+def ai_category_overrides() -> dict[str, str]:
+    """Return per-code AI category overrides declared on diagnostics."""
+    return {
+        info.code: info.ai_category
+        for info in _registry.values()
+        if info.kind is CodeKind.DIAGNOSTIC and info.ai_category is not None
+    }
+
+
+def conversion_map() -> dict[str, str]:
+    """Return ``{code: conversion_label}`` for diagnostics with conversion metadata."""
+    ordered = sorted(
+        (
+            info
+            for info in _registry.values()
+            if info.kind is CodeKind.DIAGNOSTIC and info.conversion_label is not None
+        ),
+        key=lambda i: (SECTION_KEYS.index(i.section) if i.section in SECTION_KEYS else 999, i.code),
+    )
+    return {info.code: info.conversion_label or "" for info in ordered}

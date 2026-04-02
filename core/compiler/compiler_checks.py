@@ -52,7 +52,12 @@ log = logging.getLogger(__name__)
 
 # Module-level registrations for codes emitted from nested/inline code.
 diag("E004", "Invalid argument count.", section="error", internal=True)
-diag("W302", "`catch` without result variable — errors are silently swallowed.", section="security")
+diag(
+    code="W302",
+    description="`catch` without result variable — errors are silently swallowed.",
+    section="security",
+    ai_category="style",
+)
 
 
 def iter_ir_statements(script: IRScript):

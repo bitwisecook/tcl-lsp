@@ -22,12 +22,16 @@ from ._types import Optimisation, PassContext
 _RETURN_VAR_SCANNER = VarReferenceScanner()
 
 # O-code registrations for codes primarily emitted from this module
-opt("O107", "Eliminate unreachable dead code.")
-opt("O108", "Eliminate transitively dead code.")
-opt("O109", "Eliminate dead stores.")
+opt(code="O107", description="Eliminate unreachable dead code.", opt_category="dce")
+opt(code="O108", description="Eliminate transitively dead code.", opt_category="dce")
+opt(code="O109", description="Eliminate dead stores.", opt_category="dce")
 opt(
-    "O126",
-    "Remove unused variable assignments — eliminate `set` statements for variables that are never read.",
+    code="O126",
+    description=(
+        "Remove unused variable assignments — eliminate `set` statements for variables "
+        "that are never read."
+    ),
+    opt_category="dce",
 )
 
 

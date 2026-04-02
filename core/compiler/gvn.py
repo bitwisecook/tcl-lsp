@@ -772,7 +772,11 @@ def _loop_defined_variables(
     return frozenset(defs)
 
 
-@opt("O106", "Hoist loop-invariant computations.")
+@opt(
+    code="O106",
+    description="Hoist loop-invariant computations.",
+    opt_category="code_motion",
+)
 def _find_loop_invariants(
     cfg: CFGFunction,
     ssa: SSAFunction,

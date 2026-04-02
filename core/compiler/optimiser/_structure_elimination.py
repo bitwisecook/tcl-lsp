@@ -24,7 +24,11 @@ from ._helpers import (
 )
 from ._types import Optimisation, PassContext
 
-opt("O112", "Eliminate constant-condition compound statements.")
+opt(
+    code="O112",
+    description="Eliminate constant-condition compound statements.",
+    opt_category="dce",
+)
 
 
 def optimise_structure_elimination(

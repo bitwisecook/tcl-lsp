@@ -58,7 +58,11 @@ def _comment_out(text: str, proc_name: str) -> str:
     )
 
 
-@opt("O124", "Comment out unused procs in iRules (not called from any event).")
+@opt(
+    code="O124",
+    description="Comment out unused procs in iRules (not called from any event).",
+    opt_category="dce",
+)
 def optimise_unused_procs(ctx: PassContext) -> None:
     """O124: comment out procs not called from any event handler."""
     if active_dialect() != "f5-irules":

@@ -46,9 +46,13 @@ from ._helpers import (
 
 
 @diag(
-    "W100",
-    "Unbraced expression argument — prevents byte-compilation and risks double substitution.",
+    code="W100",
+    description=(
+        "Unbraced expression argument — prevents byte-compilation and risks double substitution."
+    ),
     section="warning",
+    ai_category="security",
+    conversion_label="Unbraced expr -> braced expr",
 )
 def check_unbraced_expr(
     cmd_name: str,
@@ -405,7 +409,12 @@ def check_unbraced_switch_body(
 # W104: String concatenation to build list (append vs lappend)
 
 
-@diag("W104", "String concatenation for list building — use `lappend` instead.", section="warning")
+@diag(
+    code="W104",
+    description="String concatenation for list building — use `lappend` instead.",
+    section="warning",
+    conversion_label="String concat for lists -> lappend",
+)
 def check_string_list_confusion(
     cmd_name: str,
     args: list[str],
@@ -497,7 +506,13 @@ def check_exec_not_captured(
 # W304: Missing option terminator (--) on option-bearing commands
 
 
-@diag("W304", "Missing option terminator `--` on option-bearing commands.", section="security")
+@diag(
+    code="W304",
+    description="Missing option terminator `--` on option-bearing commands.",
+    section="security",
+    ai_category="style",
+    conversion_label="Missing -- option terminator -> add --",
+)
 def check_missing_option_terminator(
     cmd_name: str,
     args: list[str],
@@ -693,7 +708,12 @@ def _count_eq_ne_ops(node: ExprNode) -> int:
             return 0
 
 
-@diag("W110", "Use `eq`/`ne` instead of `==`/`!=` for string comparison.", section="warning")
+@diag(
+    code="W110",
+    description="Use `eq`/`ne` instead of `==`/`!=` for string comparison.",
+    section="warning",
+    conversion_label="== / != for strings -> eq / ne",
+)
 def check_string_compare_in_expr(
     cmd_name: str,
     args: list[str],

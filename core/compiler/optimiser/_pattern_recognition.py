@@ -219,7 +219,11 @@ def _statement_rewrite_context(
     return range_by_stmt, next_start_by_stmt
 
 
-@opt("O104", "Fold static string build chains into a single assignment.")
+@opt(
+    code="O104",
+    description="Fold static string build chains into a single assignment.",
+    opt_category="pattern",
+)
 def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
     source = ctx.source
     for block_name, block in cfg.blocks.items():
@@ -354,7 +358,11 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
             finish_chain(var_key)
 
 
-@opt("O114", "Recognise `incr` idiom (`set x [expr {$x + N}]` → `incr x N`).")
+@opt(
+    code="O114",
+    description="Recognise `incr` idiom (`set x [expr {$x + N}]` → `incr x N`).",
+    opt_category="readability",
+)
 def optimise_incr_idioms(ctx: PassContext, cfg, ssa) -> None:
     """O114: Recognise ``set x [expr {$x + N}]`` -> ``incr x N``."""
     source = ctx.source
@@ -402,7 +410,11 @@ def optimise_incr_idioms(ctx: PassContext, cfg, ssa) -> None:
 _SET_PACK_MIN_GROUP = 3  # minimum candidates for packing
 
 
-@opt("O119", "Pack consecutive `set` literals into `lassign`/`foreach`.")
+@opt(
+    code="O119",
+    description="Pack consecutive `set` literals into `lassign`/`foreach`.",
+    opt_category="pattern",
+)
 def optimise_multi_set_packing(ctx: PassContext, cfg, ssa) -> None:
     """O119: Pack interspersed ``set var literal`` into ``lassign``/``foreach``."""
     source = ctx.source

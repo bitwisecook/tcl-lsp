@@ -60,7 +60,9 @@ if str(ROOT) not in sys.path:
 import core.common.codes_all  # noqa: F401, E402
 from core.common.codes import (  # noqa: E402
     SECTIONS,
+    ai_category_overrides,
     codes_by_section,
+    conversion_map,
     diagnostics_sorted,
     optimisations_sorted,
 )
@@ -758,23 +760,6 @@ _SECTION_TO_CATEGORY: dict[str, str] = {
     "irules_variable": "thread_safety",
 }
 
-# Per-code overrides for the handful of codes whose section doesn't match
-# the desired AI category.
-_CODE_CATEGORY_OVERRIDES: dict[str, str] = {
-    "W100": "security",
-    "W302": "style",
-    "W304": "style",
-    "IRULE1005": "control_flow",
-    "IRULE1006": "control_flow",
-    "IRULE1007": "control_flow",
-    "IRULE1008": "control_flow",
-    "IRULE1201": "control_flow",
-    "IRULE1202": "control_flow",
-    "IRULE2001": "style",
-    "IRULE2101": "performance",
-    "IRULE5001": "performance",
-}
-
 _DIAGNOSTICS_JSON_STATIC: dict[str, object] = {
     "prefix_rules": [
         {"prefix": "E", "category": "error"},
@@ -784,23 +769,7 @@ _DIAGNOSTICS_JSON_STATIC: dict[str, object] = {
         {"prefix": "TK", "category": "tk"},
     ],
     "default_category": "style",
-    "convertible_codes": [
-        "W100",
-        "W104",
-        "W110",
-        "W304",
-        "IRULE2001",
-        "IRULE5001",
-    ],
     "review_categories": ["security", "taint", "thread_safety"],
-    "conversion_map": {
-        "W100": "Unbraced expr -> braced expr",
-        "W104": "String concat for lists -> lappend",
-        "W110": "== / != for strings -> eq / ne",
-        "W304": "Missing -- option terminator -> add --",
-        "IRULE2001": "Deprecated matchclass -> class match",
-        "IRULE5001": "Ungated log in hot event -> add debug gating",
-    },
     "irules_event_pattern": r"^\s*when\s+([A-Z][A-Z0-9_]{2,})\b",
 }
 
@@ -821,11 +790,12 @@ _CATEGORY_DEFS: list[tuple[str, str]] = [
 def _build_diagnostics_json_categories() -> list[dict]:
     """Build the categories array from the code registry."""
     section_codes = codes_by_section()
+    overrides = ai_category_overrides()
     cat_codes: dict[str, list[str]] = {key: [] for key, _ in _CATEGORY_DEFS}
     for section_key, infos in section_codes.items():
         default_cat = _SECTION_TO_CATEGORY.get(section_key, "style")
         for info in infos:
-            cat = _CODE_CATEGORY_OVERRIDES.get(info.code, default_cat)
+            cat = overrides.get(info.code, default_cat)
             if cat in cat_codes:
                 cat_codes[cat].append(info.code)
     cat_codes["tk"] = ["TK1001", "TK1002", "TK1003"]
@@ -839,7 +809,12 @@ def _build_diagnostics_json_categories() -> list[dict]:
 
 def generate_diagnostics_json(*, dry_run: bool = False) -> tuple[Path, str]:
     """Generate ai/shared/diagnostics.json from the code registry."""
-    data: dict[str, object] = {"categories": _build_diagnostics_json_categories()}
+    conversions = conversion_map()
+    data: dict[str, object] = {
+        "categories": _build_diagnostics_json_categories(),
+        "convertible_codes": list(conversions),
+        "conversion_map": conversions,
+    }
     data.update(_DIAGNOSTICS_JSON_STATIC)
     content = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     if not dry_run:

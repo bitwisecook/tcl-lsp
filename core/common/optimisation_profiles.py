@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from .codes import optimisation_codes
+from .codes import optimisation_codes, optimisation_codes_by_category
 
 
 class OptimisationProfile(Enum):
@@ -44,73 +44,21 @@ class ProfileSpec:
     max_iterations: int = 1
 
 
+def _category_codes(name: str) -> frozenset[str]:
+    """Return optimisation codes for one registry-declared category."""
+    return optimisation_codes_by_category().get(name, frozenset())
+
+
 # ---------------------------------------------------------------------------
-# Code categories
+# Code categories (derived from @opt(..., opt_category=...) metadata)
 # ---------------------------------------------------------------------------
 
-#: Idiomatic rewrites — improve clarity without removing or restructuring code.
-READABILITY_CODES: frozenset[str] = frozenset(
-    {
-        "O111",  # Brace expression performance hints
-        "O114",  # incr idiom
-        "O115",  # Redundant nested [expr]
-        "O117",  # string length == 0 simplification
-        "O120",  # eq/ne for string comparisons
-    }
-)
-
-#: Constant folding and expression simplification.
-CONSTANT_FOLDING_CODES: frozenset[str] = frozenset(
-    {
-        "O100",  # Propagate constant variables
-        "O101",  # Fold constant integer expressions
-        "O102",  # Fold constant [expr {...}] substitutions
-        "O103",  # Fold static procedure calls (ICIP)
-        "O105",  # GVN/CSE — redundant computation detection
-        "O110",  # Canonicalise expressions (InstCombine)
-        "O113",  # Strength reduction
-        "O116",  # Fold constant [list]
-        "O118",  # Fold constant [lindex]
-    }
-)
-
-#: Pattern recognition and packing.
-PATTERN_CODES: frozenset[str] = frozenset(
-    {
-        "O104",  # Fold string build chains
-        "O119",  # Pack consecutive set literals into lassign/foreach
-    }
-)
-
-#: Dead code and dead store elimination.
-DCE_CODES: frozenset[str] = frozenset(
-    {
-        "O107",  # Unreachable dead code
-        "O108",  # Aggressive DCE (ADCE)
-        "O109",  # Dead store elimination (DSE)
-        "O112",  # Constant-condition block elimination (SCCP)
-        "O124",  # Unused iRule procs
-        "O126",  # Unused variable assignments
-    }
-)
-
-#: Code motion — moving or inlining assignments.
-CODE_MOTION_CODES: frozenset[str] = frozenset(
-    {
-        "O106",  # Loop-invariant code motion (LICM)
-        "O125",  # Code sinking
-        "O127",  # Inline single-use variable
-    }
-)
-
-#: Recursion transforms.
-RECURSION_CODES: frozenset[str] = frozenset(
-    {
-        "O121",  # Tail-call rewrite
-        "O122",  # Tail-recursion to while loop
-        "O123",  # Accumulator introduction hint
-    }
-)
+READABILITY_CODES: frozenset[str] = _category_codes("readability")
+CONSTANT_FOLDING_CODES: frozenset[str] = _category_codes("constant_folding")
+PATTERN_CODES: frozenset[str] = _category_codes("pattern")
+DCE_CODES: frozenset[str] = _category_codes("dce")
+CODE_MOTION_CODES: frozenset[str] = _category_codes("code_motion")
+RECURSION_CODES: frozenset[str] = _category_codes("recursion")
 
 # ---------------------------------------------------------------------------
 # Profile specifications

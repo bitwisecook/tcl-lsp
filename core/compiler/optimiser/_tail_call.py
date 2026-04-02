@@ -393,7 +393,11 @@ def _count_condition_self_calls(
 # O121: tailcall suggestion
 
 
-@opt("O121", "Rewrite self-recursive tail calls to `tailcall`.")
+@opt(
+    code="O121",
+    description="Rewrite self-recursive tail calls to `tailcall`.",
+    opt_category="recursion",
+)
 def _emit_o121(ctx: PassContext, site: _TailCallSite, short_name: str) -> None:
     """Emit O121 for a tail-position self-call."""
     if site.kind == "return_subst":
@@ -434,7 +438,11 @@ def _self_name_variants_from_short(short_name: str) -> frozenset[str]:
 # O122: recursion-to-loop conversion
 
 
-@opt("O122", "Convert fully tail-recursive proc to iterative `while` loop.")
+@opt(
+    code="O122",
+    description="Convert fully tail-recursive proc to iterative `while` loop.",
+    opt_category="recursion",
+)
 def _suggest_loop_conversion(
     ctx: PassContext,
     proc,
@@ -512,7 +520,11 @@ def _make_reassignment(params: tuple[str, ...], args: tuple[str, ...]) -> str:
 # O123: accumulator-eligible non-tail recursion detection
 
 
-@opt("O123", "Detect non-tail recursion eligible for accumulator introduction (hint only).")
+@opt(
+    code="O123",
+    description="Detect non-tail recursion eligible for accumulator introduction (hint only).",
+    opt_category="recursion",
+)
 def _detect_accumulator_candidate(
     ctx: PassContext,
     proc,
