@@ -738,12 +738,233 @@ def generate_optimisation_codes(*, dry_run: bool = False) -> tuple[Path, str]:
     return _OPT_CODES_PATH, content
 
 
+# ---------------------------------------------------------------------------
+# Generate ai/shared/diagnostics.json — categories from code registry
+# ---------------------------------------------------------------------------
+
+_DIAGNOSTICS_JSON_PATH = ROOT / "ai" / "shared" / "diagnostics.json"
+
+# Mapping: codes.py section -> diagnostics.json category key.
+_SECTION_TO_CATEGORY: dict[str, str] = {
+    "error": "error",
+    "warning": "style",
+    "variable": "style",
+    "security": "security",
+    "hint": "style",
+    "shimmer": "performance",
+    "taint": "taint",
+    "irules": "irules",
+    "irules_security": "security",
+    "irules_variable": "thread_safety",
+}
+
+# Per-code overrides for the handful of codes whose section doesn't match
+# the desired AI category.
+_CODE_CATEGORY_OVERRIDES: dict[str, str] = {
+    "W100": "security",
+    "W302": "style",
+    "W304": "style",
+    "IRULE1005": "control_flow",
+    "IRULE1006": "control_flow",
+    "IRULE1007": "control_flow",
+    "IRULE1008": "control_flow",
+    "IRULE1201": "control_flow",
+    "IRULE1202": "control_flow",
+    "IRULE2001": "style",
+    "IRULE2101": "performance",
+    "IRULE5001": "performance",
+}
+
+_DIAGNOSTICS_JSON_STATIC: dict[str, object] = {
+    "prefix_rules": [
+        {"prefix": "E", "category": "error"},
+        {"prefix": "O", "category": "optimiser"},
+        {"prefix": "S", "category": "performance"},
+        {"prefix": "IRULE", "category": "irules"},
+        {"prefix": "TK", "category": "tk"},
+    ],
+    "default_category": "style",
+    "convertible_codes": [
+        "W100",
+        "W104",
+        "W110",
+        "W304",
+        "IRULE2001",
+        "IRULE5001",
+    ],
+    "review_categories": ["security", "taint", "thread_safety"],
+    "conversion_map": {
+        "W100": "Unbraced expr -> braced expr",
+        "W104": "String concat for lists -> lappend",
+        "W110": "== / != for strings -> eq / ne",
+        "W304": "Missing -- option terminator -> add --",
+        "IRULE2001": "Deprecated matchclass -> class match",
+        "IRULE5001": "Ungated log in hot event -> add debug gating",
+    },
+    "irules_event_pattern": r"^\s*when\s+([A-Z][A-Z0-9_]{2,})\b",
+}
+
+_CATEGORY_DEFS: list[tuple[str, str]] = [
+    ("error", "Errors"),
+    ("security", "Security"),
+    ("taint", "Taint Analysis"),
+    ("thread_safety", "Thread Safety"),
+    ("control_flow", "Control Flow"),
+    ("performance", "Performance"),
+    ("style", "Style & Best Practice"),
+    ("optimiser", "Optimiser"),
+    ("irules", "iRules"),
+    ("tk", "Tk GUI"),
+]
+
+
+def _build_diagnostics_json_categories() -> list[dict]:
+    """Build the categories array from the code registry."""
+    section_codes = codes_by_section()
+    cat_codes: dict[str, list[str]] = {key: [] for key, _ in _CATEGORY_DEFS}
+    for section_key, infos in section_codes.items():
+        default_cat = _SECTION_TO_CATEGORY.get(section_key, "style")
+        for info in infos:
+            cat = _CODE_CATEGORY_OVERRIDES.get(info.code, default_cat)
+            if cat in cat_codes:
+                cat_codes[cat].append(info.code)
+    cat_codes["tk"] = ["TK1001", "TK1002", "TK1003"]
+    for lst in cat_codes.values():
+        lst.sort()
+    return [
+        {"key": key, "label": label, "codes": cat_codes.get(key, [])}
+        for key, label in _CATEGORY_DEFS
+    ]
+
+
+def generate_diagnostics_json(*, dry_run: bool = False) -> tuple[Path, str]:
+    """Generate ai/shared/diagnostics.json from the code registry."""
+    data: dict[str, object] = {"categories": _build_diagnostics_json_categories()}
+    data.update(_DIAGNOSTICS_JSON_STATIC)
+    content = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    if not dry_run:
+        _DIAGNOSTICS_JSON_PATH.write_text(content, encoding="utf-8")
+    return _DIAGNOSTICS_JSON_PATH, content
+
+
+# ---------------------------------------------------------------------------
+# Generate AI prompt and skill files from Jinja2 templates
+# ---------------------------------------------------------------------------
+
+_AI_PROMPTS_DIR = ROOT / "ai" / "prompts"
+_AI_SKILLS_DIR = ROOT / "ai" / "claude" / "skills"
+
+
+def _ai_template_context() -> dict:
+    """Build the template context for AI prompt/skill Jinja2 templates."""
+    from core.common.codes import CodeKind, all_codes  # noqa: E402
+    from core.common.optimisation_profiles import (  # noqa: E402
+        CODE_MOTION_CODES,
+        CONSTANT_FOLDING_CODES,
+        DCE_CODES,
+        PATTERN_CODES,
+        READABILITY_CODES,
+        RECURSION_CODES,
+    )
+
+    registry = all_codes()
+    section_codes = codes_by_section()
+
+    # Build per-section code lists as [{code, description}, ...]
+    def _section_list(key: str) -> list[dict]:
+        return [
+            {"code": c.code, "desc": c.description.rstrip(".")}
+            for c in section_codes.get(key, [])
+            if not c.internal
+        ]
+
+    # Build optimiser list
+    opt_infos = sorted(
+        (i for i in registry.values() if i.kind is CodeKind.OPTIMISATION),
+        key=lambda i: i.code,
+    )
+
+    def _fmt_codes(codes: frozenset[str]) -> str:
+        return ", ".join(sorted(codes))
+
+    return {
+        "errors": _section_list("error"),
+        "style": _section_list("warning") + _section_list("variable") + _section_list("hint"),
+        "security": _section_list("security"),
+        "shimmer": _section_list("shimmer"),
+        "taint": _section_list("taint"),
+        "irules": _section_list("irules"),
+        "irules_security": _section_list("irules_security"),
+        "irules_variable": _section_list("irules_variable"),
+        "optimisations": [{"code": o.code, "desc": o.description.rstrip(".")} for o in opt_infos],
+        "opt_readability": _fmt_codes(READABILITY_CODES),
+        "opt_constant_folding": _fmt_codes(CONSTANT_FOLDING_CODES),
+        "opt_pattern": _fmt_codes(PATTERN_CODES),
+        "opt_dce": _fmt_codes(DCE_CODES),
+        "opt_code_motion": _fmt_codes(CODE_MOTION_CODES),
+        "opt_recursion": _fmt_codes(RECURSION_CODES),
+    }
+
+
+def _generate_from_j2(
+    template_path: Path,
+    output_path: Path,
+    extra_context: dict | None = None,
+    *,
+    dry_run: bool = False,
+) -> tuple[Path, str]:
+    """Render a Jinja2 template with the AI template context."""
+    env = _jinja_env(template_path.parent)
+    template = env.get_template(template_path.name)
+    ctx = _ai_template_context()
+    if extra_context:
+        ctx.update(extra_context)
+    content = template.render(ctx)
+    if not dry_run:
+        output_path.write_text(content, encoding="utf-8")
+    return output_path, content
+
+
+# AI prompt/skill templates and their output paths.
+_AI_GENERATED_FILES: list[tuple[Path, Path, dict | None]] = [
+    (
+        _AI_PROMPTS_DIR / "tcl_system.md.j2",
+        _AI_PROMPTS_DIR / "tcl_system.md",
+        None,
+    ),
+    (
+        _AI_PROMPTS_DIR / "irules_system.md.j2",
+        _AI_PROMPTS_DIR / "irules_system.md",
+        None,
+    ),
+    (
+        _AI_SKILLS_DIR / "tcl-optimise" / "SKILL.md.j2",
+        _AI_SKILLS_DIR / "tcl-optimise" / "SKILL.md",
+        None,
+    ),
+    (
+        _AI_SKILLS_DIR / "irule-optimise" / "SKILL.md.j2",
+        _AI_SKILLS_DIR / "irule-optimise" / "SKILL.md",
+        None,
+    ),
+]
+
+
+def generate_ai_files(*, dry_run: bool = False) -> list[tuple[Path, str]]:
+    """Generate all AI prompt and skill files from Jinja2 templates."""
+    results = [generate_diagnostics_json(dry_run=dry_run)]
+    for template_path, output_path, extra in _AI_GENERATED_FILES:
+        if template_path.exists():
+            results.append(_generate_from_j2(template_path, output_path, extra, dry_run=dry_run))
+    return results
+
+
 # Render all — used by tests and --check mode
 
 
 def render_all(*, dry_run: bool = False) -> list[tuple[Path, str]]:
     """Render all generated files. Returns list of (path, content) pairs."""
-    return [
+    results = [
         generate_jetbrains_catalog(dry_run=dry_run),
         generate_jetbrains_settings(dry_run=dry_run),
         generate_jetbrains_panel(dry_run=dry_run),
@@ -753,6 +974,8 @@ def render_all(*, dry_run: bool = False) -> list[tuple[Path, str]]:
         generate_diagnostic_codes(dry_run=dry_run),
         generate_optimisation_codes(dry_run=dry_run),
     ]
+    results.extend(generate_ai_files(dry_run=dry_run))
+    return results
 
 
 # CLI

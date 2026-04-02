@@ -1,3 +1,4 @@
+{# Generated from SKILL.md.j2 — do not edit SKILL.md directly. #}
 ---
 name: tcl-optimise
 description: "Apply LSP optimiser suggestions to a Tcl file and explain why each optimisation is safe and beneficial. Covers constant folding, propagation, dead code elimination, strength reduction, and expression canonicalisation. Use when optimising Tcl code, improving .tcl file performance, refactoring Tcl scripts for efficiency, or applying language server optimisation suggestions."
@@ -33,17 +34,17 @@ Apply LSP optimiser suggestions to Tcl files with safety explanations for each t
 See `docs/generated/optimisation_codes.md` for the full auto-generated table of O100+ codes.
 Key categories:
 
-- **Readability** (O111, O114, O115, O117, O120): Idiomatic rewrites (incr, eq/ne, bracing)
-- **Constant folding/propagation** (O100, O101, O102, O103, O105, O110, O113, O116, O118): Inline and simplify known values
-- **Pattern recognition** (O104, O119): Fold string chains, pack consecutive sets
-- **Dead code** (O107, O108, O109, O112, O124, O126): Remove unreachable or unused code and stores
-- **Code motion** (O106, O125, O127): Hoist, sink, and inline assignments
-- **Recursion** (O121, O122, O123): Tail-call rewriting and accumulator hints
+- **Readability** ({{ opt_readability }}): Idiomatic rewrites (incr, eq/ne, bracing)
+- **Constant folding/propagation** ({{ opt_constant_folding }}): Inline and simplify known values
+- **Pattern recognition** ({{ opt_pattern }}): Fold string chains, pack consecutive sets
+- **Dead code** ({{ opt_dce }}): Remove unreachable or unused code and stores
+- **Code motion** ({{ opt_code_motion }}): Hoist, sink, and inline assignments
+- **Recursion** ({{ opt_recursion }}): Tail-call rewriting and accumulator hints
 
 ## Optimiser profiles
 
 - **off**: All optimisations disabled
-- **readability** (editor default): O111, O114, O115, O117, O120
+- **readability** (editor default): {{ opt_readability }}
 - **standard**: readability + constant folding + pattern recognition
 - **full** (CLI/AI default): All 28 passes, single pass
 - **aggressive**: All passes, multi-pass to fixpoint

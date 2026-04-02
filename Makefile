@@ -474,6 +474,10 @@ check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
 	@echo "==> Checking editor settings are up to date"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_editor_settings.py --check
 
+# Unified codegen — regenerate ALL generated files from registries
+
+codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalogs + editor settings + AI prompts)
+
 # Compiler Explorer (WASM GUI)
 
 PYODIDE_VERSION  := 0.27.3
