@@ -36,7 +36,7 @@ They never delete lines or introduce new variables.
 
 ### `standard`
 
-**Enabled codes:** readability + O100-O105, O110, O113, O116, O118, O104, O119 (16 codes)
+**Enabled codes:** readability + O100-O105, O110, O113, O116, O118, O119 (16 codes)
 
 Adds constant folding and pattern recognition on top of readability:
 

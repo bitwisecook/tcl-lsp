@@ -339,7 +339,13 @@ def save_settings_to_config(
         enabled = opt.get("enabled")
         if isinstance(enabled, bool) and _differs("optimiser", "enabled", enabled):
             items.append(("enabled", str(enabled).lower()))
-        disabled_opts = [k for k, v in opt.items() if k != "enabled" and v is False]
+        profile = opt.get("profile")
+        if isinstance(profile, str) and _differs("optimiser", "profile", profile):
+            items.append(("profile", profile))
+        # Only write per-code disables that differ from the profile baseline
+        # so the exported config stays minimal.
+        _NON_CODE_KEYS = {"enabled", "profile"}
+        disabled_opts = [k for k, v in opt.items() if k not in _NON_CODE_KEYS and v is False]
         if disabled_opts:
             items.append(("disabled", ", ".join(sorted(disabled_opts))))
         if items:

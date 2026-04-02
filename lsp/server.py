@@ -28,10 +28,12 @@ from core.common.codes import default_disabled_diagnostics, diagnostic_codes, op
 from core.common.document_buffer import DocumentBuffer
 from core.common.lsp import to_lsp_location
 from core.common.optimisation_profiles import (
+    DEFAULT_ACTION_PROFILE,
     DEFAULT_EDITOR_PROFILE,
     PROFILE_NAMES,
     profile_from_name,
     profile_to_disabled,
+    resolve_profile,
 )
 from core.common.user_config import (
     get_all_settings,
@@ -1114,29 +1116,17 @@ def on_code_action(
 
 @server.command("tcl-lsp.optimiseDocument")
 def on_optimise_document(uri: str, profile: str = "full") -> dict | None:
-    from core.common.optimisation_profiles import (
-        DEFAULT_ACTION_PROFILE,
-        profile_from_name,
-    )
-    from core.common.optimisation_profiles import (
-        profile_spec as _profile_spec,
-    )
-    from core.common.optimisation_profiles import (
-        profile_to_disabled as _profile_to_disabled,
-    )
     from core.compiler.optimiser import optimise_source_multipass
 
     source = _get_doc_source(uri)
-    try:
-        prof = profile_from_name(profile)
-    except ValueError:
-        prof = DEFAULT_ACTION_PROFILE
-    spec = _profile_spec(prof)
-    disabled = _profile_to_disabled(prof)
-    if spec.multi_pass:
+    disabled, multi_pass, max_iterations = resolve_profile(
+        profile,
+        default=DEFAULT_ACTION_PROFILE,
+    )
+    if multi_pass:
         optimised, opts, _iters = optimise_source_multipass(
             source,
-            max_iterations=spec.max_iterations,
+            max_iterations=max_iterations,
             disabled=disabled,
         )
     else:
@@ -2921,11 +2911,17 @@ def _export_config() -> dict:
     if diag:
         settings["diagnostics"] = diag
 
-    # Optimiser
+    # Optimiser — export profile + only per-code overrides relative to profile.
     opt: dict[str, object] = {"enabled": feature_config.optimiser_enabled}
+    opt["profile"] = feature_config.optimiser_profile
+    profile_baseline = profile_to_disabled(profile_from_name(feature_config.optimiser_profile))
     for code in _ALL_OPTIMISATION_CODES:
-        if code in feature_config.disabled_optimisations:
-            opt[code] = False
+        in_disabled = code in feature_config.disabled_optimisations
+        in_baseline = code in profile_baseline
+        if in_disabled and not in_baseline:
+            opt[code] = False  # explicitly disabled beyond profile
+        elif not in_disabled and in_baseline:
+            opt[code] = True  # explicitly enabled beyond profile
     settings["optimiser"] = opt
 
     # Shimmer
@@ -2950,7 +2946,10 @@ def _export_config() -> dict:
     }
     defaults: dict[str, object] = {
         "features": default_features,
-        "optimiser": {"enabled": default_cfg.optimiser_enabled},
+        "optimiser": {
+            "enabled": default_cfg.optimiser_enabled,
+            "profile": default_cfg.optimiser_profile,
+        },
         "shimmer": {"enabled": default_cfg.shimmer_enabled},
         "xcDiagnostics": {"enabled": default_cfg.xc_diagnostics_enabled},
         "style": {"lineLength": default_cfg.line_length},
