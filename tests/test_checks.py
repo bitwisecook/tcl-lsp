@@ -652,8 +652,14 @@ class TestMissingOptionTerminator:
         assert len(diags) == 1
         assert "option-injection" in diags[0].message.lower()
 
-    def test_regexp_literal_pattern_without_terminator_warns(self):
+    def test_regexp_literal_safe_pattern_suppressed(self):
+        # Pattern starts with '(' — structurally cannot be confused with an option.
         diags = _diag_with_code("regexp {(a+)+$} $text", "W304")
+        assert len(diags) == 0
+
+    def test_regexp_literal_dash_pattern_warns(self):
+        # Pattern starts with '-' — could be confused with -nocase etc.
+        diags = _diag_with_code("regexp {-[0-9]+} $text", "W304")
         assert len(diags) == 1
 
     def test_regexp_pattern_variable_with_terminator_clean(self):

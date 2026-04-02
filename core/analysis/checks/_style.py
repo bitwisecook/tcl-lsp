@@ -525,6 +525,16 @@ def check_missing_option_terminator(
     For commands that parse options, a user-controlled value beginning with '-'
     can be interpreted as an option (option injection).  The conventional Tcl
     mitigation is to insert '--' before untrusted positional values.
+
+    Uses a tristate severity model:
+
+    * **OFF** (suppress) -- the value provably cannot start with ``-``.
+      Covers literal non-``-`` values, compound words whose first character is
+      a known safe literal, and variables that resolve to a safe literal.
+    * **POSSIBLE** (INFO) -- the value *currently* resolves to a safe literal
+      but the variable could change at runtime.
+    * **ALWAYS** (WARNING) -- the value is dynamic with no resolution, or is
+      known/likely to start with ``-``.
     """
     if not args or not arg_tokens:
         return []
@@ -540,64 +550,80 @@ def check_missing_option_terminator(
     tok = arg_tokens[positional_idx]
     text = args[positional_idx]
 
-    # Focus on option-injection risks (dynamic value), plus obvious literal '-'
     is_dynamic = tok.type in (TokenType.VAR, TokenType.CMD)
     looks_like_option = text.startswith("-")
-    should_warn = profile.warn_without_terminator or is_dynamic or looks_like_option
-    if not should_warn:
+
+    # OFF: non-dynamic value that does not start with '-' can never be
+    # confused with an option, regardless of warn_without_terminator.
+    if not is_dynamic and not looks_like_option:
         return []
 
+    # For dynamic values, attempt to prove the value cannot start with '-'.
     severity = Severity.WARNING
     origin_diag: Diagnostic | None = None
     command_label = cmd_name if profile.subcommand is None else f"{cmd_name} {profile.subcommand}"
-    if is_dynamic and tok.type is TokenType.VAR and not looks_like_option:
-        resolved = _last_literal_set_value_for_var(
-            source,
-            tok.text,
-            before_offset=tok.start.offset,
-        )
-        if resolved is not None and not resolved[0].startswith("-"):
-            resolved_text, resolved_range = resolved
-            severity = Severity.INFO
-            message = (
-                f"'{command_label}' parses leading '-' as options. This value "
-                f"is reported at INFO because '{tok.text}' currently resolves "
-                f"to static literal '{resolved_text}'. Keep '--' to guard "
-                "against future option-injection regressions if the variable changes."
+
+    if is_dynamic and not looks_like_option:
+        # Compound word: the first sub-token is a literal (e.g. "/${path}",
+        # ".${ext}"). If that literal character isn't '-', the full value
+        # structurally cannot start with '-' regardless of the variable.
+        if tok.type not in (TokenType.VAR, TokenType.CMD):
+            # First sub-token is literal (ESC/STR) in a multi-token word —
+            # the expanded text already shows the literal prefix.  Since we
+            # checked !looks_like_option above, the text doesn't start with '-'.
+            return []
+
+        # Single-token variable: try constant propagation.
+        if tok.type is TokenType.VAR:
+            resolved = _last_literal_set_value_for_var(
+                source,
+                tok.text,
+                before_offset=tok.start.offset,
             )
-            origin_diag = Diagnostic(
-                range=resolved_range,
-                message=(
-                    f"'{tok.text}' is currently assigned static literal "
-                    f"'{resolved_text}' here; this is why the switch-site "
-                    "diagnostic is INFO."
-                ),
-                severity=Severity.INFO,
-                code="W304",
-            )
-        elif resolved is not None and resolved[0].startswith("-"):
-            resolved_text, _ = resolved
-            message = (
-                f"'{command_label}' parses leading '-' as options. This value "
-                f"currently resolves to '{resolved_text}', so add '--' to force data "
-                "parsing."
-            )
+            if resolved is not None and not resolved[0].startswith("-"):
+                # POSSIBLE: currently safe but could change at runtime.
+                resolved_text, resolved_range = resolved
+                severity = Severity.INFO
+                message = (
+                    f"'{command_label}' parses leading '-' as options. This value "
+                    f"is reported at INFO because '{tok.text}' currently resolves "
+                    f"to static literal '{resolved_text}'. Keep '--' to guard "
+                    "against future option-injection regressions if the variable "
+                    "changes."
+                )
+                origin_diag = Diagnostic(
+                    range=resolved_range,
+                    message=(
+                        f"'{tok.text}' is currently assigned static literal "
+                        f"'{resolved_text}' here; this is why the diagnostic "
+                        "is INFO."
+                    ),
+                    severity=Severity.INFO,
+                    code="W304",
+                )
+            elif resolved is not None and resolved[0].startswith("-"):
+                # ALWAYS: resolves to a value starting with '-'.
+                resolved_text, _ = resolved
+                message = (
+                    f"'{command_label}' parses leading '-' as options. This value "
+                    f"currently resolves to '{resolved_text}', so add '--' to "
+                    "force data parsing."
+                )
+            else:
+                # ALWAYS: dynamic with no resolution.
+                message = (
+                    f"'{command_label}' parses leading '-' as options. Insert "
+                    "'--' before substituted input to reduce option-injection "
+                    "risk."
+                )
         else:
+            # Command substitution — cannot resolve statically.
             message = (
                 f"'{command_label}' parses leading '-' as options. Insert '--' "
                 "before substituted input to reduce option-injection risk."
             )
-    elif profile.warn_without_terminator and not is_dynamic and not looks_like_option:
-        message = (
-            f"'{command_label}' parses leading '-' as options. Insert '--' "
-            "before the first positional argument for predictable parsing."
-        )
-    elif is_dynamic:
-        message = (
-            f"'{command_label}' parses leading '-' as options. Insert '--' "
-            "before substituted input to reduce option-injection risk."
-        )
     else:
+        # ALWAYS: literal value that starts with '-'.
         message = (
             f"'{command_label}' argument starts with '-'. Add '--' before this "
             "value so it is treated as data, not an option."
