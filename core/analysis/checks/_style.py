@@ -558,8 +558,9 @@ def check_missing_option_terminator(
     if not is_dynamic and not looks_like_option:
         return []
 
-    # For dynamic values, attempt to prove the value cannot start with '-'.
-    severity = Severity.WARNING
+    # Default to POSSIBLE (INFO) — escalate to ALWAYS (WARNING) only when we
+    # can prove the value starts with '-'.
+    severity = Severity.INFO
     origin_diag: Diagnostic | None = None
     command_label = cmd_name if profile.subcommand is None else f"{cmd_name} {profile.subcommand}"
 
@@ -583,7 +584,6 @@ def check_missing_option_terminator(
             if resolved is not None and not resolved[0].startswith("-"):
                 # POSSIBLE: currently safe but could change at runtime.
                 resolved_text, resolved_range = resolved
-                severity = Severity.INFO
                 message = (
                     f"'{command_label}' parses leading '-' as options. This value "
                     f"is reported at INFO because '{tok.text}' currently resolves "
@@ -603,6 +603,7 @@ def check_missing_option_terminator(
                 )
             elif resolved is not None and resolved[0].startswith("-"):
                 # ALWAYS: resolves to a value starting with '-'.
+                severity = Severity.WARNING
                 resolved_text, _ = resolved
                 message = (
                     f"'{command_label}' parses leading '-' as options. This value "
@@ -610,20 +611,21 @@ def check_missing_option_terminator(
                     "force data parsing."
                 )
             else:
-                # ALWAYS: dynamic with no resolution.
+                # POSSIBLE: dynamic with no resolution — default INFO.
                 message = (
                     f"'{command_label}' parses leading '-' as options. Insert "
                     "'--' before substituted input to reduce option-injection "
                     "risk."
                 )
         else:
-            # Command substitution — cannot resolve statically.
+            # Command substitution — cannot resolve statically. POSSIBLE.
             message = (
                 f"'{command_label}' parses leading '-' as options. Insert '--' "
                 "before substituted input to reduce option-injection risk."
             )
     else:
         # ALWAYS: literal value that starts with '-'.
+        severity = Severity.WARNING
         message = (
             f"'{command_label}' argument starts with '-'. Add '--' before this "
             "value so it is treated as data, not an option."
