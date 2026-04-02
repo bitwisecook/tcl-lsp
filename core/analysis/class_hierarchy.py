@@ -1,7 +1,8 @@
 """Class Hierarchy Analysis (CHA) for TclOO.
 
 Builds a complete class hierarchy from the workspace class index,
-computes C3 linearised MRO for each class, and answers queries about
+computes the MRO (two-pass DFS with late-placement deduplication)
+for each class, and answers queries about
 subtype relationships, method providers, and method resolution.
 
 Inspired by the CHA techniques used in LLVM and JVM HotSpot for
@@ -61,7 +62,7 @@ class ClassHierarchy:
 def build_class_hierarchy(classes: dict[str, ClassDef]) -> ClassHierarchy:
     """Build a ``ClassHierarchy`` from a dict of class definitions.
 
-    Computes C3 linearisation, subclass maps, and method provider resolution
+    Computes TclOO MRO, subclass maps, and method provider resolution
     for all classes in the index.
     """
     # Build separate superclasses and mixins maps for TclOO DFS algorithm
