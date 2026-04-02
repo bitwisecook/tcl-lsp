@@ -247,6 +247,8 @@ class AnalyserSnapshot:
     scope_id_map: dict[int, Scope] = field(default_factory=dict)
     # Variable-as-command sites: (var_name, method_name_or_None, token_range).
     var_command_sites: list[tuple[str, str | None, Range, bool]] = field(default_factory=list)
+    # Command-substitution-as-command sites: (cmd_text, method_name_or_None, range).
+    cmd_command_sites: list[tuple[str, str | None, Range]] = field(default_factory=list)
 
 
 class Analyser:
@@ -284,8 +286,19 @@ class Analyser:
         # or not (emit W307).
         # Each entry: (var_name, method_name_or_None, cmd_token_range).
         self._var_command_sites: list[tuple[str, str | None, Range, bool]] = []
+        # Command-substitution-as-command sites: records where [cmd] is used
+        # as a command name (e.g. ``[Dog new] bark``).  The post-pass checks
+        # if the command returns a TclOO object and suppresses W307.
+        # Each entry: (cmd_text, method_name_or_None, cmd_token_range).
+        self._cmd_command_sites: list[tuple[str, str | None, Range]] = []
         # Cache: id(scope) -> namespace string, for _namespace_from_scope.
         self._ns_cache: dict[int, str] = {}
+        # Namespace ensembles: namespaces where ``namespace ensemble create``
+        # was detected.  Their tail names become valid commands.
+        self._ensemble_namespaces: set[str] = set()
+        # Variables that have had oo::objdefine applied — these objects may
+        # have additional per-instance methods not in the class definition.
+        self._objdefined_vars: set[str] = set()
         # Guard against double W123 emission across analyse_commands/analyse_irule_event.
         self._unresolved_commands_emitted: bool = False
 
@@ -318,6 +331,7 @@ class Analyser:
             scope_id_map=scope_id_map,
             # Tuples inside the list are immutable — shallow copy suffices.
             var_command_sites=list(self._var_command_sites),
+            cmd_command_sites=list(self._cmd_command_sites),
         )
 
     def restore(self, snap: AnalyserSnapshot) -> None:
@@ -365,6 +379,7 @@ class Analyser:
         # Restore _var_command_sites (no scope-id remapping needed;
         # entries store Range, not scope references).
         self._var_command_sites = list(snap.var_command_sites)
+        self._cmd_command_sites = list(snap.cmd_command_sites)
 
     @staticmethod
     def _build_scope_id_map(
@@ -1269,6 +1284,11 @@ class Analyser:
             self._var_command_sites.append(
                 (cmd_tok.text, method_name, range_from_token(cmd_tok), in_method)
             )
+        elif cmd_tok is not None and cmd_tok.type is TokenType.CMD:
+            method_name = args[0] if args else None
+            self._cmd_command_sites.append(
+                (cmd_tok.text, method_name, range_from_token(cmd_tok))
+            )
 
         # IRULE5005: direct proc invocation without ``call`` in iRules.
         # In iRules, procs must be invoked via ``call proc_name``, not
@@ -1543,6 +1563,7 @@ class Analyser:
             return True
         if self._handle_oo_define_command(cmd_name, args, arg_tokens, scope):
             return True
+        self._handle_oo_objdefine(cmd_name, args)
 
         self._handle_set_command(cmd_name, args, arg_tokens, scope)
         self._handle_var_declaration_command(cmd_name, args, arg_tokens, scope)
@@ -1562,6 +1583,7 @@ class Analyser:
 
         self._handle_incr_command(cmd_name, args, arg_tokens, scope)
         self._handle_interp_alias(cmd_name, args)
+        self._handle_namespace_ensemble(cmd_name, args, scope)
         return False
 
     def _handle_proc_command(
@@ -1807,6 +1829,35 @@ class Analyser:
         qualified, target_cmd, prepended = detected
         self._command_aliases[qualified] = (target_cmd, prepended)
         self.result.command_aliases[qualified] = (target_cmd, prepended)
+
+    def _handle_oo_objdefine(self, cmd_name: str, args: list[str]) -> None:
+        """Detect ``oo::objdefine $obj ...`` and record the object variable.
+
+        Objects modified via ``oo::objdefine`` may have per-instance methods
+        that are not in the class definition.  We suppress W308 for these
+        objects to avoid false positives.
+        """
+        if cmd_name != "oo::objdefine" or not args:
+            return
+        obj_name = args[0].strip()
+        # Strip $ prefix for variable references.
+        if obj_name.startswith("$"):
+            obj_name = obj_name.lstrip("$").strip("{}")
+        if obj_name:
+            self._objdefined_vars.add(obj_name)
+
+    def _handle_namespace_ensemble(
+        self, cmd_name: str, args: list[str], scope: Scope,
+    ) -> None:
+        """Detect ``namespace ensemble create`` and record the namespace."""
+        if cmd_name != "namespace" or len(args) < 2:
+            return
+        if args[0] != "ensemble" or args[1] != "create":
+            return
+        # The ensemble command name is derived from the current namespace.
+        ns = self._namespace_from_scope(scope)
+        if ns and ns != "::":
+            self._ensemble_namespaces.add(ns)
 
     def _namespace_from_scope(self, scope: Scope) -> str:
         """Derive the current namespace string from a scope chain.
@@ -2534,6 +2585,15 @@ class Analyser:
                 _class_tail_names.add(tail)
         candidates.update(_class_tail_names)
 
+        # Namespace ensemble commands: ``namespace ensemble create`` inside
+        # ``namespace eval foo`` creates a command named ``foo``.
+        _ensemble_cmds: set[str] = set()
+        for ns in self._ensemble_namespaces:
+            tail = ns.rsplit("::", 1)[-1]
+            if tail:
+                _ensemble_cmds.add(tail)
+        candidates.update(_ensemble_cmds)
+
         # Build SCCP value maps for interpolated command name resolution.
         _interp_sccp_values: dict[tuple[str, int], object] | None = None
         _interp_sccp_uses: dict[str, int] = {}
@@ -2583,6 +2643,10 @@ class Analyser:
 
             # Skip commands explicitly handled by unknown dispatch.
             if cmd_name in dispatch_targets:
+                continue
+
+            # Skip namespace ensemble commands.
+            if cmd_name in _ensemble_cmds:
                 continue
 
             # Skip if known as a proc tail name (e.g. forward-defined proc).
@@ -2987,7 +3051,7 @@ class Analyser:
           objects, suppress W307 (the set of command names is statically known).
         - Otherwise emit W307 (non-literal command name).
         """
-        if not self._var_command_sites:
+        if not self._var_command_sites and not self._cmd_command_sites:
             return
         if "W307" in self._disabled_diagnostics and "W308" in self._disabled_diagnostics:
             return
@@ -3073,6 +3137,12 @@ class Analyser:
         _known_proc_bare = frozenset(
             qn.rsplit("::", 1)[-1] for qn in _known_procs if "::" in qn
         )
+        # TclOO class names are valid commands (oo::class create X → command X).
+        _class_tail_names: set[str] = set()
+        for qname in self.result.all_classes:
+            tail = qname.rsplit("::", 1)[-1]
+            if tail:
+                _class_tail_names.add(tail)
 
         # Build class hierarchy for method resolution.
         hierarchy = (
@@ -3142,6 +3212,16 @@ class Analyser:
                             ):
                                 found = True
                                 break
+                            # If the class defines 'unknown', any method is valid.
+                            if "unknown" in cd.methods:
+                                found = True
+                                break
+                    # Check for inherited 'unknown' handler via the MRO.
+                    if not found and has_local_class:
+                        for cls in class_names:
+                            if hierarchy.method_target(cls, "unknown") is not None:
+                                found = True
+                                break
                     # If the class has an external superclass the method
                     # might be inherited — skip W308.
                     if not found and has_local_class:
@@ -3155,6 +3235,10 @@ class Analyser:
                                 ):
                                     found = True
                                     break
+                    # Suppress W308 if the variable had oo::objdefine applied
+                    # (may have per-instance methods not in the class).
+                    if not found and var_name in self._objdefined_vars:
+                        found = True
                     if not found and has_local_class:
                         cls_display = ", ".join(sorted(class_names))
                         self.result.diagnostics.append(
@@ -3177,6 +3261,8 @@ class Analyser:
                         or v in _known_proc_bare
                         or f"::{v}" in _known_procs
                         or v in all_typed_vars
+                        or v in _class_tail_names
+                        or f"::{v}" in self.result.all_classes
                     )
                     for v in constset_vals
                 ):
@@ -3197,6 +3283,81 @@ class Analyser:
                             code="W307",
                         )
                     )
+
+        # Resolve [cmd]-as-command sites: suppress W307 when the command
+        # substitution returns a TclOO object (e.g. ``[Dog new] bark``).
+        if self._cmd_command_sites:
+            from ..compiler.core_analyses import _return_type_for_command
+
+            _known_classes = frozenset(self.result.all_classes)
+            # Build set of W307 ranges from the check pipeline that we may
+            # need to remove.
+            w307_indices: dict[tuple[int, int], int] = {}
+            for i, d in enumerate(self.result.diagnostics):
+                if d.code == "W307":
+                    w307_indices[(d.range.start.offset, d.range.end.offset)] = i
+
+            remove_indices: list[int] = []
+            for cmd_text, method_name, site_range in self._cmd_command_sites:
+                # Parse the command substitution: [Dog new] → ("Dog", ("new",))
+                inner = cmd_text.strip()
+                if inner.startswith("[") and inner.endswith("]"):
+                    inner = inner[1:-1].strip()
+                parts = inner.split(None, 1)
+                if not parts:
+                    continue
+                cmd_name_ = parts[0]
+                cmd_args_ = tuple(parts[1].split()) if len(parts) > 1 else ()
+                ret_type = _return_type_for_command(cmd_name_, cmd_args_, _known_classes)
+                if (
+                    ret_type.kind is TypeKind.KNOWN
+                    and ret_type.tcl_type is TclType.OBJECT
+                ):
+                    # Command returns an object — suppress W307.
+                    key = (site_range.start.offset, site_range.end.offset)
+                    idx = w307_indices.get(key)
+                    if idx is not None:
+                        remove_indices.append(idx)
+                    # Optionally validate the method name (W308).
+                    if (
+                        hierarchy is not None
+                        and method_name is not None
+                        and ret_type.class_name
+                        and "W308" not in self._disabled_diagnostics
+                    ):
+                        cls = ret_type.class_name
+                        cd = self.result.all_classes.get(cls)
+                        method_ok = (
+                            hierarchy.method_target(cls, method_name) is not None
+                            or cd is None  # external class — can't validate
+                            or method_name in cd.methods
+                            or method_name in cd.class_methods
+                            or method_name in ("new", "create", "destroy", "configure", "cget")
+                            or "unknown" in cd.methods
+                            or hierarchy.method_target(cls, "unknown") is not None
+                        )
+                        # If class has external superclass, skip W308.
+                        if not method_ok and cd is not None and cd.superclasses:
+                            _OO_BASE = {"oo::object", "oo::class"}
+                            if any(
+                                s not in self.result.all_classes and s not in _OO_BASE
+                                for s in cd.superclasses
+                            ):
+                                method_ok = True
+                        if not method_ok:
+                            self.result.diagnostics.append(
+                                Diagnostic(
+                                    range=site_range,
+                                    message=f"Unknown method '{method_name}' on class '{cls}'",
+                                    severity=Severity.WARNING,
+                                    code="W308",
+                                )
+                            )
+
+            # Remove suppressed W307 diagnostics.
+            if remove_indices:
+                for i in sorted(remove_indices, reverse=True):
+                    del self.result.diagnostics[i]
 
     def _resolve_interpolated_commands(self, cu: CompilationUnit) -> None:
         """Suppress W123 for interpolated command names resolvable via CONSTSET.

@@ -1500,6 +1500,68 @@ handler_$action
         diags = _diag_with_code(source, "W123")
         assert len(diags) == 0
 
+    def test_chained_constructor_no_w307(self):
+        """[ClassName new] method should NOT emit W307."""
+        source = """\
+oo::class create Dog {
+    method bark {} { puts woof }
+}
+[Dog new] bark
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_chained_constructor_validates_method(self):
+        """[ClassName new] nonexistent should emit W308."""
+        source = """\
+oo::class create Dog {
+    method bark {} { puts woof }
+}
+[Dog new] nonexistent
+"""
+        diags = _diag_with_code(source, "W308")
+        assert len(diags) == 1
+        assert "nonexistent" in diags[0].message
+
+    def test_method_unknown_suppresses_w308(self):
+        """Classes with 'method unknown' should NOT emit W308."""
+        source = """\
+oo::class create Proxy {
+    method unknown {name args} { puts $name }
+}
+set p [Proxy new]
+$p anyMethod
+$p anotherOne
+"""
+        diags = _diag_with_code(source, "W308")
+        assert len(diags) == 0
+
+    def test_namespace_ensemble_no_w123(self):
+        """namespace ensemble create makes the namespace a known command."""
+        source = """\
+namespace eval mylib {
+    namespace export create delete
+    namespace ensemble create
+    proc create {name} { puts $name }
+}
+mylib create foo
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_objdefine_suppresses_w308(self):
+        """oo::objdefine adds methods — suppress W308 for modified objects."""
+        source = """\
+oo::class create Base {
+    method existing {} { puts hello }
+}
+set obj [Base new]
+oo::objdefine $obj method custom {} { puts custom }
+$obj custom
+"""
+        diags = _diag_with_code(source, "W308")
+        assert len(diags) == 0
+
 
 # W108: Non-ASCII token content
 
