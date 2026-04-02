@@ -27,16 +27,21 @@ DIALECTS_EXCEPT_IRULES: frozenset[str] = KNOWN_DIALECTS - frozenset({"f5-irules"
 # Runtime Tcl version that each dialect is based on.  Used by
 # ``dialects_since()`` to resolve version-dependent behaviour such as
 # ``incr`` safely initialising an uninitialised variable (8.5+).
+#
+# Dialects not listed here (e.g. ``f5-bigip``) are excluded from
+# version-based trait resolution — ``dialects_since()`` will never
+# include them.
 DIALECT_BASE_VERSION: dict[str, str] = {
     "tcl8.4": "tcl8.4",
     "tcl8.5": "tcl8.5",
     "tcl8.6": "tcl8.6",
     "tcl9.0": "tcl9.0",
-    # F5 TMOS embeds Tcl 8.4.6 for all its script environments.
+    # iRules: TMOS embedded Tcl 8.4.6.
     "f5-irules": "tcl8.4",
-    "f5-iapps": "tcl8.4",
-    "f5-tmsh": "tcl8.4",
-    "f5-bigip": "tcl8.4",
+    # iApps/tmsh: CentOS 7 system Tcl 8.5.13.
+    "f5-iapps": "tcl8.5",
+    "f5-tmsh": "tcl8.5",
+    # f5-bigip: custom parser, not Tcl — intentionally omitted.
     # EDA vendor tools embed various Tcl versions.
     "synopsys-eda-tcl": "tcl8.6",
     "cadence-eda-tcl": "tcl8.6",
