@@ -10,6 +10,7 @@ from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSp
 from ..signatures import Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
+from .const_fold import fold_lrange
 
 _SOURCE = "Tcl man page lrange.n"
 
@@ -38,6 +39,7 @@ class LrangeCommand(CommandDef):
                 arity=Arity(3, 3),
             ),
             pure=True,
+            const_fold=fold_lrange,
             cse_candidate=True,
             return_type=TclType.LIST,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},

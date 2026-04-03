@@ -10,6 +10,7 @@ from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSp
 from ..signatures import Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
+from .const_fold import fold_join
 
 _SOURCE = "Tcl man page join.n"
 
@@ -38,6 +39,7 @@ class JoinCommand(CommandDef):
                 arity=Arity(1, 2),
             ),
             pure=True,
+            const_fold=fold_join,
             cse_candidate=True,
             return_type=TclType.STRING,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},

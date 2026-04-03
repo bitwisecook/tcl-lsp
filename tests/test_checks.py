@@ -1321,6 +1321,234 @@ $circuit runAndRead
         diags = _diag_with_code(source, "W308")
         assert len(diags) == 0
 
+    def test_foreach_known_commands_no_w307(self):
+        """$cmd in foreach over known built-in commands should NOT emit W307."""
+        source = """\
+foreach cmd [list puts set expr] {
+    $cmd hello
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_foreach_braced_known_commands_no_w307(self):
+        """$cmd in foreach over braced list of known commands should NOT emit W307."""
+        source = """\
+foreach cmd {puts set expr} {
+    $cmd hello
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_foreach_known_procs_no_w307(self):
+        """$cmd iterating over locally-defined procs should NOT emit W307."""
+        source = """\
+proc handler_a {x} { puts $x }
+proc handler_b {x} { puts $x }
+foreach cmd [list handler_a handler_b] {
+    $cmd value
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_foreach_unknown_commands_still_w307(self):
+        """$cmd iterating over unknown names should still emit W307."""
+        source = """\
+foreach cmd [list unknown_cmd_a unknown_cmd_b] {
+    $cmd value
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) >= 1
+
+    def test_foreach_oo_objects_no_w307(self):
+        """$elem iterating over names of known TclOO objects suppresses W307."""
+        source = """\
+oo::class create Widget {
+    method render {} { puts rendering }
+}
+set a [Widget new]
+set b [Widget new]
+foreach obj [list a b] {
+    $obj render
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_foreach_var_mediated_list_no_w307(self):
+        """$cmd from foreach over $cmds (known const list) suppresses W307."""
+        source = """\
+proc a {} {puts a}
+proc b {} {puts b}
+set cmds {a b}
+foreach cmd $cmds {
+    $cmd
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_foreach_list_cmd_var_no_w307(self):
+        """$cmd from set items [list a b]; foreach cmd $items suppresses W307."""
+        source = """\
+proc x {} {puts x}
+proc y {} {puts y}
+set items [list x y]
+foreach cmd $items {
+    $cmd
+}
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_interpolated_cmd_name_no_w123(self):
+        """cmd_$var with all resolved names known suppresses W123."""
+        source = """\
+proc cmd_a {} {puts a}
+proc cmd_b {} {puts b}
+foreach cmd {a b} {
+    cmd_$cmd
+}
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_proc_return_constant_no_w307(self):
+        """$h from [get_handler] where proc returns constant suppresses W307."""
+        source = """\
+proc get_handler {} { return puts }
+set h [get_handler]
+$h hello
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_proc_return_user_proc_no_w307(self):
+        """$h from [get_handler] returning a user-defined proc suppresses W307."""
+        source = """\
+proc my_handler {x} { puts $x }
+proc get_handler {} { return my_handler }
+set h [get_handler]
+$h hello
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_oo_class_name_as_command_no_w123(self):
+        """oo::class create Foo makes 'Foo' a known command — no W123."""
+        source = """\
+oo::class create Logger {
+    method add {msg} { puts $msg }
+}
+set log [Logger new]
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_oo_forward_method_no_w123(self):
+        """Forward methods on known classes suppress W123."""
+        source = """\
+oo::class create Proxy {
+    forward myput puts
+}
+set p [Proxy new]
+$p myput hello
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_oo_mixin_method_no_w123(self):
+        """Methods from mixins should be resolved — no W123 on class command."""
+        source = """\
+oo::class create Loggable {
+    method log {msg} { puts $msg }
+}
+oo::class create Service {
+    method run {} { puts running }
+}
+oo::define Service mixin Loggable
+set svc [Service new]
+$svc log hello
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_interpolated_handler_no_w123(self):
+        """handler_$action where action is CONST resolves to known proc."""
+        source = """\
+proc handler_start {} { puts starting }
+proc handler_stop {} { puts stopping }
+set action start
+handler_$action
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_chained_constructor_no_w307(self):
+        """[ClassName new] method should NOT emit W307."""
+        source = """\
+oo::class create Dog {
+    method bark {} { puts woof }
+}
+[Dog new] bark
+"""
+        diags = _diag_with_code(source, "W307")
+        assert len(diags) == 0
+
+    def test_chained_constructor_validates_method(self):
+        """[ClassName new] nonexistent should emit W308."""
+        source = """\
+oo::class create Dog {
+    method bark {} { puts woof }
+}
+[Dog new] nonexistent
+"""
+        diags = _diag_with_code(source, "W308")
+        assert len(diags) == 1
+        assert "nonexistent" in diags[0].message
+
+    def test_method_unknown_suppresses_w308(self):
+        """Classes with 'method unknown' should NOT emit W308."""
+        source = """\
+oo::class create Proxy {
+    method unknown {name args} { puts $name }
+}
+set p [Proxy new]
+$p anyMethod
+$p anotherOne
+"""
+        diags = _diag_with_code(source, "W308")
+        assert len(diags) == 0
+
+    def test_namespace_ensemble_no_w123(self):
+        """namespace ensemble create makes the namespace a known command."""
+        source = """\
+namespace eval mylib {
+    namespace export create delete
+    namespace ensemble create
+    proc create {name} { puts $name }
+}
+mylib create foo
+"""
+        diags = _diag_with_code(source, "W123")
+        assert len(diags) == 0
+
+    def test_objdefine_suppresses_w308(self):
+        """oo::objdefine adds methods — suppress W308 for modified objects."""
+        source = """\
+oo::class create Base {
+    method existing {} { puts hello }
+}
+set obj [Base new]
+oo::objdefine $obj method custom {} { puts custom }
+$obj custom
+"""
+        diags = _diag_with_code(source, "W308")
+        assert len(diags) == 0
+
 
 # W108: Non-ASCII token content
 

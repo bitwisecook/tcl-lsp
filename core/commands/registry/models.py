@@ -73,6 +73,9 @@ LoweringHook = Callable[..., object]
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 """Maps actual argument values to {index: ArgRole} for variable-layout commands."""
 
+ConstFoldFunc = Callable[[tuple[str, ...]], str | None]
+"""Compile-time constant folder: (resolved_args) -> result string, or None."""
+
 # Note: TaintTransformHook was previously ``Callable[..., object]``.
 # It is now just ``TaintColour`` — a static colour-bit value that a
 # sanitiser command adds to its tainted output.  The type is written
@@ -383,6 +386,10 @@ class SubCommand:
     # Header names whose values are secrets (e.g. "authorization").
     sensitive_headers: frozenset[str] | None = None
 
+    # Compile-time constant folding callback.  When set and all arguments
+    # resolve to constants, SCCP calls this to compute the return value.
+    const_fold: ConstFoldFunc | None = None
+
     # Per-subcommand invocation forms (for arity-dependent getter/setter).
     # When populated, ``resolve_form()`` matches actual arguments to a form.
     # When empty (the common case), the subcommand's top-level ``pure``/
@@ -479,6 +486,9 @@ class CommandSpec:
     # Purity and CSE traits for compiler/gvn.py.
     pure: bool = False
     cse_candidate: bool = False
+
+    # Compile-time constant folding callback (for commands without subcommands).
+    const_fold: ConstFoldFunc | None = None
 
     # Diagram extraction trait for diagram/extract.py.
     diagram_action: bool = False

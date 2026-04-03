@@ -10,6 +10,7 @@ from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSp
 from ..signatures import Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
+from .const_fold import fold_llength
 
 _SOURCE = "Tcl man page llength.n"
 
@@ -38,6 +39,7 @@ class LlengthCommand(CommandDef):
                 arity=Arity(1, 1),
             ),
             pure=True,
+            const_fold=fold_llength,
             cse_candidate=True,
             return_type=TclType.INT,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},

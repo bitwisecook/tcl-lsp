@@ -266,3 +266,156 @@ proc wire_namespace_vars {} {
 """
         analysis = analyse_source(source).top_level
         assert not analysis.dead_stores
+
+    # --- CONSTSET lattice tests ---
+
+    def test_foreach_braced_list_constset(self):
+        """foreach over a braced literal list produces CONSTSET."""
+        source = "foreach x {a b c} {puts $x}"
+        analysis = analyse_source(source).top_level
+        # x should be CONSTSET with values {a, b, c}
+        x_vals = [
+            v
+            for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONSTSET
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].values == frozenset({"a", "b", "c"})
+
+    def test_foreach_list_cmd_constset(self):
+        """foreach over [list ...] with literal args produces CONSTSET."""
+        source = "foreach x [list a b c] {puts $x}"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v
+            for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONSTSET
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].values == frozenset({"a", "b", "c"})
+
+    def test_foreach_single_element_is_const(self):
+        """foreach over a single-element list produces CONST (not CONSTSET)."""
+        source = "foreach x {only} {puts $x}"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v
+            for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONST
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].value == "only"
+
+    def test_foreach_with_var_ref_resolves_through_lattice(self):
+        """foreach over $items where items is a known constant resolves to CONSTSET."""
+        source = "set items {a b}\nforeach x $items {puts $x}"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v
+            for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONSTSET
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].values == frozenset({"a", "b"})
+
+    def test_foreach_with_unknown_var_is_overdefined(self):
+        """foreach over $items where items is unknown remains OVERDEFINED."""
+        source = "foreach x $items {puts $x}"
+        analysis = analyse_source(source).top_level
+        x_vals = [v for (name, _ver), v in analysis.values.items() if name == "x"]
+        for v in x_vals:
+            assert v.kind is not LatticeKind.CONSTSET
+
+    # --- Registry-based constant folding tests ---
+
+    def test_fold_string_toupper(self):
+        source = "set x [string toupper hello]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == "HELLO"
+
+    def test_fold_string_length(self):
+        source = "set x [string length hello]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == 5
+
+    def test_fold_lindex(self):
+        source = "set x [lindex {a b c} 1]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == "b"
+
+    def test_fold_llength(self):
+        source = "set x [llength {a b c}]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == 3
+
+    def test_fold_dict_get(self):
+        source = "set x [dict get {a 1 b 2} a]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == 1
+
+    def test_fold_format(self):
+        source = "set x [format %s_%d hello 5]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == "hello_5"
+
+    def test_fold_join(self):
+        source = "set x [join {a b c} ,]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == "a,b,c"
+
+    def test_fold_with_variable_resolution(self):
+        """Fold through variable references: [string toupper $v]."""
+        source = "set v hello\nset x [string toupper $v]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == "HELLO"
+
+    def test_fold_chained(self):
+        """Fold chained operations via SCCP fixed-point."""
+        source = "set a [string toupper hello]\nset b [string length $a]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("a", 1)].value == "HELLO"
+        assert analysis.values[("b", 1)].value == 5
+
+    def test_set_list_cmd_folds_to_const(self):
+        """set x [list a b c] should fold to CONST."""
+        source = "set x [list a b c]"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v
+            for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONST
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].value == "a b c"
+
+    def test_list_cmd_with_const_vars_folds(self):
+        """[list $x $y] with known-const vars should fold to CONST."""
+        source = "set x puts\nset y hello\nset cmd [list $x $y]"
+        analysis = analyse_source(source).top_level
+        cmd_vals = [
+            v
+            for (name, _ver), v in analysis.values.items()
+            if name == "cmd" and v.kind is LatticeKind.CONST
+        ]
+        assert len(cmd_vals) >= 1
+        assert cmd_vals[0].value == "puts hello"
+
+    def test_set_list_cmd_through_foreach(self):
+        """set items [list a b]; foreach x $items should resolve CONSTSET."""
+        source = "set items [list a b]\nforeach x $items {puts $x}"
+        analysis = analyse_source(source).top_level
+        x_vals = [
+            v
+            for (name, _ver), v in analysis.values.items()
+            if name == "x" and v.kind is LatticeKind.CONSTSET
+        ]
+        assert len(x_vals) >= 1
+        assert x_vals[0].values == frozenset({"a", "b"})

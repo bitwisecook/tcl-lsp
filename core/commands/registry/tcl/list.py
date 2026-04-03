@@ -9,6 +9,7 @@ from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
 from ._base import register
+from .const_fold import fold_list
 
 _SOURCE = "Tcl man page list.n"
 
@@ -37,6 +38,7 @@ class ListCommand(CommandDef):
                 arity=Arity(),
             ),
             pure=True,
+            const_fold=fold_list,
             return_type=TclType.LIST,
             side_effect_hints=(
                 SideEffect(

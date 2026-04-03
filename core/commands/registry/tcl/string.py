@@ -17,6 +17,28 @@ from ..models import (
 )
 from ..signatures import Arity
 from ._base import register
+from .const_fold import (
+    fold_string_cat,
+    fold_string_compare,
+    fold_string_equal,
+    fold_string_first,
+    fold_string_index,
+    fold_string_is,
+    fold_string_last,
+    fold_string_length,
+    fold_string_map,
+    fold_string_match,
+    fold_string_range,
+    fold_string_repeat,
+    fold_string_replace,
+    fold_string_reverse,
+    fold_string_tolower,
+    fold_string_totitle,
+    fold_string_toupper,
+    fold_string_trim,
+    fold_string_trimleft,
+    fold_string_trimright,
+)
 
 
 def _av(value: str, detail: str, synopsis: str = "", summary: str = "") -> ArgumentValueSpec:
@@ -141,6 +163,7 @@ class StringCommand(CommandDef):
                     detail="Concatenate strings.",
                     synopsis="string cat ?string1? ?string2 ...?",
                     pure=True,
+                    const_fold=fold_string_cat,
                     return_type=TclType.STRING,
                 ),
                 "compare": SubCommand(
@@ -149,6 +172,7 @@ class StringCommand(CommandDef):
                     detail="Compare two strings lexicographically.",
                     synopsis="string compare ?-nocase? ?-length length? string1 string2",
                     pure=True,
+                    const_fold=fold_string_compare,
                     return_type=TclType.INT,
                     options=(
                         OptionSpec(name="-nocase"),
@@ -162,6 +186,7 @@ class StringCommand(CommandDef):
                     detail="Test string equality.",
                     synopsis="string equal ?-nocase? ?-length length? string1 string2",
                     pure=True,
+                    const_fold=fold_string_equal,
                     return_type=TclType.BOOLEAN,
                     options=(
                         OptionSpec(name="-nocase"),
@@ -175,6 +200,7 @@ class StringCommand(CommandDef):
                     detail="Find first occurrence of needle in haystack.",
                     synopsis="string first needleString haystackString ?startIndex?",
                     pure=True,
+                    const_fold=fold_string_first,
                     return_type=TclType.INT,
                 ),
                 "index": SubCommand(
@@ -183,6 +209,7 @@ class StringCommand(CommandDef):
                     detail="Return character at index.",
                     synopsis="string index string charIndex",
                     pure=True,
+                    const_fold=fold_string_index,
                     return_type=TclType.STRING,
                 ),
                 "insert": SubCommand(
@@ -197,6 +224,7 @@ class StringCommand(CommandDef):
                     detail="Test if string is a member of a character class.",
                     synopsis="string is class ?-strict? ?-failindex varname? string",
                     pure=True,
+                    const_fold=fold_string_is,
                     return_type=TclType.BOOLEAN,
                     arg_values={0: _IS_CLASSES},
                 ),
@@ -206,6 +234,7 @@ class StringCommand(CommandDef):
                     detail="Find last occurrence of needle in haystack.",
                     synopsis="string last needleString haystackString ?lastIndex?",
                     pure=True,
+                    const_fold=fold_string_last,
                     return_type=TclType.INT,
                 ),
                 "length": SubCommand(
@@ -214,6 +243,7 @@ class StringCommand(CommandDef):
                     detail="Return number of characters.",
                     synopsis="string length string",
                     pure=True,
+                    const_fold=fold_string_length,
                     return_type=TclType.INT,
                 ),
                 "map": SubCommand(
@@ -222,6 +252,7 @@ class StringCommand(CommandDef):
                     detail="Map substrings via key-value pairs.",
                     synopsis="string map ?-nocase? mapping string",
                     pure=True,
+                    const_fold=fold_string_map,
                     return_type=TclType.STRING,
                 ),
                 "match": SubCommand(
@@ -230,6 +261,7 @@ class StringCommand(CommandDef):
                     detail="Test glob-style pattern match.",
                     synopsis="string match ?-nocase? pattern string",
                     pure=True,
+                    const_fold=fold_string_match,
                     return_type=TclType.BOOLEAN,
                     options=(OptionSpec(name="-nocase"), OptionSpec(name="--")),
                 ),
@@ -239,6 +271,7 @@ class StringCommand(CommandDef):
                     detail="Return substring by index range.",
                     synopsis="string range string first last",
                     pure=True,
+                    const_fold=fold_string_range,
                     return_type=TclType.STRING,
                 ),
                 "repeat": SubCommand(
@@ -247,6 +280,7 @@ class StringCommand(CommandDef):
                     detail="Repeat string N times.",
                     synopsis="string repeat string count",
                     pure=True,
+                    const_fold=fold_string_repeat,
                     return_type=TclType.STRING,
                 ),
                 "replace": SubCommand(
@@ -255,6 +289,7 @@ class StringCommand(CommandDef):
                     detail="Replace range with new string.",
                     synopsis="string replace string first last ?newString?",
                     pure=True,
+                    const_fold=fold_string_replace,
                     return_type=TclType.STRING,
                 ),
                 "reverse": SubCommand(
@@ -263,6 +298,7 @@ class StringCommand(CommandDef):
                     detail="Reverse character order.",
                     synopsis="string reverse string",
                     pure=True,
+                    const_fold=fold_string_reverse,
                     return_type=TclType.STRING,
                 ),
                 "tolower": SubCommand(
@@ -271,6 +307,7 @@ class StringCommand(CommandDef):
                     detail="Convert to lower case.",
                     synopsis="string tolower string ?first? ?last?",
                     pure=True,
+                    const_fold=fold_string_tolower,
                     return_type=TclType.STRING,
                 ),
                 "totitle": SubCommand(
@@ -279,6 +316,7 @@ class StringCommand(CommandDef):
                     detail="Convert to title case.",
                     synopsis="string totitle string ?first? ?last?",
                     pure=True,
+                    const_fold=fold_string_totitle,
                     return_type=TclType.STRING,
                 ),
                 "toupper": SubCommand(
@@ -287,6 +325,7 @@ class StringCommand(CommandDef):
                     detail="Convert to upper case.",
                     synopsis="string toupper string ?first? ?last?",
                     pure=True,
+                    const_fold=fold_string_toupper,
                     return_type=TclType.STRING,
                 ),
                 "trim": SubCommand(
@@ -295,6 +334,7 @@ class StringCommand(CommandDef):
                     detail="Trim leading and trailing characters.",
                     synopsis="string trim string ?chars?",
                     pure=True,
+                    const_fold=fold_string_trim,
                     return_type=TclType.STRING,
                 ),
                 "trimleft": SubCommand(
@@ -303,6 +343,7 @@ class StringCommand(CommandDef):
                     detail="Trim leading characters.",
                     synopsis="string trimleft string ?chars?",
                     pure=True,
+                    const_fold=fold_string_trimleft,
                     return_type=TclType.STRING,
                 ),
                 "trimright": SubCommand(
@@ -311,6 +352,7 @@ class StringCommand(CommandDef):
                     detail="Trim trailing characters.",
                     synopsis="string trimright string ?chars?",
                     pure=True,
+                    const_fold=fold_string_trimright,
                     return_type=TclType.STRING,
                 ),
                 "wordend": SubCommand(

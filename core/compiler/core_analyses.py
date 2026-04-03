@@ -3,11 +3,12 @@
 This module runs the main analysis passes after SSA construction:
 
 - **SCCP** (Sparse Conditional Constant Propagation): propagates
-  integer/boolean constants through the SSA graph using a three-point
+  integer/boolean constants through the SSA graph using a four-point
   lattice per variable version:
 
     - ``UNKNOWN`` – not yet analysed (bottom).
     - ``CONST(v)`` – provably the constant *v*.
+    - ``CONSTSET(vs)`` – provably one of a finite set of constants.
     - ``OVERDEFINED`` – may hold more than one value (top).
 
   Values flow upward through the lattice; once a variable reaches
@@ -34,7 +35,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from ..commands.registry.runtime import TYPE_HINTS
+from ..commands.registry.runtime import FOLD_HINTS, FOLD_SUBCOMMAND_HINTS, TYPE_HINTS
 from ..commands.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 from ..common.naming import normalise_var_name as _normalise_var_name
 from ..parsing.lexer import TclLexer
@@ -69,7 +70,7 @@ from .static_loops import (
     evaluate_expr_with_constants,
     summarise_static_for_ir,
 )
-from .tcl_expr_eval import eval_tcl_expr
+from .tcl_expr_eval import _split_tcl_list, eval_tcl_expr
 from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
 from .var_refs import VarReferenceScanner
@@ -111,13 +112,20 @@ _COMP_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_:]*)\s*(==|!=|eq|ne|<=|>=|<|>)\
 class LatticeKind(Enum):
     UNKNOWN = auto()
     CONST = auto()
+    CONSTSET = auto()
     OVERDEFINED = auto()
+
+
+# Maximum number of elements in a CONSTSET before we widen to OVERDEFINED.
+_MAX_CONSTSET_SIZE = 32
 
 
 @dataclass(frozen=True, slots=True)
 class LatticeValue:
     kind: LatticeKind
     value: int | float | bool | str | None = None
+    # For CONSTSET: the finite set of possible constant values.
+    values: frozenset[int | float | bool | str] | None = None
 
     @staticmethod
     def unknown() -> "LatticeValue":
@@ -131,9 +139,33 @@ class LatticeValue:
     def const(value: int | float | bool | str) -> "LatticeValue":
         return LatticeValue(LatticeKind.CONST, value)
 
+    @staticmethod
+    def constset(vals: frozenset[int | float | bool | str]) -> "LatticeValue":
+        """Create a CONSTSET lattice value from a finite set of constants.
+
+        If the set has exactly one element, returns a CONST instead.
+        If the set exceeds ``_MAX_CONSTSET_SIZE``, returns OVERDEFINED.
+        """
+        if len(vals) == 0:
+            return OVERDEFINED
+        if len(vals) == 1:
+            return LatticeValue.const(next(iter(vals)))
+        if len(vals) > _MAX_CONSTSET_SIZE:
+            return OVERDEFINED
+        return LatticeValue(LatticeKind.CONSTSET, None, vals)
+
 
 UNKNOWN = LatticeValue.unknown()
 OVERDEFINED = LatticeValue.overdefined()
+
+
+def _to_set(lv: LatticeValue) -> frozenset[int | float | bool | str] | None:
+    """Extract the set of possible values from a CONST or CONSTSET."""
+    if lv.kind is LatticeKind.CONST and lv.value is not None:
+        return frozenset((lv.value,))
+    if lv.kind is LatticeKind.CONSTSET and lv.values is not None:
+        return lv.values
+    return None
 
 
 def _join(old: LatticeValue, new: LatticeValue) -> LatticeValue:
@@ -143,8 +175,15 @@ def _join(old: LatticeValue, new: LatticeValue) -> LatticeValue:
         return new
     if old.kind is LatticeKind.OVERDEFINED or new.kind is LatticeKind.OVERDEFINED:
         return OVERDEFINED
-    if old.value == new.value:
-        return old
+    # Both are CONST or CONSTSET — merge the value sets.
+    old_set = _to_set(old)
+    new_set = _to_set(new)
+    if old_set is not None and new_set is not None:
+        merged = old_set | new_set
+        if merged == old_set:
+            return old
+        return LatticeValue.constset(merged)
+    # Fallback (should not happen): widen.
     return OVERDEFINED
 
 
@@ -309,11 +348,221 @@ def _fold_interpolation(
                 return UNKNOWN
             pieces.append(str(lv.value))
         elif tok.type is TokenType.CMD:
-            return OVERDEFINED
+            # Try folding the nested command substitution.
+            cmd_text = f"[{tok.text}]"
+            folded_cmd = _try_fold_cmd_subst(cmd_text, uses, values)
+            if folded_cmd is not None and folded_cmd.kind is LatticeKind.CONST:
+                pieces.append(str(folded_cmd.value))
+            else:
+                return OVERDEFINED
         else:
             pieces.append(tok.text)
     result = "".join(pieces)
     return LatticeValue.const(result)
+
+
+def _fold_interpolation_set(
+    value: str,
+    uses: dict[str, int],
+    values: dict[SSAValueKey, LatticeValue],
+) -> frozenset[str] | None:
+    """Resolve a Tcl word with variable substitutions to a set of strings.
+
+    Like ``_fold_interpolation`` but handles CONSTSET variables by computing
+    the Cartesian product of all possible interpolated strings.
+
+    Returns ``None`` if any variable is unresolvable (OVERDEFINED/UNKNOWN).
+    """
+    # Each element is either a literal string or a set of possible values.
+    segments: list[list[str]] = []
+    lexer = TclLexer(value)
+    while True:
+        tok = lexer.get_token()
+        if tok is None:
+            break
+        if tok.type is TokenType.VAR:
+            name = _normalise_var_name(tok.text)
+            ver = uses.get(name, 0)
+            lv = values.get((name, ver), UNKNOWN)
+            vs = _to_set(lv)
+            if vs is None:
+                return None  # OVERDEFINED or UNKNOWN
+            segments.append([str(v) for v in vs])
+        elif tok.type is TokenType.CMD:
+            return None
+        else:
+            segments.append([tok.text])
+
+    if not segments:
+        return None
+
+    # Compute Cartesian product, bounded by _MAX_CONSTSET_SIZE.
+    current: list[str] = [""]
+    for seg in segments:
+        next_round: list[str] = []
+        for prefix in current:
+            for piece in seg:
+                next_round.append(prefix + piece)
+                if len(next_round) > _MAX_CONSTSET_SIZE:
+                    return None  # too many combinations
+        current = next_round
+    return frozenset(current) if current else None
+
+
+_LIST_CMD_RE = re.compile(r"^\s*\[\s*list\s+(.*?)\s*\]\s*$", re.DOTALL)
+
+
+def _extract_foreach_elements(list_text: str) -> list[str] | None:
+    """Extract constant list elements from a foreach list argument.
+
+    Handles three patterns:
+    - Braced literal list: ``{a b c}``
+    - ``[list ...]`` command with all literal arguments: ``[list a b c]``
+    - Bare literal list (braces already stripped by lowering): ``a b c``
+
+    Returns ``None`` if the list cannot be statically resolved.
+    """
+    stripped = list_text.strip()
+    if not stripped:
+        return None
+
+    # Pattern 1: braced literal list {a b c}
+    if stripped.startswith("{") and stripped.endswith("}"):
+        inner = stripped[1:-1].strip()
+        if not inner:
+            return None
+        # Must not contain variable or command substitutions.
+        if "$" in inner or "[" in inner:
+            return None
+        return _split_tcl_list(inner)
+
+    # Pattern 2: [list elem1 elem2 ...] with all literal args
+    m = _LIST_CMD_RE.match(stripped)
+    if m:
+        args_text = m.group(1)
+        if "$" in args_text or "[" in args_text:
+            return None
+        return _split_tcl_list(args_text)
+
+    # Pattern 3: bare literal list (braces stripped by IR lowering)
+    # Must not contain variable or command substitutions.
+    if "$" not in stripped and "[" not in stripped:
+        return _split_tcl_list(stripped)
+
+    return None
+
+
+def _resolve_foreach_list_via_lattice(
+    list_text: str,
+    uses: dict[str, int],
+    values: dict[SSAValueKey, LatticeValue],
+) -> list[str] | None:
+    """Resolve a foreach list argument through the SCCP lattice.
+
+    Handles cases like ``foreach x $mylist`` where ``mylist`` has a known
+    constant value, and ``foreach x "a $sep b"`` where interpolation
+    produces a known constant string.
+    """
+    stripped = list_text.strip()
+    if not stripped:
+        return None
+
+    # Case 1: pure variable reference — foreach x $mylist
+    if is_pure_var_ref(stripped):
+        name = _normalise_var_name(stripped)
+        ver = uses.get(name, 0)
+        lv = values.get((name, ver), UNKNOWN)
+        if lv.kind is LatticeKind.CONST and isinstance(lv.value, str):
+            return _split_tcl_list(lv.value)
+        return None
+
+    # Case 2: interpolated string — foreach x "prefix_${v}_suffix"
+    # Only if it contains variable substitutions (no command subs).
+    if "$" in stripped and "[" not in stripped:
+        resolved = _fold_interpolation(stripped, uses, values)
+        if resolved.kind is LatticeKind.CONST and isinstance(resolved.value, str):
+            return _split_tcl_list(resolved.value)
+
+    return None
+
+
+_CMD_SUBST_RE = re.compile(r"^\s*\[\s*(\S+)(?:\s+(.*?))?\s*\]\s*$", re.DOTALL)
+
+
+def _try_fold_cmd_subst(
+    value: str,
+    uses: dict[str, int],
+    values: dict[SSAValueKey, LatticeValue],
+) -> LatticeValue | None:
+    """Try to constant-fold a ``[cmd args...]`` command substitution.
+
+    Uses registry-based fold callbacks from ``FOLD_HINTS`` /
+    ``FOLD_SUBCOMMAND_HINTS``.  Returns a ``LatticeValue`` if the command
+    is foldable with all-constant arguments, or ``None`` if not.
+    """
+    m = _CMD_SUBST_RE.match(value)
+    if m is None:
+        return None
+
+    cmd_name = m.group(1)
+    args_text = m.group(2) or ""
+
+    # Look up fold callback — check subcommand hints first.
+    fold_fn = FOLD_HINTS.get(cmd_name)
+    subcmd_folds = FOLD_SUBCOMMAND_HINTS.get(cmd_name)
+    if fold_fn is None and subcmd_folds is None:
+        return None
+
+    # For subcommand-based commands, extract the subcommand name.
+    if subcmd_folds is not None and fold_fn is None:
+        parts = args_text.split(None, 1)
+        if not parts:
+            return None
+        sub_name = parts[0]
+        fold_fn = subcmd_folds.get(sub_name)
+        if fold_fn is None:
+            return None
+        args_text = parts[1] if len(parts) > 1 else ""
+
+    if fold_fn is None:
+        return None
+
+    # Split into individual arguments first (respecting braces/quotes),
+    # then resolve variable references in each arg individually.
+    try:
+        arg_list = _split_tcl_list(args_text) if args_text.strip() else []
+    except Exception:
+        return None
+
+    # Resolve variable references in each argument.
+    resolved_args: list[str] = []
+    for arg in arg_list:
+        if "[" in arg:
+            return None  # nested command substitution — can't fold
+        if "$" in arg:
+            folded = _fold_interpolation(arg, uses, values)
+            if folded.kind is not LatticeKind.CONST:
+                return None
+            resolved_args.append(str(folded.value))
+        else:
+            resolved_args.append(arg)
+
+    # Call the fold callback.
+    try:
+        result = fold_fn(tuple(resolved_args))
+    except Exception:
+        return None
+
+    if result is None:
+        return None
+    # Reject results containing Tcl characters that would change
+    # semantics in command substitution or quoting contexts.
+    # Note: spaces are allowed — they're valid in SCCP constant values
+    # (e.g. [list a b] → "a b") and the optimiser handles quoting.
+    # We only reject characters that break command parsing.
+    if any(ch in ';\n[$"\\' for ch in result):
+        return None
+    return LatticeValue.const(_parse_literal_value(result))
 
 
 def _evaluate_def(
@@ -334,7 +583,16 @@ def _evaluate_def(
                 # command substitutions (which have runtime results).
                 if "[" not in value:
                     return LatticeValue.const(_parse_literal_value(value))
+                # Try registry-based constant folding for [cmd args...].
+                folded = _try_fold_cmd_subst(value, {}, {})
+                if folded is not None:
+                    return folded
                 return OVERDEFINED
+            # Try registry-based constant folding with variable resolution.
+            if "[" in value:
+                folded = _try_fold_cmd_subst(value, ssa_stmt.uses, values)
+                if folded is not None:
+                    return folded
             stripped = value.strip()
             if is_pure_var_ref(stripped):
                 name = _normalise_var_name(stripped)
@@ -398,14 +656,20 @@ def _evaluate_def(
             and len(defs) == 1
             and len(args) == 1
         ):
-            # foreach x {val} { ... } — if the list has exactly one element,
-            # the iteration variable is constant.
-            list_text = args[0].strip()
-            if list_text.startswith("{") and list_text.endswith("}"):
-                inner = list_text[1:-1].strip()
-                # Single element: no whitespace inside
-                if inner and " " not in inner and "\t" not in inner and "\n" not in inner:
-                    return LatticeValue.const(_parse_literal_value(inner))
+            # foreach x {a b c} or foreach x [list a b c] — extract the
+            # set of constant values the iteration variable can take.
+            elements = _extract_foreach_elements(args[0])
+            if elements is None:
+                # Try resolving variable references in the list arg
+                # through the SCCP lattice (e.g. foreach x $mylist).
+                elements = _resolve_foreach_list_via_lattice(
+                    args[0],
+                    ssa_stmt.uses,
+                    values,
+                )
+            if elements is not None and len(elements) > 0:
+                vals = frozenset(_parse_literal_value(e) for e in elements)
+                return LatticeValue.constset(vals)
             return OVERDEFINED
 
         case _:

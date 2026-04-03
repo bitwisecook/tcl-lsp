@@ -1024,7 +1024,7 @@ class TestListFolding:
         source = "set x [list a b c]\nputs $x"
         optimised, rewrites = optimise_source(source)
         assert "[list" not in optimised
-        assert any(r.code == "O116" for r in rewrites)
+        assert any(r.code in ("O116", "O100") for r in rewrites)
 
 
 class TestStrlenZeroCheck:
@@ -1134,13 +1134,15 @@ class TestLindexFolding:
         source = "set x [lindex {a b c} 1]\nputs $x"
         optimised, rewrites = optimise_source(source)
         assert "[lindex" not in optimised
-        assert any(r.code == "O118" for r in rewrites)
+        # SCCP may fold the lindex at analysis time (O100 constant propagation)
+        # or the optimiser folds it later (O118 lindex folding).
+        assert any(r.code in ("O118", "O100") for r in rewrites)
 
     def test_fold_lindex_end(self):
         source = "set x [lindex {x y z} end]\nputs $x"
         optimised, rewrites = optimise_source(source)
         assert "[lindex" not in optimised
-        assert any(r.code == "O118" for r in rewrites)
+        assert any(r.code in ("O118", "O100") for r in rewrites)
 
 
 class TestMultiSetPacking:

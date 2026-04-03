@@ -9,6 +9,7 @@ from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
 from ._base import register
+from .const_fold import fold_split
 
 _SOURCE = "Tcl man page split.n"
 
@@ -37,6 +38,7 @@ class SplitCommand(CommandDef):
                 arity=Arity(1, 2),
             ),
             pure=True,
+            const_fold=fold_split,
             cse_candidate=True,
             return_type=TclType.LIST,
             side_effect_hints=(
