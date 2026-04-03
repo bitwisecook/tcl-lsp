@@ -411,6 +411,12 @@ class SubCommand:
     # empty frozenset = safe in all dialects, non-empty = safe in listed dialects.
     safe_on_uninit: frozenset[str] | None = None
 
+    # Whether this subcommand returns a filesystem path.
+    returns_path: bool = False
+
+    # Whether this subcommand performs unescaping / decoding.
+    is_unescape_command: bool = False
+
     def resolve_form(self, args: tuple[str, ...] | list[str]) -> FormSpec | None:
         """Given actual arguments (after the subcommand word), return the matching form.
 
@@ -620,6 +626,43 @@ class CommandSpec:
     # Whether this command creates a scope alias (upvar-like binding).
     creates_scope_alias: bool = False
 
+    # Whether this command returns a filesystem path (pwd, file join, etc.).
+    returns_path: bool = False
+
+    # Whether this command performs unescaping / decoding (subst, URI::decode).
+    is_unescape_command: bool = False
+
+    # Whether this command is pure evaluation (expr — side-effect-free
+    # when braced, which is the recommended usage).
+    pure_evaluation: bool = False
+
+    # Whether this command destroys/removes a variable (unset).
+    destroys_variable: bool = False
+
+    # Whether this command is a language keyword for semantic token
+    # classification (control-flow, definition, TclOO framework words).
+    is_language_keyword: bool = False
+
+    # Whether this command reads the target variable before writing it
+    # (incr, append, lappend — read-modify-write semantics).
+    reads_variable_before_write: bool = False
+
+    # Whether this command's first expression arg is in boolean context
+    # (if, while, for — for expression optimisation).
+    has_boolean_condition: bool = False
+
+    # Whether this command produces a canonical Tcl list representation
+    # (list, concat — for taint colour propagation).
+    produces_canonical_list: bool = False
+
+    # Whether this command is a side-switching command (iRules
+    # clientside/serverside — for connection-side analysis).
+    is_side_switch: bool = False
+
+    # Whether this command must appear at top level in iRules
+    # (proc, when, timing, priority).
+    irules_top_level_only: bool = False
+
     def supports_dialect(self, dialect: str | None) -> bool:
         if dialect is None:
             return True
@@ -759,6 +802,16 @@ class CommandSpec:
     def mutator_subcommand_names(self) -> frozenset[str]:
         """Subcommand names that mutate state (derived from subcommands dict)."""
         return frozenset(n for n, s in self.subcommands.items() if s.mutator)
+
+    @property
+    def path_returning_subcommand_names(self) -> frozenset[str]:
+        """Subcommand names that return filesystem paths."""
+        return frozenset(n for n, s in self.subcommands.items() if s.returns_path)
+
+    @property
+    def unescape_subcommand_names(self) -> frozenset[str]:
+        """Subcommand names that perform unescaping / decoding."""
+        return frozenset(n for n, s in self.subcommands.items() if s.is_unescape_command)
 
     def subcommand_completions(self) -> tuple[ArgumentValueSpec, ...]:
         """Derive subcommand completion items from the subcommands dict."""

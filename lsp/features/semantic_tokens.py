@@ -142,52 +142,22 @@ _BUILTIN_COMMANDS = _REGISTRY_NAMES | _KEYWORD_TAILS
 # ``keyword.control.tcl`` or ``keyword.other.tcl``.  Everything else in
 # the registry is a built-in *function* (``support.function.tcl`` in the
 # TM grammar) and should get ``function`` + ``defaultLibrary`` from the LSP.
-_LANGUAGE_KEYWORDS = frozenset(
+#
+# Built from ``is_language_keyword`` on CommandSpec, plus sub-keywords that
+# aren't standalone commands (else, elseif, on, trap, finally, TclOO
+# definition-context words like method/constructor/destructor/forward etc.).
+_LANGUAGE_KEYWORD_SUB_KEYWORDS = frozenset(
     {
-        # keyword.control.tcl
-        "if",
+        # Sub-keywords of if/try/switch — not standalone commands
         "else",
         "elseif",
-        "for",
-        "foreach",
-        "while",
-        "when",
-        "switch",
-        "break",
-        "continue",
-        "return",
-        "catch",
-        "try",
-        "throw",
         "on",
         "trap",
         "finally",
-        "yield",
-        "yieldto",
-        "tailcall",
-        # keyword.other.tcl — definition / declaration
-        "proc",
+        # TclOO definition-context keywords without standalone CommandSpec
         "method",
         "constructor",
         "destructor",
-        "namespace",
-        "variable",
-        "global",
-        "upvar",
-        "uplevel",
-        "package",
-        "source",
-        "rename",
-        "interp",
-        "coroutine",
-        "apply",
-        "oo::class",
-        "oo::define",
-        "oo::objdefine",
-        # TclOO definition-context keywords (valid inside oo::define bodies)
-        "my",
-        "next",
-        "self",
         "forward",
         "mixin",
         "filter",
@@ -203,14 +173,13 @@ _LANGUAGE_KEYWORDS = frozenset(
         "initialize",
         "private",
         "property",
-        # TclOO method-body keywords
-        "nextto",
+        # TclOO method-body keywords without standalone CommandSpec
         "callback",
         "mymethod",
-        "classvariable",
         "link",
     }
 )
+_LANGUAGE_KEYWORDS = REGISTRY.language_keyword_commands() | _LANGUAGE_KEYWORD_SUB_KEYWORDS
 
 # Prefix math/comparison operators
 _OPERATORS = frozenset({"+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="})

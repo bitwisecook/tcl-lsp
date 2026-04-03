@@ -68,6 +68,17 @@ _BOOLEAN_TRAITS: tuple[str, ...] = (
     "has_destructive_ops",
     "is_irules_event_handler",
     "is_unnormalized_http_getter",
+    # Rendered-value and semantic traits.
+    "returns_path",
+    "is_unescape_command",
+    "pure_evaluation",
+    "destroys_variable",
+    "is_language_keyword",
+    "reads_variable_before_write",
+    "has_boolean_condition",
+    "produces_canonical_list",
+    "is_side_switch",
+    "irules_top_level_only",
 )
 
 
@@ -1109,6 +1120,158 @@ class CommandRegistry:
     def is_defines_procedure(self, name: str) -> bool:
         """Check if this command defines a new procedure."""
         return self._any_spec_has(name, "defines_procedure")
+
+    # Rendered-value property traits
+
+    def is_path_returning(self, name: str) -> bool:
+        """Check if the command returns a filesystem path."""
+        return self._any_spec_has(name, "returns_path")
+
+    def path_returning_commands(self) -> frozenset[str]:
+        """Return all commands that return filesystem paths."""
+        return self._trait_names("returns_path")
+
+    def path_returning_subcommands(self, name: str) -> frozenset[str] | None:
+        """Return subcommand names flagged as returning filesystem paths."""
+        specs = self.specs_by_name.get(name, ())
+        result: frozenset[str] = frozenset()
+        found = False
+        for spec in specs:
+            derived = spec.path_returning_subcommand_names
+            if derived:
+                result |= derived
+                found = True
+        return result if found else None
+
+    def is_unescape_command(self, name: str) -> bool:
+        """Check if the command performs unescaping / decoding."""
+        return self._any_spec_has(name, "is_unescape_command")
+
+    def unescape_commands(self) -> frozenset[str]:
+        """Return all commands that perform unescaping / decoding."""
+        return self._trait_names("is_unescape_command")
+
+    def unescape_subcommands(self, name: str) -> frozenset[str] | None:
+        """Return subcommand names flagged as performing unescaping."""
+        specs = self.specs_by_name.get(name, ())
+        result: frozenset[str] = frozenset()
+        found = False
+        for spec in specs:
+            derived = spec.unescape_subcommand_names
+            if derived:
+                result |= derived
+                found = True
+        return result if found else None
+
+    def is_unnormalized_http_getter(self, name: str) -> bool:
+        """Check if the command is an unnormalized HTTP getter."""
+        return self._any_spec_has(name, "is_unnormalized_http_getter")
+
+    def is_pure_evaluation(self, name: str) -> bool:
+        """Check if the command is pure evaluation (expr)."""
+        return self._any_spec_has(name, "pure_evaluation")
+
+    def pure_evaluation_commands(self) -> frozenset[str]:
+        """Return all pure-evaluation commands."""
+        return self._trait_names("pure_evaluation")
+
+    def is_destroys_variable(self, name: str) -> bool:
+        """Check if the command destroys/removes a variable (unset)."""
+        return self._any_spec_has(name, "destroys_variable")
+
+    def destroys_variable_commands(self) -> frozenset[str]:
+        """Return all commands that destroy/remove variables."""
+        return self._trait_names("destroys_variable")
+
+    def is_language_keyword(self, name: str) -> bool:
+        """Check if the command is a language keyword for semantic tokens."""
+        return self._any_spec_has(name, "is_language_keyword")
+
+    def language_keyword_commands(self) -> frozenset[str]:
+        """Return all language keyword commands."""
+        return self._trait_names("is_language_keyword")
+
+    # Variable read-modify-write
+
+    def is_reads_variable_before_write(self, name: str) -> bool:
+        """Check if the command reads the variable before writing (incr, append, lappend)."""
+        return self._any_spec_has(name, "reads_variable_before_write")
+
+    def reads_variable_before_write_commands(self) -> frozenset[str]:
+        """Return all read-modify-write variable commands."""
+        return self._trait_names("reads_variable_before_write")
+
+    # Boolean condition context
+
+    def has_boolean_condition(self, name: str) -> bool:
+        """Check if the command's first expression is in boolean context."""
+        return self._any_spec_has(name, "has_boolean_condition")
+
+    def boolean_condition_commands(self) -> frozenset[str]:
+        """Return all commands with boolean condition expressions."""
+        return self._trait_names("has_boolean_condition")
+
+    # Canonical list production
+
+    def is_produces_canonical_list(self, name: str) -> bool:
+        """Check if the command produces a canonical Tcl list."""
+        return self._any_spec_has(name, "produces_canonical_list")
+
+    def canonical_list_commands(self) -> frozenset[str]:
+        """Return all commands that produce canonical lists."""
+        return self._trait_names("produces_canonical_list")
+
+    # Side-switching (iRules)
+
+    def is_side_switch(self, name: str) -> bool:
+        """Check if the command is a side-switching command (clientside/serverside)."""
+        return self._any_spec_has(name, "is_side_switch")
+
+    def side_switch_commands(self) -> frozenset[str]:
+        """Return all side-switching commands."""
+        return self._trait_names("is_side_switch")
+
+    # iRules top-level-only
+
+    def is_irules_top_level_only(self, name: str) -> bool:
+        """Check if the command must appear at top level in iRules."""
+        return self._any_spec_has(name, "irules_top_level_only")
+
+    def irules_top_level_only_commands(self) -> frozenset[str]:
+        """Return all commands that must appear at top level in iRules."""
+        return self._trait_names("irules_top_level_only")
+
+    # Scope alias (upvar-like) queries
+
+    def creates_scope_alias_commands(self) -> frozenset[str]:
+        """Return all commands with creates_scope_alias (upvar-like)."""
+        result: set[str] = set()
+        for name, specs in self.specs_by_name.items():
+            for spec in specs:
+                if spec.creates_scope_alias:
+                    result.add(name)
+                    break
+                for sub in spec.subcommands.values():
+                    if sub.creates_scope_alias:
+                        result.add(f"{name} {sub.name}")
+                        break
+        return frozenset(result)
+
+    def is_scope_alias_command(self, name: str) -> bool:
+        """Check if *name* (possibly compound like 'namespace upvar') creates a scope alias."""
+        # Handle compound names like "namespace upvar"
+        parts = name.split(" ", 1)
+        specs = self.specs_by_name.get(parts[0])
+        if specs is None:
+            return False
+        if len(parts) == 1:
+            return any(spec.creates_scope_alias for spec in specs)
+        sub_name = parts[1]
+        for spec in specs:
+            sub = spec.subcommands.get(sub_name)
+            if sub is not None and sub.creates_scope_alias:
+                return True
+        return False
 
     # Event-scoped command sets
 

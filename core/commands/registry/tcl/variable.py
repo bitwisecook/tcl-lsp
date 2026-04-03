@@ -21,6 +21,7 @@ class VariableCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="variable",
+            is_language_keyword=True,
             hover=HoverSnippet(
                 summary="create and initialize a namespace variable",
                 synopsis=(

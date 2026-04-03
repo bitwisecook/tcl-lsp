@@ -50,6 +50,7 @@ class UnsetCommand(CommandDef):
                 arity=Arity(1),
             ),
             assigns_variable_at=0,
+            destroys_variable=True,
             arg_roles={0: ArgRole.VAR_NAME},
             return_type=TclType.STRING,
             side_effect_hints=(

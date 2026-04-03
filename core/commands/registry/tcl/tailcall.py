@@ -21,6 +21,7 @@ class TailcallCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="tailcall",
+            is_language_keyword=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(
                 summary="Replace the current procedure with another command",

@@ -22,6 +22,7 @@ class CatchCommand(CommandDef):
         return CommandSpec(
             name="catch",
             is_control_flow=True,
+            is_language_keyword=True,
             hover=HoverSnippet(
                 summary="Evaluate script and trap exceptional returns",
                 synopsis=("catch script ?resultVarName? ?optionsVarName?",),

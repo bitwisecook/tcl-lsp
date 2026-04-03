@@ -20,6 +20,7 @@ class ProcCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="proc",
+            is_language_keyword=True,
             never_inline_body=True,
             hover=HoverSnippet(
                 summary="Create a Tcl procedure.",
@@ -39,6 +40,7 @@ class ProcCommand(CommandDef):
             arg_roles={0: ArgRole.NAME, 1: ArgRole.PARAM_LIST, 2: ArgRole.BODY},
             return_type=TclType.STRING,
             defines_procedure=True,
+            irules_top_level_only=True,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.PROC_DEFINITION,

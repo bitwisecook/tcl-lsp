@@ -22,6 +22,8 @@ class ForCommand(CommandDef):
         return CommandSpec(
             name="for",
             is_control_flow=True,
+            is_language_keyword=True,
+            has_boolean_condition=True,
             never_inline_body=True,
             has_loop_body=True,
             hover=HoverSnippet(

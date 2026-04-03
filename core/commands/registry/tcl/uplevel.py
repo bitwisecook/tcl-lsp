@@ -22,6 +22,7 @@ class UplevelCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="uplevel",
+            is_language_keyword=True,
             creates_dynamic_barrier=True,
             unsafe=True,
             hover=HoverSnippet(

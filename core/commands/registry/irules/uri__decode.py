@@ -48,6 +48,7 @@ class UriDecodeCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
+            is_unescape_command=True,
             event_requires=EventRequires(),
             side_effect_hints=(
                 SideEffect(

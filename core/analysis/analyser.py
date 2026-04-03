@@ -87,10 +87,16 @@ from .stub_comments import scan_source_for_stubs
 log = logging.getLogger(__name__)
 
 # iRules commands that are only valid at the top level of an iRule script.
-# ``timing`` and ``priority`` also appear as keyword arguments to ``when``
-# (e.g. ``when HTTP_REQUEST timing enable { ... }``), but as standalone
-# *commands* they must be top-level.
-_IRULES_TOP_LEVEL_ONLY = frozenset({"proc", "when", "timing", "priority"})
+# Derived from ``irules_top_level_only`` on CommandSpec at first use.
+_IRULES_TOP_LEVEL_ONLY: frozenset[str] | None = None
+
+
+def _irules_top_level_only() -> frozenset[str]:
+    global _IRULES_TOP_LEVEL_ONLY  # noqa: PLW0603
+    if _IRULES_TOP_LEVEL_ONLY is None:
+        _IRULES_TOP_LEVEL_ONLY = REGISTRY.irules_top_level_only_commands()
+    return _IRULES_TOP_LEVEL_ONLY
+
 
 # Module-level registrations for codes emitted from class methods.
 diag("E200", "Shimmer parse error — internal representation cannot be determined.", section="error")
@@ -1336,7 +1342,7 @@ class Analyser:
         if (
             self._body_depth > 0
             and active_dialect() == "f5-irules"
-            and cmd_name in _IRULES_TOP_LEVEL_ONLY
+            and cmd_name in _irules_top_level_only()
         ):
             self.result.diagnostics.append(
                 Diagnostic(
@@ -1352,7 +1358,7 @@ class Analyser:
             self._body_depth == 0
             and self._current_event is None
             and active_dialect() == "f5-irules"
-            and cmd_name not in _IRULES_TOP_LEVEL_ONLY
+            and cmd_name not in _irules_top_level_only()
         ):
             spec = REGISTRY.get(cmd_name, "f5-irules")
             if spec is not None and spec.event_requires is not None:

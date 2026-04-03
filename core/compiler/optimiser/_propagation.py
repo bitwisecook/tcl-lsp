@@ -6,6 +6,7 @@ import re
 
 from core.common.codes import opt
 
+from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import ArgRole, arg_indices_for_role
 from ...common.dialect import active_dialect
 from ...common.naming import (
@@ -168,7 +169,7 @@ def optimise_expression_args(
             types=types,
         )
 
-        is_bool_ctx = cmd_name in ("if", "while", "for", "elseif")
+        is_bool_ctx = REGISTRY.has_boolean_condition(cmd_name) or cmd_name == "elseif"
         combined_expr, combine_changed = _instcombine_expr(
             compared_expr,
             bool_context=is_bool_ctx,

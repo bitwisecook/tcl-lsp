@@ -24,6 +24,7 @@ class OoObjdefineCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="oo::objdefine",
+            is_language_keyword=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(
                 summary="define and configure classes and objects",

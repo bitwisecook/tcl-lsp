@@ -21,6 +21,7 @@ class ForeachCommand(CommandDef):
         return CommandSpec(
             name="foreach",
             is_control_flow=True,
+            is_language_keyword=True,
             never_inline_body=True,
             has_loop_body=True,
             loop_list_header=True,

@@ -50,6 +50,7 @@ class ServersideCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
+            is_side_switch=True,
             event_requires=EventRequires(also_in=frozenset({"CLIENT_ACCEPTED"})),
             side_effect_hints=(
                 SideEffect(

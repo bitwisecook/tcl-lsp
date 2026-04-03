@@ -21,6 +21,7 @@ class OoSelfCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="self",
+            is_language_keyword=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(
                 summary="query the identity of the current object",

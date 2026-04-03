@@ -25,6 +25,7 @@ class PackageCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="package",
+            is_language_keyword=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Facilities for package loading and version control",

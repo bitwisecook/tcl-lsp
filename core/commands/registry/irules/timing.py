@@ -47,6 +47,7 @@ class TimingCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
+            irules_top_level_only=True,
             event_requires=EventRequires(),
             side_effect_hints=(
                 SideEffect(

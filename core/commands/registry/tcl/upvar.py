@@ -21,6 +21,7 @@ class UpvarCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="upvar",
+            is_language_keyword=True,
             creates_dynamic_barrier=True,
             hover=HoverSnippet(
                 summary="Create link to variable in a different stack frame",

@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..commands.registry import REGISTRY
 from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from .ir import IRCall, when_event_name
 
@@ -60,7 +61,9 @@ def _extract_event_summary(
     for block in fu.ssa.blocks.values():
         for stmt in block.statements:
             ir_stmt = stmt.statement
-            is_unset = isinstance(ir_stmt, IRCall) and ir_stmt.command == "unset"
+            is_unset = isinstance(ir_stmt, IRCall) and REGISTRY.is_destroys_variable(
+                ir_stmt.command
+            )
             for name in stmt.defs:
                 if name.startswith("::"):
                     continue
@@ -70,7 +73,7 @@ def _extract_event_summary(
                 if ver == 0 and not name.startswith("::"):
                     uses_v0.add(name)
             # Track unsets
-            if isinstance(ir_stmt, IRCall) and ir_stmt.command == "unset":
+            if isinstance(ir_stmt, IRCall) and REGISTRY.is_destroys_variable(ir_stmt.command):
                 for name in ir_stmt.defs:
                     if not name.startswith("::"):
                         unsets.add(name)

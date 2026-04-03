@@ -20,6 +20,7 @@ class ReturnCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="return",
+            is_language_keyword=True,
             needs_start_cmd=True,
             hover=HoverSnippet(
                 summary="Return from the current procedure/script with optional control-code metadata.",

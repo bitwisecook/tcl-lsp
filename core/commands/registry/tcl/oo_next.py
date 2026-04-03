@@ -18,6 +18,7 @@ class OoNextCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="next",
+            is_language_keyword=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(
                 summary="invoke the next implementation of a method",
@@ -49,6 +50,7 @@ class OoNextToCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="nextto",
+            is_language_keyword=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(
                 summary="invoke a specific superclass implementation of a method",
