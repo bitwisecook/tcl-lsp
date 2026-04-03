@@ -348,7 +348,13 @@ def _fold_interpolation(
                 return UNKNOWN
             pieces.append(str(lv.value))
         elif tok.type is TokenType.CMD:
-            return OVERDEFINED
+            # Try folding the nested command substitution.
+            cmd_text = f"[{tok.text}]"
+            folded_cmd = _try_fold_cmd_subst(cmd_text, uses, values)
+            if folded_cmd is not None and folded_cmd.kind is LatticeKind.CONST:
+                pieces.append(str(folded_cmd.value))
+            else:
+                return OVERDEFINED
         else:
             pieces.append(tok.text)
     result = "".join(pieces)
