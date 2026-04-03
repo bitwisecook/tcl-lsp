@@ -39,6 +39,7 @@ class ConcatCommand(CommandDef):
             ),
             pure=True,
             const_fold=fold_concat,
+            produces_canonical_list=True,
             return_type=TclType.LIST,
             side_effect_hints=(
                 SideEffect(

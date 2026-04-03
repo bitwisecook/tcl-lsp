@@ -39,6 +39,7 @@ class IncrCommand(CommandDef):
                 arity=Arity(1, 2),
             ),
             assigns_variable_at=0,
+            reads_variable_before_write=True,
             # incr safely treats an uninitialised variable as 0 in Tcl 8.5+.
             # In 8.4 (and dialects based on it, e.g. iRules) it raises
             # "can't read": no such variable.

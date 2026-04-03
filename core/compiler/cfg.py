@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..analysis.semantic_model import Range
+from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import arg_indices_for_role
 from ..commands.registry.signatures import ArgRole
 from ..common.naming import normalise_var_name as _normalise_var_name
@@ -123,9 +124,8 @@ def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
 
     def _scan(s: IRScript) -> None:
         for stmt in s.statements:
-            if isinstance(stmt, (IRCall, IRBarrier)) and stmt.command in (
-                "upvar",
-                "namespace upvar",
+            if isinstance(stmt, (IRCall, IRBarrier)) and REGISTRY.is_scope_alias_command(
+                stmt.command
             ):
                 args = stmt.args
                 if not args:

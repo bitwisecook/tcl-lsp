@@ -23,6 +23,7 @@ class IfCommand(CommandDef):
             name="if",
             is_control_flow=True,
             is_language_keyword=True,
+            has_boolean_condition=True,
             never_inline_body=True,
             hover=HoverSnippet(
                 summary="Conditional execution with optional elseif/else branches.",

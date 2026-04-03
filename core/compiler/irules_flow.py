@@ -649,7 +649,7 @@ def _scan_ir_body_with_side(
     for cmd, rng, ir_stmt in _iter_ir_commands(ir_body):
         # ``clientside { ... }`` / ``serverside { ... }`` — lower the body
         # and recurse with the switched side context.
-        if cmd in ("clientside", "serverside"):
+        if REGISTRY.is_side_switch(cmd):
             inner_side = "client" if cmd == "clientside" else "server"
             if isinstance(ir_stmt, IRCall):
                 inner_ir = _lower_side_switch_body(ir_stmt)
@@ -1320,7 +1320,7 @@ def _find_generic_static_names(
                         for var_name in stmt.defs:
                             _check_var(var_name, stmt.range)
                     # Descend into clientside/serverside body args.
-                    if isinstance(stmt, IRCall) and stmt.command in ("clientside", "serverside"):
+                    if isinstance(stmt, IRCall) and REGISTRY.is_side_switch(stmt.command):
                         inner_ir = _lower_side_switch_body(stmt)
                         if inner_ir is not None:
                             for inner_stmt in _iter_all_ir_statements(inner_ir):
@@ -1398,7 +1398,7 @@ def _iter_all_ir_statements(script: IRScript, *, lower_side_switches: bool = Tru
         elif (
             lower_side_switches
             and isinstance(stmt, IRCall)
-            and stmt.command in ("clientside", "serverside")
+            and REGISTRY.is_side_switch(stmt.command)
         ):
             inner_ir = _lower_side_switch_body(stmt)
             if inner_ir is not None:

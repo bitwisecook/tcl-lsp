@@ -780,6 +780,7 @@ def _classify_side_effects_impl(
             varname = args[idx]
             scope, ns = _scope_from_varname(varname)
             st = _storage_type_for_command(command, args)
+            rmw = REGISTRY.is_reads_variable_before_write(command)
             # For set with 1 arg it's a read, with 2 it's a write.
             # For subcommand-bearing commands (e.g. array), check the
             # subcommand's mutator flag instead of the generic heuristic.
@@ -788,8 +789,11 @@ def _classify_side_effects_impl(
                 is_write = sub is not None and sub.mutator
                 is_read = sub is not None and not sub.mutator
             else:
-                is_write = len(args) > idx + 1 or command not in ("set",)
-                is_read = command == "set" and len(args) == idx + 1
+                # When len(args) == idx + 1 (only the variable name, no value),
+                # commands like "set x" are reads.  read-modify-write commands
+                # (incr, append, lappend) always write even with minimal args.
+                is_write = len(args) > idx + 1 or rmw
+                is_read = not rmw and len(args) == idx + 1
             side = ConnectionSide.NONE
             if dialect in ("irules", "f5-irules") and scope is StorageScope.STATIC:
                 side = ConnectionSide.GLOBAL
@@ -799,7 +803,7 @@ def _classify_side_effects_impl(
                 effects=(
                     SideEffect(
                         target=SideEffectTarget.VARIABLE,
-                        reads=is_read or command in ("incr", "append", "lappend"),
+                        reads=is_read or rmw,
                         writes=is_write,
                         storage_type=st,
                         scope=scope,

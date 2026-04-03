@@ -643,6 +643,26 @@ class CommandSpec:
     # classification (control-flow, definition, TclOO framework words).
     is_language_keyword: bool = False
 
+    # Whether this command reads the target variable before writing it
+    # (incr, append, lappend — read-modify-write semantics).
+    reads_variable_before_write: bool = False
+
+    # Whether this command's first expression arg is in boolean context
+    # (if, while, for — for expression optimisation).
+    has_boolean_condition: bool = False
+
+    # Whether this command produces a canonical Tcl list representation
+    # (list, concat — for taint colour propagation).
+    produces_canonical_list: bool = False
+
+    # Whether this command is a side-switching command (iRules
+    # clientside/serverside — for connection-side analysis).
+    is_side_switch: bool = False
+
+    # Whether this command must appear at top level in iRules
+    # (proc, when, timing, priority).
+    irules_top_level_only: bool = False
+
     def supports_dialect(self, dialect: str | None) -> bool:
         if dialect is None:
             return True

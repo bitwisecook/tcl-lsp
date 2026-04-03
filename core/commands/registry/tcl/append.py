@@ -38,6 +38,7 @@ class AppendCommand(CommandDef):
                 arity=Arity(1),
             ),
             assigns_variable_at=0,
+            reads_variable_before_write=True,
             safe_on_uninit=frozenset(),
             arg_roles={0: ArgRole.VAR_NAME},
             return_type=TclType.STRING,

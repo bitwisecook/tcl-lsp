@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import (
     canonical_list_commands,
     taint_double_encode_map,
@@ -96,7 +97,7 @@ def _derive_transform_colours(
     if command in canonical_list_commands():
         return TaintColour.LIST_CANONICAL
     if (
-        command == "concat"
+        REGISTRY.is_produces_canonical_list(command)
         and arg_taints
         and all(t.tainted and bool(t.colour & TaintColour.LIST_CANONICAL) for t in arg_taints)
     ):

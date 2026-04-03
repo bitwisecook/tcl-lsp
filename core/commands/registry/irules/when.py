@@ -151,6 +151,7 @@ class WhenCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2, 6),
             ),
+            irules_top_level_only=True,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE,
