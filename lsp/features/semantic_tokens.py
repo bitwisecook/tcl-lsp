@@ -154,7 +154,6 @@ _LANGUAGE_KEYWORD_SUB_KEYWORDS = frozenset(
         "on",
         "trap",
         "finally",
-        "when",
         # TclOO definition-context keywords without standalone CommandSpec
         "method",
         "constructor",

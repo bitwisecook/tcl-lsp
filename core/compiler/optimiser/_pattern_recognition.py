@@ -119,11 +119,11 @@ def _written_var_keys(
         arg_pos = var_idx + 1  # +1 because argv_texts[0] is the command name
         if len(argv_texts) < arg_pos + 1:
             return written
-        # set/append with only the variable name is a read, not a write.
-        if var_idx == 0 and len(argv_texts) == 2 and spec is not None:
-            for form in spec.forms:
-                if form.arity is not None and form.arity.accepts(1):
-                    return written
+        # `set varName` with only the variable name is a read, not a write.
+        # Other variable-writing commands (incr, lappend) always write even
+        # at their minimum arity, so this special case applies only to `set`.
+        if cmd_name == "set" and len(argv_texts) == 2:
+            return written
         if _is_static_var_word(
             argv_texts[arg_pos], argv_tokens[arg_pos], single_token=argv_single[arg_pos]
         ):

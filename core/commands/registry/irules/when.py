@@ -152,6 +152,7 @@ class WhenCommand(CommandDef):
                 arity=Arity(2, 6),
             ),
             irules_top_level_only=True,
+            is_language_keyword=True,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE,
