@@ -696,8 +696,8 @@ def _classify_side_effects_impl(
     hints = REGISTRY.side_effect_hints(command, effective_sub, dialect)
     _hint = hints[0] if hints else None
 
-    # Special-case: expr is pure when braced (the common/recommended case)
-    if command == "expr":
+    # Pure evaluation commands (expr): pure when braced (the common/recommended case)
+    if REGISTRY.is_pure_evaluation(command):
         return CommandSideEffects(pure=True, deterministic=True, dialect=dialect)
 
     # Form-aware resolution

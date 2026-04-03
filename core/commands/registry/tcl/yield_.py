@@ -21,6 +21,7 @@ class YieldCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="yield",
+            is_language_keyword=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(
                 summary="Create and produce values from coroutines",

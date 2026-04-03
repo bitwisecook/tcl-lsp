@@ -97,6 +97,7 @@ class EncodingCommand(CommandDef):
                     detail="Convert byte data to Unicode.",
                     synopsis="encoding convertfrom ?-profile profile? ?encoding? data",
                     return_type=TclType.STRING,
+                    is_unescape_command=True,
                     arg_values={0: _PROFILES},
                 ),
                 "convertto": SubCommand(

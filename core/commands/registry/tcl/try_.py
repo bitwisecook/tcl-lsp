@@ -22,6 +22,7 @@ class TryCommand(CommandDef):
         return CommandSpec(
             name="try",
             is_control_flow=True,
+            is_language_keyword=True,
             never_inline_body=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(

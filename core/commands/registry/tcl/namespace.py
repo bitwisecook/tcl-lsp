@@ -25,6 +25,7 @@ class NamespaceCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="namespace",
+            is_language_keyword=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             never_inline_body=True,
             hover=HoverSnippet(

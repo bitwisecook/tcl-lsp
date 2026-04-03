@@ -269,6 +269,7 @@ class FileCommand(CommandDef):
                     detail="Returns a name comprised of all of the path components in name excluding the last element.",
                     synopsis="file dirname name",
                     return_type=TclType.STRING,
+                    returns_path=True,
                 ),
                 "executable": SubCommand(
                     name="executable",
@@ -289,6 +290,7 @@ class FileCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns all of the characters in name after and including the last dot in the last element of name.",
                     synopsis="file extension name",
+                    returns_path=True,
                     return_type=TclType.STRING,
                 ),
                 "isdirectory": SubCommand(
@@ -311,6 +313,7 @@ class FileCommand(CommandDef):
                     detail="Takes one or more file names and combines them, using the correct path separator for the current platform.",
                     synopsis="file join name ?name ...?",
                     return_type=TclType.STRING,
+                    returns_path=True,
                     taint_transform=TaintColour.PATH_JOINED,
                 ),
                 "link": SubCommand(
@@ -349,6 +352,7 @@ class FileCommand(CommandDef):
                     detail="Returns the platform-specific name of the file.",
                     synopsis="file nativename name",
                     return_type=TclType.STRING,
+                    returns_path=True,
                 ),
                 "normalize": SubCommand(
                     name="normalize",
@@ -356,6 +360,7 @@ class FileCommand(CommandDef):
                     detail="Returns a unique normalized path representation for the file-system object (file, directory, link, etc), whose string value can be used as a unique identifier for it.",
                     synopsis="file normalize name",
                     return_type=TclType.STRING,
+                    returns_path=True,
                     taint_transform=TaintColour.PATH_NORMALISED,
                 ),
                 "owned": SubCommand(
@@ -385,6 +390,7 @@ class FileCommand(CommandDef):
                     detail="Returns the value of the symbolic link given by name (i.e.",
                     synopsis="file readlink name",
                     return_type=TclType.STRING,
+                    returns_path=True,
                 ),
                 "rename": SubCommand(
                     name="rename",
@@ -400,6 +406,7 @@ class FileCommand(CommandDef):
                     detail="Returns all of the characters in name up to but not including the last character in the last component of name.",
                     synopsis="file rootname name",
                     return_type=TclType.STRING,
+                    returns_path=True,
                 ),
                 "separator": SubCommand(
                     name="separator",
@@ -443,6 +450,7 @@ class FileCommand(CommandDef):
                     detail="Returns all of the characters in the last filesystem component of name.",
                     synopsis="file tail name",
                     return_type=TclType.STRING,
+                    returns_path=True,
                 ),
                 "tempfile": SubCommand(
                     name="tempfile",
@@ -450,6 +458,7 @@ class FileCommand(CommandDef):
                     detail="Creates a temporary file and returns a read-write channel opened on that file.",
                     synopsis="file tempfile ?nameVar? ?template?",
                     return_type=TclType.STRING,
+                    returns_path=True,
                     arg_roles={0: ArgRole.VAR_NAME},
                 ),
                 "type": SubCommand(

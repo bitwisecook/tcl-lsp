@@ -48,6 +48,7 @@ class SubstCommand(CommandDef):
                 arity=Arity(1),
             ),
             taint_sink=True,
+            is_unescape_command=True,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

@@ -68,6 +68,12 @@ _BOOLEAN_TRAITS: tuple[str, ...] = (
     "has_destructive_ops",
     "is_irules_event_handler",
     "is_unnormalized_http_getter",
+    # Rendered-value and semantic traits.
+    "returns_path",
+    "is_unescape_command",
+    "pure_evaluation",
+    "destroys_variable",
+    "is_language_keyword",
 )
 
 
@@ -1109,6 +1115,76 @@ class CommandRegistry:
     def is_defines_procedure(self, name: str) -> bool:
         """Check if this command defines a new procedure."""
         return self._any_spec_has(name, "defines_procedure")
+
+    # Rendered-value property traits
+
+    def is_path_returning(self, name: str) -> bool:
+        """Check if the command returns a filesystem path."""
+        return self._any_spec_has(name, "returns_path")
+
+    def path_returning_commands(self) -> frozenset[str]:
+        """Return all commands that return filesystem paths."""
+        return self._trait_names("returns_path")
+
+    def path_returning_subcommands(self, name: str) -> frozenset[str] | None:
+        """Return subcommand names flagged as returning filesystem paths."""
+        specs = self.specs_by_name.get(name, ())
+        result: frozenset[str] = frozenset()
+        found = False
+        for spec in specs:
+            derived = spec.path_returning_subcommand_names
+            if derived:
+                result |= derived
+                found = True
+        return result if found else None
+
+    def is_unescape_command(self, name: str) -> bool:
+        """Check if the command performs unescaping / decoding."""
+        return self._any_spec_has(name, "is_unescape_command")
+
+    def unescape_commands(self) -> frozenset[str]:
+        """Return all commands that perform unescaping / decoding."""
+        return self._trait_names("is_unescape_command")
+
+    def unescape_subcommands(self, name: str) -> frozenset[str] | None:
+        """Return subcommand names flagged as performing unescaping."""
+        specs = self.specs_by_name.get(name, ())
+        result: frozenset[str] = frozenset()
+        found = False
+        for spec in specs:
+            derived = spec.unescape_subcommand_names
+            if derived:
+                result |= derived
+                found = True
+        return result if found else None
+
+    def is_unnormalized_http_getter(self, name: str) -> bool:
+        """Check if the command is an unnormalized HTTP getter."""
+        return self._any_spec_has(name, "is_unnormalized_http_getter")
+
+    def is_pure_evaluation(self, name: str) -> bool:
+        """Check if the command is pure evaluation (expr)."""
+        return self._any_spec_has(name, "pure_evaluation")
+
+    def pure_evaluation_commands(self) -> frozenset[str]:
+        """Return all pure-evaluation commands."""
+        return self._trait_names("pure_evaluation")
+
+    def is_destroys_variable(self, name: str) -> bool:
+        """Check if the command destroys/removes a variable (unset)."""
+        return self._any_spec_has(name, "destroys_variable")
+
+    def destroys_variable_commands(self) -> frozenset[str]:
+        """Return all commands that destroy/remove variables."""
+        return self._trait_names("destroys_variable")
+
+    def is_language_keyword(self, name: str) -> bool:
+        """Check if the command is a language keyword for semantic tokens."""
+        return self._any_spec_has(name, "is_language_keyword")
+
+    def language_keyword_commands(self) -> frozenset[str]:
+        """Return all language keyword commands."""
+        return self._trait_names("is_language_keyword")
 
     # Event-scoped command sets
 

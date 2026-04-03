@@ -208,6 +208,7 @@ class PwdCommand(CommandDef):
             dialects=_NOT_IRULES,
             hover=HoverSnippet(summary="Return current working directory"),
             validation=ValidationSpec(arity=Arity(0, 0)),
+            returns_path=True,
         )
 
 

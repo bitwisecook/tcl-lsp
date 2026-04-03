@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Flag, auto
 
+from ..commands.registry import REGISTRY
 from ..parsing.lexer import TclLexer
 from ..parsing.substitution import backslash_subst
 from ..parsing.tokens import TokenType
@@ -111,58 +112,33 @@ def rendered_join(a: RenderedValueProps, b: RenderedValueProps) -> RenderedValue
     return RenderedValueProps(may=a.may | b.may, must=a.must & b.must)
 
 
-# Path-returning commands for CMD token analysis.
-_PATH_RETURNING_COMMANDS = frozenset({"pwd"})
-_PATH_RETURNING_FILE_SUBS = frozenset(
-    {
-        "dirname",
-        "join",
-        "normalize",
-        "nativename",
-        "rootname",
-        "tail",
-        "extension",
-        "readlink",
-        "tempdir",
-        "tempfile",
-    }
-)
-_PATH_RETURNING_INFO_SUBS = frozenset({"script", "nameofexecutable", "library"})
-
-# Commands that perform unescaping / decoding of string content.
-# A value that passes through one of these has been "unescaped" once;
-# passing through a second one is a double-unescape (almost always a bug).
-_UNESCAPE_COMMANDS = frozenset(
-    {
-        "subst",
-        "URI::decode",
-        "decode_uri",
-        "b64decode",
-    }
-)
-_UNESCAPE_ENCODING_SUBS = frozenset({"convertfrom"})
-# HTTP getter forms with -normalized return fully canonical values with
-# all encoding resolved — these are SAFE (like file normalize), not
-# "unescaped".  They guarantee no residual encoding remains.
-_NORMALISED_HTTP_GETTERS = frozenset({"HTTP::uri", "HTTP::path", "HTTP::query"})
-
-
 def _is_unescape_command(cmd: str, args: tuple[str, ...] | list[str]) -> bool:
     """Return True if the command performs partial unescaping / decoding.
 
     Does NOT include -normalized getters — those produce fully canonical
     values with no residual encoding (safe, like ``file normalize``).
     """
-    if cmd in _UNESCAPE_COMMANDS:
+    if REGISTRY.is_unescape_command(cmd):
         return True
-    if cmd == "encoding" and args and args[0] in _UNESCAPE_ENCODING_SUBS:
+    unescape_subs = REGISTRY.unescape_subcommands(cmd)
+    if unescape_subs is not None and args and args[0] in unescape_subs:
         return True
     return False
 
 
 def _is_normalised_getter(cmd: str, args: tuple[str, ...] | list[str]) -> bool:
     """Return True if the command returns a fully normalised (no encoding) value."""
-    return cmd in _NORMALISED_HTTP_GETTERS and "-normalized" in args
+    return REGISTRY.is_unnormalized_http_getter(cmd) and "-normalized" in args
+
+
+def _is_path_returning(cmd: str, args: tuple[str, ...] | list[str]) -> bool:
+    """Return True if the command returns filesystem path content."""
+    if REGISTRY.is_path_returning(cmd):
+        return True
+    path_subs = REGISTRY.path_returning_subcommands(cmd)
+    if path_subs is not None and args and args[0] in path_subs:
+        return True
+    return False
 
 
 def _cmd_may_return_path(cmd_text: str) -> bool:
@@ -171,13 +147,7 @@ def _cmd_may_return_path(cmd_text: str) -> bool:
     if parsed is None:
         return False
     cmd, args = parsed
-    if cmd in _PATH_RETURNING_COMMANDS:
-        return True
-    if cmd == "file" and args and args[0] in _PATH_RETURNING_FILE_SUBS:
-        return True
-    if cmd == "info" and args and args[0] in _PATH_RETURNING_INFO_SUBS:
-        return True
-    return False
+    return _is_path_returning(cmd, args)
 
 
 def _render_esc_text(text: str) -> str:
@@ -227,11 +197,7 @@ def _evaluate_rendered_props_for_value(value: str) -> RenderedValueProps:
         must = RenderedProperties.NONE
         cmd, args = parsed
         # If the command returns path content, set HAS_FORWARD_SLASH.
-        if cmd in _PATH_RETURNING_COMMANDS:
-            may |= RenderedProperties.HAS_FORWARD_SLASH
-        elif cmd == "file" and args and args[0] in _PATH_RETURNING_FILE_SUBS:
-            may |= RenderedProperties.HAS_FORWARD_SLASH
-        elif cmd == "info" and args and args[0] in _PATH_RETURNING_INFO_SUBS:
+        if _is_path_returning(cmd, args):
             may |= RenderedProperties.HAS_FORWARD_SLASH
         # Track unescape provenance for subst, URI::decode, b64decode,
         # encoding convertfrom.

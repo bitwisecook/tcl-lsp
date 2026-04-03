@@ -302,17 +302,24 @@ class InfoCommand(CommandDef):
                 "globals": SubCommand(name="globals", arity=Arity(0, 1), return_type=TclType.LIST),
                 "hostname": SubCommand(name="hostname", arity=Arity(0), return_type=TclType.STRING),
                 "level": SubCommand(name="level", arity=Arity(0, 1), return_type=TclType.INT),
-                "library": SubCommand(name="library", arity=Arity(0), return_type=TclType.STRING),
+                "library": SubCommand(
+                    name="library", arity=Arity(0), return_type=TclType.STRING, returns_path=True
+                ),
                 "loaded": SubCommand(name="loaded", arity=Arity(0, 1), return_type=TclType.LIST),
                 "locals": SubCommand(name="locals", arity=Arity(0, 1), return_type=TclType.LIST),
                 "nameofexecutable": SubCommand(
-                    name="nameofexecutable", arity=Arity(0), return_type=TclType.STRING
+                    name="nameofexecutable",
+                    arity=Arity(0),
+                    return_type=TclType.STRING,
+                    returns_path=True,
                 ),
                 "patchlevel": SubCommand(
                     name="patchlevel", arity=Arity(0), return_type=TclType.STRING
                 ),
                 "procs": SubCommand(name="procs", arity=Arity(0, 1), return_type=TclType.LIST),
-                "script": SubCommand(name="script", arity=Arity(0, 1), return_type=TclType.STRING),
+                "script": SubCommand(
+                    name="script", arity=Arity(0, 1), return_type=TclType.STRING, returns_path=True
+                ),
                 "sharedlibextension": SubCommand(
                     name="sharedlibextension", arity=Arity(0), return_type=TclType.STRING
                 ),

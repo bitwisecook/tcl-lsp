@@ -23,6 +23,7 @@ class WhileCommand(CommandDef):
         return CommandSpec(
             name="while",
             is_control_flow=True,
+            is_language_keyword=True,
             has_loop_body=True,
             never_inline_body=True,
             hover=HoverSnippet(

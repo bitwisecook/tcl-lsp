@@ -49,6 +49,7 @@ class ExprCommand(CommandDef):
             arg_roles={0: ArgRole.EXPR},
             return_type=TclType.NUMERIC,
             arg_types={0: ArgTypeHint(expected=TclType.NUMERIC, shimmers=True)},
+            pure_evaluation=True,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE

@@ -21,6 +21,7 @@ class ContinueCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="continue",
+            is_language_keyword=True,
             needs_start_cmd=True,
             hover=HoverSnippet(
                 summary="Skip to the next iteration of a loop",

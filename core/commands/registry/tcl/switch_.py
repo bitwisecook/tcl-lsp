@@ -28,6 +28,7 @@ class SwitchCommand(CommandDef):
         return CommandSpec(
             name="switch",
             is_control_flow=True,
+            is_language_keyword=True,
             never_inline_body=True,
             hover=HoverSnippet(
                 summary="Pattern-based branching on a subject string.",

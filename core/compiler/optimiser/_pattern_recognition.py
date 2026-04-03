@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from core.common.codes import opt
 
+from ...commands.registry import REGISTRY
+from ...commands.registry.runtime import variable_writing_commands
 from ...common.dialect import active_dialect
 from ...common.naming import (
     normalise_var_name as _normalise_var_name,
@@ -95,62 +97,85 @@ def _written_var_keys(
     argv_tokens: list[Token],
     argv_single: list[bool],
 ) -> set[str]:
-    """Return normalised variable names written by this command."""
+    """Return normalised variable names written by this command.
+
+    Uses ``assigns_variable_at`` from the registry for single-variable
+    commands, ``mutator_subcommands`` for dict, and structural dispatch
+    for multi-variable commands (unset, global, variable, upvar).
+    """
     if not argv_texts:
         return set()
 
     cmd_name = argv_texts[0]
     written: set[str] = set()
 
-    match cmd_name:
-        case "set" | "append" | "lappend" | "incr":
-            if len(argv_texts) < 2:
-                return written
-            if cmd_name in ("set", "append") and len(argv_texts) == 2:
-                return written
-            if _is_static_var_word(argv_texts[1], argv_tokens[1], single_token=argv_single[1]):
-                written.add(_normalise_var_name(argv_texts[1]))
+    # Use the registry to identify variable-writing commands.
+    var_commands = variable_writing_commands()
+    var_idx = var_commands.get(cmd_name)
+    spec = REGISTRY.get_any(cmd_name)
 
-        case "unset":
-            i = 1
-            while i < len(argv_texts) and argv_texts[i].startswith("-"):
-                if argv_texts[i] == "--":
-                    i += 1
-                    break
+    if var_idx is not None and not REGISTRY.is_destroys_variable(cmd_name):
+        # Simple variable-writing command (set, append, lappend, incr, etc.)
+        arg_pos = var_idx + 1  # +1 because argv_texts[0] is the command name
+        if len(argv_texts) < arg_pos + 1:
+            return written
+        # set/append with only the variable name is a read, not a write.
+        if var_idx == 0 and len(argv_texts) == 2 and spec is not None:
+            for form in spec.forms:
+                if form.arity is not None and form.arity.accepts(1):
+                    return written
+        if _is_static_var_word(
+            argv_texts[arg_pos], argv_tokens[arg_pos], single_token=argv_single[arg_pos]
+        ):
+            written.add(_normalise_var_name(argv_texts[arg_pos]))
+        return written
+
+    if REGISTRY.is_destroys_variable(cmd_name):
+        # unset-like: skips option flags, then all remaining args are variables
+        i = 1
+        while i < len(argv_texts) and argv_texts[i].startswith("-"):
+            if argv_texts[i] == "--":
                 i += 1
-            for idx in range(i, len(argv_texts)):
-                if idx >= len(argv_tokens) or idx >= len(argv_single):
-                    continue
-                if _is_static_var_word(
-                    argv_texts[idx], argv_tokens[idx], single_token=argv_single[idx]
-                ):
-                    written.add(_normalise_var_name(argv_texts[idx]))
+                break
+            i += 1
+        for idx in range(i, len(argv_texts)):
+            if idx >= len(argv_tokens) or idx >= len(argv_single):
+                continue
+            if _is_static_var_word(
+                argv_texts[idx], argv_tokens[idx], single_token=argv_single[idx]
+            ):
+                written.add(_normalise_var_name(argv_texts[idx]))
 
-        case "global" | "variable":
-            step = 2 if cmd_name == "variable" else 1
-            for idx in range(1, len(argv_texts), step):
-                if idx >= len(argv_tokens) or idx >= len(argv_single):
-                    continue
-                if _is_static_var_word(
-                    argv_texts[idx], argv_tokens[idx], single_token=argv_single[idx]
-                ):
-                    written.add(_normalise_var_name(argv_texts[idx]))
+    elif cmd_name == "global" or cmd_name == "variable":
+        step = 2 if cmd_name == "variable" else 1
+        for idx in range(1, len(argv_texts), step):
+            if idx >= len(argv_tokens) or idx >= len(argv_single):
+                continue
+            if _is_static_var_word(
+                argv_texts[idx], argv_tokens[idx], single_token=argv_single[idx]
+            ):
+                written.add(_normalise_var_name(argv_texts[idx]))
 
-        case "upvar":
-            start = 1
-            if len(argv_texts) > 1 and argv_texts[1].lstrip("-").isdigit():
-                start = 2
-            for idx in range(start + 1, len(argv_texts), 2):
-                if idx >= len(argv_tokens) or idx >= len(argv_single):
-                    continue
-                if _is_static_var_word(
-                    argv_texts[idx], argv_tokens[idx], single_token=argv_single[idx]
-                ):
-                    written.add(_normalise_var_name(argv_texts[idx]))
+    elif spec is not None and spec.creates_scope_alias:
+        # upvar-like: skips level arg, then pairs (otherVar myVar)
+        start = 1
+        if len(argv_texts) > 1 and argv_texts[1].lstrip("-").isdigit():
+            start = 2
+        for idx in range(start + 1, len(argv_texts), 2):
+            if idx >= len(argv_tokens) or idx >= len(argv_single):
+                continue
+            if _is_static_var_word(
+                argv_texts[idx], argv_tokens[idx], single_token=argv_single[idx]
+            ):
+                written.add(_normalise_var_name(argv_texts[idx]))
 
-        case "dict" if len(argv_texts) >= 2:
-            sub = argv_texts[1]
-            if sub in ("set", "unset", "append", "lappend", "incr") and len(argv_texts) >= 3:
+    elif spec is not None and len(argv_texts) >= 2:
+        # Check for subcommand-based variable mutation (dict set/unset/etc.)
+        mutator_subs = REGISTRY.mutator_subcommands(cmd_name)
+        sub = argv_texts[1]
+        if mutator_subs and sub in mutator_subs and len(argv_texts) >= 3:
+            sub_spec = spec.subcommands.get(sub)
+            if sub_spec is not None and sub_spec.inferred_storage_type is not None:
                 if _is_static_var_word(argv_texts[2], argv_tokens[2], single_token=argv_single[2]):
                     written.add(_normalise_var_name(argv_texts[2]))
 

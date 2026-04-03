@@ -21,6 +21,7 @@ class ApplyCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="apply",
+            is_language_keyword=True,
             hover=HoverSnippet(
                 summary="Apply an anonymous function",
                 synopsis=("apply func ?arg1 arg2 ...?",),

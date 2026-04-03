@@ -25,6 +25,7 @@ class InterpCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="interp",
+            is_language_keyword=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Create and manipulate Tcl interpreters",

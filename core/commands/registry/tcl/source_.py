@@ -21,6 +21,7 @@ class SourceCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="source",
+            is_language_keyword=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Evaluate a file or resource as a Tcl script.",

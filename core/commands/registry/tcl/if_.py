@@ -22,6 +22,7 @@ class IfCommand(CommandDef):
         return CommandSpec(
             name="if",
             is_control_flow=True,
+            is_language_keyword=True,
             never_inline_body=True,
             hover=HoverSnippet(
                 summary="Conditional execution with optional elseif/else branches.",
