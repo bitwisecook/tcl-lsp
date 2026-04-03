@@ -451,8 +451,6 @@ def _fold_interpolation_set(
         return None
 
     # Compute Cartesian product, bounded by _MAX_CONSTSET_SIZE.
-    result: set[str] = set()
-    # Use iterative expansion to avoid importing itertools.
     current: list[str] = [""]
     for seg in segments:
         next_round: list[str] = []
@@ -716,7 +714,9 @@ def _evaluate_def(
                 # Try resolving variable references in the list arg
                 # through the SCCP lattice (e.g. foreach x $mylist).
                 elements = _resolve_foreach_list_via_lattice(
-                    args[0], ssa_stmt.uses, values,
+                    args[0],
+                    ssa_stmt.uses,
+                    values,
                 )
             if elements is not None and len(elements) > 0:
                 vals = frozenset(_parse_literal_value(e) for e in elements)

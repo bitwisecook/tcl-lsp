@@ -275,7 +275,8 @@ proc wire_namespace_vars {} {
         analysis = analyse_source(source).top_level
         # x should be CONSTSET with values {a, b, c}
         x_vals = [
-            v for (name, _ver), v in analysis.values.items()
+            v
+            for (name, _ver), v in analysis.values.items()
             if name == "x" and v.kind is LatticeKind.CONSTSET
         ]
         assert len(x_vals) >= 1
@@ -286,7 +287,8 @@ proc wire_namespace_vars {} {
         source = "foreach x [list a b c] {puts $x}"
         analysis = analyse_source(source).top_level
         x_vals = [
-            v for (name, _ver), v in analysis.values.items()
+            v
+            for (name, _ver), v in analysis.values.items()
             if name == "x" and v.kind is LatticeKind.CONSTSET
         ]
         assert len(x_vals) >= 1
@@ -297,7 +299,8 @@ proc wire_namespace_vars {} {
         source = "foreach x {only} {puts $x}"
         analysis = analyse_source(source).top_level
         x_vals = [
-            v for (name, _ver), v in analysis.values.items()
+            v
+            for (name, _ver), v in analysis.values.items()
             if name == "x" and v.kind is LatticeKind.CONST
         ]
         assert len(x_vals) >= 1
@@ -308,7 +311,8 @@ proc wire_namespace_vars {} {
         source = "set items {a b}\nforeach x $items {puts $x}"
         analysis = analyse_source(source).top_level
         x_vals = [
-            v for (name, _ver), v in analysis.values.items()
+            v
+            for (name, _ver), v in analysis.values.items()
             if name == "x" and v.kind is LatticeKind.CONSTSET
         ]
         assert len(x_vals) >= 1
@@ -318,10 +322,7 @@ proc wire_namespace_vars {} {
         """foreach over $items where items is unknown remains OVERDEFINED."""
         source = "foreach x $items {puts $x}"
         analysis = analyse_source(source).top_level
-        x_vals = [
-            v for (name, _ver), v in analysis.values.items()
-            if name == "x"
-        ]
+        x_vals = [v for (name, _ver), v in analysis.values.items() if name == "x"]
         for v in x_vals:
             assert v.kind is not LatticeKind.CONSTSET
 
@@ -358,7 +359,7 @@ proc wire_namespace_vars {} {
         assert analysis.values[("x", 1)].value == 1
 
     def test_fold_format(self):
-        source = 'set x [format %s_%d hello 5]'
+        source = "set x [format %s_%d hello 5]"
         analysis = analyse_source(source).top_level
         assert analysis.values[("x", 1)].kind is LatticeKind.CONST
         assert analysis.values[("x", 1)].value == "hello_5"
@@ -388,7 +389,8 @@ proc wire_namespace_vars {} {
         source = "set x [list a b c]"
         analysis = analyse_source(source).top_level
         x_vals = [
-            v for (name, _ver), v in analysis.values.items()
+            v
+            for (name, _ver), v in analysis.values.items()
             if name == "x" and v.kind is LatticeKind.CONST
         ]
         assert len(x_vals) >= 1
@@ -399,7 +401,8 @@ proc wire_namespace_vars {} {
         source = "set x puts\nset y hello\nset cmd [list $x $y]"
         analysis = analyse_source(source).top_level
         cmd_vals = [
-            v for (name, _ver), v in analysis.values.items()
+            v
+            for (name, _ver), v in analysis.values.items()
             if name == "cmd" and v.kind is LatticeKind.CONST
         ]
         assert len(cmd_vals) >= 1
@@ -410,7 +413,8 @@ proc wire_namespace_vars {} {
         source = "set items [list a b]\nforeach x $items {puts $x}"
         analysis = analyse_source(source).top_level
         x_vals = [
-            v for (name, _ver), v in analysis.values.items()
+            v
+            for (name, _ver), v in analysis.values.items()
             if name == "x" and v.kind is LatticeKind.CONSTSET
         ]
         assert len(x_vals) >= 1

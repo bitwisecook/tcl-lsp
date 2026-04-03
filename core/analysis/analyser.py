@@ -1286,9 +1286,7 @@ class Analyser:
             )
         elif cmd_tok is not None and cmd_tok.type is TokenType.CMD:
             method_name = args[0] if args else None
-            self._cmd_command_sites.append(
-                (cmd_tok.text, method_name, range_from_token(cmd_tok))
-            )
+            self._cmd_command_sites.append((cmd_tok.text, method_name, range_from_token(cmd_tok)))
 
         # IRULE5005: direct proc invocation without ``call`` in iRules.
         # In iRules, procs must be invoked via ``call proc_name``, not
@@ -1847,7 +1845,10 @@ class Analyser:
             self._objdefined_vars.add(obj_name)
 
     def _handle_namespace_ensemble(
-        self, cmd_name: str, args: list[str], scope: Scope,
+        self,
+        cmd_name: str,
+        args: list[str],
+        scope: Scope,
     ) -> None:
         """Detect ``namespace ensemble create`` and record the namespace."""
         if cmd_name != "namespace" or len(args) < 2:
@@ -2595,13 +2596,9 @@ class Analyser:
         candidates.update(_ensemble_cmds)
 
         # Build SCCP value maps for interpolated command name resolution.
-        _interp_sccp_values: dict[tuple[str, int], object] | None = None
+        _interp_sccp_values: dict[tuple[str, int], LatticeValue] | None = None
         _interp_sccp_uses: dict[str, int] = {}
-        if cu is not None and "$" in "".join(
-            inv.name for inv in self.result.command_invocations
-        ):
-            from ..compiler.ssa import SSAValueKey
-
+        if cu is not None and "$" in "".join(inv.name for inv in self.result.command_invocations):
             _interp_sccp_values = {}
             for analysis in [
                 cu.top_level.analysis,
@@ -2610,7 +2607,7 @@ class Analyser:
                 for key, lv in analysis.values.items():
                     _interp_sccp_values[key] = lv
             # Build a simple uses map: variable name → latest known version.
-            for (name, ver) in _interp_sccp_values:
+            for name, ver in _interp_sccp_values:
                 if name not in _interp_sccp_uses or ver > _interp_sccp_uses[name]:
                     _interp_sccp_uses[name] = ver
 
@@ -2664,7 +2661,9 @@ class Analyser:
                 from ..compiler.core_analyses import _fold_interpolation_set
 
                 resolved = _fold_interpolation_set(
-                    cmd_name, _interp_sccp_uses, _interp_sccp_values,
+                    cmd_name,
+                    _interp_sccp_uses,
+                    _interp_sccp_values,
                 )
                 if resolved is not None and all(
                     r in registry_names
@@ -3059,6 +3058,8 @@ class Analyser:
         from ..compiler.core_analyses import (
             _extract_foreach_elements,
             _parse_literal_value,
+        )
+        from ..compiler.core_analyses import (
             _to_set as _lattice_to_set,
         )
         from ..compiler.ir import IRCall
@@ -3134,9 +3135,7 @@ class Analyser:
         _known_cmds = known_command_names()
         _known_procs = frozenset(self.result.all_procs)
         # Also include bare proc names (without :: prefix) for matching.
-        _known_proc_bare = frozenset(
-            qn.rsplit("::", 1)[-1] for qn in _known_procs if "::" in qn
-        )
+        _known_proc_bare = frozenset(qn.rsplit("::", 1)[-1] for qn in _known_procs if "::" in qn)
         # TclOO class names are valid commands (oo::class create X → command X).
         _class_tail_names: set[str] = set()
         for qname in self.result.all_classes:
@@ -3309,10 +3308,7 @@ class Analyser:
                 cmd_name_ = parts[0]
                 cmd_args_ = tuple(parts[1].split()) if len(parts) > 1 else ()
                 ret_type = _return_type_for_command(cmd_name_, cmd_args_, _known_classes)
-                if (
-                    ret_type.kind is TypeKind.KNOWN
-                    and ret_type.tcl_type is TclType.OBJECT
-                ):
+                if ret_type.kind is TypeKind.KNOWN and ret_type.tcl_type is TclType.OBJECT:
                     # Command returns an object — suppress W307.
                     key = (site_range.start.offset, site_range.end.offset)
                     idx = w307_indices.get(key)
@@ -3399,15 +3395,13 @@ class Analyser:
         # Build known command/proc sets.
         _known_cmds = known_command_names()
         _known_procs = frozenset(self.result.all_procs)
-        _known_proc_bare = frozenset(
-            qn.rsplit("::", 1)[-1] for qn in _known_procs if "::" in qn
-        )
+        _known_proc_bare = frozenset(qn.rsplit("::", 1)[-1] for qn in _known_procs if "::" in qn)
 
         resolved_ranges: set[tuple[int, int]] = set()
-        for diag in w123_diags:
+        for w123_diag in w123_diags:
             # Extract the command name from the message.
             # Format: "Unknown command 'cmd_${var}'"
-            msg = diag.message
+            msg = w123_diag.message
             if "'" not in msg:
                 continue
             start = msg.index("'") + 1
@@ -3430,7 +3424,7 @@ class Analyser:
                 or f"::{name}" in _known_procs
                 for name in resolved
             ):
-                resolved_ranges.add((diag.range.start.offset, diag.range.end.offset))
+                resolved_ranges.add((w123_diag.range.start.offset, w123_diag.range.end.offset))
 
         if resolved_ranges:
             self.result.diagnostics = [

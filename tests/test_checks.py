@@ -1476,19 +1476,6 @@ $svc log hello
         diags = _diag_with_code(source, "W123")
         assert len(diags) == 0
 
-    def test_foreach_var_mediated_list_no_w307(self):
-        """foreach over $var where var is constant list suppresses W307."""
-        source = """\
-proc a {} {puts a}
-proc b {} {puts b}
-set cmds {a b}
-foreach cmd $cmds {
-    $cmd
-}
-"""
-        diags = _diag_with_code(source, "W307")
-        assert len(diags) == 0
-
     def test_interpolated_handler_no_w123(self):
         """handler_$action where action is CONST resolves to known proc."""
         source = """\

@@ -15,10 +15,10 @@ SCCP calls them when all arguments resolve to known constants.
 
 from __future__ import annotations
 
-
 # ---------------------------------------------------------------------------
 # list / concat / join / split / lindex / lrange / llength / lreverse / lrepeat
 # ---------------------------------------------------------------------------
+
 
 def fold_list(args: tuple[str, ...]) -> str | None:
     """``list arg ...`` — returns a proper Tcl list."""
@@ -156,6 +156,7 @@ def fold_lrepeat(args: tuple[str, ...]) -> str | None:
 # ---------------------------------------------------------------------------
 # string subcommands
 # ---------------------------------------------------------------------------
+
 
 def fold_string_cat(args: tuple[str, ...]) -> str | None:
     """``string cat ?string ...?``"""
@@ -457,6 +458,7 @@ def fold_string_wordstart(args: tuple[str, ...]) -> str | None:
 # dict subcommands
 # ---------------------------------------------------------------------------
 
+
 def fold_dict_create(args: tuple[str, ...]) -> str | None:
     """``dict create ?key value ...?``"""
     if len(args) % 2 != 0:
@@ -551,6 +553,7 @@ def fold_dict_values(args: tuple[str, ...]) -> str | None:
 # format
 # ---------------------------------------------------------------------------
 
+
 def fold_format(args: tuple[str, ...]) -> str | None:
     """``format formatString ?arg ...?``"""
     if len(args) < 1:
@@ -568,6 +571,7 @@ def fold_format(args: tuple[str, ...]) -> str | None:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _split_list(s: str) -> list[str] | None:
     """Split a Tcl list string into elements (simple cases)."""
@@ -612,7 +616,9 @@ def _string_is(cls: str, s: str, strict: bool) -> str | None:
     """Evaluate ``string is class`` for compile-time known values."""
     if not strict and not s:
         return "1"
-    checks: dict[str, object] = {
+    from collections.abc import Callable
+
+    checks: dict[str, Callable[[str], object]] = {
         "alnum": str.isalnum,
         "alpha": str.isalpha,
         "ascii": lambda x: all(ord(c) < 128 for c in x),
