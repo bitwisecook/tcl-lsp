@@ -298,7 +298,7 @@ _prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings
 _prep-pr-tests: test-py test-opt
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
-prep-pr: format ## Fast pre-PR gate (format + lint + typecheck + fast tests, no UI/smoke)
+prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
 
 test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX)
@@ -448,10 +448,16 @@ $(BUILD_INFO_JSON): .FORCE
 		"$(VERSION)" "$(GIT_DESCRIBE)" "$(GIT_HASH)" "$(FULL_VERSION)" "$(BUILD_TIMESTAMP)" > $@
 
 # Generated editor catalogs
+#
+# Depends on: the generator script + command registry specs.
+REGISTRY_SRCS := $(shell find $(PYCORE_DIR)/commands/registry -name '*.py' -not -path '*__pycache__*')
+_CATALOG_DEPS := $(UV_STAMP) scripts/generate_catalogs.py $(REGISTRY_SRCS)
 
-generate: $(UV_STAMP) ## Regenerate editor catalog files from the registry
+editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_events.json editors/vscode/src/generated/iruleEvents.json &: $(_CATALOG_DEPS)
 	@echo "==> Generating editor catalogs"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_catalogs.py
+
+generate: editors/zed/src/generated/tcl_commands.json ## Regenerate editor catalog files from the registry
 
 check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 	@echo "==> Checking generated catalogs are up to date"
@@ -465,10 +471,28 @@ check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 	(rm -rf "$$TMPDIR" && echo "ERROR: Generated catalogs are stale — run 'make generate'" >&2 && exit 1)
 
 # Generated editor settings from code registry
+#
+# Depends on: the generator script + diagnostic/optimisation code
+# definitions + formatter config + Jinja2 templates.
+CODES_SRCS    := $(shell find $(PYCORE_DIR)/common -name 'codes*.py' -not -path '*__pycache__*')
+OPTIMISER_SRCS := $(shell find $(PYCORE_DIR)/compiler/optimiser -name '*.py' -not -path '*__pycache__*')
+CHECKS_SRCS   := $(shell find $(PYCORE_DIR)/analysis/checks -name '*.py' -not -path '*__pycache__*')
+SETTINGS_SRCS := $(CODES_SRCS) $(OPTIMISER_SRCS) $(CHECKS_SRCS) \
+	$(PYCORE_DIR)/formatting/config.py \
+	$(PYCORE_DIR)/common/optimisation_profiles.py \
+	$(PYCORE_DIR)/analysis/analyser.py \
+	$(PYCORE_DIR)/analysis/irules_checks.py \
+	$(PYCORE_DIR)/compiler/compiler_checks.py \
+	$(PYCORE_DIR)/compiler/gvn.py \
+	$(PYCORE_DIR)/compiler/shimmer.py
+SETTINGS_J2   := $(wildcard docs/generated/*.j2 editors/vscode/src/generated/*.j2 editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/*.j2 ai/prompts/*.j2 ai/claude/skills/*/*.j2)
+_SETTINGS_DEPS := $(UV_STAMP) scripts/generate_editor_settings.py $(SETTINGS_SRCS) $(SETTINGS_J2)
 
-gen-editor-settings: $(UV_STAMP) ## Regenerate editor diagnostic/optimiser settings from code registry
+editors/vscode/src/generated/diagnosticCatalog.ts: $(_SETTINGS_DEPS)
 	@echo "==> Generating editor settings from code registry"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_editor_settings.py
+
+gen-editor-settings: editors/vscode/src/generated/diagnosticCatalog.ts ## Regenerate editor diagnostic/optimiser settings from code registry
 
 check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
 	@echo "==> Checking editor settings are up to date"
