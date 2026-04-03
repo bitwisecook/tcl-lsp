@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
-"""Performance stats for SpiceGenTcl across all tagged versions and main.
+"""Performance stats: benchmark tcl-lsp against SpiceGenTcl.
 
-Clones SpiceGenTcl, iterates every git tag plus ``main``, starts the
-LSP server with the project as workspace root (dialect ``tcl9.0``),
-waits for the background scan, then collects per-file semantic-token
-timing and all diagnostics/optimisation findings.  Results are stored
-in ``spicegentcl_perf.sqlite3``.
+Two benchmark axes are available:
+
+**--lsp-tags** (default): iterate *tcl-lsp* releases (v1.0.0 .. v1.4.2
++ HEAD) against SpiceGenTcl ``main``.  Each server version is checked
+out via ``git worktree`` so the working tree is untouched.  This tracks
+whether we are reducing false-positive diagnostics over time.
+
+**--repo-tags**: iterate *SpiceGenTcl* tags (0.54 .. 0.71 + main) with
+the current server.  This tracks how the project's own code evolution
+affects diagnostic counts.
+
+Results are stored in ``spicegentcl_perf.sqlite3`` (dialect ``tcl9.0``).
 
 Usage::
 
-    # Benchmark all tags + main
+    # Benchmark all tcl-lsp tags + HEAD against SpiceGenTcl main
     python3 scripts/perf_spicegentcl.py bench
 
-    # Benchmark a single tag
-    python3 scripts/perf_spicegentcl.py bench --tag 0.71
+    # Benchmark a single tcl-lsp tag
+    python3 scripts/perf_spicegentcl.py bench --tag v1.4.2
 
-    # Benchmark main only
-    python3 scripts/perf_spicegentcl.py bench --tag main
+    # Benchmark SpiceGenTcl tags with current server
+    python3 scripts/perf_spicegentcl.py bench --repo-tags
 
     # Print summary table
     python3 scripts/perf_spicegentcl.py list
@@ -40,9 +47,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent
 DB_PATH = PROJECT_DIR / "spicegentcl_perf.sqlite3"
 CLONE_DIR = PROJECT_DIR / "tmp" / "SpiceGenTcl"
+WORKTREE_DIR = PROJECT_DIR / "tmp" / "worktrees"
 REPO_URL = "https://github.com/georgtree/SpiceGenTcl.git"
 
 LSP_SEVERITY = {1: "ERROR", 2: "WARNING", 3: "INFO", 4: "HINT"}
+
+# All versions use ``python -m lsp`` (the __main__.py docstring in early
+# versions misleadingly says ``python -m server``, but the package is ``lsp``).
 
 # ---------------------------------------------------------------------------
 # SQLite helpers
@@ -55,6 +66,7 @@ def _init_db(db: sqlite3.Connection) -> None:
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
             tag                 TEXT NOT NULL,
             git_sha             TEXT,
+            lsp_version         TEXT,
             timestamp           TEXT NOT NULL,
             file_count          INTEGER,
             scan_ms             REAL,
@@ -111,8 +123,9 @@ def get_db() -> sqlite3.Connection:
 class LspClient:
     """Minimal LSP client over stdio for benchmarking."""
 
-    def __init__(self, server_dir: str) -> None:
+    def __init__(self, server_dir: str, *, module: str = "lsp") -> None:
         self.server_dir = server_dir
+        self.module = module
         self.process: subprocess.Popen | None = None
         self._request_id = 0
         self._pending: dict[int, dict] = {}
@@ -127,7 +140,7 @@ class LspClient:
         self.process = subprocess.Popen(
             [
                 "uv", "run", "--directory", self.server_dir,
-                "--no-dev", "python", "-m", "lsp",
+                "--no-dev", "python", "-m", self.module,
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -262,6 +275,23 @@ class LspClient:
 
 _TIMING_RE = re.compile(r"\[timing\]\s+(\S+)\s+([\d.]+)ms")
 _SCAN_RE = re.compile(r"background.scan\s+([\d.]+)ms")
+# Old format (v1.0.0-v1.2.1): "Background scan complete: indexed N files"
+_SCAN_COMPLETE_RE = re.compile(r"Background scan complete", re.I)
+
+
+def _parse_version(tag: str) -> tuple[int, int, int]:
+    """Parse ``v1.2.3`` into ``(1, 2, 3)``.  Returns ``(99, 0, 0)`` for HEAD."""
+    if tag in ("HEAD", "head"):
+        return (99, 0, 0)
+    m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", tag)
+    if m:
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    return (0, 0, 0)
+
+
+def _server_module(tag: str) -> str:
+    """Return the Python module name for a tcl-lsp version."""
+    return "lsp"
 
 
 def _initialize(client: LspClient, workspace_root: str) -> None:
@@ -297,29 +327,61 @@ def _set_dialect(client: LspClient, dialect: str = "tcl9.0") -> None:
     )
 
 
-def _get_timing_lines(client: LspClient) -> list[str]:
-    """Collect ``[timing]`` lines from both window/logMessage and stderr."""
+def _get_log_lines(client: LspClient) -> list[str]:
+    """Collect all log lines from window/logMessage notifications and stderr."""
     lines: list[str] = []
     for n in client.get_notifications("window/logMessage"):
         msg = n.get("params", {}).get("message", "")
-        if "[timing]" in msg:
+        if msg:
             lines.append(msg)
-    for line in client.get_all_stderr():
-        if "[timing]" in line:
-            lines.append(line)
+    lines.extend(client.get_all_stderr())
     return lines
 
 
-def _wait_for_scan(client: LspClient, timeout: float = 180.0) -> float:
-    """Block until background scan completes.  Returns scan time in ms."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        for line in _get_timing_lines(client):
-            if "background scan" in line or "background_scan" in line:
+def _get_timing_lines(client: LspClient) -> list[str]:
+    """Collect ``[timing]`` lines from both window/logMessage and stderr."""
+    return [ln for ln in _get_log_lines(client) if "[timing]" in ln]
+
+
+def _wait_for_scan(
+    client: LspClient,
+    timeout: float = 180.0,
+    log_wait: float = 10.0,
+) -> float:
+    """Block until background scan completes.  Returns scan time in ms.
+
+    Detection strategies (tried in order):
+    1. New (v1.2.2+): ``[timing] background scan Xms``
+    2. Old (v1.0.0-v1.2.1): ``Background scan complete``
+    3. Fallback: if no log signal within *log_wait* seconds, send a
+       workspace/symbol request — the server serialises this behind
+       the scan thread's index updates, so the response arriving
+       means the scan has finished.
+    """
+    t0 = time.monotonic()
+
+    # Phase 1: wait for a log signal.
+    log_deadline = time.monotonic() + log_wait
+    while time.monotonic() < log_deadline:
+        for line in _get_log_lines(client):
+            if "background scan" in line and "[timing]" in line:
                 m = _SCAN_RE.search(line)
                 return float(m.group(1)) if m else 0.0
+            if _SCAN_COMPLETE_RE.search(line):
+                return round((time.monotonic() - t0) * 1000, 1)
         time.sleep(0.5)
-    raise TimeoutError("Background scan did not complete within timeout")
+
+    # Phase 2: probe — send a workspace/symbol request that blocks until
+    # the server has finished indexing.
+    try:
+        client.send_request(
+            "workspace/symbol",
+            {"query": "__scan_probe__"},
+            timeout=timeout - (time.monotonic() - t0),
+        )
+    except Exception:
+        pass
+    return round((time.monotonic() - t0) * 1000, 1)
 
 
 def _extract_server_timings(client: LspClient) -> dict[str, float]:
@@ -431,6 +493,63 @@ def _tag_sort_key(tag: str) -> tuple:
         return (0, 0, 0)
 
 
+def _lsp_version_sort_key(tag: str) -> tuple:
+    """Sort tcl-lsp tags by semver, HEAD last."""
+    v = _parse_version(tag)
+    return v
+
+
+# ---------------------------------------------------------------------------
+# Worktree management for tcl-lsp tags
+# ---------------------------------------------------------------------------
+
+
+def _get_lsp_tags() -> list[str]:
+    """Return all tcl-lsp version tags from the local repo, sorted."""
+    result = subprocess.run(
+        ["git", "tag", "-l", "v*"],
+        cwd=str(PROJECT_DIR), capture_output=True, text=True, timeout=10,
+    )
+    tags = [t.strip() for t in result.stdout.splitlines() if t.strip()]
+    return sorted(tags, key=_lsp_version_sort_key)
+
+
+def _create_worktree(tag: str) -> str:
+    """Create a git worktree for *tag*.  Returns the worktree path."""
+    wt_path = str(WORKTREE_DIR / tag.replace("/", "_"))
+    if os.path.isdir(wt_path):
+        # Already exists -- reuse.
+        return wt_path
+    os.makedirs(str(WORKTREE_DIR), exist_ok=True)
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", wt_path, tag],
+        cwd=str(PROJECT_DIR), capture_output=True, check=True, timeout=30,
+    )
+    return wt_path
+
+
+def _remove_worktree(wt_path: str) -> None:
+    """Remove a git worktree."""
+    try:
+        subprocess.run(
+            ["git", "worktree", "remove", "--force", wt_path],
+            cwd=str(PROJECT_DIR), capture_output=True, timeout=30,
+        )
+    except Exception:
+        pass
+
+
+def _lsp_git_sha(cwd: str | None = None) -> str:
+    """Return the short SHA of the tcl-lsp commit at *cwd*."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=cwd or str(PROJECT_DIR), text=True, timeout=10,
+        ).strip()
+    except Exception:
+        return "unknown"
+
+
 # ---------------------------------------------------------------------------
 # File discovery
 # ---------------------------------------------------------------------------
@@ -446,15 +565,146 @@ def _collect_tcl_files(directory: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Benchmark one tag
+# Shared per-file benchmark loop
+# ---------------------------------------------------------------------------
+
+
+def _bench_files(
+    client: LspClient,
+    tcl_files: list[str],
+    base_dir: str,
+) -> tuple[list[dict], list[dict]]:
+    """Open each file, collect semantic tokens + diagnostics.
+
+    Returns ``(file_rows, all_findings)``.
+    """
+    file_rows: list[dict] = []
+    all_findings: list[dict] = []
+
+    for i, fpath in enumerate(tcl_files, 1):
+        rel_path = os.path.relpath(fpath, base_dir)
+        with open(fpath, encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        n_lines = content.count("\n") + 1
+        uri = f"file://{os.path.abspath(fpath)}"
+
+        client.clear_notifications()
+
+        t_open = time.perf_counter()
+        client.send_notification(
+            "textDocument/didOpen",
+            {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "tcl",
+                    "version": 1,
+                    "text": content,
+                },
+            },
+        )
+        time.sleep(0.01)
+
+        try:
+            result = client.send_request(
+                "textDocument/semanticTokens/full",
+                {"textDocument": {"uri": uri}},
+                timeout=60.0,
+            )
+        except Exception as exc:
+            print(f"    [{i}/{len(tcl_files)}] {rel_path} — FAILED ({exc})")
+            client.send_notification(
+                "textDocument/didClose", {"textDocument": {"uri": uri}},
+            )
+            continue
+        t_done = time.perf_counter()
+
+        data = result.get("data", []) if result else []
+        n_tokens = len(data) // 5
+        ott_ms = round((t_done - t_open) * 1000, 1)
+
+        server_timings = _extract_server_timings(client)
+        update_ms = server_timings.get("workspace_state.update", 0)
+        sem_ms = server_timings.get(
+            "semantic_tokens_full",
+            server_timings.get("semanticTokens/full", 0),
+        )
+
+        diags = _collect_diagnostics_for_uri(client, uri, wait=5.0)
+
+        file_diags = 0
+        file_opts = 0
+        for d in diags:
+            code = str(d.get("code", ""))
+            sev = d.get("severity", 0)
+            sev_label = LSP_SEVERITY.get(sev, "UNKNOWN")
+            cat = _classify_code(code)
+            r = d.get("range", {})
+            s = r.get("start", {})
+            e = r.get("end", {})
+
+            if cat == "optimisation":
+                file_opts += 1
+            else:
+                file_diags += 1
+
+            all_findings.append({
+                "file_path": rel_path,
+                "line": s.get("line", 0),
+                "character": s.get("character", 0),
+                "end_line": e.get("line", 0),
+                "end_character": e.get("character", 0),
+                "severity": sev,
+                "severity_label": sev_label,
+                "code": code,
+                "message": d.get("message", ""),
+                "source": d.get("source", ""),
+                "category": cat,
+            })
+
+        file_rows.append({
+            "file_path": rel_path,
+            "lines": n_lines,
+            "tokens": n_tokens,
+            "open_to_tokens_ms": ott_ms,
+            "update_ms": update_ms,
+            "semantic_tokens_ms": sem_ms,
+            "diagnostics": file_diags,
+            "optimisations": file_opts,
+        })
+
+        print(
+            f"    [{i}/{len(tcl_files)}] {rel_path}  "
+            f"tok={n_tokens}  ott={ott_ms:.0f}ms  "
+            f"diag={file_diags}  opt={file_opts}"
+        )
+
+        client.send_notification(
+            "textDocument/didClose", {"textDocument": {"uri": uri}},
+        )
+
+    return file_rows, all_findings
+
+
+def _summarise_findings(
+    all_findings: list[dict],
+) -> tuple[int, int, int]:
+    """Return ``(total_warnings, total_diagnostics, total_optimisations)``."""
+    w = sum(1 for f in all_findings if f["category"] == "warning")
+    d = sum(1 for f in all_findings if f["category"] == "diagnostic")
+    o = sum(1 for f in all_findings if f["category"] == "optimisation")
+    return w, d, o
+
+
+# ---------------------------------------------------------------------------
+# Benchmark one SpiceGenTcl tag (--repo-tags mode)
 # ---------------------------------------------------------------------------
 
 
 def bench_tag(tag: str, clone_dir: str) -> dict | None:
-    """Benchmark a single tag/branch.  Returns summary dict or None on failure."""
+    """Benchmark a single SpiceGenTcl tag with the current server."""
     server_dir = str(PROJECT_DIR)
     print(f"\n{'=' * 60}")
-    print(f"  Tag: {tag}")
+    print(f"  SpiceGenTcl tag: {tag}")
     print(f"{'=' * 60}")
 
     sha = _checkout(clone_dir, tag)
@@ -472,151 +722,105 @@ def bench_tag(tag: str, clone_dir: str) -> dict | None:
         _initialize(client, clone_dir)
         _set_dialect(client, "tcl9.0")
 
-        # Wait for background scan.
         print("  Waiting for background scan...", end=" ", flush=True)
         scan_ms = _wait_for_scan(client)
         print(f"{scan_ms:.0f}ms")
 
-        now = datetime.now(timezone.utc).isoformat()
-
-        # Per-file semantic tokens + diagnostics.
-        file_rows: list[dict] = []
-        all_findings: list[dict] = []
-        total_warnings = 0
-        total_diagnostics = 0
-        total_optimisations = 0
-
-        for i, fpath in enumerate(tcl_files, 1):
-            rel_path = os.path.relpath(fpath, clone_dir)
-            with open(fpath, encoding="utf-8", errors="replace") as f:
-                content = f.read()
-            n_lines = content.count("\n") + 1
-            uri = f"file://{os.path.abspath(fpath)}"
-
-            # Clear stale notifications before opening a new file.
-            client.clear_notifications()
-
-            # Open file.
-            t_open = time.perf_counter()
-            client.send_notification(
-                "textDocument/didOpen",
-                {
-                    "textDocument": {
-                        "uri": uri,
-                        "languageId": "tcl",
-                        "version": 1,
-                        "text": content,
-                    },
-                },
-            )
-            time.sleep(0.01)
-
-            # Request semantic tokens.
-            try:
-                result = client.send_request(
-                    "textDocument/semanticTokens/full",
-                    {"textDocument": {"uri": uri}},
-                    timeout=60.0,
-                )
-            except Exception as exc:
-                print(f"    [{i}/{len(tcl_files)}] {rel_path} — FAILED ({exc})")
-                # Close the file before continuing.
-                client.send_notification(
-                    "textDocument/didClose", {"textDocument": {"uri": uri}},
-                )
-                continue
-            t_done = time.perf_counter()
-
-            data = result.get("data", []) if result else []
-            n_tokens = len(data) // 5
-            ott_ms = round((t_done - t_open) * 1000, 1)
-
-            # Extract server-side timings for this file from stderr.
-            server_timings = _extract_server_timings(client)
-            update_ms = server_timings.get("workspace_state.update", 0)
-            sem_ms = server_timings.get(
-                "semantic_tokens_full",
-                server_timings.get("semanticTokens/full", 0),
-            )
-
-            # Collect diagnostics (wait for deep pass).
-            diags = _collect_diagnostics_for_uri(client, uri, wait=5.0)
-
-            file_diags = 0
-            file_opts = 0
-            for d in diags:
-                code = str(d.get("code", ""))
-                sev = d.get("severity", 0)
-                sev_label = LSP_SEVERITY.get(sev, "UNKNOWN")
-                cat = _classify_code(code)
-                r = d.get("range", {})
-                s = r.get("start", {})
-                e = r.get("end", {})
-
-                if cat == "optimisation":
-                    file_opts += 1
-                elif cat == "warning":
-                    file_diags += 1
-                else:
-                    file_diags += 1
-
-                all_findings.append({
-                    "file_path": rel_path,
-                    "line": s.get("line", 0),
-                    "character": s.get("character", 0),
-                    "end_line": e.get("line", 0),
-                    "end_character": e.get("character", 0),
-                    "severity": sev,
-                    "severity_label": sev_label,
-                    "code": code,
-                    "message": d.get("message", ""),
-                    "source": d.get("source", ""),
-                    "category": cat,
-                })
-
-            total_warnings += sum(1 for f in all_findings[-len(diags):] if f["category"] == "warning")
-            total_diagnostics += file_diags
-            total_optimisations += file_opts
-
-            file_rows.append({
-                "file_path": rel_path,
-                "lines": n_lines,
-                "tokens": n_tokens,
-                "open_to_tokens_ms": ott_ms,
-                "update_ms": update_ms,
-                "semantic_tokens_ms": sem_ms,
-                "diagnostics": file_diags,
-                "optimisations": file_opts,
-            })
-
-            print(
-                f"    [{i}/{len(tcl_files)}] {rel_path}  "
-                f"tok={n_tokens}  ott={ott_ms:.0f}ms  "
-                f"diag={file_diags}  opt={file_opts}"
-            )
-
-            # Close the file to free server resources.
-            client.send_notification(
-                "textDocument/didClose", {"textDocument": {"uri": uri}},
-            )
-
+        file_rows, all_findings = _bench_files(client, tcl_files, clone_dir)
     finally:
         client.shutdown()
 
-    # Recount totals from findings for accuracy.
-    total_warnings = sum(1 for f in all_findings if f["category"] == "warning")
-    total_diagnostics_count = sum(1 for f in all_findings if f["category"] == "diagnostic")
-    total_optimisations = sum(1 for f in all_findings if f["category"] == "optimisation")
-
+    total_w, total_d, total_o = _summarise_findings(all_findings)
     return {
         "tag": tag,
         "git_sha": sha,
-        "timestamp": now,
+        "lsp_version": "HEAD",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "file_count": len(tcl_files),
         "scan_ms": scan_ms,
-        "total_warnings": total_warnings,
-        "total_diagnostics": total_diagnostics_count,
-        "total_optimisations": total_optimisations,
+        "total_warnings": total_w,
+        "total_diagnostics": total_d,
+        "total_optimisations": total_o,
+        "file_rows": file_rows,
+        "findings": all_findings,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Benchmark one tcl-lsp tag (--lsp-tags mode)
+# ---------------------------------------------------------------------------
+
+
+def bench_lsp_tag(lsp_tag: str, clone_dir: str) -> dict | None:
+    """Benchmark a single tcl-lsp version against SpiceGenTcl main."""
+    is_head = lsp_tag == "HEAD"
+    print(f"\n{'=' * 60}")
+    print(f"  tcl-lsp: {lsp_tag}")
+    print(f"{'=' * 60}")
+
+    # Determine server directory.
+    if is_head:
+        server_dir = str(PROJECT_DIR)
+        lsp_sha = _lsp_git_sha()
+    else:
+        print("  Creating worktree...", end=" ", flush=True)
+        server_dir = _create_worktree(lsp_tag)
+        lsp_sha = _lsp_git_sha(server_dir)
+        print(f"{lsp_sha}")
+
+    module = _server_module(lsp_tag)
+    print(f"  Module: python -m {module}")
+
+    tcl_files = _collect_tcl_files(clone_dir)
+    if not tcl_files:
+        print("  No .tcl files found — skipping")
+        if not is_head:
+            _remove_worktree(server_dir)
+        return None
+    print(f"  Files: {len(tcl_files)}")
+
+    # SpiceGenTcl SHA (on main).
+    repo_sha = subprocess.check_output(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=clone_dir, text=True, timeout=10,
+    ).strip()
+
+    # Pre-warm the venv so uv doesn't spend time installing during startup.
+    print("  Warming venv...", end=" ", flush=True)
+    subprocess.run(
+        ["uv", "run", "--directory", server_dir, "--no-dev",
+         "python", "-c", "print('ok')"],
+        capture_output=True, timeout=120, cwd=server_dir,
+    )
+    print("done")
+
+    client = LspClient(server_dir, module=module)
+    client.start()
+    try:
+        _initialize(client, clone_dir)
+        _set_dialect(client, "tcl9.0")
+
+        print("  Waiting for background scan...", end=" ", flush=True)
+        scan_ms = _wait_for_scan(client)
+        print(f"{scan_ms:.0f}ms")
+
+        file_rows, all_findings = _bench_files(client, tcl_files, clone_dir)
+    finally:
+        client.shutdown()
+        if not is_head:
+            _remove_worktree(server_dir)
+
+    total_w, total_d, total_o = _summarise_findings(all_findings)
+    return {
+        "tag": "main",
+        "git_sha": repo_sha,
+        "lsp_version": lsp_tag if not is_head else f"HEAD ({lsp_sha})",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "file_count": len(tcl_files),
+        "scan_ms": scan_ms,
+        "total_warnings": total_w,
+        "total_diagnostics": total_d,
+        "total_optimisations": total_o,
         "file_rows": file_rows,
         "findings": all_findings,
     }
@@ -627,10 +831,12 @@ def store_result(result: dict) -> None:
     db = get_db()
     cursor = db.execute(
         """
-        INSERT INTO scan_runs (tag, git_sha, timestamp, file_count, scan_ms,
-                               total_warnings, total_diagnostics, total_optimisations)
-        VALUES (:tag, :git_sha, :timestamp, :file_count, :scan_ms,
-                :total_warnings, :total_diagnostics, :total_optimisations)
+        INSERT INTO scan_runs (tag, git_sha, lsp_version, timestamp, file_count,
+                               scan_ms, total_warnings, total_diagnostics,
+                               total_optimisations)
+        VALUES (:tag, :git_sha, :lsp_version, :timestamp, :file_count,
+                :scan_ms, :total_warnings, :total_diagnostics,
+                :total_optimisations)
         """,
         result,
     )
@@ -683,7 +889,7 @@ def list_results() -> None:
     """Print a summary of stored results."""
     db = get_db()
     runs = db.execute("""
-        SELECT id, tag, git_sha, file_count, scan_ms,
+        SELECT id, tag, git_sha, lsp_version, file_count, scan_ms,
                total_warnings, total_diagnostics, total_optimisations, timestamp
         FROM scan_runs ORDER BY timestamp
     """).fetchall()
@@ -694,21 +900,23 @@ def list_results() -> None:
         return
 
     print(
-        f"{'Tag':<10s} {'SHA':<10s} {'Files':>5s} {'Scan':>8s} "
-        f"{'Warn':>5s} {'Diag':>5s} {'Opt':>5s} {'Timestamp'}"
+        f"{'LSP Ver':<16s} {'Repo Tag':<10s} {'SHA':<10s} {'Files':>5s} "
+        f"{'Scan':>8s} {'Warn':>5s} {'Diag':>5s} {'Opt':>5s}"
     )
     print("-" * 85)
     for r in runs:
+        lsp_ver = r["lsp_version"] or "-"
         print(
-            f"{r['tag']:<10s} {r['git_sha'] or '':<10s} {r['file_count']:>5d} "
-            f"{r['scan_ms']:>7.0f}ms {r['total_warnings']:>5d} "
-            f"{r['total_diagnostics']:>5d} {r['total_optimisations']:>5d} "
-            f"{r['timestamp'][:19]}"
+            f"{lsp_ver:<16s} {r['tag']:<10s} {r['git_sha'] or '':<10s} "
+            f"{r['file_count']:>5d} {r['scan_ms']:>7.0f}ms "
+            f"{r['total_warnings']:>5d} {r['total_diagnostics']:>5d} "
+            f"{r['total_optimisations']:>5d}"
         )
 
     # Per-file detail for most recent run.
     latest = runs[-1]
-    print(f"\nLatest run: {latest['tag']} ({latest['git_sha']})")
+    lsp_label = latest["lsp_version"] or "current"
+    print(f"\nLatest run: LSP {lsp_label} vs {latest['tag']} ({latest['git_sha']})")
     file_rows = db.execute("""
         SELECT file_path, lines, tokens, open_to_tokens_ms, diagnostics, optimisations
         FROM file_stats WHERE run_id = ? ORDER BY open_to_tokens_ms DESC
@@ -742,7 +950,16 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command")
 
     bench_p = sub.add_parser("bench", help="Run benchmarks")
-    bench_p.add_argument("--tag", help="Benchmark a single tag/branch (default: all)")
+    bench_p.add_argument("--tag", help="Benchmark a single tag (default: all)")
+    mode = bench_p.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--lsp-tags", action="store_true", default=True,
+        help="Iterate tcl-lsp tags against SpiceGenTcl main (default)",
+    )
+    mode.add_argument(
+        "--repo-tags", action="store_true",
+        help="Iterate SpiceGenTcl tags with the current server",
+    )
 
     sub.add_parser("list", help="List stored results")
 
@@ -751,21 +968,46 @@ def main() -> None:
     if args.command == "bench":
         clone_dir = _ensure_clone()
 
-        if args.tag:
-            tags = [args.tag]
+        if args.repo_tags:
+            # --repo-tags: iterate SpiceGenTcl versions.
+            if args.tag:
+                tags = [args.tag]
+            else:
+                tags = sorted(_get_tags(clone_dir), key=_tag_sort_key)
+                tags.append("main")
+
+            print(f"SpiceGenTcl tags to benchmark: {', '.join(tags)}")
+            for tag in tags:
+                try:
+                    result = bench_tag(tag, clone_dir)
+                    if result:
+                        store_result(result)
+                except Exception as exc:
+                    print(f"  ERROR benchmarking {tag}: {exc}")
         else:
-            tags = sorted(_get_tags(clone_dir), key=_tag_sort_key)
-            tags.append("main")
+            # --lsp-tags (default): iterate tcl-lsp versions.
+            _checkout(clone_dir, "main")
+            print("  SpiceGenTcl checked out to main")
 
-        print(f"Tags to benchmark: {', '.join(tags)}")
+            if args.tag:
+                tags = [args.tag]
+            else:
+                # Fetch tags in case they aren't local yet.
+                subprocess.run(
+                    ["git", "fetch", "origin", "--tags"],
+                    cwd=str(PROJECT_DIR), capture_output=True, timeout=60,
+                )
+                tags = _get_lsp_tags()
+                tags.append("HEAD")
 
-        for tag in tags:
-            try:
-                result = bench_tag(tag, clone_dir)
-                if result:
-                    store_result(result)
-            except Exception as exc:
-                print(f"  ERROR benchmarking {tag}: {exc}")
+            print(f"tcl-lsp versions to benchmark: {', '.join(tags)}")
+            for tag in tags:
+                try:
+                    result = bench_lsp_tag(tag, clone_dir)
+                    if result:
+                        store_result(result)
+                except Exception as exc:
+                    print(f"  ERROR benchmarking {tag}: {exc}")
 
         print("\nDone.  Run 'list' to see results.")
 
