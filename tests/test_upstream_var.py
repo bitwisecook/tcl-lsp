@@ -383,22 +383,118 @@ class TestReadBeforeSet:
         x_diags = [d for d in diags if "x" in d.message]
         assert len(x_diags) == 0
 
-    def test_incr_without_prior_set_warns(self):
-        """``incr x`` without a prior ``set`` reads x first, so W210 fires.
+    def test_incr_without_prior_set_no_w210_tcl86(self):
+        """``incr x`` on uninitialised var is safe in 8.5+ — no W210."""
+        from core.commands.registry.runtime import configure_signatures
 
-        In Tcl, ``incr`` reads the current value before incrementing.
-        If the variable has not been initialised, the analyser correctly
-        detects a read-before-set condition.
-        """
+        configure_signatures(dialect="tcl8.6")
+        try:
+            source = textwrap.dedent("""\
+                # tcl-dialect: tcl8.6
+                proc foo {} {
+                    incr x
+                    puts $x
+                }
+            """)
+            diags = _diag_with_code(source, "W210")
+            x_diags = [d for d in diags if "x" in d.message]
+            assert len(x_diags) == 0
+        finally:
+            configure_signatures(dialect="tcl8.6")
+
+    def test_incr_without_prior_set_warns_tcl84(self):
+        """``incr x`` on uninitialised var errors in Tcl 8.4 — W210 fires."""
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="tcl8.4")
+        try:
+            source = textwrap.dedent("""\
+                # tcl-dialect: tcl8.4
+                proc foo {} {
+                    incr x
+                    puts $x
+                }
+            """)
+            diags = _diag_with_code(source, "W210")
+            x_diags = [d for d in diags if "x" in d.message]
+            assert len(x_diags) >= 1
+        finally:
+            configure_signatures(dialect="tcl8.6")
+
+    def test_incr_without_prior_set_warns_irules(self):
+        """iRules is based on Tcl 8.4.6 — ``incr`` on uninit var errors."""
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="f5-irules")
+        try:
+            source = textwrap.dedent("""\
+                when HTTP_REQUEST {
+                    incr x
+                    log local0. $x
+                }
+            """)
+            diags = _diag_with_code(source, "W210")
+            x_diags = [d for d in diags if "x" in d.message]
+            assert len(x_diags) >= 1
+        finally:
+            configure_signatures(dialect="tcl8.6")
+
+    def test_lappend_without_prior_set_no_w210(self):
+        """``lappend`` safely creates an uninitialised variable — no W210."""
         source = textwrap.dedent("""\
             proc foo {} {
-                incr x
-                puts $x
+                lappend mylist a b c
+                puts $mylist
             }
         """)
         diags = _diag_with_code(source, "W210")
-        x_diags = [d for d in diags if "x" in d.message]
-        assert len(x_diags) >= 1
+        assert not any("mylist" in d.message for d in diags)
+
+    def test_append_without_prior_set_no_w210(self):
+        """``append`` safely creates an uninitialised variable — no W210."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                append result "hello"
+                puts $result
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        assert not any("result" in d.message for d in diags)
+
+    def test_lappend_in_loop_no_w210(self):
+        """``lappend`` inside a loop to accumulate values — no W210."""
+        source = textwrap.dedent("""\
+            proc foo {items} {
+                foreach item $items {
+                    lappend result $item
+                }
+                return $result
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        assert not any("result" in d.message for d in diags)
+
+    def test_dict_set_without_prior_set_no_w210(self):
+        """``dict set`` safely creates an uninitialised dict variable."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                dict set d key value
+                return $d
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        assert not any("d" in d.message for d in diags)
+
+    def test_dict_lappend_without_prior_set_no_w210(self):
+        """``dict lappend`` safely creates an uninitialised dict variable."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                dict lappend d key value
+                return $d
+            }
+        """)
+        diags = _diag_with_code(source, "W210")
+        assert not any("'d'" in d.message for d in diags)
 
     def test_incr_after_set_no_w210(self):
         """``set x 0; incr x`` — 'x' is initialised, so no W210."""

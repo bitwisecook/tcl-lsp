@@ -6,6 +6,7 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
+from ..dialects import dialects_since
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import ArgRole, Arity
 from ..type_hints import ArgTypeHint
@@ -38,6 +39,10 @@ class IncrCommand(CommandDef):
                 arity=Arity(1, 2),
             ),
             assigns_variable_at=0,
+            # incr safely treats an uninitialised variable as 0 in Tcl 8.5+.
+            # In 8.4 (and dialects based on it, e.g. iRules) it raises
+            # "can't read": no such variable.
+            safe_on_uninit=dialects_since("tcl8.5"),
             arg_roles={0: ArgRole.VAR_NAME},
             return_type=TclType.INT,
             arg_types={

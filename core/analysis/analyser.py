@@ -41,6 +41,7 @@ from ..compiler.ir import (
     IRAssignValue,
     IRBarrier,
     IRCall,
+    IRIncr,
     IRProcedure,
     IRStatement,
     IRSwitch,
@@ -3208,6 +3209,15 @@ class Analyser:
                     )
                 )
 
+    @staticmethod
+    def _is_safe_uninit_var(stmt: IRStatement, variable: str) -> bool:
+        """Check that *variable* is the one the statement safely initialises."""
+        if isinstance(stmt, IRCall) and stmt.reads_own_defs:
+            return variable in stmt.defs
+        if isinstance(stmt, IRIncr):
+            return variable == _normalise_var_name(stmt.name)
+        return False
+
     def _emit_read_before_set_diagnostics(
         self,
         cfg: CFGFunction,
@@ -3246,6 +3256,18 @@ class Analyser:
                 )
             elif rbs.variable in cross_event_vars:
                 # Variable is set in another event — not a real read-before-set.
+                continue
+            elif (
+                stmt is not None
+                and getattr(stmt, "safe_on_uninit", False)
+                and self._is_safe_uninit_var(stmt, rbs.variable)
+            ):
+                # Commands like lappend/append/dict set/incr safely
+                # initialise an uninitialised variable (set from the
+                # command registry at lowering time).  Only suppress for
+                # the variable the command defines — other variables
+                # in the same statement (e.g. $x in `lappend list $x`)
+                # are genuine reads.
                 continue
             else:
                 self.result.diagnostics.append(

@@ -437,6 +437,36 @@ class CommandRegistry:
             return None
         return specs[-1]  # prefer latest (most curated) spec
 
+    def is_safe_on_uninit(
+        self,
+        command: str,
+        subcommand: str | None = None,
+        dialect: str | None = None,
+    ) -> bool:
+        """Return True if *command* (optionally with *subcommand*) safely
+        initialises an uninitialised variable in *dialect*.
+
+        Checks ``safe_on_uninit`` on the ``SubCommand`` first (if
+        *subcommand* is given), then falls back to the top-level
+        ``CommandSpec``.  An empty frozenset means "safe in all dialects";
+        a non-empty frozenset restricts to the listed dialects.
+        """
+        spec = self.get(command, dialect)
+        if spec is None:
+            return False
+
+        # Check subcommand first.
+        if subcommand is not None:
+            sub = spec.subcommands.get(subcommand)
+            if sub is not None and sub.safe_on_uninit is not None:
+                return not sub.safe_on_uninit or (
+                    dialect is not None and dialect in sub.safe_on_uninit
+                )
+        # Fall back to top-level spec.
+        if spec.safe_on_uninit is None:
+            return False
+        return not spec.safe_on_uninit or (dialect is not None and dialect in spec.safe_on_uninit)
+
     def command_status(
         self,
         name: str,

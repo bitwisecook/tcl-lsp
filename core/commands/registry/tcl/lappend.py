@@ -37,6 +37,7 @@ class LappendCommand(CommandDef):
                 arity=Arity(1),
             ),
             assigns_variable_at=0,
+            safe_on_uninit=frozenset(),
             arg_roles={0: ArgRole.VAR_NAME},
             return_type=TclType.LIST,
             inferred_storage_type=StorageType.LIST,

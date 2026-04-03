@@ -156,6 +156,7 @@ class DictCommand(CommandDef):
                     detail="This appends the given string (or strings) to the value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary value back to that variable.",
                     synopsis="dict append dictionaryVariable key ?string ...?",
                     arg_roles={0: ArgRole.VAR_NAME},
+                    safe_on_uninit=frozenset(),
                 ),
                 "create": SubCommand(
                     name="create",
@@ -204,6 +205,7 @@ class DictCommand(CommandDef):
                     synopsis="dict incr dictionaryVariable key ?increment?",
                     return_type=TclType.INT,
                     arg_roles={0: ArgRole.VAR_NAME},
+                    safe_on_uninit=frozenset(),
                 ),
                 "info": SubCommand(
                     name="info",
@@ -227,6 +229,7 @@ class DictCommand(CommandDef):
                     detail="This appends the given items to the list value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary value back to that variable.",
                     synopsis="dict lappend dictionaryVariable key ?value ...?",
                     arg_roles={0: ArgRole.VAR_NAME},
+                    safe_on_uninit=frozenset(),
                 ),
                 "map": SubCommand(
                     name="map",
@@ -266,6 +269,7 @@ class DictCommand(CommandDef):
                     return_type=TclType.DICT,
                     arg_roles={0: ArgRole.VAR_NAME},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT)},
+                    safe_on_uninit=frozenset(),
                 ),
                 "size": SubCommand(
                     name="size",
