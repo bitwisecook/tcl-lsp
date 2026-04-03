@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from ..commands.registry.runtime import TYPE_HINTS
+from ..commands.registry.runtime import FOLD_HINTS, FOLD_SUBCOMMAND_HINTS, TYPE_HINTS
 from ..commands.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 from ..common.naming import normalise_var_name as _normalise_var_name
 from ..parsing.lexer import TclLexer
@@ -536,6 +536,74 @@ def _resolve_foreach_list_via_lattice(
     return None
 
 
+_CMD_SUBST_RE = re.compile(r"^\s*\[\s*(\S+)(?:\s+(.*?))?\s*\]\s*$", re.DOTALL)
+
+
+def _try_fold_cmd_subst(
+    value: str,
+    uses: dict[str, int],
+    values: dict[SSAValueKey, LatticeValue],
+) -> LatticeValue | None:
+    """Try to constant-fold a ``[cmd args...]`` command substitution.
+
+    Uses registry-based fold callbacks from ``FOLD_HINTS`` /
+    ``FOLD_SUBCOMMAND_HINTS``.  Returns a ``LatticeValue`` if the command
+    is foldable with all-constant arguments, or ``None`` if not.
+    """
+    m = _CMD_SUBST_RE.match(value)
+    if m is None:
+        return None
+
+    cmd_name = m.group(1)
+    args_text = m.group(2) or ""
+
+    # Look up fold callback — check subcommand hints first.
+    fold_fn = FOLD_HINTS.get(cmd_name)
+    subcmd_folds = FOLD_SUBCOMMAND_HINTS.get(cmd_name)
+    if fold_fn is None and subcmd_folds is None:
+        return None
+
+    # For subcommand-based commands, extract the subcommand name.
+    if subcmd_folds is not None and fold_fn is None:
+        parts = args_text.split(None, 1)
+        if not parts:
+            return None
+        sub_name = parts[0]
+        fold_fn = subcmd_folds.get(sub_name)
+        if fold_fn is None:
+            return None
+        args_text = parts[1] if len(parts) > 1 else ""
+
+    if fold_fn is None:
+        return None
+
+    # Resolve variable references in the arguments.
+    if "$" in args_text or "[" in args_text:
+        # If there are nested command substitutions, we can't fold.
+        if "[" in args_text:
+            return None
+        folded = _fold_interpolation(args_text, uses, values)
+        if folded.kind is not LatticeKind.CONST:
+            return None
+        args_text = str(folded.value)
+
+    # Split into individual arguments using Tcl list splitting.
+    try:
+        arg_list = _split_tcl_list(args_text) if args_text.strip() else []
+    except Exception:
+        return None
+
+    # Call the fold callback.
+    try:
+        result = fold_fn(tuple(arg_list))
+    except Exception:
+        return None
+
+    if result is None:
+        return None
+    return LatticeValue.const(_parse_literal_value(result))
+
+
 def _evaluate_def(
     stmt: IRStatement,
     ssa_stmt: SSAStatement,
@@ -554,19 +622,15 @@ def _evaluate_def(
                 # command substitutions (which have runtime results).
                 if "[" not in value:
                     return LatticeValue.const(_parse_literal_value(value))
-                # Try folding [list ...] with all literal args.
-                m = _LIST_CMD_RE.match(value.strip())
-                if m:
-                    args_text = m.group(1)
-                    if "$" not in args_text and "[" not in args_text:
-                        return LatticeValue.const(args_text)
+                # Try registry-based constant folding for [cmd args...].
+                folded = _try_fold_cmd_subst(value, {}, {})
+                if folded is not None:
+                    return folded
                 return OVERDEFINED
-            # Handle [list $x $y ...] where all vars are known constants.
-            stripped_v = value.strip()
-            m = _LIST_CMD_RE.match(stripped_v)
-            if m and "[" not in m.group(1):
-                folded = _fold_interpolation(m.group(1), ssa_stmt.uses, values)
-                if folded.kind is LatticeKind.CONST:
+            # Try registry-based constant folding with variable resolution.
+            if "[" in value:
+                folded = _try_fold_cmd_subst(value, ssa_stmt.uses, values)
+                if folded is not None:
                     return folded
             stripped = value.strip()
             if is_pure_var_ref(stripped):

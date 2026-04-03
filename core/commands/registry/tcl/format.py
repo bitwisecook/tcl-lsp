@@ -9,6 +9,7 @@ from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
 from ._base import register
+from .const_fold import fold_format
 
 _SOURCE = "Tcl man page format.n"
 
@@ -36,6 +37,7 @@ class FormatCommand(CommandDef):
                 arity=Arity(1),
             ),
             pure=True,
+            const_fold=fold_format,
             cse_candidate=True,
             return_type=TclType.STRING,
             side_effect_hints=(

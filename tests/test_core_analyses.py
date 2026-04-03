@@ -325,6 +325,64 @@ proc wire_namespace_vars {} {
         for v in x_vals:
             assert v.kind is not LatticeKind.CONSTSET
 
+    # --- Registry-based constant folding tests ---
+
+    def test_fold_string_toupper(self):
+        source = "set x [string toupper hello]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == "HELLO"
+
+    def test_fold_string_length(self):
+        source = "set x [string length hello]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == 5
+
+    def test_fold_lindex(self):
+        source = "set x [lindex {a b c} 1]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == "b"
+
+    def test_fold_llength(self):
+        source = "set x [llength {a b c}]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == 3
+
+    def test_fold_dict_get(self):
+        source = "set x [dict get {a 1 b 2} a]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == 1
+
+    def test_fold_format(self):
+        source = 'set x [format %s_%d hello 5]'
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == "hello_5"
+
+    def test_fold_join(self):
+        source = "set x [join {a b c} ,]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == "a,b,c"
+
+    def test_fold_with_variable_resolution(self):
+        """Fold through variable references: [string toupper $v]."""
+        source = "set v hello\nset x [string toupper $v]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("x", 1)].kind is LatticeKind.CONST
+        assert analysis.values[("x", 1)].value == "HELLO"
+
+    def test_fold_chained(self):
+        """Fold chained operations via SCCP fixed-point."""
+        source = "set a [string toupper hello]\nset b [string length $a]"
+        analysis = analyse_source(source).top_level
+        assert analysis.values[("a", 1)].value == "HELLO"
+        assert analysis.values[("b", 1)].value == 5
+
     def test_set_list_cmd_folds_to_const(self):
         """set x [list a b c] should fold to CONST."""
         source = "set x [list a b c]"

@@ -10,6 +10,7 @@ from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSp
 from ..signatures import Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
+from .const_fold import fold_lindex
 
 _SOURCE = "Tcl man page lindex.n"
 
@@ -38,6 +39,7 @@ class LindexCommand(CommandDef):
                 arity=Arity(1),
             ),
             pure=True,
+            const_fold=fold_lindex,
             cse_candidate=True,
             return_type=TclType.STRING,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},

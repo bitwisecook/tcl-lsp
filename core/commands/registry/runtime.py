@@ -100,6 +100,51 @@ def _type_hints_from_registry() -> dict[str, CommandTypeHint | SubcommandTypeHin
 # Type hints derived from inline fields on CommandSpec/SubCommand.
 TYPE_HINTS: dict[str, CommandTypeHint | SubcommandTypeHint] = _type_hints_from_registry()
 
+
+# ---------------------------------------------------------------------------
+# Constant-fold hints — compile-time evaluators for pure commands
+# ---------------------------------------------------------------------------
+
+from .models import ConstFoldFunc  # noqa: E402
+
+
+def _fold_hints_from_registry() -> tuple[
+    dict[str, ConstFoldFunc],
+    dict[str, dict[str, ConstFoldFunc]],
+]:
+    """Build constant-fold callbacks from CommandSpec/SubCommand definitions.
+
+    Returns ``(cmd_folds, subcmd_folds)`` where *cmd_folds* maps command
+    names to fold functions and *subcmd_folds* maps command names to dicts
+    of ``{subcommand: fold_func}``.
+    """
+    cmd_folds: dict[str, ConstFoldFunc] = {}
+    subcmd_folds: dict[str, dict[str, ConstFoldFunc]] = {}
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            if spec.subcommands:
+                subs: dict[str, ConstFoldFunc] = {}
+                for sub_name, sub in spec.subcommands.items():
+                    if sub.const_fold is not None:
+                        subs[sub_name] = sub.const_fold
+                if subs:
+                    subcmd_folds.setdefault(name, {}).update(subs)
+            elif spec.const_fold is not None:
+                cmd_folds.setdefault(name, spec.const_fold)
+    return cmd_folds, subcmd_folds
+
+
+FOLD_HINTS: dict[str, ConstFoldFunc] = {}
+FOLD_SUBCOMMAND_HINTS: dict[str, dict[str, ConstFoldFunc]] = {}
+
+
+def _rebuild_fold_hints() -> None:
+    global FOLD_HINTS, FOLD_SUBCOMMAND_HINTS
+    FOLD_HINTS, FOLD_SUBCOMMAND_HINTS = _fold_hints_from_registry()
+
+
+_rebuild_fold_hints()
+
 # Taint hints from class-per-command definitions.
 # Tcl core taint hints are always available; dialect-specific hints are
 # merged lazily when the dialect is first loaded.
@@ -138,6 +183,7 @@ def _invalidate_runtime_caches(loader_keys: list[str]) -> None:
     _ROLE_HINTS = _role_hints_from_registry()
     TYPE_HINTS.clear()
     TYPE_HINTS.update(_type_hints_from_registry())
+    _rebuild_fold_hints()
     canonical_list_commands.cache_clear()
     taint_transform_map.cache_clear()
     taint_double_encode_map.cache_clear()

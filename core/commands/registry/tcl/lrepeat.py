@@ -9,6 +9,7 @@ from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSp
 from ..signatures import Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
+from .const_fold import fold_lrepeat
 
 _SOURCE = "Tcl man page lrepeat.n"
 
@@ -37,6 +38,7 @@ class LrepeatCommand(CommandDef):
                 arity=Arity(2),
             ),
             pure=True,
+            const_fold=fold_lrepeat,
             return_type=TclType.LIST,
             inferred_storage_type=StorageType.LIST,
             arg_types={0: ArgTypeHint(expected=TclType.INT)},

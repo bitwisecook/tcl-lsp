@@ -1127,7 +1127,9 @@ class TestO116ListFolding:
     def test_fold_empty_list(self):
         s = "set x [list]\nputs $x"
         o, rw = _opt(s)
-        assert any(r.code == "O116" for r in rw)
+        # SCCP may fold [list] at analysis time (O100/O109) or the
+        # optimiser folds it later (O116).
+        assert any(r.code in ("O116", "O100", "O109") for r in rw)
 
     def test_no_fold_list_with_variable(self):
         s = "set x [list $a b c]\nputs $x"
@@ -1208,7 +1210,7 @@ class TestO118LindexFolding:
     def test_out_of_range_index(self):
         s = "set x [lindex {a b} 5]\nputs $x"
         o, rw = _opt(s)
-        assert any(r.code == "O118" for r in rw)
+        assert any(r.code in ("O118", "O100", "O109") for r in rw)
 
     def test_no_fold_variable_index(self):
         s = "set x [lindex {a b c} $i]\nputs $x"

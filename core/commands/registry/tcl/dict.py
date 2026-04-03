@@ -10,6 +10,15 @@ from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, 
 from ..signatures import ArgRole, Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
+from .const_fold import (
+    fold_dict_create,
+    fold_dict_exists,
+    fold_dict_get,
+    fold_dict_keys,
+    fold_dict_merge,
+    fold_dict_size,
+    fold_dict_values,
+)
 
 _SOURCE = "Tcl man page dict.n"
 
@@ -164,6 +173,7 @@ class DictCommand(CommandDef):
                     detail="Return a new dictionary that contains each of the key/value mappings listed as arguments (keys and values alternating, with each key being followed by its associated value.)",
                     synopsis="dict create ?key value ...?",
                     pure=True,
+                    const_fold=fold_dict_create,
                     return_type=TclType.DICT,
                 ),
                 "exists": SubCommand(
@@ -172,6 +182,7 @@ class DictCommand(CommandDef):
                     detail="This returns a boolean value indicating whether the given key (or path of keys through a set of nested dictionaries) exists in the given dictionary value.",
                     synopsis="dict exists dictionaryValue key ?key ...?",
                     pure=True,
+                    const_fold=fold_dict_exists,
                     return_type=TclType.BOOLEAN,
                 ),
                 "filter": SubCommand(
@@ -195,6 +206,7 @@ class DictCommand(CommandDef):
                     detail="Given a dictionary value (first argument) and a key (second argument), this will retrieve the value for that key.",
                     synopsis="dict get dictionaryValue ?key ...?",
                     pure=True,
+                    const_fold=fold_dict_get,
                     return_type=TclType.STRING,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT)},
                 ),
@@ -220,6 +232,7 @@ class DictCommand(CommandDef):
                     detail="Return a list of all keys in the given dictionary value.",
                     synopsis="dict keys dictionaryValue ?globPattern?",
                     pure=True,
+                    const_fold=fold_dict_keys,
                     return_type=TclType.LIST,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT)},
                 ),
@@ -245,6 +258,7 @@ class DictCommand(CommandDef):
                     detail="Return a dictionary that contains the contents of each of the dictionaryValue arguments.",
                     synopsis="dict merge ?dictionaryValue ...?",
                     pure=True,
+                    const_fold=fold_dict_merge,
                     return_type=TclType.DICT,
                 ),
                 "remove": SubCommand(
@@ -277,6 +291,7 @@ class DictCommand(CommandDef):
                     detail="Return the number of key/value mappings in the given dictionary value.",
                     synopsis="dict size dictionaryValue",
                     pure=True,
+                    const_fold=fold_dict_size,
                     return_type=TclType.INT,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT)},
                 ),
@@ -300,6 +315,7 @@ class DictCommand(CommandDef):
                     detail="Return a list of all values in the given dictionary value.",
                     synopsis="dict values dictionaryValue ?globPattern?",
                     pure=True,
+                    const_fold=fold_dict_values,
                     return_type=TclType.LIST,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT)},
                 ),
