@@ -54,4 +54,5 @@ class SubstCommand(CommandDef):
                     target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE
                 ),
             ),
+            performs_substitution=True,
         )

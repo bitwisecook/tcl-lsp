@@ -53,4 +53,5 @@ class SourceCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            sources_file=True,
         )

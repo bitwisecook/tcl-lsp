@@ -56,6 +56,18 @@ _BOOLEAN_TRAITS: tuple[str, ...] = (
     "is_control_flow",
     "needs_start_cmd",
     "defines_procedure",
+    # Analysis check dispatch traits.
+    "evaluates_code",
+    "performs_substitution",
+    "opens_channel",
+    "sources_file",
+    "has_switch_body",
+    "has_string_list_confusion_risk",
+    "configures_channel",
+    "has_interp_eval",
+    "has_destructive_ops",
+    "is_irules_event_handler",
+    "is_unnormalized_http_getter",
 )
 
 
@@ -1055,6 +1067,12 @@ class CommandRegistry:
     def known_tcllib_packages(self) -> frozenset[str]:
         """Return the set of all known tcllib package names."""
         return frozenset(self._tcllib_packages)
+
+    # Analysis check dispatch traits
+
+    def check_trait_commands(self, trait: str) -> frozenset[str]:
+        """Return command names with the given analysis check trait."""
+        return self._trait_names(trait)
 
     def all_tcllib_command_names(self) -> frozenset[str]:
         """Return all registered tcllib command names."""

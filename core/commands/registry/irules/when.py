@@ -158,4 +158,5 @@ class WhenCommand(CommandDef):
                     connection_side=ConnectionSide.GLOBAL,
                 ),
             ),
+            is_irules_event_handler=True,
         )

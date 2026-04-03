@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from ...commands.registry import REGISTRY
 from ...parsing.tokens import Token
 from ..irules_checks import check_deprecated_event as check_deprecated_irules_event
 from ..irules_checks import check_when_missing_priority
@@ -121,40 +122,56 @@ _UNIVERSAL_CHECKS: list[_CheckFn] = [
 # names to the list of additional checks to run beyond the universal set.
 # This avoids calling ~20 check functions (each with an early-return guard)
 # for commands that can never trigger them.
+#
+# Built from CommandSpec trait flags via the registry rather than hardcoded
+# frozensets — see AGENTS.md § Command registry.
 _TARGETED_CHECKS: dict[str, list[_CheckFn]] = defaultdict(list)
 
-_CMD_CHECK_MAP: list[tuple[frozenset[str], _CheckFn]] = [
-    (frozenset({"eval"}), check_eval_string_concat),
-    (frozenset({"eval", "uplevel"}), check_eval_subst_double_decode),
-    (frozenset({"subst"}), check_subst_injection),
-    (frozenset({"subst"}), check_subst_nocommands),
-    (frozenset({"open"}), check_open_pipeline),
-    (frozenset({"append"}), check_string_list_confusion),
-    (frozenset({"switch"}), check_unbraced_switch_body),
-    (frozenset({"source"}), check_source_variable),
-    (frozenset({"uplevel"}), check_uplevel_injection),
-    (frozenset({"regexp", "regsub", "switch"}), check_redos),
-    (frozenset({"when"}), check_unknown_irules_event),
-    (frozenset({"when"}), check_deprecated_irules_event),
-    (frozenset({"when"}), check_when_missing_priority),
-    (frozenset({"regexp", "regsub", "class"}), check_literal_expected),
-    (frozenset({"binary"}), check_binary_format_modifiers),
-    (frozenset({"while"}), check_loop_bound_inequality),
-    (frozenset({"fconfigure", "chan"}), check_encoding_mismatch),
-    (frozenset({"interp"}), check_interp_eval_injection),
-    # check_destructive_file_ops uses the registry which may match various
-    # commands — keep it targeted to the known destructive command families.
-    (frozenset({"file", "namespace", "chan"}), check_destructive_file_ops),
-    # HTTP::path, HTTP::uri, HTTP::query — iRules commands
-    (
-        frozenset({"HTTP::path", "HTTP::uri", "HTTP::query"}),
-        check_irules_unnormalized_http_getter,
-    ),
+# Map registry traits to check functions.  Each trait is a boolean field
+# on CommandSpec; the registry returns the set of command names with that
+# trait set to True.
+_TRAIT_CHECK_MAP: list[tuple[str, _CheckFn]] = [
+    ("evaluates_code", check_eval_string_concat),
+    ("evaluates_code", check_eval_subst_double_decode),
+    ("evaluates_code", check_uplevel_injection),
+    ("performs_substitution", check_subst_injection),
+    ("performs_substitution", check_subst_nocommands),
+    ("opens_channel", check_open_pipeline),
+    ("has_string_list_confusion_risk", check_string_list_confusion),
+    ("has_switch_body", check_unbraced_switch_body),
+    ("sources_file", check_source_variable),
+    ("is_irules_event_handler", check_unknown_irules_event),
+    ("is_irules_event_handler", check_deprecated_irules_event),
+    ("is_irules_event_handler", check_when_missing_priority),
+    ("has_loop_body", check_loop_bound_inequality),
+    ("configures_channel", check_encoding_mismatch),
+    ("has_interp_eval", check_interp_eval_injection),
+    ("has_destructive_ops", check_destructive_file_ops),
+    ("is_unnormalized_http_getter", check_irules_unnormalized_http_getter),
 ]
 
-for _cmds, _check in _CMD_CHECK_MAP:
-    for _cmd in _cmds:
-        _TARGETED_CHECKS[_cmd].append(_check)
+# Checks that need pattern_type or format_string_type from the registry,
+# plus commands that need special handling (switch -regexp, iRules class).
+# These stay as explicit sets because they depend on subcommand-level
+# metadata rather than a single CommandSpec boolean.
+_PATTERN_CHECKS: list[tuple[frozenset[str], _CheckFn]] = [
+    (frozenset({"regexp", "regsub", "switch"}), check_redos),
+    (frozenset({"regexp", "regsub", "class"}), check_literal_expected),
+    (frozenset({"binary"}), check_binary_format_modifiers),
+]
+
+
+def _build_targeted_checks() -> None:
+    """Populate _TARGETED_CHECKS from registry traits and pattern checks."""
+    for trait, check in _TRAIT_CHECK_MAP:
+        for cmd in REGISTRY.check_trait_commands(trait):
+            _TARGETED_CHECKS[cmd].append(check)
+    for cmds, check in _PATTERN_CHECKS:
+        for cmd in cmds:
+            _TARGETED_CHECKS[cmd].append(check)
+
+
+_build_targeted_checks()
 
 
 def run_all_checks(
