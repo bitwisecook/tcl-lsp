@@ -2,7 +2,8 @@
 
 Minimal reproducible examples for every diagnostic, warning, optimisation,
 and shimmer alert the LSP produces. Each example is self-contained and
-designed to be testable with tclsh 9.0.
+designed to be testable with tclsh 9.0 where applicable. Tk-based
+samples (e.g. W001) require Tk and a working display.
 
 These were initially collected by analysing all 60 `.tcl` files in
 [georgtree/SpiceGenTcl](https://github.com/georgtree/SpiceGenTcl).

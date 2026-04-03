@@ -124,8 +124,8 @@ _UNIVERSAL_CHECKS: list[_CheckFn] = [
 # for commands that can never trigger them.
 #
 # Built from CommandSpec trait flags via the registry rather than hardcoded
-# frozensets — see AGENTS.md § Command registry.
-_TARGETED_CHECKS: dict[str, list[_CheckFn]] = defaultdict(list)
+# frozensets — see AGENTS.md § Command registry.  Rebuilt automatically
+# when the registry loads new dialect specs.
 
 # Map registry traits to check functions.  Each trait is a boolean field
 # on CommandSpec; the registry returns the set of command names with that
@@ -160,18 +160,29 @@ _PATTERN_CHECKS: list[tuple[frozenset[str], _CheckFn]] = [
     (frozenset({"binary"}), check_binary_format_modifiers),
 ]
 
-
-def _build_targeted_checks() -> None:
-    """Populate _TARGETED_CHECKS from registry traits and pattern checks."""
-    for trait, check in _TRAIT_CHECK_MAP:
-        for cmd in REGISTRY.check_trait_commands(trait):
-            _TARGETED_CHECKS[cmd].append(check)
-    for cmds, check in _PATTERN_CHECKS:
-        for cmd in cmds:
-            _TARGETED_CHECKS[cmd].append(check)
+_targeted_checks: dict[str, list[_CheckFn]] = {}
+_targeted_checks_spec_count: int = -1
 
 
-_build_targeted_checks()
+def _get_targeted_checks() -> dict[str, list[_CheckFn]]:
+    """Return the targeted check map, rebuilding if the registry has changed.
+
+    The registry lazily loads dialect packs (e.g. iRules, EDA), so the
+    targeted check map must be rebuilt whenever the spec count changes.
+    """
+    global _targeted_checks, _targeted_checks_spec_count
+    current = sum(len(v) for v in REGISTRY.specs_by_name.values())
+    if current != _targeted_checks_spec_count:
+        checks: dict[str, list[_CheckFn]] = defaultdict(list)
+        for trait, check in _TRAIT_CHECK_MAP:
+            for cmd in REGISTRY.check_trait_commands(trait):
+                checks[cmd].append(check)
+        for cmds, check in _PATTERN_CHECKS:
+            for cmd in cmds:
+                checks[cmd].append(check)
+        _targeted_checks = dict(checks)
+        _targeted_checks_spec_count = current
+    return _targeted_checks
 
 
 def run_all_checks(
@@ -193,7 +204,7 @@ def run_all_checks(
     diagnostics: list[Diagnostic] = []
     for check in _UNIVERSAL_CHECKS:
         diagnostics.extend(check(cmd_name, args, arg_tokens, all_tokens, source))
-    targeted = _TARGETED_CHECKS.get(cmd_name)
+    targeted = _get_targeted_checks().get(cmd_name)
     if targeted:
         for check in targeted:
             diagnostics.extend(check(cmd_name, args, arg_tokens, all_tokens, source))

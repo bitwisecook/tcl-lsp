@@ -529,12 +529,14 @@ def check_missing_option_terminator(
     Uses a tristate severity model:
 
     * **OFF** (suppress) -- the value provably cannot start with ``-``.
-      Covers literal non-``-`` values, compound words whose first character is
-      a known safe literal, and variables that resolve to a safe literal.
-    * **POSSIBLE** (INFO) -- the value *currently* resolves to a safe literal
-      but the variable could change at runtime.
-    * **ALWAYS** (WARNING) -- the value is dynamic with no resolution, or is
-      known/likely to start with ``-``.
+      Covers non-dynamic literals that don't start with ``-`` and compound
+      words whose first sub-token is a safe literal prefix (e.g. ``"/${path}"``).
+    * **POSSIBLE** (INFO) -- the default for dynamic values.  Covers
+      variables that resolve to a safe static literal, variables with no
+      resolution, and command substitutions.
+    * **ALWAYS** (WARNING) -- the value is known to start with ``-``:
+      either a literal starting with ``-``, or a variable that resolves
+      to a ``-``-prefixed value.
     """
     if not args or not arg_tokens:
         return []
@@ -554,7 +556,9 @@ def check_missing_option_terminator(
     looks_like_option = text.startswith("-")
 
     # OFF: non-dynamic value that does not start with '-' can never be
-    # confused with an option, regardless of warn_without_terminator.
+    # confused with an option.  Compound words whose first sub-token is
+    # a safe literal prefix (e.g. "/${path}") also land here because the
+    # representative token is the literal ESC/STR, not VAR/CMD.
     if not is_dynamic and not looks_like_option:
         return []
 
@@ -565,16 +569,7 @@ def check_missing_option_terminator(
     command_label = cmd_name if profile.subcommand is None else f"{cmd_name} {profile.subcommand}"
 
     if is_dynamic and not looks_like_option:
-        # Compound word: the first sub-token is a literal (e.g. "/${path}",
-        # ".${ext}"). If that literal character isn't '-', the full value
-        # structurally cannot start with '-' regardless of the variable.
-        if tok.type not in (TokenType.VAR, TokenType.CMD):
-            # First sub-token is literal (ESC/STR) in a multi-token word —
-            # the expanded text already shows the literal prefix.  Since we
-            # checked !looks_like_option above, the text doesn't start with '-'.
-            return []
-
-        # Single-token variable: try constant propagation.
+        # Try constant propagation for single-token variables.
         if tok.type is TokenType.VAR:
             resolved = _last_literal_set_value_for_var(
                 source,

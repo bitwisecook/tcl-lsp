@@ -23,7 +23,7 @@ set userpath "w313_safe.txt"
 set fullpath [file normalize [file join $basedir $userpath]]
 
 # Verify the resolved path is still under basedir
-if {[string match "${basedir}*" $fullpath]} {
+if {[string equal -length [string length $basedir] $basedir $fullpath]} {
     close [open $fullpath w]
     file delete $fullpath
     puts "safe delete: validated path is under basedir"
