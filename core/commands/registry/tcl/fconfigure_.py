@@ -55,4 +55,5 @@ class FconfigureCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            configures_channel=True,
         )

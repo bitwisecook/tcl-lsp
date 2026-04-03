@@ -483,6 +483,22 @@ class CommandSpec:
     # where option injection is especially dangerous (e.g. regexp).
     warn_without_terminator: bool = False
 
+    # Analysis check dispatch traits.  These drive the targeted-check
+    # routing in ``core/analysis/checks/_orchestrator.py`` so that
+    # command-specific checks are declared on the spec, not in consumer
+    # frozensets.
+    evaluates_code: bool = False  # eval, uplevel
+    performs_substitution: bool = False  # subst
+    opens_channel: bool = False  # open
+    sources_file: bool = False  # source
+    has_switch_body: bool = False  # switch
+    has_string_list_confusion_risk: bool = False  # append
+    configures_channel: bool = False  # fconfigure, chan (configure)
+    has_interp_eval: bool = False  # interp
+    has_destructive_ops: bool = False  # file, namespace, chan
+    is_irules_event_handler: bool = False  # when
+    is_unnormalized_http_getter: bool = False  # HTTP::path, HTTP::uri, HTTP::query
+
     # Purity and CSE traits for compiler/gvn.py.
     pure: bool = False
     cse_candidate: bool = False

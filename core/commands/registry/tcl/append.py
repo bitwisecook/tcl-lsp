@@ -50,4 +50,5 @@ class AppendCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            has_string_list_confusion_risk=True,
         )

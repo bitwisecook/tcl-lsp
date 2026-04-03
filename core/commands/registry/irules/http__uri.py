@@ -94,6 +94,7 @@ class HttpUriCommand(CommandDef):
             ),
             cse_candidate=True,
             diagram_action=True,
+            is_unnormalized_http_getter=True,
         )
 
     @classmethod

@@ -290,4 +290,5 @@ class NamespaceCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            has_destructive_ops=True,
         )

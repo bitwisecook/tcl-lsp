@@ -301,6 +301,8 @@ class ChanCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            configures_channel=True,
+            has_destructive_ops=True,
         )
 
     @classmethod

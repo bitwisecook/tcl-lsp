@@ -46,4 +46,5 @@ class UplevelCommand(CommandDef):
             side_effect_hints=(
                 SideEffect(target=SideEffectTarget.UNKNOWN, connection_side=ConnectionSide.NONE),
             ),
+            evaluates_code=True,
         )

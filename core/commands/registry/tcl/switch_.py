@@ -67,4 +67,5 @@ class SwitchCommand(CommandDef):
             side_effect_hints=(
                 SideEffect(target=SideEffectTarget.UNKNOWN, connection_side=ConnectionSide.NONE),
             ),
+            has_switch_body=True,
         )

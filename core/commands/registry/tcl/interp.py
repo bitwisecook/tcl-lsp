@@ -288,4 +288,5 @@ class InterpCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            has_interp_eval=True,
         )

@@ -89,4 +89,5 @@ class OpenCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            opens_channel=True,
         )
