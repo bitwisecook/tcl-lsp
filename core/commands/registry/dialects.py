@@ -69,7 +69,5 @@ def dialects_since(min_version: str) -> frozenset[str]:
     """
     min_rank = _TCL_VERSION_RANK[min_version]
     return frozenset(
-        d
-        for d, base in DIALECT_BASE_VERSION.items()
-        if _TCL_VERSION_RANK.get(base, 0) >= min_rank
+        d for d, base in DIALECT_BASE_VERSION.items() if _TCL_VERSION_RANK.get(base, 0) >= min_rank
     )

@@ -914,7 +914,6 @@ _IMPLICIT_VARS = frozenset(
 )
 
 
-
 def _read_before_set(
     cfg: CFGFunction,
     ssa: SSAFunction,

@@ -41,7 +41,6 @@ from ..compiler.ir import (
     IRAssignValue,
     IRBarrier,
     IRCall,
-    IRIncr,
     IRProcedure,
     IRStatement,
     IRSwitch,
