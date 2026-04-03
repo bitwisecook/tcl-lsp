@@ -27,6 +27,7 @@ KNOWN_DIALECTS = frozenset({
     "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0",   # Tcl version dialects
     "f5-irules",                                 # F5 iRules
     "f5-iapps",                                  # F5 iApps
+    "f5-tmsh",                                   # F5 tmsh scripts
     "f5-bigip",                                  # F5 BIG-IP config
     "synopsys-eda-tcl",                          # Synopsys EDA
     "cadence-eda-tcl",                           # Cadence EDA
@@ -36,6 +37,52 @@ KNOWN_DIALECTS = frozenset({
     "expect",                                    # Expect
 })
 ```
+
+### Dialect base versions
+
+Each non-standard dialect is based on a specific Tcl runtime version.
+`DIALECT_BASE_VERSION` in `dialects.py` maps each dialect to its base:
+
+| Dialect | Base version | Runtime |
+|---------|-------------|---------|
+| `f5-irules` | `tcl8.4` | TMOS embedded Tcl 8.4.6 |
+| `f5-iapps` | `tcl8.5` | CentOS 7 system Tcl 8.5.13 |
+| `f5-tmsh` | `tcl8.5` | CentOS 7 system Tcl 8.5.13 |
+| `f5-bigip` | *(omitted)* | Custom parser, not Tcl |
+| `synopsys-eda-tcl` | `tcl8.6` | Synopsys DC/PT/ICC2 |
+| `cadence-eda-tcl` | `tcl8.6` | Cadence Genus/Innovus/Tempus |
+| `xilinx-eda-tcl` | `tcl8.5` | Xilinx Vivado |
+| `intel-quartus-eda-tcl` | `tcl8.5` | Intel Quartus |
+| `mentor-eda-tcl` | `tcl8.5` | Mentor ModelSim/Questa |
+| `expect` | `tcl8.6` | Expect |
+
+Note: a dialect's **signature base** (which commands are available) may
+differ from its **runtime base** (how commands behave).  iRules loads
+`tcl8.6` signatures for command availability, but its runtime is Tcl 8.4.6,
+so version-dependent behaviour like `incr` on uninitialised variables
+follows 8.4 semantics.
+
+### dialects_since() -- version-gated traits
+
+`dialects_since(min_version)` returns all dialects whose base Tcl version
+is >= `min_version`.  Use this for version-dependent `CommandSpec` fields
+instead of manually listing dialect names:
+
+```python
+from core.commands.registry.dialects import dialects_since
+
+# Returns {"tcl8.5", "tcl8.6", "tcl9.0", "f5-iapps", "f5-tmsh",
+#          "xilinx-eda-tcl", "intel-quartus-eda-tcl", "mentor-eda-tcl",
+#          "synopsys-eda-tcl", "cadence-eda-tcl", "expect"}
+dialects_since("tcl8.5")
+```
+
+Dialects not in `DIALECT_BASE_VERSION` (e.g. `f5-bigip`) are never
+included -- safe default for non-Tcl contexts.
+
+**Contract**: when adding a new dialect, add its entry to
+`DIALECT_BASE_VERSION` in `dialects.py` so `dialects_since()` resolves
+correctly.
 
 ### Dialect filtering
 
@@ -92,6 +139,7 @@ forbidden.
 | Stage | Effect |
 |-------|--------|
 | **Semantic analysis** | W102 for unknown/disallowed commands |
+| **Variable analysis** | `safe_on_uninit` resolved per dialect via `DIALECT_BASE_VERSION` |
 | **Completions** | Only show commands valid in the active dialect |
 | **Taint** | Taint sources/sinks are dialect-specific (iRules HTTP commands) |
 | **Side effects** | iRules-specific storage scopes (EVENT, CONNECTION) |
@@ -105,6 +153,12 @@ forbidden.
   `dialects=frozenset({"f5-irules", "tcl8.6", ...})`.
 - For version-specific commands (e.g. `tcl9.0`-only), set
   `dialects=frozenset({"tcl9.0"})`.
+- For version-dependent **behaviour** (not availability), use
+  `dialects_since()` on the relevant `CommandSpec` field rather than
+  listing dialect names.  Example: `safe_on_uninit=dialects_since("tcl8.5")`
+  for `incr`.
+- When adding a new dialect, add it to both `KNOWN_DIALECTS` and
+  `DIALECT_BASE_VERSION` in `dialects.py`.
 - If IRULE1001 fires incorrectly, check that the event's `EventProps`
   includes the required profiles and transport.
 
