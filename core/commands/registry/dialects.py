@@ -62,6 +62,9 @@ _TCL_VERSION_RANK: dict[str, int] = {
 def dialects_since(min_version: str) -> frozenset[str]:
     """Return all dialects whose base Tcl version is >= *min_version*.
 
+    Raises ``KeyError`` if *min_version* or any base version in
+    ``DIALECT_BASE_VERSION`` is not in ``_TCL_VERSION_RANK``.
+
     >>> "f5-irules" in dialects_since("tcl8.5")
     False
     >>> "tcl8.6" in dialects_since("tcl8.5")
@@ -69,5 +72,5 @@ def dialects_since(min_version: str) -> frozenset[str]:
     """
     min_rank = _TCL_VERSION_RANK[min_version]
     return frozenset(
-        d for d, base in DIALECT_BASE_VERSION.items() if _TCL_VERSION_RANK.get(base, 0) >= min_rank
+        d for d, base in DIALECT_BASE_VERSION.items() if _TCL_VERSION_RANK[base] >= min_rank
     )

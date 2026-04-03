@@ -385,15 +385,22 @@ class TestReadBeforeSet:
 
     def test_incr_without_prior_set_no_w210_tcl86(self):
         """``incr x`` on uninitialised var is safe in 8.5+ — no W210."""
-        source = textwrap.dedent("""\
-            proc foo {} {
-                incr x
-                puts $x
-            }
-        """)
-        diags = _diag_with_code(source, "W210")
-        x_diags = [d for d in diags if "x" in d.message]
-        assert len(x_diags) == 0
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="tcl8.6")
+        try:
+            source = textwrap.dedent("""\
+                # tcl-dialect: tcl8.6
+                proc foo {} {
+                    incr x
+                    puts $x
+                }
+            """)
+            diags = _diag_with_code(source, "W210")
+            x_diags = [d for d in diags if "x" in d.message]
+            assert len(x_diags) == 0
+        finally:
+            configure_signatures(dialect="tcl8.6")
 
     def test_incr_without_prior_set_warns_tcl84(self):
         """``incr x`` on uninitialised var errors in Tcl 8.4 — W210 fires."""

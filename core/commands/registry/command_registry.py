@@ -459,11 +459,13 @@ class CommandRegistry:
         if subcommand is not None:
             sub = spec.subcommands.get(subcommand)
             if sub is not None and sub.safe_on_uninit is not None:
-                return not sub.safe_on_uninit or dialect is None or dialect in sub.safe_on_uninit
+                return not sub.safe_on_uninit or (
+                    dialect is not None and dialect in sub.safe_on_uninit
+                )
         # Fall back to top-level spec.
         if spec.safe_on_uninit is None:
             return False
-        return not spec.safe_on_uninit or dialect is None or dialect in spec.safe_on_uninit
+        return not spec.safe_on_uninit or (dialect is not None and dialect in spec.safe_on_uninit)
 
     def command_status(
         self,
