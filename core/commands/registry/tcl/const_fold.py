@@ -20,11 +20,36 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 
 
+def _tcl_list_element(value: str) -> str:
+    """Render *value* as a single Tcl list element with proper quoting."""
+    if value == "":
+        return "{}"
+    specials = set(' \t\n\r\v\f{}[];$"\\')
+    if not any(ch in specials for ch in value):
+        return value
+    # Brace-quoting when the element has no unbalanced braces and
+    # doesn't end with a backslash.
+    if "{" not in value and "}" not in value and not value.endswith("\\"):
+        return "{" + value + "}"
+    # Fall back to backslash escaping.
+    escaped: list[str] = []
+    for ch in value:
+        if ch == "\n":
+            escaped.append("\\n")
+        elif ch == "\r":
+            escaped.append("\\r")
+        elif ch == "\t":
+            escaped.append("\\t")
+        elif ch in ' []{};$"\\':
+            escaped.append("\\" + ch)
+        else:
+            escaped.append(ch)
+    return "".join(escaped)
+
+
 def fold_list(args: tuple[str, ...]) -> str | None:
     """``list arg ...`` — returns a proper Tcl list."""
-    # list just joins args as proper list elements.  For constant
-    # folding we join with spaces (safe for simple values).
-    return " ".join(args)
+    return " ".join(_tcl_list_element(arg) for arg in args)
 
 
 def fold_concat(args: tuple[str, ...]) -> str | None:
@@ -487,16 +512,18 @@ def fold_dict_get(args: tuple[str, ...]) -> str | None:
     if d is None:
         return None
     # Walk nested keys
-    for key in args[1:]:
+    for i, key in enumerate(args[1:], start=1):
         if key not in d:
             return None  # key not found — runtime error
         val = d[key]
-        if args.index(key) < len(args) - 2:
+        if i < len(args) - 1:
             # More keys to go — parse as nested dict
             d = _parse_dict(val)
             if d is None:
                 return None
-    return d.get(args[-1])
+        else:
+            return val
+    return None
 
 
 def fold_dict_keys(args: tuple[str, ...]) -> str | None:

@@ -3069,23 +3069,51 @@ class Analyser:
         # Collect all SSA type entries across top-level and procedures.
         all_types: dict[str, set[str]] = {}  # var_name → set of class_names
         all_typed_vars: set[str] = set()  # vars known to be OBJECT
-        # Also collect SCCP CONSTSET/CONST values per variable name.
-        all_constsets: dict[str, frozenset[int | float | bool | str]] = {}
-        for analysis in [cu.top_level.analysis, *(fu.analysis for fu in cu.procedures.values())]:
+        # Per-function CONSTSET maps: keyed by function qname, then var_name.
+        _func_constsets: dict[str, dict[str, frozenset[int | float | bool | str]]] = {}
+        _all_fus_named = [("::top", cu.top_level)] + list(cu.procedures.items())
+        for qname, fu_unit in _all_fus_named:
+            analysis = fu_unit.analysis
             for (var_name, _ver), tl in analysis.types.items():
                 if tl.kind is TypeKind.KNOWN and tl.tcl_type is TclType.OBJECT and tl.class_name:
                     all_typed_vars.add(var_name)
                     all_types.setdefault(var_name, set()).add(tl.class_name)
+            func_cs: dict[str, frozenset[int | float | bool | str]] = {}
             for (var_name, _ver), lv in analysis.values.items():
                 vs = _lattice_to_set(lv)
                 if vs is not None:
-                    existing = all_constsets.get(var_name)
-                    all_constsets[var_name] = (existing | vs) if existing else vs
+                    existing = func_cs.get(var_name)
+                    func_cs[var_name] = (existing | vs) if existing else vs
+            _func_constsets[qname] = func_cs
+
+        # Build a flat all_constsets for backwards compat (foreach fallback).
+        all_constsets: dict[str, frozenset[int | float | bool | str]] = {}
+        for func_cs in _func_constsets.values():
+            for var_name, vs in func_cs.items():
+                existing = all_constsets.get(var_name)
+                all_constsets[var_name] = (existing | vs) if existing else vs
+
+        # Build function offset ranges for scoping site lookups.
+        _func_ranges: list[tuple[str, int, int]] = []
+        for qname, fu_unit in _all_fus_named:
+            ir_proc = cu.ir_module.procedures.get(qname)
+            if ir_proc is not None:
+                _func_ranges.append((qname, ir_proc.range.start.offset, ir_proc.range.end.offset))
+            elif qname == "::top":
+                _func_ranges.append(("::top", 0, 2**31))
+
+        def _constsets_for_offset(offset: int) -> dict[str, frozenset[int | float | bool | str]]:
+            """Return the CONSTSET map for the function containing *offset*."""
+            for qname, start, end in _func_ranges:
+                if start <= offset <= end:
+                    return _func_constsets.get(qname, {})
+            return all_constsets  # fallback to merged
 
         # Fallback: directly extract foreach iteration elements from the CFG.
         # SCCP barriers (e.g. oo::class create) may have widened foreach
         # variables to OVERDEFINED even when the list is statically known.
-        for fu_unit in [cu.top_level, *cu.procedures.values()]:
+        for qname, fu_unit in _all_fus_named:
+            func_cs = _func_constsets.setdefault(qname, {})
             for block in fu_unit.cfg.blocks.values():
                 for stmt in block.statements:
                     if (
@@ -3095,12 +3123,12 @@ class Analyser:
                         and len(stmt.args) == 1
                     ):
                         var_name = stmt.defs[0]
-                        if var_name not in all_constsets:
+                        if var_name not in func_cs:
                             elements = _extract_foreach_elements(stmt.args[0])
                             if elements:
-                                all_constsets[var_name] = frozenset(
-                                    _parse_literal_value(e) for e in elements
-                                )
+                                vs = frozenset(_parse_literal_value(e) for e in elements)
+                                func_cs[var_name] = vs
+                                all_constsets[var_name] = vs
 
         # Interprocedural constant return resolution: if a variable was
         # assigned from [known_proc] and that proc always returns a constant,
@@ -3111,7 +3139,8 @@ class Analyser:
             _CMD_SUB_RE = _re.compile(r"^\[(\S+?)(?:\s.*)?\]$")
             from ..compiler.ir import IRAssignValue
 
-            for fu_unit in [cu.top_level, *cu.procedures.values()]:
+            for qname, fu_unit in _all_fus_named:
+                func_cs = _func_constsets.setdefault(qname, {})
                 for block in fu_unit.cfg.blocks.values():
                     for stmt in block.statements:
                         if not isinstance(stmt, IRAssignValue):
@@ -3125,10 +3154,10 @@ class Analyser:
                             bare = qn.rsplit("::", 1)[-1]
                             if bare == called or qn == called:
                                 if summary.returns_constant and summary.constant_return:
-                                    if stmt.name not in all_constsets:
-                                        all_constsets[stmt.name] = frozenset(
-                                            (summary.constant_return,)
-                                        )
+                                    if stmt.name not in func_cs:
+                                        vs = frozenset((summary.constant_return,))
+                                        func_cs[stmt.name] = vs
+                                        all_constsets[stmt.name] = vs
                                 break
 
         # Build a set of known command names for CONSTSET resolution.
@@ -3251,7 +3280,9 @@ class Analyser:
             else:
                 # Variable is not a known TclOO object — check if SCCP
                 # resolved it to a finite set of known command names.
-                constset_vals = all_constsets.get(var_name)
+                # Use per-function scoping to avoid cross-procedure conflation.
+                scoped_cs = _constsets_for_offset(site_range.start.offset)
+                constset_vals = scoped_cs.get(var_name)
                 if constset_vals is not None and all(
                     isinstance(v, str)
                     and (
@@ -3363,6 +3394,9 @@ class Analyser:
         lattice, we compute all possible interpolated strings.  If every
         resolved name is a known command or proc, the W123 diagnostic is
         removed.
+
+        SCCP values are resolved per-function to avoid cross-procedure
+        variable name conflation.
         """
         # Quick exit if no W123 diagnostics to resolve.
         w123_diags = [d for d in self.result.diagnostics if d.code == "W123"]
@@ -3371,26 +3405,38 @@ class Analyser:
 
         from ..compiler.core_analyses import _fold_interpolation_set
 
-        # Collect SCCP values across all functions.
-        all_values: dict[str, LatticeValue] = {}
-        for analysis in [cu.top_level.analysis, *(fu.analysis for fu in cu.procedures.values())]:
-            for (var_name, _ver), lv in analysis.values.items():
-                existing = all_values.get(var_name)
-                if existing is None:
-                    all_values[var_name] = lv
-                else:
-                    # Merge: pick the more informative value.
-                    from ..compiler.core_analyses import _join as _lv_join
+        # Build per-function SCCP value maps.
+        _func_values: dict[str, dict[tuple[str, int], LatticeValue]] = {}
+        _func_uses: dict[str, dict[str, int]] = {}
+        _named_fus = [("::top", cu.top_level)] + list(cu.procedures.items())
+        for qname, fu_unit in _named_fus:
+            vals: dict[tuple[str, int], LatticeValue] = {}
+            uses: dict[str, int] = {}
+            for (var_name, ver), lv in fu_unit.analysis.values.items():
+                key = (var_name, ver)
+                vals[key] = lv
+                if var_name not in uses or ver > uses[var_name]:
+                    uses[var_name] = ver
+            _func_values[qname] = vals
+            _func_uses[qname] = uses
 
-                    all_values[var_name] = _lv_join(existing, lv)
+        # Build function offset ranges for per-function lookup.
+        _func_ranges: list[tuple[str, int, int]] = []
+        for qname, fu_unit in _named_fus:
+            ir_proc = cu.ir_module.procedures.get(qname)
+            if ir_proc is not None:
+                _func_ranges.append((qname, ir_proc.range.start.offset, ir_proc.range.end.offset))
+            elif qname == "::top":
+                _func_ranges.append(("::top", 0, 2**31))
 
-        # Build SSA-like uses dict (var_name → version 1 for all).
-        # This is a simplification: we use version 1 for everything since
-        # we already merged all versions above.
-        fake_uses: dict[str, int] = {name: 1 for name in all_values}
-        fake_values: dict[tuple[str, int], LatticeValue] = {
-            (name, 1): lv for name, lv in all_values.items()
-        }
+        def _sccp_for_offset(
+            offset: int,
+        ) -> tuple[dict[str, int], dict[tuple[str, int], LatticeValue]]:
+            for qname, start, end in _func_ranges:
+                if start <= offset <= end:
+                    return _func_uses.get(qname, {}), _func_values.get(qname, {})
+            # Fallback: top-level
+            return _func_uses.get("::top", {}), _func_values.get("::top", {})
 
         # Build known command/proc sets.
         _known_cmds = known_command_names()
@@ -3412,7 +3458,8 @@ class Analyser:
             if "$" not in cmd_name:
                 continue
 
-            resolved = _fold_interpolation_set(cmd_name, fake_uses, fake_values)
+            site_uses, site_values = _sccp_for_offset(w123_diag.range.start.offset)
+            resolved = _fold_interpolation_set(cmd_name, site_uses, site_values)
             if resolved is None:
                 continue
 

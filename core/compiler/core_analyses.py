@@ -368,60 +368,6 @@ def _fold_interpolation_set(
 ) -> frozenset[str] | None:
     """Resolve a Tcl word with variable substitutions to a set of strings.
 
-    Like ``_fold_interpolation`` but handles ``CONSTSET`` variables by
-    computing the Cartesian product of all possible interpolations.
-    Returns ``None`` if any variable is unresolvable or the result set
-    would be too large.
-    """
-    # Collect pieces: each piece is either a literal string or a set of
-    # possible string values (from CONST or CONSTSET variables).
-    pieces: list[str | frozenset[str]] = []
-    lexer = TclLexer(value)
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-        if tok.type is TokenType.VAR:
-            name = _normalise_var_name(tok.text)
-            ver = uses.get(name, 0)
-            lv = values.get((name, ver), UNKNOWN)
-            vs = _to_set(lv)
-            if vs is None:
-                return None
-            str_vals = frozenset(str(v) for v in vs)
-            if len(str_vals) == 1:
-                pieces.append(next(iter(str_vals)))
-            else:
-                pieces.append(str_vals)
-        elif tok.type is TokenType.CMD:
-            return None
-        else:
-            pieces.append(tok.text)
-
-    # Compute the Cartesian product of all pieces.
-    results: list[str] = [""]
-    for piece in pieces:
-        if isinstance(piece, str):
-            results = [r + piece for r in results]
-        else:
-            new_results: list[str] = []
-            for r in results:
-                for v in piece:
-                    new_results.append(r + v)
-            results = new_results
-            if len(results) > _MAX_CONSTSET_SIZE:
-                return None
-
-    return frozenset(results) if results else None
-
-
-def _fold_interpolation_set(
-    value: str,
-    uses: dict[str, int],
-    values: dict[SSAValueKey, LatticeValue],
-) -> frozenset[str] | None:
-    """Resolve a Tcl word with variable substitutions to a set of strings.
-
     Like ``_fold_interpolation`` but handles CONSTSET variables by computing
     the Cartesian product of all possible interpolated strings.
 
@@ -609,9 +555,12 @@ def _try_fold_cmd_subst(
 
     if result is None:
         return None
-    # Reject results containing Tcl-special characters that would
-    # change semantics if the optimiser inlines them as bare words.
-    if any(ch in result for ch in ';\n[$"\\'):
+    # Reject results containing Tcl characters that would change
+    # semantics in command substitution or quoting contexts.
+    # Note: spaces are allowed — they're valid in SCCP constant values
+    # (e.g. [list a b] → "a b") and the optimiser handles quoting.
+    # We only reject characters that break command parsing.
+    if any(ch in ';\n[$"\\' for ch in result):
         return None
     return LatticeValue.const(_parse_literal_value(result))
 
