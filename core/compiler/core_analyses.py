@@ -577,29 +577,37 @@ def _try_fold_cmd_subst(
     if fold_fn is None:
         return None
 
-    # Resolve variable references in the arguments.
-    if "$" in args_text or "[" in args_text:
-        # If there are nested command substitutions, we can't fold.
-        if "[" in args_text:
-            return None
-        folded = _fold_interpolation(args_text, uses, values)
-        if folded.kind is not LatticeKind.CONST:
-            return None
-        args_text = str(folded.value)
-
-    # Split into individual arguments using Tcl list splitting.
+    # Split into individual arguments first (respecting braces/quotes),
+    # then resolve variable references in each arg individually.
     try:
         arg_list = _split_tcl_list(args_text) if args_text.strip() else []
     except Exception:
         return None
 
+    # Resolve variable references in each argument.
+    resolved_args: list[str] = []
+    for arg in arg_list:
+        if "[" in arg:
+            return None  # nested command substitution — can't fold
+        if "$" in arg:
+            folded = _fold_interpolation(arg, uses, values)
+            if folded.kind is not LatticeKind.CONST:
+                return None
+            resolved_args.append(str(folded.value))
+        else:
+            resolved_args.append(arg)
+
     # Call the fold callback.
     try:
-        result = fold_fn(tuple(arg_list))
+        result = fold_fn(tuple(resolved_args))
     except Exception:
         return None
 
     if result is None:
+        return None
+    # Reject results containing Tcl-special characters that would
+    # change semantics if the optimiser inlines them as bare words.
+    if any(ch in result for ch in ';\n[$"\\'):
         return None
     return LatticeValue.const(_parse_literal_value(result))
 

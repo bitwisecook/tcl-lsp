@@ -4,6 +4,10 @@ Each function takes a tuple of resolved string arguments and returns
 the result string, or ``None`` if the arguments are invalid or the
 operation cannot be folded.
 
+Results containing Tcl-special characters (semicolons, brackets, etc.)
+are rejected to avoid semantic changes when the optimiser inlines
+them as bare words.
+
 These callbacks are referenced by the ``const_fold`` field on
 ``CommandSpec`` and ``SubCommand`` instances in the command registry.
 SCCP calls them when all arguments resolve to known constants.
