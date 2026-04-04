@@ -61,4 +61,3 @@ core/help/kcs_help.db
 tmp/
 editors/jetbrains/.intellijPlatform/
 perf_history.sqlite3
-spicegentcl_perf.sqlite3
