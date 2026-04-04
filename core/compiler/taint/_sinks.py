@@ -37,6 +37,15 @@ from ._lattice import (
 from ._propagation import _COLOUR_LABELS
 from ._types import TaintWarning
 
+# W313: destructive file operations with tainted path (taint-aware).
+# Suppressed when the path carries PATH_NORMALISED colour (developer
+# explicitly called [file normalize], removing .., symlinks, ~user).
+diag(
+    "W313",
+    "Destructive file operation with variable path — path-traversal risk.",
+    section="security",
+)
+
 # iRules taint sink diagnostic codes
 diag("IRULE3001", "Tainted data in HTTP response body.", section="irules_security")
 diag("IRULE3002", "Tainted data in HTTP header or cookie value.", section="irules_security")
@@ -506,5 +515,124 @@ def _find_setter_constraint_violations(
                         message=constraint.message,
                     )
                 )
+
+    return warnings
+
+
+# W313: Destructive file operations with tainted/variable path
+
+
+_DESTRUCTIVE_FILE_SUBS = frozenset({"delete", "rename", "mkdir"})
+_DESTRUCTIVE_SKIP_ARGS = frozenset({"-force", "--"})
+
+
+def _is_normalised_def(
+    var_name: str,
+    version: int,
+    ssa: SSAFunction,
+    cfg: CFGFunction,
+) -> bool:
+    """Return True if the SSA def of *var_name*@*version* is ``[file normalize ...]``."""
+    for bn, ssa_block in ssa.blocks.items():
+        ir_block = cfg.blocks.get(bn)
+        if ir_block is None:
+            continue
+        for i, ssa_stmt in enumerate(ssa_block.statements):
+            if i >= len(ir_block.statements):
+                continue
+            defs = ssa_stmt.defs
+            if defs.get(var_name) != version:
+                continue
+            ir_stmt = ir_block.statements[i]
+            if isinstance(ir_stmt, IRAssignValue):
+                val = ir_stmt.value.strip()
+                if val.startswith("[file normalize "):
+                    return True
+            return False
+    return False
+
+
+def _find_destructive_file_warnings(
+    cfg: CFGFunction,
+    ssa: SSAFunction,
+    taints: dict[SSAValueKey, TaintLattice],
+    executable_blocks: set[str],
+) -> list[TaintWarning]:
+    """W313: Flag destructive file ops where path arguments carry taint.
+
+    ``file delete``, ``file rename``, and ``file mkdir`` with a variable
+    or substituted path argument risk path-traversal attacks.
+
+    **Suppressed** when the path variable's taint carries
+    ``PATH_NORMALISED`` — the developer explicitly called
+    ``[file normalize]``, which resolves ``..``, symlinks, and
+    ``~user`` expansion.  The diagnostic message still recommends
+    verifying the normalised path stays within the intended directory.
+    """
+    warnings: list[TaintWarning] = []
+
+    for bn in executable_blocks:
+        block = cfg.blocks.get(bn)
+        ssa_block = ssa.blocks.get(bn)
+        if block is None or ssa_block is None:
+            continue
+
+        for idx, ssa_stmt in enumerate(ssa_block.statements):
+            if idx >= len(block.statements):
+                continue
+            stmt = block.statements[idx]
+
+            if not isinstance(stmt, IRCall):
+                continue
+            if stmt.command != "file":
+                continue
+            if not stmt.args or stmt.args[0] not in _DESTRUCTIVE_FILE_SUBS:
+                continue
+
+            sub = stmt.args[0]
+
+            # Skip -force / -- options to find path arguments.
+            path_start = 1
+            while path_start < len(stmt.args) and stmt.args[path_start] in _DESTRUCTIVE_SKIP_ARGS:
+                path_start += 1
+
+            # Check each path argument for tainted/variable content.
+            emitted = False
+            for name, ver in ssa_stmt.uses.items():
+                if emitted:
+                    break
+
+                # Only warn if the variable appears in a path-position argument.
+                arg_indexes = _args_var_indexes(stmt.args, name)
+                path_indexes = tuple(i for i in arg_indexes if i >= path_start)
+                if not path_indexes:
+                    continue
+
+                # Suppress when PATH_NORMALISED colour is set (tainted source
+                # that passed through [file normalize]).
+                t = taints.get((name, ver), _UNTAINTED)
+                if t.tainted and bool(t.colour & TaintColour.PATH_NORMALISED):
+                    continue
+
+                # Also suppress when the SSA def is directly from
+                # [file normalize ...] — covers untainted paths too.
+                if _is_normalised_def(name, ver, ssa, cfg):
+                    continue
+
+                # Emit W313 for any variable in path position.
+                warnings.append(
+                    TaintWarning(
+                        range=stmt.range,
+                        variable=name,
+                        sink_command=f"file {sub}",
+                        code="W313",
+                        message=(
+                            f"file {sub} with a variable path (${name}) risks "
+                            "path-traversal. Normalise with [file normalize] and "
+                            "verify it stays within the intended directory."
+                        ),
+                    )
+                )
+                emitted = True  # one warning per command
 
     return warnings

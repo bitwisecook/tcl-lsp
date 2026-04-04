@@ -118,6 +118,7 @@ class TclLspSettingsPanel {
     private val diagW307 = JBCheckBox("W307: Non-literal command name")
     private val diagW308 = JBCheckBox("W308: subst without -nocommands")
     private val diagW309 = JBCheckBox("W309: eval/uplevel with subst")
+    private val diagW313 = JBCheckBox("W313: Destructive file operation with variable path")
 
     // Diagnostics — Hints
     private val diagH300 = JBCheckBox("H300: Possible paste error")
@@ -315,6 +316,7 @@ class TclLspSettingsPanel {
         listOf(
             diagW101, diagW102, diagW103, diagW300, diagW301, diagW302,
             diagW303, diagW304, diagW306, diagW307, diagW308, diagW309,
+            diagW313,
         ).forEach { diagSecPanel.add(it) }
         builder.addComponent(diagSecPanel)
 
@@ -503,6 +505,7 @@ class TclLspSettingsPanel {
             diagW307.isSelected != s.diagnosticW307 ||
             diagW308.isSelected != s.diagnosticW308 ||
             diagW309.isSelected != s.diagnosticW309 ||
+            diagW313.isSelected != s.diagnosticW313 ||
             diagH300.isSelected != s.diagnosticH300 ||
             diagW123.isSelected != s.diagnosticW123 ||
             diagS100.isSelected != s.diagnosticS100 ||
@@ -689,6 +692,7 @@ class TclLspSettingsPanel {
         s.diagnosticW307 = diagW307.isSelected
         s.diagnosticW308 = diagW308.isSelected
         s.diagnosticW309 = diagW309.isSelected
+        s.diagnosticW313 = diagW313.isSelected
         s.diagnosticH300 = diagH300.isSelected
         s.diagnosticW123 = diagW123.isSelected
         s.diagnosticS100 = diagS100.isSelected
@@ -872,6 +876,7 @@ class TclLspSettingsPanel {
         diagW307.isSelected = s.diagnosticW307
         diagW308.isSelected = s.diagnosticW308
         diagW309.isSelected = s.diagnosticW309
+        diagW313.isSelected = s.diagnosticW313
         diagH300.isSelected = s.diagnosticH300
         diagW123.isSelected = s.diagnosticW123
         diagS100.isSelected = s.diagnosticS100

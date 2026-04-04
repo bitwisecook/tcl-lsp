@@ -7,7 +7,11 @@ import logging
 from ..compilation_unit import CompilationUnit, ensure_compilation_unit
 from ._interprocedural import _solve_interprocedural_taints
 from ._path_concat import _find_path_concat_warnings
-from ._sinks import _find_setter_constraint_violations, _find_taint_sinks
+from ._sinks import (
+    _find_destructive_file_warnings,
+    _find_setter_constraint_violations,
+    _find_taint_sinks,
+)
 from ._types import TaintWarning
 from ._uri_split import _find_uri_split_suggestions
 
@@ -60,6 +64,14 @@ def find_taint_warnings(
             rendered_props=cu.top_level.analysis.rendered_props,
         )
     )
+    all_warnings.extend(
+        _find_destructive_file_warnings(
+            cu.top_level.cfg,
+            cu.top_level.ssa,
+            solved.top_taints,
+            top_exec,
+        )
+    )
 
     for qname, fu in cu.procedures.items():
         proc_taints = solved.proc_taints.get(qname, fu.analysis.taints)
@@ -95,6 +107,14 @@ def find_taint_warnings(
                 proc_taints,
                 executable,
                 rendered_props=fu.analysis.rendered_props,
+            )
+        )
+        all_warnings.extend(
+            _find_destructive_file_warnings(
+                fu.cfg,
+                fu.ssa,
+                proc_taints,
+                executable,
             )
         )
 

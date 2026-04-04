@@ -3664,6 +3664,12 @@
             "default": true,
             "markdownDescription": "**W309:** `eval`/`uplevel` with `subst` — double substitution risk.",
             "order": 11
+          },
+          "tclLsp.diagnostics.W313": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W313:** Destructive file operation with variable path — path-traversal risk.",
+            "order": 12
           }
         }
       },

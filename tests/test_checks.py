@@ -2394,48 +2394,63 @@ class TestInterpEvalInjection:
         assert len(diags) == 0
 
 
-# W313: Destructive file operations with variable path
+# W313: Destructive file operations with variable path (taint-aware)
 
 
 class TestDestructiveFileOps:
-    """W313 -- file delete/rename/mkdir with variable path."""
+    """W313 -- file delete/rename/mkdir with variable path.
+
+    W313 now runs in the taint pipeline (core/compiler/taint/_sinks.py),
+    so tests use _taint_diag_with_code() instead of _diag_with_code().
+    """
 
     def test_file_delete_variable(self):
         """file delete with variable path → W313."""
-        diags = _diag_with_code("file delete $path", "W313")
+        diags = _taint_diag_with_code("set path /tmp/x\nfile delete $path", "W313")
         assert len(diags) == 1
-        assert diags[0].severity == Severity.WARNING
         assert "path-traversal" in diags[0].message.lower()
 
     def test_file_delete_literal_clean(self):
         """file delete with literal path → no W313."""
-        diags = _diag_with_code("file delete /tmp/myfile.txt", "W313")
+        diags = _taint_diag_with_code("file delete /tmp/myfile.txt", "W313")
         assert len(diags) == 0
 
     def test_file_rename_variable(self):
         """file rename with variable source → W313."""
-        diags = _diag_with_code("file rename $src /tmp/dest", "W313")
+        diags = _taint_diag_with_code("set src /tmp/x\nfile rename $src /tmp/dest", "W313")
         assert len(diags) == 1
 
     def test_file_mkdir_variable(self):
         """file mkdir with variable path → W313."""
-        diags = _diag_with_code("file mkdir $dir", "W313")
+        diags = _taint_diag_with_code("set dir /tmp/x\nfile mkdir $dir", "W313")
         assert len(diags) == 1
 
     def test_file_delete_force_variable(self):
         """file delete -force $path → W313 (skips -force flag)."""
-        diags = _diag_with_code("file delete -force $path", "W313")
+        diags = _taint_diag_with_code("set path /tmp/x\nfile delete -force $path", "W313")
         assert len(diags) == 1
 
     def test_file_exists_clean(self):
         """file exists with variable → no W313 (not destructive)."""
-        diags = _diag_with_code("file exists $path", "W313")
+        diags = _taint_diag_with_code("set path /tmp/x\nfile exists $path", "W313")
         assert len(diags) == 0
 
     def test_file_join_clean(self):
         """file join with variable → no W313 (not destructive)."""
-        diags = _diag_with_code("file join $base subdir", "W313")
+        diags = _taint_diag_with_code("set base /tmp\nfile join $base subdir", "W313")
         assert len(diags) == 0
+
+    def test_normalised_path_suppressed(self):
+        """file delete with [file normalize] path → no W313."""
+        src = "set norm [file normalize $path]\nfile delete $norm"
+        diags = _taint_diag_with_code(src, "W313")
+        assert len(diags) == 0
+
+    def test_unnormalised_path_warns(self):
+        """file delete without normalisation → W313."""
+        src = "set joined [file join $base $name]\nfile delete $joined"
+        diags = _taint_diag_with_code(src, "W313")
+        assert len(diags) == 1
 
 
 # W121: Invalid subnet mask

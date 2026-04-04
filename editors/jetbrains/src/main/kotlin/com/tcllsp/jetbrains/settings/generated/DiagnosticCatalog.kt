@@ -62,6 +62,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W307", "security", "W307: Non-literal command name", true),
         DiagnosticDef("W308", "security", "W308: subst without -nocommands", true),
         DiagnosticDef("W309", "security", "W309: eval/uplevel with subst", true),
+        DiagnosticDef("W313", "security", "W313: Destructive file operation with variable path", true),
         DiagnosticDef("H300", "hint", "H300: Possible paste error", true),
         DiagnosticDef("W123", "hint", "W123: Unresolved command", false),
         DiagnosticDef("S100", "shimmer", "S100: Single shimmer outside a loop", true),

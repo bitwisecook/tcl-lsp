@@ -19,7 +19,6 @@ from ._domain import (
     check_unsafe_irules_command,
 )
 from ._security import (
-    check_destructive_file_ops,
     check_eval_string_concat,
     check_eval_subst_double_decode,
     check_hardcoded_credentials,
@@ -91,7 +90,6 @@ ALL_CHECKS = [
     check_hardcoded_credentials,
     check_encoding_mismatch,
     check_interp_eval_injection,
-    check_destructive_file_ops,
     check_invalid_subnet_mask,
     check_mistyped_ipv4,
 ]
@@ -146,7 +144,6 @@ _TRAIT_CHECK_MAP: list[tuple[str, _CheckFn]] = [
     ("has_loop_body", check_loop_bound_inequality),
     ("configures_channel", check_encoding_mismatch),
     ("has_interp_eval", check_interp_eval_injection),
-    ("has_destructive_ops", check_destructive_file_ops),
     ("is_unnormalized_http_getter", check_irules_unnormalized_http_getter),
 ]
 
