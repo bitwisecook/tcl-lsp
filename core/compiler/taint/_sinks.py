@@ -276,9 +276,17 @@ def _should_suppress_sink_warning(
         return bool(taint.tainted and (taint.colour & TaintColour.HTML_ESCAPED))
     if code == "IRULE3004":
         # Relative redirect (starts with "/") is same-origin and safe.
+        # PATH_BOUNDED also suppresses — path verified within a directory.
         return bool(
             taint.tainted
-            and (taint.colour & (TaintColour.PATH_PREFIXED | TaintColour.PATH_NORMALISED))
+            and (
+                taint.colour
+                & (
+                    TaintColour.PATH_PREFIXED
+                    | TaintColour.PATH_NORMALISED
+                    | TaintColour.PATH_BOUNDED
+                )
+            )
         )
     if code == "T104":
         # IP_ADDRESS, PORT, or FQDN colours prove the value is a valid
@@ -488,10 +496,16 @@ def _find_setter_constraint_violations(
                     ver = ssa_stmt.uses.get(var_name, 0)
                     t = taints.get((var_name, ver), _UNTAINTED)
                     if t.tainted and bool(
-                        t.colour & (TaintColour.PATH_PREFIXED | TaintColour.PATH_NORMALISED)
+                        t.colour
+                        & (
+                            TaintColour.PATH_PREFIXED
+                            | TaintColour.PATH_NORMALISED
+                            | TaintColour.PATH_BOUNDED
+                        )
                     ):
                         # PATH_PREFIXED → provably starts with "/".
                         # PATH_NORMALISED → canonicalised path (traversal-safe).
+                        # PATH_BOUNDED → normalised and verified within bounds.
                         continue
                     # Variable without safe path colour — warn.
                     warnings.append(

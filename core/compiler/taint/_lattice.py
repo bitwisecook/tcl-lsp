@@ -19,6 +19,7 @@ _ALL_COLOURS = (
     | TaintColour.LIST_CANONICAL
     | TaintColour.REGEX_LITERAL
     | TaintColour.PATH_NORMALISED
+    | TaintColour.PATH_BOUNDED
     | TaintColour.HEADER_TOKEN_SAFE
     | TaintColour.HTML_ESCAPED
     | TaintColour.URL_ENCODED
