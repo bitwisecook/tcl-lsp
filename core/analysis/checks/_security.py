@@ -661,8 +661,3 @@ def check_interp_eval_injection(
             ]
 
     return []
-
-
-# W313: Moved to taint pipeline (core/compiler/taint/_sinks.py).
-# The taint-aware version suppresses when the path has been normalised
-# via [file normalize], showing the developer addressed traversal risk.

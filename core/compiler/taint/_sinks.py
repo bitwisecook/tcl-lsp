@@ -38,8 +38,10 @@ from ._propagation import _COLOUR_LABELS
 from ._types import TaintWarning
 
 # W313: destructive file operations with tainted path (taint-aware).
-# Suppressed when the path carries PATH_NORMALISED colour (developer
-# explicitly called [file normalize], removing .., symlinks, ~user).
+# Suppressed only when the path is both normalised (PATH_NORMALISED)
+# AND bounds-checked (PATH_BOUNDED) — i.e. the developer called
+# [file normalize] and verified the result stays within an intended
+# directory via string match/first/equal.
 diag(
     "W313",
     "Destructive file operation with variable path — path-traversal risk.",
@@ -276,17 +278,9 @@ def _should_suppress_sink_warning(
         return bool(taint.tainted and (taint.colour & TaintColour.HTML_ESCAPED))
     if code == "IRULE3004":
         # Relative redirect (starts with "/") is same-origin and safe.
-        # PATH_BOUNDED also suppresses — path verified within a directory.
         return bool(
             taint.tainted
-            and (
-                taint.colour
-                & (
-                    TaintColour.PATH_PREFIXED
-                    | TaintColour.PATH_NORMALISED
-                    | TaintColour.PATH_BOUNDED
-                )
-            )
+            and (taint.colour & (TaintColour.PATH_PREFIXED | TaintColour.PATH_NORMALISED))
         )
     if code == "T104":
         # IP_ADDRESS, PORT, or FQDN colours prove the value is a valid
@@ -539,9 +533,6 @@ def _find_setter_constraint_violations(
 _DESTRUCTIVE_FILE_SUBS = frozenset({"delete", "rename", "mkdir"})
 _DESTRUCTIVE_SKIP_ARGS = frozenset({"-force", "--"})
 
-# Commands that validate a path stays within an intended directory.
-_BOUNDS_CHECK_COMMANDS = frozenset({"string match", "string first", "string equal"})
-
 
 def _is_path_bounded(
     var_name: str,
@@ -549,71 +540,104 @@ def _is_path_bounded(
     ssa: SSAFunction,
     cfg: CFGFunction,
 ) -> bool:
-    """Return True if the variable has a bounds check in the function.
+    """Return True if the variable has an explicit path-bounds check.
 
-    Detects patterns where a normalised path is validated against a base
-    directory via ``string match``, ``string first``, or ``string equal``
-    before being used in a destructive file operation.  Checks both
-    regular statements and branch conditions (``if`` expressions).
+    Only recognises ``string match``, ``string first``, and ``string equal``
+    when the tracked variable is the concrete path operand being checked,
+    rather than merely appearing somewhere in the same statement or branch
+    condition text.
     """
-    var_ref = f"${var_name}"
-    var_ref_braced = f"${{{var_name}}}"
-
     for bn, ssa_block in ssa.blocks.items():
         ir_block = cfg.blocks.get(bn)
         if ir_block is None:
             continue
 
-        # Check statements for string match/first/equal calls.
         for i, ssa_stmt in enumerate(ssa_block.statements):
             if i >= len(ir_block.statements):
                 continue
             if ssa_stmt.uses.get(var_name) != version:
                 continue
             ir_stmt = ir_block.statements[i]
-            if isinstance(ir_stmt, IRCall) and ir_stmt.command == "string":
-                if ir_stmt.args and ir_stmt.args[0] in ("match", "first", "equal"):
+            if isinstance(ir_stmt, IRCall):
+                if _is_string_path_bounds_check(ir_stmt.command, ir_stmt.args, var_name):
                     return True
             if isinstance(ir_stmt, IRAssignValue):
-                val = ir_stmt.value.strip()
-                if any(val.startswith(f"[string {sub} ") for sub in ("match", "first", "equal")):
+                if _text_has_string_path_bounds_check(ir_stmt.value, var_name):
                     return True
 
-        # Check branch conditions for embedded string match/first/equal.
-        # Handles: if {[string match "$base/*" $norm]} { ... }
         term = ir_block.terminator
         if isinstance(term, CFGBranch) and term.condition is not None:
-            cond_text = _extract_condition_text(term.condition)
-            if cond_text and (var_ref in cond_text or var_ref_braced in cond_text):
-                if any(f"string {sub}" in cond_text for sub in ("match", "first", "equal")):
-                    return True
+            if _condition_has_string_path_bounds_check(term.condition, var_name):
+                return True
 
     return False
 
 
-def _extract_condition_text(expr) -> str | None:
-    """Extract a text representation from a branch condition expression."""
-    # ExprCommand wraps [cmd ...] — extract the text directly.
+def _is_exact_var_ref(arg: str, var_name: str) -> bool:
+    """Return True if *arg* is exactly a reference to *var_name*."""
+    text = arg.strip()
+    return text == f"${var_name}" or text == f"${{{var_name}}}"
+
+
+def _is_string_path_bounds_check(command: str, args: tuple[str, ...], var_name: str) -> bool:
+    """Return True if ``string`` args perform a bounds check on *var_name*."""
+    if command != "string" or not args:
+        return False
+    subcmd = args[0]
+    if subcmd == "match":
+        # string match ?-nocase? pattern string
+        if len(args) < 3:
+            return False
+        return _is_exact_var_ref(args[-1], var_name)
+    if subcmd == "first":
+        # string first needleString haystackString ?startIndex?
+        if len(args) < 3:
+            return False
+        return _is_exact_var_ref(args[2], var_name)
+    if subcmd == "equal":
+        # string equal ?-nocase? ?-length int? string1 string2
+        filtered: list[str] = []
+        skip_next = False
+        for arg in args[1:]:
+            if skip_next:
+                skip_next = False
+                continue
+            if arg == "-length":
+                skip_next = True
+                continue
+            if arg.startswith("-"):
+                continue
+            filtered.append(arg)
+        if len(filtered) < 2:
+            return False
+        return _is_exact_var_ref(filtered[0], var_name) or _is_exact_var_ref(filtered[1], var_name)
+    return False
+
+
+def _text_has_string_path_bounds_check(text: str, var_name: str) -> bool:
+    """Return True if *text* contains a recognised string path-bounds check."""
+    parsed = parse_command_substitution(text.strip())
+    if parsed is None:
+        return False
+    command, args = parsed
+    return _is_string_path_bounds_check(command, args, var_name)
+
+
+def _condition_has_string_path_bounds_check(expr, var_name: str) -> bool:
+    """Return True if a branch condition contains a recognised bounds check."""
     text = getattr(expr, "text", None)
-    if text:
-        return text
-    # ExprUnary(op=NOT, operand=...) — recurse into operand.
+    if text and _text_has_string_path_bounds_check(text, var_name):
+        return True
     operand = getattr(expr, "operand", None)
-    if operand is not None:
-        return _extract_condition_text(operand)
-    # ExprBinary — check both sides.
+    if operand is not None and _condition_has_string_path_bounds_check(operand, var_name):
+        return True
     left = getattr(expr, "left", None)
+    if left is not None and _condition_has_string_path_bounds_check(left, var_name):
+        return True
     right = getattr(expr, "right", None)
-    parts = []
-    if left:
-        t = _extract_condition_text(left)
-        if t:
-            parts.append(t)
-    if right:
-        t = _extract_condition_text(right)
-        if t:
-            parts.append(t)
-    return " ".join(parts) if parts else None
+    if right is not None and _condition_has_string_path_bounds_check(right, var_name):
+        return True
+    return False
 
 
 def _is_normalised_def(

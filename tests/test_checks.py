@@ -1584,8 +1584,9 @@ class TestNonAscii:
         assert len(diags) == 0
 
     def test_strict_mode_flags_all_non_ascii(self):
-        from core.analysis.checks._style import set_non_ascii_mode
+        from core.analysis.checks._style import _non_ascii_mode, set_non_ascii_mode
 
+        prev = _non_ascii_mode
         set_non_ascii_mode("strict")
         try:
             diags = _diag_with_code("set x \u00a9value", "W108")
@@ -1593,11 +1594,12 @@ class TestNonAscii:
             assert "ASCII" in diags[0].message
             assert diags[0].severity == Severity.WARNING
         finally:
-            set_non_ascii_mode("confusables")
+            set_non_ascii_mode(prev)
 
     def test_common_mode_allows_symbols(self):
-        from core.analysis.checks._style import set_non_ascii_mode
+        from core.analysis.checks._style import _non_ascii_mode, set_non_ascii_mode
 
+        prev = _non_ascii_mode
         set_non_ascii_mode("common")
         try:
             # Degree symbol (scientific) should be allowed
@@ -1607,17 +1609,18 @@ class TestNonAscii:
             diags = _diag_with_code("set x \u201chello\u201d", "W108")
             assert len(diags) == 2
         finally:
-            set_non_ascii_mode("confusables")
+            set_non_ascii_mode(prev)
 
     def test_off_mode_disables_w108(self):
-        from core.analysis.checks._style import set_non_ascii_mode
+        from core.analysis.checks._style import _non_ascii_mode, set_non_ascii_mode
 
+        prev = _non_ascii_mode
         set_non_ascii_mode("off")
         try:
             diags = _diag_with_code("set x \u201chello\u201d", "W108")
             assert len(diags) == 0
         finally:
-            set_non_ascii_mode("confusables")
+            set_non_ascii_mode(prev)
 
     def test_pure_ascii_clean(self):
         diags = _diag_with_code("set x hello", "W108")
