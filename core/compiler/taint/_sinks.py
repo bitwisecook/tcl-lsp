@@ -18,7 +18,7 @@ from ...common.dialect import active_dialect
 from ...common.naming import normalise_var_name as _normalise_var_name
 from ...parsing.lexer import TclLexer
 from ...parsing.tokens import TokenType
-from ..cfg import CFGFunction
+from ..cfg import CFGBranch, CFGFunction
 from ..ir import (
     IRAssignExpr,
     IRAssignValue,
@@ -525,6 +525,82 @@ def _find_setter_constraint_violations(
 _DESTRUCTIVE_FILE_SUBS = frozenset({"delete", "rename", "mkdir"})
 _DESTRUCTIVE_SKIP_ARGS = frozenset({"-force", "--"})
 
+# Commands that validate a path stays within an intended directory.
+_BOUNDS_CHECK_COMMANDS = frozenset({"string match", "string first", "string equal"})
+
+
+def _is_path_bounded(
+    var_name: str,
+    version: int,
+    ssa: SSAFunction,
+    cfg: CFGFunction,
+) -> bool:
+    """Return True if the variable has a bounds check in the function.
+
+    Detects patterns where a normalised path is validated against a base
+    directory via ``string match``, ``string first``, or ``string equal``
+    before being used in a destructive file operation.  Checks both
+    regular statements and branch conditions (``if`` expressions).
+    """
+    var_ref = f"${var_name}"
+    var_ref_braced = f"${{{var_name}}}"
+
+    for bn, ssa_block in ssa.blocks.items():
+        ir_block = cfg.blocks.get(bn)
+        if ir_block is None:
+            continue
+
+        # Check statements for string match/first/equal calls.
+        for i, ssa_stmt in enumerate(ssa_block.statements):
+            if i >= len(ir_block.statements):
+                continue
+            if ssa_stmt.uses.get(var_name) != version:
+                continue
+            ir_stmt = ir_block.statements[i]
+            if isinstance(ir_stmt, IRCall) and ir_stmt.command == "string":
+                if ir_stmt.args and ir_stmt.args[0] in ("match", "first", "equal"):
+                    return True
+            if isinstance(ir_stmt, IRAssignValue):
+                val = ir_stmt.value.strip()
+                if any(val.startswith(f"[string {sub} ") for sub in ("match", "first", "equal")):
+                    return True
+
+        # Check branch conditions for embedded string match/first/equal.
+        # Handles: if {[string match "$base/*" $norm]} { ... }
+        term = ir_block.terminator
+        if isinstance(term, CFGBranch) and term.condition is not None:
+            cond_text = _extract_condition_text(term.condition)
+            if cond_text and (var_ref in cond_text or var_ref_braced in cond_text):
+                if any(f"string {sub}" in cond_text for sub in ("match", "first", "equal")):
+                    return True
+
+    return False
+
+
+def _extract_condition_text(expr) -> str | None:
+    """Extract a text representation from a branch condition expression."""
+    # ExprCommand wraps [cmd ...] — extract the text directly.
+    text = getattr(expr, "text", None)
+    if text:
+        return text
+    # ExprUnary(op=NOT, operand=...) — recurse into operand.
+    operand = getattr(expr, "operand", None)
+    if operand is not None:
+        return _extract_condition_text(operand)
+    # ExprBinary — check both sides.
+    left = getattr(expr, "left", None)
+    right = getattr(expr, "right", None)
+    parts = []
+    if left:
+        t = _extract_condition_text(left)
+        if t:
+            parts.append(t)
+    if right:
+        t = _extract_condition_text(right)
+        if t:
+            parts.append(t)
+    return " ".join(parts) if parts else None
+
 
 def _is_normalised_def(
     var_name: str,
@@ -563,11 +639,15 @@ def _find_destructive_file_warnings(
     ``file delete``, ``file rename``, and ``file mkdir`` with a variable
     or substituted path argument risk path-traversal attacks.
 
-    **Suppressed** when the path variable's taint carries
-    ``PATH_NORMALISED`` — the developer explicitly called
-    ``[file normalize]``, which resolves ``..``, symlinks, and
-    ``~user`` expansion.  The diagnostic message still recommends
-    verifying the normalised path stays within the intended directory.
+    **Suppressed** when the path variable is both normalised
+    (``PATH_NORMALISED``) *and* bounds-checked (``PATH_BOUNDED``) —
+    i.e. the developer called ``[file normalize]`` and verified the
+    result stays within an intended directory via ``string match``,
+    ``string first``, or ``string equal``.
+
+    Paths that are only normalised (no bounds check) still warn,
+    because normalisation alone does not prevent accessing files
+    outside the intended directory.
     """
     warnings: list[TaintWarning] = []
 
@@ -608,29 +688,40 @@ def _find_destructive_file_warnings(
                 if not path_indexes:
                     continue
 
-                # Suppress when PATH_NORMALISED colour is set (tainted source
-                # that passed through [file normalize]).
+                # Determine normalisation and bounds-check status.
                 t = taints.get((name, ver), _UNTAINTED)
-                if t.tainted and bool(t.colour & TaintColour.PATH_NORMALISED):
+                is_normalised = (
+                    t.tainted and bool(t.colour & TaintColour.PATH_NORMALISED)
+                ) or _is_normalised_def(name, ver, ssa, cfg)
+                is_bounded = (t.tainted and bool(t.colour & TaintColour.PATH_BOUNDED)) or (
+                    is_normalised and _is_path_bounded(name, ver, ssa, cfg)
+                )
+
+                # Suppress when both normalised AND bounds-checked.
+                if is_bounded:
                     continue
 
-                # Also suppress when the SSA def is directly from
-                # [file normalize ...] — covers untainted paths too.
-                if _is_normalised_def(name, ver, ssa, cfg):
-                    continue
+                # Emit W313 — adjust message based on normalisation status.
+                if is_normalised:
+                    message = (
+                        f"file {sub} with normalised path (${name}) — "
+                        "verify it stays within the intended directory "
+                        '(e.g. [string match "$base/*" ${name}]).'
+                    )
+                else:
+                    message = (
+                        f"file {sub} with a variable path (${name}) risks "
+                        "path-traversal. Normalise with [file normalize] and "
+                        "verify it stays within the intended directory."
+                    )
 
-                # Emit W313 for any variable in path position.
                 warnings.append(
                     TaintWarning(
                         range=stmt.range,
                         variable=name,
                         sink_command=f"file {sub}",
                         code="W313",
-                        message=(
-                            f"file {sub} with a variable path (${name}) risks "
-                            "path-traversal. Normalise with [file normalize] and "
-                            "verify it stays within the intended directory."
-                        ),
+                        message=message,
                     )
                 )
                 emitted = True  # one warning per command

@@ -2440,9 +2440,20 @@ class TestDestructiveFileOps:
         diags = _taint_diag_with_code("set base /tmp\nfile join $base subdir", "W313")
         assert len(diags) == 0
 
-    def test_normalised_path_suppressed(self):
-        """file delete with [file normalize] path → no W313."""
+    def test_normalised_only_still_warns(self):
+        """file delete with [file normalize] but no bounds check → still W313."""
         src = "set norm [file normalize $path]\nfile delete $norm"
+        diags = _taint_diag_with_code(src, "W313")
+        assert len(diags) == 1
+        assert "normalised" in diags[0].message.lower() or "verify" in diags[0].message.lower()
+
+    def test_normalised_and_bounded_suppressed(self):
+        """file delete with normalise + bounds check → no W313."""
+        src = (
+            "set norm [file normalize $path]\n"
+            'if {![string match "$base/*" $norm]} { error outside }\n'
+            "file delete $norm"
+        )
         diags = _taint_diag_with_code(src, "W313")
         assert len(diags) == 0
 

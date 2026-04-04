@@ -30,6 +30,7 @@ class TaintColour(Flag):
     LIST_CANONICAL = auto()  # canonical Tcl list representation
     REGEX_LITERAL = auto()  # regex-escaped literal payload
     PATH_NORMALISED = auto()  # path has been normalised (no raw traversal form)
+    PATH_BOUNDED = auto()  # normalised path verified within an intended directory
     PATH_JOINED = auto()  # assembled via [file join] (portable, not canonicalised)
     HEADER_TOKEN_SAFE = auto()  # valid HTTP header-token charset
     HTML_ESCAPED = auto()  # HTML-escaped text context

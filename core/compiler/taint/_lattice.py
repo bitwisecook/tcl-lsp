@@ -98,6 +98,7 @@ _BASIS_ORDER = (
     "list_canonical",
     "regex_literal",
     "path_normalised",
+    "path_bounded",
     "header_token_safe",
     "html_escaped",
     "url_encoded",
@@ -114,6 +115,9 @@ _BASIS_LATTICES: dict[str, TaintLattice] = {
     "list_canonical": TaintLattice.of(TaintColour.TAINTED | TaintColour.LIST_CANONICAL),
     "regex_literal": TaintLattice.of(TaintColour.TAINTED | TaintColour.REGEX_LITERAL),
     "path_normalised": TaintLattice.of(TaintColour.TAINTED | TaintColour.PATH_NORMALISED),
+    "path_bounded": TaintLattice.of(
+        TaintColour.TAINTED | TaintColour.PATH_NORMALISED | TaintColour.PATH_BOUNDED
+    ),
     "header_token_safe": TaintLattice.of(TaintColour.TAINTED | TaintColour.HEADER_TOKEN_SAFE),
     "html_escaped": TaintLattice.of(TaintColour.TAINTED | TaintColour.HTML_ESCAPED),
     "url_encoded": TaintLattice.of(TaintColour.TAINTED | TaintColour.URL_ENCODED),

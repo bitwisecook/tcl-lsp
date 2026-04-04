@@ -286,6 +286,7 @@ def _evaluate_interpolated_word_taint(
     colour &= ~(
         TaintColour.LIST_CANONICAL
         | TaintColour.PATH_NORMALISED
+        | TaintColour.PATH_BOUNDED
         | TaintColour.HEADER_TOKEN_SAFE
         | TaintColour.HTML_ESCAPED
         | TaintColour.URL_ENCODED
