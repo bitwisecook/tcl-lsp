@@ -2460,6 +2460,30 @@ class TestDestructiveFileOps:
         diags = _taint_diag_with_code(src, "W313")
         assert len(diags) == 0
 
+    def test_bounded_inside_true_branch(self):
+        """file delete inside guarded true branch → no W313."""
+        src = (
+            "set norm [file normalize $path]\n"
+            'if {[string match "/safe/*" $norm]} {\n'
+            "    file delete $norm\n"
+            "}"
+        )
+        diags = _taint_diag_with_code(src, "W313")
+        assert len(diags) == 0
+
+    def test_bounded_does_not_leak_to_false_branch(self):
+        """file delete in false branch of guard → still W313."""
+        src = (
+            "set norm [file normalize $path]\n"
+            'if {[string match "/safe/*" $norm]} {\n'
+            "    puts safe\n"
+            "} else {\n"
+            "    file delete $norm\n"
+            "}"
+        )
+        diags = _taint_diag_with_code(src, "W313")
+        assert len(diags) == 1
+
     def test_unnormalised_path_warns(self):
         """file delete without normalisation → W313."""
         src = "set joined [file join $base $name]\nfile delete $joined"

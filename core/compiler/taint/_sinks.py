@@ -18,7 +18,7 @@ from ...common.dialect import active_dialect
 from ...common.naming import normalise_var_name as _normalise_var_name
 from ...parsing.lexer import TclLexer
 from ...parsing.tokens import TokenType
-from ..cfg import CFGBranch, CFGFunction
+from ..cfg import CFGBranch, CFGFunction, CFGGoto
 from ..ir import (
     IRAssignExpr,
     IRAssignValue,
@@ -534,112 +534,6 @@ _DESTRUCTIVE_FILE_SUBS = frozenset({"delete", "rename", "mkdir"})
 _DESTRUCTIVE_SKIP_ARGS = frozenset({"-force", "--"})
 
 
-def _is_path_bounded(
-    var_name: str,
-    version: int,
-    ssa: SSAFunction,
-    cfg: CFGFunction,
-) -> bool:
-    """Return True if the variable has an explicit path-bounds check.
-
-    Only recognises ``string match``, ``string first``, and ``string equal``
-    when the tracked variable is the concrete path operand being checked,
-    rather than merely appearing somewhere in the same statement or branch
-    condition text.
-    """
-    for bn, ssa_block in ssa.blocks.items():
-        ir_block = cfg.blocks.get(bn)
-        if ir_block is None:
-            continue
-
-        for i, ssa_stmt in enumerate(ssa_block.statements):
-            if i >= len(ir_block.statements):
-                continue
-            if ssa_stmt.uses.get(var_name) != version:
-                continue
-            ir_stmt = ir_block.statements[i]
-            if isinstance(ir_stmt, IRCall):
-                if _is_string_path_bounds_check(ir_stmt.command, ir_stmt.args, var_name):
-                    return True
-            if isinstance(ir_stmt, IRAssignValue):
-                if _text_has_string_path_bounds_check(ir_stmt.value, var_name):
-                    return True
-
-        term = ir_block.terminator
-        if isinstance(term, CFGBranch) and term.condition is not None:
-            if _condition_has_string_path_bounds_check(term.condition, var_name):
-                return True
-
-    return False
-
-
-def _is_exact_var_ref(arg: str, var_name: str) -> bool:
-    """Return True if *arg* is exactly a reference to *var_name*."""
-    text = arg.strip()
-    return text == f"${var_name}" or text == f"${{{var_name}}}"
-
-
-def _is_string_path_bounds_check(command: str, args: tuple[str, ...], var_name: str) -> bool:
-    """Return True if ``string`` args perform a bounds check on *var_name*."""
-    if command != "string" or not args:
-        return False
-    subcmd = args[0]
-    if subcmd == "match":
-        # string match ?-nocase? pattern string
-        if len(args) < 3:
-            return False
-        return _is_exact_var_ref(args[-1], var_name)
-    if subcmd == "first":
-        # string first needleString haystackString ?startIndex?
-        if len(args) < 3:
-            return False
-        return _is_exact_var_ref(args[2], var_name)
-    if subcmd == "equal":
-        # string equal ?-nocase? ?-length int? string1 string2
-        filtered: list[str] = []
-        skip_next = False
-        for arg in args[1:]:
-            if skip_next:
-                skip_next = False
-                continue
-            if arg == "-length":
-                skip_next = True
-                continue
-            if arg.startswith("-"):
-                continue
-            filtered.append(arg)
-        if len(filtered) < 2:
-            return False
-        return _is_exact_var_ref(filtered[0], var_name) or _is_exact_var_ref(filtered[1], var_name)
-    return False
-
-
-def _text_has_string_path_bounds_check(text: str, var_name: str) -> bool:
-    """Return True if *text* contains a recognised string path-bounds check."""
-    parsed = parse_command_substitution(text.strip())
-    if parsed is None:
-        return False
-    command, args = parsed
-    return _is_string_path_bounds_check(command, args, var_name)
-
-
-def _condition_has_string_path_bounds_check(expr, var_name: str) -> bool:
-    """Return True if a branch condition contains a recognised bounds check."""
-    text = getattr(expr, "text", None)
-    if text and _text_has_string_path_bounds_check(text, var_name):
-        return True
-    operand = getattr(expr, "operand", None)
-    if operand is not None and _condition_has_string_path_bounds_check(operand, var_name):
-        return True
-    left = getattr(expr, "left", None)
-    if left is not None and _condition_has_string_path_bounds_check(left, var_name):
-        return True
-    right = getattr(expr, "right", None)
-    if right is not None and _condition_has_string_path_bounds_check(right, var_name):
-        return True
-    return False
-
-
 def _is_normalised_def(
     var_name: str,
     version: int,
@@ -666,6 +560,180 @@ def _is_normalised_def(
     return False
 
 
+def _compute_branch_guard_map(
+    cfg: CFGFunction,
+) -> dict[str, set[str]]:
+    """Build a map of block → variable names guarded by bounds checks.
+
+    For each ``CFGBranch`` whose condition is a ``string match``,
+    ``string first``, or ``string equal`` call, the **true-target**
+    block (and blocks only reachable through it) gains PATH_BOUNDED
+    for the variable used as the path operand.
+
+    Returns ``{block_name: {var_name, ...}}``.
+    """
+    guarded: dict[str, set[str]] = {}
+
+    for bn, block in cfg.blocks.items():
+        term = block.terminator
+        if not isinstance(term, CFGBranch) or term.condition is None:
+            continue
+
+        # Extract variable names and negation status from the condition.
+        negated, var_name = _extract_guard_var(term.condition)
+        if var_name is None:
+            continue
+
+        # When the condition is negated (e.g. `if {![string match ...]}`),
+        # the bounds check holds in the **false** branch (match succeeded).
+        # When not negated, the bounds check holds in the **true** branch.
+        if negated:
+            guarded_target = term.false_target
+            other_target = term.true_target
+        else:
+            guarded_target = term.true_target
+            other_target = term.false_target
+        _propagate_guard(cfg, guarded_target, other_target, var_name, guarded)
+
+    return guarded
+
+
+def _extract_guard_var(expr, *, _negated: bool = False) -> tuple[bool, str | None]:
+    """Extract the path variable from a bounds-check condition expression.
+
+    Returns ``(negated, var_name)`` where *negated* indicates the
+    condition is inverted (e.g. ``![string match ...]``).
+
+    Recognises ``[string match PATTERN $var]``, ``[string first NEEDLE $var]``,
+    and ``[string equal ... $var ...]`` in branch conditions.
+    """
+    # ExprUnary(op=NOT, operand=...) — recurse, flipping negation.
+    operand = getattr(expr, "operand", None)
+    if operand is not None:
+        return _extract_guard_var(operand, _negated=not _negated)
+
+    # ExprCommand wraps [cmd ...].
+    text = getattr(expr, "text", None)
+    if not text:
+        # ExprBinary — check both sides.
+        left = getattr(expr, "left", None)
+        right = getattr(expr, "right", None)
+        if left:
+            neg, result = _extract_guard_var(left, _negated=_negated)
+            if result:
+                return neg, result
+        if right:
+            return _extract_guard_var(right, _negated=_negated)
+        return _negated, None
+
+    parsed = parse_command_substitution(text.strip())
+    if parsed is None:
+        return _negated, None
+    command, args = parsed
+    if command != "string" or not args:
+        return _negated, None
+    subcmd = args[0]
+    if subcmd == "match" and len(args) >= 3:
+        return _negated, _extract_var_name(args[-1])
+    if subcmd == "first" and len(args) >= 3:
+        return _negated, _extract_var_name(args[2])
+    if subcmd == "equal":
+        filtered: list[str] = []
+        skip_next = False
+        for arg in args[1:]:
+            if skip_next:
+                skip_next = False
+                continue
+            if arg == "-length":
+                skip_next = True
+                continue
+            if arg.startswith("-"):
+                continue
+            filtered.append(arg)
+        for f_arg in filtered:
+            name = _extract_var_name(f_arg)
+            if name:
+                return _negated, name
+    return _negated, None
+
+
+def _extract_var_name(arg: str) -> str | None:
+    """Extract a variable name from ``$name`` or ``${name}``."""
+    text = arg.strip()
+    if text.startswith("${") and text.endswith("}"):
+        return text[2:-1]
+    if text.startswith("$") and text[1:].isidentifier():
+        return text[1:]
+    return None
+
+
+_NON_RETURNING_COMMANDS = frozenset({"error", "return", "throw", "exit"})
+
+
+def _is_dead_end_block(cfg: CFGFunction, block_name: str) -> bool:
+    """Return True if the block only contains non-returning commands.
+
+    If the block executes ``error``, ``return``, ``throw``, or ``exit``
+    as its sole command (with no other side effects), the successor
+    blocks are effectively unreachable from this path.
+    """
+    block = cfg.blocks.get(block_name)
+    if block is None or not block.statements:
+        return False
+    # Check if ALL statements are non-returning.
+    for stmt in block.statements:
+        if isinstance(stmt, IRCall) and stmt.command in _NON_RETURNING_COMMANDS:
+            return True
+    return False
+
+
+def _propagate_guard(
+    cfg: CFGFunction,
+    guarded_target: str,
+    other_target: str,
+    var_name: str,
+    guarded: dict[str, set[str]],
+) -> None:
+    """Mark *guarded_target* and its exclusive successors as guarded.
+
+    Stops at blocks that are also reachable from *other_target* (merge points).
+    """
+    # If the other branch is a non-returning block (error/return/throw),
+    # the merge point is only reachable from the guarded branch — extend
+    # the guard through the merge.
+    other_is_dead_end = _is_dead_end_block(cfg, other_target)
+
+    other_reachable: set[str] = set()
+    if not other_is_dead_end:
+        stack = [other_target]
+        while stack:
+            b = stack.pop()
+            if b in other_reachable or b not in cfg.blocks:
+                continue
+            other_reachable.add(b)
+            match cfg.blocks[b].terminator:
+                case CFGGoto(target=t):
+                    stack.append(t)
+                case CFGBranch(true_target=tt, false_target=ft):
+                    stack.extend([tt, ft])
+
+    visit_stack = [guarded_target]
+    visited: set[str] = set()
+    while visit_stack:
+        b = visit_stack.pop()
+        if b in visited or b not in cfg.blocks:
+            continue
+        if b in other_reachable and b != guarded_target:
+            continue
+        visited.add(b)
+        guarded.setdefault(b, set()).add(var_name)
+        match cfg.blocks[b].terminator:
+            case CFGGoto(target=t):
+                visit_stack.append(t)
+            case CFGBranch(true_target=tt, false_target=ft):
+                visit_stack.extend([tt, ft])
+
+
 def _find_destructive_file_warnings(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -678,15 +746,15 @@ def _find_destructive_file_warnings(
     or substituted path argument risk path-traversal attacks.
 
     **Suppressed** when the path variable is both normalised
-    (``PATH_NORMALISED``) *and* bounds-checked (``PATH_BOUNDED``) —
-    i.e. the developer called ``[file normalize]`` and verified the
-    result stays within an intended directory via ``string match``,
-    ``string first``, or ``string equal``.
-
-    Paths that are only normalised (no bounds check) still warn,
-    because normalisation alone does not prevent accessing files
-    outside the intended directory.
+    (``PATH_NORMALISED``) *and* bounds-checked (``PATH_BOUNDED``).
+    Bounds-checking is detected via branch-dependent guard analysis:
+    when a ``CFGBranch`` condition is a ``string match/first/equal``
+    on a normalised variable, the true-target block (and its dominated
+    successors) treat that variable as ``PATH_BOUNDED``.
     """
+    # Build the guard map: block → {var_names with PATH_BOUNDED}.
+    guard_map = _compute_branch_guard_map(cfg)
+
     warnings: list[TaintWarning] = []
 
     for bn in executable_blocks:
@@ -731,8 +799,10 @@ def _find_destructive_file_warnings(
                 is_normalised = (
                     t.tainted and bool(t.colour & TaintColour.PATH_NORMALISED)
                 ) or _is_normalised_def(name, ver, ssa, cfg)
+
+                # PATH_BOUNDED: from lattice or from branch guard analysis.
                 is_bounded = (t.tainted and bool(t.colour & TaintColour.PATH_BOUNDED)) or (
-                    is_normalised and _is_path_bounded(name, ver, ssa, cfg)
+                    is_normalised and name in guard_map.get(bn, set())
                 )
 
                 # Suppress when both normalised AND bounds-checked.
