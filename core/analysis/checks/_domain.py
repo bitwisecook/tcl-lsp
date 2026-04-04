@@ -267,7 +267,7 @@ def check_literal_expected(
                             else ". Use braces '{...}' to prevent substitution."
                         )
                     ),
-                    severity=Severity.ERROR,
+                    severity=Severity.WARNING,
                     code="W306",
                 )
             )
@@ -303,7 +303,7 @@ def check_literal_expected(
                                 f"Literal expected for class name in 'class {sub}' \u2014 "
                                 "found substitution. Use braces or a literal class name."
                             ),
-                            severity=Severity.ERROR,
+                            severity=Severity.WARNING,
                             code="W306",
                         )
                     )

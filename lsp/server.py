@@ -3104,12 +3104,18 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
                 "Unrecognised diagnostic codes in settings (ignored): %s", sorted(unknown_diag)
             )
 
-    # Style settings  (tclLsp.style.lineLength)
+    # Style settings  (tclLsp.style.lineLength, tclLsp.style.nonAscii)
     style_section = tcl_settings.get("style")
     if isinstance(style_section, dict):
         ll = style_section.get("lineLength")
         if isinstance(ll, int) and ll > 0 and ll != feature_config.line_length:
             feature_config.line_length = ll
+            changed = True
+        non_ascii = style_section.get("nonAscii")
+        if isinstance(non_ascii, str) and non_ascii in ("strict", "confusables", "common", "off"):
+            from core.analysis.checks._style import set_non_ascii_mode
+
+            set_non_ascii_mode(non_ascii)
             changed = True
 
     # Shimmer detection toggle  (tclLsp.shimmer.enabled)

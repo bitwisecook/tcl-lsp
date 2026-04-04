@@ -253,8 +253,8 @@ class AnalyserSnapshot:
     scope_id_map: dict[int, Scope] = field(default_factory=dict)
     # Variable-as-command sites: (var_name, method_name_or_None, token_range).
     var_command_sites: list[tuple[str, str | None, Range, bool]] = field(default_factory=list)
-    # Command-substitution-as-command sites: (cmd_text, method_name_or_None, range).
-    cmd_command_sites: list[tuple[str, str | None, Range]] = field(default_factory=list)
+    # Command-substitution-as-command sites: (cmd_text, method_name_or_None, range, in_method).
+    cmd_command_sites: list[tuple[str, str | None, Range, bool]] = field(default_factory=list)
 
 
 class Analyser:
@@ -265,6 +265,7 @@ class Analyser:
         self._current_scope = self.result.global_scope
         self._disabled_diagnostics = disabled_diagnostics or frozenset()
         self._last_comment: str = ""
+        self._file_path: str | None = None
         # Per-scope constant string tracker: maps scope_id →
         #   { var_name → (value_text, value_range) }
         # Populated by `set var {literal}` assignments where the value is a
@@ -295,8 +296,8 @@ class Analyser:
         # Command-substitution-as-command sites: records where [cmd] is used
         # as a command name (e.g. ``[Dog new] bark``).  The post-pass checks
         # if the command returns a TclOO object and suppresses W307.
-        # Each entry: (cmd_text, method_name_or_None, cmd_token_range).
-        self._cmd_command_sites: list[tuple[str, str | None, Range]] = []
+        # Each entry: (cmd_text, method_name_or_None, cmd_token_range, in_method).
+        self._cmd_command_sites: list[tuple[str, str | None, Range, bool]] = []
         # Cache: id(scope) -> namespace string, for _namespace_from_scope.
         self._ns_cache: dict[int, str] = {}
         # Namespace ensembles: namespaces where ``namespace ensemble create``
@@ -405,6 +406,7 @@ class Analyser:
         *,
         cu: CompilationUnit | None = None,
         skip_stubs: bool = False,
+        file_path: str | None = None,
     ) -> tuple[AnalysisResult, list[AnalyserSnapshot]]:
         """Analyse commands chunk-by-chunk and capture per-chunk snapshots.
 
@@ -418,6 +420,7 @@ class Analyser:
         restored from a snapshot that already includes earlier stubs.
         """
         self._source = source
+        self._file_path = file_path
         self._unresolved_commands_emitted = False
         self._ns_cache.clear()
         if not skip_stubs:
@@ -594,9 +597,12 @@ class Analyser:
         self,
         source: str,
         cu: CompilationUnit | None = None,
+        *,
+        file_path: str | None = None,
     ) -> AnalysisResult:
         """Analyse a full source string."""
         self._source = source
+        self._file_path = file_path
         self._unresolved_commands_emitted = False
         self._ns_cache.clear()
         # Pre-scan for inline stubs blocks (independent of Tcl parsing).
@@ -1292,7 +1298,10 @@ class Analyser:
             )
         elif cmd_tok is not None and cmd_tok.type is TokenType.CMD:
             method_name = args[0] if args else None
-            self._cmd_command_sites.append((cmd_tok.text, method_name, range_from_token(cmd_tok)))
+            in_method = self._scope_is_method(scope)
+            self._cmd_command_sites.append(
+                (cmd_tok.text, method_name, range_from_token(cmd_tok), in_method)
+            )
 
         # IRULE5005: direct proc invocation without ``call`` in iRules.
         # In iRules, procs must be invoked via ``call proc_name``, not
@@ -3013,9 +3022,15 @@ class Analyser:
         self.result.diagnostics.extend(
             run_compiler_checks(source, ir_module=ir_module),
         )
+        # In pkgIndex.tcl files, $dir is always set by the package loader
+        # before the script body is evaluated — suppress W210/W211/W220 for it.
+        implicit_vars: frozenset[str] = frozenset()
+        if self._file_path and self._file_path.endswith("pkgIndex.tcl"):
+            implicit_vars = frozenset({"dir"})
         self._emit_cfg_ssa_diagnostics_for_function(
             cu.top_level.cfg,
             cu.top_level.analysis,
+            cross_event_vars=implicit_vars,
             ssa=cu.top_level.ssa,
         )
         conn = cu.connection_scope
@@ -3334,7 +3349,7 @@ class Analyser:
                     w307_indices[(d.range.start.offset, d.range.end.offset)] = i
 
             remove_indices: list[int] = []
-            for cmd_text, method_name, site_range in self._cmd_command_sites:
+            for cmd_text, method_name, site_range, in_method in self._cmd_command_sites:
                 # Parse the command substitution: [Dog new] → ("Dog", ("new",))
                 inner = cmd_text.strip()
                 if inner.startswith("[") and inner.endswith("]"):
@@ -3345,7 +3360,16 @@ class Analyser:
                 cmd_name_ = parts[0]
                 cmd_args_ = tuple(parts[1].split()) if len(parts) > 1 else ()
                 ret_type = _return_type_for_command(cmd_name_, cmd_args_, _known_classes)
-                if ret_type.kind is TypeKind.KNOWN and ret_type.tcl_type is TclType.OBJECT:
+                # ``my`` and ``self`` are TclOO self-dispatch — the return
+                # value is very likely an object when used in chained calls.
+                is_oo_self_dispatch = cmd_name_ in ("my", "self")
+                # Inside an OO method body, [cmd] method chaining is common
+                # for accessing objects stored in instance variables.
+                if (
+                    in_method
+                    or is_oo_self_dispatch
+                    or (ret_type.kind is TypeKind.KNOWN and ret_type.tcl_type is TclType.OBJECT)
+                ):
                     # Command returns an object — suppress W307.
                     key = (site_range.start.offset, site_range.end.offset)
                     idx = w307_indices.get(key)

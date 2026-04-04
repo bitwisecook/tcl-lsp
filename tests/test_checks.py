@@ -1224,7 +1224,7 @@ class TestLiteralExpected:
     def test_regexp_pattern_with_var(self):
         diags = _diag_with_code("regexp -- $pattern $text", "W306")
         assert len(diags) == 1
-        assert diags[0].severity == Severity.ERROR
+        assert diags[0].severity == Severity.WARNING
         assert "Literal expected" in diags[0].message
 
     def test_regexp_braced_pattern_clean(self):
@@ -1562,11 +1562,51 @@ $obj custom
 class TestNonAscii:
     """W108 -- tokens with non-standard ASCII characters."""
 
-    def test_non_ascii_character(self):
+    def test_confusable_character_flagged(self):
+        """Default 'confusables' mode flags smart quotes (copy-paste artifact)."""
+        diags = _diag_with_code("set x \u201chello\u201d", "W108")
+        assert len(diags) == 2  # left and right smart quotes
+
+    def test_benign_unicode_skipped_in_default_mode(self):
+        """Default 'confusables' mode allows copyright symbol."""
         diags = _diag_with_code("set x \u00a9value", "W108")
-        assert len(diags) == 1
-        assert "ASCII" in diags[0].message
-        assert diags[0].severity == Severity.WARNING
+        assert len(diags) == 0
+
+    def test_strict_mode_flags_all_non_ascii(self):
+        from core.analysis.checks._style import set_non_ascii_mode
+
+        set_non_ascii_mode("strict")
+        try:
+            diags = _diag_with_code("set x \u00a9value", "W108")
+            assert len(diags) == 1
+            assert "ASCII" in diags[0].message
+            assert diags[0].severity == Severity.WARNING
+        finally:
+            set_non_ascii_mode("confusables")
+
+    def test_common_mode_allows_symbols(self):
+        from core.analysis.checks._style import set_non_ascii_mode
+
+        set_non_ascii_mode("common")
+        try:
+            # Degree symbol (scientific) should be allowed
+            diags = _diag_with_code("set x {90\u00b0}", "W108")
+            assert len(diags) == 0
+            # But smart quotes (confusables) should still be flagged
+            diags = _diag_with_code("set x \u201chello\u201d", "W108")
+            assert len(diags) == 2
+        finally:
+            set_non_ascii_mode("confusables")
+
+    def test_off_mode_disables_w108(self):
+        from core.analysis.checks._style import set_non_ascii_mode
+
+        set_non_ascii_mode("off")
+        try:
+            diags = _diag_with_code("set x \u201chello\u201d", "W108")
+            assert len(diags) == 0
+        finally:
+            set_non_ascii_mode("confusables")
 
     def test_pure_ascii_clean(self):
         diags = _diag_with_code("set x hello", "W108")

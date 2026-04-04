@@ -536,6 +536,25 @@ def _build_vscode_diagnostic_sections() -> list[dict]:
                 "default": 120,
                 "minimum": 40,
                 "markdownDescription": "Maximum line length for the **W111** diagnostic. Lines exceeding this limit are flagged.",
+                "order": -2,
+            }
+            props["tclLsp.style.nonAscii"] = {
+                "type": "string",
+                "default": "confusables",
+                "enum": ["strict", "confusables", "common", "off"],
+                "enumDescriptions": [
+                    "Flag every non-ASCII character (most restrictive). Default for iRules/iApps.",
+                    "Flag only confusable/copy-paste characters (smart quotes, NBSP, em-dash, emoji) that have ASCII equivalents. Default for Tcl.",
+                    "Allow intentional Unicode (letters, digits, symbols in any script); only flag confusables and control characters.",
+                    "Disable W108 entirely.",
+                ],
+                "markdownDescription": (
+                    "Controls how **W108** (non-ASCII character) is detected.\n\n"
+                    "- **strict**: flag all non-ASCII characters (default for iRules/iApps).\n"
+                    "- **confusables** *(default for Tcl)*: only flag characters with known ASCII equivalents (smart quotes, NBSP, etc.).\n"
+                    "- **common**: allow Unicode letters, symbols, and punctuation; flag only confusables and control characters.\n"
+                    "- **off**: disable W108."
+                ),
                 "order": -1,
             }
         elif title == "Diagnostics — Shimmer":

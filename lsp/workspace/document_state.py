@@ -195,6 +195,7 @@ def _analyse_document_fresh(
         source,
         chunk_commands,
         cu=compilation_unit,
+        file_path=uri,
     )
 
     # Determine dialect flags for semantic token precompute.
@@ -1013,6 +1014,7 @@ class DocumentState:
                 dirty_chunk_commands,
                 cu=compilation_unit,
                 skip_stubs=True,
+                file_path=self.uri,
             )
         else:
             # No snapshot to restore from — full chunked analysis.
@@ -1021,6 +1023,7 @@ class DocumentState:
                 source,
                 dirty_chunk_commands,
                 cu=compilation_unit,
+                file_path=self.uri,
             )
         t_analyse = time.perf_counter()
 
@@ -1206,6 +1209,7 @@ class DocumentState:
             source,
             chunk_commands,
             cu=compilation_unit,
+            file_path=self.uri,
         )
         t_analyse = time.perf_counter()
 

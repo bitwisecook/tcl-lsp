@@ -564,6 +564,10 @@ def _check_arity(
             )
             return
         sub_name = args[0]
+        # Dynamic subcommand names (containing $var or [cmd]) cannot be
+        # resolved statically — skip the unknown-subcommand check.
+        if "$" in sub_name or "[" in sub_name:
+            return
         sub_sig = sig.subcommands.get(sub_name)
         if sub_sig is None:
             if sig.allow_unknown:
