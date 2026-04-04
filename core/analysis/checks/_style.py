@@ -972,6 +972,67 @@ def check_name_vs_value(
 # character-by-character iteration with ord().
 _NON_ASCII_RE = re.compile(r"[^\x09\x0a\x0d\x20-\x7e]")
 
+
+# Unicode confusable character data (lazy-loaded).
+_CONFUSABLE_CODEPOINTS: frozenset[str] = frozenset()
+_CONFUSABLE_TO_ASCII: dict[str, str] = {}
+_confusables_loaded = False
+
+
+def _ensure_confusables() -> None:
+    """Lazy-load the Unicode confusables data on first use."""
+    global _CONFUSABLE_CODEPOINTS, _CONFUSABLE_TO_ASCII, _confusables_loaded
+    if _confusables_loaded:
+        return
+    _confusables_loaded = True
+    try:
+        from ._confusables import CONFUSABLE_CODEPOINTS, CONFUSABLE_TO_ASCII
+
+        _CONFUSABLE_CODEPOINTS = CONFUSABLE_CODEPOINTS
+        _CONFUSABLE_TO_ASCII = CONFUSABLE_TO_ASCII
+    except ImportError:
+        pass
+
+
+# W108 non-ASCII mode: "strict" (flag all non-ASCII), "confusables"
+# (only flag confusable / copy-paste artifacts), "common" (allow
+# intentional Unicode, flag only control/zero-width/confusables), "off".
+# Configured via tclLsp.style.nonAscii; default "confusables".
+_non_ascii_mode: str = "confusables"
+
+
+def set_non_ascii_mode(mode: str) -> None:
+    """Configure the W108 non-ASCII detection mode."""
+    global _non_ascii_mode
+    if mode in ("strict", "confusables", "common", "off"):
+        _non_ascii_mode = mode
+
+
+def _is_benign_unicode(ch: str) -> bool:
+    """Return True for Unicode characters that are intentional, not copy-paste artifacts.
+
+    Allows letters (any script), digits, mathematical/technical symbols,
+    currency signs, and common scientific notation characters.  Flags
+    control characters, zero-width characters, directional overrides,
+    and replacement characters that almost always indicate encoding issues.
+    """
+    import unicodedata
+
+    cat = unicodedata.category(ch)
+    # Letters (L*), digits (N*), and marks (M*) in any script are intentional.
+    if cat[0] in ("L", "N", "M"):
+        return True
+    # Mathematical symbols (Sm), currency (Sc), modifier symbols (Sk),
+    # and other symbols (So) — covers °, µ, Ω, ±, ×, ÷, ², arrows, etc.
+    if cat[0] == "S":
+        return True
+    # Punctuation categories — covers «», ellipsis, dashes, etc.
+    # Connectors (Pc), dashes (Pd), open/close (Ps/Pe), other (Po) are fine.
+    if cat[0] == "P":
+        return True
+    return False
+
+
 # Characters that can be auto-fixed to their ASCII equivalents.
 # Covers common copy-paste artifacts from Slack, Teams, Outlook, Word,
 # macOS auto-correct, and web browsers.
@@ -1108,15 +1169,39 @@ def check_non_ascii(
 ) -> list[Diagnostic]:
     """W108: Warn when tokens contain non-standard ASCII characters.
 
-    Characters outside the printable ASCII range (0x20-0x7E) plus
-    standard whitespace can indicate encoding issues or copy-paste
-    artifacts.  For known copy-paste characters (smart quotes,
-    non-breaking spaces) a quick-fix CodeFix is attached.
+    Behaviour depends on ``tclLsp.style.nonAscii``:
+
+    * **strict** — flag every non-ASCII character (original behaviour).
+    * **confusables** *(default)* — flag Unicode confusables (characters
+      that visually resemble ASCII per the Unicode security spec) plus
+      known copy-paste artifacts (smart quotes, NBSP, em-dash, emoji).
+    * **common** — allow intentional Unicode (letters, digits, symbols,
+      punctuation in any script); flag only control characters,
+      zero-width characters, and confusables.
+    * **off** — disable W108 entirely.
+
+    For known copy-paste characters a quick-fix CodeFix is attached.
 
     Each offending character gets its own diagnostic so the editor
     highlights the exact position rather than the whole (potentially
     multi-line) token.
     """
+    # Determine effective mode: use explicit user setting, or default to
+    # "strict" for iRules/iApps (ASCII-only environments) and
+    # "confusables" for general Tcl.
+    mode = _non_ascii_mode
+    if mode == "confusables":
+        dialect = active_dialect()
+        if dialect in ("f5-irules", "f5-iapps"):
+            mode = "strict"
+
+    if mode == "off":
+        return []
+
+    # Lazy-load Unicode confusables data on first use.
+    if mode in ("confusables", "common"):
+        _ensure_confusables()
+
     diagnostics: list[Diagnostic] = []
     seen_offsets: set[int] = set()
 
@@ -1139,6 +1224,23 @@ def check_non_ascii(
 
         for bad_idx in bad_positions:
             ch = text[bad_idx]
+            # Mode-dependent filtering:
+            if mode == "confusables":
+                # Flag Unicode confusables (characters that visually
+                # resemble ASCII) using the Unicode confusables spec,
+                # plus known copy-paste artifacts from _AUTO_FIX_MAP.
+                if ch not in _AUTO_FIX_MAP and ch not in _CONFUSABLE_CODEPOINTS:
+                    continue
+            elif mode == "common":
+                # Allow intentional Unicode (letters, symbols, punctuation
+                # in any script); only flag confusables and control chars.
+                if (
+                    ch not in _AUTO_FIX_MAP
+                    and ch not in _CONFUSABLE_CODEPOINTS
+                    and _is_benign_unicode(ch)
+                ):
+                    continue
+            # "strict" mode: no filtering, flag everything non-ASCII.
             char_start = position_from_relative(
                 text,
                 bad_idx,
@@ -1156,11 +1258,12 @@ def check_non_ascii(
             char_range = Range(start=char_start, end=char_end)
 
             fixes: tuple[CodeFix, ...] = ()
-            if ch in _AUTO_FIX_MAP:
+            ascii_equiv = _AUTO_FIX_MAP.get(ch) or _CONFUSABLE_TO_ASCII.get(ch)
+            if ascii_equiv:
                 fixes = (
                     CodeFix(
                         range=char_range,
-                        new_text=_AUTO_FIX_MAP[ch],
+                        new_text=ascii_equiv,
                         description="Replace with ASCII equivalent",
                     ),
                 )

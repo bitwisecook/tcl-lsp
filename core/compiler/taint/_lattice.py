@@ -19,6 +19,7 @@ _ALL_COLOURS = (
     | TaintColour.LIST_CANONICAL
     | TaintColour.REGEX_LITERAL
     | TaintColour.PATH_NORMALISED
+    | TaintColour.PATH_BOUNDED
     | TaintColour.HEADER_TOKEN_SAFE
     | TaintColour.HTML_ESCAPED
     | TaintColour.URL_ENCODED
@@ -98,6 +99,7 @@ _BASIS_ORDER = (
     "list_canonical",
     "regex_literal",
     "path_normalised",
+    "path_bounded",
     "header_token_safe",
     "html_escaped",
     "url_encoded",
@@ -114,6 +116,12 @@ _BASIS_LATTICES: dict[str, TaintLattice] = {
     "list_canonical": TaintLattice.of(TaintColour.TAINTED | TaintColour.LIST_CANONICAL),
     "regex_literal": TaintLattice.of(TaintColour.TAINTED | TaintColour.REGEX_LITERAL),
     "path_normalised": TaintLattice.of(TaintColour.TAINTED | TaintColour.PATH_NORMALISED),
+    # PATH_BOUNDED is currently set by heuristic detection at the W313 sink
+    # (not by taint propagation rules).  The basis entry is reserved for
+    # future branch-dependent taint refinement.
+    "path_bounded": TaintLattice.of(
+        TaintColour.TAINTED | TaintColour.PATH_NORMALISED | TaintColour.PATH_BOUNDED
+    ),
     "header_token_safe": TaintLattice.of(TaintColour.TAINTED | TaintColour.HEADER_TOKEN_SAFE),
     "html_escaped": TaintLattice.of(TaintColour.TAINTED | TaintColour.HTML_ESCAPED),
     "url_encoded": TaintLattice.of(TaintColour.TAINTED | TaintColour.URL_ENCODED),

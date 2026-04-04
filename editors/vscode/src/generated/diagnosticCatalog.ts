@@ -289,6 +289,12 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W313",
+    section: "security",
+    description: "Destructive file operation with variable path — path-traversal risk.",
+    defaultEnabled: true,
+  },
+  {
     code: "H300",
     section: "hint",
     description: "Possible paste error — repeated assignment to same variable with same value.",

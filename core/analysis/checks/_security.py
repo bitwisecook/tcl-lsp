@@ -13,7 +13,6 @@ from ..semantic_model import Diagnostic, Severity
 from ._helpers import (
     _find_regex_patterns_in_command,
     _first_token_is_braced,
-    _has_substitution,
     _parse_subst_flags,
 )
 
@@ -662,58 +661,3 @@ def check_interp_eval_injection(
             ]
 
     return []
-
-
-# W313: Destructive file operations with tainted path
-
-
-@diag("W313", "Encoding mismatch.", section="security", internal=True)
-def check_destructive_file_ops(
-    cmd_name: str,
-    args: list[str],
-    arg_tokens: list[Token],
-    all_tokens: list[Token],
-    source: str,
-) -> list[Diagnostic]:
-    """W313: Warn when destructive file operations use variable paths.
-
-    ``file delete``, ``file rename``, and ``file mkdir`` with a variable
-    path argument risk path-traversal attacks.
-    """
-    destructive = REGISTRY.destructive_subcommands(cmd_name)
-    if not destructive:
-        return []
-    if not args or args[0] not in destructive:
-        return []
-
-    sub = args[0]
-    diagnostics: list[Diagnostic] = []
-
-    # Skip -force / -- options
-    path_start = 1
-    while path_start < len(args) and args[path_start] in ("-force", "--"):
-        path_start += 1
-
-    for i in range(path_start, len(args)):
-        if i >= len(arg_tokens):
-            break
-        tok = arg_tokens[i]
-        text = args[i]
-
-        # Check for variable or command substitution in path
-        if tok.type in (TokenType.VAR, TokenType.CMD) or _has_substitution(text, tok):
-            diagnostics.append(
-                Diagnostic(
-                    range=range_from_token(tok),
-                    message=(
-                        f"file {sub} with a variable path risks path-traversal. "
-                        "Validate the path with [file normalize] and verify it "
-                        "stays within the intended directory."
-                    ),
-                    severity=Severity.WARNING,
-                    code="W313",
-                )
-            )
-            break  # one diagnostic per command
-
-    return diagnostics

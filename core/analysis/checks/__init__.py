@@ -28,7 +28,6 @@ from ._orchestrator import (
     run_all_checks,
 )
 from ._security import (
-    check_destructive_file_ops,
     check_eval_string_concat,
     check_eval_subst_double_decode,
     check_hardcoded_credentials,

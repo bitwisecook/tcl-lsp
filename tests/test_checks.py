@@ -1224,7 +1224,7 @@ class TestLiteralExpected:
     def test_regexp_pattern_with_var(self):
         diags = _diag_with_code("regexp -- $pattern $text", "W306")
         assert len(diags) == 1
-        assert diags[0].severity == Severity.ERROR
+        assert diags[0].severity == Severity.WARNING
         assert "Literal expected" in diags[0].message
 
     def test_regexp_braced_pattern_clean(self):
@@ -1562,11 +1562,65 @@ $obj custom
 class TestNonAscii:
     """W108 -- tokens with non-standard ASCII characters."""
 
-    def test_non_ascii_character(self):
-        diags = _diag_with_code("set x \u00a9value", "W108")
+    def test_confusable_character_flagged(self):
+        """Default 'confusables' mode flags smart quotes (copy-paste artifact)."""
+        diags = _diag_with_code("set x \u201chello\u201d", "W108")
+        assert len(diags) == 2  # left and right smart quotes
+
+    def test_unicode_confusable_flagged(self):
+        """Default 'confusables' mode flags Unicode homoglyphs (Cyrillic A)."""
+        diags = _diag_with_code("set x \u0410bc", "W108")  # Cyrillic А looks like Latin A
         assert len(diags) == 1
-        assert "ASCII" in diags[0].message
-        assert diags[0].severity == Severity.WARNING
+        assert diags[0].fixes  # should have auto-fix to ASCII
+
+    def test_benign_unicode_skipped_in_default_mode(self):
+        """Default 'confusables' mode allows copyright symbol (not confusable)."""
+        diags = _diag_with_code("set x \u00a9value", "W108")
+        assert len(diags) == 0
+
+    def test_degree_symbol_allowed_in_default_mode(self):
+        """Default 'confusables' mode allows degree symbol (not confusable)."""
+        diags = _diag_with_code("set x {90\u00b0}", "W108")
+        assert len(diags) == 0
+
+    def test_strict_mode_flags_all_non_ascii(self):
+        from core.analysis.checks._style import _non_ascii_mode, set_non_ascii_mode
+
+        prev = _non_ascii_mode
+        set_non_ascii_mode("strict")
+        try:
+            diags = _diag_with_code("set x \u00a9value", "W108")
+            assert len(diags) == 1
+            assert "ASCII" in diags[0].message
+            assert diags[0].severity == Severity.WARNING
+        finally:
+            set_non_ascii_mode(prev)
+
+    def test_common_mode_allows_symbols(self):
+        from core.analysis.checks._style import _non_ascii_mode, set_non_ascii_mode
+
+        prev = _non_ascii_mode
+        set_non_ascii_mode("common")
+        try:
+            # Degree symbol (scientific) should be allowed
+            diags = _diag_with_code("set x {90\u00b0}", "W108")
+            assert len(diags) == 0
+            # But smart quotes (confusables) should still be flagged
+            diags = _diag_with_code("set x \u201chello\u201d", "W108")
+            assert len(diags) == 2
+        finally:
+            set_non_ascii_mode(prev)
+
+    def test_off_mode_disables_w108(self):
+        from core.analysis.checks._style import _non_ascii_mode, set_non_ascii_mode
+
+        prev = _non_ascii_mode
+        set_non_ascii_mode("off")
+        try:
+            diags = _diag_with_code("set x \u201chello\u201d", "W108")
+            assert len(diags) == 0
+        finally:
+            set_non_ascii_mode(prev)
 
     def test_pure_ascii_clean(self):
         diags = _diag_with_code("set x hello", "W108")
@@ -2343,48 +2397,98 @@ class TestInterpEvalInjection:
         assert len(diags) == 0
 
 
-# W313: Destructive file operations with variable path
+# W313: Destructive file operations with variable path (taint-aware)
 
 
 class TestDestructiveFileOps:
-    """W313 -- file delete/rename/mkdir with variable path."""
+    """W313 -- file delete/rename/mkdir with variable path.
+
+    W313 now runs in the taint pipeline (core/compiler/taint/_sinks.py),
+    so tests use _taint_diag_with_code() instead of _diag_with_code().
+    """
 
     def test_file_delete_variable(self):
         """file delete with variable path → W313."""
-        diags = _diag_with_code("file delete $path", "W313")
+        diags = _taint_diag_with_code("set path /tmp/x\nfile delete $path", "W313")
         assert len(diags) == 1
-        assert diags[0].severity == Severity.WARNING
         assert "path-traversal" in diags[0].message.lower()
 
     def test_file_delete_literal_clean(self):
         """file delete with literal path → no W313."""
-        diags = _diag_with_code("file delete /tmp/myfile.txt", "W313")
+        diags = _taint_diag_with_code("file delete /tmp/myfile.txt", "W313")
         assert len(diags) == 0
 
     def test_file_rename_variable(self):
         """file rename with variable source → W313."""
-        diags = _diag_with_code("file rename $src /tmp/dest", "W313")
+        diags = _taint_diag_with_code("set src /tmp/x\nfile rename $src /tmp/dest", "W313")
         assert len(diags) == 1
 
     def test_file_mkdir_variable(self):
         """file mkdir with variable path → W313."""
-        diags = _diag_with_code("file mkdir $dir", "W313")
+        diags = _taint_diag_with_code("set dir /tmp/x\nfile mkdir $dir", "W313")
         assert len(diags) == 1
 
     def test_file_delete_force_variable(self):
         """file delete -force $path → W313 (skips -force flag)."""
-        diags = _diag_with_code("file delete -force $path", "W313")
+        diags = _taint_diag_with_code("set path /tmp/x\nfile delete -force $path", "W313")
         assert len(diags) == 1
 
     def test_file_exists_clean(self):
         """file exists with variable → no W313 (not destructive)."""
-        diags = _diag_with_code("file exists $path", "W313")
+        diags = _taint_diag_with_code("set path /tmp/x\nfile exists $path", "W313")
         assert len(diags) == 0
 
     def test_file_join_clean(self):
         """file join with variable → no W313 (not destructive)."""
-        diags = _diag_with_code("file join $base subdir", "W313")
+        diags = _taint_diag_with_code("set base /tmp\nfile join $base subdir", "W313")
         assert len(diags) == 0
+
+    def test_normalised_only_still_warns(self):
+        """file delete with [file normalize] but no bounds check → still W313."""
+        src = "set norm [file normalize $path]\nfile delete $norm"
+        diags = _taint_diag_with_code(src, "W313")
+        assert len(diags) == 1
+        assert "normalised" in diags[0].message.lower() or "verify" in diags[0].message.lower()
+
+    def test_normalised_and_bounded_suppressed(self):
+        """file delete with normalise + bounds check → no W313."""
+        src = (
+            "set norm [file normalize $path]\n"
+            'if {![string match "$base/*" $norm]} { error outside }\n'
+            "file delete $norm"
+        )
+        diags = _taint_diag_with_code(src, "W313")
+        assert len(diags) == 0
+
+    def test_bounded_inside_true_branch(self):
+        """file delete inside guarded true branch → no W313."""
+        src = (
+            "set norm [file normalize $path]\n"
+            'if {[string match "/safe/*" $norm]} {\n'
+            "    file delete $norm\n"
+            "}"
+        )
+        diags = _taint_diag_with_code(src, "W313")
+        assert len(diags) == 0
+
+    def test_bounded_does_not_leak_to_false_branch(self):
+        """file delete in false branch of guard → still W313."""
+        src = (
+            "set norm [file normalize $path]\n"
+            'if {[string match "/safe/*" $norm]} {\n'
+            "    puts safe\n"
+            "} else {\n"
+            "    file delete $norm\n"
+            "}"
+        )
+        diags = _taint_diag_with_code(src, "W313")
+        assert len(diags) == 1
+
+    def test_unnormalised_path_warns(self):
+        """file delete without normalisation → W313."""
+        src = "set joined [file join $base $name]\nfile delete $joined"
+        diags = _taint_diag_with_code(src, "W313")
+        assert len(diags) == 1
 
 
 # W121: Invalid subnet mask

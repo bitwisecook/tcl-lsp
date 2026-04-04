@@ -564,6 +564,12 @@ def _check_arity(
             )
             return
         sub_name = args[0]
+        # In the IR, $var and ${var} forms represent real substitutions
+        # (braced literals are resolved during lowering).  A $ or [ in
+        # an IR arg always indicates a dynamic value that cannot be
+        # resolved statically — skip the unknown-subcommand check.
+        if "$" in sub_name or "[" in sub_name:
+            return
         sub_sig = sig.subcommands.get(sub_name)
         if sub_sig is None:
             if sig.allow_unknown:

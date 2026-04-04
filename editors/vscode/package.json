@@ -3387,6 +3387,24 @@
             "default": 120,
             "minimum": 40,
             "markdownDescription": "Maximum line length for the **W111** diagnostic. Lines exceeding this limit are flagged.",
+            "order": -2
+          },
+          "tclLsp.style.nonAscii": {
+            "type": "string",
+            "default": "confusables",
+            "enum": [
+              "strict",
+              "confusables",
+              "common",
+              "off"
+            ],
+            "enumDescriptions": [
+              "Flag every non-ASCII character (most restrictive). Default for iRules/iApps.",
+              "Flag Unicode confusables (homoglyphs per unicode.org/Public/security confusables.txt) plus copy-paste artifacts. Default for Tcl.",
+              "Allow intentional Unicode (letters, digits, symbols in any script); only flag confusables and control characters.",
+              "Disable W108 entirely."
+            ],
+            "markdownDescription": "Controls how **W108** (non-ASCII character) is detected.\n\n- **strict**: flag all non-ASCII characters (default for iRules/iApps).\n- **confusables** *(default for Tcl)*: flag Unicode confusables (homoglyphs from the Unicode security spec) and copy-paste artifacts.\n- **common**: allow Unicode letters, symbols, and punctuation; flag only confusables and control characters.\n- **off**: disable W108.",
             "order": -1
           },
           "tclLsp.diagnostics.W001": {
@@ -3646,6 +3664,12 @@
             "default": true,
             "markdownDescription": "**W309:** `eval`/`uplevel` with `subst` — double substitution risk.",
             "order": 11
+          },
+          "tclLsp.diagnostics.W313": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W313:** Destructive file operation with variable path — path-traversal risk.",
+            "order": 12
           }
         }
       },

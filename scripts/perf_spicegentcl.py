@@ -139,8 +139,14 @@ class LspClient:
     def start(self) -> None:
         self.process = subprocess.Popen(
             [
-                "uv", "run", "--directory", self.server_dir,
-                "--no-dev", "python", "-m", self.module,
+                "uv",
+                "run",
+                "--directory",
+                self.server_dir,
+                "--no-dev",
+                "python",
+                "-m",
+                self.module,
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -448,14 +454,17 @@ def _ensure_clone() -> str:
         print(f"  Using cached clone at {clone}")
         subprocess.run(
             ["git", "fetch", "--all", "--tags"],
-            cwd=clone, capture_output=True, timeout=60,
+            cwd=clone,
+            capture_output=True,
+            timeout=60,
         )
     else:
         os.makedirs(str(CLONE_DIR.parent), exist_ok=True)
         print(f"  Cloning {REPO_URL} ...")
         subprocess.run(
             ["git", "clone", REPO_URL, clone],
-            check=True, timeout=120,
+            check=True,
+            timeout=120,
         )
     return clone
 
@@ -463,7 +472,10 @@ def _ensure_clone() -> str:
 def _get_tags(clone_dir: str) -> list[str]:
     result = subprocess.run(
         ["git", "tag", "-l"],
-        cwd=clone_dir, capture_output=True, text=True, timeout=10,
+        cwd=clone_dir,
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     return [t.strip() for t in result.stdout.splitlines() if t.strip()]
 
@@ -472,11 +484,17 @@ def _checkout(clone_dir: str, ref: str) -> str:
     """Checkout *ref* and return the SHA."""
     subprocess.run(
         ["git", "checkout", ref, "--force"],
-        cwd=clone_dir, capture_output=True, check=True, timeout=30,
+        cwd=clone_dir,
+        capture_output=True,
+        check=True,
+        timeout=30,
     )
     result = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"],
-        cwd=clone_dir, capture_output=True, text=True, timeout=10,
+        cwd=clone_dir,
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     return result.stdout.strip()
 
@@ -508,7 +526,10 @@ def _get_lsp_tags() -> list[str]:
     """Return all tcl-lsp version tags from the local repo, sorted."""
     result = subprocess.run(
         ["git", "tag", "-l", "v*"],
-        cwd=str(PROJECT_DIR), capture_output=True, text=True, timeout=10,
+        cwd=str(PROJECT_DIR),
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     tags = [t.strip() for t in result.stdout.splitlines() if t.strip()]
     return sorted(tags, key=_lsp_version_sort_key)
@@ -523,7 +544,10 @@ def _create_worktree(tag: str) -> str:
     os.makedirs(str(WORKTREE_DIR), exist_ok=True)
     subprocess.run(
         ["git", "worktree", "add", "--detach", wt_path, tag],
-        cwd=str(PROJECT_DIR), capture_output=True, check=True, timeout=30,
+        cwd=str(PROJECT_DIR),
+        capture_output=True,
+        check=True,
+        timeout=30,
     )
     return wt_path
 
@@ -533,7 +557,9 @@ def _remove_worktree(wt_path: str) -> None:
     try:
         subprocess.run(
             ["git", "worktree", "remove", "--force", wt_path],
-            cwd=str(PROJECT_DIR), capture_output=True, timeout=30,
+            cwd=str(PROJECT_DIR),
+            capture_output=True,
+            timeout=30,
         )
     except Exception:
         pass
@@ -544,7 +570,9 @@ def _lsp_git_sha(cwd: str | None = None) -> str:
     try:
         return subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],
-            cwd=cwd or str(PROJECT_DIR), text=True, timeout=10,
+            cwd=cwd or str(PROJECT_DIR),
+            text=True,
+            timeout=10,
         ).strip()
     except Exception:
         return "unknown"
@@ -613,7 +641,8 @@ def _bench_files(
         except Exception as exc:
             print(f"    [{i}/{len(tcl_files)}] {rel_path} — FAILED ({exc})")
             client.send_notification(
-                "textDocument/didClose", {"textDocument": {"uri": uri}},
+                "textDocument/didClose",
+                {"textDocument": {"uri": uri}},
             )
             continue
         t_done = time.perf_counter()
@@ -647,30 +676,34 @@ def _bench_files(
             else:
                 file_diags += 1
 
-            all_findings.append({
-                "file_path": rel_path,
-                "line": s.get("line", 0),
-                "character": s.get("character", 0),
-                "end_line": e.get("line", 0),
-                "end_character": e.get("character", 0),
-                "severity": sev,
-                "severity_label": sev_label,
-                "code": code,
-                "message": d.get("message", ""),
-                "source": d.get("source", ""),
-                "category": cat,
-            })
+            all_findings.append(
+                {
+                    "file_path": rel_path,
+                    "line": s.get("line", 0),
+                    "character": s.get("character", 0),
+                    "end_line": e.get("line", 0),
+                    "end_character": e.get("character", 0),
+                    "severity": sev,
+                    "severity_label": sev_label,
+                    "code": code,
+                    "message": d.get("message", ""),
+                    "source": d.get("source", ""),
+                    "category": cat,
+                }
+            )
 
-        file_rows.append({
-            "file_path": rel_path,
-            "lines": n_lines,
-            "tokens": n_tokens,
-            "open_to_tokens_ms": ott_ms,
-            "update_ms": update_ms,
-            "semantic_tokens_ms": sem_ms,
-            "diagnostics": file_diags,
-            "optimisations": file_opts,
-        })
+        file_rows.append(
+            {
+                "file_path": rel_path,
+                "lines": n_lines,
+                "tokens": n_tokens,
+                "open_to_tokens_ms": ott_ms,
+                "update_ms": update_ms,
+                "semantic_tokens_ms": sem_ms,
+                "diagnostics": file_diags,
+                "optimisations": file_opts,
+            }
+        )
 
         print(
             f"    [{i}/{len(tcl_files)}] {rel_path}  "
@@ -679,7 +712,8 @@ def _bench_files(
         )
 
         client.send_notification(
-            "textDocument/didClose", {"textDocument": {"uri": uri}},
+            "textDocument/didClose",
+            {"textDocument": {"uri": uri}},
         )
 
     return file_rows, all_findings
@@ -782,15 +816,18 @@ def bench_lsp_tag(lsp_tag: str, clone_dir: str) -> dict | None:
     # SpiceGenTcl SHA (on main).
     repo_sha = subprocess.check_output(
         ["git", "rev-parse", "--short", "HEAD"],
-        cwd=clone_dir, text=True, timeout=10,
+        cwd=clone_dir,
+        text=True,
+        timeout=10,
     ).strip()
 
     # Pre-warm the venv so uv doesn't spend time installing during startup.
     print("  Warming venv...", end=" ", flush=True)
     subprocess.run(
-        ["uv", "run", "--directory", server_dir, "--no-dev",
-         "python", "-c", "print('ok')"],
-        capture_output=True, timeout=120, cwd=server_dir,
+        ["uv", "run", "--directory", server_dir, "--no-dev", "python", "-c", "print('ok')"],
+        capture_output=True,
+        timeout=120,
+        cwd=server_dir,
     )
     print("done")
 
@@ -851,9 +888,15 @@ def store_result(result: dict) -> None:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                run_id, row["file_path"], row["lines"], row["tokens"],
-                row["open_to_tokens_ms"], row["update_ms"], row["semantic_tokens_ms"],
-                row["diagnostics"], row["optimisations"],
+                run_id,
+                row["file_path"],
+                row["lines"],
+                row["tokens"],
+                row["open_to_tokens_ms"],
+                row["update_ms"],
+                row["semantic_tokens_ms"],
+                row["diagnostics"],
+                row["optimisations"],
             ),
         )
 
@@ -866,9 +909,18 @@ def store_result(result: dict) -> None:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                run_id, f["file_path"], f["line"], f["character"],
-                f["end_line"], f["end_character"], f["severity"], f["severity_label"],
-                f["code"], f["message"], f["source"], f["category"],
+                run_id,
+                f["file_path"],
+                f["line"],
+                f["character"],
+                f["end_line"],
+                f["end_character"],
+                f["severity"],
+                f["severity_label"],
+                f["code"],
+                f["message"],
+                f["source"],
+                f["category"],
             ),
         )
 
@@ -917,16 +969,16 @@ def list_results() -> None:
     latest = runs[-1]
     lsp_label = latest["lsp_version"] or "current"
     print(f"\nLatest run: LSP {lsp_label} vs {latest['tag']} ({latest['git_sha']})")
-    file_rows = db.execute("""
+    file_rows = db.execute(
+        """
         SELECT file_path, lines, tokens, open_to_tokens_ms, diagnostics, optimisations
         FROM file_stats WHERE run_id = ? ORDER BY open_to_tokens_ms DESC
-    """, (latest["id"],)).fetchall()
+    """,
+        (latest["id"],),
+    ).fetchall()
 
     if file_rows:
-        print(
-            f"  {'File':<50s} {'Lines':>6s} {'Tok':>6s} {'OTT':>8s} "
-            f"{'Diag':>5s} {'Opt':>4s}"
-        )
+        print(f"  {'File':<50s} {'Lines':>6s} {'Tok':>6s} {'OTT':>8s} {'Diag':>5s} {'Opt':>4s}")
         print(f"  {'-' * 80}")
         for fr in file_rows:
             print(
@@ -953,11 +1005,14 @@ def main() -> None:
     bench_p.add_argument("--tag", help="Benchmark a single tag (default: all)")
     mode = bench_p.add_mutually_exclusive_group()
     mode.add_argument(
-        "--lsp-tags", action="store_true", default=True,
+        "--lsp-tags",
+        action="store_true",
+        default=True,
         help="Iterate tcl-lsp tags against SpiceGenTcl main (default)",
     )
     mode.add_argument(
-        "--repo-tags", action="store_true",
+        "--repo-tags",
+        action="store_true",
         help="Iterate SpiceGenTcl tags with the current server",
     )
 
@@ -995,7 +1050,9 @@ def main() -> None:
                 # Fetch tags in case they aren't local yet.
                 subprocess.run(
                     ["git", "fetch", "origin", "--tags"],
-                    cwd=str(PROJECT_DIR), capture_output=True, timeout=60,
+                    cwd=str(PROJECT_DIR),
+                    capture_output=True,
+                    timeout=60,
                 )
                 tags = _get_lsp_tags()
                 tags.append("HEAD")
