@@ -1567,9 +1567,20 @@ class TestNonAscii:
         diags = _diag_with_code("set x \u201chello\u201d", "W108")
         assert len(diags) == 2  # left and right smart quotes
 
+    def test_unicode_confusable_flagged(self):
+        """Default 'confusables' mode flags Unicode homoglyphs (Cyrillic A)."""
+        diags = _diag_with_code("set x \u0410bc", "W108")  # Cyrillic А looks like Latin A
+        assert len(diags) == 1
+        assert diags[0].fixes  # should have auto-fix to ASCII
+
     def test_benign_unicode_skipped_in_default_mode(self):
-        """Default 'confusables' mode allows copyright symbol."""
+        """Default 'confusables' mode allows copyright symbol (not confusable)."""
         diags = _diag_with_code("set x \u00a9value", "W108")
+        assert len(diags) == 0
+
+    def test_degree_symbol_allowed_in_default_mode(self):
+        """Default 'confusables' mode allows degree symbol (not confusable)."""
+        diags = _diag_with_code("set x {90\u00b0}", "W108")
         assert len(diags) == 0
 
     def test_strict_mode_flags_all_non_ascii(self):

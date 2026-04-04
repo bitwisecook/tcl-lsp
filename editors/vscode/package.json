@@ -3400,11 +3400,11 @@
             ],
             "enumDescriptions": [
               "Flag every non-ASCII character (most restrictive). Default for iRules/iApps.",
-              "Flag only confusable/copy-paste characters (smart quotes, NBSP, em-dash, emoji) that have ASCII equivalents. Default for Tcl.",
+              "Flag Unicode confusables (homoglyphs per unicode.org/Public/security confusables.txt) plus copy-paste artifacts. Default for Tcl.",
               "Allow intentional Unicode (letters, digits, symbols in any script); only flag confusables and control characters.",
               "Disable W108 entirely."
             ],
-            "markdownDescription": "Controls how **W108** (non-ASCII character) is detected.\n\n- **strict**: flag all non-ASCII characters (default for iRules/iApps).\n- **confusables** *(default for Tcl)*: only flag characters with known ASCII equivalents (smart quotes, NBSP, etc.).\n- **common**: allow Unicode letters, symbols, and punctuation; flag only confusables and control characters.\n- **off**: disable W108.",
+            "markdownDescription": "Controls how **W108** (non-ASCII character) is detected.\n\n- **strict**: flag all non-ASCII characters (default for iRules/iApps).\n- **confusables** *(default for Tcl)*: flag Unicode confusables (homoglyphs from the Unicode security spec) and copy-paste artifacts.\n- **common**: allow Unicode letters, symbols, and punctuation; flag only confusables and control characters.\n- **off**: disable W108.",
             "order": -1
           },
           "tclLsp.diagnostics.W001": {

@@ -973,6 +973,27 @@ def check_name_vs_value(
 _NON_ASCII_RE = re.compile(r"[^\x09\x0a\x0d\x20-\x7e]")
 
 
+# Unicode confusable character data (lazy-loaded).
+_CONFUSABLE_CODEPOINTS: frozenset[str] = frozenset()
+_CONFUSABLE_TO_ASCII: dict[str, str] = {}
+_confusables_loaded = False
+
+
+def _ensure_confusables() -> None:
+    """Lazy-load the Unicode confusables data on first use."""
+    global _CONFUSABLE_CODEPOINTS, _CONFUSABLE_TO_ASCII, _confusables_loaded
+    if _confusables_loaded:
+        return
+    _confusables_loaded = True
+    try:
+        from ._confusables import CONFUSABLE_CODEPOINTS, CONFUSABLE_TO_ASCII
+
+        _CONFUSABLE_CODEPOINTS = CONFUSABLE_CODEPOINTS
+        _CONFUSABLE_TO_ASCII = CONFUSABLE_TO_ASCII
+    except ImportError:
+        pass
+
+
 # W108 non-ASCII mode: "strict" (flag all non-ASCII), "confusables"
 # (only flag confusable / copy-paste artifacts), "common" (allow
 # intentional Unicode, flag only control/zero-width/confusables), "off".
@@ -1151,9 +1172,9 @@ def check_non_ascii(
     Behaviour depends on ``tclLsp.style.nonAscii``:
 
     * **strict** — flag every non-ASCII character (original behaviour).
-    * **confusables** *(default)* — flag only characters with a known
-      ASCII auto-fix (smart quotes, NBSP, em-dash, emoji, etc.) that
-      are likely copy-paste artifacts.
+    * **confusables** *(default)* — flag Unicode confusables (characters
+      that visually resemble ASCII per the Unicode security spec) plus
+      known copy-paste artifacts (smart quotes, NBSP, em-dash, emoji).
     * **common** — allow intentional Unicode (letters, digits, symbols,
       punctuation in any script); flag only control characters,
       zero-width characters, and confusables.
@@ -1176,6 +1197,10 @@ def check_non_ascii(
 
     if mode == "off":
         return []
+
+    # Lazy-load Unicode confusables data on first use.
+    if mode in ("confusables", "common"):
+        _ensure_confusables()
 
     diagnostics: list[Diagnostic] = []
     seen_offsets: set[int] = set()
@@ -1201,14 +1226,19 @@ def check_non_ascii(
             ch = text[bad_idx]
             # Mode-dependent filtering:
             if mode == "confusables":
-                # Only flag characters that have auto-fix mappings (known
-                # copy-paste confusables like smart quotes, NBSP, etc.).
-                if ch not in _AUTO_FIX_MAP:
+                # Flag Unicode confusables (characters that visually
+                # resemble ASCII) using the Unicode confusables spec,
+                # plus known copy-paste artifacts from _AUTO_FIX_MAP.
+                if ch not in _AUTO_FIX_MAP and ch not in _CONFUSABLE_CODEPOINTS:
                     continue
             elif mode == "common":
                 # Allow intentional Unicode (letters, symbols, punctuation
                 # in any script); only flag confusables and control chars.
-                if ch not in _AUTO_FIX_MAP and _is_benign_unicode(ch):
+                if (
+                    ch not in _AUTO_FIX_MAP
+                    and ch not in _CONFUSABLE_CODEPOINTS
+                    and _is_benign_unicode(ch)
+                ):
                     continue
             # "strict" mode: no filtering, flag everything non-ASCII.
             char_start = position_from_relative(
@@ -1228,11 +1258,12 @@ def check_non_ascii(
             char_range = Range(start=char_start, end=char_end)
 
             fixes: tuple[CodeFix, ...] = ()
-            if ch in _AUTO_FIX_MAP:
+            ascii_equiv = _AUTO_FIX_MAP.get(ch) or _CONFUSABLE_TO_ASCII.get(ch)
+            if ascii_equiv:
                 fixes = (
                     CodeFix(
                         range=char_range,
-                        new_text=_AUTO_FIX_MAP[ch],
+                        new_text=ascii_equiv,
                         description="Replace with ASCII equivalent",
                     ),
                 )
