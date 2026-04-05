@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import ArgRole, Arity
 from ._base import _IRULES_ONLY, register
@@ -24,7 +24,7 @@ class CallCommand(CommandDef):
             dialects=_IRULES_ONLY,
             hover=HoverSnippet(
                 summary="Calls an iRule procedure.",
-                synopsis=("call <proc_name> [arg(s)]",),
+                synopsis=("call ?-debug? <proc_name> ?arg ...?",),
                 snippet=(
                     "iRule procedures:\n"
                     "    - Are similar to procedures, functions, subroutines from other languages\n"
@@ -63,7 +63,10 @@ class CallCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="call <proc_name> ?arg ...?",
+                    synopsis="call ?-debug? <proc_name> ?arg ...?",
+                    options=(
+                        OptionSpec(name="-debug", detail="Enable debug mode.", takes_value=False),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

@@ -58,8 +58,14 @@ class CategoryResultCommand(CommandDef):
                     kind=FormKind.DEFAULT,
                     synopsis="CATEGORY::result (('category' ('-display' | '-id')? ('custom' | 'request_default' | 'request_default_and_custom')?) | 'safesearch')",
                     options=(
-                        OptionSpec(name="-display", detail="Option -display.", takes_value=True),
-                        OptionSpec(name="-id", detail="Option -id.", takes_value=True),
+                        OptionSpec(
+                            name="-display",
+                            detail="Return categories in display name format.",
+                            takes_value=False,
+                        ),
+                        OptionSpec(
+                            name="-id", detail="Return categories in ID format.", takes_value=False
+                        ),
                     ),
                     arg_values={
                         0: (

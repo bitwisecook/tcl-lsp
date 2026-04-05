@@ -177,7 +177,6 @@ class StringCommand(CommandDef):
                     options=(
                         OptionSpec(name="-nocase"),
                         OptionSpec(name="-length", takes_value=True, value_hint="int"),
-                        OptionSpec(name="--"),
                     ),
                 ),
                 "equal": SubCommand(
@@ -191,7 +190,6 @@ class StringCommand(CommandDef):
                     options=(
                         OptionSpec(name="-nocase"),
                         OptionSpec(name="-length", takes_value=True, value_hint="int"),
-                        OptionSpec(name="--"),
                     ),
                 ),
                 "first": SubCommand(
@@ -263,7 +261,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_match,
                     return_type=TclType.BOOLEAN,
-                    options=(OptionSpec(name="-nocase"), OptionSpec(name="--")),
+                    options=(OptionSpec(name="-nocase"),),
                 ),
                 "range": SubCommand(
                     name="range",

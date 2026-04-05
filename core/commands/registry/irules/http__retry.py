@@ -51,7 +51,13 @@ class HttpRetryCommand(CommandDef):
                 FormSpec(
                     kind=FormKind.DEFAULT,
                     synopsis="HTTP::retry ('-reset')? HTTP_REQUEST",
-                    options=(OptionSpec(name="-reset", detail="Option -reset.", takes_value=True),),
+                    options=(
+                        OptionSpec(
+                            name="-reset",
+                            detail="Reset the server-side connection.",
+                            takes_value=False,
+                        ),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

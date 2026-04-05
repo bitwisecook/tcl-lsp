@@ -54,7 +54,13 @@ class MembersCommand(CommandDef):
                 FormSpec(
                     kind=FormKind.DEFAULT,
                     synopsis="members ('-list')? (POOL_OBJ)",
-                    options=(OptionSpec(name="-list", detail="Option -list.", takes_value=True),),
+                    options=(
+                        OptionSpec(
+                            name="-list",
+                            detail="Return as list instead of count.",
+                            takes_value=False,
+                        ),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

@@ -38,7 +38,9 @@ class AclEvalCommand(CommandDef):
                 FormSpec(
                     kind=FormKind.DEFAULT,
                     synopsis="ACL::eval ('-l7')?",
-                    options=(OptionSpec(name="-l7", detail="Option -l7.", takes_value=True),),
+                    options=(
+                        OptionSpec(name="-l7", detail="Evaluate L7 ACLs.", takes_value=False),
+                    ),
                 ),
             ),
             validation=ValidationSpec(

@@ -26,7 +26,7 @@ _av = make_av(_SOURCE)
 _WRITE_SUBS = frozenset({"set", "add", "replace", "incr", "append", "delete"})
 _READ_SUBS = frozenset({"lookup", "keys", "timeout", "lifetime"})
 _TERMINATOR_SUBS = frozenset(
-    {"set", "add", "replace", "lookup", "incr", "append", "delete", "timeout", "lifetime"}
+    {"set", "add", "replace", "lookup", "incr", "append", "delete", "timeout", "lifetime", "keys"}
 )
 
 
@@ -154,7 +154,7 @@ class TableCommand(CommandDef):
                             _av(
                                 "keys",
                                 "List table keys.",
-                                "table keys ?-subtable name? ?-notouch? ?-count? ?pattern?",
+                                "table keys ?-subtable name? ?-notouch? ?-count? ?--? ?pattern?",
                             ),
                         )
                     },

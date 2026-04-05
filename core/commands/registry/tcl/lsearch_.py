@@ -41,7 +41,6 @@ class LsearchCommand(CommandDef):
                         OptionSpec(name="-bisect"),
                         OptionSpec(name="-index", takes_value=True, value_hint="index"),
                         OptionSpec(name="-subindices"),
-                        OptionSpec(name="--", detail="End of options."),
                     ),
                 ),
             ),

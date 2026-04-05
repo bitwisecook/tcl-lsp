@@ -603,6 +603,7 @@
       "subcommands": [
         "alias",
         "aliases",
+        "cancel",
         "create",
         "delete",
         "eval",

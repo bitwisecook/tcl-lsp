@@ -7,7 +7,15 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..dialects import DIALECTS_EXCEPT_IRULES
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    OptionSpec,
+    SubCommand,
+    ValidationSpec,
+)
 from ..signatures import ArgRole, Arity
 from ._base import register
 
@@ -52,7 +60,7 @@ class InterpCommand(CommandDef):
                             _av(
                                 "create",
                                 "Creates a child interpreter identified by path and a new command, called a child command.",
-                                "interp create ?-safe? ?-|-? ?path?",
+                                "interp create ?-safe? ?--? ?path?",
                             ),
                             _av(
                                 "delete",
@@ -87,7 +95,7 @@ class InterpCommand(CommandDef):
                             _av(
                                 "invokehidden",
                                 "Invokes the hidden command hiddenCmdName with the arguments supplied in the interpreter denoted by path.",
-                                "interp invokehidden path ?-option ...? hiddenCmdName ?arg ...?",
+                                "interp invokehidden path ?-global? ?-namespace ns? ?--? hiddenCmdName ?arg ...?",
                             ),
                             _av(
                                 "issafe",
@@ -133,7 +141,7 @@ class InterpCommand(CommandDef):
                             _av(
                                 "cancel",
                                 "Cancels the script being evaluated in the interpreter identified by path.",
-                                "interp cancel ?-unwind? ?-|-? ?path? ?result?",
+                                "interp cancel ?-unwind? ?--? ?path? ?result?",
                             ),
                             _av(
                                 "children",
@@ -168,8 +176,9 @@ class InterpCommand(CommandDef):
                     name="create",
                     arity=Arity(0),
                     detail="Creates a child interpreter identified by path and a new command, called a child command.",
-                    synopsis="interp create ?-safe? ?-|-? ?path?",
+                    synopsis="interp create ?-safe? ?--? ?path?",
                     return_type=TclType.STRING,
+                    options=(OptionSpec(name="-safe"), OptionSpec(name="--")),
                 ),
                 "delete": SubCommand(
                     name="delete",
@@ -214,12 +223,25 @@ class InterpCommand(CommandDef):
                     synopsis="interp hide path exposedCmdName ?hiddenCmdName?",
                     return_type=TclType.STRING,
                 ),
+                "cancel": SubCommand(
+                    name="cancel",
+                    arity=Arity(0),
+                    detail="Cancels the script being evaluated in the interpreter identified by path.",
+                    synopsis="interp cancel ?-unwind? ?--? ?path? ?result?",
+                    return_type=TclType.STRING,
+                    options=(OptionSpec(name="-unwind"), OptionSpec(name="--")),
+                ),
                 "invokehidden": SubCommand(
                     name="invokehidden",
                     arity=Arity(2),
                     detail="Invokes the hidden command hiddenCmdName with the arguments supplied in the interpreter denoted by path.",
-                    synopsis="interp invokehidden path ?-option ...? hiddenCmdName ?arg ...?",
+                    synopsis="interp invokehidden path ?-global? ?-namespace ns? ?--? hiddenCmdName ?arg ...?",
                     return_type=TclType.STRING,
+                    options=(
+                        OptionSpec(name="-global"),
+                        OptionSpec(name="-namespace", takes_value=True, value_hint="ns"),
+                        OptionSpec(name="--"),
+                    ),
                 ),
                 "issafe": SubCommand(
                     name="issafe",

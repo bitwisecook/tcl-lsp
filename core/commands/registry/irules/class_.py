@@ -97,12 +97,12 @@ class ClassCommand(CommandDef):
                             _av(
                                 "lookup",
                                 "Return the value paired with a name.",
-                                "class lookup ?--? <name> <class>",
+                                "class lookup <name> <class>",
                             ),
                             _av(
                                 "element",
                                 "Return an element by index.",
-                                "class element ?-value|-name? <index> <class>",
+                                "class element ?-value|-name? ?--? <index> <class>",
                             ),
                             _av(
                                 "type",
@@ -114,9 +114,13 @@ class ClassCommand(CommandDef):
                             _av(
                                 "names",
                                 "Return list of data group names.",
-                                "class names ?-nocase? ?pattern?",
+                                "class names ?-nocase? ?-list? ?--? <class> ?pattern?",
                             ),
-                            _av("get", "Return all elements as a list.", "class get <class>"),
+                            _av(
+                                "get",
+                                "Return all elements as a list.",
+                                "class get ?-nocase? ?-list? ?--? <class> ?pattern?",
+                            ),
                             _av(
                                 "startsearch",
                                 "Begin iterating over a data group.",
@@ -181,19 +185,19 @@ class ClassCommand(CommandDef):
                     name="lookup",
                     arity=Arity(2, 2),
                     detail="Return the value paired with a name.",
-                    synopsis="class lookup ?--? <name> <class>",
+                    synopsis="class lookup <name> <class>",
                     pure=True,
-                    options=(OptionSpec(name="--"),),
                 ),
                 "element": SubCommand(
                     name="element",
                     arity=Arity(2, 2),
                     detail="Return an element by index.",
-                    synopsis="class element ?-value|-name? <index> <class>",
+                    synopsis="class element ?-value|-name? ?--? <index> <class>",
                     pure=True,
                     options=(
                         OptionSpec(name="-value", detail="Return value instead of name."),
                         OptionSpec(name="-name", detail="Return name."),
+                        OptionSpec(name="--"),
                     ),
                 ),
                 "type": SubCommand(
@@ -219,18 +223,27 @@ class ClassCommand(CommandDef):
                 ),
                 "names": SubCommand(
                     name="names",
-                    arity=Arity(0, 1),
+                    arity=Arity(1, 2),
                     detail="Return list of data group names.",
-                    synopsis="class names ?-nocase? ?pattern?",
+                    synopsis="class names ?-nocase? ?-list? ?--? <class> ?pattern?",
                     pure=True,
-                    options=(OptionSpec(name="-nocase", detail="Case-insensitive comparison."),),
+                    options=(
+                        OptionSpec(name="-nocase", detail="Case-insensitive comparison."),
+                        OptionSpec(name="-list", detail="Return value always as a list."),
+                        OptionSpec(name="--"),
+                    ),
                 ),
                 "get": SubCommand(
                     name="get",
-                    arity=Arity(1, 1),
+                    arity=Arity(1, 2),
                     detail="Return all elements as a list.",
-                    synopsis="class get <class>",
+                    synopsis="class get ?-nocase? ?-list? ?--? <class> ?pattern?",
                     pure=True,
+                    options=(
+                        OptionSpec(name="-nocase", detail="Case-insensitive comparison."),
+                        OptionSpec(name="-list", detail="Return value always as a list."),
+                        OptionSpec(name="--"),
+                    ),
                 ),
                 "startsearch": SubCommand(
                     name="startsearch",
