@@ -95,7 +95,7 @@ class InterpCommand(CommandDef):
                             _av(
                                 "invokehidden",
                                 "Invokes the hidden command hiddenCmdName with the arguments supplied in the interpreter denoted by path.",
-                                "interp invokehidden path ?-global? ?-namespace? ?--? hiddenCmdName ?arg ...?",
+                                "interp invokehidden path ?-global? ?-namespace ns? ?--? hiddenCmdName ?arg ...?",
                             ),
                             _av(
                                 "issafe",
@@ -235,11 +235,11 @@ class InterpCommand(CommandDef):
                     name="invokehidden",
                     arity=Arity(2),
                     detail="Invokes the hidden command hiddenCmdName with the arguments supplied in the interpreter denoted by path.",
-                    synopsis="interp invokehidden path ?-global? ?-namespace? ?--? hiddenCmdName ?arg ...?",
+                    synopsis="interp invokehidden path ?-global? ?-namespace ns? ?--? hiddenCmdName ?arg ...?",
                     return_type=TclType.STRING,
                     options=(
                         OptionSpec(name="-global"),
-                        OptionSpec(name="-namespace"),
+                        OptionSpec(name="-namespace", takes_value=True, value_hint="ns"),
                         OptionSpec(name="--"),
                     ),
                 ),
