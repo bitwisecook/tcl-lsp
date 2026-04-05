@@ -95,7 +95,7 @@ class InterpCommand(CommandDef):
                             _av(
                                 "invokehidden",
                                 "Invokes the hidden command hiddenCmdName with the arguments supplied in the interpreter denoted by path.",
-                                "interp invokehidden path ?-option ...? hiddenCmdName ?arg ...?",
+                                "interp invokehidden path ?-global? ?-namespace? ?--? hiddenCmdName ?arg ...?",
                             ),
                             _av(
                                 "issafe",

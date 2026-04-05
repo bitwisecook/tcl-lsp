@@ -154,7 +154,7 @@ class TableCommand(CommandDef):
                             _av(
                                 "keys",
                                 "List table keys.",
-                                "table keys ?-subtable name? ?-notouch? ?-count? ?pattern?",
+                                "table keys ?-subtable name? ?-notouch? ?-count? ?--? ?pattern?",
                             ),
                         )
                     },
