@@ -1996,7 +1996,10 @@ async def _publish_diagnostics(
 
     # Snapshot config values before entering the thread — these are
     # only mutated on the event loop so reading them here is safe.
-    diagnostics_enabled = feature_config.diagnostics_enabled
+    # NOTE: diagnostics_enabled is intentionally NOT snapshotted here.
+    # It is re-read from feature_config after the analysis await so
+    # that configuration changes (e.g. the pull-model response arriving
+    # while analysis is in-flight) take effect immediately.
     disabled_diagnostics = set(feature_config.disabled_diagnostics)
     line_length = feature_config.line_length
     optimiser_enabled = feature_config.optimiser_enabled
@@ -2096,7 +2099,7 @@ async def _publish_diagnostics(
         except Exception:
             pass  # client may not support refresh
 
-    if not diagnostics_enabled:
+    if not feature_config.diagnostics_enabled:
         basic_diags: list[types.Diagnostic] = []
         analysis_result = None
         suppressed: set[str] = set()
@@ -2140,7 +2143,7 @@ async def _publish_diagnostics(
         phase1_ms = (time.perf_counter() - t_phase1) * 1000
         log.info("[timing] phase1 diagnostics %.0fms (diags=%d)", phase1_ms, len(basic_diags))
 
-    if not diagnostics_enabled:
+    if not feature_config.diagnostics_enabled:
         _publish_diags_to_client(uri, [], version)
         _update_workspace_index(uri, source, state)
         return
@@ -3348,6 +3351,16 @@ def _apply_all_settings_now() -> None:
                 state.version,
                 force_reanalyse=signatures_changed,
             )
+
+    # When the diagnostics master switch was just turned off, clear
+    # diagnostics for files still mid-analysis (analysis is None).
+    # The loop above skips these to avoid redundant rebuilds, but we
+    # must still publish empty diagnostics so the editor removes any
+    # stale markers immediately.
+    if features_changed and not feature_config.diagnostics_enabled:
+        for uri, state in workspace_state.items():
+            if state.analysis is None:
+                _publish_diags_to_client(uri, [], state.version)
 
 
 def _pull_and_apply_configuration() -> None:

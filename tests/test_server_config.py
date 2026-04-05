@@ -142,6 +142,12 @@ class TestApplyFeatureSettings:
         assert cfg.hover_enabled is False
         assert cfg.completion_enabled is False
 
+    def test_diagnostics_master_toggle(self):
+        """Toggling features.diagnostics to False disables diagnostics_enabled."""
+        changed, cfg = self._with_fresh_config({"features": {"diagnostics": False}})
+        assert changed
+        assert cfg.diagnostics_enabled is False
+
     def test_style_line_length(self):
         changed, cfg = self._with_fresh_config({"style": {"lineLength": 80}})
         assert changed
