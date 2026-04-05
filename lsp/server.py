@@ -3306,6 +3306,7 @@ def _apply_all_settings_now() -> None:
             feature_config.dialect_explicitly_set,
         )
 
+    diags_were_enabled = feature_config.diagnostics_enabled
     features_changed = _apply_feature_settings(tcl_settings)
 
     if not signatures_changed and not features_changed:
@@ -3357,7 +3358,7 @@ def _apply_all_settings_now() -> None:
     # The loop above skips these to avoid redundant rebuilds, but we
     # must still publish empty diagnostics so the editor removes any
     # stale markers immediately.
-    if features_changed and not feature_config.diagnostics_enabled:
+    if diags_were_enabled and not feature_config.diagnostics_enabled:
         for uri, state in workspace_state.items():
             if state.analysis is None:
                 _publish_diags_to_client(uri, [], state.version)
