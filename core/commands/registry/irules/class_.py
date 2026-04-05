@@ -223,7 +223,7 @@ class ClassCommand(CommandDef):
                 ),
                 "names": SubCommand(
                     name="names",
-                    arity=Arity(0, 1),
+                    arity=Arity(1, 2),
                     detail="Return list of data group names.",
                     synopsis="class names ?-nocase? ?-list? ?--? <class> ?pattern?",
                     pure=True,
@@ -235,7 +235,7 @@ class ClassCommand(CommandDef):
                 ),
                 "get": SubCommand(
                     name="get",
-                    arity=Arity(1, 1),
+                    arity=Arity(1, 2),
                     detail="Return all elements as a list.",
                     synopsis="class get ?-nocase? ?-list? ?--? <class> ?pattern?",
                     pure=True,
