@@ -690,13 +690,27 @@ class TestMissingOptionTerminator:
         diags = _diag_with_code("glob *.tcl", "W304")
         assert len(diags) == 0
 
-    def test_string_match_variable_pattern_without_terminator(self):
+    def test_string_match_not_checked_by_w304(self):
+        # string match does not support -- in real Tcl.
         diags = _diag_with_code("string match $pattern $value", "W304")
+        assert len(diags) == 0
+
+    def test_lsearch_not_checked_by_w304(self):
+        # lsearch does not support -- in real Tcl.
+        diags = _diag_with_code("lsearch -exact $domain c", "W304")
+        assert len(diags) == 0
+
+    def test_file_delete_variable_without_terminator(self):
+        diags = _diag_with_code("file delete $path", "W304")
         assert len(diags) == 1
 
-    def test_string_match_with_terminator_clean(self):
-        diags = _diag_with_code("string match -- $pattern $value", "W304")
+    def test_file_delete_with_terminator_clean(self):
+        diags = _diag_with_code("file delete -- $path", "W304")
         assert len(diags) == 0
+
+    def test_load_variable_without_terminator(self):
+        diags = _diag_with_code("load $fileName", "W304")
+        assert len(diags) == 1
 
     def test_switch_static_variable_value_is_info(self):
         source = (

@@ -7,7 +7,15 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..dialects import DIALECTS_EXCEPT_IRULES
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    OptionSpec,
+    SubCommand,
+    ValidationSpec,
+)
 from ..signatures import ArgRole, Arity
 from ..taint_hints import TaintColour
 from ._base import register
@@ -57,12 +65,12 @@ class FileCommand(CommandDef):
                             _av(
                                 "copy",
                                 "file copy ?-force?",
-                                "file copy ?-force? ?-|-? source target",
+                                "file copy ?-force? ?--? source target",
                             ),
                             _av(
                                 "delete",
                                 "Removes the file or directory specified by each pathname argument.",
-                                "file delete ?-force? ?-|-? ?pathname ... ?",
+                                "file delete ?-force? ?--? ?pathname ...?",
                             ),
                             _av(
                                 "dirname",
@@ -150,7 +158,7 @@ class FileCommand(CommandDef):
                             _av(
                                 "rename",
                                 "file rename ?-force?",
-                                "file rename ?-force? ?-|-? source target",
+                                "file rename ?-force? ?--? source target",
                             ),
                             _av(
                                 "rootname",
@@ -252,16 +260,18 @@ class FileCommand(CommandDef):
                     name="copy",
                     arity=Arity(2),
                     detail="file copy ?-force?",
-                    synopsis="file copy ?-force? ?-|-? source target",
+                    synopsis="file copy ?-force? ?--? source target",
                     return_type=TclType.STRING,
+                    options=(OptionSpec(name="-force"), OptionSpec(name="--")),
                 ),
                 "delete": SubCommand(
                     name="delete",
                     arity=Arity(1),
                     detail="Removes the file or directory specified by each pathname argument.",
-                    synopsis="file delete ?-force? ?-|-? ?pathname ... ?",
+                    synopsis="file delete ?-force? ?--? ?pathname ...?",
                     return_type=TclType.STRING,
                     destructive=True,
+                    options=(OptionSpec(name="-force"), OptionSpec(name="--")),
                 ),
                 "dirname": SubCommand(
                     name="dirname",
@@ -396,9 +406,10 @@ class FileCommand(CommandDef):
                     name="rename",
                     arity=Arity(2),
                     detail="file rename ?-force?",
-                    synopsis="file rename ?-force? ?-|-? source target",
+                    synopsis="file rename ?-force? ?--? source target",
                     return_type=TclType.STRING,
                     destructive=True,
+                    options=(OptionSpec(name="-force"), OptionSpec(name="--")),
                 ),
                 "rootname": SubCommand(
                     name="rootname",

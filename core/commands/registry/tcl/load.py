@@ -7,7 +7,7 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..signatures import Arity
 from ._base import register
 
@@ -37,6 +37,11 @@ class LoadCommand(CommandDef):
                 FormSpec(
                     kind=FormKind.DEFAULT,
                     synopsis="load ?-global? ?-lazy? ?--? fileName",
+                    options=(
+                        OptionSpec(name="-global"),
+                        OptionSpec(name="-lazy"),
+                        OptionSpec(name="--"),
+                    ),
                 ),
             ),
             validation=ValidationSpec(
