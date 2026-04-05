@@ -24,7 +24,10 @@ class Http2PushCommand(CommandDef):
             dialects=_IRULES_ONLY,
             hover=HoverSnippet(
                 summary="Accepts a resource as a parameter that can be pushed to the client using PUSH_PROMISE frames in HTTP/2 stream.",
-                synopsis=("HTTP2::push PUSH_URI_STRING",),
+                synopsis=(
+                    "HTTP2::push <uri> ?-priority num? ?-nohost? <request headers>",
+                    "HTTP2::push <uri> ?-priority num? ?-content data | -ifile file? ?-noserver? ?-nohost? <request headers> -- <response headers>",
+                ),
                 snippet=(
                     "This command has two variants.\n"
                     "\n"
@@ -40,7 +43,7 @@ class Http2PushCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="HTTP2::push PUSH_URI_STRING ?options? ?headers...?",
+                    synopsis="HTTP2::push <uri> ?options? ?request headers ...? ?-- response headers ...?",
                     options=(
                         OptionSpec(
                             name="-priority",

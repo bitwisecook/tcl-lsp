@@ -255,18 +255,18 @@ class AccessSessionCommand(CommandDef):
                     name="data",
                     arity=Arity(1),
                     detail="Get or set session data.",
-                    synopsis="ACCESS::session data <get|set> ?-sid id? <key> ?value?",
+                    synopsis="ACCESS::session data <get|set> ?-sid id? <key> ?--? ?value?",
                     arg_values={
                         0: (
                             _av(
                                 "get",
                                 "Get session variable value.",
-                                "ACCESS::session data get ?-sid id? <key>",
+                                "ACCESS::session data get ?-sid id? ?-secure|-config? <key> ?-ssid id?",
                             ),
                             _av(
                                 "set",
                                 "Set session variable value.",
-                                "ACCESS::session data set ?-sid id? <key> <value>",
+                                "ACCESS::session data set ?-sid id? ?-secure? <key> ?--? ?value?",
                             ),
                         )
                     },
@@ -289,6 +289,7 @@ class AccessSessionCommand(CommandDef):
                             takes_value=True,
                             value_hint="SESSION_ID",
                         ),
+                        OptionSpec(name="--"),
                     ),
                     side_effect_hints=_WRITE_EFFECT,
                 ),

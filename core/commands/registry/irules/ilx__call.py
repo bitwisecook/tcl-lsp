@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -24,7 +24,7 @@ class IlxCallCommand(CommandDef):
             dialects=_IRULES_ONLY,
             hover=HoverSnippet(
                 summary="Calls an ILX method.",
-                synopsis=("ILX::call HANDLE",),
+                synopsis=("ILX::call HANDLE ?-timeout ms? ?--? METHOD ?args ...?",),
                 snippet="Make a call to a method defined within the plugin extension referenced by the handle.  Provide the method with the arguments listed in ARGS, do not continue processing the iRule until a response is received.",
                 source=_SOURCE,
                 examples=(
@@ -40,7 +40,16 @@ class IlxCallCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="ILX::call HANDLE",
+                    synopsis="ILX::call HANDLE ?-timeout ms? ?--? METHOD ?args ...?",
+                    options=(
+                        OptionSpec(
+                            name="-timeout",
+                            detail="Timeout in milliseconds.",
+                            takes_value=True,
+                            value_hint="MSEC",
+                        ),
+                        OptionSpec(name="--"),
+                    ),
                 ),
             ),
             validation=ValidationSpec(
