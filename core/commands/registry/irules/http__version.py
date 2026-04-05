@@ -49,9 +49,14 @@ class HttpVersionCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="HTTP::version ('0.9' | '1.0' | '1.1')?",
+                    synopsis="HTTP::version ('0.9' | '1.0' | '1.1')?\nHTTP::version -string ?value?",
                     options=(
-                        OptionSpec(name="-string", detail="Option -string.", takes_value=True),
+                        OptionSpec(
+                            name="-string",
+                            detail="Get/set version as raw string.",
+                            takes_value=True,
+                            value_hint="version",
+                        ),
                     ),
                 ),
             ),
