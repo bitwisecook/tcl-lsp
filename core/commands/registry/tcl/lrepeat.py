@@ -35,7 +35,7 @@ class LrepeatCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(2),
+                arity=Arity(1),
             ),
             pure=True,
             const_fold=fold_lrepeat,

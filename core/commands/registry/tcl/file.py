@@ -328,14 +328,15 @@ class FileCommand(CommandDef):
                 ),
                 "link": SubCommand(
                     name="link",
-                    arity=Arity(1),
+                    arity=Arity(1, 2),
                     return_type=TclType.STRING,
+                    options=(OptionSpec(name="-symbolic"), OptionSpec(name="-hard")),
                     detail="If only one argument is given, that argument is assumed to be linkName, and this command returns the value of the link given by linkName (i.e.",
                     synopsis="file link ?-linktype? linkName ?target?",
                 ),
                 "lstat": SubCommand(
                     name="lstat",
-                    arity=Arity(2, 2),
+                    arity=Arity(1, 2),
                     detail="Same as stat option (see below) except uses the lstat kernel call instead of stat.",
                     synopsis="file lstat name ?varName?",
                     return_type=TclType.STRING,
@@ -442,7 +443,7 @@ class FileCommand(CommandDef):
                 ),
                 "stat": SubCommand(
                     name="stat",
-                    arity=Arity(2, 2),
+                    arity=Arity(1, 2),
                     detail="Invokes the stat kernel call on name, and returns a dictionary with the information returned from the kernel call.",
                     synopsis="file stat name ?varName?",
                     return_type=TclType.STRING,
@@ -453,7 +454,7 @@ class FileCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns a list of one or two elements, the first of which is the name of the filesystem to use for the file, and the second, if given, an arbitrary string representing the filesystem-specific nature or type of the locat…",
                     synopsis="file system name",
-                    return_type=TclType.STRING,
+                    return_type=TclType.LIST,
                 ),
                 "tail": SubCommand(
                     name="tail",

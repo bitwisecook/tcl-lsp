@@ -160,7 +160,7 @@ class InterpCommand(CommandDef):
             subcommands={
                 "alias": SubCommand(
                     name="alias",
-                    arity=Arity(1),
+                    arity=Arity(2),
                     detail="Returns a Tcl list whose elements are the targetCmd and args associated with the alias represented by srcToken (this is the value returned when the alias was created; it is possible that the name of the source command i…",
                     synopsis="interp alias srcPath srcToken",
                     return_type=TclType.STRING,
@@ -174,7 +174,7 @@ class InterpCommand(CommandDef):
                 ),
                 "create": SubCommand(
                     name="create",
-                    arity=Arity(0),
+                    arity=Arity(0, 1),
                     detail="Creates a child interpreter identified by path and a new command, called a child command.",
                     synopsis="interp create ?-safe? ?--? ?path?",
                     return_type=TclType.STRING,
@@ -182,7 +182,7 @@ class InterpCommand(CommandDef):
                 ),
                 "delete": SubCommand(
                     name="delete",
-                    arity=Arity(1),
+                    arity=Arity(0),
                     detail="Deletes zero or more interpreters given by the optional path arguments, and for each interpreter, it also deletes its children.",
                     synopsis="interp delete ?path ...?",
                     return_type=TclType.STRING,
@@ -211,7 +211,7 @@ class InterpCommand(CommandDef):
                 ),
                 "hidden": SubCommand(
                     name="hidden",
-                    arity=Arity(0, 1),
+                    arity=Arity(1, 1),
                     detail="Returns a list of the names of all hidden commands in the interpreter identified by path.",
                     synopsis="interp hidden path",
                     return_type=TclType.LIST,
@@ -225,7 +225,7 @@ class InterpCommand(CommandDef):
                 ),
                 "cancel": SubCommand(
                     name="cancel",
-                    arity=Arity(0),
+                    arity=Arity(0, 2),
                     detail="Cancels the script being evaluated in the interpreter identified by path.",
                     synopsis="interp cancel ?-unwind? ?--? ?path? ?result?",
                     return_type=TclType.STRING,
@@ -281,8 +281,8 @@ class InterpCommand(CommandDef):
                 "slaves": SubCommand(
                     name="slaves",
                     arity=Arity(0, 1),
-                    detail="interp slaves",
-                    synopsis="interp slaves",
+                    detail="Returns a Tcl list of the names of all the child interpreters.",
+                    synopsis="interp slaves ?path?",
                     return_type=TclType.LIST,
                 ),
                 "target": SubCommand(

@@ -136,7 +136,7 @@ class EncodingCommand(CommandDef):
                 ),
                 "user": SubCommand(
                     name="user",
-                    arity=Arity(0, 1),
+                    arity=Arity(0, 0),
                     detail="Query or set user encoding.",
                     synopsis="encoding user ?encoding?",
                 ),

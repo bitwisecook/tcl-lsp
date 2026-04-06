@@ -105,7 +105,7 @@ class ClockCommand(CommandDef):
             subcommands={
                 "add": SubCommand(
                     name="add",
-                    arity=Arity(2),
+                    arity=Arity(1),
                     detail="Add a duration to a clock value.",
                     synopsis="clock add timeVal count unit ?count unit ...?",
                     pure=True,

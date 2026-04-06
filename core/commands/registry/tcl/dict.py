@@ -190,7 +190,7 @@ class DictCommand(CommandDef):
                 ),
                 "filter": SubCommand(
                     name="filter",
-                    arity=Arity(3),
+                    arity=Arity(2),
                     detail="This takes a dictionary value and returns a new dictionary that contains just those key/value pairs that match the specified filter type (which may be abbreviated.) Supported filter types are: dict filter dictionaryValu…",
                     synopsis="dict filter dictionaryValue filterType arg ?arg ...?",
                     return_type=TclType.DICT,
@@ -317,7 +317,7 @@ class DictCommand(CommandDef):
                 ),
                 "update": SubCommand(
                     name="update",
-                    arity=Arity(3),
+                    arity=Arity(4),
                     detail="Execute the Tcl script in body with the value for each key (as found by reading the dictionary value in dictionaryVariable) mapped to the variable varName.",
                     synopsis="dict update dictionaryVariable key varName ?key varName ...? body",
                     arg_roles={0: ArgRole.VAR_NAME},

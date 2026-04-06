@@ -61,7 +61,7 @@ class RegsubCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(3),
+                arity=Arity(3, 4),
             ),
             pattern_type=PatternType.REGEX,
             return_type=TclType.INT,

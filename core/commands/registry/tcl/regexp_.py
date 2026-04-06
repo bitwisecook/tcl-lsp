@@ -56,6 +56,7 @@ class RegexpCommand(CommandDef):
                         OptionSpec(name="-inline"),
                         OptionSpec(name="-indices"),
                         OptionSpec(name="-start", takes_value=True, value_hint="index"),
+                        OptionSpec(name="-about"),
                         OptionSpec(name="--"),
                     ),
                 ),
