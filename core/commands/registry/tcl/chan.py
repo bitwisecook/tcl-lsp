@@ -281,6 +281,7 @@ class ChanCommand(CommandDef):
                 ),
                 "isbinary": SubCommand(
                     name="isbinary",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(1, 1),
                     detail="Test whether channel is binary.",
                     synopsis="chan isbinary channelId",
@@ -326,6 +327,7 @@ class ChanCommand(CommandDef):
                 ),
                 "pipe": SubCommand(
                     name="pipe",
+                    dialects=frozenset({"tcl8.6", "tcl9.0"}),
                     arity=Arity(0, 0),
                     detail="Create a pair of connected channels.",
                     synopsis="chan pipe",
@@ -340,6 +342,7 @@ class ChanCommand(CommandDef):
                 ),
                 "pop": SubCommand(
                     name="pop",
+                    dialects=frozenset({"tcl8.6", "tcl9.0"}),
                     arity=Arity(1, 1),
                     detail="Remove topmost stacked transformation.",
                     synopsis="chan pop channelId",
@@ -368,6 +371,7 @@ class ChanCommand(CommandDef):
                 ),
                 "push": SubCommand(
                     name="push",
+                    dialects=frozenset({"tcl8.6", "tcl9.0"}),
                     arity=Arity(2, 2),
                     detail="Push a transformation on top of a channel.",
                     synopsis="chan push channelId cmdPrefix",

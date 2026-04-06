@@ -56,18 +56,21 @@ class TraceCommand(CommandDef):
                 ),
                 "variable": SubCommand(
                     name="variable",
+                    dialects=frozenset({"tcl8.4", "tcl8.5", "tcl8.6"}),
                     arity=Arity(3, 3),
                     detail="Arrange for command to be executed whenever variable name is accessed. Deprecated in favour of trace add variable.",
                     synopsis="trace variable name ops command",
                 ),
                 "vdelete": SubCommand(
                     name="vdelete",
+                    dialects=frozenset({"tcl8.4", "tcl8.5", "tcl8.6"}),
                     arity=Arity(3, 3),
                     detail="Delete a variable trace. Deprecated in favour of trace remove variable.",
                     synopsis="trace vdelete name ops command",
                 ),
                 "vinfo": SubCommand(
                     name="vinfo",
+                    dialects=frozenset({"tcl8.4", "tcl8.5", "tcl8.6"}),
                     arity=Arity(1, 1),
                     detail="Return trace information for the given variable. Deprecated in favour of trace info variable.",
                     synopsis="trace vinfo name",

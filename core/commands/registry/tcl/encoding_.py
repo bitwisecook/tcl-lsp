@@ -127,6 +127,7 @@ class EncodingCommand(CommandDef):
                 ),
                 "profiles": SubCommand(
                     name="profiles",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(0, 0),
                     detail="Return list of available profiles.",
                     synopsis="encoding profiles",
@@ -142,6 +143,7 @@ class EncodingCommand(CommandDef):
                 ),
                 "user": SubCommand(
                     name="user",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(0, 0),
                     detail="Return user encoding.",
                     synopsis="encoding user",

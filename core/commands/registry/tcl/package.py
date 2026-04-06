@@ -200,6 +200,7 @@ class PackageCommand(CommandDef):
                     synopsis="package files package",
                     pure=True,
                     return_type=TclType.LIST,
+                    dialects=frozenset({"tcl9.0"}),
                 ),
                 "prefer": SubCommand(
                     name="prefer",

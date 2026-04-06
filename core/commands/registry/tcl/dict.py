@@ -353,6 +353,7 @@ class DictCommand(CommandDef):
                 ),
                 "getdef": SubCommand(
                     name="getdef",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(3),
                     detail="Returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
                     synopsis="dict getdef dictionaryValue ?key ...? key default",
@@ -362,6 +363,7 @@ class DictCommand(CommandDef):
                 ),
                 "getwithdefault": SubCommand(
                     name="getwithdefault",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(3),
                     detail="Returns the value that the key path maps to in the dictionary value, or the default if the key is absent. Alias for dict getdef.",
                     synopsis="dict getwithdefault dictionaryValue ?key ...? key default",

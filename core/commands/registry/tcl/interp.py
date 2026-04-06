@@ -228,6 +228,7 @@ class InterpCommand(CommandDef):
                 ),
                 "cancel": SubCommand(
                     name="cancel",
+                    dialects=frozenset({"tcl8.6", "tcl9.0"}),
                     arity=Arity(0, 2),
                     detail="Cancels the script being evaluated in the interpreter identified by path.",
                     synopsis="interp cancel ?-unwind? ?--? ?path? ?result?",
@@ -256,6 +257,7 @@ class InterpCommand(CommandDef):
                 ),
                 "limit": SubCommand(
                     name="limit",
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     arity=Arity(2),
                     detail="Sets up, manipulates and queries the configuration of the resource limit limitType for the interpreter denoted by path.",
                     synopsis="interp limit path limitType ?-option? ?value ...?",
@@ -307,6 +309,7 @@ class InterpCommand(CommandDef):
                 ),
                 "bgerror": SubCommand(
                     name="bgerror",
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     arity=Arity(1, 2),
                     detail="Gets or sets the current background exception handler for the interpreter identified by path.",
                     synopsis="interp bgerror path ?cmdPrefix?",
@@ -314,6 +317,7 @@ class InterpCommand(CommandDef):
                 ),
                 "children": SubCommand(
                     name="children",
+                    dialects=frozenset({"tcl8.6", "tcl9.0"}),
                     arity=Arity(0, 1),
                     detail="Returns a Tcl list of the names of all the child interpreters associated with the interpreter identified by path.",
                     synopsis="interp children ?path?",
@@ -322,6 +326,7 @@ class InterpCommand(CommandDef):
                 ),
                 "debug": SubCommand(
                     name="debug",
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     arity=Arity(1),
                     detail="Controls whether frame-level stack information is captured in the child interpreter identified by path.",
                     synopsis="interp debug path ?-frame ?bool??",

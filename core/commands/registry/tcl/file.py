@@ -547,6 +547,7 @@ class FileCommand(CommandDef):
                 ),
                 "tempfile": SubCommand(
                     name="tempfile",
+                    dialects=frozenset({"tcl8.6", "tcl9.0"}),
                     arity=Arity(0, 2),
                     detail="Creates a temporary file and returns a read-write channel opened on that file.",
                     synopsis="file tempfile ?nameVar? ?template?",
@@ -585,6 +586,7 @@ class FileCommand(CommandDef):
                 ),
                 "home": SubCommand(
                     name="home",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(0, 1),
                     detail="If no argument is specified, returns the home directory of the current user.",
                     synopsis="file home ?username?",
@@ -593,6 +595,7 @@ class FileCommand(CommandDef):
                 ),
                 "tempdir": SubCommand(
                     name="tempdir",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(0, 1),
                     detail="Creates a temporary directory and returns its name.",
                     synopsis="file tempdir ?template?",
@@ -609,6 +612,7 @@ class FileCommand(CommandDef):
                 ),
                 "tildeexpand": SubCommand(
                     name="tildeexpand",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(1, 1),
                     detail="Returns the result of performing tilde substitution on name.",
                     synopsis="file tildeexpand name",

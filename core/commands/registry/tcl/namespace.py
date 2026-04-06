@@ -184,6 +184,7 @@ class NamespaceCommand(CommandDef):
                 ),
                 "ensemble": SubCommand(
                     name="ensemble",
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     arity=Arity(1),
                     detail="Creates and manipulates a command that is formed out of an ensemble of subcommands.",
                     synopsis="namespace ensemble subcommand ?arg ...?",
@@ -245,6 +246,7 @@ class NamespaceCommand(CommandDef):
                 ),
                 "path": SubCommand(
                     name="path",
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     arity=Arity(0, 1),
                     detail="Returns the command resolution path of the current namespace.",
                     synopsis="namespace path ?namespaceList?",
@@ -268,6 +270,7 @@ class NamespaceCommand(CommandDef):
                 ),
                 "unknown": SubCommand(
                     name="unknown",
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     arity=Arity(0, 1),
                     detail="Sets or returns the unknown command handler for the current namespace.",
                     synopsis="namespace unknown ?script?",
@@ -276,6 +279,7 @@ class NamespaceCommand(CommandDef):
                 "upvar": SubCommand(
                     name="upvar",
                     arity=Arity(1),
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     detail="This command arranges for zero or more local variables in the current procedure to refer to variables in namespace.",
                     synopsis="namespace upvar namespace ?otherVar myVar ...?",
                     return_type=TclType.STRING,

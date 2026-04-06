@@ -159,6 +159,7 @@ class StringCommand(CommandDef):
             subcommands={
                 "cat": SubCommand(
                     name="cat",
+                    dialects=frozenset({"tcl8.6", "tcl9.0"}),
                     arity=Arity(0),
                     detail="Concatenate strings.",
                     synopsis="string cat ?string1? ?string2 ...?",
@@ -214,6 +215,7 @@ class StringCommand(CommandDef):
                 ),
                 "insert": SubCommand(
                     name="insert",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(3, 3),
                     detail="Insert string at index.",
                     synopsis="string insert string index insertString",
@@ -405,6 +407,7 @@ class StringCommand(CommandDef):
                 ),
                 "bytelength": SubCommand(
                     name="bytelength",
+                    dialects=frozenset({"tcl8.4", "tcl8.5", "tcl8.6"}),
                     arity=Arity(1, 1),
                     detail="Return number of bytes used to represent the string in memory.",
                     synopsis="string bytelength string",

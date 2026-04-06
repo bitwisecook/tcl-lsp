@@ -199,6 +199,7 @@ class ArrayCommand(CommandDef):
                 "default": SubCommand(
                     name="default",
                     arity=Arity(2),
+                    dialects=frozenset({"tcl9.0"}),
                     detail="Manages the default value of the array.",
                     synopsis="array default subcommand arrayName args...",
                     return_type=TclType.STRING,
@@ -207,6 +208,7 @@ class ArrayCommand(CommandDef):
                 "for": SubCommand(
                     name="for",
                     arity=Arity(3, 3),
+                    dialects=frozenset({"tcl9.0"}),
                     detail="Iterates over array entries. The first argument is a two-element list of variable names for the key and value of each entry.",
                     synopsis="array for {keyVariable valueVariable} arrayName body",
                     return_type=TclType.STRING,
