@@ -257,7 +257,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_map,
                     return_type=TclType.STRING,
-                    arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "match": SubCommand(
                     name="match",

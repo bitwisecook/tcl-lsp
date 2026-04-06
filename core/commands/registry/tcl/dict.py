@@ -165,6 +165,7 @@ class DictCommand(CommandDef):
                     detail="This appends the given string (or strings) to the value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary value back to that variable.",
                     synopsis="dict append dictionaryVariable key ?string ...?",
                     arg_roles={0: ArgRole.VAR_NAME},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     safe_on_uninit=frozenset(),
                 ),
                 "create": SubCommand(
@@ -184,6 +185,7 @@ class DictCommand(CommandDef):
                     pure=True,
                     const_fold=fold_dict_exists,
                     return_type=TclType.BOOLEAN,
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "filter": SubCommand(
                     name="filter",
@@ -191,6 +193,7 @@ class DictCommand(CommandDef):
                     detail="This takes a dictionary value and returns a new dictionary that contains just those key/value pairs that match the specified filter type (which may be abbreviated.) Supported filter types are: dict filter dictionaryValu…",
                     synopsis="dict filter dictionaryValue filterType arg ?arg ...?",
                     return_type=TclType.DICT,
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "for": SubCommand(
                     name="for",
@@ -198,6 +201,7 @@ class DictCommand(CommandDef):
                     detail="This command takes three arguments, the first a two-element list of variable names (for the key and value respectively of each mapping in the dictionary), the second the dictionary value to iterate across, and the third…",
                     synopsis="dict for {keyVariable valueVariable} dictionaryValue body",
                     arg_roles={2: ArgRole.BODY},
+                    arg_types={1: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     loop_list_header=True,
                 ),
                 "get": SubCommand(
@@ -217,6 +221,7 @@ class DictCommand(CommandDef):
                     synopsis="dict incr dictionaryVariable key ?increment?",
                     return_type=TclType.INT,
                     arg_roles={0: ArgRole.VAR_NAME},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     safe_on_uninit=frozenset(),
                 ),
                 "info": SubCommand(
@@ -225,6 +230,7 @@ class DictCommand(CommandDef):
                     detail="This returns information (intended for display to people) about the given dictionary though the format of this data is dependent on the implementation of the dictionary.",
                     synopsis="dict info dictionaryValue",
                     return_type=TclType.STRING,
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "keys": SubCommand(
                     name="keys",
@@ -242,6 +248,7 @@ class DictCommand(CommandDef):
                     detail="This appends the given items to the list value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary value back to that variable.",
                     synopsis="dict lappend dictionaryVariable key ?value ...?",
                     arg_roles={0: ArgRole.VAR_NAME},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     safe_on_uninit=frozenset(),
                 ),
                 "map": SubCommand(
@@ -250,6 +257,7 @@ class DictCommand(CommandDef):
                     detail="This command applies a transformation to each element of a dictionary, returning a new dictionary.",
                     synopsis="dict map {keyVariable valueVariable} dictionaryValue body",
                     arg_roles={2: ArgRole.BODY},
+                    arg_types={1: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     loop_list_header=True,
                 ),
                 "merge": SubCommand(
@@ -267,6 +275,7 @@ class DictCommand(CommandDef):
                     detail="Return a new dictionary that is a copy of an old one passed in as first argument except without mappings for each of the keys listed.",
                     synopsis="dict remove dictionaryValue ?key ...?",
                     return_type=TclType.DICT,
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "replace": SubCommand(
                     name="replace",
@@ -274,6 +283,7 @@ class DictCommand(CommandDef):
                     detail="Return a new dictionary that is a copy of an old one passed in as first argument except with some values different or some extra key/value pairs added.",
                     synopsis="dict replace dictionaryValue ?key value ...?",
                     return_type=TclType.DICT,
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "set": SubCommand(
                     name="set",
@@ -301,6 +311,7 @@ class DictCommand(CommandDef):
                     detail="This operation (the companion to dict set) takes the name of a variable containing a dictionary value and places an updated dictionary value in that variable that does not contain a mapping for the given key.",
                     synopsis="dict unset dictionaryVariable key ?key ...?",
                     arg_roles={0: ArgRole.VAR_NAME},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "update": SubCommand(
                     name="update",
@@ -308,6 +319,7 @@ class DictCommand(CommandDef):
                     detail="Execute the Tcl script in body with the value for each key (as found by reading the dictionary value in dictionaryVariable) mapped to the variable varName.",
                     synopsis="dict update dictionaryVariable key varName ?key varName ...? body",
                     arg_roles={0: ArgRole.VAR_NAME},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "values": SubCommand(
                     name="values",
@@ -325,6 +337,7 @@ class DictCommand(CommandDef):
                     detail="Execute the Tcl script in body with the value for each key in dictionaryVariable mapped (in a manner similarly to dict update) to a variable with the same name.",
                     synopsis="dict with dictionaryVariable ?key ...? body",
                     arg_roles={0: ArgRole.VAR_NAME},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
             },
             validation=ValidationSpec(
