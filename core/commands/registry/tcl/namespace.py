@@ -162,7 +162,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Captures the current namespace context for later execution of the script script.",
                     synopsis="namespace code script",
-                    return_type=TclType.STRING,
+                    return_type=TclType.LIST,
                     arg_roles={0: ArgRole.BODY},
                 ),
                 "current": SubCommand(
@@ -206,14 +206,14 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(0),
                     detail="Specifies which commands are exported from a namespace.",
                     synopsis="namespace export ?-clear? ?pattern pattern ...?",
-                    return_type=TclType.STRING,
+                    return_type=TclType.LIST,
                 ),
                 "import": SubCommand(
                     name="import",
                     arity=Arity(0),
                     detail="Imports commands into a namespace, or queries the set of imported commands in a namespace.",
                     synopsis="namespace import ?-force? ?pattern pattern ...?",
-                    return_type=TclType.STRING,
+                    return_type=TclType.LIST,
                 ),
                 "inscope": SubCommand(
                     name="inscope",

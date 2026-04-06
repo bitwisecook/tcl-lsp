@@ -163,7 +163,7 @@ class InterpCommand(CommandDef):
                     arity=Arity(2),
                     detail="Returns a Tcl list whose elements are the targetCmd and args associated with the alias represented by srcToken (this is the value returned when the alias was created; it is possible that the name of the source command i…",
                     synopsis="interp alias srcPath srcToken",
-                    return_type=TclType.STRING,
+                    return_type=TclType.LIST,
                 ),
                 "aliases": SubCommand(
                     name="aliases",

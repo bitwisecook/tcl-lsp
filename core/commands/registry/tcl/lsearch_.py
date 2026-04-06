@@ -49,7 +49,7 @@ class LsearchCommand(CommandDef):
             ),
             pure=True,
             cse_candidate=True,
-            return_type=TclType.STRING,
+            return_type=TclType.INT,
             arg_type_resolver=resolve_lsearch,
             side_effect_hints=(),
         )

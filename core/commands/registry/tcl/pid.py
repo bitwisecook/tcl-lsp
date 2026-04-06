@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from ....compiler.types import TclType
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
@@ -37,6 +38,7 @@ class PidCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(0, 1),
             ),
+            return_type=TclType.INT,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE,
