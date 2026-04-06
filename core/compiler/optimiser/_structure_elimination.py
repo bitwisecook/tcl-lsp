@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import fnmatch
+
 from ...common.codes import opt
 from ...common.naming import (
     normalise_var_name as _normalise_var_name,
@@ -130,6 +132,7 @@ def _walk_ir_for_structure_elimination(
                 arms=arms,
                 default_body=default_body,
                 default_range=default_range,
+                mode=mode,
             ):
                 _try_eliminate_switch(
                     ctx,
@@ -139,6 +142,7 @@ def _walk_ir_for_structure_elimination(
                     arms,
                     default_body,
                     default_range,
+                    mode=mode,
                     sccp_constants=sccp_constants,
                 )
                 for arm in arms:
@@ -220,9 +224,13 @@ def _try_eliminate_switch(
     default_body: IRScript | None,
     default_range,
     *,
+    mode: str = "exact",
     sccp_constants: dict[str, int | float | str] | None = None,
 ) -> None:
     """Try to eliminate a ``switch`` with a literal subject."""
+    # regexp mode is too complex to evaluate statically — bail out.
+    if mode == "regexp":
+        return
     resolved_subject = subject
     if not _is_plain_literal(resolved_subject) and sccp_constants:
         var = resolved_subject
@@ -243,7 +251,11 @@ def _try_eliminate_switch(
     for arm in arms:
         if arm.fallthrough:
             continue
-        if arm.pattern == subject:
+        if mode == "glob":
+            matched = fnmatch.fnmatchcase(subject, arm.pattern)
+        else:
+            matched = arm.pattern == subject
+        if matched:
             if arm.body is not None and arm.body_range is not None:
                 replacement = _extract_body_text(source, arm.body_range, stmt_range)
                 ctx.optimisations.append(
