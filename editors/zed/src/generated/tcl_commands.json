@@ -696,7 +696,8 @@
     },
     {
       "name": "linsert",
-      "summary": "Insert elements into a list"
+      "summary": "Insert elements into a list",
+      "pure": true
     },
     {
       "name": "list",
@@ -749,7 +750,8 @@
     },
     {
       "name": "lreplace",
-      "summary": "Replace elements in a list with new elements"
+      "summary": "Replace elements in a list with new elements",
+      "pure": true
     },
     {
       "name": "lreverse",
