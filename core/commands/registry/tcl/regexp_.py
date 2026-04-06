@@ -62,7 +62,7 @@ class RegexpCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(2),
+                arity=Arity(1),
             ),
             pattern_type=PatternType.REGEX,
             return_type=TclType.INT,
