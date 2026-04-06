@@ -996,7 +996,7 @@
     },
     {
       "name": "parray",
-      "summary": "standard library of Tcl procedures"
+      "summary": "Print an array's keys and values"
     },
     {
       "name": "pid",

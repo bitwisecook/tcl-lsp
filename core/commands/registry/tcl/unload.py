@@ -6,6 +6,7 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
+from ..dialects import DIALECTS_EXCEPT_IRULES
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
 from ..signatures import Arity
 from ._base import register
@@ -21,6 +22,7 @@ class UnloadCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="unload",
+            dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Unload machine code",
                 synopsis=(
@@ -53,7 +55,7 @@ class UnloadCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(1),
+                arity=Arity(1, 3),
             ),
             return_type=TclType.STRING,
             side_effect_hints=(

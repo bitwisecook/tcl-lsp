@@ -79,6 +79,7 @@ namespace eval ::tmm {
         tell
         time
         unknown
+        unload
         update
         vwait
         |
@@ -1522,7 +1523,7 @@ namespace eval ::itest::cmd {
     }
 
     # All f5-irules top-level commands.
-    # Count: 315
+    # Count: 314
 
     variable _gen_toplevel_commands {
         accumulate
@@ -1822,7 +1823,6 @@ namespace eval ::itest::cmd {
         translate
         uniq_ordered_ip_list
         uniq_sorted_ip_list
-        unload
         unset
         uplevel
         upvar

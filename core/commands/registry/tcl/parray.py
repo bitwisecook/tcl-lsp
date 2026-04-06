@@ -22,7 +22,7 @@ class ParrayCommand(CommandDef):
         return CommandSpec(
             name="parray",
             hover=HoverSnippet(
-                summary="standard library of Tcl procedures",
+                summary="Print an array's keys and values",
                 synopsis=("parray arrayName ?pattern?",),
                 source=_SOURCE,
             ),
@@ -33,7 +33,7 @@ class ParrayCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(1, 1),
+                arity=Arity(1, 2),
             ),
             arg_roles={0: ArgRole.VAR_READ},
             return_type=TclType.STRING,
