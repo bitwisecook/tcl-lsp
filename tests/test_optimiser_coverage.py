@@ -1119,10 +1119,16 @@ class TestO115NestedExprUnwrap:
 
 
 class TestO116ListFolding:
-    def test_fold_list_literals(self):
-        s = "set x [list a b c]\nputs $x"
+    def test_fold_single_element_list(self):
+        s = "set x [list a]\nputs $x"
         o, _ = _opt(s)
         assert "[list" not in o
+
+    def test_no_fold_multi_element_list(self):
+        # Multi-element [list] folds to a braced literal which has string
+        # intrep, introducing a shimmer when later used with list commands.
+        s = "set x [list a b c]\nputs $x"
+        assert _not_has(s, "O116")
 
     def test_fold_empty_list(self):
         s = "set x [list]\nputs $x"
@@ -2001,7 +2007,7 @@ class TestPassInteractions:
             ),
             (
                 "O116",
-                'set l [list a b]\nset a [string trim $raw]\nif {$a == "foo"} {puts yes}',
+                'set l [list a]\nset a [string trim $raw]\nif {$a == "foo"} {puts yes}',
             ),
             (
                 "O117",

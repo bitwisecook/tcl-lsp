@@ -42,7 +42,10 @@ class LindexCommand(CommandDef):
             const_fold=fold_lindex,
             cse_candidate=True,
             return_type=TclType.STRING,
-            arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},
+            arg_types={
+                0: ArgTypeHint(expected=TclType.LIST, shimmers=True),
+                1: ArgTypeHint(expected=TclType.INT, shimmers=True),
+            },
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE

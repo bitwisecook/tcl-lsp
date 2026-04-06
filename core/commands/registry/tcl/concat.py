@@ -10,6 +10,7 @@ from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSp
 from ..signatures import Arity
 from ._base import register
 from .const_fold import fold_concat
+from .shimmer_resolvers import resolve_concat
 
 _SOURCE = "Tcl man page concat.n"
 
@@ -41,6 +42,7 @@ class ConcatCommand(CommandDef):
             const_fold=fold_concat,
             produces_canonical_list=True,
             return_type=TclType.LIST,
+            arg_type_resolver=resolve_concat,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE

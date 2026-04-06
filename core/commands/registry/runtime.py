@@ -82,17 +82,19 @@ def _type_hints_from_registry() -> dict[str, CommandTypeHint | SubcommandTypeHin
             if spec.subcommands:
                 sub_hints = {}
                 for sub_name, sub in spec.subcommands.items():
-                    if sub.return_type is not None or sub.arg_types:
+                    if sub.return_type is not None or sub.arg_types or sub.arg_type_resolver:
                         sub_hints[sub_name] = CommandTypeHint(
                             return_type=sub.return_type,
                             arg_types=dict(sub.arg_types) if sub.arg_types else {},
+                            arg_type_resolver=sub.arg_type_resolver,
                         )
                 if sub_hints:
                     hints[name] = SubcommandTypeHint(subcommands=sub_hints)
-            elif spec.return_type is not None or spec.arg_types:
+            elif spec.return_type is not None or spec.arg_types or spec.arg_type_resolver:
                 hints[name] = CommandTypeHint(
                     return_type=spec.return_type,
                     arg_types=dict(spec.arg_types) if spec.arg_types else {},
+                    arg_type_resolver=spec.arg_type_resolver,
                 )
     return hints
 

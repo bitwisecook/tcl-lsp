@@ -41,7 +41,7 @@ class LrepeatCommand(CommandDef):
             const_fold=fold_lrepeat,
             return_type=TclType.LIST,
             inferred_storage_type=StorageType.LIST,
-            arg_types={0: ArgTypeHint(expected=TclType.INT)},
+            arg_types={0: ArgTypeHint(expected=TclType.INT, shimmers=True)},
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE

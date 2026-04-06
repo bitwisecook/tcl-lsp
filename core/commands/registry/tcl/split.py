@@ -8,6 +8,7 @@ from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
+from ..type_hints import ArgTypeHint
 from ._base import register
 from .const_fold import fold_split
 
@@ -41,6 +42,7 @@ class SplitCommand(CommandDef):
             const_fold=fold_split,
             cse_candidate=True,
             return_type=TclType.LIST,
+            arg_types={0: ArgTypeHint(expected=TclType.STRING, shimmers=True)},
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE

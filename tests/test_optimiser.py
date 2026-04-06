@@ -1070,11 +1070,19 @@ class TestNestedExprUnwrap:
 class TestListFolding:
     """O116 — constant list command folding."""
 
-    def test_fold_list_literals(self):
-        source = "set x [list a b c]\nputs $x"
+    def test_fold_single_element_list(self):
+        source = "set x [list a]\nputs $x"
         optimised, rewrites = optimise_source(source)
         assert "[list" not in optimised
         assert any(r.code in ("O116", "O100") for r in rewrites)
+
+    def test_no_fold_multi_element_list(self):
+        # Multi-element [list] should not fold to braced literal because
+        # it changes the intrep from list to string, introducing a shimmer
+        # when the variable is later used with list commands.
+        source = "set x [list a b c]\nputs $x"
+        optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O116" for r in rewrites)
 
 
 class TestStrlenZeroCheck:

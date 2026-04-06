@@ -8,6 +8,7 @@ from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, OptionSpec, ValidationSpec
 from ..signatures import Arity
 from ._base import register
+from .shimmer_resolvers import resolve_lsort
 
 
 @register
@@ -44,6 +45,7 @@ class LsortCommand(CommandDef):
             pure=True,
             cse_candidate=True,
             return_type=TclType.LIST,
+            arg_type_resolver=resolve_lsort,
             inferred_storage_type=StorageType.LIST,
             side_effect_hints=(
                 SideEffect(

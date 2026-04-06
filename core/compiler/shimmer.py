@@ -147,7 +147,12 @@ def _blocks_reaching(succs: dict[str, list[str]], target: str) -> set[str]:
 
 
 def _arg_type_for_call(command: str, args: tuple[str, ...], arg_index: int) -> TclType | None:
-    """Look up the expected type for an argument of a command."""
+    """Look up the expected type for an argument that causes a shimmer.
+
+    Only returns a type when the registry declares ``shimmers=True`` for
+    that argument position — the shimmer detector is entirely driven by
+    command registry metadata.
+    """
     hint = TYPE_HINTS.get(command)
     if hint is None:
         return None
@@ -162,10 +167,16 @@ def _arg_type_for_call(command: str, args: tuple[str, ...], arg_index: int) -> T
         # the subcommand's arg positions start at 1 in the full tuple.
         sub_arg_index = arg_index - 1
         arg_hint = sub_hint.arg_types.get(sub_arg_index)
-        return arg_hint.expected if arg_hint else None
+        if arg_hint is None and sub_hint.arg_type_resolver is not None:
+            resolved = sub_hint.arg_type_resolver(args[1:])
+            arg_hint = resolved.get(sub_arg_index)
+        return arg_hint.expected if arg_hint and arg_hint.shimmers else None
     if isinstance(hint, CommandTypeHint):
         arg_hint = hint.arg_types.get(arg_index)
-        return arg_hint.expected if arg_hint else None
+        if arg_hint is None and hint.arg_type_resolver is not None:
+            resolved = hint.arg_type_resolver(args)
+            arg_hint = resolved.get(arg_index)
+        return arg_hint.expected if arg_hint and arg_hint.shimmers else None
     return None
 
 
@@ -175,6 +186,7 @@ def _check_command_substitution_intent(
     types: dict[SSAValueKey, TypeLattice],
     stmt_range: Range,
     in_loop: bool,
+    already_coerced: set[tuple[str, int, TclType]] | None = None,
 ) -> list[ShimmerWarning]:
     """Check shimmer warnings for a pre-parsed command substitution intent."""
     if intent.shimmer_pressure <= 0:
@@ -186,6 +198,7 @@ def _check_command_substitution_intent(
         types,
         stmt_range,
         in_loop,
+        already_coerced,
     )
 
 
@@ -206,6 +219,7 @@ def _check_args_for_shimmer(
     types: dict[SSAValueKey, TypeLattice],
     stmt_range: Range,
     in_loop: bool,
+    already_coerced: set[tuple[str, int, TclType]] | None = None,
 ) -> list[ShimmerWarning]:
     """Check a command invocation's arguments for type mismatches."""
     warnings: list[ShimmerWarning] = []
@@ -236,6 +250,13 @@ def _check_args_for_shimmer(
         if _is_numeric_compatible(var_type.tcl_type, expected):
             continue
 
+        # If a prior use in the same block already coerced this SSA version
+        # to the expected type, the runtime intrep has already changed — no
+        # second shimmer occurs.
+        coercion_key = (var_name, ver, expected)
+        if already_coerced is not None and coercion_key in already_coerced:
+            continue
+
         code = "S101" if in_loop else "S100"
         severity = "loop " if in_loop else ""
         msg = (
@@ -255,6 +276,8 @@ def _check_args_for_shimmer(
                 message=msg,
             )
         )
+        if already_coerced is not None:
+            already_coerced.add(coercion_key)
     return warnings
 
 
@@ -276,6 +299,11 @@ def _find_use_site_shimmers(
         if block is None or ssa_block is None:
             continue
         in_loop = bn in loop_blocks
+        # Track (var, ver, target_type) coercions within a block so that
+        # the second list command using the same variable after a shimmer
+        # does not produce a duplicate warning — the runtime intrep has
+        # already been converted by the first use.
+        already_coerced: set[tuple[str, int, TclType]] = set()
 
         for idx, ssa_stmt in enumerate(ssa_block.statements):
             if idx >= len(block.statements):
@@ -291,6 +319,7 @@ def _find_use_site_shimmers(
                         types,
                         stmt.range,
                         in_loop,
+                        already_coerced,
                     )
                 )
             elif isinstance(stmt, IRAssignValue):
@@ -304,6 +333,7 @@ def _find_use_site_shimmers(
                             types,
                             stmt.range,
                             in_loop,
+                            already_coerced,
                         )
                     )
                 else:
@@ -318,6 +348,7 @@ def _find_use_site_shimmers(
                                 types,
                                 stmt.range,
                                 in_loop,
+                                already_coerced,
                             )
                         )
             elif isinstance(stmt, IRIncr):

@@ -7,6 +7,7 @@ circular dependencies (same pattern as ``signatures.py``).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from ...compiler.types import TclType
@@ -40,6 +41,9 @@ class CommandTypeHint:
 
     return_type: TclType | None = None
     arg_types: dict[int, ArgTypeHint] = field(default_factory=dict)
+    arg_type_resolver: Callable[[tuple[str, ...]], dict[int, ArgTypeHint]] | None = field(
+        default=None, hash=False, compare=False
+    )
 
 
 @dataclass(frozen=True, slots=True)
