@@ -31,6 +31,7 @@ This folder contains small, searchable Knowledge-Centered Service (KCS) notes.
 ## Diagnostics
 
 - [kcs-irule4005-racy-static-cross-event.md](kcs-irule4005-racy-static-cross-event.md) — IRULE4005: racy `static::` cross-event flow from non-RULE_INIT events.
+- [kcs-variable-case-mismatch-suggestions.md](kcs-variable-case-mismatch-suggestions.md) — W210/W211/W220: "did you mean?" suggestions for case-only variable typos.
 
 ## Fuzzing and test generation
 
