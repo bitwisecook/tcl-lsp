@@ -979,3 +979,68 @@ class TestCombinedVariableScenarios:
         result = analyse(source)
         w211 = [d for d in result.diagnostics if d.code == "W211" and "items" in d.message]
         assert len(w211) == 0
+
+
+class TestCaseMismatchSuggestions:
+    """Variable case-mismatch 'did you mean?' suggestions (#111)."""
+
+    def test_lappend_case_mismatch_w220_suggests(self):
+        """``set myList`` + ``lappend mylist`` should suggest the correct name on W220."""
+        source = "set myList {a b c d}\nlappend mylist e"
+        result = analyse(source)
+        w220 = [d for d in result.diagnostics if d.code == "W220"]
+        assert len(w220) == 1
+        assert "did you mean 'mylist'?" in w220[0].message
+
+    def test_lappend_case_mismatch_w211_suggests(self):
+        """``set myList`` + ``lappend mylist`` should suggest the correct name on W211."""
+        source = "set myList {a b c d}\nlappend mylist e"
+        result = analyse(source)
+        w211 = [d for d in result.diagnostics if d.code == "W211"]
+        assert len(w211) == 1
+        assert "did you mean 'mylist'?" in w211[0].message
+
+    def test_lappend_case_mismatch_no_w210(self):
+        """``lappend`` on uninitialised variable should not produce W210."""
+        source = "set myList {a b c d}\nlappend mylist e"
+        result = analyse(source)
+        w210 = [d for d in result.diagnostics if d.code == "W210"]
+        assert len(w210) == 0
+
+    def test_read_case_mismatch_w210_suggests(self):
+        """Reading ``$mylist`` when ``myList`` is set should suggest the correct name."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set myList {a b c d}
+                puts $mylist
+            }
+        """)
+        result = analyse(source)
+        w210 = [d for d in result.diagnostics if d.code == "W210" and "mylist" in d.message]
+        assert len(w210) == 1
+        assert "did you mean 'myList'?" in w210[0].message
+
+    def test_no_case_mismatch_when_names_match(self):
+        """No 'did you mean?' when there is no case-insensitive duplicate."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set myList {a b c d}
+                puts $myList
+            }
+        """)
+        result = analyse(source)
+        for d in result.diagnostics:
+            assert "did you mean" not in d.message
+
+    def test_case_mismatch_in_proc(self):
+        """Case-mismatch suggestions work inside proc scope."""
+        source = textwrap.dedent("""\
+            proc test {} {
+                set myList {a b c d}
+                lappend mylist e
+            }
+        """)
+        result = analyse(source)
+        w220 = [d for d in result.diagnostics if d.code == "W220"]
+        assert len(w220) == 1
+        assert "did you mean 'mylist'?" in w220[0].message

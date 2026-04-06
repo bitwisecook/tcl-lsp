@@ -3519,11 +3519,18 @@ class Analyser:
         cross_event_vars: frozenset[str] = frozenset(),
         ssa: SSAFunction | None = None,
     ) -> None:
+        defined_vars = self._collect_defined_vars(cfg)
         self._emit_constant_branch_diagnostics(cfg, analysis)
-        self._emit_dead_store_diagnostics(cfg, analysis, cross_event_vars=cross_event_vars)
+        self._emit_dead_store_diagnostics(
+            cfg, analysis, cross_event_vars=cross_event_vars, defined_vars=defined_vars
+        )
         self._emit_possible_paste_error_diagnostics(cfg, analysis)
-        self._emit_read_before_set_diagnostics(cfg, analysis, cross_event_vars=cross_event_vars)
-        self._emit_unused_variable_diagnostics(cfg, analysis, cross_event_vars=cross_event_vars)
+        self._emit_read_before_set_diagnostics(
+            cfg, analysis, cross_event_vars=cross_event_vars, defined_vars=defined_vars
+        )
+        self._emit_unused_variable_diagnostics(
+            cfg, analysis, cross_event_vars=cross_event_vars, defined_vars=defined_vars
+        )
         self._emit_invalid_ip_diagnostics(cfg, analysis)
         if ssa is not None:
             self._emit_channel_diagnostics(ssa, analysis)
@@ -3589,6 +3596,7 @@ class Analyser:
         analysis: FunctionAnalysis,
         *,
         cross_event_vars: frozenset[str] = frozenset(),
+        defined_vars: set[str] | None = None,
     ) -> None:
         existing_unused: set[tuple[str, int]] = set()
         for d in self.result.diagnostics:
@@ -3599,6 +3607,7 @@ class Analyser:
                 continue
             existing_unused.add((m.group(1), d.range.start.offset))
 
+        all_vars = defined_vars if defined_vars is not None else self._collect_defined_vars(cfg)
         for dead in analysis.dead_stores:
             if dead.variable in cross_event_vars:
                 continue
@@ -3613,10 +3622,14 @@ class Analyser:
                 continue
             if (dead.variable, stmt_range.start.offset) in existing_unused:
                 continue
+            msg = f"Assignment to '{dead.variable}' is never read"
+            similar = self._find_case_mismatch(dead.variable, all_vars)
+            if similar is not None:
+                msg += f"; did you mean '{similar}'?"
             self.result.diagnostics.append(
                 Diagnostic(
                     range=stmt_range,
-                    message=f"Assignment to '{dead.variable}' is never read",
+                    message=msg,
                     severity=Severity.HINT,
                     code="W220",
                 )
@@ -3672,6 +3685,27 @@ class Analyser:
                 )
 
     @staticmethod
+    def _collect_defined_vars(cfg: CFGFunction) -> set[str]:
+        """Return all variable names defined in *cfg* (from IR statements)."""
+        names: set[str] = set()
+        for block in cfg.blocks.values():
+            for stmt in block.statements:
+                if isinstance(stmt, (IRAssignConst, IRAssignValue, IRIncr)):
+                    names.add(_normalise_var_name(stmt.name))
+                elif isinstance(stmt, IRCall) and stmt.defs:
+                    names.update(stmt.defs)
+        return names
+
+    @staticmethod
+    def _find_case_mismatch(variable: str, defined_vars: set[str]) -> str | None:
+        """Return a defined variable that matches *variable* case-insensitively."""
+        lower = variable.lower()
+        for name in defined_vars:
+            if name != variable and name.lower() == lower:
+                return name
+        return None
+
+    @staticmethod
     def _is_safe_uninit_var(stmt: IRStatement, variable: str) -> bool:
         """Check that *variable* is the one the statement safely initialises."""
         if isinstance(stmt, IRCall) and stmt.reads_own_defs:
@@ -3686,7 +3720,9 @@ class Analyser:
         analysis: FunctionAnalysis,
         *,
         cross_event_vars: frozenset[str] = frozenset(),
+        defined_vars: set[str] | None = None,
     ) -> None:
+        all_vars = defined_vars if defined_vars is not None else self._collect_defined_vars(cfg)
         for rbs in analysis.read_before_set:
             block = cfg.blocks.get(rbs.block)
             if block is None:
@@ -3732,10 +3768,14 @@ class Analyser:
                 # are genuine reads.
                 continue
             else:
+                msg = f"Variable '{rbs.variable}' is read before it is set"
+                similar = self._find_case_mismatch(rbs.variable, all_vars)
+                if similar is not None:
+                    msg += f"; did you mean '{similar}'?"
                 self.result.diagnostics.append(
                     Diagnostic(
                         range=r,
-                        message=f"Variable '{rbs.variable}' is read before it is set",
+                        message=msg,
                         severity=Severity.WARNING,
                         code="W210",
                     )
@@ -3747,7 +3787,9 @@ class Analyser:
         analysis: FunctionAnalysis,
         *,
         cross_event_vars: frozenset[str] = frozenset(),
+        defined_vars: set[str] | None = None,
     ) -> None:
+        all_vars = defined_vars if defined_vars is not None else self._collect_defined_vars(cfg)
         for unused in analysis.unused_variables:
             if unused.variable in cross_event_vars:
                 continue
@@ -3760,10 +3802,14 @@ class Analyser:
             stmt_range = getattr(stmt, "range", None)
             if stmt_range is None:
                 continue
+            msg = f"Variable '{unused.variable}' is set but never used"
+            similar = self._find_case_mismatch(unused.variable, all_vars)
+            if similar is not None:
+                msg += f"; did you mean '{similar}'?"
             self.result.diagnostics.append(
                 Diagnostic(
                     range=stmt_range,
-                    message=f"Variable '{unused.variable}' is set but never used",
+                    message=msg,
                     severity=Severity.HINT,
                     code="W211",
                 )
