@@ -52,6 +52,17 @@ class TestNoFalsePositives:
         # Commands without type hints should not produce warnings.
         assert _codes("set x hello\nputs $x") == []
 
+    def test_braced_list_literal_with_lindex(self):
+        # Braced list literals (e.g. from O116 folding [list a b c] -> {a b c})
+        # should not trigger shimmer warnings when used with list commands.
+        assert _codes("set myList {a b c d}\nlindex $myList 1") == []
+
+    def test_braced_list_literal_with_lrange(self):
+        assert _codes("set myList {a b c d}\nlrange $myList 0 1") == []
+
+    def test_braced_list_literal_with_llength(self):
+        assert _codes("set myList {a b c}\nset n [llength $myList]") == []
+
 
 class TestUseSiteShimmer:
     """Detect shimmers at command call sites."""

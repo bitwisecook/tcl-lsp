@@ -43,7 +43,7 @@ class TestLiteralTypeInference:
             pytest.param("set x on", "x", TclType.BOOLEAN, id="bool-on"),
             pytest.param("set x off", "x", TclType.BOOLEAN, id="bool-off"),
             pytest.param("set x hello", "x", TclType.STRING, id="string"),
-            pytest.param("set x {hello world}", "x", TclType.STRING, id="string-braced"),
+            pytest.param("set x {hello world}", "x", TclType.LIST, id="list-braced"),
         ],
     )
     def test_literal_types(self, source, var, expected):
