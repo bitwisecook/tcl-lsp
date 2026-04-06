@@ -44,6 +44,7 @@ class LsetCommand(CommandDef):
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.VARIABLE,
+                    reads=True,
                     writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),
