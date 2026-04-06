@@ -305,7 +305,7 @@ class InfoCommand(CommandDef):
                 "library": SubCommand(
                     name="library", arity=Arity(0), return_type=TclType.STRING, returns_path=True
                 ),
-                "loaded": SubCommand(name="loaded", arity=Arity(0, 1), return_type=TclType.LIST),
+                "loaded": SubCommand(name="loaded", arity=Arity(0, 2), return_type=TclType.LIST),
                 "locals": SubCommand(name="locals", arity=Arity(0, 1), return_type=TclType.LIST),
                 "nameofexecutable": SubCommand(
                     name="nameofexecutable",
@@ -327,6 +327,55 @@ class InfoCommand(CommandDef):
                     name="tclversion", arity=Arity(0), return_type=TclType.STRING
                 ),
                 "vars": SubCommand(name="vars", arity=Arity(0, 1), return_type=TclType.LIST),
+                "class": SubCommand(
+                    name="class",
+                    arity=Arity(2),
+                    detail="Returns information about the class.",
+                    synopsis="info class subcommand class ?arg ...?",
+                    return_type=TclType.STRING,
+                ),
+                "object": SubCommand(
+                    name="object",
+                    arity=Arity(2),
+                    detail="Returns information about the object.",
+                    synopsis="info object subcommand object ?arg ...?",
+                    return_type=TclType.STRING,
+                ),
+                "coroutine": SubCommand(
+                    name="coroutine",
+                    arity=Arity(0, 0),
+                    detail="Returns the name of the current coroutine, or the empty string if there is no current coroutine.",
+                    synopsis="info coroutine",
+                    return_type=TclType.STRING,
+                ),
+                "errorstack": SubCommand(
+                    name="errorstack",
+                    arity=Arity(0, 1),
+                    detail="Returns a description of the active command at each level from the call stack of the last error.",
+                    synopsis="info errorstack ?interp?",
+                    return_type=TclType.LIST,
+                ),
+                "cmdtype": SubCommand(
+                    name="cmdtype",
+                    arity=Arity(1, 1),
+                    detail="Returns the type of the command named commandName.",
+                    synopsis="info cmdtype commandName",
+                    return_type=TclType.STRING,
+                ),
+                "constant": SubCommand(
+                    name="constant",
+                    arity=Arity(1, 1),
+                    detail="Returns 1 if varName is a constant variable and 0 otherwise.",
+                    synopsis="info constant varName",
+                    return_type=TclType.BOOLEAN,
+                ),
+                "consts": SubCommand(
+                    name="consts",
+                    arity=Arity(0, 1),
+                    detail="Returns the list of constant variables in the current scope.",
+                    synopsis="info consts ?pattern?",
+                    return_type=TclType.LIST,
+                ),
             },
             validation=ValidationSpec(arity=Arity(1)),
             side_effect_hints=(

@@ -46,6 +46,24 @@ class TraceCommand(CommandDef):
                     name="remove",
                     arity=Arity(2),
                 ),
+                "variable": SubCommand(
+                    name="variable",
+                    arity=Arity(3, 3),
+                    detail="Arrange for command to be executed whenever variable name is accessed. Deprecated in favour of trace add variable.",
+                    synopsis="trace variable name ops command",
+                ),
+                "vdelete": SubCommand(
+                    name="vdelete",
+                    arity=Arity(3, 3),
+                    detail="Delete a variable trace. Deprecated in favour of trace remove variable.",
+                    synopsis="trace vdelete name ops command",
+                ),
+                "vinfo": SubCommand(
+                    name="vinfo",
+                    arity=Arity(1, 1),
+                    detail="Return trace information for the given variable. Deprecated in favour of trace info variable.",
+                    synopsis="trace vinfo name",
+                ),
             },
             validation=ValidationSpec(
                 arity=Arity(1),

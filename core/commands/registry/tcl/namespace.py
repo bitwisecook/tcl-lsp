@@ -280,6 +280,13 @@ class NamespaceCommand(CommandDef):
                     synopsis="namespace which ?-command? ?-variable? name",
                     return_type=TclType.STRING,
                 ),
+                "forget": SubCommand(
+                    name="forget",
+                    arity=Arity(0),
+                    detail="Removes previously imported commands from a namespace.",
+                    synopsis="namespace forget ?pattern pattern ...?",
+                    return_type=TclType.STRING,
+                ),
             },
             validation=ValidationSpec(
                 arity=Arity(1),

@@ -398,6 +398,14 @@ class StringCommand(CommandDef):
                     return_type=TclType.INT,
                     arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
+                "bytelength": SubCommand(
+                    name="bytelength",
+                    arity=Arity(1, 1),
+                    detail="Return number of bytes used to represent the string in memory.",
+                    synopsis="string bytelength string",
+                    pure=True,
+                    return_type=TclType.INT,
+                ),
             },
             validation=ValidationSpec(
                 arity=Arity(1),

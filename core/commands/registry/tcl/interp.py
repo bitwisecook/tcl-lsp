@@ -299,6 +299,27 @@ class InterpCommand(CommandDef):
                     synopsis="interp transfer srcPath channel destPath",
                     return_type=TclType.STRING,
                 ),
+                "bgerror": SubCommand(
+                    name="bgerror",
+                    arity=Arity(1, 2),
+                    detail="Gets or sets the current background exception handler for the interpreter identified by path.",
+                    synopsis="interp bgerror path ?cmdPrefix?",
+                    return_type=TclType.STRING,
+                ),
+                "children": SubCommand(
+                    name="children",
+                    arity=Arity(0, 1),
+                    detail="Returns a Tcl list of the names of all the child interpreters associated with the interpreter identified by path.",
+                    synopsis="interp children ?path?",
+                    return_type=TclType.LIST,
+                ),
+                "debug": SubCommand(
+                    name="debug",
+                    arity=Arity(1),
+                    detail="Controls whether frame-level stack information is captured in the child interpreter identified by path.",
+                    synopsis="interp debug path ?-frame ?bool??",
+                    return_type=TclType.STRING,
+                ),
             },
             validation=ValidationSpec(
                 arity=Arity(1),

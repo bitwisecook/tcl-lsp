@@ -94,8 +94,10 @@
       "summary": "Manipulate array variables",
       "subcommands": [
         "anymore",
+        "default",
         "donesearch",
         "exists",
+        "for",
         "get",
         "names",
         "nextelement",
@@ -268,6 +270,8 @@
         "filter",
         "for",
         "get",
+        "getdef",
+        "getwithdefault",
         "incr",
         "info",
         "keys",
@@ -365,6 +369,7 @@
         "executable",
         "exists",
         "extension",
+        "home",
         "isdirectory",
         "isfile",
         "join",
@@ -386,7 +391,9 @@
         "stat",
         "system",
         "tail",
+        "tempdir",
         "tempfile",
+        "tildeexpand",
         "type",
         "volumes",
         "writable"
@@ -575,10 +582,16 @@
       "subcommands": [
         "args",
         "body",
+        "class",
         "cmdcount",
+        "cmdtype",
         "commands",
         "complete",
+        "constant",
+        "consts",
+        "coroutine",
         "default",
+        "errorstack",
         "exists",
         "frame",
         "functions",
@@ -589,6 +602,7 @@
         "loaded",
         "locals",
         "nameofexecutable",
+        "object",
         "patchlevel",
         "procs",
         "script",
@@ -603,8 +617,11 @@
       "subcommands": [
         "alias",
         "aliases",
+        "bgerror",
         "cancel",
+        "children",
         "create",
+        "debug",
         "delete",
         "eval",
         "exists",
@@ -890,6 +907,7 @@
         "eval",
         "exists",
         "export",
+        "forget",
         "import",
         "inscope",
         "origin",
@@ -1166,6 +1184,7 @@
       "name": "string",
       "summary": "Perform one of several string operations.",
       "subcommands": [
+        "bytelength",
         "cat",
         "compare",
         "equal",
@@ -1930,7 +1949,10 @@
       "subcommands": [
         "add",
         "info",
-        "remove"
+        "remove",
+        "variable",
+        "vdelete",
+        "vinfo"
       ]
     },
     {
