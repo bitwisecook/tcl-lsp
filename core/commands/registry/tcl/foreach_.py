@@ -44,6 +44,11 @@ class ForeachCommand(CommandDef):
             return_type=TclType.STRING,
             arg_type_resolver=resolve_foreach,
             side_effect_hints=(
-                SideEffect(target=SideEffectTarget.UNKNOWN, connection_side=ConnectionSide.NONE),
+                SideEffect(
+                    target=SideEffectTarget.UNKNOWN,
+                    reads=True,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
             ),
         )

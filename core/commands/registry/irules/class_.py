@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """class -- Advanced access of classes."""
 
+# Introduced: BIG-IP v9+ (core data group command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import (

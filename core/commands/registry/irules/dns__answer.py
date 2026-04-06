@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """DNS::answer -- Returns, inserts, removes, or clears all RRs from the answer section."""
 
+# Introduced: BIG-IP v10+ (core DNS iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

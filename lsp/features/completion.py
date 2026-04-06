@@ -289,7 +289,13 @@ def get_completions(
                     for vs in cmd_spec.argument_values(0):
                         if vs.hover is not None:
                             sub_docs[vs.value] = vs.hover.summary
-                for sub_name in sorted(sig.subcommands.keys()):
+                # Filter subcommands by dialect when cmd_spec is available.
+                available_subs = (
+                    cmd_spec.subcommands_for_dialect(dialect)
+                    if cmd_spec is not None and dialect
+                    else sig.subcommands
+                )
+                for sub_name in sorted(available_subs.keys()):
                     if partial and not sub_name.startswith(partial):
                         continue
                     items.append(

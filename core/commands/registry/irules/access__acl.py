@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """ACCESS::acl -- Poll or enforce ACLs in your connections."""
 
+# Introduced: BIG-IP v11+ (Access Policy Manager) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

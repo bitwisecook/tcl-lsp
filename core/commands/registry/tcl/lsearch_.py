@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, OptionSpec, ValidationSpec
@@ -50,11 +49,7 @@ class LsearchCommand(CommandDef):
             ),
             pure=True,
             cse_candidate=True,
-            return_type=TclType.STRING,
+            return_type=TclType.INT,
             arg_type_resolver=resolve_lsearch,
-            side_effect_hints=(
-                SideEffect(
-                    target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE
-                ),
-            ),
+            side_effect_hints=(),
         )

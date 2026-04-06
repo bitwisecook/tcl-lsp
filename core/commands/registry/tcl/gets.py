@@ -45,6 +45,10 @@ class GetsCommand(CommandDef):
                 SideEffect(
                     target=SideEffectTarget.FILE_IO,
                     reads=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+                SideEffect(
+                    target=SideEffectTarget.VARIABLE,
                     writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),

@@ -52,7 +52,10 @@ class SubstCommand(CommandDef):
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(
-                    target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE
+                    target=SideEffectTarget.UNKNOWN,
+                    reads=True,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
                 ),
             ),
             performs_substitution=True,

@@ -56,18 +56,21 @@ class RegexpCommand(CommandDef):
                         OptionSpec(name="-inline"),
                         OptionSpec(name="-indices"),
                         OptionSpec(name="-start", takes_value=True, value_hint="index"),
+                        OptionSpec(name="-about"),
                         OptionSpec(name="--"),
                     ),
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(2),
+                arity=Arity(1),
             ),
             pattern_type=PatternType.REGEX,
             return_type=TclType.INT,
             side_effect_hints=(
                 SideEffect(
-                    target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE
+                    target=SideEffectTarget.VARIABLE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
                 ),
             ),
         )

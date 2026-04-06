@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """WS::request -- This command returns the values of the various Websocket header fields seen in a client request."""
 
+# Introduced: BIG-IP v14+ (WebSocket) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

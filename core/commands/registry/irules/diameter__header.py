@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """DIAMETER::header -- Gets or sets the DIAMETER header fields."""
 
+# Introduced: BIG-IP v11+ (Diameter module) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

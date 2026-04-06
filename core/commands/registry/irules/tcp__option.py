@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """TCP::option -- Retrieves or changes TCP header options."""
 
+# Introduced: BIG-IP v10+ (core TCP iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

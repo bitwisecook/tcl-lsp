@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """DIAMETER::avp -- Provides detailed access to diameter attribute-value pairs."""
 
+# Introduced: BIG-IP v11+ (Diameter module) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

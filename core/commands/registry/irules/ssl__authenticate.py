@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """SSL::authenticate -- Overrides the current setting for authentication frequency or for the maximum depth of certificate chain traversal."""
 
+# Introduced: BIG-IP v10+ (core SSL iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

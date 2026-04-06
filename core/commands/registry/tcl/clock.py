@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import (
@@ -105,7 +104,7 @@ class ClockCommand(CommandDef):
             subcommands={
                 "add": SubCommand(
                     name="add",
-                    arity=Arity(2),
+                    arity=Arity(1),
                     detail="Add a duration to a clock value.",
                     synopsis="clock add timeVal count unit ?count unit ...?",
                     pure=True,
@@ -146,7 +145,6 @@ class ClockCommand(CommandDef):
                     arity=Arity(1),
                     detail="Parse a date/time string to a clock value.",
                     synopsis="clock scan inputString ?-option value ...?",
-                    pure=True,
                     return_type=TclType.INT,
                 ),
                 "seconds": SubCommand(
@@ -160,9 +158,5 @@ class ClockCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
-            side_effect_hints=(
-                SideEffect(
-                    target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE
-                ),
-            ),
+            side_effect_hints=(),
         )

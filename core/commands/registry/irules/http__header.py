@@ -1,5 +1,7 @@
 """HTTP::header -- Inspect or mutate HTTP headers in an iRule event."""
 
+# Introduced: BIG-IP v9+ (core HTTP iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageScope

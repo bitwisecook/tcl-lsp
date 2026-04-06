@@ -56,7 +56,7 @@ class LassignCommand(CommandDef):
                 19: ArgRole.VAR_NAME,
             },
             validation=ValidationSpec(
-                arity=Arity(2),
+                arity=Arity(1),
             ),
             return_type=TclType.LIST,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},

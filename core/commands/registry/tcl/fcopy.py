@@ -39,7 +39,7 @@ class FcopyCommand(CommandDef):
                 arity=Arity(2),
             ),
             arg_roles={0: ArgRole.CHANNEL, 1: ArgRole.CHANNEL},
-            return_type=TclType.STRING,
+            return_type=TclType.INT,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.FILE_IO,

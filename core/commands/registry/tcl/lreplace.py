@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageType
+from ....compiler.side_effects import StorageType
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
@@ -37,6 +37,7 @@ class LreplaceCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(3),
             ),
+            pure=True,
             return_type=TclType.LIST,
             inferred_storage_type=StorageType.LIST,
             arg_types={
@@ -44,9 +45,5 @@ class LreplaceCommand(CommandDef):
                 1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                 2: ArgTypeHint(expected=TclType.INT, shimmers=True),
             },
-            side_effect_hints=(
-                SideEffect(
-                    target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE
-                ),
-            ),
+            side_effect_hints=(),
         )

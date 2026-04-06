@@ -46,7 +46,7 @@ _SUBCOMMANDS = (
     _av("names", "Return list of available encodings.", "encoding names"),
     _av("profiles", "Return list of available profiles.", "encoding profiles"),
     _av("system", "Query or set system encoding.", "encoding system ?encoding?"),
-    _av("user", "Query or set user encoding.", "encoding user ?encoding?"),
+    _av("user", "Return user encoding.", "encoding user"),
 )
 
 _PROFILES = (
@@ -96,6 +96,7 @@ class EncodingCommand(CommandDef):
                     arity=Arity(1),
                     detail="Convert byte data to Unicode.",
                     synopsis="encoding convertfrom ?-profile profile? ?encoding? data",
+                    pure=True,
                     return_type=TclType.STRING,
                     is_unescape_command=True,
                     arg_values={0: _PROFILES},
@@ -105,6 +106,7 @@ class EncodingCommand(CommandDef):
                     arity=Arity(1),
                     detail="Convert Unicode to byte data.",
                     synopsis="encoding convertto ?-profile profile? ?encoding? string",
+                    pure=True,
                     return_type=TclType.BYTEARRAY,
                     arg_values={0: _PROFILES},
                 ),
@@ -113,19 +115,24 @@ class EncodingCommand(CommandDef):
                     arity=Arity(0, 1),
                     detail="Return or set encoding search path.",
                     synopsis="encoding dirs ?directoryList?",
+                    return_type=TclType.LIST,
                 ),
                 "names": SubCommand(
                     name="names",
                     arity=Arity(0, 0),
                     detail="Return list of available encodings.",
                     synopsis="encoding names",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "profiles": SubCommand(
                     name="profiles",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(0, 0),
                     detail="Return list of available profiles.",
                     synopsis="encoding profiles",
+                    pure=True,
+                    return_type=TclType.LIST,
                 ),
                 "system": SubCommand(
                     name="system",
@@ -136,9 +143,10 @@ class EncodingCommand(CommandDef):
                 ),
                 "user": SubCommand(
                     name="user",
-                    arity=Arity(0, 1),
-                    detail="Query or set user encoding.",
-                    synopsis="encoding user ?encoding?",
+                    dialects=frozenset({"tcl9.0"}),
+                    arity=Arity(0, 0),
+                    detail="Return user encoding.",
+                    synopsis="encoding user",
                 ),
             },
             validation=ValidationSpec(

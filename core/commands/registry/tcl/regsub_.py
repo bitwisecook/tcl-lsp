@@ -61,13 +61,15 @@ class RegsubCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(3),
+                arity=Arity(3, 4),
             ),
             pattern_type=PatternType.REGEX,
             return_type=TclType.INT,
             side_effect_hints=(
                 SideEffect(
-                    target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE
+                    target=SideEffectTarget.VARIABLE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
                 ),
             ),
         )

@@ -7,7 +7,15 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..dialects import DIALECTS_EXCEPT_IRULES
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    OptionSpec,
+    SubCommand,
+    ValidationSpec,
+)
 from ..signatures import Arity
 from ._base import register
 
@@ -111,7 +119,7 @@ class PackageCommand(CommandDef):
             subcommands={
                 "forget": SubCommand(
                     name="forget",
-                    arity=Arity(1),
+                    arity=Arity(0),
                     detail="Removes all information about each specified package from this interpreter, including information provided by both package ifneeded and package provide.",
                     synopsis="package forget ?package package ...?",
                     return_type=TclType.STRING,
@@ -128,6 +136,7 @@ class PackageCommand(CommandDef):
                     arity=Arity(0, 0),
                     detail="Returns a list of the names of all packages in the interpreter for which a version has been provided (via package provide) or for which a package ifneeded script is available.",
                     synopsis="package names",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "present": SubCommand(
@@ -136,6 +145,7 @@ class PackageCommand(CommandDef):
                     detail="This command is equivalent to package require except that it does not try and load the package if it is not already loaded.",
                     synopsis="package present ?-exact? package ?requirement...?",
                     return_type=TclType.STRING,
+                    options=(OptionSpec(name="-exact"),),
                 ),
                 "provide": SubCommand(
                     name="provide",
@@ -150,6 +160,7 @@ class PackageCommand(CommandDef):
                     detail="This command is typically invoked by Tcl code that wishes to use a particular version of a particular package.",
                     synopsis="package require package ?requirement...?",
                     return_type=TclType.STRING,
+                    options=(OptionSpec(name="-exact"),),
                 ),
                 "unknown": SubCommand(
                     name="unknown",
@@ -163,6 +174,7 @@ class PackageCommand(CommandDef):
                     arity=Arity(2, 2),
                     detail="Compares the two version numbers given by version1 and version2.",
                     synopsis="package vcompare version1 version2",
+                    pure=True,
                     return_type=TclType.INT,
                 ),
                 "versions": SubCommand(
@@ -170,6 +182,7 @@ class PackageCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns a list of all the version numbers of package for which information has been provided by package ifneeded commands.",
                     synopsis="package versions package",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "vsatisfies": SubCommand(
@@ -177,7 +190,24 @@ class PackageCommand(CommandDef):
                     arity=Arity(2),
                     detail="Returns 1 if the version satisfies at least one of the given requirements, and 0 otherwise.",
                     synopsis="package vsatisfies version requirement...",
+                    pure=True,
                     return_type=TclType.BOOLEAN,
+                ),
+                "files": SubCommand(
+                    name="files",
+                    arity=Arity(1, 1),
+                    detail="Lists all files forming part of package.",
+                    synopsis="package files package",
+                    pure=True,
+                    return_type=TclType.LIST,
+                    dialects=frozenset({"tcl9.0"}),
+                ),
+                "prefer": SubCommand(
+                    name="prefer",
+                    arity=Arity(0, 1),
+                    detail="With no arguments, the commands returns either 'latest' or 'stable', whichever describes the current mode of selection logic used by package require.",
+                    synopsis="package prefer ?latest|stable?",
+                    return_type=TclType.STRING,
                 ),
             },
             validation=ValidationSpec(

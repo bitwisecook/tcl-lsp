@@ -45,7 +45,6 @@ class ReadCommand(CommandDef):
                 SideEffect(
                     target=SideEffectTarget.FILE_IO,
                     reads=True,
-                    writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),
             ),

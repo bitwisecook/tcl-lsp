@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import (
@@ -160,6 +159,7 @@ class StringCommand(CommandDef):
             subcommands={
                 "cat": SubCommand(
                     name="cat",
+                    dialects=frozenset({"tcl8.6", "tcl9.0"}),
                     arity=Arity(0),
                     detail="Concatenate strings.",
                     synopsis="string cat ?string1? ?string2 ...?",
@@ -215,9 +215,12 @@ class StringCommand(CommandDef):
                 ),
                 "insert": SubCommand(
                     name="insert",
+                    dialects=frozenset({"tcl9.0"}),
                     arity=Arity(3, 3),
                     detail="Insert string at index.",
                     synopsis="string insert string index insertString",
+                    pure=True,
+                    return_type=TclType.STRING,
                     arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
                 "is": SubCommand(
@@ -225,10 +228,13 @@ class StringCommand(CommandDef):
                     arity=Arity(2),
                     detail="Test if string is a member of a character class.",
                     synopsis="string is class ?-strict? ?-failindex varname? string",
-                    pure=True,
                     const_fold=fold_string_is,
                     return_type=TclType.BOOLEAN,
                     arg_values={0: _IS_CLASSES},
+                    options=(
+                        OptionSpec(name="-strict"),
+                        OptionSpec(name="-failindex", takes_value=True, value_hint="varname"),
+                    ),
                 ),
                 "last": SubCommand(
                     name="last",
@@ -257,6 +263,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_map,
                     return_type=TclType.STRING,
+                    options=(OptionSpec(name="-nocase"),),
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "match": SubCommand(
@@ -398,14 +405,19 @@ class StringCommand(CommandDef):
                     return_type=TclType.INT,
                     arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
+                "bytelength": SubCommand(
+                    name="bytelength",
+                    dialects=frozenset({"tcl8.4", "tcl8.5", "tcl8.6"}),
+                    arity=Arity(1, 1),
+                    detail="Return number of bytes used to represent the string in memory.",
+                    synopsis="string bytelength string",
+                    pure=True,
+                    return_type=TclType.INT,
+                ),
             },
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
             cse_candidate=True,
-            side_effect_hints=(
-                SideEffect(
-                    target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE
-                ),
-            ),
+            side_effect_hints=(),
         )

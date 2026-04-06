@@ -155,6 +155,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(0, 2),
                     detail="Returns a list of all child namespaces that belong to the namespace namespace.",
                     synopsis="namespace children ?namespace? ?pattern?",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "code": SubCommand(
@@ -162,6 +163,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Captures the current namespace context for later execution of the script script.",
                     synopsis="namespace code script",
+                    pure=True,
                     return_type=TclType.STRING,
                     arg_roles={0: ArgRole.BODY},
                 ),
@@ -170,6 +172,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(0, 0),
                     detail="Returns the fully-qualified name for the current namespace.",
                     synopsis="namespace current",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "delete": SubCommand(
@@ -181,6 +184,7 @@ class NamespaceCommand(CommandDef):
                 ),
                 "ensemble": SubCommand(
                     name="ensemble",
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     arity=Arity(1),
                     detail="Creates and manipulates a command that is formed out of an ensemble of subcommands.",
                     synopsis="namespace ensemble subcommand ?arg ...?",
@@ -199,6 +203,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns 1 if namespace is a valid namespace in the current context, returns 0 otherwise.",
                     synopsis="namespace exists namespace",
+                    pure=True,
                     return_type=TclType.BOOLEAN,
                 ),
                 "export": SubCommand(
@@ -206,14 +211,14 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(0),
                     detail="Specifies which commands are exported from a namespace.",
                     synopsis="namespace export ?-clear? ?pattern pattern ...?",
-                    return_type=TclType.STRING,
+                    return_type=TclType.LIST,
                 ),
                 "import": SubCommand(
                     name="import",
                     arity=Arity(0),
                     detail="Imports commands into a namespace, or queries the set of imported commands in a namespace.",
                     synopsis="namespace import ?-force? ?pattern pattern ...?",
-                    return_type=TclType.STRING,
+                    return_type=TclType.LIST,
                 ),
                 "inscope": SubCommand(
                     name="inscope",
@@ -228,6 +233,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns the fully-qualified name of the original command to which the imported command command refers.",
                     synopsis="namespace origin command",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "parent": SubCommand(
@@ -235,10 +241,12 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(0, 1),
                     detail="Returns the fully-qualified name of the parent namespace for namespace namespace.",
                     synopsis="namespace parent ?namespace?",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "path": SubCommand(
                     name="path",
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     arity=Arity(0, 1),
                     detail="Returns the command resolution path of the current namespace.",
                     synopsis="namespace path ?namespaceList?",
@@ -249,6 +257,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns any leading namespace qualifiers for string.",
                     synopsis="namespace qualifiers string",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "tail": SubCommand(
@@ -256,10 +265,12 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns the simple name at the end of a qualified string.",
                     synopsis="namespace tail string",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "unknown": SubCommand(
                     name="unknown",
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     arity=Arity(0, 1),
                     detail="Sets or returns the unknown command handler for the current namespace.",
                     synopsis="namespace unknown ?script?",
@@ -267,7 +278,8 @@ class NamespaceCommand(CommandDef):
                 ),
                 "upvar": SubCommand(
                     name="upvar",
-                    arity=Arity(2),
+                    arity=Arity(1),
+                    dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                     detail="This command arranges for zero or more local variables in the current procedure to refer to variables in namespace.",
                     synopsis="namespace upvar namespace ?otherVar myVar ...?",
                     return_type=TclType.STRING,
@@ -278,6 +290,14 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1),
                     detail="Looks up name as either a command or variable and returns its fully-qualified name.",
                     synopsis="namespace which ?-command? ?-variable? name",
+                    pure=True,
+                    return_type=TclType.STRING,
+                ),
+                "forget": SubCommand(
+                    name="forget",
+                    arity=Arity(0),
+                    detail="Removes previously imported commands from a namespace.",
+                    synopsis="namespace forget ?pattern pattern ...?",
                     return_type=TclType.STRING,
                 ),
             },
