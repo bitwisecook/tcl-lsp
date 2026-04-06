@@ -73,6 +73,9 @@ LoweringHook = Callable[..., object]
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 """Maps actual argument values to {index: ArgRole} for variable-layout commands."""
 
+ArgTypeResolver = Callable[[tuple[str, ...]], dict[int, "ArgTypeHint"]]
+"""Maps actual argument values to {index: ArgTypeHint} for variable-layout commands."""
+
 ConstFoldFunc = Callable[[tuple[str, ...]], str | None]
 """Compile-time constant folder: (resolved_args) -> result string, or None."""
 
@@ -328,6 +331,7 @@ class SubCommand:
     # Type info (replaces type_hints() -> SubcommandTypeHint).
     return_type: TclType | None = None
     arg_types: dict[int, ArgTypeHint] = field(default_factory=dict)
+    arg_type_resolver: ArgTypeResolver | None = None
 
     # Effect classification (replaces pure_subcommands / mutator_subcommands).
     pure: bool = False
@@ -549,6 +553,9 @@ class CommandSpec:
     arg_roles: dict[int, ArgRole] = field(default_factory=dict)
     return_type: TclType | None = None
     arg_types: dict[int, ArgTypeHint] = field(default_factory=dict)
+
+    # Arg-type resolution for variable-layout commands (lsort/foreach/concat).
+    arg_type_resolver: ArgTypeResolver | None = None
 
     # Arg-role resolution for variable-layout commands (if/try/switch/foreach).
     arg_role_resolver: ArgRoleResolver | None = None

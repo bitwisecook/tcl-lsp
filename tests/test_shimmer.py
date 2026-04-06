@@ -74,6 +74,39 @@ class TestCoercionTracking:
         assert any(w.variable == "myList" for w in warnings)
 
 
+class TestVariablePositionShimmer:
+    """Shimmer detection for commands with variable argument layouts."""
+
+    def test_lsort_last_arg(self):
+        source = "set x {a b c}\nstring length $x\nlsort $x"
+        warnings = _warnings_for(source, code="S100")
+        shimmer = [w for w in warnings if isinstance(w, ShimmerWarning)]
+        assert any(w.variable == "x" and w.to_type is TclType.LIST for w in shimmer)
+
+    def test_lsort_with_options(self):
+        source = "set x {3 1 2}\nstring length $x\nlsort -integer -decreasing $x"
+        warnings = _warnings_for(source, code="S100")
+        shimmer = [w for w in warnings if isinstance(w, ShimmerWarning)]
+        assert any(w.variable == "x" and w.to_type is TclType.LIST for w in shimmer)
+
+    def test_lsort_no_false_positive(self):
+        # Variable already has LIST type — no shimmer.
+        source = "set x [list a b c]\nlsort $x"
+        assert _codes(source) == []
+
+    def test_lsearch_list_arg(self):
+        source = "set x {a b c}\nstring length $x\nlsearch $x a"
+        warnings = _warnings_for(source, code="S100")
+        shimmer = [w for w in warnings if isinstance(w, ShimmerWarning)]
+        assert any(w.variable == "x" and w.to_type is TclType.LIST for w in shimmer)
+
+    def test_concat_all_args(self):
+        source = "set x 42\nexpr {$x + 1}\nconcat $x"
+        warnings = _warnings_for(source, code="S100")
+        shimmer = [w for w in warnings if isinstance(w, ShimmerWarning)]
+        assert any(w.variable == "x" and w.to_type is TclType.LIST for w in shimmer)
+
+
 class TestUseSiteShimmer:
     """Detect shimmers at command call sites."""
 

@@ -19,6 +19,7 @@ from .const_fold import (
     fold_dict_size,
     fold_dict_values,
 )
+from .shimmer_resolvers import resolve_dict_merge
 
 _SOURCE = "Tcl man page dict.n"
 
@@ -268,6 +269,7 @@ class DictCommand(CommandDef):
                     pure=True,
                     const_fold=fold_dict_merge,
                     return_type=TclType.DICT,
+                    arg_type_resolver=resolve_dict_merge,
                 ),
                 "remove": SubCommand(
                     name="remove",

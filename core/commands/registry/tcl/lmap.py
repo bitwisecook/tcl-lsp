@@ -8,6 +8,7 @@ from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
 from ._base import register
+from .shimmer_resolvers import resolve_lmap
 
 _SOURCE = "Tcl man page lmap.n"
 
@@ -41,6 +42,7 @@ class LmapCommand(CommandDef):
                 arity=Arity(3),
             ),
             return_type=TclType.LIST,
+            arg_type_resolver=resolve_lmap,
             side_effect_hints=(
                 SideEffect(target=SideEffectTarget.UNKNOWN, connection_side=ConnectionSide.NONE),
             ),

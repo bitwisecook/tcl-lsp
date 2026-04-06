@@ -8,6 +8,7 @@ from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, OptionSpec, ValidationSpec
 from ..signatures import Arity
 from ._base import register
+from .shimmer_resolvers import resolve_lsearch
 
 
 @register
@@ -50,6 +51,7 @@ class LsearchCommand(CommandDef):
             pure=True,
             cse_candidate=True,
             return_type=TclType.STRING,
+            arg_type_resolver=resolve_lsearch,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE

@@ -167,9 +167,15 @@ def _arg_type_for_call(command: str, args: tuple[str, ...], arg_index: int) -> T
         # the subcommand's arg positions start at 1 in the full tuple.
         sub_arg_index = arg_index - 1
         arg_hint = sub_hint.arg_types.get(sub_arg_index)
+        if arg_hint is None and sub_hint.arg_type_resolver is not None:
+            resolved = sub_hint.arg_type_resolver(args[1:])
+            arg_hint = resolved.get(sub_arg_index)
         return arg_hint.expected if arg_hint and arg_hint.shimmers else None
     if isinstance(hint, CommandTypeHint):
         arg_hint = hint.arg_types.get(arg_index)
+        if arg_hint is None and hint.arg_type_resolver is not None:
+            resolved = hint.arg_type_resolver(args)
+            arg_hint = resolved.get(arg_index)
         return arg_hint.expected if arg_hint and arg_hint.shimmers else None
     return None
 
