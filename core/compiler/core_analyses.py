@@ -1450,18 +1450,7 @@ def _evaluate_type_def(
     """Determine the type of a variable definition."""
     match stmt:
         case IRAssignConst(value=value):
-            lt = _literal_type(value)
-            # IRAssignConst values come from STR tokens (braced literals or
-            # simple unquoted words).  Unquoted words never contain whitespace,
-            # so whitespace means a braced literal like {a b c} — the canonical
-            # Tcl list representation.  Classify as LIST so downstream shimmer
-            # checks do not false-positive when the variable is used with list
-            # commands (fixes O116 folding → S100 interaction).
-            if lt.tcl_type is TclType.STRING:
-                stripped = value.strip()
-                if " " in stripped or "\t" in stripped:
-                    return TypeLattice.of(TclType.LIST)
-            return lt
+            return _literal_type(value)
 
         case IRAssignExpr(expr=expr):
             # Walk the expression AST with operator-aware type rules.

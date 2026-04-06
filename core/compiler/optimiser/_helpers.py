@@ -536,7 +536,11 @@ def _try_fold_list_command(cmd_text: str) -> str | None:
     elements = cmd_texts[1:]
     if len(elements) == 1:
         return elements[0]
-    return "{" + " ".join(elements) + "}"
+    # Multi-element lists: folding [list a b c] to {a b c} changes the intrep
+    # from list to string.  Downstream list commands (lindex, lrange, …) would
+    # then shimmer the braced literal back, and benchmarks show no measurable
+    # performance benefit from the fold.  Skip to avoid triggering S100.
+    return None
 
 
 def _parse_string_length_arg(cmd_text: str) -> str | None:
