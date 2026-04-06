@@ -608,6 +608,56 @@ class TestStructureElimination:
         assert "puts done" in optimised
         assert any(r.code == "O112" for r in rewrites)
 
+    def test_switch_glob_matches_first_arm(self):
+        source = "switch -glob aaab {\n    a*b { set x 1 }\n    b { set y 2 }\n    a* { set z 3 }\n    default { set w 4 }\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "set x 1" in optimised
+        assert "set y 2" not in optimised
+        assert "set z 3" not in optimised
+        assert "set w 4" not in optimised
+        assert "switch" not in optimised
+        assert any(r.code == "O112" for r in rewrites)
+
+    def test_switch_glob_no_match_uses_default(self):
+        source = (
+            "switch -glob xyz {\n    a* { set x 1 }\n    b* { set y 2 }\n    default { set z 3 }\n}"
+        )
+        optimised, rewrites = optimise_source(source)
+        assert "set x 1" not in optimised
+        assert "set y 2" not in optimised
+        assert "set z 3" in optimised
+        assert any(r.code == "O112" for r in rewrites)
+
+    def test_switch_regexp_not_eliminated(self):
+        source = "switch -regexp abc {\n    ^a { set x 1 }\n    default { set y 2 }\n}"
+        _, rewrites = optimise_source(source)
+        assert not any(r.code == "O112" for r in rewrites)
+
+    def test_switch_glob_fallthrough_selects_next_body(self):
+        """Subject matches a fallthrough arm; the next arm's body is used."""
+        source = "switch -glob abc {\n    a* -\n    z* { set x 1 }\n    default { set y 2 }\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "set x 1" in optimised
+        assert "set y 2" not in optimised
+        assert "switch" not in optimised
+        assert any(r.code == "O112" for r in rewrites)
+
+    def test_switch_fallthrough_chain_to_default(self):
+        """Fallthrough chain with no subsequent body falls through to default."""
+        source = "switch abc {\n    abc -\n    def -\n    default { set x 1 }\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "set x 1" in optimised
+        assert "switch" not in optimised
+        assert any(r.code == "O112" for r in rewrites)
+
+    def test_switch_nocase_not_eliminated(self):
+        """Switch with -nocase uses case-insensitive matching."""
+        source = "switch -nocase ABC {\n    abc { set x 1 }\n    default { set y 2 }\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "set x 1" in optimised
+        assert "set y 2" not in optimised
+        assert any(r.code == "O112" for r in rewrites)
+
     # non-constant conditions untouched
 
     def test_runtime_condition_untouched(self):
