@@ -218,6 +218,8 @@ class StringCommand(CommandDef):
                     arity=Arity(3, 3),
                     detail="Insert string at index.",
                     synopsis="string insert string index insertString",
+                    pure=True,
+                    return_type=TclType.STRING,
                     arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
                 "is": SubCommand(
@@ -257,6 +259,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_map,
                     return_type=TclType.STRING,
+                    options=(OptionSpec(name="-nocase"),),
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "match": SubCommand(

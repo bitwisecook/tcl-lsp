@@ -267,7 +267,7 @@ class NamespaceCommand(CommandDef):
                 ),
                 "upvar": SubCommand(
                     name="upvar",
-                    arity=Arity(2),
+                    arity=Arity(1),
                     detail="This command arranges for zero or more local variables in the current procedure to refer to variables in namespace.",
                     synopsis="namespace upvar namespace ?otherVar myVar ...?",
                     return_type=TclType.STRING,

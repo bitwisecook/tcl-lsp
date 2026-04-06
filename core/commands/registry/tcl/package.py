@@ -7,7 +7,15 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..dialects import DIALECTS_EXCEPT_IRULES
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    OptionSpec,
+    SubCommand,
+    ValidationSpec,
+)
 from ..signatures import Arity
 from ._base import register
 
@@ -111,7 +119,7 @@ class PackageCommand(CommandDef):
             subcommands={
                 "forget": SubCommand(
                     name="forget",
-                    arity=Arity(1),
+                    arity=Arity(0),
                     detail="Removes all information about each specified package from this interpreter, including information provided by both package ifneeded and package provide.",
                     synopsis="package forget ?package package ...?",
                     return_type=TclType.STRING,
@@ -136,6 +144,7 @@ class PackageCommand(CommandDef):
                     detail="This command is equivalent to package require except that it does not try and load the package if it is not already loaded.",
                     synopsis="package present ?-exact? package ?requirement...?",
                     return_type=TclType.STRING,
+                    options=(OptionSpec(name="-exact"),),
                 ),
                 "provide": SubCommand(
                     name="provide",
@@ -150,6 +159,7 @@ class PackageCommand(CommandDef):
                     detail="This command is typically invoked by Tcl code that wishes to use a particular version of a particular package.",
                     synopsis="package require package ?requirement...?",
                     return_type=TclType.STRING,
+                    options=(OptionSpec(name="-exact"),),
                 ),
                 "unknown": SubCommand(
                     name="unknown",
