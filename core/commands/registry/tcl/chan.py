@@ -146,7 +146,15 @@ class ChanCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Test whether last input operation exhausted all available data.",
                     synopsis="chan blocked channelId",
+                    pure=True,
                     return_type=TclType.BOOLEAN,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "close": SubCommand(
                     name="close",
@@ -154,6 +162,13 @@ class ChanCommand(CommandDef):
                     detail="Close a channel.",
                     synopsis="chan close channelId ?direction?",
                     return_type=TclType.STRING,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "configure": SubCommand(
                     name="configure",
@@ -161,6 +176,14 @@ class ChanCommand(CommandDef):
                     detail="Query or set channel options.",
                     synopsis="chan configure channelId ?optionName? ?value ...?",
                     return_type=TclType.STRING,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "copy": SubCommand(
                     name="copy",
@@ -168,6 +191,14 @@ class ChanCommand(CommandDef):
                     detail="Copy data from one channel to another.",
                     synopsis="chan copy inputChan outputChan ?-size size? ?-command callback?",
                     return_type=TclType.INT,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "create": SubCommand(
                     name="create",
@@ -175,13 +206,28 @@ class ChanCommand(CommandDef):
                     detail="Create a script-level channel.",
                     synopsis="chan create mode cmdPrefix",
                     return_type=TclType.CHANNEL,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.INTERP_STATE,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "eof": SubCommand(
                     name="eof",
                     arity=Arity(1, 1),
                     detail="Test for end of file on a channel.",
                     synopsis="chan eof channelId",
+                    pure=True,
                     return_type=TclType.BOOLEAN,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "event": SubCommand(
                     name="event",
@@ -190,6 +236,14 @@ class ChanCommand(CommandDef):
                     synopsis="chan event channelId event ?script?",
                     return_type=TclType.STRING,
                     arg_roles={2: ArgRole.BODY},
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "flush": SubCommand(
                     name="flush",
@@ -197,6 +251,13 @@ class ChanCommand(CommandDef):
                     detail="Flush buffered output for a channel.",
                     synopsis="chan flush channelId",
                     return_type=TclType.STRING,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "gets": SubCommand(
                     name="gets",
@@ -205,26 +266,63 @@ class ChanCommand(CommandDef):
                     synopsis="chan gets channelId ?varName?",
                     return_type=TclType.STRING,
                     arg_roles={1: ArgRole.VAR_NAME},
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                        SideEffect(
+                            target=SideEffectTarget.VARIABLE,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "isbinary": SubCommand(
                     name="isbinary",
                     arity=Arity(1, 1),
                     detail="Test whether channel is binary.",
                     synopsis="chan isbinary channelId",
+                    pure=True,
+                    return_type=TclType.BOOLEAN,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "names": SubCommand(
                     name="names",
                     arity=Arity(0, 1),
                     detail="Return list of open channels.",
                     synopsis="chan names ?pattern?",
+                    pure=True,
                     return_type=TclType.LIST,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.INTERP_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "pending": SubCommand(
                     name="pending",
                     arity=Arity(2, 2),
                     detail="Return number of bytes pending.",
                     synopsis="chan pending mode channelId",
+                    pure=True,
                     return_type=TclType.INT,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "pipe": SubCommand(
                     name="pipe",
@@ -232,6 +330,13 @@ class ChanCommand(CommandDef):
                     detail="Create a pair of connected channels.",
                     synopsis="chan pipe",
                     return_type=TclType.LIST,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "pop": SubCommand(
                     name="pop",
@@ -239,6 +344,13 @@ class ChanCommand(CommandDef):
                     detail="Remove topmost stacked transformation.",
                     synopsis="chan pop channelId",
                     return_type=TclType.STRING,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "postevent": SubCommand(
                     name="postevent",
@@ -246,6 +358,13 @@ class ChanCommand(CommandDef):
                     detail="Post an event to a reflected channel.",
                     synopsis="chan postevent channelId eventSpec",
                     return_type=TclType.STRING,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "push": SubCommand(
                     name="push",
@@ -253,6 +372,13 @@ class ChanCommand(CommandDef):
                     detail="Push a transformation on top of a channel.",
                     synopsis="chan push channelId cmdPrefix",
                     return_type=TclType.STRING,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "puts": SubCommand(
                     name="puts",
@@ -260,6 +386,13 @@ class ChanCommand(CommandDef):
                     detail="Write a string to a channel.",
                     synopsis="chan puts ?-nonewline? channelId string",
                     return_type=TclType.STRING,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "read": SubCommand(
                     name="read",
@@ -267,6 +400,13 @@ class ChanCommand(CommandDef):
                     detail="Read data from a channel.",
                     synopsis="chan read ?-nonewline? channelId ?numChars?",
                     return_type=TclType.STRING,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "seek": SubCommand(
                     name="seek",
@@ -274,13 +414,28 @@ class ChanCommand(CommandDef):
                     detail="Set access position for a channel.",
                     synopsis="chan seek channelId offset ?origin?",
                     return_type=TclType.STRING,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "tell": SubCommand(
                     name="tell",
                     arity=Arity(1, 1),
                     detail="Return current access position.",
                     synopsis="chan tell channelId",
+                    pure=True,
                     return_type=TclType.INT,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "truncate": SubCommand(
                     name="truncate",
@@ -288,6 +443,13 @@ class ChanCommand(CommandDef):
                     detail="Truncate a channel to given length.",
                     synopsis="chan truncate channelId ?length?",
                     return_type=TclType.STRING,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
             },
             validation=ValidationSpec(
