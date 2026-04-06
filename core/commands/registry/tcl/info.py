@@ -274,11 +274,17 @@ class InfoCommand(CommandDef):
                 ),
             ),
             subcommands={
-                "args": SubCommand(name="args", arity=Arity(1, 1), return_type=TclType.LIST),
-                "body": SubCommand(name="body", arity=Arity(1, 1), return_type=TclType.STRING),
-                "cmdcount": SubCommand(name="cmdcount", arity=Arity(0, 0), return_type=TclType.INT),
+                "args": SubCommand(
+                    name="args", arity=Arity(1, 1), pure=True, return_type=TclType.LIST
+                ),
+                "body": SubCommand(
+                    name="body", arity=Arity(1, 1), pure=True, return_type=TclType.STRING
+                ),
+                "cmdcount": SubCommand(
+                    name="cmdcount", arity=Arity(0, 0), pure=True, return_type=TclType.INT
+                ),
                 "commands": SubCommand(
-                    name="commands", arity=Arity(0, 1), return_type=TclType.LIST
+                    name="commands", arity=Arity(0, 1), pure=True, return_type=TclType.LIST
                 ),
                 "complete": SubCommand(
                     name="complete", arity=Arity(1, 1), pure=True, return_type=TclType.BOOLEAN
@@ -292,46 +298,74 @@ class InfoCommand(CommandDef):
                 "exists": SubCommand(
                     name="exists",
                     arity=Arity(1, 1),
+                    pure=True,
                     arg_roles={0: ArgRole.VAR_READ},
                     return_type=TclType.BOOLEAN,
                 ),
-                "frame": SubCommand(name="frame", arity=Arity(0, 1), return_type=TclType.DICT),
+                "frame": SubCommand(
+                    name="frame", arity=Arity(0, 1), pure=True, return_type=TclType.DICT
+                ),
                 "functions": SubCommand(
-                    name="functions", arity=Arity(0, 1), return_type=TclType.LIST
+                    name="functions", arity=Arity(0, 1), pure=True, return_type=TclType.LIST
                 ),
-                "globals": SubCommand(name="globals", arity=Arity(0, 1), return_type=TclType.LIST),
+                "globals": SubCommand(
+                    name="globals", arity=Arity(0, 1), pure=True, return_type=TclType.LIST
+                ),
                 "hostname": SubCommand(
-                    name="hostname", arity=Arity(0, 0), return_type=TclType.STRING
+                    name="hostname", arity=Arity(0, 0), pure=True, return_type=TclType.STRING
                 ),
-                "level": SubCommand(name="level", arity=Arity(0, 1), return_type=TclType.INT),
+                "level": SubCommand(
+                    name="level", arity=Arity(0, 1), pure=True, return_type=TclType.INT
+                ),
                 "library": SubCommand(
-                    name="library", arity=Arity(0, 0), return_type=TclType.STRING, returns_path=True
+                    name="library",
+                    arity=Arity(0, 0),
+                    pure=True,
+                    return_type=TclType.STRING,
+                    returns_path=True,
                 ),
-                "loaded": SubCommand(name="loaded", arity=Arity(0, 2), return_type=TclType.LIST),
-                "locals": SubCommand(name="locals", arity=Arity(0, 1), return_type=TclType.LIST),
+                "loaded": SubCommand(
+                    name="loaded", arity=Arity(0, 2), pure=True, return_type=TclType.LIST
+                ),
+                "locals": SubCommand(
+                    name="locals", arity=Arity(0, 1), pure=True, return_type=TclType.LIST
+                ),
                 "nameofexecutable": SubCommand(
                     name="nameofexecutable",
                     arity=Arity(0, 0),
+                    pure=True,
                     return_type=TclType.STRING,
                     returns_path=True,
                 ),
                 "patchlevel": SubCommand(
-                    name="patchlevel", arity=Arity(0, 0), return_type=TclType.STRING
+                    name="patchlevel", arity=Arity(0, 0), pure=True, return_type=TclType.STRING
                 ),
-                "procs": SubCommand(name="procs", arity=Arity(0, 1), return_type=TclType.LIST),
+                "procs": SubCommand(
+                    name="procs", arity=Arity(0, 1), pure=True, return_type=TclType.LIST
+                ),
                 "script": SubCommand(
-                    name="script", arity=Arity(0, 1), return_type=TclType.STRING, returns_path=True
+                    name="script",
+                    arity=Arity(0, 1),
+                    pure=True,
+                    return_type=TclType.STRING,
+                    returns_path=True,
                 ),
                 "sharedlibextension": SubCommand(
-                    name="sharedlibextension", arity=Arity(0, 0), return_type=TclType.STRING
+                    name="sharedlibextension",
+                    arity=Arity(0, 0),
+                    pure=True,
+                    return_type=TclType.STRING,
                 ),
                 "tclversion": SubCommand(
-                    name="tclversion", arity=Arity(0, 0), return_type=TclType.STRING
+                    name="tclversion", arity=Arity(0, 0), pure=True, return_type=TclType.STRING
                 ),
-                "vars": SubCommand(name="vars", arity=Arity(0, 1), return_type=TclType.LIST),
+                "vars": SubCommand(
+                    name="vars", arity=Arity(0, 1), pure=True, return_type=TclType.LIST
+                ),
                 "class": SubCommand(
                     name="class",
                     arity=Arity(2),
+                    pure=True,
                     detail="Returns information about the class.",
                     synopsis="info class subcommand class ?arg ...?",
                     return_type=TclType.STRING,
@@ -339,6 +373,7 @@ class InfoCommand(CommandDef):
                 "object": SubCommand(
                     name="object",
                     arity=Arity(2),
+                    pure=True,
                     detail="Returns information about the object.",
                     synopsis="info object subcommand object ?arg ...?",
                     return_type=TclType.STRING,
@@ -346,6 +381,7 @@ class InfoCommand(CommandDef):
                 "coroutine": SubCommand(
                     name="coroutine",
                     arity=Arity(0, 0),
+                    pure=True,
                     detail="Returns the name of the current coroutine, or the empty string if there is no current coroutine.",
                     synopsis="info coroutine",
                     return_type=TclType.STRING,
@@ -353,6 +389,7 @@ class InfoCommand(CommandDef):
                 "errorstack": SubCommand(
                     name="errorstack",
                     arity=Arity(0, 1),
+                    pure=True,
                     detail="Returns a description of the active command at each level from the call stack of the last error.",
                     synopsis="info errorstack ?interp?",
                     return_type=TclType.LIST,
@@ -360,6 +397,7 @@ class InfoCommand(CommandDef):
                 "cmdtype": SubCommand(
                     name="cmdtype",
                     arity=Arity(1, 1),
+                    pure=True,
                     detail="Returns the type of the command named commandName.",
                     synopsis="info cmdtype commandName",
                     return_type=TclType.STRING,
@@ -367,6 +405,7 @@ class InfoCommand(CommandDef):
                 "constant": SubCommand(
                     name="constant",
                     arity=Arity(1, 1),
+                    pure=True,
                     detail="Returns 1 if varName is a constant variable and 0 otherwise.",
                     synopsis="info constant varName",
                     return_type=TclType.BOOLEAN,
@@ -374,6 +413,7 @@ class InfoCommand(CommandDef):
                 "consts": SubCommand(
                     name="consts",
                     arity=Arity(0, 1),
+                    pure=True,
                     detail="Returns the list of constant variables in the current scope.",
                     synopsis="info consts ?pattern?",
                     return_type=TclType.LIST,

@@ -155,6 +155,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(0, 2),
                     detail="Returns a list of all child namespaces that belong to the namespace namespace.",
                     synopsis="namespace children ?namespace? ?pattern?",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "code": SubCommand(
@@ -162,6 +163,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Captures the current namespace context for later execution of the script script.",
                     synopsis="namespace code script",
+                    pure=True,
                     return_type=TclType.LIST,
                     arg_roles={0: ArgRole.BODY},
                 ),
@@ -170,6 +172,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(0, 0),
                     detail="Returns the fully-qualified name for the current namespace.",
                     synopsis="namespace current",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "delete": SubCommand(
@@ -199,6 +202,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns 1 if namespace is a valid namespace in the current context, returns 0 otherwise.",
                     synopsis="namespace exists namespace",
+                    pure=True,
                     return_type=TclType.BOOLEAN,
                 ),
                 "export": SubCommand(
@@ -228,6 +232,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns the fully-qualified name of the original command to which the imported command command refers.",
                     synopsis="namespace origin command",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "parent": SubCommand(
@@ -235,6 +240,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(0, 1),
                     detail="Returns the fully-qualified name of the parent namespace for namespace namespace.",
                     synopsis="namespace parent ?namespace?",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "path": SubCommand(
@@ -280,6 +286,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1),
                     detail="Looks up name as either a command or variable and returns its fully-qualified name.",
                     synopsis="namespace which ?-command? ?-variable? name",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "forget": SubCommand(

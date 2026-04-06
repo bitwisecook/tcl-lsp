@@ -136,6 +136,7 @@ class PackageCommand(CommandDef):
                     arity=Arity(0, 0),
                     detail="Returns a list of the names of all packages in the interpreter for which a version has been provided (via package provide) or for which a package ifneeded script is available.",
                     synopsis="package names",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "present": SubCommand(
@@ -181,6 +182,7 @@ class PackageCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns a list of all the version numbers of package for which information has been provided by package ifneeded commands.",
                     synopsis="package versions package",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "vsatisfies": SubCommand(
@@ -196,6 +198,7 @@ class PackageCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Lists all files forming part of package.",
                     synopsis="package files package",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "prefer": SubCommand(

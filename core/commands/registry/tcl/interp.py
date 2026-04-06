@@ -170,6 +170,7 @@ class InterpCommand(CommandDef):
                     arity=Arity(0, 1),
                     detail="This command returns a Tcl list of the tokens of all the source commands for aliases defined in the interpreter identified by path.",
                     synopsis="interp aliases ?path?",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "create": SubCommand(
@@ -200,6 +201,7 @@ class InterpCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns 1 if a child interpreter by the specified path exists in this parent, 0 otherwise.",
                     synopsis="interp exists path",
+                    pure=True,
                     return_type=TclType.BOOLEAN,
                 ),
                 "expose": SubCommand(
@@ -214,6 +216,7 @@ class InterpCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns a list of the names of all hidden commands in the interpreter identified by path.",
                     synopsis="interp hidden path",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "hide": SubCommand(
@@ -248,6 +251,7 @@ class InterpCommand(CommandDef):
                     arity=Arity(0, 1),
                     detail="Returns 1 if the interpreter identified by the specified path is safe, 0 otherwise.",
                     synopsis="interp issafe ?path?",
+                    pure=True,
                     return_type=TclType.BOOLEAN,
                 ),
                 "limit": SubCommand(
@@ -283,6 +287,7 @@ class InterpCommand(CommandDef):
                     arity=Arity(0, 1),
                     detail="Returns a Tcl list of the names of all the child interpreters.",
                     synopsis="interp slaves ?path?",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "target": SubCommand(
@@ -290,6 +295,7 @@ class InterpCommand(CommandDef):
                     arity=Arity(2, 2),
                     detail="Returns a Tcl list describing the target interpreter for an alias.",
                     synopsis="interp target path alias",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "transfer": SubCommand(
@@ -311,6 +317,7 @@ class InterpCommand(CommandDef):
                     arity=Arity(0, 1),
                     detail="Returns a Tcl list of the names of all the child interpreters associated with the interpreter identified by path.",
                     synopsis="interp children ?path?",
+                    pure=True,
                     return_type=TclType.LIST,
                 ),
                 "debug": SubCommand(
