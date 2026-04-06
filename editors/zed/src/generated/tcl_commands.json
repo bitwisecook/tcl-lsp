@@ -962,9 +962,11 @@
       "name": "package",
       "summary": "Facilities for package loading and version control",
       "subcommands": [
+        "files",
         "forget",
         "ifneeded",
         "names",
+        "prefer",
         "present",
         "provide",
         "require",

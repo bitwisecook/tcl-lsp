@@ -179,6 +179,20 @@ class PackageCommand(CommandDef):
                     synopsis="package vsatisfies version requirement...",
                     return_type=TclType.BOOLEAN,
                 ),
+                "files": SubCommand(
+                    name="files",
+                    arity=Arity(1, 1),
+                    detail="Lists all files forming part of package.",
+                    synopsis="package files package",
+                    return_type=TclType.LIST,
+                ),
+                "prefer": SubCommand(
+                    name="prefer",
+                    arity=Arity(0, 1),
+                    detail="With no arguments, the commands returns either 'latest' or 'stable', whichever describes the current mode of selection logic used by package require.",
+                    synopsis="package prefer ?latest|stable?",
+                    return_type=TclType.STRING,
+                ),
             },
             validation=ValidationSpec(
                 arity=Arity(1),
