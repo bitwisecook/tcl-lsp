@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """SSL::forward_proxy -- Sets the SSL forward proxy bypass feature to bypass or intercept, or retrieves the forged certificate, or enables/disables/gets verified_handshake semantics, or mask/ignore certificate response_control for the SSL handshake or inserts a certificate extension to the certificate, or sets server certificate status."""
 
+# Introduced: BIG-IP v12+ (SSL forward proxy / SSL Orchestrator) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """IP::stats -- Supplies information about the number of packets or bytes being sent or received in a given connection."""
 
+# Introduced: BIG-IP v10+ (core iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

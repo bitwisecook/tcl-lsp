@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """DNS::header -- Gets (v11.0+) or sets (v11.1+) simple bits or byte fields."""
 
+# Introduced: BIG-IP v10+ (core DNS iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

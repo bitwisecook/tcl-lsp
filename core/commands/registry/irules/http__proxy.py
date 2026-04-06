@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """HTTP::proxy -- Controls the application of HTTP proxy when using an Explicit HTTP profile."""
 
+# Introduced: BIG-IP v9+ (core HTTP iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

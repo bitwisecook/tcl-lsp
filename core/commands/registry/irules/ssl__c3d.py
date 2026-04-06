@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """SSL::c3d -- Inserts a certificate extension to the C3D certificate, sets the C3D client certificate, or modifies forged certificate subject CN."""
 
+# Introduced: BIG-IP v14+ (client certificate constrained delegation) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

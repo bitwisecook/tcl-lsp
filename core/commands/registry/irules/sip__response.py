@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """SIP::response -- Gets or rewrites the SIP response."""
 
+# Introduced: BIG-IP v10+ (core SIP iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

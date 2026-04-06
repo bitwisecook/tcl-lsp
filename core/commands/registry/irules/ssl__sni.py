@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """SSL::sni -- Returns Server Name Indication information."""
 
+# Introduced: BIG-IP v12+ (Server Name Indication) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """SSL::tls13_secret -- Return data about various TLS 1.3 secrets."""
 
+# Introduced: BIG-IP v14+ (TLS 1.3) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

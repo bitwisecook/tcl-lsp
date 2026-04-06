@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """table -- Provides enhanced access to the session table."""
 
+# Introduced: BIG-IP v10+ (core session table command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageScope

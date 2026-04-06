@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """ACCESS::session -- Access or manipulate session information."""
 
+# Introduced: BIG-IP v11+ (Access Policy Manager) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

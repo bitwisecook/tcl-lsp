@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """SSL::cert -- Returns data about an X509 SSL certificate, or sets the certificate mode."""
 
+# Introduced: BIG-IP v9+ (core SSL iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageScope

@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """GTP::header -- Allows for the parsing of GTP header information."""
 
+# Introduced: BIG-IP v11+ (GTP module) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

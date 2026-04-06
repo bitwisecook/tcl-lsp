@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """MQTT::payload -- Manipulate payload of MQTT PUBLISH message"""
 
+# Introduced: BIG-IP v14+ (MQTT protocol) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

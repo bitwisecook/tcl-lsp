@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """LB::server -- Returns information about the currently selected server."""
 
+# Introduced: BIG-IP v9+ (core load-balancing iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget

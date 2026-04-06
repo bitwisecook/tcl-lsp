@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """session -- Utilizes the persistence table to store arbitrary information based on the same keys as persistence."""
 
+# Introduced: BIG-IP v10+ (core session persistence command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageScope

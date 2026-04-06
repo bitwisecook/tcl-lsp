@@ -1,6 +1,8 @@
 # Enriched from F5 iRules reference documentation.
 """LB::status -- Returns the status of a node address or pool member."""
 
+# Introduced: BIG-IP v9+ (core load-balancing iRules command) (approximate, from F5 documentation)
+
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
