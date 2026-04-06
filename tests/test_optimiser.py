@@ -633,6 +633,31 @@ class TestStructureElimination:
         _, rewrites = optimise_source(source)
         assert not any(r.code == "O112" for r in rewrites)
 
+    def test_switch_glob_fallthrough_selects_next_body(self):
+        """Subject matches a fallthrough arm; the next arm's body is used."""
+        source = "switch -glob abc {\n    a* -\n    z* { set x 1 }\n    default { set y 2 }\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "set x 1" in optimised
+        assert "set y 2" not in optimised
+        assert "switch" not in optimised
+        assert any(r.code == "O112" for r in rewrites)
+
+    def test_switch_fallthrough_chain_to_default(self):
+        """Fallthrough chain with no subsequent body falls through to default."""
+        source = "switch abc {\n    abc -\n    def -\n    default { set x 1 }\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "set x 1" in optimised
+        assert "switch" not in optimised
+        assert any(r.code == "O112" for r in rewrites)
+
+    def test_switch_nocase_not_eliminated(self):
+        """Switch with -nocase uses case-insensitive matching."""
+        source = "switch -nocase ABC {\n    abc { set x 1 }\n    default { set y 2 }\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "set x 1" in optimised
+        assert "set y 2" not in optimised
+        assert any(r.code == "O112" for r in rewrites)
+
     # non-constant conditions untouched
 
     def test_runtime_condition_untouched(self):

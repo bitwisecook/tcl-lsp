@@ -437,12 +437,15 @@ class _Lowerer:
 
         i = 0
         mode = "exact"  # default switch mode
+        nocase = False
         while i < len(args) and args[i].startswith("-"):
             if args[i] == "--":
                 i += 1
                 break
             if args[i] in ("-glob", "-regexp"):
                 mode = args[i][1:]
+            elif args[i] == "-nocase":
+                nocase = True
             i += 1
 
         if i >= len(args):
@@ -556,6 +559,7 @@ class _Lowerer:
             default_body=default_body,
             default_range=default_range,
             mode=mode,
+            nocase=nocase,
             raw_args=tuple(args),
         )
 

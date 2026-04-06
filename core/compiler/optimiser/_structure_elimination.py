@@ -133,6 +133,7 @@ def _walk_ir_for_structure_elimination(
                 default_body=default_body,
                 default_range=default_range,
                 mode=mode,
+                nocase=nocase,
             ):
                 _try_eliminate_switch(
                     ctx,
@@ -143,6 +144,7 @@ def _walk_ir_for_structure_elimination(
                     default_body,
                     default_range,
                     mode=mode,
+                    nocase=nocase,
                     sccp_constants=sccp_constants,
                 )
                 for arm in arms:
@@ -225,6 +227,7 @@ def _try_eliminate_switch(
     default_range,
     *,
     mode: str = "exact",
+    nocase: bool = False,
     sccp_constants: dict[str, int | float | str] | None = None,
 ) -> None:
     """Try to eliminate a ``switch`` with a literal subject."""
@@ -248,16 +251,25 @@ def _try_eliminate_switch(
         return
     subject = resolved_subject
     full_range = _full_command_range(source, stmt_range) or stmt_range
-    for arm in arms:
-        if arm.fallthrough:
-            continue
-        if mode == "glob":
-            matched = fnmatch.fnmatchcase(subject, arm.pattern)
-        else:
-            matched = arm.pattern == subject
+    for idx, arm in enumerate(arms):
+        matched = _switch_pattern_matches(subject, arm.pattern, mode, nocase)
         if matched:
-            if arm.body is not None and arm.body_range is not None:
-                replacement = _extract_body_text(source, arm.body_range, stmt_range)
+            # Find the effective body: for fallthrough arms, use the next
+            # non-fallthrough arm's body (Tcl semantics).
+            body = arm.body
+            body_range = arm.body_range
+            if arm.fallthrough:
+                for subsequent in arms[idx + 1 :]:
+                    if not subsequent.fallthrough:
+                        body = subsequent.body
+                        body_range = subsequent.body_range
+                        break
+                else:
+                    # Fallthrough chain ends at default.
+                    body = default_body
+                    body_range = default_range
+            if body is not None and body_range is not None:
+                replacement = _extract_body_text(source, body_range, stmt_range)
                 ctx.optimisations.append(
                     Optimisation(
                         code="O112",
@@ -270,7 +282,7 @@ def _try_eliminate_switch(
                     )
                 )
             return
-    # No exact match -- try default.
+    # No match — try default.
     if default_body is not None and default_range is not None:
         replacement = _extract_body_text(source, default_range, stmt_range)
         ctx.optimisations.append(
@@ -290,3 +302,13 @@ def _try_eliminate_switch(
                 replacement="",
             )
         )
+
+
+def _switch_pattern_matches(subject: str, pattern: str, mode: str, nocase: bool) -> bool:
+    """Check whether *subject* matches *pattern* under *mode*."""
+    if nocase:
+        subject = subject.lower()
+        pattern = pattern.lower()
+    if mode == "glob":
+        return fnmatch.fnmatchcase(subject, pattern)
+    return pattern == subject

@@ -245,6 +245,7 @@ class IRSwitch:
     default_body: IRScript | None = None
     default_range: Range | None = None
     mode: str = "exact"  # "exact", "glob", or "regexp"
+    nocase: bool = False
     raw_args: tuple[str, ...] = ()  # original command args for generic fallback
 
 
