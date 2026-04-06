@@ -147,7 +147,12 @@ def _blocks_reaching(succs: dict[str, list[str]], target: str) -> set[str]:
 
 
 def _arg_type_for_call(command: str, args: tuple[str, ...], arg_index: int) -> TclType | None:
-    """Look up the expected type for an argument of a command."""
+    """Look up the expected type for an argument that causes a shimmer.
+
+    Only returns a type when the registry declares ``shimmers=True`` for
+    that argument position — the shimmer detector is entirely driven by
+    command registry metadata.
+    """
     hint = TYPE_HINTS.get(command)
     if hint is None:
         return None
@@ -162,10 +167,10 @@ def _arg_type_for_call(command: str, args: tuple[str, ...], arg_index: int) -> T
         # the subcommand's arg positions start at 1 in the full tuple.
         sub_arg_index = arg_index - 1
         arg_hint = sub_hint.arg_types.get(sub_arg_index)
-        return arg_hint.expected if arg_hint else None
+        return arg_hint.expected if arg_hint and arg_hint.shimmers else None
     if isinstance(hint, CommandTypeHint):
         arg_hint = hint.arg_types.get(arg_index)
-        return arg_hint.expected if arg_hint else None
+        return arg_hint.expected if arg_hint and arg_hint.shimmers else None
     return None
 
 
