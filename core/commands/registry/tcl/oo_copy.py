@@ -35,7 +35,7 @@ class OoCopyCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(2, 2),
+                arity=Arity(1, 3),
             ),
             return_type=TclType.STRING,
             side_effect_hints=(
