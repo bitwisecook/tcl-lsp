@@ -703,51 +703,27 @@ suite("Configuration Settings", () => {
     }
   });
 
-  // ── Formatting indentSize behavioral test ────────────────────────
-  test("formatting.indentSize change affects formatter output", async () => {
-    const docUri = getDocUri("formatting.tcl");
-    await activate(docUri);
-    const editor = vscode.window.activeTextEditor!;
-    const badContent = "proc foo {} {\nset x 1\n}\n";
-
-    // Format with default (4 spaces)
-    await setTestContent(editor, badContent);
-    let edits = (await vscode.commands.executeCommand(
-      "vscode.executeFormatDocumentProvider",
-      docUri,
-      { tabSize: 4, insertSpaces: true } as vscode.FormattingOptions,
-    )) as vscode.TextEdit[];
-    let wsEdit = new vscode.WorkspaceEdit();
-    wsEdit.set(docUri, edits);
-    await vscode.workspace.applyEdit(wsEdit);
-    assert.ok(
-      editor.document.getText().includes("    set x"),
-      "Default should produce 4-space indent",
-    );
-
-    // Change to 2-space indent
-    const config = vscode.workspace.getConfiguration("tclLsp.formatting");
+  // ── Formatting indentSize config test ──────────────────────────────
+  // Note: executeFormatDocumentProvider passes FormattingOptions.tabSize
+  // which the LSP server uses for indent width, so indentSize cannot be
+  // isolated behaviourally through that API. Verify the config round-trips.
+  test("formatting.indentSize change round-trips and differs from default", async () => {
+    const section = "tclLsp.formatting";
+    const original = vscode.workspace.getConfiguration(section).get<number>("indentSize");
+    assert.strictEqual(original, 4, "indentSize should default to 4");
     try {
-      await config.update("indentSize", 2, undefined);
-      await sleep(500);
-
-      await setTestContent(editor, badContent);
-      edits = (await vscode.commands.executeCommand(
-        "vscode.executeFormatDocumentProvider",
-        docUri,
-        { tabSize: 2, insertSpaces: true } as vscode.FormattingOptions,
-      )) as vscode.TextEdit[];
-      wsEdit = new vscode.WorkspaceEdit();
-      wsEdit.set(docUri, edits);
-      await vscode.workspace.applyEdit(wsEdit);
-      const text = editor.document.getText();
-      assert.ok(
-        text.includes("  set x") && !text.includes("    set x"),
-        `Changed indent should be 2 spaces, got:\n${text}`,
-      );
+      await vscode.workspace.getConfiguration(section).update("indentSize", 2, undefined);
+      const changed = vscode.workspace.getConfiguration(section).get<number>("indentSize");
+      assert.strictEqual(changed, 2);
+      assert.notStrictEqual(changed, original);
     } finally {
-      await config.update("indentSize", undefined, undefined);
+      await vscode.workspace.getConfiguration(section).update("indentSize", undefined, undefined);
     }
+    assert.strictEqual(
+      vscode.workspace.getConfiguration(section).get<number>("indentSize"),
+      4,
+      "Should restore to default",
+    );
   });
 
   // ── Diagnostic code toggle behavioral test ───────────────────────
@@ -766,10 +742,24 @@ suite("Configuration Settings", () => {
       await config.update("W100", false, undefined);
       await sleep(1000);
 
-      // Re-trigger: touch the document so the server re-analyses
+      // Re-trigger: touch the document so the server re-analyses.
+      // Then wait for a *fresh* diagnostics publish (onDidChangeDiagnostics)
+      // to avoid reading stale pre-toggle results.
       const editor = vscode.window.activeTextEditor!;
+      const freshDiags = new Promise<vscode.Diagnostic[]>((resolve) => {
+        const disposable = vscode.languages.onDidChangeDiagnostics((e) => {
+          if (e.uris.some((u) => u.toString() === docUri.toString())) {
+            disposable.dispose();
+            resolve(vscode.languages.getDiagnostics(docUri));
+          }
+        });
+        setTimeout(() => {
+          disposable.dispose();
+          resolve(vscode.languages.getDiagnostics(docUri));
+        }, 5000);
+      });
       await setTestContent(editor, editor.document.getText() + " ");
-      const after = await waitForDiagnostics(docUri, { timeout: 5000, minCount: 1 });
+      const after = await freshDiags;
       const hasW100After = after.some((d) => codeOf(d) === "W100");
       assert.ok(
         !hasW100After,
