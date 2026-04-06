@@ -175,6 +175,7 @@ def _check_command_substitution_intent(
     types: dict[SSAValueKey, TypeLattice],
     stmt_range: Range,
     in_loop: bool,
+    already_coerced: set[tuple[str, int, TclType]] | None = None,
 ) -> list[ShimmerWarning]:
     """Check shimmer warnings for a pre-parsed command substitution intent."""
     if intent.shimmer_pressure <= 0:
@@ -186,6 +187,7 @@ def _check_command_substitution_intent(
         types,
         stmt_range,
         in_loop,
+        already_coerced,
     )
 
 
@@ -206,6 +208,7 @@ def _check_args_for_shimmer(
     types: dict[SSAValueKey, TypeLattice],
     stmt_range: Range,
     in_loop: bool,
+    already_coerced: set[tuple[str, int, TclType]] | None = None,
 ) -> list[ShimmerWarning]:
     """Check a command invocation's arguments for type mismatches."""
     warnings: list[ShimmerWarning] = []
@@ -236,6 +239,13 @@ def _check_args_for_shimmer(
         if _is_numeric_compatible(var_type.tcl_type, expected):
             continue
 
+        # If a prior use in the same block already coerced this SSA version
+        # to the expected type, the runtime intrep has already changed — no
+        # second shimmer occurs.
+        coercion_key = (var_name, ver, expected)
+        if already_coerced is not None and coercion_key in already_coerced:
+            continue
+
         code = "S101" if in_loop else "S100"
         severity = "loop " if in_loop else ""
         msg = (
@@ -255,6 +265,8 @@ def _check_args_for_shimmer(
                 message=msg,
             )
         )
+        if already_coerced is not None:
+            already_coerced.add(coercion_key)
     return warnings
 
 
@@ -276,6 +288,11 @@ def _find_use_site_shimmers(
         if block is None or ssa_block is None:
             continue
         in_loop = bn in loop_blocks
+        # Track (var, ver, target_type) coercions within a block so that
+        # the second list command using the same variable after a shimmer
+        # does not produce a duplicate warning — the runtime intrep has
+        # already been converted by the first use.
+        already_coerced: set[tuple[str, int, TclType]] = set()
 
         for idx, ssa_stmt in enumerate(ssa_block.statements):
             if idx >= len(block.statements):
@@ -291,6 +308,7 @@ def _find_use_site_shimmers(
                         types,
                         stmt.range,
                         in_loop,
+                        already_coerced,
                     )
                 )
             elif isinstance(stmt, IRAssignValue):
@@ -304,6 +322,7 @@ def _find_use_site_shimmers(
                             types,
                             stmt.range,
                             in_loop,
+                            already_coerced,
                         )
                     )
                 else:
@@ -318,6 +337,7 @@ def _find_use_site_shimmers(
                                 types,
                                 stmt.range,
                                 in_loop,
+                                already_coerced,
                             )
                         )
             elif isinstance(stmt, IRIncr):

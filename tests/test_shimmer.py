@@ -53,6 +53,27 @@ class TestNoFalsePositives:
         assert _codes("set x hello\nputs $x") == []
 
 
+class TestCoercionTracking:
+    """Once a variable is coerced at a use site, later uses with the same
+    target type should not produce duplicate shimmer warnings."""
+
+    def test_second_list_use_no_duplicate(self):
+        # After lindex coerces $myList from string to list, lrange sees
+        # a list — no second shimmer.
+        source = "set myList {a b c d}\nlindex $myList 1\nlrange $myList 0 1"
+        warnings = _warnings_for(source, code="S100")
+        list_warnings = [w for w in warnings if w.variable == "myList"]
+        assert len(list_warnings) == 1, (
+            f"Expected exactly one S100 for myList, got {len(list_warnings)}: {list_warnings}"
+        )
+
+    def test_first_use_still_warns(self):
+        # The first list use of a string variable should still warn.
+        source = "set myList {a b c d}\nlindex $myList 1"
+        warnings = _warnings_for(source, code="S100")
+        assert any(w.variable == "myList" for w in warnings)
+
+
 class TestUseSiteShimmer:
     """Detect shimmers at command call sites."""
 
