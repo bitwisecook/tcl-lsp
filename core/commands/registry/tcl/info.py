@@ -281,7 +281,7 @@ class InfoCommand(CommandDef):
                     name="commands", arity=Arity(0, 1), return_type=TclType.LIST
                 ),
                 "complete": SubCommand(
-                    name="complete", arity=Arity(1, 1), return_type=TclType.BOOLEAN
+                    name="complete", arity=Arity(1, 1), pure=True, return_type=TclType.BOOLEAN
                 ),
                 "default": SubCommand(
                     name="default",

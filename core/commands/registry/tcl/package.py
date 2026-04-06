@@ -173,6 +173,7 @@ class PackageCommand(CommandDef):
                     arity=Arity(2, 2),
                     detail="Compares the two version numbers given by version1 and version2.",
                     synopsis="package vcompare version1 version2",
+                    pure=True,
                     return_type=TclType.INT,
                 ),
                 "versions": SubCommand(
@@ -187,6 +188,7 @@ class PackageCommand(CommandDef):
                     arity=Arity(2),
                     detail="Returns 1 if the version satisfies at least one of the given requirements, and 0 otherwise.",
                     synopsis="package vsatisfies version requirement...",
+                    pure=True,
                     return_type=TclType.BOOLEAN,
                 ),
                 "files": SubCommand(

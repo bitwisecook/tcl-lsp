@@ -249,6 +249,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns any leading namespace qualifiers for string.",
                     synopsis="namespace qualifiers string",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "tail": SubCommand(
@@ -256,6 +257,7 @@ class NamespaceCommand(CommandDef):
                     arity=Arity(1, 1),
                     detail="Returns the simple name at the end of a qualified string.",
                     synopsis="namespace tail string",
+                    pure=True,
                     return_type=TclType.STRING,
                 ),
                 "unknown": SubCommand(
