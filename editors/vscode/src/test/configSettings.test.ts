@@ -345,102 +345,120 @@ suite("Configuration Settings", () => {
   });
 
   // Feature toggle mutation
+  // Note: after config.update(), the WorkspaceConfiguration snapshot is stale;
+  // always re-fetch via workspace.getConfiguration() to read the new value.
+  // Use undefined target (not Global) so writes go to the workspace scope,
+  // matching the scope used by the extension's toggle commands.
+
   test("can programmatically toggle a feature setting", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.features");
-    const original = config.get<boolean>("hover", true);
+    const section = "tclLsp.features";
+    const original = vscode.workspace.getConfiguration(section).get<boolean>("hover", true);
     try {
-      await config.update("hover", !original, vscode.ConfigurationTarget.Global);
-      const toggled = config.get<boolean>("hover");
+      await vscode.workspace.getConfiguration(section).update("hover", !original, undefined);
+      const toggled = vscode.workspace.getConfiguration(section).get<boolean>("hover");
       assert.strictEqual(toggled, !original, "Setting should be toggled");
     } finally {
-      await config.update("hover", original, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration(section).update("hover", undefined, undefined);
     }
   });
 
   test("can programmatically change dialect", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp");
-    const original = config.get<string>("dialect", "tcl8.6");
+    const section = "tclLsp";
+    const original = vscode.workspace.getConfiguration(section).get<string>("dialect", "tcl8.6");
     try {
-      await config.update("dialect", "tcl8.5", vscode.ConfigurationTarget.Global);
-      assert.strictEqual(config.get<string>("dialect"), "tcl8.5");
+      await vscode.workspace.getConfiguration(section).update("dialect", "tcl8.5", undefined);
+      assert.strictEqual(
+        vscode.workspace.getConfiguration(section).get<string>("dialect"),
+        "tcl8.5",
+      );
     } finally {
-      await config.update("dialect", original, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration(section).update("dialect", undefined, undefined);
     }
   });
 
   test("can programmatically change formatting indent size", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.formatting");
-    const original = config.get<number>("indentSize", 4);
+    const section = "tclLsp.formatting";
     try {
-      await config.update("indentSize", 2, vscode.ConfigurationTarget.Global);
-      assert.strictEqual(config.get<number>("indentSize"), 2);
+      await vscode.workspace.getConfiguration(section).update("indentSize", 2, undefined);
+      assert.strictEqual(vscode.workspace.getConfiguration(section).get<number>("indentSize"), 2);
     } finally {
-      await config.update("indentSize", original, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration(section).update("indentSize", undefined, undefined);
     }
   });
 
   test("can programmatically change optimiser profile", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
-    const original = config.get<string>("profile", "readability");
+    const section = "tclLsp.optimiser";
     try {
-      await config.update("profile", "aggressive", vscode.ConfigurationTarget.Global);
-      assert.strictEqual(config.get<string>("profile"), "aggressive");
+      await vscode.workspace.getConfiguration(section).update("profile", "aggressive", undefined);
+      assert.strictEqual(
+        vscode.workspace.getConfiguration(section).get<string>("profile"),
+        "aggressive",
+      );
     } finally {
-      await config.update("profile", original, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration(section).update("profile", undefined, undefined);
     }
   });
 
   test("can toggle individual diagnostic codes", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.diagnostics");
-    const original = config.get<boolean>("W100", true);
+    const section = "tclLsp.diagnostics";
+    const original = vscode.workspace.getConfiguration(section).get<boolean>("W100", true);
     try {
-      await config.update("W100", !original, vscode.ConfigurationTarget.Global);
-      assert.strictEqual(config.get<boolean>("W100"), !original);
+      await vscode.workspace.getConfiguration(section).update("W100", !original, undefined);
+      assert.strictEqual(
+        vscode.workspace.getConfiguration(section).get<boolean>("W100"),
+        !original,
+      );
     } finally {
-      await config.update("W100", original, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration(section).update("W100", undefined, undefined);
     }
   });
 
   test("can toggle individual optimiser rules", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
+    const section = "tclLsp.optimiser";
     try {
-      await config.update("O100", true, vscode.ConfigurationTarget.Global);
-      assert.strictEqual(config.get<boolean>("O100"), true);
+      await vscode.workspace.getConfiguration(section).update("O100", true, undefined);
+      assert.strictEqual(vscode.workspace.getConfiguration(section).get<boolean>("O100"), true);
     } finally {
-      await config.update("O100", null, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration(section).update("O100", undefined, undefined);
     }
   });
 
   test("can change runtime validation adapter", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.runtimeValidation");
-    const original = config.get<string>("adapter", "auto");
+    const section = "tclLsp.runtimeValidation";
     try {
-      await config.update("adapter", "tcl-syntax", vscode.ConfigurationTarget.Global);
-      assert.strictEqual(config.get<string>("adapter"), "tcl-syntax");
+      await vscode.workspace.getConfiguration(section).update("adapter", "tcl-syntax", undefined);
+      assert.strictEqual(
+        vscode.workspace.getConfiguration(section).get<string>("adapter"),
+        "tcl-syntax",
+      );
     } finally {
-      await config.update("adapter", original, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration(section).update("adapter", undefined, undefined);
     }
   });
 
   test("can change style.nonAscii setting", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.style");
-    const original = config.get<string>("nonAscii", "confusables");
+    const section = "tclLsp.style";
     try {
-      await config.update("nonAscii", "strict", vscode.ConfigurationTarget.Global);
-      assert.strictEqual(config.get<string>("nonAscii"), "strict");
+      await vscode.workspace.getConfiguration(section).update("nonAscii", "strict", undefined);
+      assert.strictEqual(
+        vscode.workspace.getConfiguration(section).get<string>("nonAscii"),
+        "strict",
+      );
     } finally {
-      await config.update("nonAscii", original, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration(section).update("nonAscii", undefined, undefined);
     }
   });
 
   test("can change trace server level", async () => {
-    const config = vscode.workspace.getConfiguration("tcl-lsp.trace");
-    const original = config.get<string>("server", "off");
+    const section = "tcl-lsp.trace";
     try {
-      await config.update("server", "verbose", vscode.ConfigurationTarget.Global);
-      assert.strictEqual(config.get<string>("server"), "verbose");
+      await vscode.workspace.getConfiguration(section).update("server", "verbose", undefined);
+      assert.strictEqual(
+        vscode.workspace.getConfiguration(section).get<string>("server"),
+        "verbose",
+      );
     } finally {
-      await config.update("server", original, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration(section).update("server", undefined, undefined);
     }
   });
 });

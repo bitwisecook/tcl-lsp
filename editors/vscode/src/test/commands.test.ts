@@ -56,38 +56,47 @@ suite("Command Registration", () => {
   }
 
   test("toggleDiagnostics toggles the feature setting", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.features");
-    const before = config.get<boolean>("diagnostics", true);
+    const before = vscode.workspace
+      .getConfiguration("tclLsp.features")
+      .get<boolean>("diagnostics", true);
     try {
       await vscode.commands.executeCommand("tclLsp.toggleDiagnostics");
-      const after = config.get<boolean>("diagnostics");
+      // Re-fetch configuration to see the updated value.
+      const after = vscode.workspace
+        .getConfiguration("tclLsp.features")
+        .get<boolean>("diagnostics");
       assert.strictEqual(after, !before, "diagnostics should be toggled");
     } finally {
-      await config.update("diagnostics", before, vscode.ConfigurationTarget.Global);
+      // Toggle commands write with undefined target; restore at same scope.
+      await vscode.workspace
+        .getConfiguration("tclLsp.features")
+        .update("diagnostics", before, undefined);
     }
   });
 
   test("toggleOptimiser toggles the optimiser.enabled setting", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
-    const before = config.get<boolean>("enabled", true);
+    const before = vscode.workspace
+      .getConfiguration("tclLsp.optimiser")
+      .get<boolean>("enabled", true);
     try {
       await vscode.commands.executeCommand("tclLsp.toggleOptimiser");
-      const after = config.get<boolean>("enabled");
+      const after = vscode.workspace.getConfiguration("tclLsp.optimiser").get<boolean>("enabled");
       assert.strictEqual(after, !before, "optimiser should be toggled");
     } finally {
-      await config.update("enabled", before, vscode.ConfigurationTarget.Global);
+      await vscode.workspace
+        .getConfiguration("tclLsp.optimiser")
+        .update("enabled", before, undefined);
     }
   });
 
   test("toggleAi toggles the ai.enabled setting", async () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.ai");
-    const before = config.get<boolean>("enabled", true);
+    const before = vscode.workspace.getConfiguration("tclLsp.ai").get<boolean>("enabled", true);
     try {
       await vscode.commands.executeCommand("tclLsp.toggleAi");
-      const after = config.get<boolean>("enabled");
+      const after = vscode.workspace.getConfiguration("tclLsp.ai").get<boolean>("enabled");
       assert.strictEqual(after, !before, "AI features should be toggled");
     } finally {
-      await config.update("enabled", before, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration("tclLsp.ai").update("enabled", before, undefined);
     }
   });
 
