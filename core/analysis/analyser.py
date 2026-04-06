@@ -38,6 +38,7 @@ from ..compiler.compiler_checks import iter_ir_statements, run_compiler_checks
 from ..compiler.core_analyses import FunctionAnalysis, LatticeKind, LatticeValue
 from ..compiler.ir import (
     IRAssignConst,
+    IRAssignExpr,
     IRAssignValue,
     IRBarrier,
     IRCall,
@@ -150,7 +151,7 @@ diag(
 # s = Scope, t = Token, p = ParamDef.
 
 
-_UNUSED_VAR_RE = re.compile(r"Variable '([^']+)' is set but never used\Z")
+_UNUSED_VAR_RE = re.compile(r"Variable '([^']+)' is set but never used")
 
 # Inline suppression via Tcl comments: bare form suppresses all diagnostics,
 # ``# <noqa>: W100,W101`` suppresses specific codes on the following command.
@@ -3690,7 +3691,7 @@ class Analyser:
         names: set[str] = set()
         for block in cfg.blocks.values():
             for stmt in block.statements:
-                if isinstance(stmt, (IRAssignConst, IRAssignValue, IRIncr)):
+                if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):
                     names.add(_normalise_var_name(stmt.name))
                 elif isinstance(stmt, IRCall) and stmt.defs:
                     names.update(stmt.defs)
@@ -3698,11 +3699,17 @@ class Analyser:
 
     @staticmethod
     def _find_case_mismatch(variable: str, defined_vars: set[str]) -> str | None:
-        """Return a defined variable that matches *variable* case-insensitively."""
+        """Return a defined variable that matches *variable* case-insensitively.
+
+        When multiple candidates exist, the lexicographically smallest is
+        returned so the suggestion is deterministic across runs.
+        """
         lower = variable.lower()
-        for name in defined_vars:
-            if name != variable and name.lower() == lower:
-                return name
+        matches = sorted(
+            name for name in defined_vars if name != variable and name.lower() == lower
+        )
+        if matches:
+            return matches[0]
         return None
 
     @staticmethod

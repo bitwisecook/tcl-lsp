@@ -1472,12 +1472,12 @@ Use `# noqa: *` to suppress all diagnostics on a line.
 | Code | Description | Quick-fix |
 |------|-------------|-----------|
 | H300 | Possible paste error -- repeated assignment to same variable with same value | |
-| W210 | Variable read before set | |
-| W211 | Variable set but never used | |
+| W210 | Variable read before set (with case-mismatch suggestion when applicable) | |
+| W211 | Variable set but never used (with case-mismatch suggestion when applicable) | |
 | W212 | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.) | |
 | W213 | `unset` on variable that may not exist -- use `unset -nocomplain` | |
 | W214 | Unused proc parameter -- argument declared but never read in the body | |
-| W220 | Dead store -- variable set but overwritten before use | |
+| W220 | Dead store -- variable set but overwritten before use (with case-mismatch suggestion when applicable) | |
 
 ### Warnings -- Security
 
