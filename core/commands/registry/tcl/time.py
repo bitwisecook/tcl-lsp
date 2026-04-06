@@ -9,6 +9,7 @@ from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import ArgRole, Arity
+from ..type_hints import ArgTypeHint
 from ._base import register
 
 _SOURCE = "Tcl man page time.n"
@@ -39,6 +40,7 @@ class TimeCommand(CommandDef):
                 arity=Arity(1, 2),
             ),
             arg_roles={0: ArgRole.BODY},
+            arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(target=SideEffectTarget.UNKNOWN, connection_side=ConnectionSide.NONE),

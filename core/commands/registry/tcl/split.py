@@ -7,8 +7,8 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..type_hints import ArgTypeHint
 from ..signatures import Arity
+from ..type_hints import ArgTypeHint
 from ._base import register
 from .const_fold import fold_split
 

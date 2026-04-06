@@ -42,7 +42,11 @@ class LrangeCommand(CommandDef):
             const_fold=fold_lrange,
             cse_candidate=True,
             return_type=TclType.LIST,
-            arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},
+            arg_types={
+                0: ArgTypeHint(expected=TclType.LIST, shimmers=True),
+                1: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                2: ArgTypeHint(expected=TclType.INT, shimmers=True),
+            },
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE

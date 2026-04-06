@@ -16,6 +16,7 @@ from ..models import (
     ValidationSpec,
 )
 from ..signatures import Arity
+from ..type_hints import ArgTypeHint
 from ._base import register
 from .const_fold import (
     fold_string_cat,
@@ -200,6 +201,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_first,
                     return_type=TclType.INT,
+                    arg_types={2: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
                 "index": SubCommand(
                     name="index",
@@ -209,12 +211,14 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_index,
                     return_type=TclType.STRING,
+                    arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
                 "insert": SubCommand(
                     name="insert",
                     arity=Arity(3, 3),
                     detail="Insert string at index.",
                     synopsis="string insert string index insertString",
+                    arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
                 "is": SubCommand(
                     name="is",
@@ -234,6 +238,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_last,
                     return_type=TclType.INT,
+                    arg_types={2: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
                 "length": SubCommand(
                     name="length",
@@ -252,6 +257,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_map,
                     return_type=TclType.STRING,
+                    arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},
                 ),
                 "match": SubCommand(
                     name="match",
@@ -271,6 +277,10 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_range,
                     return_type=TclType.STRING,
+                    arg_types={
+                        1: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                        2: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                    },
                 ),
                 "repeat": SubCommand(
                     name="repeat",
@@ -280,6 +290,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_repeat,
                     return_type=TclType.STRING,
+                    arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
                 "replace": SubCommand(
                     name="replace",
@@ -289,6 +300,10 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_replace,
                     return_type=TclType.STRING,
+                    arg_types={
+                        1: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                        2: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                    },
                 ),
                 "reverse": SubCommand(
                     name="reverse",
@@ -307,6 +322,10 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_tolower,
                     return_type=TclType.STRING,
+                    arg_types={
+                        1: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                        2: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                    },
                 ),
                 "totitle": SubCommand(
                     name="totitle",
@@ -316,6 +335,10 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_totitle,
                     return_type=TclType.STRING,
+                    arg_types={
+                        1: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                        2: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                    },
                 ),
                 "toupper": SubCommand(
                     name="toupper",
@@ -325,6 +348,10 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_toupper,
                     return_type=TclType.STRING,
+                    arg_types={
+                        1: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                        2: ArgTypeHint(expected=TclType.INT, shimmers=True),
+                    },
                 ),
                 "trim": SubCommand(
                     name="trim",
@@ -360,6 +387,7 @@ class StringCommand(CommandDef):
                     synopsis="string wordend string charIndex",
                     pure=True,
                     return_type=TclType.INT,
+                    arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
                 "wordstart": SubCommand(
                     name="wordstart",
@@ -368,6 +396,7 @@ class StringCommand(CommandDef):
                     synopsis="string wordstart string charIndex",
                     pure=True,
                     return_type=TclType.INT,
+                    arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
                 ),
             },
             validation=ValidationSpec(
