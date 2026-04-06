@@ -38,7 +38,6 @@ class LinsertCommand(CommandDef):
                 arity=Arity(2),
             ),
             pure=True,
-            pure=True,
             return_type=TclType.LIST,
             inferred_storage_type=StorageType.LIST,
             arg_types={

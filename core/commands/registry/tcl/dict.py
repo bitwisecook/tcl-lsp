@@ -301,7 +301,6 @@ class DictCommand(CommandDef):
                     return_type=TclType.DICT,
                     arg_roles={0: ArgRole.VAR_NAME},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
-                    arg_types={0: ArgTypeHint(expected=TclType.DICT)},
                     mutator=True,
                     safe_on_uninit=frozenset(),
                 ),

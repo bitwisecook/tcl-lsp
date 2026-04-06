@@ -241,6 +241,14 @@ class FileCommand(CommandDef):
                     detail="Returns a decimal string giving the time at which file name was last accessed.",
                     synopsis="file atime name ?time?",
                     return_type=TclType.INT,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "attributes": SubCommand(
                     name="attributes",
@@ -262,7 +270,15 @@ class FileCommand(CommandDef):
                     detail="file copy ?-force?",
                     synopsis="file copy ?-force? ?--? source target",
                     return_type=TclType.STRING,
+                    mutator=True,
                     options=(OptionSpec(name="-force"), OptionSpec(name="--")),
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "delete": SubCommand(
                     name="delete",
@@ -270,8 +286,16 @@ class FileCommand(CommandDef):
                     detail="Removes the file or directory specified by each pathname argument.",
                     synopsis="file delete ?-force? ?--? ?pathname ...?",
                     return_type=TclType.STRING,
+                    mutator=True,
                     destructive=True,
                     options=(OptionSpec(name="-force"), OptionSpec(name="--")),
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "dirname": SubCommand(
                     name="dirname",
@@ -344,6 +368,18 @@ class FileCommand(CommandDef):
                     synopsis="file lstat name ?varName?",
                     return_type=TclType.STRING,
                     arg_roles={1: ArgRole.VAR_NAME},
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                        SideEffect(
+                            target=SideEffectTarget.VARIABLE,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "mkdir": SubCommand(
                     name="mkdir",
@@ -351,7 +387,15 @@ class FileCommand(CommandDef):
                     detail="Creates each directory specified.",
                     synopsis="file mkdir ?dir ...?",
                     return_type=TclType.STRING,
+                    mutator=True,
                     destructive=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "mtime": SubCommand(
                     name="mtime",
@@ -359,6 +403,14 @@ class FileCommand(CommandDef):
                     detail="Returns a decimal string giving the time at which file name was last modified.",
                     synopsis="file mtime name ?time?",
                     return_type=TclType.INT,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "nativename": SubCommand(
                     name="nativename",
@@ -414,8 +466,16 @@ class FileCommand(CommandDef):
                     detail="file rename ?-force?",
                     synopsis="file rename ?-force? ?--? source target",
                     return_type=TclType.STRING,
+                    mutator=True,
                     destructive=True,
                     options=(OptionSpec(name="-force"), OptionSpec(name="--")),
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "rootname": SubCommand(
                     name="rootname",
@@ -456,6 +516,18 @@ class FileCommand(CommandDef):
                     synopsis="file stat name ?varName?",
                     return_type=TclType.STRING,
                     arg_roles={1: ArgRole.VAR_NAME},
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            reads=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                        SideEffect(
+                            target=SideEffectTarget.VARIABLE,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "system": SubCommand(
                     name="system",
@@ -479,8 +551,16 @@ class FileCommand(CommandDef):
                     detail="Creates a temporary file and returns a read-write channel opened on that file.",
                     synopsis="file tempfile ?nameVar? ?template?",
                     return_type=TclType.CHANNEL,
+                    mutator=True,
                     returns_path=True,
                     arg_roles={0: ArgRole.VAR_NAME},
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "type": SubCommand(
                     name="type",
@@ -517,7 +597,15 @@ class FileCommand(CommandDef):
                     detail="Creates a temporary directory and returns its name.",
                     synopsis="file tempdir ?template?",
                     return_type=TclType.STRING,
+                    mutator=True,
                     returns_path=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.FILE_IO,
+                            writes=True,
+                            connection_side=ConnectionSide.NONE,
+                        ),
+                    ),
                 ),
                 "tildeexpand": SubCommand(
                     name="tildeexpand",
