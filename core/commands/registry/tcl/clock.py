@@ -145,7 +145,6 @@ class ClockCommand(CommandDef):
                     arity=Arity(1),
                     detail="Parse a date/time string to a clock value.",
                     synopsis="clock scan inputString ?-option value ...?",
-                    pure=True,
                     return_type=TclType.INT,
                 ),
                 "seconds": SubCommand(

@@ -226,7 +226,6 @@ class StringCommand(CommandDef):
                     arity=Arity(2),
                     detail="Test if string is a member of a character class.",
                     synopsis="string is class ?-strict? ?-failindex varname? string",
-                    pure=True,
                     const_fold=fold_string_is,
                     return_type=TclType.BOOLEAN,
                     arg_values={0: _IS_CLASSES},
