@@ -220,7 +220,7 @@ class DictCommand(CommandDef):
                     arity=Arity(2, 3),
                     detail="This adds the given increment value (an integer that defaults to 1 if not specified) to the value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary valu…",
                     synopsis="dict incr dictionaryVariable key ?increment?",
-                    return_type=TclType.INT,
+                    return_type=TclType.DICT,
                     arg_roles={0: ArgRole.VAR_NAME},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     safe_on_uninit=frozenset(),

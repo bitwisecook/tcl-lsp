@@ -113,6 +113,7 @@ class EncodingCommand(CommandDef):
                     arity=Arity(0, 1),
                     detail="Return or set encoding search path.",
                     synopsis="encoding dirs ?directoryList?",
+                    return_type=TclType.LIST,
                 ),
                 "names": SubCommand(
                     name="names",

@@ -469,7 +469,7 @@ class FileCommand(CommandDef):
                     arity=Arity(0, 2),
                     detail="Creates a temporary file and returns a read-write channel opened on that file.",
                     synopsis="file tempfile ?nameVar? ?template?",
-                    return_type=TclType.STRING,
+                    return_type=TclType.CHANNEL,
                     returns_path=True,
                     arg_roles={0: ArgRole.VAR_NAME},
                 ),
