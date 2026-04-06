@@ -22,19 +22,30 @@ def _lsp_ranges_equal(a: types.Range, b: types.Range) -> bool:
     )
 
 
+def _lsp_range_contains(outer: types.Range, inner: types.Range) -> bool:
+    """Check if *outer* fully contains *inner*."""
+    outer_start = (outer.start.line, outer.start.character)
+    outer_end = (outer.end.line, outer.end.character)
+    inner_start = (inner.start.line, inner.start.character)
+    inner_end = (inner.end.line, inner.end.character)
+    return outer_start <= inner_start and inner_end <= outer_end
+
+
 def _build_chain(ranges: list[types.Range]) -> types.SelectionRange | None:
     """Build a SelectionRange linked list from a list of ranges (inner to outer).
 
-    Skips duplicate consecutive ranges.
+    Skips duplicate consecutive ranges and drops any range that doesn't
+    strictly contain its predecessor (VS Code requires this invariant).
     """
     if not ranges:
         return None
 
-    # Deduplicate consecutive identical ranges
+    # Deduplicate consecutive identical ranges, then enforce containment
     deduped: list[types.Range] = [ranges[0]]
     for r in ranges[1:]:
         if not _lsp_ranges_equal(r, deduped[-1]):
-            deduped.append(r)
+            if _lsp_range_contains(r, deduped[-1]):
+                deduped.append(r)
 
     # Build linked list from outermost to innermost
     node: types.SelectionRange | None = None
