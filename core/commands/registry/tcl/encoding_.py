@@ -46,7 +46,7 @@ _SUBCOMMANDS = (
     _av("names", "Return list of available encodings.", "encoding names"),
     _av("profiles", "Return list of available profiles.", "encoding profiles"),
     _av("system", "Query or set system encoding.", "encoding system ?encoding?"),
-    _av("user", "Query or set user encoding.", "encoding user ?encoding?"),
+    _av("user", "Return user encoding.", "encoding user"),
 )
 
 _PROFILES = (
@@ -143,8 +143,8 @@ class EncodingCommand(CommandDef):
                 "user": SubCommand(
                     name="user",
                     arity=Arity(0, 0),
-                    detail="Query or set user encoding.",
-                    synopsis="encoding user ?encoding?",
+                    detail="Return user encoding.",
+                    synopsis="encoding user",
                 ),
             },
             validation=ValidationSpec(

@@ -280,9 +280,7 @@ class InfoCommand(CommandDef):
                 "body": SubCommand(
                     name="body", arity=Arity(1, 1), pure=True, return_type=TclType.STRING
                 ),
-                "cmdcount": SubCommand(
-                    name="cmdcount", arity=Arity(0, 0), pure=True, return_type=TclType.INT
-                ),
+                "cmdcount": SubCommand(name="cmdcount", arity=Arity(0, 0), return_type=TclType.INT),
                 "commands": SubCommand(
                     name="commands", arity=Arity(0, 1), pure=True, return_type=TclType.LIST
                 ),

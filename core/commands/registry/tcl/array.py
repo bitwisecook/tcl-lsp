@@ -210,7 +210,8 @@ class ArrayCommand(CommandDef):
                     detail="Iterates over array entries. The first argument is a two-element list of variable names for the key and value of each entry.",
                     synopsis="array for {keyVariable valueVariable} arrayName body",
                     return_type=TclType.STRING,
-                    arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.BODY},
+                    arg_roles={1: ArgRole.VAR_READ, 2: ArgRole.BODY},
+                    loop_list_header=True,
                 ),
             },
             validation=ValidationSpec(

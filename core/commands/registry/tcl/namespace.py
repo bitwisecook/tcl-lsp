@@ -164,7 +164,7 @@ class NamespaceCommand(CommandDef):
                     detail="Captures the current namespace context for later execution of the script script.",
                     synopsis="namespace code script",
                     pure=True,
-                    return_type=TclType.LIST,
+                    return_type=TclType.STRING,
                     arg_roles={0: ArgRole.BODY},
                 ),
                 "current": SubCommand(

@@ -178,6 +178,18 @@ class TestDiagnostics:
         assert len(warnings) >= 1
         assert "Unknown subcommand" in warnings[0].message
 
+    def test_package_prefer_not_unknown(self):
+        """Regression test for #109: package prefer should not produce W001."""
+        result = analyse("package prefer")
+        warnings = [d for d in result.diagnostics if d.severity == Severity.WARNING]
+        assert not any("Unknown subcommand" in w.message for w in warnings)
+
+    def test_package_files_not_unknown(self):
+        """Regression test for #109: package files should not produce W001."""
+        result = analyse("package files mypackage")
+        warnings = [d for d in result.diagnostics if d.severity == Severity.WARNING]
+        assert not any("Unknown subcommand" in w.message for w in warnings)
+
     def test_missing_subcommand(self):
         result = analyse("namespace")
         errors = [d for d in result.diagnostics if d.severity == Severity.ERROR]
