@@ -167,6 +167,7 @@ class DictCommand(CommandDef):
                     synopsis="dict append dictionaryVariable key ?string ...?",
                     arg_roles={0: ArgRole.VAR_NAME},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    mutator=True,
                     safe_on_uninit=frozenset(),
                 ),
                 "create": SubCommand(
@@ -193,7 +194,6 @@ class DictCommand(CommandDef):
                     arity=Arity(2),
                     detail="This takes a dictionary value and returns a new dictionary that contains just those key/value pairs that match the specified filter type (which may be abbreviated.) Supported filter types are: dict filter dictionaryValu…",
                     synopsis="dict filter dictionaryValue filterType arg ?arg ...?",
-                    pure=True,
                     return_type=TclType.DICT,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
@@ -224,6 +224,7 @@ class DictCommand(CommandDef):
                     return_type=TclType.DICT,
                     arg_roles={0: ArgRole.VAR_NAME},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    mutator=True,
                     safe_on_uninit=frozenset(),
                 ),
                 "info": SubCommand(
@@ -252,6 +253,7 @@ class DictCommand(CommandDef):
                     synopsis="dict lappend dictionaryVariable key ?value ...?",
                     arg_roles={0: ArgRole.VAR_NAME},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    mutator=True,
                     safe_on_uninit=frozenset(),
                 ),
                 "map": SubCommand(
@@ -299,6 +301,8 @@ class DictCommand(CommandDef):
                     return_type=TclType.DICT,
                     arg_roles={0: ArgRole.VAR_NAME},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT)},
+                    mutator=True,
                     safe_on_uninit=frozenset(),
                 ),
                 "size": SubCommand(
@@ -318,6 +322,7 @@ class DictCommand(CommandDef):
                     synopsis="dict unset dictionaryVariable key ?key ...?",
                     arg_roles={0: ArgRole.VAR_NAME},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    mutator=True,
                 ),
                 "update": SubCommand(
                     name="update",
@@ -326,6 +331,7 @@ class DictCommand(CommandDef):
                     synopsis="dict update dictionaryVariable key varName ?key varName ...? body",
                     arg_roles={0: ArgRole.VAR_NAME},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    mutator=True,
                 ),
                 "values": SubCommand(
                     name="values",
@@ -344,6 +350,7 @@ class DictCommand(CommandDef):
                     synopsis="dict with dictionaryVariable ?key ...? body",
                     arg_roles={0: ArgRole.VAR_NAME},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    mutator=True,
                 ),
                 "getdef": SubCommand(
                     name="getdef",
