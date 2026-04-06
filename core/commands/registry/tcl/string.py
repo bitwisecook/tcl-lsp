@@ -231,6 +231,10 @@ class StringCommand(CommandDef):
                     const_fold=fold_string_is,
                     return_type=TclType.BOOLEAN,
                     arg_values={0: _IS_CLASSES},
+                    options=(
+                        OptionSpec(name="-strict"),
+                        OptionSpec(name="-failindex", takes_value=True, value_hint="varname"),
+                    ),
                 ),
                 "last": SubCommand(
                     name="last",
