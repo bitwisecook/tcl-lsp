@@ -45,6 +45,11 @@ class ForCommand(CommandDef):
             return_type=TclType.STRING,
             arg_types={1: ArgTypeHint(expected=TclType.BOOLEAN, shimmers=True)},
             side_effect_hints=(
-                SideEffect(target=SideEffectTarget.UNKNOWN, reads=True, writes=True, connection_side=ConnectionSide.NONE),
+                SideEffect(
+                    target=SideEffectTarget.UNKNOWN,
+                    reads=True,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
             ),
         )

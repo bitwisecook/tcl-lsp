@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
@@ -40,9 +39,5 @@ class FormatCommand(CommandDef):
             const_fold=fold_format,
             cse_candidate=True,
             return_type=TclType.STRING,
-            side_effect_hints=(
-                SideEffect(
-                    target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE
-                ),
-            ),
+            side_effect_hints=(),
         )

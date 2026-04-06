@@ -40,6 +40,10 @@ class BreakCommand(CommandDef):
             ),
             return_type=TclType.STRING,
             side_effect_hints=(
-                SideEffect(target=SideEffectTarget.INTERP_STATE, writes=True, connection_side=ConnectionSide.NONE),
+                SideEffect(
+                    target=SideEffectTarget.INTERP_STATE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
             ),
         )

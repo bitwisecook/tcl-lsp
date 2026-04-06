@@ -66,7 +66,12 @@ class SwitchCommand(CommandDef):
             ),
             return_type=TclType.STRING,
             side_effect_hints=(
-                SideEffect(target=SideEffectTarget.UNKNOWN, reads=True, writes=True, connection_side=ConnectionSide.NONE),
+                SideEffect(
+                    target=SideEffectTarget.UNKNOWN,
+                    reads=True,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
             ),
             has_switch_body=True,
         )
