@@ -1,45 +1,53 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, setTestContent } from "./helper";
+import { getDocUri, activate } from "./helper";
 
 suite("Signature Help", () => {
-  const docUri = getDocUri("formatting.tcl");
+  const docUri = getDocUri("simple.tcl");
 
   test("provides signature help for a built-in command", async () => {
     await activate(docUri);
-    const editor = vscode.window.activeTextEditor!;
 
-    await setTestContent(editor, "string length \n");
+    // Use an untitled document to avoid leaking state into other suites.
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "string length \n",
+    });
+    await vscode.window.showTextDocument(doc);
 
     // Trigger signature help after 'string length '
     const pos = new vscode.Position(0, 14);
     const result = (await vscode.commands.executeCommand(
       "vscode.executeSignatureHelpProvider",
-      docUri,
+      doc.uri,
       pos,
     )) as vscode.SignatureHelp | undefined;
 
-    // The server may or may not provide signature help for built-ins; just
-    // verify the provider is wired up and does not throw.
+    // Verify the provider is wired up and does not throw. If it does return
+    // signature help, ensure the shape is well-formed.
     if (result) {
-      assert.ok(result.signatures.length >= 0, "Should return zero or more signatures");
+      assert.ok(
+        Array.isArray(result.signatures),
+        "SignatureHelp should include a signatures array",
+      );
     }
   });
 
   test("provides signature help for a user proc", async () => {
     await activate(docUri);
-    const editor = vscode.window.activeTextEditor!;
 
-    await setTestContent(
-      editor,
-      'proc greet {name greeting} {\n    puts "$greeting, $name"\n}\ngreet \n',
-    );
+    // Use an untitled document to avoid leaking state into other suites.
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: 'proc greet {name greeting} {\n    puts "$greeting, $name"\n}\ngreet \n',
+    });
+    await vscode.window.showTextDocument(doc);
 
     // Trigger signature help after 'greet ' on line 3
     const pos = new vscode.Position(3, 6);
     const result = (await vscode.commands.executeCommand(
       "vscode.executeSignatureHelpProvider",
-      docUri,
+      doc.uri,
       pos,
     )) as vscode.SignatureHelp | undefined;
 

@@ -33,17 +33,17 @@ suite("Call Hierarchy", () => {
       pos,
     )) as vscode.CallHierarchyItem[];
 
-    if (!items || items.length === 0) {
-      return; // Server may not support call hierarchy
-    }
+    assert.ok(items && items.length > 0, "prepareCallHierarchy must return items");
 
     const incoming = (await vscode.commands.executeCommand(
       "vscode.provideIncomingCalls",
       items[0],
     )) as vscode.CallHierarchyIncomingCall[] | undefined;
 
+    assert.ok(incoming, "Should return incoming calls");
+
     // fib calls itself recursively, so it should appear in its own incoming calls
-    if (incoming && incoming.length > 0) {
+    if (incoming.length > 0) {
       const selfCall = incoming.find((call) => call.from.name.includes("fib"));
       assert.ok(selfCall, "fib should have a recursive incoming call from itself");
     }
@@ -60,16 +60,16 @@ suite("Call Hierarchy", () => {
       pos,
     )) as vscode.CallHierarchyItem[];
 
-    if (!items || items.length === 0) {
-      return;
-    }
+    assert.ok(items && items.length > 0, "prepareCallHierarchy must return items");
 
     const outgoing = (await vscode.commands.executeCommand(
       "vscode.provideOutgoingCalls",
       items[0],
     )) as vscode.CallHierarchyOutgoingCall[] | undefined;
 
-    if (outgoing && outgoing.length > 0) {
+    assert.ok(outgoing, "Should return outgoing calls");
+
+    if (outgoing.length > 0) {
       const selfCall = outgoing.find((call) => call.to.name.includes("fib"));
       assert.ok(selfCall, "fib should have a recursive outgoing call to itself");
     }

@@ -348,75 +348,99 @@ suite("Configuration Settings", () => {
   test("can programmatically toggle a feature setting", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     const original = config.get<boolean>("hover", true);
-    await config.update("hover", !original, vscode.ConfigurationTarget.Global);
-    const toggled = config.get<boolean>("hover");
-    assert.strictEqual(toggled, !original, "Setting should be toggled");
-    // Restore
-    await config.update("hover", original, vscode.ConfigurationTarget.Global);
-    assert.strictEqual(config.get<boolean>("hover"), original, "Setting should be restored");
+    try {
+      await config.update("hover", !original, vscode.ConfigurationTarget.Global);
+      const toggled = config.get<boolean>("hover");
+      assert.strictEqual(toggled, !original, "Setting should be toggled");
+    } finally {
+      await config.update("hover", original, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("can programmatically change dialect", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp");
     const original = config.get<string>("dialect", "tcl8.6");
-    await config.update("dialect", "tcl8.5", vscode.ConfigurationTarget.Global);
-    assert.strictEqual(config.get<string>("dialect"), "tcl8.5");
-    await config.update("dialect", original, vscode.ConfigurationTarget.Global);
+    try {
+      await config.update("dialect", "tcl8.5", vscode.ConfigurationTarget.Global);
+      assert.strictEqual(config.get<string>("dialect"), "tcl8.5");
+    } finally {
+      await config.update("dialect", original, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("can programmatically change formatting indent size", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.formatting");
     const original = config.get<number>("indentSize", 4);
-    await config.update("indentSize", 2, vscode.ConfigurationTarget.Global);
-    assert.strictEqual(config.get<number>("indentSize"), 2);
-    await config.update("indentSize", original, vscode.ConfigurationTarget.Global);
+    try {
+      await config.update("indentSize", 2, vscode.ConfigurationTarget.Global);
+      assert.strictEqual(config.get<number>("indentSize"), 2);
+    } finally {
+      await config.update("indentSize", original, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("can programmatically change optimiser profile", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
     const original = config.get<string>("profile", "readability");
-    await config.update("profile", "aggressive", vscode.ConfigurationTarget.Global);
-    assert.strictEqual(config.get<string>("profile"), "aggressive");
-    await config.update("profile", original, vscode.ConfigurationTarget.Global);
+    try {
+      await config.update("profile", "aggressive", vscode.ConfigurationTarget.Global);
+      assert.strictEqual(config.get<string>("profile"), "aggressive");
+    } finally {
+      await config.update("profile", original, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("can toggle individual diagnostic codes", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.diagnostics");
     const original = config.get<boolean>("W100", true);
-    await config.update("W100", !original, vscode.ConfigurationTarget.Global);
-    assert.strictEqual(config.get<boolean>("W100"), !original);
-    await config.update("W100", original, vscode.ConfigurationTarget.Global);
+    try {
+      await config.update("W100", !original, vscode.ConfigurationTarget.Global);
+      assert.strictEqual(config.get<boolean>("W100"), !original);
+    } finally {
+      await config.update("W100", original, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("can toggle individual optimiser rules", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
-    await config.update("O100", true, vscode.ConfigurationTarget.Global);
-    assert.strictEqual(config.get<boolean>("O100"), true);
-    await config.update("O100", null, vscode.ConfigurationTarget.Global);
-    assert.strictEqual(config.get("O100"), null);
+    try {
+      await config.update("O100", true, vscode.ConfigurationTarget.Global);
+      assert.strictEqual(config.get<boolean>("O100"), true);
+    } finally {
+      await config.update("O100", null, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("can change runtime validation adapter", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.runtimeValidation");
     const original = config.get<string>("adapter", "auto");
-    await config.update("adapter", "tcl-syntax", vscode.ConfigurationTarget.Global);
-    assert.strictEqual(config.get<string>("adapter"), "tcl-syntax");
-    await config.update("adapter", original, vscode.ConfigurationTarget.Global);
+    try {
+      await config.update("adapter", "tcl-syntax", vscode.ConfigurationTarget.Global);
+      assert.strictEqual(config.get<string>("adapter"), "tcl-syntax");
+    } finally {
+      await config.update("adapter", original, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("can change style.nonAscii setting", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.style");
     const original = config.get<string>("nonAscii", "confusables");
-    await config.update("nonAscii", "strict", vscode.ConfigurationTarget.Global);
-    assert.strictEqual(config.get<string>("nonAscii"), "strict");
-    await config.update("nonAscii", original, vscode.ConfigurationTarget.Global);
+    try {
+      await config.update("nonAscii", "strict", vscode.ConfigurationTarget.Global);
+      assert.strictEqual(config.get<string>("nonAscii"), "strict");
+    } finally {
+      await config.update("nonAscii", original, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("can change trace server level", async () => {
     const config = vscode.workspace.getConfiguration("tcl-lsp.trace");
     const original = config.get<string>("server", "off");
-    await config.update("server", "verbose", vscode.ConfigurationTarget.Global);
-    assert.strictEqual(config.get<string>("server"), "verbose");
-    await config.update("server", original, vscode.ConfigurationTarget.Global);
+    try {
+      await config.update("server", "verbose", vscode.ConfigurationTarget.Global);
+      assert.strictEqual(config.get<string>("server"), "verbose");
+    } finally {
+      await config.update("server", original, vscode.ConfigurationTarget.Global);
+    }
   });
 });

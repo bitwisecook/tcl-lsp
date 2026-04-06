@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri, setTestContent } from "./helper";
+import { activate, getDocUri } from "./helper";
 
 suite("Command Registration", () => {
   const allCommands = [
@@ -42,7 +42,10 @@ suite("Command Registration", () => {
 
   let registeredCommands: string[];
 
-  suiteSetup(async () => {
+  suiteSetup(async function () {
+    this.timeout(60_000);
+    // Ensure the extension is activated before querying commands.
+    await activate(getDocUri("simple.tcl"));
     registeredCommands = await vscode.commands.getCommands(true);
   });
 
@@ -55,41 +58,46 @@ suite("Command Registration", () => {
   test("toggleDiagnostics toggles the feature setting", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     const before = config.get<boolean>("diagnostics", true);
-    await vscode.commands.executeCommand("tclLsp.toggleDiagnostics");
-    const after = config.get<boolean>("diagnostics");
-    assert.strictEqual(after, !before, "diagnostics should be toggled");
-    // Restore
-    await vscode.commands.executeCommand("tclLsp.toggleDiagnostics");
-    assert.strictEqual(config.get<boolean>("diagnostics"), before);
+    try {
+      await vscode.commands.executeCommand("tclLsp.toggleDiagnostics");
+      const after = config.get<boolean>("diagnostics");
+      assert.strictEqual(after, !before, "diagnostics should be toggled");
+    } finally {
+      await config.update("diagnostics", before, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("toggleOptimiser toggles the optimiser.enabled setting", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
     const before = config.get<boolean>("enabled", true);
-    await vscode.commands.executeCommand("tclLsp.toggleOptimiser");
-    const after = config.get<boolean>("enabled");
-    assert.strictEqual(after, !before, "optimiser should be toggled");
-    // Restore
-    await vscode.commands.executeCommand("tclLsp.toggleOptimiser");
-    assert.strictEqual(config.get<boolean>("enabled"), before);
+    try {
+      await vscode.commands.executeCommand("tclLsp.toggleOptimiser");
+      const after = config.get<boolean>("enabled");
+      assert.strictEqual(after, !before, "optimiser should be toggled");
+    } finally {
+      await config.update("enabled", before, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("toggleAi toggles the ai.enabled setting", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.ai");
     const before = config.get<boolean>("enabled", true);
-    await vscode.commands.executeCommand("tclLsp.toggleAi");
-    const after = config.get<boolean>("enabled");
-    assert.strictEqual(after, !before, "AI features should be toggled");
-    // Restore
-    await vscode.commands.executeCommand("tclLsp.toggleAi");
-    assert.strictEqual(config.get<boolean>("enabled"), before);
+    try {
+      await vscode.commands.executeCommand("tclLsp.toggleAi");
+      const after = config.get<boolean>("enabled");
+      assert.strictEqual(after, !before, "AI features should be toggled");
+    } finally {
+      await config.update("enabled", before, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test("formatDocument executes without error on a Tcl file", async () => {
-    const docUri = getDocUri("formatting.tcl");
-    await activate(docUri);
-    const editor = vscode.window.activeTextEditor!;
-    await setTestContent(editor, "set x 10\n");
+    // Use an untitled document to avoid leaking state into other suites.
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "set x 10\n",
+    });
+    await vscode.window.showTextDocument(doc);
     // Should not throw
     await vscode.commands.executeCommand("tclLsp.formatDocument");
   });

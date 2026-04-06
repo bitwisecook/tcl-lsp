@@ -19,10 +19,15 @@ suite("Language Registration", () => {
     "tcl-expect",
   ];
 
+  let registeredLanguages: string[];
+
+  suiteSetup(async () => {
+    registeredLanguages = await vscode.languages.getLanguages();
+  });
+
   for (const langId of expectedLanguageIds) {
-    test(`language '${langId}' is registered`, async () => {
-      const languages = await vscode.languages.getLanguages();
-      assert.ok(languages.includes(langId), `Language '${langId}' should be registered`);
+    test(`language '${langId}' is registered`, () => {
+      assert.ok(registeredLanguages.includes(langId), `Language '${langId}' should be registered`);
     });
   }
 

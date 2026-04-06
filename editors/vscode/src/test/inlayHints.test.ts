@@ -1,9 +1,9 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, setTestContent } from "./helper";
+import { getDocUri, activate } from "./helper";
 
 suite("Inlay Hints", () => {
-  const docUri = getDocUri("formatting.tcl");
+  const docUri = getDocUri("simple.tcl");
 
   test("inlay hints provider is wired up and does not throw", async () => {
     await activate(docUri);
@@ -32,22 +32,29 @@ suite("Inlay Hints", () => {
       // Enable inlay hints
       await config.update("inlayHints", true, vscode.ConfigurationTarget.Global);
 
-      await activate(docUri);
-      const editor = vscode.window.activeTextEditor!;
+      // Use an untitled document to avoid leaking state.
+      const doc = await vscode.workspace.openTextDocument({
+        language: "tcl",
+        content: 'set x 42\nset name "hello"\nset items [list a b c]\n',
+      });
+      await vscode.window.showTextDocument(doc);
 
-      // Content with variables that could have type annotations
-      await setTestContent(editor, 'set x 42\nset name "hello"\nset items [list a b c]\n');
-
-      // Allow the server to process the change
-      await new Promise((r) => setTimeout(r, 2000));
-
+      // Poll for the server to process the change (up to 10s).
       const fullRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(10, 0));
-
-      const hints = (await vscode.commands.executeCommand(
-        "vscode.executeInlayHintProvider",
-        docUri,
-        fullRange,
-      )) as vscode.InlayHint[] | undefined;
+      let hints: vscode.InlayHint[] | undefined;
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline) {
+        hints = (await vscode.commands.executeCommand(
+          "vscode.executeInlayHintProvider",
+          doc.uri,
+          fullRange,
+        )) as vscode.InlayHint[] | undefined;
+        // Accept either null (server hasn't produced yet) or a valid array.
+        if (hints !== undefined) {
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
 
       // When enabled, the server may or may not produce inlay hints
       // depending on the analysis; just verify no error.

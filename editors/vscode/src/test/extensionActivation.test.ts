@@ -1,32 +1,41 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
+import { LanguageClient } from "vscode-languageclient/node";
 import { activate, getDocUri } from "./helper";
 
-suite("Extension Activation", () => {
-  test("extension is present in the extensions list", () => {
-    const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
-    assert.ok(ext, "Extension should be installed");
-  });
+interface TclLspApi {
+  getClient(): LanguageClient;
+}
 
-  test("extension activates successfully", async () => {
-    const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
+suite("Extension Activation", () => {
+  let ext: vscode.Extension<TclLspApi>;
+
+  suiteSetup(async function () {
+    this.timeout(60_000);
+    ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
+    assert.ok(ext, "Extension should be installed");
     if (!ext.isActive) {
       await ext.activate();
     }
+    // Ensure the server has fully initialised by opening a fixture.
+    await activate(getDocUri("simple.tcl"));
+  });
+
+  test("extension is present in the extensions list", () => {
+    assert.ok(ext, "Extension should be installed");
+  });
+
+  test("extension activates successfully", () => {
     assert.ok(ext.isActive, "Extension should be active");
   });
 
   test("extension exports getClient function", () => {
-    const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
-    const exports = ext.exports as Record<string, unknown>;
+    const exports = ext.exports as unknown as Record<string, unknown>;
     assert.ok(exports, "Extension should have exports");
     assert.ok(typeof exports.getClient === "function", "Should export getClient()");
   });
 
-  test("status bar items appear when a Tcl file is active", async () => {
-    const docUri = getDocUri("simple.tcl");
-    await activate(docUri);
-
+  test("status bar items appear when a Tcl file is active", () => {
     // The status bar items are created during activation.
     // We can't directly inspect them, but we can verify the extension is active
     // and the document is open with the correct language ID.
@@ -36,12 +45,8 @@ suite("Extension Activation", () => {
   });
 
   test("server capabilities include expected providers", () => {
-    const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
-    const api = ext.exports as {
-      getClient(): { initializeResult?: { capabilities: Record<string, unknown> } };
-    };
-    const client = api.getClient();
-    const caps = client.initializeResult?.capabilities;
+    const client = ext.exports.getClient();
+    const caps = client.initializeResult?.capabilities as Record<string, unknown> | undefined;
 
     assert.ok(caps, "Server should report capabilities");
     assert.ok(caps.hoverProvider, "Should have hoverProvider");
@@ -61,11 +66,8 @@ suite("Extension Activation", () => {
   });
 
   test("server reports semantic token capabilities", () => {
-    const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
-    const api = ext.exports as {
-      getClient(): { initializeResult?: { capabilities: Record<string, unknown> } };
-    };
-    const caps = api.getClient().initializeResult?.capabilities;
+    const client = ext.exports.getClient();
+    const caps = client.initializeResult?.capabilities as Record<string, unknown> | undefined;
 
     assert.ok(caps, "Server should report capabilities");
     assert.ok(caps.semanticTokensProvider, "Should have semanticTokensProvider capability");
