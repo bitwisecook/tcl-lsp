@@ -43,6 +43,6 @@ class TryCommand(CommandDef):
             arg_roles={0: ArgRole.BODY},
             return_type=TclType.STRING,
             side_effect_hints=(
-                SideEffect(target=SideEffectTarget.UNKNOWN, connection_side=ConnectionSide.NONE),
+                SideEffect(target=SideEffectTarget.UNKNOWN, reads=True, writes=True, connection_side=ConnectionSide.NONE),
             ),
         )
