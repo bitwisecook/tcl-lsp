@@ -364,7 +364,6 @@ suite("Configuration Settings", () => {
 
   test("can programmatically change dialect", async () => {
     const section = "tclLsp";
-    const original = vscode.workspace.getConfiguration(section).get<string>("dialect", "tcl8.6");
     try {
       await vscode.workspace.getConfiguration(section).update("dialect", "tcl8.5", undefined);
       assert.strictEqual(
