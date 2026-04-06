@@ -48,7 +48,7 @@ class IncrCommand(CommandDef):
             return_type=TclType.INT,
             arg_types={
                 0: ArgTypeHint(expected=TclType.INT, shimmers=True),
-                1: ArgTypeHint(expected=TclType.INT),
+                1: ArgTypeHint(expected=TclType.INT, shimmers=True),
             },
             side_effect_hints=(
                 SideEffect(

@@ -208,7 +208,7 @@ class DictCommand(CommandDef):
                     pure=True,
                     const_fold=fold_dict_get,
                     return_type=TclType.STRING,
-                    arg_types={0: ArgTypeHint(expected=TclType.DICT)},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "incr": SubCommand(
                     name="incr",
@@ -234,7 +234,7 @@ class DictCommand(CommandDef):
                     pure=True,
                     const_fold=fold_dict_keys,
                     return_type=TclType.LIST,
-                    arg_types={0: ArgTypeHint(expected=TclType.DICT)},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "lappend": SubCommand(
                     name="lappend",
@@ -282,7 +282,7 @@ class DictCommand(CommandDef):
                     synopsis="dict set dictionaryVariable key ?key ...? value",
                     return_type=TclType.DICT,
                     arg_roles={0: ArgRole.VAR_NAME},
-                    arg_types={0: ArgTypeHint(expected=TclType.DICT)},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     safe_on_uninit=frozenset(),
                 ),
                 "size": SubCommand(
@@ -293,7 +293,7 @@ class DictCommand(CommandDef):
                     pure=True,
                     const_fold=fold_dict_size,
                     return_type=TclType.INT,
-                    arg_types={0: ArgTypeHint(expected=TclType.DICT)},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "unset": SubCommand(
                     name="unset",
@@ -317,7 +317,7 @@ class DictCommand(CommandDef):
                     pure=True,
                     const_fold=fold_dict_values,
                     return_type=TclType.LIST,
-                    arg_types={0: ArgTypeHint(expected=TclType.DICT)},
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
                 "with": SubCommand(
                     name="with",
