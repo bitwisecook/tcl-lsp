@@ -31,14 +31,17 @@ class HttpIsKeepaliveCommand(CommandDef):
                     "when HTTP_RESPONSE {\n  if {[HTTP::is_keepalive]}{\n    HTTP::close\n  }\n}"
                 ),
             ),
+            pure=True,
             forms=(
                 FormSpec(
-                    kind=FormKind.DEFAULT,
+                    kind=FormKind.GETTER,
                     synopsis="HTTP::is_keepalive",
+                    arity=Arity(0, 0),
+                    pure=True,
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(0, 0),
             ),
             event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"})),
             side_effect_hints=(
