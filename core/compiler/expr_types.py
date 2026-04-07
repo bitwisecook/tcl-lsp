@@ -148,7 +148,9 @@ def _literal_type_from_text(text: str) -> TypeLattice:
     low = stripped.lower()
 
     # Boolean
-    if low in ("true", "false", "yes", "no", "on", "off"):
+    from .tcl_constants import TCL_BOOL_LITERALS
+
+    if low in TCL_BOOL_LITERALS:
         return TypeLattice.of(TclType.BOOLEAN)
 
     # Integer (decimal, hex, octal, binary)

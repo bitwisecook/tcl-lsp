@@ -1380,7 +1380,7 @@ def _unused_parameters(
 # Type propagation
 
 _FLOAT_RE = re.compile(r"^[+-]?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?\s*$")
-_BOOL_LITERALS = frozenset({"true", "false", "yes", "no", "on", "off"})
+from .tcl_constants import TCL_BOOL_LITERALS as _BOOL_LITERALS
 
 _TYPE_UNKNOWN = TypeLattice.unknown()
 _TYPE_OVERDEFINED = TypeLattice.overdefined()
