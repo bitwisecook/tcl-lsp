@@ -137,6 +137,9 @@ class EventProps:
     deprecated: bool = False
     hot: bool = False
     common: bool = False
+    # For data events, the setup event that must fire first (e.g.
+    # CLIENT_DATA → CLIENT_ACCEPTED, HTTP_REQUEST_DATA → HTTP_REQUEST).
+    setup_event: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

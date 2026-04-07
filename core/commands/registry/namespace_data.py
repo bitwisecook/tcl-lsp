@@ -118,6 +118,7 @@ def _ep(
     deprecated: bool = False,
     hot: bool = False,
     common: bool = False,
+    setup_event: str | None = None,
 ) -> EventProps:
     return EventProps(
         client_side=client_side,
@@ -128,6 +129,7 @@ def _ep(
         deprecated=deprecated,
         hot=hot,
         common=common,
+        setup_event=setup_event,
     )
 
 
@@ -139,7 +141,7 @@ EVENT_PROPS: dict[str, EventProps] = {
 
     # L4 client-side (TCP or UDP)
     "CLIENT_ACCEPTED":      _ep(client_side=True, transport=_TCP_UDP, hot=True, common=True),
-    "CLIENT_DATA":          _ep(client_side=True, transport=_TCP_UDP),
+    "CLIENT_DATA":          _ep(client_side=True, transport=_TCP_UDP, setup_event="CLIENT_ACCEPTED"),
     "CLIENT_CLOSED":        _ep(client_side=True, transport=_TCP_UDP, common=True),
 
     # Load-balancing / server init (TCP or UDP)
@@ -151,16 +153,16 @@ EVENT_PROPS: dict[str, EventProps] = {
 
     # L4 server-side (TCP or UDP)
     "SERVER_CONNECTED":     _ep(client_side=True, server_side=True, transport=_TCP_UDP, hot=True, common=True),
-    "SERVER_DATA":          _ep(client_side=True, server_side=True, transport=_TCP_UDP),
+    "SERVER_DATA":          _ep(client_side=True, server_side=True, transport=_TCP_UDP, setup_event="SERVER_CONNECTED"),
     "SERVER_CLOSED":        _ep(client_side=True, server_side=True, transport=_TCP_UDP, common=True),
 
     # HTTP
     "HTTP_REQUEST":             _ep(client_side=True, transport=_TCP, profiles=_HP, hot=True, common=True),
-    "HTTP_REQUEST_DATA":        _ep(client_side=True, transport=_TCP, profiles=_H, hot=True, common=True),
+    "HTTP_REQUEST_DATA":        _ep(client_side=True, transport=_TCP, profiles=_H, hot=True, common=True, setup_event="HTTP_REQUEST"),
     "HTTP_REQUEST_SEND":        _ep(client_side=True, server_side=True, transport=_TCP, profiles=_H),
     "HTTP_REQUEST_RELEASE":     _ep(client_side=True, server_side=True, transport=_TCP, profiles=_H),
     "HTTP_RESPONSE":            _ep(client_side=True, server_side=True, transport=_TCP, profiles=_HP, hot=True, common=True),
-    "HTTP_RESPONSE_DATA":       _ep(client_side=True, server_side=True, transport=_TCP, profiles=_H, hot=True, common=True),
+    "HTTP_RESPONSE_DATA":       _ep(client_side=True, server_side=True, transport=_TCP, profiles=_H, hot=True, common=True, setup_event="HTTP_RESPONSE"),
     "HTTP_RESPONSE_CONTINUE":   _ep(client_side=True, server_side=True, transport=_TCP, profiles=_H),
     "HTTP_RESPONSE_RELEASE":    _ep(client_side=True, server_side=True, transport=_TCP, profiles=_H),
     "HTTP_DISABLED":            _ep(client_side=True, transport=_TCP, profiles=_H),
@@ -176,7 +178,7 @@ EVENT_PROPS: dict[str, EventProps] = {
     "CLIENTSSL_CLIENTCERT":         _ep(client_side=True, transport=_TCP, profiles=_CS_PERSIST),
     "CLIENTSSL_HANDSHAKE":          _ep(client_side=True, transport=_TCP, profiles=_CS, common=True),
     "CLIENTSSL_SERVERHELLO_SEND":   _ep(client_side=True, transport=_TCP, profiles=_CS),
-    "CLIENTSSL_DATA":               _ep(client_side=True, transport=_TCP, profiles=_CS),
+    "CLIENTSSL_DATA":               _ep(client_side=True, transport=_TCP, profiles=_CS, setup_event="CLIENTSSL_HANDSHAKE"),
     "CLIENTSSL_PASSTHROUGH":        _ep(client_side=True, transport=_TCP, profiles=_CS),
 
     # TLS (server-side)
@@ -184,7 +186,7 @@ EVENT_PROPS: dict[str, EventProps] = {
     "SERVERSSL_SERVERHELLO":        _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS_PERSIST),
     "SERVERSSL_SERVERCERT":         _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS),
     "SERVERSSL_HANDSHAKE":          _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS_PERSIST, common=True),
-    "SERVERSSL_DATA":               _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS),
+    "SERVERSSL_DATA":               _ep(client_side=True, server_side=True, transport=_TCP, profiles=_SS, setup_event="SERVERSSL_HANDSHAKE"),
 
     # DNS
     "DNS_REQUEST":      _ep(client_side=True, transport=_UDP, profiles=_DNS, common=True),
