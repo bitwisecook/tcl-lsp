@@ -1536,8 +1536,9 @@ def _next_unused_name(
 def _find_barrier_scopes(analysis) -> set[str]:
     """Find proc scope labels that contain barrier commands."""
     barrier_scopes: set[str] = set()
+    barrier_cmds = _scope_barrier_commands()
     for invocation in analysis.command_invocations:
-        if invocation.name in _scope_barrier_commands():
+        if invocation.name in barrier_cmds:
             scope_label = _scope_label_at_line(analysis.global_scope, invocation.range.start.line)
             if scope_label:
                 barrier_scopes.add(scope_label)

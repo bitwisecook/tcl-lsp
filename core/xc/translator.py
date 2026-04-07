@@ -43,7 +43,7 @@ from ..compiler.ir import (
     IRWhile,
 )
 from ..compiler.lowering import lower_to_ir
-from ..compiler.optimiser._helpers import _parse_command_words
+from ..compiler.token_helpers import parse_command_words as _parse_command_words
 from .mapping import (
     ADVISORY_EVENTS,
     COMMAND_XC_MAP,

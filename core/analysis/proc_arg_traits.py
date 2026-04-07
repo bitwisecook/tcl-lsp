@@ -179,14 +179,18 @@ def _scan_commands(
         # switch — body args handled via registry, but dynamic
         # pattern/body pairs also detected via _resolve_arg_roles.
 
-        # Variable-writing commands where param is used as var name
+        # Variable-writing commands where param is used as var name.
+        # Skip commands with subcommands (e.g. array) — those are handled
+        # via _resolve_arg_roles above which checks subcommand-level roles.
         vwc = _var_write_commands()
         if cmd_name in vwc:
-            var_idx = vwc[cmd_name]
-            if var_idx < len(cmd_args):
-                vn = _extract_var_name(cmd_args[var_idx])
-                if vn and vn in param_set:
-                    traits[vn].add(ProcArgTrait.VAR_WRITE)
+            spec = REGISTRY.get_any(cmd_name)
+            if spec is None or not spec.subcommands:
+                var_idx = vwc[cmd_name]
+                if var_idx < len(cmd_args):
+                    vn = _extract_var_name(cmd_args[var_idx])
+                    if vn and vn in param_set:
+                        traits[vn].add(ProcArgTrait.VAR_WRITE)
 
         # Track writes through upvar aliases
         if cmd_name in ("set", "incr", "append", "lappend") and cmd_args:

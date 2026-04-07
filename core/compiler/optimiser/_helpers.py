@@ -19,6 +19,7 @@ from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..core_analyses import LatticeKind, LatticeValue
 from ..interprocedural import InterproceduralAnalysis
 from ..ir import CommandTokens
+from ..token_helpers import parse_command_words as _parse_command_words
 from ..token_helpers import parse_decimal_int as _parse_decimal_int
 from ..token_helpers import word_piece as _word_piece
 from ._types import _OPT_PRIORITY, Optimisation
@@ -287,55 +288,8 @@ def _is_plain_literal(text: str) -> bool:
     return "$" not in text and "[" not in text and "{" not in text and "\\" not in text
 
 
-def _parse_command_words(text: str) -> tuple[list[str], list[Token], list[bool]] | None:
-    lexer = TclLexer(text)
-    commands: list[tuple[list[str], list[Token], list[bool]]] = []
-    argv_texts: list[str] = []
-    argv_tokens: list[Token] = []
-    argv_single: list[bool] = []
-    prev_type = TokenType.EOL
-
-    def flush() -> None:
-        nonlocal argv_texts, argv_tokens, argv_single
-        if argv_texts:
-            commands.append((argv_texts, argv_tokens, argv_single))
-        argv_texts = []
-        argv_tokens = []
-        argv_single = []
-
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-        if tok.type is TokenType.COMMENT:
-            continue
-        if tok.type is TokenType.SEP:
-            prev_type = tok.type
-            continue
-        if tok.type is TokenType.EOL:
-            flush()
-            prev_type = tok.type
-            continue
-
-        piece = _word_piece(tok)
-        if prev_type in (TokenType.SEP, TokenType.EOL):
-            argv_texts.append(piece)
-            argv_tokens.append(tok)
-            argv_single.append(True)
-        else:
-            if argv_texts:
-                argv_texts[-1] += piece
-                argv_single[-1] = False
-            else:
-                argv_texts.append(piece)
-                argv_tokens.append(tok)
-                argv_single.append(True)
-        prev_type = tok.type
-
-    flush()
-    if len(commands) != 1:
-        return None
-    return commands[0]
+# _parse_command_words is imported from token_helpers and re-exported
+# for backward compatibility with existing callers in this package.
 
 
 def _select_non_overlapping_optimisations(optimisations: list[Optimisation]) -> list[Optimisation]:

@@ -31,7 +31,7 @@ def _oo_metaclasses() -> frozenset[str]:
     if _oo_metaclass_cache is None:
         from core.commands.registry import REGISTRY
 
-        _oo_metaclass_cache = REGISTRY._trait_names("is_oo_metaclass")
+        _oo_metaclass_cache = REGISTRY.check_trait_commands("is_oo_metaclass")
     return _oo_metaclass_cache
 
 

@@ -692,7 +692,7 @@ def _non_returning_commands() -> frozenset[str]:
     if _non_returning_cache is None:
         from core.commands.registry import REGISTRY
 
-        _non_returning_cache = REGISTRY._trait_names("terminates_block")
+        _non_returning_cache = REGISTRY.check_trait_commands("terminates_block")
     return _non_returning_cache
 
 
@@ -707,8 +707,9 @@ def _is_dead_end_block(cfg: CFGFunction, block_name: str) -> bool:
     if block is None or not block.statements:
         return False
     # Check if ALL statements are non-returning.
+    non_returning = _non_returning_commands()
     for stmt in block.statements:
-        if isinstance(stmt, IRCall) and stmt.command in _non_returning_commands():
+        if isinstance(stmt, IRCall) and stmt.command in non_returning:
             return True
     return False
 
@@ -782,6 +783,7 @@ def _find_destructive_file_warnings(
     guard_map = _compute_branch_guard_map(cfg)
 
     warnings: list[TaintWarning] = []
+    destructive_subs = _destructive_file_subs()
 
     for bn in executable_blocks:
         block = cfg.blocks.get(bn)
@@ -798,7 +800,7 @@ def _find_destructive_file_warnings(
                 continue
             if stmt.command != "file":
                 continue
-            if not stmt.args or stmt.args[0] not in _destructive_file_subs():
+            if not stmt.args or stmt.args[0] not in destructive_subs:
                 continue
 
             sub = stmt.args[0]
