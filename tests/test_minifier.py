@@ -1242,6 +1242,72 @@ class TestStaticSubstrEdgeCases:
         assert "set x 0" in result
 
 
+class TestIsolatedMode:
+    """isolated=True enables global-scope variable renaming."""
+
+    def test_global_vars_renamed(self):
+        # Use dynamic values so the optimizer can't fold them away
+        source = "set longvar [clock seconds]\nputs $longvar\n"
+        result = minify_tcl(source, aggressive=True, isolated=True)
+        assert "longvar" not in result.source
+        assert result.symbol_map.variables
+
+    def test_global_vars_not_renamed_without_isolated(self):
+        source = "set longvar [clock seconds]\nputs $longvar\n"
+        result = minify_tcl(source, aggressive=True, isolated=False)
+        assert "longvar" in result.source
+        assert not result.symbol_map.variables
+
+    def test_barrier_prevents_rename_in_isolated(self):
+        source = "set longvar hello\nupvar 1 longvar ref\nputs $longvar\n"
+        result = minify_tcl(source, aggressive=True, isolated=True)
+        # upvar references longvar by name — global scope is a barrier
+        assert "longvar" in result.source
+
+    def test_compact_names_isolated(self):
+        source = "set longvar [clock seconds]\nputs $longvar\n"
+        minified, sym = minify_tcl(source, compact_names=True, isolated=True)
+        assert "longvar" not in minified
+        assert sym.variables
+
+    def test_proc_vars_still_renamed(self):
+        source = "proc foo {longparam} { set longlocal 1; puts $longparam $longlocal }\n"
+        result = minify_tcl(source, aggressive=True, isolated=False)
+        assert "longparam" not in result.source
+        assert "longlocal" not in result.source
+
+    def test_seed_map_reuses_names(self):
+        source1 = "set longvar [clock seconds]\nputs $longvar\n"
+        result1 = minify_tcl(source1, aggressive=True, isolated=True)
+        map1 = result1.symbol_map
+
+        # Second file with same variable — should get same short name
+        source2 = "set longvar [clock clicks]\nputs $longvar\n"
+        result2 = minify_tcl(source2, aggressive=True, isolated=True, seed_map=map1)
+        map2 = result2.symbol_map
+
+        name1 = map1.variables.get("::", {}).get("longvar")
+        name2 = map2.variables.get("::", {}).get("longvar")
+        assert name1 is not None
+        assert name1 == name2, f"Expected consistent name: {name1} vs {name2}"
+
+    def test_seed_map_avoids_collisions(self):
+        source1 = "set alpha [clock seconds]\nputs $alpha\n"
+        result1 = minify_tcl(source1, aggressive=True, isolated=True)
+        map1 = result1.symbol_map
+
+        # Second file has a different variable — should NOT collide
+        source2 = "set beta [clock clicks]\nputs $beta\n"
+        result2 = minify_tcl(source2, aggressive=True, isolated=True, seed_map=map1)
+        map2 = result2.symbol_map
+
+        short1 = map1.variables.get("::", {}).get("alpha")
+        short2 = map2.variables.get("::", {}).get("beta")
+        assert short1 is not None
+        assert short2 is not None
+        assert short1 != short2, f"Names should differ: {short1} vs {short2}"
+
+
 class TestIRulesBraceSeparatorMinifier:
     """In iRules, the minifier should elide spaces between adjacent braced args."""
 

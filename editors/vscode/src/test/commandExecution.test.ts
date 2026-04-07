@@ -41,7 +41,7 @@ suite("LSP Command Execution", () => {
 
   test("tcl-lsp.minifyDocument returns minified source", async () => {
     const uri = docUri.toString();
-    const result = (await execLspCommand("tcl-lsp.minifyDocument", uri, false, false)) as {
+    const result = (await execLspCommand("tcl-lsp.minifyDocument", uri, false, false, false)) as {
       source: string;
       originalLength: number;
       minifiedLength: number;
@@ -54,7 +54,7 @@ suite("LSP Command Execution", () => {
 
   test("tcl-lsp.minifyDocument with compact names returns symbol map", async () => {
     const uri = docUri.toString();
-    const result = (await execLspCommand("tcl-lsp.minifyDocument", uri, true, false)) as {
+    const result = (await execLspCommand("tcl-lsp.minifyDocument", uri, true, false, false)) as {
       source: string;
       symbolMap?: string;
     } | null;
@@ -65,7 +65,7 @@ suite("LSP Command Execution", () => {
 
   test("tcl-lsp.minifyDocument aggressive returns full result", async () => {
     const uri = docUri.toString();
-    const result = (await execLspCommand("tcl-lsp.minifyDocument", uri, false, true)) as {
+    const result = (await execLspCommand("tcl-lsp.minifyDocument", uri, false, true, false)) as {
       source: string;
       symbolMap?: string;
       optimisationsApplied?: number;

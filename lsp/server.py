@@ -1154,11 +1154,13 @@ def on_optimise_document(uri: str, profile: str = "full") -> dict | None:
 
 
 @server.command("tcl-lsp.minifyDocument")
-def on_minify_document(uri: str, compact: bool = False, aggressive: bool = False) -> dict | None:
+def on_minify_document(
+    uri: str, compact: bool = False, aggressive: bool = False, isolated: bool = False
+) -> dict | None:
     """Minify the Tcl document: strip comments, collapse whitespace, join commands."""
     source = _get_doc_source(uri)
     if aggressive:
-        result = minify_tcl(source, aggressive=True)
+        result = minify_tcl(source, aggressive=True, isolated=isolated)
         return {
             "source": result.source,
             "originalLength": result.original_length,
@@ -1167,7 +1169,7 @@ def on_minify_document(uri: str, compact: bool = False, aggressive: bool = False
             "optimisationsApplied": result.optimisations_applied,
         }
     if compact:
-        minified, symbol_map = minify_tcl(source, compact_names=True)
+        minified, symbol_map = minify_tcl(source, compact_names=True, isolated=isolated)
         return {
             "source": minified,
             "originalLength": len(source),

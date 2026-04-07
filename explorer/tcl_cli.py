@@ -1083,8 +1083,10 @@ def _run_minify(args: argparse.Namespace) -> int:
     source = _combine_sources(documents)
     use_colour = _resolve_use_colour(args)
 
+    isolated = getattr(args, "isolated", False)
+
     if args.aggressive:
-        result = minify_tcl(source, aggressive=True)
+        result = minify_tcl(source, aggressive=True, isolated=isolated)
         _write_highlighted_output(
             args.output, result.source, use_colour=use_colour, tab_width=_resolve_tab_width(args)
         )
@@ -1098,7 +1100,7 @@ def _run_minify(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
     elif args.compact:
-        minified, symbol_map = minify_tcl(source, compact_names=True)
+        minified, symbol_map = minify_tcl(source, compact_names=True, isolated=isolated)
         _write_highlighted_output(
             args.output, minified, use_colour=use_colour, tab_width=_resolve_tab_width(args)
         )
@@ -2435,6 +2437,11 @@ def parse_args(
         "--aggressive",
         action="store_true",
         help="Maximum compression: run all optimiser passes, then compact names and minify.",
+    )
+    minify_p.add_argument(
+        "--isolated",
+        action="store_true",
+        help="Treat script as self-contained — also compact global-scope variable names.",
     )
     _add_colour_arguments(minify_p)
     minify_p.set_defaults(handler=_run_minify)
