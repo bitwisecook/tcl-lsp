@@ -69,7 +69,7 @@ class TcpNotifyCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(1, 1),
             ),
             event_requires=EventRequires(
                 transport="tcp",
