@@ -85,7 +85,7 @@ class HttpUriCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(0, 1),
             ),
             event_requires=EventRequires(
                 transport="tcp",
