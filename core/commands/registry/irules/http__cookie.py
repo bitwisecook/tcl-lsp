@@ -93,7 +93,7 @@ class HttpCookieCommand(CommandDef):
                             _av(
                                 "expires",
                                 "Get/set cookie expires.",
-                                "HTTP::cookie expires <name> ?value?",
+                                "HTTP::cookie expires <name> ?seconds? ?absolute | relative?",
                             ),
                             _av(
                                 "comment",
@@ -283,9 +283,9 @@ class HttpCookieCommand(CommandDef):
                 ),
                 "expires": SubCommand(
                     name="expires",
-                    arity=Arity(1, 2),
+                    arity=Arity(1, 3),
                     detail="Get/set cookie expires.",
-                    synopsis="HTTP::cookie expires <name> ?value?",
+                    synopsis="HTTP::cookie expires <name> ?seconds? ?absolute | relative?",
                     forms=(
                         FormSpec(
                             kind=FormKind.GETTER,
@@ -295,8 +295,8 @@ class HttpCookieCommand(CommandDef):
                         ),
                         FormSpec(
                             kind=FormKind.SETTER,
-                            synopsis="HTTP::cookie expires <name> <value>",
-                            arity=Arity(2, 2),
+                            synopsis="HTTP::cookie expires <name> <seconds> ?absolute | relative?",
+                            arity=Arity(2, 3),
                             mutator=True,
                         ),
                     ),
