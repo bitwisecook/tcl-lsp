@@ -41,6 +41,8 @@ class VariableCommand(CommandDef):
                 arity=Arity(1),
             ),
             creates_scope_alias=True,
+            creates_dynamic_barrier=True,
+            assigns_variable_at=0,
             arg_roles={0: ArgRole.VAR_NAME},
             return_type=TclType.STRING,
             side_effect_hints=(

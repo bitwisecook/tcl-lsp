@@ -33,72 +33,10 @@ from ..ir import (
     IRTry,
     IRWhile,
 )
-from ._helpers import _full_command_range, _parse_single_command_from_range
+from ._helpers import _full_command_range, _parse_command_words, _parse_single_command_from_range
 from ._types import Optimisation, PassContext
 
 _CMD_SUBST_RE = re.compile(r"^\[(.+)\]\Z", re.DOTALL)
-
-
-def _split_tcl_words(text: str) -> list[str]:
-    """Split a Tcl command line into words, preserving original text.
-
-    Handles braces, brackets, and double-quotes as word delimiters.
-    Unlike ``_parse_command_words``, this does not normalise variable
-    references — it preserves ``$b`` as-is rather than converting to
-    ``${b}``.
-    """
-    words: list[str] = []
-    i = 0
-    n = len(text)
-    while i < n:
-        # Skip whitespace.
-        while i < n and text[i] in " \t\n\r":
-            i += 1
-        if i >= n:
-            break
-        start = i
-        ch = text[i]
-        if ch == "{":
-            depth = 1
-            i += 1
-            while i < n and depth > 0:
-                if text[i] == "{":
-                    depth += 1
-                elif text[i] == "}":
-                    depth -= 1
-                i += 1
-        elif ch == '"':
-            i += 1
-            while i < n and text[i] != '"':
-                if text[i] == "\\":
-                    i += 1
-                i += 1
-            if i < n:
-                i += 1
-        else:
-            while i < n and text[i] not in " \t\n":
-                if text[i] == "[":
-                    depth = 1
-                    i += 1
-                    while i < n and depth > 0:
-                        if text[i] == "[":
-                            depth += 1
-                        elif text[i] == "]":
-                            depth -= 1
-                        i += 1
-                elif text[i] == "{":
-                    depth = 1
-                    i += 1
-                    while i < n and depth > 0:
-                        if text[i] == "{":
-                            depth += 1
-                        elif text[i] == "}":
-                            depth -= 1
-                        i += 1
-                else:
-                    i += 1
-        words.append(text[start:i])
-    return words
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,10 +149,13 @@ def _extract_return_subst_args(
     inner = _return_command_subst_text(source, stmt_range)
     if inner is None:
         return None
-    words = _split_tcl_words(inner)
-    if not words or words[0] not in self_names:
+    parsed = _parse_command_words(inner)
+    if parsed is None:
         return None
-    return tuple(words[1:])
+    argv_texts, _, _ = parsed
+    if not argv_texts or argv_texts[0] not in self_names:
+        return None
+    return tuple(argv_texts[1:])
 
 
 def _return_command_subst_text(source: str, stmt_range: Range) -> str | None:
@@ -326,9 +267,11 @@ def _count_self_calls_in_command_range(
         if tok.type is not TokenType.CMD:
             continue
         inner = tok.text.strip()
-        words = _split_tcl_words(inner)
-        if words and words[0] in self_names:
-            count += 1
+        parsed = _parse_command_words(inner)
+        if parsed is not None:
+            argv_texts, _, _ = parsed
+            if argv_texts and argv_texts[0] in self_names:
+                count += 1
         # Count nested substitutions inside this command-substitution token.
         count += _count_name_as_command(inner, self_names)
     return count

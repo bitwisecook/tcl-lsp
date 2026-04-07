@@ -32,21 +32,19 @@ from .semantic_model import ProcArgTrait
 # Simple $varName reference pattern.
 _SIMPLE_VAR_RE = re.compile(r"^\$(?:\{([A-Za-z_][\w:]*)\}|([A-Za-z_][\w:]*))\Z")
 
-# Variable-writing commands: maps command -> arg index of var name (0-based).
-# Variable-writing commands matched by first word only.
+# Variable-writing commands derived from CommandSpec.assigns_variable_at.
 # "dict set" etc. are handled via the registry's ArgRole.VAR_NAME on
 # subcommand specs, not here (cmd_name from the segmenter is just "dict").
-_VAR_WRITE_COMMANDS: dict[str, int] = {
-    "set": 0,
-    "incr": 0,
-    "append": 0,
-    "lappend": 0,
-    "lset": 0,
-    "unset": 0,
-    "gets": 1,
-    "global": 0,
-    "variable": 0,
-}
+_var_write_cache: dict[str, int] | None = None
+
+
+def _var_write_commands() -> dict[str, int]:
+    global _var_write_cache
+    if _var_write_cache is None:
+        from core.commands.registry.runtime import variable_writing_commands
+
+        _var_write_cache = variable_writing_commands()
+    return _var_write_cache
 
 
 def _extract_var_name(text: str) -> str | None:
@@ -127,21 +125,23 @@ def _scan_commands(
             elif role is ArgRole.VAR_READ:
                 traits[source_param].add(ProcArgTrait.VAR_READ)
 
-        # eval/uplevel/subst with param as the script arg
-        if cmd_name in ("eval", "subst"):
-            for arg in cmd_args:
-                vn = _extract_var_name(arg)
-                if vn and vn in param_set:
-                    traits[vn].add(ProcArgTrait.EVAL)
-
-        if cmd_name == "uplevel":
-            if cmd_args:
-                vn = _extract_var_name(cmd_args[-1])
-                if vn and vn in param_set:
-                    traits[vn].add(ProcArgTrait.EVAL)
+        # Commands that evaluate code (eval, uplevel, subst, etc.)
+        spec = REGISTRY.get_any(cmd_name)
+        if spec is not None and (spec.evaluates_code or spec.performs_substitution):
+            if spec.evaluates_code and cmd_name == "uplevel":
+                # uplevel: last arg is the script
+                if cmd_args:
+                    vn = _extract_var_name(cmd_args[-1])
+                    if vn and vn in param_set:
+                        traits[vn].add(ProcArgTrait.EVAL)
+            else:
+                for arg in cmd_args:
+                    vn = _extract_var_name(arg)
+                    if vn and vn in param_set:
+                        traits[vn].add(ProcArgTrait.EVAL)
 
         # upvar creates aliases
-        if cmd_name == "upvar":
+        if spec is not None and spec.creates_scope_alias and cmd_name == "upvar":
             _handle_upvar(cmd_args, param_set, traits, upvar_aliases)
 
         # foreach / lmap
@@ -179,13 +179,18 @@ def _scan_commands(
         # switch — body args handled via registry, but dynamic
         # pattern/body pairs also detected via _resolve_arg_roles.
 
-        # Variable-writing commands where param is used as var name
-        if cmd_name in _VAR_WRITE_COMMANDS:
-            var_idx = _VAR_WRITE_COMMANDS[cmd_name]
-            if var_idx < len(cmd_args):
-                vn = _extract_var_name(cmd_args[var_idx])
-                if vn and vn in param_set:
-                    traits[vn].add(ProcArgTrait.VAR_WRITE)
+        # Variable-writing commands where param is used as var name.
+        # Skip commands with subcommands (e.g. array) — those are handled
+        # via _resolve_arg_roles above which checks subcommand-level roles.
+        vwc = _var_write_commands()
+        if cmd_name in vwc:
+            spec = REGISTRY.get_any(cmd_name)
+            if spec is None or not spec.subcommands:
+                var_idx = vwc[cmd_name]
+                if var_idx < len(cmd_args):
+                    vn = _extract_var_name(cmd_args[var_idx])
+                    if vn and vn in param_set:
+                        traits[vn].add(ProcArgTrait.VAR_WRITE)
 
         # Track writes through upvar aliases
         if cmd_name in ("set", "incr", "append", "lappend") and cmd_args:

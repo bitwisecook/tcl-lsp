@@ -22,6 +22,7 @@ class ErrorCommand(CommandDef):
         return CommandSpec(
             name="error",
             needs_start_cmd=True,
+            terminates_block=True,
             hover=HoverSnippet(
                 summary="Generate an error",
                 synopsis=("error message ?info? ?code?",),

@@ -22,6 +22,7 @@ class ReturnCommand(CommandDef):
             name="return",
             is_language_keyword=True,
             needs_start_cmd=True,
+            terminates_block=True,
             hover=HoverSnippet(
                 summary="Return from the current procedure/script with optional control-code metadata.",
                 synopsis=("return ?-code code? ?-level level? ?result?",),

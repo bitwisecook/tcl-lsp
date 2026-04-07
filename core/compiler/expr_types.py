@@ -28,7 +28,6 @@ from __future__ import annotations
 from typing import TypeAlias
 
 from .expr_ast import (
-    BinOp,
     ExprBinary,
     ExprCall,
     ExprCommand,
@@ -39,104 +38,14 @@ from .expr_ast import (
     ExprTernary,
     ExprUnary,
     ExprVar,
-    UnaryOp,
 )
+from .expr_registry import BINOP_KIND, EXPR_FUNC_REGISTRY, UNARYOP_KIND, OpKind, UnaryOpKind
 from .types import TclType, TypeKind, TypeLattice, type_join
 
 # Semantic type alias
 
 VarTypes: TypeAlias = dict[str, TypeLattice]
 """Maps variable names to their current type lattice values."""
-
-# Operator → result type tables
-
-# Arithmetic ops whose result type depends on operand types.
-_ARITHMETIC_OPS = frozenset({BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.MOD, BinOp.POW})
-
-# Division: INT / INT = INT in Tcl (truncating integer division).
-_DIV_OP = BinOp.DIV
-
-# Bitwise / shift ops — always return INT.
-_BITWISE_OPS = frozenset(
-    {
-        BinOp.BIT_AND,
-        BinOp.BIT_OR,
-        BinOp.BIT_XOR,
-        BinOp.LSHIFT,
-        BinOp.RSHIFT,
-    }
-)
-
-# Comparison ops — always return BOOLEAN.
-_COMPARISON_OPS = frozenset(
-    {
-        BinOp.EQ,
-        BinOp.NE,
-        BinOp.LT,
-        BinOp.LE,
-        BinOp.GT,
-        BinOp.GE,
-        BinOp.STR_EQ,
-        BinOp.STR_NE,
-        BinOp.STR_LT,
-        BinOp.STR_LE,
-        BinOp.STR_GT,
-        BinOp.STR_GE,
-        BinOp.IN,
-        BinOp.NI,
-        # iRules string operators
-        BinOp.CONTAINS,
-        BinOp.STARTS_WITH,
-        BinOp.ENDS_WITH,
-        BinOp.STR_EQUALS,
-        BinOp.MATCHES_GLOB,
-        BinOp.MATCHES_REGEX,
-    }
-)
-
-# Logical ops — always return BOOLEAN.
-_LOGICAL_OPS = frozenset({BinOp.AND, BinOp.OR, BinOp.WORD_AND, BinOp.WORD_OR})
-
-# Math functions: function name → return TclType
-_FUNC_RETURN_TYPE: dict[str, TclType] = {
-    # → INT
-    "int": TclType.INT,
-    "round": TclType.INT,
-    "ceil": TclType.INT,
-    "floor": TclType.INT,
-    "isqrt": TclType.INT,
-    "wide": TclType.INT,
-    "entier": TclType.INT,
-    # → DOUBLE
-    "double": TclType.DOUBLE,
-    "sin": TclType.DOUBLE,
-    "cos": TclType.DOUBLE,
-    "tan": TclType.DOUBLE,
-    "asin": TclType.DOUBLE,
-    "acos": TclType.DOUBLE,
-    "atan": TclType.DOUBLE,
-    "atan2": TclType.DOUBLE,
-    "sinh": TclType.DOUBLE,
-    "cosh": TclType.DOUBLE,
-    "tanh": TclType.DOUBLE,
-    "sqrt": TclType.DOUBLE,
-    "exp": TclType.DOUBLE,
-    "log": TclType.DOUBLE,
-    "log10": TclType.DOUBLE,
-    "pow": TclType.DOUBLE,
-    "hypot": TclType.DOUBLE,
-    "fmod": TclType.DOUBLE,
-    "rand": TclType.DOUBLE,
-    "srand": TclType.DOUBLE,
-    # → BOOLEAN
-    "bool": TclType.BOOLEAN,
-    "isnan": TclType.BOOLEAN,
-    "isinf": TclType.BOOLEAN,
-}
-
-# Functions that preserve operand type: abs, max, min.
-_IDENTITY_FUNCS = frozenset({"abs"})
-_VARIADIC_JOIN_FUNCS = frozenset({"max", "min"})
 
 
 # Literal type detection
@@ -148,7 +57,9 @@ def _literal_type_from_text(text: str) -> TypeLattice:
     low = stripped.lower()
 
     # Boolean
-    if low in ("true", "false", "yes", "no", "on", "off"):
+    from .tcl_constants import TCL_BOOL_LITERALS
+
+    if low in TCL_BOOL_LITERALS:
         return TypeLattice.of(TclType.BOOLEAN)
 
     # Integer (decimal, hex, octal, binary)
@@ -236,11 +147,10 @@ def infer_expr_type(node: ExprNode, var_types: VarTypes) -> TypeLattice:
 
         # Binary operators
         case ExprBinary(op=op, left=left, right=right):
-            if op in _COMPARISON_OPS:
+            kind = BINOP_KIND.get(op)
+            if kind is OpKind.COMPARISON or kind is OpKind.LOGICAL:
                 return TypeLattice.of(TclType.BOOLEAN)
-            if op in _LOGICAL_OPS:
-                return TypeLattice.of(TclType.BOOLEAN)
-            if op in _BITWISE_OPS:
+            if kind is OpKind.BITWISE:
                 return TypeLattice.of(TclType.INT)
 
             left_t = infer_expr_type(left, var_types)
@@ -249,18 +159,19 @@ def infer_expr_type(node: ExprNode, var_types: VarTypes) -> TypeLattice:
             if left_t.kind is not TypeKind.KNOWN or right_t.kind is not TypeKind.KNOWN:
                 return TypeLattice.of(TclType.NUMERIC)
 
-            if op in _ARITHMETIC_OPS or op is _DIV_OP:
+            if kind is OpKind.ARITHMETIC or kind is OpKind.DIVISION:
                 return _arithmetic_result(left_t, right_t)
 
             return TypeLattice.of(TclType.NUMERIC)
 
         # Unary operators
         case ExprUnary(op=op, operand=operand):
-            if op is UnaryOp.NOT or op is UnaryOp.WORD_NOT:
+            ukind = UNARYOP_KIND.get(op)
+            if ukind is UnaryOpKind.LOGICAL:
                 return TypeLattice.of(TclType.BOOLEAN)
-            if op is UnaryOp.BIT_NOT:
+            if ukind is UnaryOpKind.BITWISE:
                 return TypeLattice.of(TclType.INT)
-            # NEG, POS: same as operand.
+            # IDENTITY: same as operand.
             return infer_expr_type(operand, var_types)
 
         # Ternary
@@ -272,18 +183,16 @@ def infer_expr_type(node: ExprNode, var_types: VarTypes) -> TypeLattice:
 
         # Function calls
         case ExprCall(function=func, args=args):
-            fixed = _FUNC_RETURN_TYPE.get(func)
-            if fixed is not None:
-                return TypeLattice.of(fixed)
-
-            if func in _IDENTITY_FUNCS and args:
-                return infer_expr_type(args[0], var_types)
-
-            if func in _VARIADIC_JOIN_FUNCS and args:
-                result = infer_expr_type(args[0], var_types)
-                for arg in args[1:]:
-                    result = type_join(result, infer_expr_type(arg, var_types))
-                return result
+            fspec = EXPR_FUNC_REGISTRY.get(func)
+            if fspec is not None:
+                if fspec.identity and args:
+                    return infer_expr_type(args[0], var_types)
+                if fspec.variadic_join and args:
+                    result = infer_expr_type(args[0], var_types)
+                    for arg in args[1:]:
+                        result = type_join(result, infer_expr_type(arg, var_types))
+                    return result
+                return TypeLattice.of(fspec.return_type)
 
             # Unknown function — conservative.
             return TypeLattice.of(TclType.NUMERIC)

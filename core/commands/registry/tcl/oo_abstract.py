@@ -24,6 +24,7 @@ class OoAbstractCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="oo::abstract",
+            is_oo_metaclass=True,
             dialects=frozenset({"tcl9.0"}),
             hover=HoverSnippet(
                 summary="metaclass for abstract classes",

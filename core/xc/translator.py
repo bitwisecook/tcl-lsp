@@ -43,6 +43,7 @@ from ..compiler.ir import (
     IRWhile,
 )
 from ..compiler.lowering import lower_to_ir
+from ..compiler.token_helpers import parse_command_words as _parse_command_words
 from .mapping import (
     ADVISORY_EVENTS,
     COMMAND_XC_MAP,
@@ -152,42 +153,11 @@ def _parse_command_parts(text: str) -> list[str]:
     text = text.strip()
     if text.startswith("[") and text.endswith("]"):
         text = text[1:-1].strip()
-    parts: list[str] = []
-    i = 0
-    while i < len(text):
-        while i < len(text) and text[i] in (" ", "\t"):
-            i += 1
-        if i >= len(text):
-            break
-        if text[i] == '"':
-            i += 1
-            start = i
-            while i < len(text) and text[i] != '"':
-                if text[i] == "\\":
-                    i += 1
-                i += 1
-            parts.append(text[start:i])
-            if i < len(text):
-                i += 1
-        elif text[i] == "[":
-            depth = 0
-            start = i
-            while i < len(text):
-                if text[i] == "[":
-                    depth += 1
-                elif text[i] == "]":
-                    depth -= 1
-                    if depth == 0:
-                        i += 1
-                        break
-                i += 1
-            parts.append(text[start:i])
-        else:
-            start = i
-            while i < len(text) and text[i] not in (" ", "\t"):
-                i += 1
-            parts.append(text[start:i])
-    return parts
+    parsed = _parse_command_words(text)
+    if parsed is None:
+        return []
+    argv_texts, _, _ = parsed
+    return argv_texts
 
 
 def _switch_subject_kind(subject: str) -> str | None:

@@ -37,6 +37,8 @@ from .expr_ast import (
     ExprVar,
     UnaryOp,
 )
+from .tcl_constants import TCL_BOOL_FALSE as _BOOL_FALSE
+from .tcl_constants import TCL_BOOL_TRUE as _BOOL_TRUE
 
 log = logging.getLogger(__name__)
 
@@ -113,9 +115,6 @@ def _eval(node: ExprNode, env: dict[str, int | float | str]) -> TclValue | None:
 
 
 # Literals
-
-_BOOL_TRUE = frozenset({"true", "yes", "on"})
-_BOOL_FALSE = frozenset({"false", "no", "off"})
 
 
 def _parse_literal(text: str) -> TclValue | None:

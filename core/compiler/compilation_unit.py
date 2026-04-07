@@ -23,7 +23,16 @@ from .ir import IRBarrier, IRCall, IRModule, IRStatement
 from .lowering import lower_to_ir
 from .ssa import SSAFunction, build_ssa
 
-_OO_METACLASSES = frozenset({"oo::class", "oo::configurable", "oo::abstract", "oo::singleton"})
+_oo_metaclass_cache: frozenset[str] | None = None
+
+
+def _oo_metaclasses() -> frozenset[str]:
+    global _oo_metaclass_cache
+    if _oo_metaclass_cache is None:
+        from core.commands.registry import REGISTRY
+
+        _oo_metaclass_cache = REGISTRY.check_trait_commands("is_oo_metaclass")
+    return _oo_metaclass_cache
 
 
 def _extract_class_names(ir_module: IRModule) -> frozenset[str]:
@@ -43,7 +52,7 @@ def _extract_class_names(ir_module: IRModule) -> frozenset[str]:
             elif isinstance(stmt, IRBarrier):
                 cmd, args = stmt.command, stmt.args
             if (
-                cmd in _OO_METACLASSES
+                cmd in _oo_metaclasses()
                 and len(args) >= 2
                 and args[0] in ("create", "createWithNamespace")
             ):

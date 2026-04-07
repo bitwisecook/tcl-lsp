@@ -22,6 +22,7 @@ class ThrowCommand(CommandDef):
         return CommandSpec(
             name="throw",
             is_language_keyword=True,
+            terminates_block=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(
                 summary="Generate a machine-readable error",

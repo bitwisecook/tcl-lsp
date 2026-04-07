@@ -336,6 +336,7 @@ class SubCommand:
     # Effect classification (replaces pure_subcommands / mutator_subcommands).
     pure: bool = False
     mutator: bool = False
+    destructive: bool = False  # Irreversible operations (file delete, etc.)
 
     # Deprecation (subcommand-level).
     deprecated_replacement: type[CommandDef] | str | None = None
@@ -669,6 +670,14 @@ class CommandSpec:
     # Whether this command must appear at top level in iRules
     # (proc, when, timing, priority).
     irules_top_level_only: bool = False
+
+    # Whether this command is a TclOO metaclass (oo::class, oo::abstract,
+    # oo::configurable, oo::singleton).
+    is_oo_metaclass: bool = False
+
+    # Whether this command unconditionally terminates the current block
+    # (error, return, throw, exit — control never passes to the next statement).
+    terminates_block: bool = False
 
     def supports_dialect(self, dialect: str | None) -> bool:
         if dialect is None:

@@ -46,15 +46,6 @@ _TAINT_VAR_RE = re.compile(r"Tainted variable \$(\w+)")
 _DOUBLE_ENCODE_VAR_RE = re.compile(r"Variable \$(\w+) is already")
 _IRULE_COLLECT_RE = re.compile(r"\b([A-Za-z0-9_]+)::collect\b")
 _IRULE_PAYLOAD_RE = re.compile(r"\b([A-Za-z0-9_]+)::payload\b")
-_SETUP_EVENT_BY_DATA_EVENT = {
-    "CLIENT_DATA": "CLIENT_ACCEPTED",
-    "SERVER_DATA": "SERVER_CONNECTED",
-    "HTTP_REQUEST_DATA": "HTTP_REQUEST",
-    "HTTP_RESPONSE_DATA": "HTTP_RESPONSE",
-    "CLIENTSSL_DATA": "CLIENTSSL_HANDSHAKE",
-    "SERVERSSL_DATA": "SERVERSSL_HANDSHAKE",
-}
-_SERVER_EVENT_PREFIXES = ("SERVER", "SERVERSSL")
 _EXTRACT_PROC_BASE_NAME = "extracted_proc"
 _PLAIN_VAR_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)\b")
 _BRACED_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
@@ -462,16 +453,18 @@ def _payload_protocol_from_diagnostic(source: str, diag: types.Diagnostic) -> st
 
 def _setup_event_for_protocol(protocol: str, current_event: str | None) -> str:
     event = (current_event or "").upper()
-    if event in _SETUP_EVENT_BY_DATA_EVENT:
-        return _SETUP_EVENT_BY_DATA_EVENT[event]
+    # Look up the setup event from the registry first.
+    setup = EVENT_REGISTRY.setup_event_for(event)
+    if setup is not None:
+        return setup
 
+    # Fallback: infer from protocol and event side.
     if protocol == "HTTP":
         return "HTTP_RESPONSE" if event.startswith("HTTP_RESPONSE") else "HTTP_REQUEST"
     if protocol == "SSL":
         return "SERVERSSL_HANDSHAKE" if event.startswith("SERVERSSL") else "CLIENTSSL_HANDSHAKE"
-    if event.startswith(_SERVER_EVENT_PREFIXES):
-        return "SERVER_CONNECTED"
-    return "CLIENT_ACCEPTED"
+    side = EVENT_REGISTRY.connection_side(event) if event else "client"
+    return "SERVER_CONNECTED" if side == "server" else "CLIENT_ACCEPTED"
 
 
 def _collect_bootstrap_snippet(setup_event: str, protocol: str) -> str:

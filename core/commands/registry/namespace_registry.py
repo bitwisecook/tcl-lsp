@@ -269,6 +269,26 @@ class NamespaceRegistry:
             )
         return None
 
+    def setup_event_for(self, event: str) -> str | None:
+        """Return the setup event for a data event, or ``None``."""
+        props = self.get_props(event.upper())
+        if props is not None:
+            return props.setup_event
+        return None
+
+    def connection_side(self, event: str) -> str:
+        """Return ``"client"`` or ``"server"`` for an event."""
+        upper = event.upper()
+        props = self.get_props(upper)
+        if props is not None:
+            if props.server_side and not props.client_side:
+                return "server"
+        # For dual-sided known events and unknown/custom events,
+        # preserve legacy name-based inference before defaulting.
+        if upper.startswith("SERVER") or "_RESPONSE" in upper:
+            return "server"
+        return "client"
+
     def get_modification_spec(self, command: str) -> StackModification | None:
         """Look up a stack modification spec by command name."""
         return self._modification_specs.get(command)
