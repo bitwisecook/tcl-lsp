@@ -24,7 +24,12 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal, overload
 
-from core.commands.registry.runtime import body_arg_indices, expr_arg_indices
+from core.commands.registry.runtime import (
+    body_arg_indices,
+    expr_arg_indices,
+    is_switch_case_list_form,
+    iter_switch_case_list,
+)
 from core.common.suffix_array import build_lcp_array, build_suffix_array
 from core.common.text_edits import apply_edits, name_generator
 from core.parsing.lexer import TclLexer
@@ -43,6 +48,14 @@ def _scope_barrier_commands() -> frozenset[str]:
 
         _scope_barrier_cache = REGISTRY.dynamic_barrier_commands()
     return _scope_barrier_cache
+
+# Control-flow keywords that must remain as literal strings.  These are
+# arguments to ``if`` (else, elseif, then) and ``try`` (on, trap, finally)
+# that the body/expr index resolution functions check by value.  Aliasing
+# them to variables would break recursive body minification.
+_CONTROL_FLOW_KEYWORDS = frozenset(
+    {"else", "elseif", "then", "on", "trap", "finally"}
+)
 
 
 @dataclass
@@ -1158,6 +1171,13 @@ def _scan_argument_tokens(
             if len(val) < 3 or any(c in val for c in ' \t\n"{}[]$\\;'):
                 continue
 
+            # Never alias control-flow keywords — they must remain literal
+            # for body/expr index detection to work (e.g. _if_body_indices
+            # checks for "elseif"/"else"/"then", _try_body_indices checks
+            # for "on"/"trap"/"finally").
+            if val in _CONTROL_FLOW_KEYWORDS:
+                continue
+
             arg_uses.setdefault(val, []).append(abs_off)
 
 
@@ -1636,11 +1656,20 @@ def _minify_body(source: str, *, dialect: str | None = None) -> str:
         body_indices = _get_body_indices(cmd_name, cmd_args)
         expr_indices = _get_expr_indices(cmd_name, cmd_args)
 
+        # Detect switch braced case-list form so we can minify each
+        # case body individually (the registry tells us the structure).
+        is_case_list = cmd_name == "switch" and is_switch_case_list_form(
+            [_token_text(a) for a in cmd_args[1:]]
+        )
+
         arg_strs: list[str] = []
         for i, arg in enumerate(cmd_args):
             if i in body_indices and arg.is_braced and len(arg.tokens) == 1:
                 inner = arg.tokens[0].text
-                minified_inner = _minify_body(inner, dialect=dialect)
+                if is_case_list:
+                    minified_inner = _minify_switch_case_list(inner, dialect=dialect)
+                else:
+                    minified_inner = _minify_body(inner, dialect=dialect)
                 arg_strs.append("{" + minified_inner + "}")
             elif i in expr_indices and arg.is_braced and len(arg.tokens) == 1:
                 inner = arg.tokens[0].text
@@ -1680,6 +1709,25 @@ def _minify_body(source: str, *, dialect: str | None = None) -> str:
             parts.append(" ".join(arg_strs))
 
     return ";".join(parts)
+
+
+def _minify_switch_case_list(source: str, *, dialect: str | None = None) -> str:
+    """Minify the content of a ``switch`` braced case list.
+
+    Parses the case list into pattern/body pairs using
+    :func:`iter_switch_case_list` from the command registry, then
+    recursively minifies each body via :func:`_minify_body`.
+    """
+    parts: list[str] = []
+    for case in iter_switch_case_list(source):
+        if case.body is None:
+            parts.append(f"{case.pattern} -")
+        elif case.is_braced:
+            minified = _minify_body(case.body, dialect=dialect)
+            parts.append(f"{case.pattern} {{{minified}}}")
+        else:
+            parts.append(f"{case.pattern} {case.body}")
+    return " ".join(parts)
 
 
 def _dedup_templates(

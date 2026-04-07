@@ -161,6 +161,12 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W125",
+    section: "warning",
+    description: "Orphaned control-flow keyword used as standalone command.",
+    defaultEnabled: true,
+  },
+  {
     code: "W126",
     section: "warning",
     description: "Non-channel value in channel argument position.",

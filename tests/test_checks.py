@@ -2792,3 +2792,95 @@ class TestChannelValidation:
         """OVERDEFINED variable (e.g. from proc param) → no W126 (conservative)."""
         diags = _diag_with_code("proc f {fd} { close $fd }", "W126")
         assert len(diags) == 0
+
+
+# W125: Orphaned control-flow keyword
+
+
+class TestOrphanedKeyword:
+    """W125 — control-flow keywords used as standalone commands."""
+
+    def test_orphaned_else(self):
+        """else on separate line from closing } → W125."""
+        source = "if {1} {\n    puts yes\n}\nelse {\n    puts no\n}\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 1
+        assert '"else"' in diags[0].message
+        assert '"if"' in diags[0].message
+
+    def test_orphaned_elseif(self):
+        """elseif on separate line → W125."""
+        source = "if {1} {\n    puts a\n}\nelseif {0} {\n    puts b\n}\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 1
+        assert '"elseif"' in diags[0].message
+
+    def test_orphaned_then(self):
+        """then on separate line → W125."""
+        source = "if {1}\nthen {\n    puts yes\n}\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 1
+        assert '"then"' in diags[0].message
+
+    def test_orphaned_finally(self):
+        """finally on separate line → W125."""
+        source = "try {\n    error oops\n}\nfinally {\n    puts cleanup\n}\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 1
+        assert '"finally"' in diags[0].message
+
+    def test_orphaned_on(self):
+        """on error handler on separate line → W125."""
+        source = "try {\n    error oops\n}\non error {msg opts} {\n    puts $msg\n}\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 1
+        assert '"on"' in diags[0].message
+
+    def test_orphaned_trap(self):
+        """trap handler on separate line → W125."""
+        source = "try {\n    error oops\n}\ntrap {} e {\n    puts caught\n}\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 1
+        assert '"trap"' in diags[0].message
+
+    def test_correct_else_no_warning(self):
+        """} else { on same line → no W125."""
+        source = "if {1} {\n    puts yes\n} else {\n    puts no\n}\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 0
+
+    def test_correct_elseif_no_warning(self):
+        """} elseif { on same line → no W125."""
+        source = "if {1} {\n    puts a\n} elseif {0} {\n    puts b\n}\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 0
+
+    def test_correct_finally_no_warning(self):
+        """} finally { on same line → no W125."""
+        source = "try {\n    error oops\n} finally {\n    puts cleanup\n}\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 0
+
+    def test_proc_else_suppresses(self):
+        """User-defined proc named else → no W125."""
+        source = "proc else {x} { puts $x }\nelse hello\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 0
+
+    def test_proc_finally_suppresses(self):
+        """User-defined proc named finally → no W125."""
+        source = "proc finally {body} { uplevel 1 $body }\nfinally { puts done }\n"
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 0
+
+    def test_multiple_orphaned(self):
+        """Multiple orphaned keywords in one file → multiple W125."""
+        source = (
+            "if {1} {\n    puts a\n}\n"
+            "elseif {0} {\n    puts b\n}\n"
+            "else {\n    puts c\n}\n"
+        )
+        diags = _diag_with_code(source, "W125")
+        assert len(diags) == 2
+        codes = {d.message.split('"')[1] for d in diags}
+        assert codes == {"elseif", "else"}

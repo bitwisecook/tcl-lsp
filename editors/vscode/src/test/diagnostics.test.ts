@@ -51,6 +51,54 @@ suite("Diagnostics", () => {
     assert.strictEqual(w302.severity, vscode.DiagnosticSeverity.Hint, "W302 should be a hint");
   });
 
+  test("W125 fires for orphaned else/elseif on separate line", async () => {
+    const orphanedUri = getDocUri("diagnostics-orphaned.tcl");
+    await activate(orphanedUri);
+    const diagnostics = await waitForDiagnostics(orphanedUri, { minCount: 2 });
+
+    const w125 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W125";
+    });
+
+    assert.ok(w125.length >= 2, `Expected at least 2 W125 diagnostics, got ${w125.length}`);
+
+    // Verify the messages reference the right keywords
+    const messages = w125.map((d) => d.message);
+    assert.ok(
+      messages.some((m) => m.includes('"else"')),
+      `Expected a W125 for "else", got: ${messages.join("; ")}`,
+    );
+    assert.ok(
+      messages.some((m) => m.includes('"elseif"')),
+      `Expected a W125 for "elseif", got: ${messages.join("; ")}`,
+    );
+
+    // All W125 should be warnings
+    for (const d of w125) {
+      assert.strictEqual(d.severity, vscode.DiagnosticSeverity.Warning, "W125 should be a warning");
+    }
+  });
+
+  test("W125 does not fire for correctly placed else", async () => {
+    const orphanedUri = getDocUri("diagnostics-orphaned.tcl");
+    await activate(orphanedUri);
+    const diagnostics = await waitForDiagnostics(orphanedUri, { minCount: 2 });
+
+    const w125 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W125";
+    });
+
+    // The fixture has exactly 2 orphaned keywords (else + elseif),
+    // the correct } else { should not trigger W125
+    assert.strictEqual(
+      w125.length,
+      2,
+      `Expected exactly 2 W125 (orphaned else + elseif), got ${w125.length}: ${w125.map((d) => d.message).join("; ")}`,
+    );
+  });
+
   test("clean file produces no diagnostics", async () => {
     const cleanUri = getDocUri("simple.tcl");
 

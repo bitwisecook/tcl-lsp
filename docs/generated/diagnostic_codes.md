@@ -26,6 +26,7 @@
 | W121 | warning | Subnet mask has non-contiguous bits. | ✓ |
 | W122 | warning | Mistyped IPv4 address (octet > 255 or leading zero). | ✓ |
 | W124 | warning | Invalid IP address literal. | ✓ |
+| W125 | warning | Orphaned control-flow keyword used as standalone command. | ✓ |
 | W126 | warning | Non-channel value in channel argument position. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |

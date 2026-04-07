@@ -145,8 +145,57 @@ class TestMinifyRealWorld:
     def test_switch_command(self):
         source = "switch $x {\n    a {\n        puts a\n    }\n    b {\n        puts b\n    }\n}\n"
         result = minify_tcl(source)
-        assert "switch" in result
-        assert result.startswith("switch $x")
+        assert result == "switch $x {a {puts a} b {puts b}}"
+
+    def test_switch_case_list_strips_comments(self):
+        source = (
+            "switch -glob $path {\n"
+            "    *.gif {\n"
+            "        # Handle GIF files\n"
+            '        HTTP::respond 200 content "gif"\n'
+            "    }\n"
+            "    *.js {\n"
+            "        # Handle JavaScript\n"
+            "        # with multiple comment lines\n"
+            '        set x "js"\n'
+            "    }\n"
+            "}\n"
+        )
+        result = minify_tcl(source)
+        assert "#" not in result, f"Comments survived minification: {result}"
+        assert "*.gif" in result
+        assert "*.js" in result
+
+    def test_switch_case_list_with_default(self):
+        source = "switch $x {\n    a {\n        puts a\n    }\n    default {\n        puts default\n    }\n}\n"
+        result = minify_tcl(source)
+        assert result == "switch $x {a {puts a} default {puts default}}"
+
+    def test_switch_case_list_with_fallthrough(self):
+        source = "switch $x {\n    a -\n    b {\n        puts ab\n    }\n}\n"
+        result = minify_tcl(source)
+        assert result == "switch $x {a - b {puts ab}}"
+
+    def test_switch_nonbraced_form_still_works(self):
+        source = "switch -glob $x *.gif {\n    # comment\n    puts gif\n} *.js {\n    puts js\n}\n"
+        result = minify_tcl(source)
+        assert "#" not in result
+        assert result == "switch -glob $x *.gif {puts gif} *.js {puts js}"
+
+    def test_switch_case_list_nested_bodies(self):
+        source = (
+            "switch $x {\n"
+            "    a {\n"
+            "        if {1} {\n"
+            "            # nested comment\n"
+            "            puts nested\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        )
+        result = minify_tcl(source)
+        assert "#" not in result
+        assert "puts nested" in result
 
     def test_for_loop(self):
         source = "for {set i 0} {$i < 10} {incr i} {\n    puts $i\n}\n"

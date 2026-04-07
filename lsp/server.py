@@ -2828,24 +2828,16 @@ _DIALECT_LABELS = {
 }
 
 
-@server.feature(
-    types.WORKSPACE_EXECUTE_COMMAND,
-    types.ExecuteCommandOptions(commands=[_DIALECT_COMMAND, _EXPORT_CONFIG_COMMAND]),
-)
-def on_execute_command(
-    params: types.ExecuteCommandParams,
-) -> object:
-    """Handle custom commands."""
-    if params.command == _DIALECT_COMMAND:
-        args = params.arguments or []
-        if args:
-            dialect = str(args[0])
-        else:
-            dialect = ""
-        return _switch_dialect(dialect)
-    if params.command == _EXPORT_CONFIG_COMMAND:
-        return _export_config()
-    return None
+@server.command(_DIALECT_COMMAND)
+def on_set_dialect(dialect: str = "") -> dict:
+    """Switch the active Tcl dialect."""
+    return _switch_dialect(dialect)
+
+
+@server.command(_EXPORT_CONFIG_COMMAND)
+def on_export_config() -> dict:
+    """Export the current server configuration."""
+    return _export_config()
 
 
 def _switch_dialect(dialect: str) -> dict:
