@@ -38,7 +38,6 @@ from .expr_ast import (
     ExprTernary,
     ExprUnary,
     ExprVar,
-    UnaryOp,
 )
 from .expr_registry import BINOP_KIND, EXPR_FUNC_REGISTRY, UNARYOP_KIND, OpKind, UnaryOpKind
 from .types import TclType, TypeKind, TypeLattice, type_join

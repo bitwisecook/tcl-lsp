@@ -70,6 +70,7 @@ from .static_loops import (
     evaluate_expr_with_constants,
     summarise_static_for_ir,
 )
+from .tcl_constants import TCL_BOOL_LITERALS as _BOOL_LITERALS
 from .tcl_expr_eval import _split_tcl_list, eval_tcl_expr
 from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
@@ -1380,7 +1381,6 @@ def _unused_parameters(
 # Type propagation
 
 _FLOAT_RE = re.compile(r"^[+-]?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?\s*$")
-from .tcl_constants import TCL_BOOL_LITERALS as _BOOL_LITERALS
 
 _TYPE_UNKNOWN = TypeLattice.unknown()
 _TYPE_OVERDEFINED = TypeLattice.overdefined()

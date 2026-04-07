@@ -39,7 +39,6 @@ from ._types import Optimisation, PassContext
 _CMD_SUBST_RE = re.compile(r"^\[(.+)\]\Z", re.DOTALL)
 
 
-
 @dataclass(frozen=True, slots=True)
 class _TailCallSite:
     """A self-recursive call detected in tail position."""

@@ -546,6 +546,8 @@ def _destructive_file_subs() -> frozenset[str]:
         else:
             _destructive_file_subs_cache = frozenset()
     return _destructive_file_subs_cache
+
+
 _DESTRUCTIVE_SKIP_ARGS = frozenset({"-force", "--"})
 
 

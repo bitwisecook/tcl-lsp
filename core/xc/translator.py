@@ -13,7 +13,6 @@ from dataclasses import replace as _dc_replace
 
 from ..commands.registry import REGISTRY
 from ..common.codes import diag
-from ..compiler.optimiser._helpers import _parse_command_words
 from ..compiler.expr_ast import (
     BinOp,
     ExprBinary,
@@ -44,6 +43,7 @@ from ..compiler.ir import (
     IRWhile,
 )
 from ..compiler.lowering import lower_to_ir
+from ..compiler.optimiser._helpers import _parse_command_words
 from .mapping import (
     ADVISORY_EVENTS,
     COMMAND_XC_MAP,
