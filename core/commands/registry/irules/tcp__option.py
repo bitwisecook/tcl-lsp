@@ -72,7 +72,7 @@ class TcpOptionCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(2, 4),
             ),
             event_requires=EventRequires(
                 transport="tcp",
