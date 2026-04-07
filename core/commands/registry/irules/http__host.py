@@ -26,7 +26,7 @@ class HttpHostCommand(CommandDef):
             pure=True,
             hover=HoverSnippet(
                 summary="Returns the value contained in the Host header of an HTTP request.",
-                synopsis=("HTTP::host",),
+                synopsis=("HTTP::host ?name?",),
                 snippet=(
                     "Returns the value contained in the Host header of an HTTP request. This\n"
                     "command replaces the BIG-IP 4.X variable http_host.\n"
@@ -63,9 +63,23 @@ class HttpHostCommand(CommandDef):
                         ),
                     ),
                 ),
+                FormSpec(
+                    kind=FormKind.SETTER,
+                    synopsis="HTTP::host <name>",
+                    arity=Arity(1, 1),
+                    mutator=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.HTTP_HEADER,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                            scope=StorageScope.EVENT,
+                        ),
+                    ),
+                ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(0, 1),
             ),
             event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"})),
             cse_candidate=True,
