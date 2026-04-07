@@ -125,21 +125,23 @@ def _scan_commands(
             elif role is ArgRole.VAR_READ:
                 traits[source_param].add(ProcArgTrait.VAR_READ)
 
-        # eval/uplevel/subst with param as the script arg
-        if cmd_name in ("eval", "subst"):
-            for arg in cmd_args:
-                vn = _extract_var_name(arg)
-                if vn and vn in param_set:
-                    traits[vn].add(ProcArgTrait.EVAL)
-
-        if cmd_name == "uplevel":
-            if cmd_args:
-                vn = _extract_var_name(cmd_args[-1])
-                if vn and vn in param_set:
-                    traits[vn].add(ProcArgTrait.EVAL)
+        # Commands that evaluate code (eval, uplevel, subst, etc.)
+        spec = REGISTRY.get_any(cmd_name)
+        if spec is not None and (spec.evaluates_code or spec.performs_substitution):
+            if spec.evaluates_code and cmd_name == "uplevel":
+                # uplevel: last arg is the script
+                if cmd_args:
+                    vn = _extract_var_name(cmd_args[-1])
+                    if vn and vn in param_set:
+                        traits[vn].add(ProcArgTrait.EVAL)
+            else:
+                for arg in cmd_args:
+                    vn = _extract_var_name(arg)
+                    if vn and vn in param_set:
+                        traits[vn].add(ProcArgTrait.EVAL)
 
         # upvar creates aliases
-        if cmd_name == "upvar":
+        if spec is not None and spec.creates_scope_alias and cmd_name == "upvar":
             _handle_upvar(cmd_args, param_set, traits, upvar_aliases)
 
         # foreach / lmap
