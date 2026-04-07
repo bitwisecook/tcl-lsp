@@ -39,14 +39,17 @@ class HttpHasRespondedCommand(CommandDef):
                     "}"
                 ),
             ),
+            pure=True,
             forms=(
                 FormSpec(
-                    kind=FormKind.DEFAULT,
+                    kind=FormKind.GETTER,
                     synopsis="HTTP::has_responded",
+                    arity=Arity(0, 0),
+                    pure=True,
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(0, 0),
             ),
             event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"})),
             side_effect_hints=(
