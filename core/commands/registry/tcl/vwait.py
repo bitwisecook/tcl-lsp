@@ -96,6 +96,7 @@ class VwaitCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1, 1),
             ),
+            creates_dynamic_barrier=True,
             arg_roles={0: ArgRole.VAR_READ},
             return_type=TclType.STRING,
             side_effect_hints=(

@@ -40,6 +40,7 @@ class GetsCommand(CommandDef):
                 arity=Arity(1, 2),
             ),
             arg_roles={0: ArgRole.CHANNEL, 1: ArgRole.VAR_NAME},
+            assigns_variable_at=1,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

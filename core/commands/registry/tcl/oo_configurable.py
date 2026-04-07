@@ -24,6 +24,7 @@ class OoConfigurableCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="oo::configurable",
+            is_oo_metaclass=True,
             dialects=frozenset({"tcl9.0"}),
             hover=HoverSnippet(
                 summary="class that supports configurable properties",

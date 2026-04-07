@@ -32,21 +32,19 @@ from .semantic_model import ProcArgTrait
 # Simple $varName reference pattern.
 _SIMPLE_VAR_RE = re.compile(r"^\$(?:\{([A-Za-z_][\w:]*)\}|([A-Za-z_][\w:]*))\Z")
 
-# Variable-writing commands: maps command -> arg index of var name (0-based).
-# Variable-writing commands matched by first word only.
+# Variable-writing commands derived from CommandSpec.assigns_variable_at.
 # "dict set" etc. are handled via the registry's ArgRole.VAR_NAME on
 # subcommand specs, not here (cmd_name from the segmenter is just "dict").
-_VAR_WRITE_COMMANDS: dict[str, int] = {
-    "set": 0,
-    "incr": 0,
-    "append": 0,
-    "lappend": 0,
-    "lset": 0,
-    "unset": 0,
-    "gets": 1,
-    "global": 0,
-    "variable": 0,
-}
+_var_write_cache: dict[str, int] | None = None
+
+
+def _var_write_commands() -> dict[str, int]:
+    global _var_write_cache
+    if _var_write_cache is None:
+        from core.commands.registry.runtime import variable_writing_commands
+
+        _var_write_cache = variable_writing_commands()
+    return _var_write_cache
 
 
 def _extract_var_name(text: str) -> str | None:
@@ -180,8 +178,9 @@ def _scan_commands(
         # pattern/body pairs also detected via _resolve_arg_roles.
 
         # Variable-writing commands where param is used as var name
-        if cmd_name in _VAR_WRITE_COMMANDS:
-            var_idx = _VAR_WRITE_COMMANDS[cmd_name]
+        vwc = _var_write_commands()
+        if cmd_name in vwc:
+            var_idx = vwc[cmd_name]
             if var_idx < len(cmd_args):
                 vn = _extract_var_name(cmd_args[var_idx])
                 if vn and vn in param_set:

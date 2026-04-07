@@ -25,6 +25,7 @@ class OoClassCommand(CommandDef):
         return CommandSpec(
             name="oo::class",
             is_language_keyword=True,
+            is_oo_metaclass=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(
                 summary="class of all classes",

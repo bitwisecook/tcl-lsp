@@ -670,6 +670,10 @@ class CommandSpec:
     # (proc, when, timing, priority).
     irules_top_level_only: bool = False
 
+    # Whether this command is a TclOO metaclass (oo::class, oo::abstract,
+    # oo::configurable, oo::singleton).
+    is_oo_metaclass: bool = False
+
     def supports_dialect(self, dialect: str | None) -> bool:
         if dialect is None:
             return True

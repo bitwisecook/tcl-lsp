@@ -37,6 +37,7 @@ class LsetCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2),
             ),
+            assigns_variable_at=0,
             arg_roles={0: ArgRole.VAR_NAME},
             return_type=TclType.LIST,
             inferred_storage_type=StorageType.LIST,

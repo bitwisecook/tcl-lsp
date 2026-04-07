@@ -32,18 +32,17 @@ from core.parsing.tokens import Token, TokenType
 
 # Commands whose presence in a proc body makes variable renaming unsafe
 # because they reference variables by name as strings at runtime.
-_SCOPE_BARRIER_COMMANDS = frozenset(
-    {
-        "upvar",
-        "uplevel",
-        "global",
-        "variable",
-        "eval",
-        "trace",
-        "vwait",
-        "tkwait",
-    }
-)
+# Derived from CommandSpec.creates_dynamic_barrier in the command registry.
+_scope_barrier_cache: frozenset[str] | None = None
+
+
+def _scope_barrier_commands() -> frozenset[str]:
+    global _scope_barrier_cache
+    if _scope_barrier_cache is None:
+        from core.commands.registry import REGISTRY
+
+        _scope_barrier_cache = REGISTRY.dynamic_barrier_commands()
+    return _scope_barrier_cache
 
 
 @dataclass
@@ -1538,7 +1537,7 @@ def _find_barrier_scopes(analysis) -> set[str]:
     """Find proc scope labels that contain barrier commands."""
     barrier_scopes: set[str] = set()
     for invocation in analysis.command_invocations:
-        if invocation.name in _SCOPE_BARRIER_COMMANDS:
+        if invocation.name in _scope_barrier_commands():
             scope_label = _scope_label_at_line(analysis.global_scope, invocation.range.start.line)
             if scope_label:
                 barrier_scopes.add(scope_label)
