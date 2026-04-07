@@ -67,8 +67,8 @@ class HttpHeaderCommand(CommandDef):
                             ),
                             _av(
                                 "insert_modssl_fields",
-                                "Insert mod_ssl-compatible headers.",
-                                "HTTP::header insert_modssl_fields",
+                                "Insert mod_ssl-compatible client IP/port headers.",
+                                "HTTP::header insert_modssl_fields <addr port | addr addr addr | port port port>",
                             ),
                             _av(
                                 "is_keepalive",
@@ -82,15 +82,15 @@ class HttpHeaderCommand(CommandDef):
                             ),
                             _av(
                                 "lws",
-                                "Enable/disable linear whitespace folding.",
-                                "HTTP::header lws ?enable|disable?",
+                                "Returns 1 if a header with linear white space was encountered.",
+                                "HTTP::header lws",
                             ),
                             _av("names", "List all header names.", "HTTP::header names"),
                             _av("remove", "Remove named header.", "HTTP::header remove <name>"),
                             _av(
                                 "replace",
                                 "Replace header value.",
-                                "HTTP::header replace <name> <value>",
+                                "HTTP::header replace <name> ?<string>?",
                             ),
                             _av(
                                 "sanitize",
@@ -135,9 +135,9 @@ class HttpHeaderCommand(CommandDef):
                 ),
                 "insert_modssl_fields": SubCommand(
                     name="insert_modssl_fields",
-                    arity=Arity(0, 0),
-                    detail="Insert mod_ssl-compatible headers.",
-                    synopsis="HTTP::header insert_modssl_fields",
+                    arity=Arity(2, 3),
+                    detail="Insert mod_ssl-compatible client IP/port headers.",
+                    synopsis="HTTP::header insert_modssl_fields <addr port | addr addr addr | port port port>",
                     mutator=True,
                 ),
                 "is_keepalive": SubCommand(
@@ -154,23 +154,9 @@ class HttpHeaderCommand(CommandDef):
                 ),
                 "lws": SubCommand(
                     name="lws",
-                    arity=Arity(0, 1),
-                    detail="Enable/disable linear whitespace folding.",
-                    synopsis="HTTP::header lws ?enable|disable?",
-                    forms=(
-                        FormSpec(
-                            kind=FormKind.GETTER,
-                            synopsis="HTTP::header lws",
-                            arity=Arity(0, 0),
-                            pure=True,
-                        ),
-                        FormSpec(
-                            kind=FormKind.SETTER,
-                            synopsis="HTTP::header lws <enable|disable>",
-                            arity=Arity(1, 1),
-                            mutator=True,
-                        ),
-                    ),
+                    arity=Arity(0, 0),
+                    detail="Returns 1 if a header with linear white space was encountered.",
+                    synopsis="HTTP::header lws",
                 ),
                 "names": SubCommand(
                     name="names",
@@ -187,9 +173,9 @@ class HttpHeaderCommand(CommandDef):
                 ),
                 "replace": SubCommand(
                     name="replace",
-                    arity=Arity(2),
+                    arity=Arity(1, 2),
                     detail="Replace header value.",
-                    synopsis="HTTP::header replace <name> <value>",
+                    synopsis="HTTP::header replace <name> ?<string>?",
                     credential_arg=2,
                     sensitive_headers=_SENSITIVE_HTTP_HEADERS,
                     mutator=True,
