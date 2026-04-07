@@ -224,12 +224,39 @@ namespace eval ::itest::cmd {
     }
 
     proc tcp_payload {args} {
-        # Returns collected payload
-        if {[llength $args] > 0} {
-            set length [lindex $args 0]
-            return [string range $::state::connection::client_payload 0 [expr {$length - 1}]]
+        # TCP::payload ?<size>?
+        # TCP::payload replace <offset> <length> <data>
+        # TCP::payload length
+
+        if {[llength $args] == 0} {
+            return $::state::connection::client_payload
         }
-        return $::state::connection::client_payload
+
+        set subcmd [lindex $args 0]
+
+        switch -exact -- $subcmd {
+            length {
+                return [string length $::state::connection::client_payload]
+            }
+            replace {
+                set offset [lindex $args 1]
+                set len    [lindex $args 2]
+                set data   [lindex $args 3]
+                set payload $::state::connection::client_payload
+                set before [string range $payload 0 [expr {$offset - 1}]]
+                set after  [string range $payload [expr {$offset + $len}] end]
+                set ::state::connection::client_payload "${before}${data}${after}"
+                ::itest::log_decision tcp payload_replace [list $offset $len $data]
+                return
+            }
+            default {
+                # TCP::payload <size> -- return first N bytes
+                if {[string is integer -strict $subcmd]} {
+                    return [string range $::state::connection::client_payload 0 [expr {$subcmd - 1}]]
+                }
+                return $::state::connection::client_payload
+            }
+        }
     }
 
     proc tcp_respond {args} {
@@ -242,6 +269,42 @@ namespace eval ::itest::cmd {
         ::itest::log_decision tcp close
         set ::state::connection::state "closing"
         return
+    }
+
+    proc tcp_notify {args} {
+        # TCP::notify request|response|eom
+        set subcmd [lindex $args 0]
+        ::itest::log_decision tcp notify $subcmd
+        return
+    }
+
+    proc tcp_option {args} {
+        # TCP::option get <kind>
+        # TCP::option set <kind> <value> ?next|all?
+        # TCP::option noset <kind>
+        set subcmd [lindex $args 0]
+        set rest [lrange $args 1 end]
+        switch -exact -- $subcmd {
+            get {
+                set kind [lindex $rest 0]
+                if {[info exists ::state::connection::tcp_options($kind)]} {
+                    return $::state::connection::tcp_options($kind)
+                }
+                return ""
+            }
+            set {
+                set kind  [lindex $rest 0]
+                set value [lindex $rest 1]
+                set ::state::connection::tcp_options($kind) $value
+                ::itest::log_decision tcp option_set [list $kind $value [lrange $rest 2 end]]
+                return 0
+            }
+            noset {
+                set kind [lindex $rest 0]
+                ::itest::log_decision tcp option_noset $kind
+                return
+            }
+        }
     }
 
     # ── HTTP:: commands ───────────────────────────────────────────────
@@ -279,6 +342,27 @@ namespace eval ::itest::cmd {
     }
 
     proc http_query {args} {
+        # HTTP::query -- getter
+        # HTTP::query <string> -- setter (v11.5+)
+        # HTTP::query -normalized -- normalized getter
+        if {[llength $args] > 0} {
+            set arg [lindex $args 0]
+            if {$arg eq "-normalized"} {
+                # Simplified: just return the query as-is
+                return $::state::http::request::query
+            }
+            # Setter
+            set ::state::http::request::query $arg
+            # Update the full URI
+            set path $::state::http::request::path
+            if {$arg ne ""} {
+                set ::state::http::request::uri "${path}?${arg}"
+            } else {
+                set ::state::http::request::uri $path
+            }
+            ::itest::log_decision http query_set $arg
+            return
+        }
         return $::state::http::request::query
     }
 
@@ -293,12 +377,19 @@ namespace eval ::itest::cmd {
 
     proc http_header {args} {
         # HTTP::header value <name>
-        # HTTP::header insert <name> <value>
-        # HTTP::header replace <name> <value>
-        # HTTP::header remove <name>
-        # HTTP::header count <name>
-        # HTTP::header names
         # HTTP::header values <name>
+        # HTTP::header insert ?"lws"? <name> <value> ...
+        # HTTP::header replace <name> ?<string>?
+        # HTTP::header remove <name>
+        # HTTP::header count ?<name>?
+        # HTTP::header names
+        # HTTP::header exists <name>
+        # HTTP::header at <index>
+        # HTTP::header lws
+        # HTTP::header is_keepalive
+        # HTTP::header is_redirect
+        # HTTP::header sanitize <name>+
+        # HTTP::header insert_modssl_fields <args>
         # Also: HTTP::header <name> (shorthand for value)
 
         set subcmd [lindex $args 0]
@@ -325,19 +416,31 @@ namespace eval ::itest::cmd {
                 return [::state::http::request::header values $name]
             }
             insert {
-                set name [lindex $rest 0]
-                set val [lindex $rest 1]
-                if {$in_response} {
-                    ::state::http::response::header insert $name $val
-                } else {
-                    ::state::http::request::header insert $name $val
+                # Handle optional "lws" prefix
+                set idx 0
+                if {[lindex $rest 0] eq "lws"} {
+                    incr idx
                 }
-                ::itest::log_decision http header_insert [list $name $val]
+                # Insert one or more name/value pairs
+                while {$idx < [llength $rest]} {
+                    set name [lindex $rest $idx]
+                    set val [lindex $rest [expr {$idx + 1}]]
+                    if {$in_response} {
+                        ::state::http::response::header insert $name $val
+                    } else {
+                        ::state::http::request::header insert $name $val
+                    }
+                    ::itest::log_decision http header_insert [list $name $val]
+                    incr idx 2
+                }
                 return
             }
             replace {
                 set name [lindex $rest 0]
-                set val [lindex $rest 1]
+                set val ""
+                if {[llength $rest] > 1} {
+                    set val [lindex $rest 1]
+                }
                 if {$in_response} {
                     ::state::http::response::header set $name $val
                 } else {
@@ -357,18 +460,61 @@ namespace eval ::itest::cmd {
                 return
             }
             count {
-                set name [lindex $rest 0]
-                if {$in_response} {
-                    return [::state::http::response::header count $name]
+                if {[llength $rest] > 0} {
+                    set name [lindex $rest 0]
+                    if {$in_response} {
+                        return [::state::http::response::header count $name]
+                    }
+                    return [::state::http::request::header count $name]
                 }
-                return [::state::http::request::header count $name]
+                # No name: count all headers
+                if {$in_response} {
+                    return [llength [dict keys $::state::http::response::headers]]
+                }
+                return [llength [dict keys $::state::http::request::headers]]
             }
             names {
-                # Return all header names
                 if {$in_response} {
                     return [dict keys $::state::http::response::headers]
                 }
                 return [dict keys $::state::http::request::headers]
+            }
+            exists {
+                set name [lindex $rest 0]
+                if {$in_response} {
+                    return [::state::http::response::header exists $name]
+                }
+                return [::state::http::request::header exists $name]
+            }
+            at {
+                set idx [lindex $rest 0]
+                if {$in_response} {
+                    set keys [dict keys $::state::http::response::headers]
+                } else {
+                    set keys [dict keys $::state::http::request::headers]
+                }
+                if {$idx < [llength $keys]} {
+                    return [lindex $keys $idx]
+                }
+                return ""
+            }
+            lws {
+                # Returns 1 if linear whitespace was encountered
+                return 0
+            }
+            is_keepalive {
+                return $::state::http::request::is_keepalive
+            }
+            is_redirect {
+                return $::state::http::response::is_redirect
+            }
+            sanitize {
+                ::itest::log_decision http header_sanitize $rest
+                return
+            }
+            insert_modssl_fields {
+                ::itest::log_decision http header_insert_modssl $rest
+                return
             }
             default {
                 # Shorthand: HTTP::header <name> == HTTP::header value <name>
@@ -451,29 +597,62 @@ namespace eval ::itest::cmd {
     }
 
     proc http_cookie {args} {
-        # HTTP::cookie value <name>
+        # HTTP::cookie value <name> ?<string>?
         # HTTP::cookie names
-        # HTTP::cookie insert name <name> value <value>
+        # HTTP::cookie count
+        # HTTP::cookie insert name <name> value <value> ?path <path>? ...
         # HTTP::cookie remove <name>
+        # HTTP::cookie exists <name>
+        # HTTP::cookie version <name> ?value?
+        # HTTP::cookie path <name> ?value?
+        # HTTP::cookie domain <name> ?value?
+        # HTTP::cookie secure <name> ?enable|disable?
+        # HTTP::cookie httponly <name> ?enable|disable?
+        # HTTP::cookie maxage <name> ?seconds?
+        # HTTP::cookie expires <name> ?seconds? ?absolute|relative?
+        # HTTP::cookie encrypt <name> <passphrase> ?128|192|256?
+        # HTTP::cookie decrypt <name> <passphrase> ?128|192|256?
+        # HTTP::cookie sanitize <name>+
+        # HTTP::cookie attribute <name> ?sub-op? ...
         set subcmd [lindex $args 0]
         set rest [lrange $args 1 end]
 
-        # Parse cookies from the Cookie header
-        set cookie_header [::state::http::request::header get "cookie"]
-        set cookies [list]
-        foreach pair [split $cookie_header ";"] {
-            set pair [string trim $pair]
-            set eqpos [string first "=" $pair]
-            if {$eqpos >= 0} {
-                set cname [string range $pair 0 [expr {$eqpos - 1}]]
-                set cval [string range $pair [expr {$eqpos + 1}] end]
-                lappend cookies [string trim $cname] [string trim $cval]
+        # Determine context
+        set in_response [expr {$::itest::current_event eq "HTTP_RESPONSE" ||
+                               $::itest::current_event eq "HTTP_RESPONSE_DATA" ||
+                               $::itest::current_event eq "HTTP_RESPONSE_RELEASE"}]
+
+        # Parse cookies from the Cookie/Set-Cookie header
+        proc _parse_cookies {} {
+            upvar in_response in_response
+            if {$in_response} {
+                set hdr [::state::http::response::header get "set-cookie"]
+            } else {
+                set hdr [::state::http::request::header get "cookie"]
             }
+            set cookies [list]
+            foreach pair [split $hdr ";"] {
+                set pair [string trim $pair]
+                set eqpos [string first "=" $pair]
+                if {$eqpos >= 0} {
+                    set cname [string range $pair 0 [expr {$eqpos - 1}]]
+                    set cval [string range $pair [expr {$eqpos + 1}] end]
+                    lappend cookies [string trim $cname] [string trim $cval]
+                }
+            }
+            return $cookies
         }
+
+        set cookies [_parse_cookies]
 
         switch -exact -- $subcmd {
             value {
                 set name [lindex $rest 0]
+                if {[llength $rest] > 1} {
+                    # Setter: HTTP::cookie value <name> <string>
+                    ::itest::log_decision http cookie_set [list $name [lindex $rest 1]]
+                    return
+                }
                 foreach {k v} $cookies {
                     if {$k eq $name} { return $v }
                 }
@@ -486,12 +665,77 @@ namespace eval ::itest::cmd {
                 }
                 return $names
             }
+            count {
+                return [expr {[llength $cookies] / 2}]
+            }
             exists {
                 set name [lindex $rest 0]
                 foreach {k v} $cookies {
                     if {$k eq $name} { return 1 }
                 }
                 return 0
+            }
+            insert {
+                # HTTP::cookie insert name <n> value <v> ?path <p>? ...
+                ::itest::log_decision http cookie_insert $rest
+                return
+            }
+            remove {
+                set name [lindex $rest 0]
+                ::itest::log_decision http cookie_remove $name
+                return
+            }
+            sanitize {
+                ::itest::log_decision http cookie_sanitize $rest
+                return
+            }
+            version - path - domain - comment - commenturl - ports - maxage {
+                set name [lindex $rest 0]
+                if {[llength $rest] > 1} {
+                    ::itest::log_decision http cookie_${subcmd}_set [list $name [lindex $rest 1]]
+                    return
+                }
+                return ""
+            }
+            expires {
+                set name [lindex $rest 0]
+                if {[llength $rest] > 1} {
+                    ::itest::log_decision http cookie_expires_set $rest
+                    return
+                }
+                return ""
+            }
+            secure - httponly {
+                set name [lindex $rest 0]
+                if {[llength $rest] > 1} {
+                    ::itest::log_decision http cookie_${subcmd}_set [list $name [lindex $rest 1]]
+                    return
+                }
+                return "disable"
+            }
+            encrypt - decrypt {
+                ::itest::log_decision http cookie_${subcmd} $rest
+                return ""
+            }
+            attribute {
+                # HTTP::cookie attribute <name> ?insert <attr> ?value? | exists <attr> | ...?
+                set name [lindex $rest 0]
+                if {[llength $rest] > 1} {
+                    set attrcmd [lindex $rest 1]
+                    ::itest::log_decision http cookie_attribute [list $name $attrcmd [lrange $rest 2 end]]
+                    switch -exact -- $attrcmd {
+                        exists { return 0 }
+                        names  { return {} }
+                        count  { return 0 }
+                        value  { return "" }
+                        default { return "" }
+                    }
+                }
+                return ""
+            }
+            replace {
+                ::itest::log_decision http cookie_replace $rest
+                return
             }
             default {
                 # Shorthand: HTTP::cookie <name>
@@ -501,6 +745,80 @@ namespace eval ::itest::cmd {
                 return ""
             }
         }
+    }
+
+    # ── HTTP2:: commands ────────────────────────────────────────────────
+
+    proc http2_header {args} {
+        # HTTP2::header <name> -- get pseudo-header value
+        # HTTP2::header replace <name> ?<string>?
+        # HTTP2::header remove <name>
+        set subcmd [lindex $args 0]
+        set rest [lrange $args 1 end]
+        switch -exact -- $subcmd {
+            replace {
+                set name [lindex $rest 0]
+                set val ""
+                if {[llength $rest] > 1} {
+                    set val [lindex $rest 1]
+                }
+                if {[info exists ::state::http2::pseudo_headers]} {
+                    dict set ::state::http2::pseudo_headers $name $val
+                }
+                ::itest::log_decision http2 header_replace [list $name $val]
+                return
+            }
+            remove {
+                set name [lindex $rest 0]
+                if {[info exists ::state::http2::pseudo_headers] &&
+                    [dict exists $::state::http2::pseudo_headers $name]} {
+                    dict unset ::state::http2::pseudo_headers $name
+                }
+                ::itest::log_decision http2 header_remove $name
+                return
+            }
+            default {
+                # HTTP2::header <name> -- getter
+                if {[info exists ::state::http2::pseudo_headers] &&
+                    [dict exists $::state::http2::pseudo_headers $subcmd]} {
+                    return [dict get $::state::http2::pseudo_headers $subcmd]
+                }
+                return ""
+            }
+        }
+    }
+
+    proc http2_stream {args} {
+        # HTTP2::stream -- return stream id
+        # HTTP2::stream id -- return stream id
+        # HTTP2::stream priority ?<priority>?
+        if {[llength $args] == 0} {
+            if {[info exists ::state::http2::stream_id]} {
+                return $::state::http2::stream_id
+            }
+            return 0
+        }
+        set subcmd [lindex $args 0]
+        switch -exact -- $subcmd {
+            id {
+                if {[info exists ::state::http2::stream_id]} {
+                    return $::state::http2::stream_id
+                }
+                return 0
+            }
+            priority {
+                if {[llength $args] > 1} {
+                    set ::state::http2::stream_priority [lindex $args 1]
+                    ::itest::log_decision http2 stream_priority_set [lindex $args 1]
+                    return 0
+                }
+                if {[info exists ::state::http2::stream_priority]} {
+                    return $::state::http2::stream_priority
+                }
+                return 0
+            }
+        }
+        return 0
     }
 
     # ── SSL:: commands ────────────────────────────────────────────────
@@ -716,6 +1034,88 @@ namespace eval ::itest::cmd {
         # HTTP::fallback <uri> -- sets fallback action
         set uri [lindex $args 0]
         ::itest::log_decision http fallback $uri
+        return
+    }
+
+    proc http_has_responded {args} {
+        # HTTP::has_responded -- returns true if a response has been committed
+        return $::state::http::response_committed
+    }
+
+    proc http_hsts {args} {
+        # HTTP::hsts -- get current HSTS header value
+        # HTTP::hsts mode <enable|disable>
+        # HTTP::hsts maximum-age <seconds>
+        # HTTP::hsts include-subdomains <enable|disable>
+        # HTTP::hsts preload <enable|disable>
+        if {[llength $args] == 0} {
+            # Getter: return current HSTS value
+            if {![info exists ::state::http::hsts_mode] ||
+                $::state::http::hsts_mode ne "enable"} {
+                return ""
+            }
+            set result "max-age="
+            if {[info exists ::state::http::hsts_maxage]} {
+                append result $::state::http::hsts_maxage
+            } else {
+                append result "0"
+            }
+            if {[info exists ::state::http::hsts_includesub] &&
+                $::state::http::hsts_includesub eq "enable"} {
+                append result "; includeSubDomains"
+            }
+            if {[info exists ::state::http::hsts_preload] &&
+                $::state::http::hsts_preload eq "enable"} {
+                append result "; preload"
+            }
+            return $result
+        }
+        set subcmd [lindex $args 0]
+        set val [lindex $args 1]
+        switch -exact -- $subcmd {
+            mode             { set ::state::http::hsts_mode $val }
+            maximum-age      { set ::state::http::hsts_maxage $val }
+            include-subdomains { set ::state::http::hsts_includesub $val }
+            preload          { set ::state::http::hsts_preload $val }
+        }
+        ::itest::log_decision http hsts_${subcmd} $val
+        return
+    }
+
+    proc http_class {args} {
+        # HTTP::class -- returns selected class name
+        # HTTP::class <enable|disable>
+        # HTTP::class <asm|wa>
+        # HTTP::class select <name>
+        if {[llength $args] == 0} {
+            if {[info exists ::state::http::class_name]} {
+                return $::state::http::class_name
+            }
+            return ""
+        }
+        set subcmd [lindex $args 0]
+        switch -exact -- $subcmd {
+            select {
+                set name [lindex $args 1]
+                set ::state::http::class_name $name
+                ::itest::log_decision http class_select $name
+            }
+            enable {
+                set ::state::http::class_enabled 1
+                ::itest::log_decision http class_enable
+            }
+            disable {
+                set ::state::http::class_enabled 0
+                ::itest::log_decision http class_disable
+            }
+            asm - wa {
+                # Return whether selected class has ASM/WA enabled
+                return 0
+            }
+            default {
+                return ""
+            }
+        }
         return
     }
 

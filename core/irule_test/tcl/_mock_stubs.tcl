@@ -1974,22 +1974,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # HTTP:: stubs (9 commands)
-
-    proc http_class {args} {
-        ::itest::log_decision http class $args
-        return ""
-    }
-
-    proc http_has_responded {args} {
-        ::itest::log_decision http has_responded $args
-        return ""
-    }
-
-    proc http_hsts {args} {
-        ::itest::log_decision http hsts $args
-        return ""
-    }
+    # HTTP:: stubs (6 commands)
 
     proc http_passthrough_reason {args} {
         ::itest::log_decision http passthrough_reason $args
@@ -2022,7 +2007,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # HTTP2:: stubs (10 commands)
+    # HTTP2:: stubs (8 commands)
 
     proc http2_active {args} {
         ::itest::log_decision http2 active $args
@@ -2049,11 +2034,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc http2_header {args} {
-        ::itest::log_decision http2 header $args
-        return ""
-    }
-
     proc http2_push {args} {
         ::itest::log_decision http2 push $args
         return ""
@@ -2061,11 +2041,6 @@ namespace eval ::itest::cmd {
 
     proc http2_requests {args} {
         ::itest::log_decision http2 requests $args
-        return ""
-    }
-
-    proc http2_stream {args} {
-        ::itest::log_decision http2 stream $args
         return ""
     }
 
@@ -3919,7 +3894,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # TCP:: stubs (40 commands)
+    # TCP:: stubs (38 commands)
 
     proc tcp_abc {args} {
         ::itest::log_decision tcp abc $args
@@ -4011,18 +3986,8 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc tcp_notify {args} {
-        ::itest::log_decision tcp notify $args
-        return ""
-    }
-
     proc tcp_offset {args} {
         ::itest::log_decision tcp offset $args
-        return ""
-    }
-
-    proc tcp_option {args} {
-        ::itest::log_decision tcp option $args
         return ""
     }
 
@@ -7064,4 +7029,4 @@ namespace eval ::itest::cmd {
 
 }
 
-# Total stub mocks generated: 1324
+# Total stub mocks generated: 1317
