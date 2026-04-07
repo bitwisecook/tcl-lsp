@@ -537,11 +537,15 @@ def _storage_type_for_command(command: str, args: tuple[str, ...]) -> StorageTyp
 
 def _extract_protocol_namespace(command: str) -> str | None:
     """Extract the F5 protocol namespace prefix from a command name."""
-    if "::" in command:
-        prefix = command.split("::")[0]
-        if prefix and prefix[0].isupper():
-            return prefix
-    return None
+    if "::" not in command:
+        return None
+    prefix = command.split("::", 1)[0]
+    if not prefix:
+        return None
+    from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY
+
+    spec = NAMESPACE_REGISTRY.get_protocol_namespace(prefix)
+    return prefix if spec is not None else None
 
 
 # LRU cache for classify_side_effects when no callee_summary is
