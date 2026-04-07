@@ -74,7 +74,7 @@ class HttpCookieCommand(CommandDef):
                             _av(
                                 "insert",
                                 "Insert a new cookie.",
-                                "HTTP::cookie insert name <name> value <value>",
+                                "HTTP::cookie insert name <name> value <value> ?path <path>? ?domain <domain>? ?version <0 | 1 | 2>?",
                             ),
                             _av("remove", "Remove a cookie by name.", "HTTP::cookie remove <name>"),
                             _av(
@@ -249,9 +249,9 @@ class HttpCookieCommand(CommandDef):
                 ),
                 "insert": SubCommand(
                     name="insert",
-                    arity=Arity(2),
+                    arity=Arity(4, 10),
                     detail="Insert a new cookie.",
-                    synopsis="HTTP::cookie insert name <name> value <value>",
+                    synopsis="HTTP::cookie insert name <name> value <value> ?path <path>? ?domain <domain>? ?version <0 | 1 | 2>?",
                     credential_arg=2,
                     sensitive_headers=_SENSITIVE_HTTP_HEADERS,
                     mutator=True,
