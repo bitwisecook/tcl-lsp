@@ -79,6 +79,8 @@ _BOOLEAN_TRAITS: tuple[str, ...] = (
     "produces_canonical_list",
     "is_side_switch",
     "irules_top_level_only",
+    "is_oo_metaclass",
+    "terminates_block",
 )
 
 

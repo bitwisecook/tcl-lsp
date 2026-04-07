@@ -530,7 +530,22 @@ def _find_setter_constraint_violations(
 # W313: Destructive file operations with tainted/variable path
 
 
-_DESTRUCTIVE_FILE_SUBS = frozenset({"delete", "rename", "mkdir"})
+_destructive_file_subs_cache: frozenset[str] | None = None
+
+
+def _destructive_file_subs() -> frozenset[str]:
+    global _destructive_file_subs_cache
+    if _destructive_file_subs_cache is None:
+        from core.commands.registry import REGISTRY
+
+        spec = REGISTRY.get_any("file")
+        if spec is not None:
+            _destructive_file_subs_cache = frozenset(
+                name for name, sub in spec.subcommands.items() if sub.destructive
+            )
+        else:
+            _destructive_file_subs_cache = frozenset()
+    return _destructive_file_subs_cache
 _DESTRUCTIVE_SKIP_ARGS = frozenset({"-force", "--"})
 
 
@@ -667,7 +682,16 @@ def _extract_var_name(arg: str) -> str | None:
     return None
 
 
-_NON_RETURNING_COMMANDS = frozenset({"error", "return", "throw", "exit"})
+_non_returning_cache: frozenset[str] | None = None
+
+
+def _non_returning_commands() -> frozenset[str]:
+    global _non_returning_cache
+    if _non_returning_cache is None:
+        from core.commands.registry import REGISTRY
+
+        _non_returning_cache = REGISTRY._trait_names("terminates_block")
+    return _non_returning_cache
 
 
 def _is_dead_end_block(cfg: CFGFunction, block_name: str) -> bool:
@@ -682,7 +706,7 @@ def _is_dead_end_block(cfg: CFGFunction, block_name: str) -> bool:
         return False
     # Check if ALL statements are non-returning.
     for stmt in block.statements:
-        if isinstance(stmt, IRCall) and stmt.command in _NON_RETURNING_COMMANDS:
+        if isinstance(stmt, IRCall) and stmt.command in _non_returning_commands():
             return True
     return False
 
@@ -772,7 +796,7 @@ def _find_destructive_file_warnings(
                 continue
             if stmt.command != "file":
                 continue
-            if not stmt.args or stmt.args[0] not in _DESTRUCTIVE_FILE_SUBS:
+            if not stmt.args or stmt.args[0] not in _destructive_file_subs():
                 continue
 
             sub = stmt.args[0]
