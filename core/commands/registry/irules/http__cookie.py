@@ -52,8 +52,8 @@ class HttpCookieCommand(CommandDef):
                             _av("count", "Return the number of cookies.", "HTTP::cookie count"),
                             _av(
                                 "value",
-                                "Return value of named cookie.",
-                                "HTTP::cookie value <name>",
+                                "Get/set cookie value.",
+                                "HTTP::cookie value <name> ?string?",
                             ),
                             _av(
                                 "version",
@@ -113,12 +113,12 @@ class HttpCookieCommand(CommandDef):
                             _av(
                                 "encrypt",
                                 "Encrypt a cookie value.",
-                                "HTTP::cookie encrypt <name> <passphrase>",
+                                "HTTP::cookie encrypt <name> <passphrase> ?128 | 192 | 256?",
                             ),
                             _av(
                                 "decrypt",
                                 "Decrypt a cookie value.",
-                                "HTTP::cookie decrypt <name> <passphrase>",
+                                "HTTP::cookie decrypt <name> <passphrase> ?128 | 192 | 256?",
                             ),
                             _av(
                                 "httponly",
@@ -128,7 +128,7 @@ class HttpCookieCommand(CommandDef):
                             _av(
                                 "attribute",
                                 "Get/set arbitrary cookie attribute.",
-                                "HTTP::cookie attribute <name> ?attribute? ?value?",
+                                "HTTP::cookie attribute <name> ?insert <attr> ?value? | exists <attr> | value <attr> | remove <attr> | names | count?",
                             ),
                         ),
                     },
@@ -149,9 +149,23 @@ class HttpCookieCommand(CommandDef):
                 ),
                 "value": SubCommand(
                     name="value",
-                    arity=Arity(1, 1),
-                    detail="Return value of named cookie.",
-                    synopsis="HTTP::cookie value <name>",
+                    arity=Arity(1, 2),
+                    detail="Get/set cookie value.",
+                    synopsis="HTTP::cookie value <name> ?string?",
+                    forms=(
+                        FormSpec(
+                            kind=FormKind.GETTER,
+                            synopsis="HTTP::cookie value <name>",
+                            arity=Arity(1, 1),
+                            pure=True,
+                        ),
+                        FormSpec(
+                            kind=FormKind.SETTER,
+                            synopsis="HTTP::cookie value <name> <string>",
+                            arity=Arity(2, 2),
+                            mutator=True,
+                        ),
+                    ),
                 ),
                 "version": SubCommand(
                     name="version",
@@ -363,15 +377,15 @@ class HttpCookieCommand(CommandDef):
                 ),
                 "encrypt": SubCommand(
                     name="encrypt",
-                    arity=Arity(2, 2),
+                    arity=Arity(2, 3),
                     detail="Encrypt a cookie value.",
-                    synopsis="HTTP::cookie encrypt <name> <passphrase>",
+                    synopsis="HTTP::cookie encrypt <name> <passphrase> ?128 | 192 | 256?",
                 ),
                 "decrypt": SubCommand(
                     name="decrypt",
-                    arity=Arity(2, 2),
+                    arity=Arity(2, 3),
                     detail="Decrypt a cookie value.",
-                    synopsis="HTTP::cookie decrypt <name> <passphrase>",
+                    synopsis="HTTP::cookie decrypt <name> <passphrase> ?128 | 192 | 256?",
                 ),
                 "httponly": SubCommand(
                     name="httponly",
@@ -395,9 +409,9 @@ class HttpCookieCommand(CommandDef):
                 ),
                 "attribute": SubCommand(
                     name="attribute",
-                    arity=Arity(1, 3),
+                    arity=Arity(1, 4),
                     detail="Get/set arbitrary cookie attribute.",
-                    synopsis="HTTP::cookie attribute <name> ?attribute? ?value?",
+                    synopsis="HTTP::cookie attribute <name> ?insert <attr> ?value? | exists <attr> | value <attr> | remove <attr> | names | count?",
                 ),
                 "replace": SubCommand(
                     name="replace",
