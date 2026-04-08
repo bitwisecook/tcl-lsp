@@ -25,6 +25,7 @@ def _try_arg_roles(args: list[str]) -> dict[int, ArgRole]:
             roles[i + 1] = ArgRole.BODY
             i += 2
         elif kw in ("on", "trap") and i + 3 < len(args):
+            roles[i + 2] = ArgRole.VAR_NAME
             roles[i + 3] = ArgRole.BODY
             i += 4
         else:

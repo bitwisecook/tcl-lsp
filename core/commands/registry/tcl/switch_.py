@@ -67,7 +67,10 @@ class SwitchCommand(CommandDef):
             never_inline_body=True,
             hover=HoverSnippet(
                 summary="Pattern-based branching on a subject string.",
-                synopsis=("switch ?options? string pattern body ?pattern body ...?",),
+                synopsis=(
+                    "switch ?options? string pattern body ?pattern body ...?",
+                    "switch ?options? string {pattern body ?pattern body ...?}",
+                ),
                 snippet="Use `-exact`, `-glob`, or `-regexp` to select matching mode.",
                 source=_SOURCE,
             ),
