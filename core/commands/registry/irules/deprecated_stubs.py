@@ -57,8 +57,7 @@ class HttpClassCommand(CommandDef):
                     "HTTP::class select <name>",
                 ),
                 snippet=(
-                    "Deprecated in v11.4 — replaced by POLICY commands. "
-                    "See sol14381 for details."
+                    "Deprecated in v11.4 — replaced by POLICY commands. See sol14381 for details."
                 ),
                 source=_SOURCE,
             ),
@@ -95,10 +94,12 @@ class HttpClassCommand(CommandDef):
             event_requires=EventRequires(
                 transport="tcp",
                 profiles=frozenset({"HTTP"}),
-                also_in=frozenset({
-                    "HTTP_CLASS_FAILED",
-                    "HTTP_CLASS_SELECTED",
-                }),
+                also_in=frozenset(
+                    {
+                        "HTTP_CLASS_FAILED",
+                        "HTTP_CLASS_SELECTED",
+                    }
+                ),
             ),
             side_effect_hints=(
                 SideEffect(
