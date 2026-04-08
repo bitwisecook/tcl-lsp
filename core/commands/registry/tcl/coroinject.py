@@ -1,4 +1,4 @@
-# Scaffolded from coroutine.n -- refine and commit
+# Based on the Tcl coroutine.n man page.
 """coroinject -- Inject a command into a suspended coroutine."""
 
 from __future__ import annotations

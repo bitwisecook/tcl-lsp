@@ -1,4 +1,4 @@
-# Scaffolded from coroutine.n -- refine and commit
+# Based on the Tcl coroutine.n man page.
 """coroprobe -- Execute a command in the context of a suspended coroutine."""
 
 from __future__ import annotations
@@ -40,6 +40,8 @@ class CoroprobeCommand(CommandDef):
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE,
+                    reads=True,
+                    writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),
             ),

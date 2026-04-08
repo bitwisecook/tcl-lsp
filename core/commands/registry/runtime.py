@@ -477,6 +477,7 @@ def _with_roles(name: str, sig: CommandSig | SubcommandSig) -> CommandSig | Subc
             merged_subs[sub_name] = CommandSig(
                 arity=sub_sig.arity,
                 arg_roles=dict(sub_hint.arg_roles),
+                arg_role_resolver=sub_hint.arg_role_resolver or sub_sig.arg_role_resolver,
             )
         else:
             merged_subs[sub_name] = sub_sig

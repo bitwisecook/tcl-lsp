@@ -221,7 +221,7 @@ class IpSubtractCommand(CommandDef):
             name=cls.name,
             tcllib_package=_PACKAGE,
             hover=HoverSnippet(
-                summary="Subtract one address range from another.",
+                summary="Subtract address ranges from a list of hosts.",
                 synopsis=("ip::subtract addressList",),
                 source=_SOURCE,
                 return_value="A list of remaining address ranges.",

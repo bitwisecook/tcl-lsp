@@ -919,7 +919,7 @@
     },
     {
       "name": "ip::subtract",
-      "summary": "Subtract one address range from another.",
+      "summary": "Subtract address ranges from a list of hosts.",
       "pure": true
     },
     {

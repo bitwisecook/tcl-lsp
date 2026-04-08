@@ -57,7 +57,7 @@ class TclIdnaEncode(CommandDef):
             required_package=_PKG,
             hover=HoverSnippet(
                 summary="Encode a hostname to IDNA (Internationalised Domain Names) format.",
-                synopsis=("tcl::idna encode hostname",),
+                synopsis=("tcl::idna::encode hostname",),
                 source=_SOURCE,
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),
@@ -76,7 +76,7 @@ class TclIdnaDecode(CommandDef):
             required_package=_PKG,
             hover=HoverSnippet(
                 summary="Decode a hostname from IDNA format to Unicode.",
-                synopsis=("tcl::idna decode hostname",),
+                synopsis=("tcl::idna::decode hostname",),
                 source=_SOURCE,
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),
