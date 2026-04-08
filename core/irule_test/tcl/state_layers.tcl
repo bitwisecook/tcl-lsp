@@ -857,7 +857,7 @@ namespace eval ::state {
 
         proc add {facility level message} {
             variable entries
-            lappend entries [list $facility $level $message [clock clicks -milliseconds]]
+            lappend entries [list $facility $level $message [::tcl::clock::clicks -milliseconds]]
         }
 
         proc get {args} {

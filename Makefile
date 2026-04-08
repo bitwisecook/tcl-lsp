@@ -64,6 +64,7 @@ KCS_DB     := core/help/kcs_help.db
 
 # Tools
 UV       := uv
+PYTHON   := $(UV) run python3
 NPM      := npm
 NODE_BIN := $(EXT_DIR)/node_modules/.bin
 TSC      := $(NODE_BIN)/tsc
@@ -154,7 +155,7 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 	@# Inject version from git describe into staged package.json
 	node -e "const f='$(STAGE_DIR)/package.json';const p=JSON.parse(require('fs').readFileSync(f));p.version='$(SEMVER_VERSION)';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
 	@echo "==> Building LSP server zipapp (minified)"
-	python3 $(ROOT)scripts/build_zipapp.py --minify lsp \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py --minify lsp \
 		--version $(VERSION) \
 		--output $(STAGE_DIR)/tcl-lsp-server.pyz
 	cp $(LICENSE_SRC) $(STAGE_DIR)/LICENSE.txt
@@ -322,45 +323,45 @@ fuzz-cov: $(UV_STAMP) ## Coverage-guided fuzz campaign (N=iterations, SEED=base_
 
 _smoke-zipapp-ai: $(BUILD_INFO)
 	@echo "==> Smoke-testing AI zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py ai --version $(VERSION) --output $(BUILD_DIR)/smoke-ai.pyz
-	python3 $(BUILD_DIR)/smoke-ai.pyz context samples/for_screenshots/ai-scene.irul > /dev/null
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py ai --version $(VERSION) --output $(BUILD_DIR)/smoke-ai.pyz
+	$(PYTHON) $(BUILD_DIR)/smoke-ai.pyz context samples/for_screenshots/ai-scene.irul > /dev/null
 	@rm -f $(BUILD_DIR)/smoke-ai.pyz
 
 _smoke-zipapp-mcp: $(BUILD_INFO)
 	@echo "==> Smoke-testing MCP zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py mcp --version $(VERSION) --output $(BUILD_DIR)/smoke-mcp.pyz
-	python3 $(BUILD_DIR)/smoke-mcp.pyz --help > /dev/null
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py mcp --version $(VERSION) --output $(BUILD_DIR)/smoke-mcp.pyz
+	$(PYTHON) $(BUILD_DIR)/smoke-mcp.pyz --help > /dev/null
 	@rm -f $(BUILD_DIR)/smoke-mcp.pyz
 
 _smoke-zipapp-lsp: $(BUILD_INFO)
 	@echo "==> Smoke-testing LSP zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py lsp --version $(VERSION) --output $(BUILD_DIR)/smoke-lsp.pyz
-	python3 $(BUILD_DIR)/smoke-lsp.pyz --help > /dev/null
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp --version $(VERSION) --output $(BUILD_DIR)/smoke-lsp.pyz
+	$(PYTHON) $(BUILD_DIR)/smoke-lsp.pyz --help > /dev/null
 	@rm -f $(BUILD_DIR)/smoke-lsp.pyz
 
 _smoke-zipapp-tcl: $(BUILD_INFO) $(KCS_DB)
 	@echo "==> Smoke-testing unified Tcl zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py tcl --version $(VERSION) --output $(BUILD_DIR)/smoke-tcl.pyz
-	python3 $(BUILD_DIR)/smoke-tcl.pyz --help > /dev/null
-	python3 $(BUILD_DIR)/smoke-tcl.pyz format samples/for_screenshots/ai-scene.irul > /dev/null
-	python3 $(BUILD_DIR)/smoke-tcl.pyz lint --source "set x 1" > /dev/null
-	python3 $(BUILD_DIR)/smoke-tcl.pyz symbols samples/for_screenshots/ai-scene.irul --json > /dev/null
-	python3 $(BUILD_DIR)/smoke-tcl.pyz callgraph samples/for_screenshots/ai-scene.irul --json > /dev/null
-	python3 $(BUILD_DIR)/smoke-tcl.pyz event-info HTTP_REQUEST --json > /dev/null
-	python3 $(BUILD_DIR)/smoke-tcl.pyz command-info HTTP::uri --dialect f5-irules --json > /dev/null
-	python3 $(BUILD_DIR)/smoke-tcl.pyz convert samples/for_screenshots/ai-scene.irul --json > /dev/null
-	python3 $(BUILD_DIR)/smoke-tcl.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour > /dev/null
-	python3 $(BUILD_DIR)/smoke-tcl.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json > /dev/null
-	python3 $(BUILD_DIR)/smoke-tcl.pyz help taint --dialect f5-irules > /dev/null
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py tcl --version $(VERSION) --output $(BUILD_DIR)/smoke-tcl.pyz
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz --help > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz format samples/for_screenshots/ai-scene.irul > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz lint --source "set x 1" > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz symbols samples/for_screenshots/ai-scene.irul --json > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz callgraph samples/for_screenshots/ai-scene.irul --json > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz event-info HTTP_REQUEST --json > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz command-info HTTP::uri --dialect f5-irules --json > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz convert samples/for_screenshots/ai-scene.irul --json > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz help taint --dialect f5-irules > /dev/null
 	ln -sfn smoke-tcl.pyz $(BUILD_DIR)/irule
-	python3 $(BUILD_DIR)/irule help --help | tr '\n' ' ' | tr -s ' ' | grep -q "default: f5-irules"
+	$(PYTHON) $(BUILD_DIR)/irule help --help | tr '\n' ' ' | tr -s ' ' | grep -q "default: f5-irules"
 	@rm -f $(BUILD_DIR)/smoke-tcl.pyz
 	@rm -f $(BUILD_DIR)/irule
 
 _smoke-zipapp-cli: $(BUILD_INFO)
 	@echo "==> Smoke-testing CLI zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py cli --version $(VERSION) --output $(BUILD_DIR)/smoke-cli.pyz
-	python3 $(BUILD_DIR)/smoke-cli.pyz --help > /dev/null
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py cli --version $(VERSION) --output $(BUILD_DIR)/smoke-cli.pyz
+	$(PYTHON) $(BUILD_DIR)/smoke-cli.pyz --help > /dev/null
 	@rm -f $(BUILD_DIR)/smoke-cli.pyz
 
 smoke-zipapps: _smoke-zipapp-ai _smoke-zipapp-mcp _smoke-zipapp-lsp _smoke-zipapp-tcl _smoke-zipapp-cli ## Build and smoke-test all zipapps
@@ -567,7 +568,7 @@ zipapp-tcl: $(ZIPAPP_TCL) ## Build the unified Tcl tools zipapp
 
 $(ZIPAPP_TCL): $(PY_SRCS) $(VM_SRCS) $(BUILD_INFO) $(KCS_DB)
 	@echo "==> Building unified Tcl zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py tcl \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py tcl \
 		--version $(VERSION) \
 		--output $@
 
@@ -575,7 +576,7 @@ zipapp-cli: $(ZIPAPP_CLI) ## Build the CLI compiler explorer zipapp
 
 $(ZIPAPP_CLI): $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building CLI zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py cli \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py cli \
 		--version $(VERSION) \
 		--output $@
 
@@ -583,7 +584,7 @@ zipapp-gui: $(ZIPAPP_GUI) ## Build the standalone GUI zipapp (bundles Pyodide)
 
 $(ZIPAPP_GUI): explorer-build $(BUILD_INFO_JSON)
 	@echo "==> Building standalone GUI zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py gui \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py gui \
 		--version $(VERSION) \
 		--output $@ \
 		--static-dir $(EXPLORER_STATIC)
@@ -592,7 +593,7 @@ zipapp-gui-cdn: $(ZIPAPP_GUI_CDN) ## Build the CDN GUI zipapp (loads Pyodide fro
 
 $(ZIPAPP_GUI_CDN): explorer-build-cdn
 	@echo "==> Building CDN GUI zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py gui-cdn \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py gui-cdn \
 		--version $(VERSION) \
 		--output $@ \
 		--static-dir $(EXPLORER_CDN_DIR)
@@ -601,7 +602,7 @@ zipapp-lsp: $(ZIPAPP_LSP) ## Build the LSP server zipapp
 
 $(ZIPAPP_LSP): $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building LSP server zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py lsp \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp \
 		--version $(VERSION) \
 		--output $@
 
@@ -609,7 +610,7 @@ zipapp-ai: $(ZIPAPP_AI) ## Build the AI analysis zipapp
 
 $(ZIPAPP_AI): $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building AI analysis zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py ai \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py ai \
 		--version $(VERSION) \
 		--output $@
 
@@ -617,7 +618,7 @@ zipapp-mcp: $(ZIPAPP_MCP) ## Build the MCP server zipapp
 
 $(ZIPAPP_MCP): $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building MCP server zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py mcp \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py mcp \
 		--version $(VERSION) \
 		--output $@
 
@@ -625,7 +626,7 @@ zipapp-wasm: $(ZIPAPP_WASM) ## Build the WASM compiler zipapp
 
 $(ZIPAPP_WASM): $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building WASM compiler zipapp"
-	python3 $(ROOT)scripts/build_zipapp.py wasm \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py wasm \
 		--version $(VERSION) \
 		--output $@
 
@@ -633,7 +634,7 @@ claude-skills: $(CLAUDE_SKILLS) ## Build Claude Code skills release zip
 
 $(CLAUDE_SKILLS): $(ZIPAPP_AI)
 	@echo "==> Building Claude skills release zip"
-	python3 $(ROOT)scripts/build_zipapp.py claude-skills \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py claude-skills \
 		--version $(VERSION) \
 		--output $@ \
 		--ai-pyz $(ZIPAPP_AI)
@@ -650,12 +651,12 @@ jetbrains: $(JB_PLUGIN) ## Build JetBrains plugin (.zip)
 $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building JetBrains plugin"
 	@# Inject version into gradle.properties
-	python3 -c "import re,pathlib; p=pathlib.Path('$(JB_DIR)/gradle.properties'); p.write_text(re.sub(r'^pluginVersion=.*', 'pluginVersion=$(SEMVER_VERSION)', p.read_text(), flags=re.MULTILINE))"
+	$(PYTHON) -c "import re,pathlib; p=pathlib.Path('$(JB_DIR)/gradle.properties'); p.write_text(re.sub(r'^pluginVersion=.*', 'pluginVersion=$(SEMVER_VERSION)', p.read_text(), flags=re.MULTILINE))"
 	@# Copy shared resources into plugin resources
 	mkdir -p $(JB_DIR)/src/main/resources/syntaxes
 	cp $(EXT_DIR)/syntaxes/tcl.tmLanguage.json $(JB_DIR)/src/main/resources/syntaxes/
 	@# Build LSP server zipapp into plugin resources
-	python3 $(ROOT)scripts/build_zipapp.py lsp \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp \
 		--version $(VERSION) \
 		--output $(JB_DIR)/src/main/resources/tcl-lsp-server.pyz
 	@# Extract compiler explorer HTML from VS Code extension
@@ -704,7 +705,7 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
 	rm -rf $(BUILD_DIR)/sublime-stage/server/explorer/static
 	find $(BUILD_DIR)/sublime-stage/server -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 	find $(BUILD_DIR)/sublime-stage/server -name '*.pyc' -delete 2>/dev/null || true
-	python3 -m pip install --target $(BUILD_DIR)/sublime-stage/server --no-user --quiet \
+	$(PYTHON) -m pip install --target $(BUILD_DIR)/sublime-stage/server --no-user --quiet \
 		"pygls>=2.0" "lsprotocol>=2024.0.0"
 	find $(BUILD_DIR)/sublime-stage/server -name '*.dist-info' -type d -exec rm -rf {} + 2>/dev/null || true
 	find $(BUILD_DIR)/sublime-stage/server -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
@@ -737,10 +738,10 @@ zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.zip)
 $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building LSP + MCP server zipapps for bundling"
 	@mkdir -p $(ZED_BUNDLED)
-	python3 $(ROOT)scripts/build_zipapp.py lsp \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp \
 		--version $(VERSION) \
 		--output $(ZED_BUNDLED)/tcl-lsp-server.pyz
-	python3 $(ROOT)scripts/build_zipapp.py mcp \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py mcp \
 		--version $(VERSION) \
 		--output $(ZED_BUNDLED)/tcl-lsp-mcp-server.pyz
 	@echo "==> Building Zed extension WASM (with bundled servers)"
@@ -755,7 +756,7 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY
 	@rm -rf $(BUILD_DIR)/zed-stage
 	@mkdir -p $(BUILD_DIR)/zed-stage
 	cp $(ZED_DIR)/extension.toml $(BUILD_DIR)/zed-stage/
-	python3 -c "import re,pathlib; p=pathlib.Path('$(BUILD_DIR)/zed-stage/extension.toml'); p.write_text(re.sub(r'^version = .*', 'version = \"$(SEMVER_VERSION)\"', p.read_text(), flags=re.MULTILINE))"
+	$(PYTHON) -c "import re,pathlib; p=pathlib.Path('$(BUILD_DIR)/zed-stage/extension.toml'); p.write_text(re.sub(r'^version = .*', 'version = \"$(SEMVER_VERSION)\"', p.read_text(), flags=re.MULTILINE))"
 	cp $(ZED_DIR)/target/wasm32-wasip2/release/tcl_lsp_zed.wasm $(BUILD_DIR)/zed-stage/extension.wasm
 	cp -r $(ZED_DIR)/languages $(BUILD_DIR)/zed-stage/
 	cp -r $(ZED_DIR)/snippets $(BUILD_DIR)/zed-stage/
@@ -789,7 +790,7 @@ kcs-db: $(KCS_DB) ## Build the KCS help database from docs/kcs/features/
 
 $(KCS_DB): $(wildcard docs/kcs/features/kcs-feature-*.md) $(wildcard docs/screenshots/*.png docs/screenshots/*.gif) scripts/build_kcs_db.py
 	@echo "==> Building KCS help database"
-	python3 $(ROOT)scripts/build_kcs_db.py --out $@
+	$(PYTHON) $(ROOT)scripts/build_kcs_db.py --out $@
 
 clean-kcs-db: ## Remove the generated KCS help database
 	rm -f $(KCS_DB)
