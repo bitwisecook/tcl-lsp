@@ -49,13 +49,12 @@ def _scope_barrier_commands() -> frozenset[str]:
         _scope_barrier_cache = REGISTRY.dynamic_barrier_commands()
     return _scope_barrier_cache
 
+
 # Control-flow keywords that must remain as literal strings.  These are
 # arguments to ``if`` (else, elseif, then) and ``try`` (on, trap, finally)
 # that the body/expr index resolution functions check by value.  Aliasing
 # them to variables would break recursive body minification.
-_CONTROL_FLOW_KEYWORDS = frozenset(
-    {"else", "elseif", "then", "on", "trap", "finally"}
-)
+_CONTROL_FLOW_KEYWORDS = frozenset({"else", "elseif", "then", "on", "trap", "finally"})
 
 
 @dataclass
@@ -331,9 +330,7 @@ def minify_tcl(
         )
     resolved_dialect = _resolve_dialect(dialect)
     if compact_names:
-        renamed_source, symbol_map = _compact_names(
-            source, isolated=isolated, seed_map=seed_map
-        )
+        renamed_source, symbol_map = _compact_names(source, isolated=isolated, seed_map=seed_map)
         minified = _minify_body(renamed_source, dialect=resolved_dialect)
         return minified, symbol_map
     return _minify_body(source, dialect=resolved_dialect)
@@ -607,8 +604,7 @@ def _compact_names(
 
     def _process_scope(scope: Scope, scope_label: str) -> None:
         rename_scope = (
-            scope.kind == "proc"
-            or (isolated and scope.kind == "global")
+            scope.kind == "proc" or (isolated and scope.kind == "global")
         ) and scope_label not in barrier_scopes
 
         if rename_scope:
@@ -646,9 +642,7 @@ def _compact_names(
                     if "::" in var_name:
                         continue
 
-                    short = _next_unused_name(
-                        var_gen, existing_names, var_map, _seed_claimed
-                    )
+                    short = _next_unused_name(var_gen, existing_names, var_map, _seed_claimed)
                     if short is None or len(short) >= len(var_name):
                         continue
                     var_map[var_name] = short
@@ -1653,9 +1647,7 @@ def _scope_label_at_line(
     for child in scope.children:
         child_label = f"{prefix}::{child.name}" if prefix != "::" else f"::{child.name}"
         if child.body_range and child.body_range.start.line <= line <= child.body_range.end.line:
-            deeper = _scope_label_at_line(
-                child, line, child_label, include_global=include_global
-            )
+            deeper = _scope_label_at_line(child, line, child_label, include_global=include_global)
             if deeper:
                 return deeper
             return child_label

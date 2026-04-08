@@ -2875,11 +2875,7 @@ class TestOrphanedKeyword:
 
     def test_multiple_orphaned(self):
         """Multiple orphaned keywords in one file → multiple W125."""
-        source = (
-            "if {1} {\n    puts a\n}\n"
-            "elseif {0} {\n    puts b\n}\n"
-            "else {\n    puts c\n}\n"
-        )
+        source = "if {1} {\n    puts a\n}\nelseif {0} {\n    puts b\n}\nelse {\n    puts c\n}\n"
         diags = _diag_with_code(source, "W125")
         assert len(diags) == 2
         codes = {d.message.split('"')[1] for d in diags}

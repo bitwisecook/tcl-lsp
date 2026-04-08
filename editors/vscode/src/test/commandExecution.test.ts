@@ -72,7 +72,10 @@ suite("LSP Command Execution", () => {
     } | null;
     assert.ok(result, "minifyDocument(aggressive) should return a result");
     assert.ok(typeof result.source === "string", "result should have source");
-    assert.ok(typeof result.optimisationsApplied === "number", "should include optimisationsApplied");
+    assert.ok(
+      typeof result.optimisationsApplied === "number",
+      "should include optimisationsApplied",
+    );
   });
 
   // -- optimiseDocument -------------------------------------------------------
@@ -199,7 +202,7 @@ suite("LSP Command Execution", () => {
   // -- diagramData ------------------------------------------------------------
 
   test("tcl-lsp.diagramData returns null for non-iRule source", async () => {
-    const result = await execLspCommand("tcl-lsp.diagramData", "set x 10");
+    await execLspCommand("tcl-lsp.diagramData", "set x 10");
     // For plain Tcl (not iRule), may return null or an object
     // Just verify it doesn't throw
     assert.ok(true, "diagramData should not throw");
