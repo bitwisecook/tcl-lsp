@@ -1375,6 +1375,8 @@ class DocumentState:
             all_profiles.update(EVENT_REGISTRY.compute_file_profiles(rule.body))
         file_profiles = frozenset(all_profiles) | file_profiles
 
+        buf = DocumentBuffer.from_source(source, version)
+
         self._snap = _StateSnapshot(
             source=source,
             version=version,
@@ -1384,6 +1386,7 @@ class DocumentState:
             has_partial_commands=has_partial,
             file_profiles=file_profiles,
             chunk_caches=[],
+            buffer=buf,
             conf_wrapped=True,
             embedded_rules=embedded_rules,
         )

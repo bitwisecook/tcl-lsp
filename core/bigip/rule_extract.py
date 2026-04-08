@@ -57,6 +57,13 @@ def find_embedded_rules(source: str) -> list[EmbeddedRule]:
                 depth += 1
             elif ch == "}":
                 depth -= 1
+            elif ch == '"':
+                # Skip quoted string — braces inside quotes are not structural.
+                pos += 1
+                while pos < len(source) and source[pos] != '"':
+                    if source[pos] == "\\":
+                        pos += 1  # skip escaped char
+                    pos += 1
             elif ch == "\\":
                 pos += 1  # skip escaped char
             pos += 1
