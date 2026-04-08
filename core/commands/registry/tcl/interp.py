@@ -213,9 +213,9 @@ class InterpCommand(CommandDef):
                 ),
                 "hidden": SubCommand(
                     name="hidden",
-                    arity=Arity(0, 1),
+                    arity=Arity(1, 1),
                     detail="Returns a list of the names of all hidden commands in the interpreter identified by path.",
-                    synopsis="interp hidden ?path?",
+                    synopsis="interp hidden path",
                     pure=True,
                     return_type=TclType.LIST,
                 ),

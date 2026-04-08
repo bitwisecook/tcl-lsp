@@ -509,6 +509,7 @@ def _signature_from_spec(spec: "CommandSpec") -> CommandSig | SubcommandSig:
                 sub_name: CommandSig(
                     arity=sub.arity,
                     arg_roles=dict(sub.arg_roles) if sub.arg_roles else {},
+                    arg_role_resolver=sub.arg_role_resolver,
                 )
                 for sub_name, sub in spec.subcommands.items()
             },
@@ -909,6 +910,10 @@ def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[in
         sub_sig = sig.subcommands.get(args[0])
         if sub_sig is None:
             return set()
+        sub_args = args[1:]
+        if sub_sig.arg_role_resolver is not None:
+            resolved = sub_sig.arg_role_resolver(sub_args)
+            return {idx + 1 for idx, r in resolved.items() if r is role and idx < len(sub_args)}
         return {
             idx + 1
             for idx, arg_role in sub_sig.arg_roles.items()
@@ -969,12 +974,20 @@ def arg_indices_for_roles(
         sub_sig = sig.subcommands.get(args[0])
         if sub_sig is None:
             return tuple(results)
-        for idx_in_result, role in need_sig_roles:
-            results[idx_in_result] = {
-                idx + 1
-                for idx, arg_role in sub_sig.arg_roles.items()
-                if arg_role is role and (idx + 1) < len(args)
-            }
+        sub_args = args[1:]
+        if sub_sig.arg_role_resolver is not None:
+            resolved = sub_sig.arg_role_resolver(sub_args)
+            for idx_in_result, role in need_sig_roles:
+                results[idx_in_result] = {
+                    idx + 1 for idx, r in resolved.items() if r is role and idx < len(sub_args)
+                }
+        else:
+            for idx_in_result, role in need_sig_roles:
+                results[idx_in_result] = {
+                    idx + 1
+                    for idx, arg_role in sub_sig.arg_roles.items()
+                    if arg_role is role and (idx + 1) < len(args)
+                }
     elif isinstance(sig, CommandSig):
         if sig.arg_role_resolver is not None:
             resolved = sig.arg_role_resolver(args)

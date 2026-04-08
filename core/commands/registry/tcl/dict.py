@@ -24,6 +24,20 @@ from .shimmer_resolvers import resolve_dict_merge
 _SOURCE = "Tcl man page dict.n"
 
 
+def _dict_last_arg_body(args: list[str]) -> dict[int, ArgRole]:
+    """Last argument is a body script (for dict update/with)."""
+    if len(args) >= 2:
+        return {len(args) - 1: ArgRole.BODY, 0: ArgRole.VAR_NAME}
+    return {}
+
+
+def _dict_filter_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Resolve roles for dict filter -- script type has a body."""
+    if len(args) >= 3 and args[1] == "script":
+        return {len(args) - 1: ArgRole.BODY}
+    return {}
+
+
 _av = make_av(_SOURCE)
 
 
@@ -194,6 +208,7 @@ class DictCommand(CommandDef):
                     arity=Arity(2),
                     detail="This takes a dictionary value and returns a new dictionary that contains just those key/value pairs that match the specified filter type (which may be abbreviated.) Supported filter types are: dict filter dictionaryValu…",
                     synopsis="dict filter dictionaryValue filterType arg ?arg ...?",
+                    arg_role_resolver=_dict_filter_arg_roles,
                     return_type=TclType.DICT,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                 ),
@@ -328,7 +343,7 @@ class DictCommand(CommandDef):
                     arity=Arity(4),
                     detail="Execute the Tcl script in body with the value for each key (as found by reading the dictionary value in dictionaryVariable) mapped to the variable varName.",
                     synopsis="dict update dictionaryVariable key varName ?key varName ...? body",
-                    arg_roles={0: ArgRole.VAR_NAME},
+                    arg_role_resolver=_dict_last_arg_body,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                 ),
@@ -347,7 +362,7 @@ class DictCommand(CommandDef):
                     arity=Arity(2),
                     detail="Execute the Tcl script in body with the value for each key in dictionaryVariable mapped (in a manner similarly to dict update) to a variable with the same name.",
                     synopsis="dict with dictionaryVariable ?key ...? body",
-                    arg_roles={0: ArgRole.VAR_NAME},
+                    arg_role_resolver=_dict_last_arg_body,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                 ),

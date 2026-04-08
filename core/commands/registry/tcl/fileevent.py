@@ -29,7 +29,7 @@ class FileeventCommand(CommandDef):
                     "fileevent channel readable ?script?",
                     "fileevent channel writable ?script?",
                 ),
-                snippet="The fileevent command has been superceded by the chan event command which supports the same syntax and options.",
+                snippet="The fileevent command has been superseded by the chan event command which supports the same syntax and options.",
                 source=_SOURCE,
             ),
             forms=(
