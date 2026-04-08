@@ -2264,7 +2264,7 @@ class Analyser:
                 case "unexport":
                     class_def.unexports.update(sub_args)
                 case "property":
-                    self._extract_property_defs(sub_args, sub_tokens, class_def)
+                    self._extract_property_defs(sub_args, sub_tokens, class_def, scope)
                 case "private":
                     # private wraps another definition subcommand
                     if sub_args and sub_tokens:
@@ -2337,6 +2337,8 @@ class Analyser:
                 class_def.exports.update(sub_args)
             case "unexport":
                 class_def.unexports.update(sub_args)
+            case "property":
+                self._extract_property_defs(sub_args, sub_tokens, class_def, scope)
 
     def _extract_method_def(
         self,
@@ -2443,13 +2445,17 @@ class Analyser:
         args: list[str],
         arg_tokens: list[Token],
         class_def: ClassDef,
+        scope: Scope | None = None,
     ) -> None:
         """Extract property definitions from a ``property`` subcommand."""
         i = 0
         while i < len(args):
             arg = args[i]
             if arg.startswith("-"):
-                # Skip option flags and their values (-get body, -set body, etc.)
+                if arg in ("-set", "-get") and i + 1 < len(args) and scope is not None:
+                    body = args[i + 1]
+                    body_tok = arg_tokens[i + 1] if i + 1 < len(arg_tokens) else None
+                    self._analyse_body(body, scope, body_token=body_tok)
                 i += 2  # skip flag + value
                 continue
             # This is a property name

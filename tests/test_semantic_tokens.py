@@ -484,6 +484,38 @@ class TestSemanticTokens:
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert any(t["type"] == "function" and t["length"] == len("puts") for t in tokens)
 
+    def test_property_set_body_recurses(self):
+        source = (
+            "oo::configurable create Pin {\n"
+            "    property node -set {\n"
+            "        set node [string tolower $value]\n"
+            "    }\n"
+            "}"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "keyword" and t["length"] == len("property") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("set") for t in tokens)
+        assert any(t["type"] == "function" and t["length"] == len("string") for t in tokens)
+
+    def test_property_set_and_get_bodies_recurse(self):
+        source = (
+            "oo::configurable create Pt {\n"
+            "    property name -set {\n"
+            "        set name [string tolower $value]\n"
+            "    } -get {\n"
+            "        return $name\n"
+            "    }\n"
+            "}"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "function" and t["length"] == len("string") for t in tokens)
+        assert any(t["type"] == "keyword" and t["length"] == len("return") for t in tokens)
+
+    def test_property_body_in_oo_define(self):
+        source = "oo::define Dog property name -set { set name [string tolower $value] }"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert any(t["type"] == "function" and t["length"] == len("string") for t in tokens)
+
 
 class TestAnalysisDrivenRegexHighlighting:
     """Tests that the semantic token provider uses analysis regex_patterns

@@ -715,6 +715,12 @@ def _oo_define_body_indices(args: list[str]) -> set[int]:
             return {3}
         if self_subcommand == "method" and len(args) >= 6:
             return {5}
+    if subcommand == "property":
+        result: set[int] = set()
+        for i in range(2, len(args) - 1):
+            if args[i] in ("-set", "-get"):
+                result.add(i + 1)
+        return result
     return set()
 
 
@@ -740,6 +746,12 @@ def _oo_definition_body_indices(command: str, args: list[str]) -> set[int]:
             return {1}
         if subcommand == "method" and len(args) >= 4:
             return {3}
+    if command == "property":
+        result: set[int] = set()
+        for i in range(len(args) - 1):
+            if args[i] in ("-set", "-get"):
+                result.add(i + 1)
+        return result
     return set()
 
 
