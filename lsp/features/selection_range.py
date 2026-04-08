@@ -119,17 +119,14 @@ def _selection_range_for_position(
     # 6. Whole file
     ranges.append(_file_range(source, lines=lines))
 
-    # Sort from innermost (smallest) to outermost (largest).
-    # Ranges that start later are inner; for same start, those ending earlier
-    # are inner.
-    ranges.sort(
-        key=lambda r: (
-            -r.start.line,
-            -r.start.character,
-            r.end.line,
-            r.end.character,
-        )
-    )
+    # Sort from innermost (smallest) to outermost (largest) by span size.
+    def _span_key(r: types.Range) -> tuple[int, int, int, int]:
+        line_span = r.end.line - r.start.line
+        if line_span == 0:
+            return (0, r.end.character - r.start.character, 0, 0)
+        return (line_span, r.end.character, -r.start.line, -r.start.character)
+
+    ranges.sort(key=_span_key)
 
     chain = _build_chain(ranges)
     # Should always have at least the file range
