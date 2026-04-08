@@ -67,9 +67,9 @@ from core.common.codes import (  # noqa: E402
     optimisations_sorted,
 )
 from core.common.optimisation_profiles import (  # noqa: E402
-    READABILITY_CODES,
     CONSTANT_FOLDING_CODES,
     PATTERN_CODES,
+    READABILITY_CODES,
 )
 from core.formatting.config import (  # noqa: E402
     FORMATTER_SETTINGS_CATALOGUE,
