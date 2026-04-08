@@ -2448,6 +2448,7 @@ class Analyser:
         scope: Scope | None = None,
     ) -> None:
         """Extract property definitions from a ``property`` subcommand."""
+        value_options = frozenset({"-set", "-get", "-kind", "-append", "-remove"})
         i = 0
         while i < len(args):
             arg = args[i]
@@ -2455,8 +2456,24 @@ class Analyser:
                 if arg in ("-set", "-get") and i + 1 < len(args) and scope is not None:
                     body = args[i + 1]
                     body_tok = arg_tokens[i + 1] if i + 1 < len(arg_tokens) else None
-                    self._analyse_body(body, scope, body_token=body_tok)
-                i += 2  # skip flag + value
+                    prop_scope = Scope(
+                        kind="accessor",
+                        name=f"{class_def.name}::<{arg[1:]}>",
+                        parent=scope,
+                    )
+                    scope.children.append(prop_scope)
+                    for var_name in class_def.variables:
+                        if var_name not in prop_scope.variables:
+                            prop_scope.variables[var_name] = VarDef(
+                                name=var_name,
+                                definition_range=class_def.name_range,
+                                warn_if_unused=False,
+                            )
+                    self._analyse_body(body, prop_scope, body_token=body_tok)
+                if arg in value_options:
+                    i += 2  # skip option + value
+                else:
+                    i += 1  # flag-only option (e.g. -clear)
                 continue
             # This is a property name
             prop_range = range_from_token(arg_tokens[i]) if i < len(arg_tokens) else Range.zero()

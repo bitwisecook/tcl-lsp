@@ -42,6 +42,10 @@ def _if_arg_roles(args: list[str]) -> dict[int, ArgRole]:
             if i + 1 < len(args):
                 roles[i + 1] = ArgRole.BODY
             break
+        # Implicit else: a trailing word after the last body (no keyword).
+        if i == len(args) - 1:
+            roles[i] = ArgRole.BODY
+            break
         i += 1
     return roles
 
