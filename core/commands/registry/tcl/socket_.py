@@ -96,6 +96,18 @@ class SocketCommand(CommandDef):
                             ),
                         ),
                         OptionSpec(
+                            name="-reuseaddr",
+                            takes_value=True,
+                            value_hint="boolean",
+                            detail="Allow server address reuse (default 1).",
+                        ),
+                        OptionSpec(
+                            name="-reuseport",
+                            takes_value=True,
+                            value_hint="boolean",
+                            detail="Allow server port reuse (default 0).",
+                        ),
+                        OptionSpec(
                             name="-myaddr",
                             takes_value=True,
                             value_hint="addr",
