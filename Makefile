@@ -141,7 +141,7 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
 	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
 	cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE)
 
-$(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(BUILD_INFO) $(ROOT)scripts/build_zipapp.py $(ROOT)scripts/zipapp_lsp_main.py
+$(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(BUILD_INFO) $(ROOT)scripts/build_zipapp.py $(ROOT)scripts/zipapp_lsp_main.py $(ROOT)scripts/filter_readme.py
 	@echo "==> Preparing VSIX staging directory"
 	rm -rf $(STAGE_DIR)
 	mkdir -p $(STAGE_DIR)
@@ -159,7 +159,7 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 		--version $(VERSION) \
 		--output $(STAGE_DIR)/tcl-lsp-server.pyz
 	cp $(LICENSE_SRC) $(STAGE_DIR)/LICENSE.txt
-	cp $(README_SRC) $(STAGE_DIR)/README.md
+	$(PYTHON) $(ROOT)scripts/filter_readme.py $(README_SRC) -o $(STAGE_DIR)/README.md
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
 	cp "$(ROOT)docs/Tcl LSP Logo-8bit-128.png" $(STAGE_DIR)/docs/icon.png

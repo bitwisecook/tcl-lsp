@@ -4,7 +4,7 @@
 
 # tcl-lsp
 
-A language server for Tcl with multi-editor support.
+<!-- BEGIN:vscode-replace -->A language server for Tcl with multi-editor support.<!-- REPLACE-WITH:A language server for Tcl. --><!-- END:vscode-replace -->
 
 <p align="center">
   <img src="docs/screenshots/tcl-lsp-demo.gif" alt="tcl-lsp in action" width="820">
@@ -18,6 +18,7 @@ and communicates over stdio, making it compatible with any LSP client.
 > **[Installation Guide](INSTALL.md)** — step-by-step instructions for
 > installing from GitHub Releases on macOS and Windows.
 
+<!-- BEGIN:multi-editor -->
 | Editor | Type | Setup | Unique extras |
 |--------|------|-------|---------------|
 | [VS Code](editors/vscode/) | Full extension (.vsix) | Install `.vsix` from Releases | Compiler explorer panel, Tk preview, `@irule`/`@tcl`/`@tk` Copilot chat, 25+ commands |
@@ -31,6 +32,7 @@ and communicates over stdio, making it compatible with any LSP client.
 All editors connect to the same Python LSP server over stdio.  The server can
 be invoked from source (`uv run python -m server`) or as a standalone zipapp
 (`python3 tcl-lsp-server.pyz`).
+<!-- END:multi-editor -->
 
 **File types recognised:** `.tcl`, `.tk`, `.itcl`, `.tm`, `.irul`, `.irule`,
 `.iapp`, `.iappimpl`, `.impl`, `.apl`, `.exp`, plus shebang detection for
@@ -61,6 +63,7 @@ extension version.
 code --install-extension tcl-lsp-0.1.0.vsix
 ```
 
+<!-- BEGIN:multi-editor -->
 ### Neovim
 
 Zero-plugin setup on Neovim 0.11+ using the native LSP client.  Also works
@@ -178,6 +181,7 @@ IR, CFG, SSA, and optimiser output directly inside the IDE.
 # Build from source:
 make jetbrains
 ```
+<!-- END:multi-editor -->
 
 ## Features
 
@@ -1614,36 +1618,44 @@ The optimiser operates on the SSA/CFG intermediate representation and suggests
 source-level rewrites.  All optimiser diagnostics appear at **Information**
 severity and include a quick-fix code action with the suggested replacement.
 
-Each pass can be individually toggled via `tclLsp.optimiser.*` settings.
+Five named profiles control which passes run.  Individual codes can be
+overridden via `tclLsp.optimiser.*` settings.
 
-| Code | Description | Technique |
-|------|-------------|-----------|
-| O100 | Propagate constant variables into expressions and command arguments | SCCP |
-| O101 | Fold constant integer expressions | Constant folding |
-| O102 | Fold constant `[expr {...}]` command substitutions | Constant folding |
-| O103 | Fold static procedure calls using interprocedural summaries | Interprocedural analysis |
-| O104 | Fold static string-build chains into a single assignment | Copy propagation |
-| O105 | Propagate constants into variable references; detect redundant computations (GVN/CSE + PRE) | Constant propagation, global value numbering |
-| O106 | Hoist loop-invariant computations | LICM |
-| O107 | Eliminate unreachable dead code | DCE |
-| O108 | Eliminate transitively dead code | ADCE |
-| O109 | Eliminate dead stores | DSE |
-| O110 | Canonicalise expressions (strength reduction, reassociation) | InstCombine |
-| O111 | Brace expression text for bytecode compilation (paired with W100) | Performance hint |
-| O112 | Eliminate constant-condition compound statements | Structure elimination |
-| O113 | Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`) | Strength reduction |
-| O114 | Recognise `incr` idiom (`set x [expr {$x + N}]` → `incr x N`) | Idiom recognition |
-| O115 | Remove redundant nested `[expr {...}]` in expression context | Simplification |
-| O116 | Fold constant `[list a b c]` to literal | Constant folding |
-| O117 | Simplify `[string length $s] == 0` → `$s eq ""` | Peephole |
-| O118 | Fold constant `[lindex {a b c} 1]` to element | Constant folding |
-| O119 | Pack consecutive `set` literals into `lassign`/`foreach` | Statement packing |
-| O120 | Prefer `eq`/`ne` over `==`/`!=` for string comparisons | Type-aware rewrite |
-| O121 | Rewrite self-recursive tail calls to `tailcall` | Tail-call optimisation |
-| O122 | Convert fully tail-recursive proc to iterative `while` loop | Recursion elimination |
-| O123 | Detect non-tail recursion eligible for accumulator introduction | Recursion analysis |
-| O124 | Comment out unused procs in iRules (not called from any event) | Dead proc elimination |
-| O125 | Sink assignment into deepest decision block that uses it | Code sinking |
+| Code | Category | Description | readability | standard | full |
+|------|----------|-------------|:-----------:|:--------:|:----:|
+| O100 | constant_folding | Propagate constant variables into expressions and command arguments. |  | ✓ | ✓ |
+| O101 | constant_folding | Fold constant integer expressions. |  | ✓ | ✓ |
+| O102 | constant_folding | Fold constant `[expr {...}]` command substitutions. |  | ✓ | ✓ |
+| O103 | constant_folding | Fold static procedure calls using interprocedural summaries. |  | ✓ | ✓ |
+| O104 | pattern | Fold static string build chains into a single assignment. |  | ✓ | ✓ |
+| O105 | constant_folding | Propagate constants into variable references and detect redundant computations (GVN/CSE). |  | ✓ | ✓ |
+| O106 | code_motion | Hoist loop-invariant computations. |  |  | ✓ |
+| O107 | dce | Eliminate unreachable dead code. |  |  | ✓ |
+| O108 | dce | Eliminate transitively dead code. |  |  | ✓ |
+| O109 | dce | Eliminate dead stores. |  |  | ✓ |
+| O110 | constant_folding | Canonicalise expressions (InstCombine). |  | ✓ | ✓ |
+| O111 | readability | Brace expression performance hints (paired with W100). | ✓ | ✓ | ✓ |
+| O112 | dce | Eliminate constant-condition compound statements. |  |  | ✓ |
+| O113 | constant_folding | Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`). |  | ✓ | ✓ |
+| O114 | readability | Recognise `incr` idiom (`set x [expr {$x + N}]` → `incr x N`). | ✓ | ✓ | ✓ |
+| O115 | readability | Remove redundant nested `[expr {...}]` in expression context. | ✓ | ✓ | ✓ |
+| O116 | constant_folding | Fold constant `[list a b c]` to literal value. |  | ✓ | ✓ |
+| O117 | readability | Simplify `[string length $s] == 0` → `$s eq ""`. | ✓ | ✓ | ✓ |
+| O118 | constant_folding | Fold constant `[lindex {a b c} 1]` to element. |  | ✓ | ✓ |
+| O119 | pattern | Pack consecutive `set` literals into `lassign`/`foreach`. |  | ✓ | ✓ |
+| O120 | readability | Prefer `eq`/`ne` over `==`/`!=` for string comparisons. | ✓ | ✓ | ✓ |
+| O121 | recursion | Rewrite self-recursive tail calls to `tailcall`. |  |  | ✓ |
+| O122 | recursion | Convert fully tail-recursive proc to iterative `while` loop. |  |  | ✓ |
+| O123 | recursion | Detect non-tail recursion eligible for accumulator introduction (hint only). |  |  | ✓ |
+| O124 | dce | Comment out unused procs in iRules (not called from any event). |  |  | ✓ |
+| O125 | code_motion | Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) that uses them. |  |  | ✓ |
+| O126 | dce | Remove unused variable assignments — eliminate `set` statements for variables that are never read. |  |  | ✓ |
+| O127 | code_motion | Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site. |  |  | ✓ |
+
+**Profiles:** `off` disables all passes. `readability`, `standard`, and `full` enable
+progressively more passes (single-pass). `aggressive` = `full` with multi-pass
+to fixpoint (up to 5 iterations). The default editor profile is `readability`;
+explicit actions (CLI, chat, MCP) default to `full`.
 
 ## Prerequisites
 
@@ -1699,9 +1711,11 @@ Run `make help` to see all targets:
 | `make zipapp-mcp` | Build the MCP server zipapp |
 | `make zipapp-wasm` | Build the WASM compiler zipapp |
 | `make claude-skills` | Build Claude Code skills release zip |
+<!-- BEGIN:multi-editor -->
 | `make jetbrains` | Build the JetBrains plugin (.zip) |
 | `make sublime` | Build the Sublime Text package (.sublime-package) |
 | `make zed` | Build the Zed extension (.tar.gz WASM artifact) |
+<!-- END:multi-editor -->
 | `make screenshot` | Alias of `make screenshots` |
 | `make screenshots` | Capture extension screenshots and build demo GIF (macOS) |
 | `make release` | Build all release artifacts (parity with tagged CI release jobs) |
@@ -1880,12 +1894,14 @@ tcl-lsp/
       src/extension.ts    Extension entry point
       language-configuration.json
       syntaxes/tcl.tmLanguage.json
+<!-- BEGIN:multi-editor -->
     neovim/               Neovim LSP config (Lua)
     zed/                  Zed extension (TOML + Rust WASM)
     emacs/                Emacs eglot / lsp-mode config
     helix/                Helix languages.toml config
     sublime-text/         Sublime Text package (syntax, LSP, snippets)
     jetbrains/            JetBrains plugin (Gradle/Kotlin)
+<!-- END:multi-editor -->
 ```
 
 ## Development
@@ -1901,7 +1917,9 @@ uv run python -m server
 ```
 
 This is useful for debugging or for use with any LSP client.
+<!-- BEGIN:multi-editor -->
 See `editors/` for per-editor setup instructions.
+<!-- END:multi-editor -->
 
 ### Running tests
 
@@ -2048,37 +2066,15 @@ on the F5 iRules Style Guide):
 
 ### Optimiser settings
 
-Optimiser toggles are available through `tclLsp.optimiser.*`:
+Optimiser settings are under `tclLsp.optimiser.*`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `enabled` | `true` | Enable optimiser suggestions as diagnostics |
-| `O100` | `true` | Enable constant propagation rewrites |
-| `O101` | `true` | Enable constant expression folding rewrites |
-| `O102` | `true` | Enable `[expr {...}]` command substitution folding rewrites |
-| `O103` | `true` | Enable static procedure-call folding rewrites |
-| `O104` | `true` | Enable static string-build folding rewrites |
-| `O105` | `true` | Enable constant var-ref propagation and redundant computation detection (GVN/CSE/PRE) |
-| `O106` | `true` | Enable loop-invariant computation hoisting (LICM) |
-| `O107` | `true` | Enable unreachable dead code elimination (DCE) |
-| `O108` | `true` | Enable transitive dead code elimination (ADCE) |
-| `O109` | `true` | Enable dead store elimination (DSE) |
-| `O110` | `true` | Enable expression canonicalisation (InstCombine) |
-| `O111` | `true` | Enable paired performance hints for unbraced expression warnings (`W100`) |
-| `O112` | `true` | Enable constant-condition structure elimination |
-| `O113` | `true` | Enable strength reduction (`x**2` → `x*x`) |
-| `O114` | `true` | Enable `incr` idiom recognition |
-| `O115` | `true` | Enable redundant nested `expr` elimination |
-| `O116` | `true` | Enable constant `list` folding |
-| `O117` | `true` | Enable `string length` zero-check simplification |
-| `O118` | `true` | Enable constant `lindex` folding |
-| `O119` | `true` | Enable multi-set packing (`lassign`/`foreach`) |
-| `O120` | `true` | Enable type-aware `==/!=` to `eq/ne` string comparison rewrite |
-| `O121` | `true` | Enable self-recursive tail-call rewriting to `tailcall` |
-| `O122` | `true` | Enable tail-recursive proc conversion to iterative loop |
-| `O123` | `true` | Enable non-tail recursion accumulator pattern detection |
-| `O124` | `true` | Enable unused iRule proc commenting |
-| `O125` | `true` | Enable code sinking into decision blocks |
+| `profile` | `readability` | Named profile: `off`, `readability`, `standard`, `full`, `aggressive` |
+| `O100`–`O127` | `null` | Per-code override (`true`/`false` = force on/off; `null` = inherit from profile) |
+
+See the [Optimiser codes](#optimiser-codes) table for which codes each profile enables.
 
 ### Diagnostic settings
 
@@ -2114,7 +2110,7 @@ Setting `$XDG_CONFIG_HOME` overrides the default on every platform.
 
 1. Built-in defaults
 2. Config file
-3. Editor settings (VS Code `settings.json`, Neovim `lspconfig`, etc.)
+3. <!-- BEGIN:vscode-replace -->Editor settings (VS Code `settings.json`, Neovim `lspconfig`, etc.)<!-- REPLACE-WITH:Editor settings (VS Code `settings.json`) --><!-- END:vscode-replace -->
 
 The file uses INI format with section names matching the `tclLsp.*`
 namespace:
@@ -2142,12 +2138,12 @@ full reference, including how settings interact with each editor.
 ### Export Settings
 
 In **VS Code**, run the command **"Tcl: Export Settings to Config File"**
-from the command palette. For other editors, send the
-`tcl-lsp.exportConfig` request via `workspace/executeCommand`.
+from the command palette. <!-- BEGIN:multi-editor -->For other editors, send the
+`tcl-lsp.exportConfig` request via `workspace/executeCommand`.<!-- END:multi-editor -->
 
 Only non-default values are written, keeping the generated config file
-minimal.  This lets you configure in one editor and have the same
-defaults apply everywhere.
+minimal.<!-- BEGIN:multi-editor -->  This lets you configure in one editor and have the same
+defaults apply everywhere.<!-- END:multi-editor -->
 
 ### Example
 
