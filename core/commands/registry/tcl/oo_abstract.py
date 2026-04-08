@@ -41,17 +41,17 @@ class OoAbstractCommand(CommandDef):
                         0: (
                             _av(
                                 "create",
-                                "This creates a new abstract class called name, passing the arguments, arg ..., to the constructor.",
+                                "This creates a new abstract class called name. Note: create is not exported on instances of oo::abstract; abstract classes cannot be directly instantiated.",
                                 "cls create name ?arg ...?",
                             ),
                             _av(
                                 "new",
-                                "This creates a new abstract class with a new unique name, passing the arguments, arg ..., to the constructor.",
+                                "This creates a new abstract class with a unique name. Note: new is not exported on instances of oo::abstract; abstract classes cannot be directly instantiated.",
                                 "cls new ?arg ...?",
                             ),
                             _av(
                                 "createWithNamespace",
-                                "This creates a new abstract class called name with an explicitly chosen namespace nsName.",
+                                "This creates a new abstract class with an explicitly chosen namespace. Note: createWithNamespace is not exported on instances of oo::abstract.",
                                 "cls createWithNamespace name nsName ?arg ...?",
                             ),
                         )

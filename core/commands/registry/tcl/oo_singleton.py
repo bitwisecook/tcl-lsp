@@ -41,17 +41,17 @@ class OoSingletonCommand(CommandDef):
                         0: (
                             _av(
                                 "create",
-                                "This creates a new singleton class called name, passing the arguments, arg ..., to the constructor.",
+                                "Note: create is not exported on instances of oo::singleton. Use new instead.",
                                 "cls create name ?arg ...?",
                             ),
                             _av(
                                 "new",
-                                "This creates a new singleton class with a new unique name, passing the arguments, arg ..., to the constructor.",
+                                "Returns the existing singleton instance if one exists; creates a new one only if no instance exists. Constructor arguments are only used during initial construction.",
                                 "cls new ?arg ...?",
                             ),
                             _av(
                                 "createWithNamespace",
-                                "This creates a new singleton class called name with an explicitly chosen namespace nsName.",
+                                "Note: createWithNamespace is not exported on instances of oo::singleton.",
                                 "cls createWithNamespace name nsName ?arg ...?",
                             ),
                         )

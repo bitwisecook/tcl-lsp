@@ -43,24 +43,9 @@ class OoObjdefineCommand(CommandDef):
                     arg_values={
                         0: (
                             _av(
-                                "classmethod",
-                                "This creates a class method, or (if argList and bodyScript are omitted) promotes an existing method on the class object to be a class method.",
-                                "classmethod name ?argList bodyScript?",
-                            ),
-                            _av(
-                                "constructor",
-                                "This creates or updates the constructor for a class.",
-                                "constructor argList bodyScript",
-                            ),
-                            _av(
-                                "destructor",
-                                "This creates or updates the destructor for a class.",
-                                "destructor bodyScript",
-                            ),
-                            _av(
-                                "export",
-                                "This arranges for each of the named methods, name, to be exported (i.e.",
-                                "export name ?name ...?",
+                                "method",
+                                "This creates or updates a method that is implemented as a procedure-like script.",
+                                "method name ?option? argList bodyScript",
                             ),
                             _av(
                                 "forward",
@@ -68,69 +53,39 @@ class OoObjdefineCommand(CommandDef):
                                 "forward name cmdName ?arg ...?",
                             ),
                             _av(
-                                "initialise",
-                                "initialize script This evaluates script in a context which supports local variables and where the current namespace is the instance namespace of the class object itself.",
-                                "initialise script",
-                            ),
-                            _av(
-                                "method",
-                                "This creates or updates a method that is implemented as a procedure-like script.",
-                                "method name ?option? argList bodyScript",
-                            ),
-                            _av(
-                                "private",
-                                "private script This evaluates the script (or the list of command and arguments given by cmd and args) in a context where the definitions made on the current class will be private definitions.",
-                                "private cmd arg...",
-                            ),
-                            _av(
-                                "self",
-                                "self script self This command is equivalent to calling oo::objdefine on the class being defined (see CONFIGURING OBJECTS below for a description of the supported values of subcommand).",
-                                "self subcommand arg ...",
-                            ),
-                            _av(
-                                "superclass",
-                                "This slot (see SLOTTED DEFINITIONS below) allows the alteration of the superclasses of the class being defined.",
-                                "superclass ?-slotOperation? ?className ...?",
+                                "export",
+                                "This arranges for each of the named methods, name, to be exported.",
+                                "export name ?name ...?",
                             ),
                             _av(
                                 "unexport",
-                                "This arranges for each of the named methods, name, to be not exported (i.e.",
+                                "This arranges for each of the named methods, name, to be not exported.",
                                 "unexport name ?name ...?",
                             ),
                             _av(
-                                "variable",
-                                "This slot (see SLOTTED DEFINITIONS below) arranges for each of the named variables to be automatically made available in the methods, constructor and destructor declared by the class being defined.",
-                                "variable ?-slotOperation? ?name ...?",
-                            ),
-                            _av(
-                                "definitionnamespace",
-                                "This allows control over what namespace will be used by the oo::define and oo::objdefine commands to look up the definition commands they use.",
-                                "definitionnamespace ?kind? namespaceName",
-                            ),
-                            _av(
-                                "deletemethod",
-                                "This deletes each of the methods called name from a class.",
-                                "deletemethod name ?name ...?",
-                            ),
-                            _av(
-                                "filter",
-                                "This slot (see SLOTTED DEFINITIONS below) sets or updates the list of method names that are used to guard whether method call to instances of the class may be called and what the method's results are.",
-                                "filter ?-slotOperation? ?methodName ...?",
-                            ),
-                            _av(
                                 "mixin",
-                                "This slot (see SLOTTED DEFINITIONS below) sets or updates the list of additional classes that are to be mixed into all the instances of the class being defined.",
+                                "This slot sets or updates the list of additional classes that are to be mixed into the object.",
                                 "mixin ?-slotOperation? ?className ...?",
                             ),
                             _av(
-                                "renamemethod",
-                                "This renames the method called fromName in a class to toName.",
-                                "renamemethod fromName toName",
+                                "variable",
+                                "This slot arranges for each of the named variables to be automatically made available in the methods declared by the object.",
+                                "variable ?-slotOperation? ?name ...?",
                             ),
                             _av(
-                                "property",
-                                "This defines configurable properties on the class, with optional getter/setter scripts and access kind.",
-                                "property name ?name ...? ?-get getBody? ?-set setBody? ?-kind access?",
+                                "filter",
+                                "This slot sets or updates the list of method names that are used to guard method calls on the object.",
+                                "filter ?-slotOperation? ?methodName ...?",
+                            ),
+                            _av(
+                                "deletemethod",
+                                "This deletes each of the methods called name from the object.",
+                                "deletemethod name ?name ...?",
+                            ),
+                            _av(
+                                "renamemethod",
+                                "This renames the method called fromName in the object to toName.",
+                                "renamemethod fromName toName",
                             ),
                             _av(
                                 "class",
@@ -138,19 +93,19 @@ class OoObjdefineCommand(CommandDef):
                                 "class className",
                             ),
                             _av(
-                                "Get",
-                                "Returns a list that is the current contents of the slot, but does not modify the slot.",
-                                "slot Get",
+                                "private",
+                                "This evaluates the script in a context where the definitions made on the current object will be private definitions.",
+                                "private cmd arg...",
                             ),
                             _av(
-                                "Resolve",
-                                "Returns slotElement with a resolution operation applied to it, but does not modify the slot.",
-                                "slot Resolve slotElement",
+                                "self",
+                                "Returns the name of the object being configured (no arguments allowed in objdefine).",
+                                "self",
                             ),
                             _av(
-                                "Set",
-                                "Sets the contents of the slot to the list elementList and returns the empty string.",
-                                "slot Set elementList",
+                                "property",
+                                "This defines configurable properties on the object, with optional getter/setter scripts and access kind.",
+                                "property name ?name ...? ?-get getBody? ?-set setBody? ?-kind access?",
                             ),
                         )
                     },
