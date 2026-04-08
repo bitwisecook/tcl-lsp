@@ -538,7 +538,7 @@ explorer-build: $(UV_STAMP) $(PYODIDE_DIR)/pyodide.js $(MERMAID_JS) $(BUILD_INFO
 
 compiler-explorer-gui: explorer-build ## Build and serve the static compiler explorer
 	@echo "==> Serving compiler explorer at http://localhost:8080"
-	cd $(EXPLORER_STATIC) && python3 -m http.server 8080
+	cd $(EXPLORER_STATIC) && $(PYTHON) -m http.server 8080
 
 # CDN variant — lightweight build that loads Pyodide + Mermaid from CDN
 EXPLORER_CDN_DIR := $(BUILD_DIR)/explorer-cdn

@@ -132,3 +132,45 @@ class TestSelectionRangeChainOrder:
                 and prev.end.line == curr.end.line
                 and prev.end.character == curr.end.character
             ), f"Duplicate range at index {i}: {curr}"
+
+    def test_strict_containment_with_overlapping_scopes(self):
+        """Regression: ranges from proc body and namespace must be strictly nested.
+
+        The old sort key (by start position descending) could violate
+        containment when a proc-body range and a namespace-body range
+        started on the same line but ended differently.
+        """
+        source = textwrap.dedent("""\
+            namespace eval ns {
+                proc foo {x} {
+                    set y [expr {$x + 1}]
+                    return $y
+                }
+            }
+        """)
+        # Cursor on "$x" inside expr — deep nesting
+        pos = types.Position(line=2, character=21)
+        results = get_selection_ranges(source, [pos])
+        chain = _chain_to_list(results[0])
+
+        for i in range(1, len(chain)):
+            inner = chain[i - 1]
+            outer = chain[i]
+            # Outer must strictly contain inner (start <= inner start, end >= inner end,
+            # and at least one boundary must differ).
+            starts_ok = outer.start.line < inner.start.line or (
+                outer.start.line == inner.start.line
+                and outer.start.character <= inner.start.character
+            )
+            ends_ok = outer.end.line > inner.end.line or (
+                outer.end.line == inner.end.line
+                and outer.end.character >= inner.end.character
+            )
+            assert starts_ok and ends_ok, (
+                f"Containment violation at chain[{i}]: "
+                f"outer={_fmt(outer)} does not contain inner={_fmt(inner)}"
+            )
+
+
+def _fmt(r: types.Range) -> str:
+    return f"({r.start.line}:{r.start.character})-({r.end.line}:{r.end.character})"
