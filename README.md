@@ -4,7 +4,7 @@
 
 # tcl-lsp
 
-<!-- BEGIN:vscode-replace -->A language server for Tcl with multi-editor support.<!-- REPLACE-WITH:A language server for Tcl. --><!-- END:vscode-replace -->
+A language server for Tcl with multi-editor support.
 
 <p align="center">
   <img src="docs/screenshots/tcl-lsp-demo.gif" alt="tcl-lsp in action" width="820">
@@ -18,7 +18,8 @@ and communicates over stdio, making it compatible with any LSP client.
 > **[Installation Guide](INSTALL.md)** — step-by-step instructions for
 > installing from GitHub Releases on macOS and Windows.
 
-<!-- BEGIN:multi-editor -->
+### All editors
+
 | Editor | Type | Setup | Unique extras |
 |--------|------|-------|---------------|
 | [VS Code](editors/vscode/) | Full extension (.vsix) | Install `.vsix` from Releases | Compiler explorer panel, Tk preview, `@irule`/`@tcl`/`@tk` Copilot chat, 25+ commands |
@@ -32,7 +33,6 @@ and communicates over stdio, making it compatible with any LSP client.
 All editors connect to the same Python LSP server over stdio.  The server can
 be invoked from source (`uv run python -m server`) or as a standalone zipapp
 (`python3 tcl-lsp-server.pyz`).
-<!-- END:multi-editor -->
 
 **File types recognised:** `.tcl`, `.tk`, `.itcl`, `.tm`, `.irul`, `.irule`,
 `.iapp`, `.iappimpl`, `.impl`, `.apl`, `.exp`, plus shebang detection for
@@ -63,7 +63,6 @@ extension version.
 code --install-extension tcl-lsp-0.1.0.vsix
 ```
 
-<!-- BEGIN:multi-editor -->
 ### Neovim
 
 Zero-plugin setup on Neovim 0.11+ using the native LSP client.  Also works
@@ -181,7 +180,6 @@ IR, CFG, SSA, and optimiser output directly inside the IDE.
 # Build from source:
 make jetbrains
 ```
-<!-- END:multi-editor -->
 
 ## Features
 
@@ -1711,11 +1709,9 @@ Run `make help` to see all targets:
 | `make zipapp-mcp` | Build the MCP server zipapp |
 | `make zipapp-wasm` | Build the WASM compiler zipapp |
 | `make claude-skills` | Build Claude Code skills release zip |
-<!-- BEGIN:multi-editor -->
-| `make jetbrains` | Build the JetBrains plugin (.zip) |
-| `make sublime` | Build the Sublime Text package (.sublime-package) |
-| `make zed` | Build the Zed extension (.tar.gz WASM artifact) |
-<!-- END:multi-editor -->
+| `make jetbrains` | Build the JetBrains plugin (.zip) | <!-- editors:JetBrains -->
+| `make sublime` | Build the Sublime Text package (.sublime-package) | <!-- editors:Sublime Text -->
+| `make zed` | Build the Zed extension (.tar.gz WASM artifact) | <!-- editors:Zed -->
 | `make screenshot` | Alias of `make screenshots` |
 | `make screenshots` | Capture extension screenshots and build demo GIF (macOS) |
 | `make release` | Build all release artifacts (parity with tagged CI release jobs) |
@@ -1894,14 +1890,12 @@ tcl-lsp/
       src/extension.ts    Extension entry point
       language-configuration.json
       syntaxes/tcl.tmLanguage.json
-<!-- BEGIN:multi-editor -->
-    neovim/               Neovim LSP config (Lua)
-    zed/                  Zed extension (TOML + Rust WASM)
-    emacs/                Emacs eglot / lsp-mode config
-    helix/                Helix languages.toml config
-    sublime-text/         Sublime Text package (syntax, LSP, snippets)
-    jetbrains/            JetBrains plugin (Gradle/Kotlin)
-<!-- END:multi-editor -->
+    neovim/               Neovim LSP config (Lua) <!-- editors:Neovim -->
+    zed/                  Zed extension (TOML + Rust WASM) <!-- editors:Zed -->
+    emacs/                Emacs eglot / lsp-mode config <!-- editors:Emacs -->
+    helix/                Helix languages.toml config <!-- editors:Helix -->
+    sublime-text/         Sublime Text package (syntax, LSP, snippets) <!-- editors:Sublime Text -->
+    jetbrains/            JetBrains plugin (Gradle/Kotlin) <!-- editors:JetBrains -->
 ```
 
 ## Development
@@ -1917,9 +1911,7 @@ uv run python -m server
 ```
 
 This is useful for debugging or for use with any LSP client.
-<!-- BEGIN:multi-editor -->
 See `editors/` for per-editor setup instructions.
-<!-- END:multi-editor -->
 
 ### Running tests
 
@@ -2110,7 +2102,7 @@ Setting `$XDG_CONFIG_HOME` overrides the default on every platform.
 
 1. Built-in defaults
 2. Config file
-3. <!-- BEGIN:vscode-replace -->Editor settings (VS Code `settings.json`, Neovim `lspconfig`, etc.)<!-- REPLACE-WITH:Editor settings (VS Code `settings.json`) --><!-- END:vscode-replace -->
+3. Editor settings (VS Code `settings.json`, Neovim `lspconfig`, etc.)
 
 The file uses INI format with section names matching the `tclLsp.*`
 namespace:
@@ -2138,12 +2130,12 @@ full reference, including how settings interact with each editor.
 ### Export Settings
 
 In **VS Code**, run the command **"Tcl: Export Settings to Config File"**
-from the command palette. <!-- BEGIN:multi-editor -->For other editors, send the
-`tcl-lsp.exportConfig` request via `workspace/executeCommand`.<!-- END:multi-editor -->
+from the command palette. For other editors, send the
+`tcl-lsp.exportConfig` request via `workspace/executeCommand`.
 
 Only non-default values are written, keeping the generated config file
-minimal.<!-- BEGIN:multi-editor -->  This lets you configure in one editor and have the same
-defaults apply everywhere.<!-- END:multi-editor -->
+minimal.  This lets you configure in one editor and have the same
+defaults apply everywhere.
 
 ### Example
 

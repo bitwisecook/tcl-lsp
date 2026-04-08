@@ -159,7 +159,7 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 		--version $(VERSION) \
 		--output $(STAGE_DIR)/tcl-lsp-server.pyz
 	cp $(LICENSE_SRC) $(STAGE_DIR)/LICENSE.txt
-	$(PYTHON) $(ROOT)scripts/filter_readme.py $(README_SRC) -o $(STAGE_DIR)/README.md
+	$(PYTHON) $(ROOT)scripts/filter_readme.py --editor "VS Code" $(README_SRC) -o $(STAGE_DIR)/README.md
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
 	cp "$(ROOT)docs/Tcl LSP Logo-8bit-128.png" $(STAGE_DIR)/docs/icon.png
