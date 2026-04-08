@@ -327,3 +327,39 @@ class MsgcatMcpackageconfig(CommandDef):
             ),
             validation=ValidationSpec(arity=Arity(2)),
         )
+
+
+@register
+class MsgcatMcpackagenamespaceget(CommandDef):
+    name = "msgcat::mcpackagenamespaceget"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="msgcat::mcpackagenamespaceget",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the package namespace for the calling context.",
+                synopsis=("msgcat::mcpackagenamespaceget",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(0, 0)),
+        )
+
+
+@register
+class MsgcatMcutil(CommandDef):
+    name = "msgcat::mcutil"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="msgcat::mcutil",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Utility subcommands for the message catalogue system.",
+                synopsis=("msgcat::mcutil subcommand ?arg ...?",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1)),
+        )

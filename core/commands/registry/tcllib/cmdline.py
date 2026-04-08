@@ -5,7 +5,7 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "tcllib cmdline package"
@@ -104,5 +104,188 @@ class CmdlineUsageCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(1, 2)),
+            pure=True,
+        )
+
+
+@register
+class CmdlineTypedGetoptCommand(CommandDef):
+    name = "cmdline::typedGetopt"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Parse a single typed command-line option.",
+                synopsis=("cmdline::typedGetopt argvVar optstring optVar valVar",),
+                source=_SOURCE,
+                return_value="1 on success, 0 when done, -1 on error.",
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="cmdline::typedGetopt argvVar optstring optVar valVar",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(4, 4)),
+            arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.VAR_NAME, 3: ArgRole.VAR_NAME},
+        )
+
+
+@register
+class CmdlineTypedGetoptionsCommand(CommandDef):
+    name = "cmdline::typedGetoptions"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Parse all typed command-line options according to a specification.",
+                synopsis=("cmdline::typedGetoptions argvVar optlist ?usage?",),
+                source=_SOURCE,
+                return_value="A dictionary of parsed option values.",
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="cmdline::typedGetoptions argvVar optlist ?usage?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(2, 3)),
+            arg_roles={0: ArgRole.VAR_NAME},
+        )
+
+
+@register
+class CmdlineTypedUsageCommand(CommandDef):
+    name = "cmdline::typedUsage"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Generate a usage string from a typed option specification.",
+                synopsis=("cmdline::typedUsage optlist ?usage?",),
+                source=_SOURCE,
+                return_value="A formatted usage string.",
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="cmdline::typedUsage optlist ?usage?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(1, 2)),
+            pure=True,
+        )
+
+
+@register
+class CmdlineGetKnownOptCommand(CommandDef):
+    name = "cmdline::getKnownOpt"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Parse a single known command-line option.",
+                synopsis=("cmdline::getKnownOpt argvVar optstring optVar valVar",),
+                source=_SOURCE,
+                return_value="1 on success, 0 when done, -1 on error.",
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="cmdline::getKnownOpt argvVar optstring optVar valVar",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(4, 4)),
+            arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.VAR_NAME, 3: ArgRole.VAR_NAME},
+        )
+
+
+@register
+class CmdlineGetKnownOptionsCommand(CommandDef):
+    name = "cmdline::getKnownOptions"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Parse all known command-line options according to a specification.",
+                synopsis=("cmdline::getKnownOptions argvVar optlist ?usage?",),
+                source=_SOURCE,
+                return_value="A dictionary of parsed option values.",
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="cmdline::getKnownOptions argvVar optlist ?usage?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(2, 3)),
+            arg_roles={0: ArgRole.VAR_NAME},
+        )
+
+
+@register
+class CmdlineGetfilesCommand(CommandDef):
+    name = "cmdline::getfiles"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Expand file patterns into a list of matching files.",
+                synopsis=("cmdline::getfiles patterns quiet",),
+                source=_SOURCE,
+                return_value="A list of matching file paths.",
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="cmdline::getfiles patterns quiet",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(2, 2)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.FILE_IO,
+                    reads=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class CmdlineGetArgv0Command(CommandDef):
+    name = "cmdline::getArgv0"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Return the application name from the command line.",
+                synopsis=("cmdline::getArgv0",),
+                source=_SOURCE,
+                return_value="The application name.",
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="cmdline::getArgv0"),),
+            validation=ValidationSpec(arity=Arity(0, 0)),
             pure=True,
         )

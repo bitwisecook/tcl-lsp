@@ -170,7 +170,6 @@ class NamespaceCommand(CommandDef):
                     synopsis="namespace code script",
                     pure=True,
                     return_type=TclType.STRING,
-                    arg_roles={0: ArgRole.BODY},
                 ),
                 "current": SubCommand(
                     name="current",

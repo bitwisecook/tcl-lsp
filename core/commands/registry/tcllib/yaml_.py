@@ -69,6 +69,95 @@ class YamlDict2yamlCommand(CommandDef):
 
 
 @register
+class YamlYaml2huddleCommand(CommandDef):
+    name = "yaml::yaml2huddle"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Parse a YAML string and return a huddle object.",
+                synopsis=("yaml::yaml2huddle ?-file? yamlText",),
+                source=_SOURCE,
+                return_value="A huddle object representing the YAML structure.",
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="yaml::yaml2huddle ?-file? yamlText",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(1, 2)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.FILE_IO,
+                    reads=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class YamlSetOptionsCommand(CommandDef):
+    name = "yaml::setOptions"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Set options for YAML processing.",
+                synopsis=("yaml::setOptions optionDict",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="yaml::setOptions optionDict",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.INTERP_STATE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class YamlList2yamlCommand(CommandDef):
+    name = "yaml::list2yaml"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Convert a Tcl list to a YAML string.",
+                synopsis=("yaml::list2yaml listValue ?indent? ?wordwrap?",),
+                source=_SOURCE,
+                return_value="A YAML-formatted string.",
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="yaml::list2yaml listValue ?indent? ?wordwrap?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(1, 3)),
+            pure=True,
+        )
+
+
+@register
 class YamlHuddle2yamlCommand(CommandDef):
     name = "yaml::huddle2yaml"
 

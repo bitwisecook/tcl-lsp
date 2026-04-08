@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
@@ -121,4 +122,112 @@ class IpVersionCommand(CommandDef):
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="ip::version address"),),
             validation=ValidationSpec(arity=Arity(1, 1)),
             pure=True,
+        )
+
+
+@register
+class IpIsCommand(CommandDef):
+    name = "ip::is"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Test whether a value is a valid IP address of the given class.",
+                synopsis=("ip::is class address",),
+                source=_SOURCE,
+                return_value="1 if the address matches the class, 0 otherwise.",
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="ip::is class address"),),
+            validation=ValidationSpec(arity=Arity(2, 2)),
+            pure=True,
+            return_type=TclType.BOOLEAN,
+        )
+
+
+@register
+class IpTypeCommand(CommandDef):
+    name = "ip::type"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Return the type of an IP address.",
+                synopsis=("ip::type address",),
+                source=_SOURCE,
+                return_value="The address type string.",
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="ip::type address"),),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+        )
+
+
+@register
+class IpMaskCommand(CommandDef):
+    name = "ip::mask"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Return the network mask for an address.",
+                synopsis=("ip::mask address",),
+                source=_SOURCE,
+                return_value="The network mask string.",
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="ip::mask address"),),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+        )
+
+
+@register
+class IpCollapseCommand(CommandDef):
+    name = "ip::collapse"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Collapse a list of IP addresses or subnets into the minimal set.",
+                synopsis=("ip::collapse addressList",),
+                source=_SOURCE,
+                return_value="A list of collapsed address ranges.",
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="ip::collapse addressList"),),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+            return_type=TclType.LIST,
+        )
+
+
+@register
+class IpSubtractCommand(CommandDef):
+    name = "ip::subtract"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Subtract one address range from another.",
+                synopsis=("ip::subtract addressList",),
+                source=_SOURCE,
+                return_value="A list of remaining address ranges.",
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="ip::subtract addressList"),),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+            return_type=TclType.LIST,
         )

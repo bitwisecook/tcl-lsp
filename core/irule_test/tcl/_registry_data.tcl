@@ -151,7 +151,7 @@ namespace eval ::tmm::expr_ops {
 namespace eval ::itest::cmd {
 
     # All f5-irules namespaced commands (NS::subcommand).
-    # Count: 1083
+    # Count: 1238
 
     variable _gen_namespaced_commands {
         # AAA::
@@ -1292,26 +1292,72 @@ namespace eval ::itest::cmd {
         {base64::encode}
 
         # cmdline::
+        {cmdline::getArgv0}
+        {cmdline::getKnownOpt}
+        {cmdline::getKnownOptions}
+        {cmdline::getfiles}
         {cmdline::getopt}
         {cmdline::getoptions}
+        {cmdline::typedGetopt}
+        {cmdline::typedGetoptions}
+        {cmdline::typedUsage}
         {cmdline::usage}
 
         # csv::
+        {csv::iscomplete}
         {csv::join}
+        {csv::joinlist}
+        {csv::joinmatrix}
         {csv::read2matrix}
+        {csv::read2queue}
         {csv::report}
         {csv::split}
+        {csv::split2matrix}
+        {csv::split2queue}
+        {csv::writematrix}
+        {csv::writequeue}
 
         # dns::
         {dns::address}
         {dns::cleanup}
+        {dns::cname}
+        {dns::configure}
+        {dns::dump}
+        {dns::error}
+        {dns::errorcode}
         {dns::name}
+        {dns::reset}
         {dns::resolve}
+        {dns::result}
+        {dns::status}
+        {dns::wait}
 
         # fileutil::
+        {fileutil::appendToFile}
         {fileutil::cat}
+        {fileutil::fileType}
+        {fileutil::find}
+        {fileutil::findByPattern}
+        {fileutil::foreachLine}
+        {fileutil::fullnormalize}
+        {fileutil::grep}
+        {fileutil::insertIntoFile}
+        {fileutil::install}
+        {fileutil::jail}
+        {fileutil::lexnormalize}
+        {fileutil::maketempdir}
+        {fileutil::relative}
+        {fileutil::relativeUrl}
+        {fileutil::removeFromFile}
+        {fileutil::replaceInFile}
+        {fileutil::stripN}
+        {fileutil::stripPwd}
         {fileutil::tempdir}
+        {fileutil::tempdirReset}
         {fileutil::tempfile}
+        {fileutil::test}
+        {fileutil::touch}
+        {fileutil::updateInPlace}
         {fileutil::writeFile}
 
         # html::
@@ -1329,47 +1375,126 @@ namespace eval ::itest::cmd {
         {http::geturl}
         {http::meta}
         {http::ncode}
+        {http::postError}
         {http::quoteString}
+        {http::reasonPhrase}
         {http::register}
+        {http::registerError}
+        {http::requestHeaderValue}
+        {http::requestHeaders}
+        {http::requestLine}
         {http::reset}
+        {http::responseBody}
+        {http::responseCode}
+        {http::responseHeaderValue}
+        {http::responseHeaders}
+        {http::responseInfo}
+        {http::responseLine}
         {http::size}
         {http::status}
         {http::unregister}
         {http::wait}
 
         # ip::
+        {ip::collapse}
         {ip::contract}
         {ip::equal}
+        {ip::is}
+        {ip::mask}
         {ip::normalize}
         {ip::prefix}
+        {ip::subtract}
+        {ip::type}
         {ip::version}
 
         # json::
         {json::dict2json}
         {json::json2dict}
+        {json::list2json}
+        {json::many-json2dict}
+        {json::string2json}
+        {json::validate}
 
         # logger::
+        {logger::disable}
+        {logger::enable}
+        {logger::import}
         {logger::init}
+        {logger::initNamespace}
         {logger::levels}
         {logger::servicecmd}
         {logger::services}
+        {logger::setlevel}
+        {logger::walk}
 
         # math::
+        {math::statistics::analyse-Kruskal-Wallis}
+        {math::statistics::autocorr}
         {math::statistics::basic-stats}
+        {math::statistics::control-Rchart}
+        {math::statistics::control-xbar}
+        {math::statistics::corr}
+        {math::statistics::crosscorr}
+        {math::statistics::filter}
+        {math::statistics::group-rank}
+        {math::statistics::histogram}
+        {math::statistics::histogram-alt}
+        {math::statistics::interval-mean-stdev}
+        {math::statistics::lillieforsFit}
+        {math::statistics::linear-model}
+        {math::statistics::linear-residuals}
+        {math::statistics::map}
+        {math::statistics::max}
         {math::statistics::mean}
+        {math::statistics::mean-histogram-limits}
         {math::statistics::median}
+        {math::statistics::min}
+        {math::statistics::minmax-histogram-limits}
+        {math::statistics::number}
+        {math::statistics::print-2x2}
+        {math::statistics::pstdev}
+        {math::statistics::pvar}
         {math::statistics::quantiles}
+        {math::statistics::samplescount}
+        {math::statistics::spearman-rank}
+        {math::statistics::spearman-rank-extended}
         {math::statistics::stdev}
+        {math::statistics::t-test-mean}
+        {math::statistics::test-2x2}
+        {math::statistics::test-Duckworth}
+        {math::statistics::test-Dunnett}
+        {math::statistics::test-Kruskal-Wallis}
+        {math::statistics::test-Rchart}
+        {math::statistics::test-Tukey-range}
+        {math::statistics::test-Wilcoxon}
+        {math::statistics::test-anova-F}
+        {math::statistics::test-normal}
+        {math::statistics::test-xbar}
         {math::statistics::var}
 
         # md5::
         {md5::md5}
 
         # mime::
+        {mime::buildmessage}
+        {mime::copymessage}
+        {mime::field_decode}
         {mime::finalize}
+        {mime::getContentType}
+        {mime::getTransferEncoding}
         {mime::getbody}
+        {mime::getheader}
         {mime::getproperty}
+        {mime::getsize}
         {mime::initialize}
+        {mime::mapencoding}
+        {mime::parseaddress}
+        {mime::parsedatetime}
+        {mime::reversemapencoding}
+        {mime::setheader}
+        {mime::uniqueID}
+        {mime::word_decode}
+        {mime::word_encode}
 
         # msgcat::
         {msgcat::mc}
@@ -1385,9 +1510,11 @@ namespace eval ::itest::cmd {
         {msgcat::mcn}
         {msgcat::mcpackageconfig}
         {msgcat::mcpackagelocale}
+        {msgcat::mcpackagenamespaceget}
         {msgcat::mcpreferences}
         {msgcat::mcset}
         {msgcat::mcunknown}
+        {msgcat::mcutil}
 
         # pkg::
         {pkg::create}
@@ -1419,6 +1546,8 @@ namespace eval ::itest::cmd {
         {smtp::sendmessage}
 
         # snit::
+        {snit::compile}
+        {snit::macro}
         {snit::method}
         {snit::type}
         {snit::typemethod}
@@ -1489,10 +1618,28 @@ namespace eval ::itest::cmd {
 
         # textutil::
         {textutil::adjust}
+        {textutil::blank}
+        {textutil::cap}
+        {textutil::capEachWord}
+        {textutil::chop}
         {textutil::indent}
+        {textutil::longestCommonPrefix}
+        {textutil::longestCommonPrefixList}
+        {textutil::splitn}
         {textutil::splitx}
+        {textutil::strRepeat}
+        {textutil::tabify}
+        {textutil::tabify2}
+        {textutil::tail}
         {textutil::trim}
+        {textutil::trimEmptyHeading}
+        {textutil::trimPrefix}
+        {textutil::trimleft}
+        {textutil::trimright}
+        {textutil::uncap}
         {textutil::undent}
+        {textutil::untabify}
+        {textutil::untabify2}
 
         # ttk::
         {ttk::button}
@@ -1509,8 +1656,13 @@ namespace eval ::itest::cmd {
         {ttk::treeview}
 
         # uri::
+        {uri::canonicalize}
+        {uri::geturl}
+        {uri::isrelative}
         {uri::join}
+        {uri::register}
         {uri::resolve}
+        {uri::setQuirkOption}
         {uri::split}
 
         # uuid::
@@ -1519,7 +1671,10 @@ namespace eval ::itest::cmd {
         # yaml::
         {yaml::dict2yaml}
         {yaml::huddle2yaml}
+        {yaml::list2yaml}
+        {yaml::setOptions}
         {yaml::yaml2dict}
+        {yaml::yaml2huddle}
     }
 
     # All f5-irules top-level commands.

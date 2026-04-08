@@ -107,3 +107,166 @@ class LoggerServicecmdCommand(CommandDef):
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),
         )
+
+
+@register
+class LoggerEnableCommand(CommandDef):
+    name = "logger::enable"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Enable logging at the specified level.",
+                synopsis=("logger::enable level",),
+                source=_SOURCE,
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="logger::enable level"),),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.INTERP_STATE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class LoggerDisableCommand(CommandDef):
+    name = "logger::disable"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Disable logging at the specified level.",
+                synopsis=("logger::disable level",),
+                source=_SOURCE,
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="logger::disable level"),),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.INTERP_STATE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class LoggerImportCommand(CommandDef):
+    name = "logger::import"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Import logger commands into the current namespace.",
+                synopsis=(
+                    "logger::import ?-all? ?-force? ?-prefix prefix? ?-namespace namespace? service",
+                ),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="logger::import ?-all? ?-force? ?-prefix prefix? ?-namespace namespace? service",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(1)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.INTERP_STATE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class LoggerWalkCommand(CommandDef):
+    name = "logger::walk"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Walk the logger tree applying a command to each service.",
+                synopsis=("logger::walk service command",),
+                source=_SOURCE,
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="logger::walk service command"),),
+            validation=ValidationSpec(arity=Arity(2, 2)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.INTERP_STATE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class LoggerSetlevelCommand(CommandDef):
+    name = "logger::setlevel"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Set the logging level for all logger services.",
+                synopsis=("logger::setlevel level",),
+                source=_SOURCE,
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="logger::setlevel level"),),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.INTERP_STATE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class LoggerInitNamespaceCommand(CommandDef):
+    name = "logger::initNamespace"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Initialise logging for a namespace.",
+                synopsis=("logger::initNamespace ns ?level?",),
+                source=_SOURCE,
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="logger::initNamespace ns ?level?"),),
+            validation=ValidationSpec(arity=Arity(1, 2)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.INTERP_STATE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
