@@ -163,8 +163,7 @@ class TestSelectionRangeChainOrder:
                 and outer.start.character <= inner.start.character
             )
             ends_ok = outer.end.line > inner.end.line or (
-                outer.end.line == inner.end.line
-                and outer.end.character >= inner.end.character
+                outer.end.line == inner.end.line and outer.end.character >= inner.end.character
             )
             assert starts_ok and ends_ok, (
                 f"Containment violation at chain[{i}]: "
