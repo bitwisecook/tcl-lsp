@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
@@ -53,14 +53,45 @@ class Http2StreamCommand(CommandDef):
                     "}"
                 ),
             ),
+            pure=True,
             forms=(
                 FormSpec(
-                    kind=FormKind.DEFAULT,
-                    synopsis="HTTP2::stream (id | (priority (PRIORITY)?))?",
+                    kind=FormKind.GETTER,
+                    synopsis="HTTP2::stream",
+                    arity=Arity(0, 0),
+                    pure=True,
                 ),
             ),
+            subcommands={
+                "id": SubCommand(
+                    name="id",
+                    arity=Arity(0, 0),
+                    detail="Returns the stream id. Returns 0 if HTTP/2 is not active.",
+                    synopsis="HTTP2::stream id",
+                ),
+                "priority": SubCommand(
+                    name="priority",
+                    arity=Arity(0, 1),
+                    detail="Get or set the priority of the current stream.",
+                    synopsis="HTTP2::stream priority ?<priority>?",
+                    forms=(
+                        FormSpec(
+                            kind=FormKind.GETTER,
+                            synopsis="HTTP2::stream priority",
+                            arity=Arity(0, 0),
+                            pure=True,
+                        ),
+                        FormSpec(
+                            kind=FormKind.SETTER,
+                            synopsis="HTTP2::stream priority <priority>",
+                            arity=Arity(1, 1),
+                            mutator=True,
+                        ),
+                    ),
+                ),
+            },
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(0, 2),
             ),
             event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP"})),
             side_effect_hints=(

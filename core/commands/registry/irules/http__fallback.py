@@ -24,7 +24,7 @@ class HttpFallbackCommand(CommandDef):
             dialects=_IRULES_ONLY,
             hover=HoverSnippet(
                 summary="Specifies or overrides a fallback host specified in the HTTP profile.",
-                synopsis=("HTTP::fallback FALLBACK_HOST_FQDN",),
+                synopsis=("HTTP::fallback <host>",),
                 snippet="Specifies or overrides the fallback host specified in the HTTP profile.",
                 source=_SOURCE,
                 examples=(
@@ -33,12 +33,14 @@ class HttpFallbackCommand(CommandDef):
             ),
             forms=(
                 FormSpec(
-                    kind=FormKind.DEFAULT,
-                    synopsis="HTTP::fallback FALLBACK_HOST_FQDN",
+                    kind=FormKind.SETTER,
+                    synopsis="HTTP::fallback <host>",
+                    arity=Arity(1, 1),
+                    mutator=True,
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(1, 1),
             ),
             event_requires=EventRequires(
                 transport="tcp",

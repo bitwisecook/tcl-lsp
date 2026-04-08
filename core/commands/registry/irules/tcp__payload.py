@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -26,9 +26,9 @@ class TcpPayloadCommand(CommandDef):
             hover=HoverSnippet(
                 summary="Returns or changes the data collected by TCP::collect.",
                 synopsis=(
-                    "TCP::payload (LENGTH | (OFFSET LENGTH))?",
+                    "TCP::payload ?<size>?",
+                    "TCP::payload replace <offset> <length> <data>",
                     "TCP::payload length",
-                    "TCP::payload replace OFFSET LENGTH TCP_PAYLOAD",
                 ),
                 snippet="Returns the accumulated TCP data content, or replaces collected payload with the specified data.",
                 source=_SOURCE,
@@ -36,12 +36,29 @@ class TcpPayloadCommand(CommandDef):
             ),
             forms=(
                 FormSpec(
-                    kind=FormKind.DEFAULT,
-                    synopsis="TCP::payload (LENGTH | (OFFSET LENGTH))?",
+                    kind=FormKind.GETTER,
+                    synopsis="TCP::payload ?<size>?",
+                    arity=Arity(0, 1),
+                    pure=True,
                 ),
             ),
+            subcommands={
+                "replace": SubCommand(
+                    name="replace",
+                    arity=Arity(3, 3),
+                    detail="Replace bytes in collected payload.",
+                    synopsis="TCP::payload replace <offset> <length> <data>",
+                    mutator=True,
+                ),
+                "length": SubCommand(
+                    name="length",
+                    arity=Arity(0, 0),
+                    detail="Returns the amount of accumulated TCP data in bytes.",
+                    synopsis="TCP::payload length",
+                ),
+            },
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(0, 4),
             ),
             event_requires=EventRequires(
                 transport="tcp",

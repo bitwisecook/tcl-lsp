@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, HoverSnippet
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
+from ..signatures import Arity
 from ._base import _IRULES_ONLY, register
 from .classify__application import ClassifyApplicationCommand
 from .ip__addr import IpAddrCommand as _IpAddrReplacement
@@ -42,16 +43,69 @@ class HttpClassCommand(CommandDef):
 
     @classmethod
     def spec(cls) -> CommandSpec:
+        _SOURCE = "https://clouddocs.f5.com/api/irules/HTTP__class.html"
         return CommandSpec(
             name="HTTP::class",
             deprecated_replacement=ClassifyApplicationCommand,
             dialects=_IRULES_ONLY,
-            hover=HoverSnippet(summary="Deprecated: use CLASSIFY::application instead"),
-            event_requires=EventRequires(),
+            hover=HoverSnippet(
+                summary="Returns or sets the HTTP class selected by the HTTP selector.",
+                synopsis=(
+                    "HTTP::class",
+                    "HTTP::class [enable | disable]",
+                    "HTTP::class [asm | wa]",
+                    "HTTP::class select <name>",
+                ),
+                snippet=(
+                    "Deprecated in v11.4 — replaced by POLICY commands. See sol14381 for details."
+                ),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.GETTER,
+                    synopsis="HTTP::class",
+                    arity=Arity(0, 0),
+                    pure=True,
+                ),
+                FormSpec(
+                    kind=FormKind.SETTER,
+                    synopsis="HTTP::class <enable | disable>",
+                    arity=Arity(1, 1),
+                    mutator=True,
+                ),
+                FormSpec(
+                    kind=FormKind.GETTER,
+                    synopsis="HTTP::class <asm | wa>",
+                    arity=Arity(1, 1),
+                    pure=True,
+                ),
+            ),
+            subcommands={
+                "select": SubCommand(
+                    name="select",
+                    arity=Arity(1, 1),
+                    detail="Select an HTTP class.",
+                    synopsis="HTTP::class select <name>",
+                    mutator=True,
+                ),
+            },
+            validation=ValidationSpec(arity=Arity(0, 2)),
+            event_requires=EventRequires(
+                transport="tcp",
+                profiles=frozenset({"HTTP"}),
+                also_in=frozenset(
+                    {
+                        "HTTP_CLASS_FAILED",
+                        "HTTP_CLASS_SELECTED",
+                    }
+                ),
+            ),
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.CLASSIFICATION_STATE,
                     reads=True,
+                    writes=True,
                     connection_side=ConnectionSide.BOTH,
                 ),
             ),

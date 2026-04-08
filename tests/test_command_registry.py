@@ -418,27 +418,15 @@ class TestSubCommandResolveForm:
         assert form.kind is FormKind.SETTER
         assert form.mutator is True
 
-    def test_http_header_lws_getter(self):
-        from core.commands.registry.models import FormKind
+    def test_http_header_lws_no_forms(self):
+        """HTTP::header lws is a simple no-arg query (returns 0/1), no forms."""
+        from core.commands.registry.signatures import Arity
 
         spec = REGISTRY.get("HTTP::header", "f5-irules")
         assert spec is not None
         sub = spec.subcommands["lws"]
-        form = sub.resolve_form(())
-        assert form is not None
-        assert form.kind is FormKind.GETTER
-        assert form.pure is True
-
-    def test_http_header_lws_setter(self):
-        from core.commands.registry.models import FormKind
-
-        spec = REGISTRY.get("HTTP::header", "f5-irules")
-        assert spec is not None
-        sub = spec.subcommands["lws"]
-        form = sub.resolve_form(("enable",))
-        assert form is not None
-        assert form.kind is FormKind.SETTER
-        assert form.mutator is True
+        assert sub.arity == Arity(0, 0)
+        assert sub.resolve_form(()) is None
 
     def test_subcommand_without_forms_returns_none(self):
         spec = REGISTRY.get("HTTP::header", "f5-irules")

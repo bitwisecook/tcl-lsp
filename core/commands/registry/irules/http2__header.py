@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
 from ..namespace_models import EventRequires
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -25,10 +25,15 @@ class Http2HeaderCommand(CommandDef):
             dialects=_IRULES_ONLY,
             hover=HoverSnippet(
                 summary="Queries or modifies HTTP/2 pseudo-headers.",
-                synopsis=("HTTP2::header (",),
+                synopsis=(
+                    "HTTP2::header <name>",
+                    "HTTP2::header replace <name> ?<string>?",
+                    "HTTP2::header remove <name>",
+                ),
                 snippet=(
                     "Queries or modifies HTTP/2 pseudo-headers.\n"
-                    "The HTTP2 pseudo-header names are lowercase and start with a ':' character."
+                    "The HTTP/2 pseudo-header names are lowercase and start with a ':' character.\n"
+                    "Introduced in BIG-IP 16.1.0."
                 ),
                 source=_SOURCE,
                 examples=(
@@ -43,16 +48,35 @@ class Http2HeaderCommand(CommandDef):
             ),
             forms=(
                 FormSpec(
-                    kind=FormKind.DEFAULT,
-                    synopsis="HTTP2::header (",
+                    kind=FormKind.GETTER,
+                    synopsis="HTTP2::header <name>",
+                    arity=Arity(1, 1),
+                    pure=True,
                 ),
             ),
+            subcommands={
+                "replace": SubCommand(
+                    name="replace",
+                    arity=Arity(1, 2),
+                    detail="Replace pseudo-header value.",
+                    synopsis="HTTP2::header replace <name> ?<string>?",
+                    mutator=True,
+                ),
+                "remove": SubCommand(
+                    name="remove",
+                    arity=Arity(1, 1),
+                    detail="Remove a pseudo-header.",
+                    synopsis="HTTP2::header remove <name>",
+                    mutator=True,
+                ),
+            },
             validation=ValidationSpec(
-                arity=Arity(),
+                arity=Arity(1, 3),
             ),
             event_requires=EventRequires(
-                profiles=frozenset({"CACHE", "HTTP", "MR", "REWRITE"}),
-                also_in=frozenset({"SERVER_CONNECTED"}),
+                transport="tcp",
+                profiles=frozenset({"HTTP"}),
+                also_in=frozenset({"MR_EGRESS", "MR_INGRESS", "SERVER_CONNECTED"}),
             ),
             side_effect_hints=(
                 SideEffect(

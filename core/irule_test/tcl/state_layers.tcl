@@ -44,6 +44,10 @@ namespace eval ::state {
         variable client_payload ""
         variable server_payload ""
 
+        # TCP options (for TCP::option get/set)
+        variable tcp_options
+        array set tcp_options {}
+
         # Connection state machine
         variable state          "new"   ;# new, established, closing, closed
 
@@ -68,6 +72,8 @@ namespace eval ::state {
             variable idle_timeout   300
             variable client_payload ""
             variable server_payload ""
+            variable tcp_options
+            array unset tcp_options
             variable state          "new"
         }
 
@@ -376,6 +382,30 @@ namespace eval ::state {
         proc reset {} {
             reset_request
             reset_response
+        }
+    }
+
+    # ── HTTP/2 layer ────────────────────────────────────────────────────
+    #
+    # HTTP/2 pseudo-headers and stream state.
+
+    namespace eval http2 {
+        variable pseudo_headers {}  ;# dict: :authority, :method, :path, :scheme
+        variable stream_id       0
+        variable stream_priority 0
+
+        proc reset {} {
+            variable pseudo_headers {}
+            variable stream_id       0
+            variable stream_priority 0
+        }
+
+        proc configure {args} {
+            foreach {key val} $args {
+                set varname [string trimleft $key -]
+                variable $varname
+                set $varname $val
+            }
         }
     }
 
@@ -861,6 +891,7 @@ namespace eval ::state {
         connection::reset
         tls::reset
         http::reset
+        http2::reset
         dns::reset
         lb::reset
         persist::reset
