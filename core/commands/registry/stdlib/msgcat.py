@@ -96,10 +96,10 @@ class MsgcatMcpreferences(CommandDef):
             required_package=_PKG,
             hover=HoverSnippet(
                 summary="Return the ordered list of locale preferences.",
-                synopsis=("msgcat::mcpreferences",),
+                synopsis=("msgcat::mcpreferences ?locale ...?",),
                 source=_SOURCE,
             ),
-            validation=ValidationSpec(arity=Arity(0, 0)),
+            validation=ValidationSpec(arity=Arity(0)),
         )
 
 
@@ -271,7 +271,7 @@ class MsgcatMcloadedlocales(CommandDef):
                 synopsis=("msgcat::mcloadedlocales subcommand",),
                 source=_SOURCE,
             ),
-            validation=ValidationSpec(arity=Arity(1)),
+            validation=ValidationSpec(arity=Arity(1, 1)),
         )
 
 

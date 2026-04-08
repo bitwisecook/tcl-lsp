@@ -43,7 +43,6 @@ class FileutilCatCommand(CommandDef):
                 SideEffect(
                     target=SideEffectTarget.FILE_IO,
                     reads=True,
-                    writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
@@ -106,10 +105,10 @@ class FileutilTempdirCommand(CommandDef):
             tcllib_package=_PACKAGE,
             hover=HoverSnippet(
                 summary="Return the path of the system temporary directory.",
-                synopsis=("fileutil::tempdir",),
+                synopsis=("fileutil::tempdir ?path?",),
                 source=_SOURCE,
                 return_value="The system temporary directory path.",
             ),
-            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="fileutil::tempdir"),),
-            validation=ValidationSpec(arity=Arity(0, 0)),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="fileutil::tempdir ?path?"),),
+            validation=ValidationSpec(arity=Arity(0, 1)),
         )

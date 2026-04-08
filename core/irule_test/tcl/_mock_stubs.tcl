@@ -4601,8 +4601,8 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc csv_read {args} {
-        ::itest::log_decision csv read $args
+    proc csv_read2matrix {args} {
+        ::itest::log_decision csv read2matrix $args
         return ""
     }
 
@@ -4676,7 +4676,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # http:: stubs (18 commands)
+    # http:: stubs (16 commands)
 
     proc http_cleanup {args} {
         ::itest::log_decision http cleanup $args
@@ -4695,16 +4695,6 @@ namespace eval ::itest::cmd {
 
     proc http_cookiejar {args} {
         ::itest::log_decision http cookiejar $args
-        return ""
-    }
-
-    proc http_IDNAdecode {args} {
-        ::itest::log_decision http IDNAdecode $args
-        return ""
-    }
-
-    proc http_IDNAencode {args} {
-        ::itest::log_decision http IDNAencode $args
         return ""
     }
 
@@ -5134,7 +5124,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # tcl:: stubs (9 commands)
+    # tcl:: stubs (11 commands)
 
     proc tcl_OptKeyDelete {args} {
         ::itest::log_decision tcl OptKeyDelete $args
@@ -5168,6 +5158,16 @@ namespace eval ::itest::cmd {
 
     proc tcl_OptProcArgGiven {args} {
         ::itest::log_decision tcl OptProcArgGiven $args
+        return ""
+    }
+
+    proc tcl_decode {args} {
+        ::itest::log_decision tcl decode $args
+        return ""
+    }
+
+    proc tcl_encode {args} {
+        ::itest::log_decision tcl encode $args
         return ""
     }
 

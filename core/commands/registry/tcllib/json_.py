@@ -60,5 +60,5 @@ class JsonDict2jsonCommand(CommandDef):
                 return_value="A JSON-encoded string.",
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="json::dict2json dictValue"),),
-            validation=ValidationSpec(arity=Arity(1)),
+            validation=ValidationSpec(arity=Arity(1, 1)),
         )

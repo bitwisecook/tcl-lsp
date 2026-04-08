@@ -147,9 +147,9 @@ class StructListCommand(CommandDef):
                 ),
                 "equal": SubCommand(
                     name="equal",
-                    arity=Arity(2, 2),
+                    arity=Arity(2),
                     detail="Test if two lists are structurally equal.",
-                    synopsis="struct::list equal a b",
+                    synopsis="struct::list equal ?-simple? a b",
                 ),
                 "filter": SubCommand(
                     name="filter",
@@ -240,6 +240,54 @@ class StructListCommand(CommandDef):
                     arity=Arity(3, 3),
                     detail="Swap two elements in a list.",
                     synopsis="struct::list swap listVar i j",
+                ),
+                "longestCommonSubsequence2": SubCommand(
+                    name="longestCommonSubsequence2",
+                    arity=Arity(2, 3),
+                    detail="Find the longest common subsequence (alternate algorithm).",
+                    synopsis="struct::list longestCommonSubsequence2 list1 list2 ?maxOccurs?",
+                ),
+                "lcsInvertMerge": SubCommand(
+                    name="lcsInvertMerge",
+                    arity=Arity(3, 3),
+                    detail="Invert and merge a longest-common-subsequence result.",
+                    synopsis="struct::list lcsInvertMerge lcsData len1 len2",
+                ),
+                "split": SubCommand(
+                    name="split",
+                    arity=Arity(2, 4),
+                    detail="Split a list using a command prefix as filter.",
+                    synopsis="struct::list split sequence cmdprefix ?passVar? ?failVar?",
+                ),
+                "delete": SubCommand(
+                    name="delete",
+                    arity=Arity(2, 2),
+                    detail="Delete an element from a list variable by value.",
+                    synopsis="struct::list delete listVar item",
+                ),
+                "repeatn": SubCommand(
+                    name="repeatn",
+                    arity=Arity(1),
+                    detail="Create a (nested) list by repeating a value.",
+                    synopsis="struct::list repeatn value count ?count ...?",
+                ),
+                "firstperm": SubCommand(
+                    name="firstperm",
+                    arity=Arity(1, 1),
+                    detail="Return the first permutation of a list.",
+                    synopsis="struct::list firstperm list",
+                ),
+                "nextperm": SubCommand(
+                    name="nextperm",
+                    arity=Arity(1, 1),
+                    detail="Return the next permutation in lexicographic order.",
+                    synopsis="struct::list nextperm perm",
+                ),
+                "permutations": SubCommand(
+                    name="permutations",
+                    arity=Arity(1, 1),
+                    detail="Return all permutations of a list.",
+                    synopsis="struct::list permutations list",
                 ),
             },
             validation=ValidationSpec(

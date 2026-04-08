@@ -1298,7 +1298,7 @@ namespace eval ::itest::cmd {
 
         # csv::
         {csv::join}
-        {csv::read}
+        {csv::read2matrix}
         {csv::report}
         {csv::split}
 
@@ -1323,8 +1323,6 @@ namespace eval ::itest::cmd {
         {http::code}
         {http::config}
         {http::cookiejar}
-        {http::cookiejar::IDNAdecode}
-        {http::cookiejar::IDNAencode}
         {http::data}
         {http::error}
         {http::formatQuery}
@@ -1441,6 +1439,8 @@ namespace eval ::itest::cmd {
         {tcl::OptParse}
         {tcl::OptProc}
         {tcl::OptProcArgGiven}
+        {tcl::idna::decode}
+        {tcl::idna::encode}
         {tcl::tm::path}
         {tcl::tm::roots}
 

@@ -249,8 +249,8 @@
       "summary": "Join a list of values into a CSV-formatted line."
     },
     {
-      "name": "csv::read",
-      "summary": "Read a CSV file into a matrix object."
+      "name": "csv::read2matrix",
+      "summary": "Read CSV data from a channel into a matrix object."
     },
     {
       "name": "csv::report",
@@ -499,16 +499,6 @@
     {
       "name": "http::cookiejar",
       "summary": "Create or configure an HTTP cookie jar (TclOO class)."
-    },
-    {
-      "name": "http::cookiejar::IDNAdecode",
-      "summary": "Decode a hostname from IDNA format to Unicode.",
-      "pure": true
-    },
-    {
-      "name": "http::cookiejar::IDNAencode",
-      "summary": "Encode a hostname to IDNA (Internationalised Domain Names) format.",
-      "pure": true
     },
     {
       "name": "http::data",
@@ -1219,21 +1209,29 @@
         "assign",
         "dbJoin",
         "dbJoinKeyed",
+        "delete",
         "equal",
         "filter",
         "filterfor",
+        "firstperm",
         "flatten",
         "fold",
         "foreachperm",
         "iota",
         "lcsInvert",
+        "lcsInvertMerge",
         "longestCommonSubsequence",
+        "longestCommonSubsequence2",
         "map",
         "mapfor",
+        "nextperm",
+        "permutations",
         "repeat",
+        "repeatn",
         "reverse",
         "shift",
         "shuffle",
+        "split",
         "swap"
       ],
       "pure": true
@@ -1246,6 +1244,7 @@
       "name": "struct::set",
       "summary": "Set operations on Tcl lists (union, intersect, difference, etc.).",
       "subcommands": [
+        "add",
         "contains",
         "difference",
         "empty",
@@ -1253,7 +1252,10 @@
         "exclude",
         "include",
         "intersect",
+        "intersect3",
+        "size",
         "subsetof",
+        "subtract",
         "symdiff",
         "union"
       ],
@@ -1302,6 +1304,16 @@
     {
       "name": "tcl::OptProcArgGiven",
       "summary": "Return 1 if the named option was explicitly given, 0 otherwise."
+    },
+    {
+      "name": "tcl::idna::decode",
+      "summary": "Decode a hostname from IDNA format to Unicode.",
+      "pure": true
+    },
+    {
+      "name": "tcl::idna::encode",
+      "summary": "Encode a hostname to IDNA (Internationalised Domain Names) format.",
+      "pure": true
     },
     {
       "name": "tcl::tm::path",

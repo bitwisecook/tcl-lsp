@@ -47,17 +47,17 @@ class HttpCookiejar(CommandDef):
 
 
 @register
-class HttpCookiejarIdnaEncode(CommandDef):
-    name = "http::cookiejar::IDNAencode"
+class TclIdnaEncode(CommandDef):
+    name = "tcl::idna::encode"
 
     @classmethod
     def spec(cls) -> CommandSpec:
         return CommandSpec(
-            name="http::cookiejar::IDNAencode",
+            name="tcl::idna::encode",
             required_package=_PKG,
             hover=HoverSnippet(
                 summary="Encode a hostname to IDNA (Internationalised Domain Names) format.",
-                synopsis=("http::cookiejar::IDNAencode hostname",),
+                synopsis=("tcl::idna encode hostname",),
                 source=_SOURCE,
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),
@@ -66,17 +66,17 @@ class HttpCookiejarIdnaEncode(CommandDef):
 
 
 @register
-class HttpCookiejarIdnaDecode(CommandDef):
-    name = "http::cookiejar::IDNAdecode"
+class TclIdnaDecode(CommandDef):
+    name = "tcl::idna::decode"
 
     @classmethod
     def spec(cls) -> CommandSpec:
         return CommandSpec(
-            name="http::cookiejar::IDNAdecode",
+            name="tcl::idna::decode",
             required_package=_PKG,
             hover=HoverSnippet(
                 summary="Decode a hostname from IDNA format to Unicode.",
-                synopsis=("http::cookiejar::IDNAdecode hostname",),
+                synopsis=("tcl::idna decode hostname",),
                 source=_SOURCE,
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),

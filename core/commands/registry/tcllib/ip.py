@@ -28,8 +28,8 @@ class IpNormaliseCommand(CommandDef):
                 examples="set norm [ip::normalize 192.168.001.001]",
                 return_value="The normalised IP address string.",
             ),
-            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="ip::normalize address"),),
-            validation=ValidationSpec(arity=Arity(1, 1)),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="ip::normalize address ?Ip4inIp6?"),),
+            validation=ValidationSpec(arity=Arity(1, 2)),
             pure=True,
             side_effect_hints=(
                 SideEffect(

@@ -68,13 +68,13 @@ class CsvJoinCommand(CommandDef):
                     synopsis="csv::join values ?sepChar? ?quoteChar?",
                 ),
             ),
-            validation=ValidationSpec(arity=Arity(1, 3)),
+            validation=ValidationSpec(arity=Arity(1, 4)),
         )
 
 
 @register
-class CsvReadCommand(CommandDef):
-    name = "csv::read"
+class CsvRead2MatrixCommand(CommandDef):
+    name = "csv::read2matrix"
 
     @classmethod
     def spec(cls) -> CommandSpec:
@@ -82,18 +82,18 @@ class CsvReadCommand(CommandDef):
             name=cls.name,
             tcllib_package=_PACKAGE,
             hover=HoverSnippet(
-                summary="Read a CSV file into a matrix object.",
-                synopsis=("csv::read matrix chan ?sepChar? ?expand?",),
+                summary="Read CSV data from a channel into a matrix object.",
+                synopsis=("csv::read2matrix ?-alternate? chan m ?sepChar? ?expand?",),
                 source=_SOURCE,
                 return_value="The number of lines read.",
             ),
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="csv::read matrix chan ?sepChar? ?expand?",
+                    synopsis="csv::read2matrix ?-alternate? chan m ?sepChar? ?expand?",
                 ),
             ),
-            validation=ValidationSpec(arity=Arity(2, 4)),
+            validation=ValidationSpec(arity=Arity(2, 5)),
         )
 
 

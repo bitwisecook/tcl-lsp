@@ -142,7 +142,7 @@ class MathStatQuantilesCommand(CommandDef):
                     synopsis="math::statistics::quantiles data confidences",
                 ),
             ),
-            validation=ValidationSpec(arity=Arity(2, 2)),
+            validation=ValidationSpec(arity=Arity(2, 3)),
             pure=True,
         )
 

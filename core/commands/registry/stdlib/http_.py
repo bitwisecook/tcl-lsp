@@ -204,7 +204,7 @@ class HttpRegister(CommandDef):
                 ),
                 source=_SOURCE,
             ),
-            validation=ValidationSpec(arity=Arity(3, 3)),
+            validation=ValidationSpec(arity=Arity(3, 6)),
         )
 
 
