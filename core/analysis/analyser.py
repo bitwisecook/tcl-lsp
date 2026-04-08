@@ -116,6 +116,11 @@ diag(
 diag("W116", "Stub command shadows built-in command.", section="warning")
 diag("W117", "Stub expression definition shadows built-in function or operator.", section="warning")
 diag("W124", "Invalid IP address literal.", section="warning")
+diag(
+    "W125",
+    "Orphaned control-flow keyword used as standalone command.",
+    section="warning",
+)
 diag("W126", "Non-channel value in channel argument position.", section="warning")
 diag("W210", "Variable read before set.", section="variable")
 diag("W211", "Variable set but never used.", section="variable")
@@ -1261,6 +1266,19 @@ class Analyser:
             s = s.parent
         return False
 
+    # Keywords that are only valid as arguments within a parent command.
+    # When they appear as standalone commands it almost always means a
+    # misplaced newline split the parent command (e.g. ``}\nelse {`` instead
+    # of ``} else {``).  Maps keyword → parent command name.
+    _ORPHANED_KEYWORDS: dict[str, str] = {
+        "else": "if",
+        "elseif": "if",
+        "then": "if",
+        "on": "try",
+        "trap": "try",
+        "finally": "try",
+    }
+
     def _process_command(
         self,
         argv: list[Token],
@@ -1285,6 +1303,27 @@ class Analyser:
                 resolved_qualified_name=resolved_proc.qualified_name if resolved_proc else None,
             )
         )
+
+        # W125 — orphaned control-flow keyword used as standalone command.
+        # Suppressed when a user proc with the same name is in scope.
+        if (
+            cmd_name in self._ORPHANED_KEYWORDS
+            and resolved_proc is None
+            and REGISTRY.get(cmd_name, active_dialect()) is None
+        ):
+            parent = self._ORPHANED_KEYWORDS[cmd_name]
+            self.result.diagnostics.append(
+                Diagnostic(
+                    range=range_from_token(argv[0]),
+                    message=(
+                        f'"{cmd_name}" used as standalone command'
+                        f' — should be part of "{parent}"'
+                        f" (check for misplaced newline)"
+                    ),
+                    severity=Severity.WARNING,
+                    code="W125",
+                )
+            )
 
         # Record variable-as-command sites for post-analysis method resolution.
         # When ``$obj method ...`` is used, the type lattice post-pass checks

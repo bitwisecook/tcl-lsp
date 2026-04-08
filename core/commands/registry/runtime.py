@@ -28,7 +28,10 @@ __all__ = [
     "SubcommandSig",
     "CommandTypeHint",
     "SubcommandTypeHint",
+    "SwitchCase",
     "TaintHint",
+    "is_switch_case_list_form",
+    "iter_switch_case_list",
     "options_with_value",
     "regexp_pattern_index",
     "skip_options",
@@ -836,19 +839,7 @@ def _try_body_indices(args: list[str]) -> set[int]:
 def _switch_body_indices(args: list[str]) -> set[int]:
     """Return BODY argument indices for a ``switch`` command."""
     result: set[int] = set()
-    i = 0
-
-    # Skip option flags. '--' terminates option parsing.
-    while i < len(args) and args[i].startswith("-"):
-        if args[i] == "--":
-            i += 1
-            break
-        i += 1
-
-    # Skip switch string argument.
-    if i >= len(args):
-        return result
-    i += 1
+    i = _skip_switch_options(args)
     if i >= len(args):
         return result
 
@@ -864,6 +855,134 @@ def _switch_body_indices(args: list[str]) -> set[int]:
         i += 2
 
     return result
+
+
+def _skip_switch_options(args: list[str]) -> int:
+    """Skip option flags and the switch value arg, return next index.
+
+    Handles ``-matchvar`` and ``-indexvar`` which consume a following
+    value argument, plus ``--`` which terminates option parsing.
+    """
+    value_opts = options_with_value("switch")
+    i = skip_options(args, value_opts)
+    # Skip switch string/value argument.
+    if i < len(args):
+        i += 1
+    return i
+
+
+def is_switch_case_list_form(args: list[str]) -> bool:
+    """Return True when *args* (after command name) use the braced case-list form.
+
+    In the braced form, all patterns and bodies are packed inside a single
+    trailing argument.  In the non-braced form they appear as separate args.
+    """
+    i = _skip_switch_options(args)
+    return i < len(args) and i == len(args) - 1
+
+
+@dataclass(frozen=True, slots=True)
+class SwitchCase:
+    """A pattern/body pair from a ``switch`` braced case list."""
+
+    pattern: str
+    """The match pattern text (e.g. ``*.gif``, ``default``)."""
+
+    body: str | None
+    """Body script text, or ``None`` for fallthrough (``-``)."""
+
+    is_braced: bool
+    """Whether the body was a braced word ``{...}``."""
+
+    pattern_token: Token
+    """First token of the pattern word."""
+
+    body_token: Token | None
+    """First token of the body word; for fallthrough this is the ``-`` token."""
+
+
+def iter_switch_case_list(
+    case_list_text: str,
+    *,
+    base_offset: int = 0,
+    base_line: int = 0,
+    base_col: int = 0,
+) -> Iterator[SwitchCase]:
+    """Parse a ``switch`` braced case list into pattern/body pairs.
+
+    Yields :class:`SwitchCase` for each pair, handling ``-`` fallthrough.
+
+    *case_list_text* is the content inside the outer braces of the case
+    list (i.e. the ``Token.text`` of the STR token, not including the
+    surrounding ``{`` ``}``).
+    """
+    from ...parsing.lexer import TclLexer
+    from ...parsing.tokens import TokenType
+
+    lexer = TclLexer(
+        case_list_text,
+        base_offset=base_offset,
+        base_line=base_line,
+        base_col=base_col,
+    )
+    # Collect words with their raw source spans so we preserve
+    # original quoting/bracing (e.g. $var keeps its $, braced
+    # patterns keep their braces).
+    #
+    # Each entry: (raw_text, inner_text, first_token, is_braced, start_offset, end_offset)
+    word_starts: list[int] = []
+    word_ends: list[int] = []
+    word_tokens: list[Token] = []
+    word_inner: list[str] = []  # tok.text (content without delimiters)
+    word_braced: list[bool] = []
+    prev_type = TokenType.EOL
+
+    while True:
+        tok = lexer.get_token()
+        if tok is None:
+            break
+        if tok.type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
+            prev_type = tok.type
+            continue
+        if prev_type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
+            word_starts.append(tok.start.offset - base_offset)
+            word_ends.append(tok.end.offset - base_offset + 1)
+            word_tokens.append(tok)
+            word_inner.append(tok.text)
+            word_braced.append(tok.type == TokenType.STR)
+        elif word_ends:
+            word_ends[-1] = tok.end.offset - base_offset + 1
+            word_inner[-1] += tok.text
+        else:
+            word_starts.append(tok.start.offset - base_offset)
+            word_ends.append(tok.end.offset - base_offset + 1)
+            word_tokens.append(tok)
+            word_inner.append(tok.text)
+            word_braced.append(tok.type == TokenType.STR)
+        prev_type = tok.type
+
+    idx = 0
+    while idx + 1 < len(word_starts):
+        # Use the raw source span for the pattern so quoting is preserved.
+        raw_pattern = case_list_text[word_starts[idx] : word_ends[idx]]
+        body_inner = word_inner[idx + 1]
+        if body_inner == "-":
+            yield SwitchCase(
+                pattern=raw_pattern,
+                body=None,
+                is_braced=False,
+                pattern_token=word_tokens[idx],
+                body_token=word_tokens[idx + 1],
+            )
+        else:
+            yield SwitchCase(
+                pattern=raw_pattern,
+                body=body_inner,
+                is_braced=word_braced[idx + 1],
+                pattern_token=word_tokens[idx],
+                body_token=word_tokens[idx + 1],
+            )
+        idx += 2
 
 
 def regexp_pattern_index(args: list[str] | tuple[str, ...]) -> int | None:

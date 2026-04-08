@@ -24,7 +24,12 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal, overload
 
-from core.commands.registry.runtime import body_arg_indices, expr_arg_indices
+from core.commands.registry.runtime import (
+    body_arg_indices,
+    expr_arg_indices,
+    is_switch_case_list_form,
+    iter_switch_case_list,
+)
 from core.common.suffix_array import build_lcp_array, build_suffix_array
 from core.common.text_edits import apply_edits, name_generator
 from core.parsing.lexer import TclLexer
@@ -43,6 +48,13 @@ def _scope_barrier_commands() -> frozenset[str]:
 
         _scope_barrier_cache = REGISTRY.dynamic_barrier_commands()
     return _scope_barrier_cache
+
+
+# Control-flow keywords that must remain as literal strings.  These are
+# arguments to ``if`` (else, elseif, then) and ``try`` (on, trap, finally)
+# that the body/expr index resolution functions check by value.  Aliasing
+# them to variables would break recursive body minification.
+_CONTROL_FLOW_KEYWORDS = frozenset({"else", "elseif", "then", "on", "trap", "finally"})
 
 
 @dataclass
@@ -231,6 +243,8 @@ def minify_tcl(
     compact_names: Literal[False] = ...,
     aggressive: Literal[False] = ...,
     dialect: str | None = ...,
+    isolated: bool = ...,
+    seed_map: SymbolMap | None = ...,
 ) -> str: ...
 
 
@@ -241,6 +255,8 @@ def minify_tcl(
     compact_names: Literal[True],
     aggressive: Literal[False] = ...,
     dialect: str | None = ...,
+    isolated: bool = ...,
+    seed_map: SymbolMap | None = ...,
 ) -> tuple[str, SymbolMap]: ...
 
 
@@ -251,6 +267,8 @@ def minify_tcl(
     compact_names: bool = ...,
     aggressive: Literal[True] = ...,
     dialect: str | None = ...,
+    isolated: bool = ...,
+    seed_map: SymbolMap | None = ...,
 ) -> MinifyResult: ...
 
 
@@ -261,6 +279,8 @@ def minify_tcl(
     compact_names: bool = ...,
     aggressive: bool = ...,
     dialect: str | None = ...,
+    isolated: bool = ...,
+    seed_map: SymbolMap | None = ...,
 ) -> str | tuple[str, SymbolMap] | MinifyResult: ...
 
 
@@ -270,6 +290,8 @@ def minify_tcl(
     compact_names: bool = False,
     aggressive: bool = False,
     dialect: str | None = None,
+    isolated: bool = False,
+    seed_map: SymbolMap | None = None,
 ) -> str | tuple[str, SymbolMap] | MinifyResult:
     """Minify a Tcl source string.
 
@@ -286,6 +308,13 @@ def minify_tcl(
             enables dialect-specific transforms such as ensemble subcommand
             abbreviation.  If *None*, auto-detected from the active
             dialect.
+        isolated: If True, treat the script as self-contained and also
+            compact variable names in the global scope.  Safe for iRules
+            event handlers and other scripts where no external code
+            references variables by name.
+        seed_map: A :class:`SymbolMap` from a previous minification.
+            Pre-populates rename mappings so shared variable names get
+            consistent short names across files.
 
     Returns:
         The minified source code, or ``(minified, symbol_map)`` when
@@ -293,10 +322,15 @@ def minify_tcl(
         *aggressive* is True.
     """
     if aggressive:
-        return _aggressive_minify(source, dialect=_resolve_dialect(dialect))
+        return _aggressive_minify(
+            source,
+            dialect=_resolve_dialect(dialect),
+            isolated=isolated,
+            seed_map=seed_map,
+        )
     resolved_dialect = _resolve_dialect(dialect)
     if compact_names:
-        renamed_source, symbol_map = _compact_names(source)
+        renamed_source, symbol_map = _compact_names(source, isolated=isolated, seed_map=seed_map)
         minified = _minify_body(renamed_source, dialect=resolved_dialect)
         return minified, symbol_map
     return _minify_body(source, dialect=resolved_dialect)
@@ -446,7 +480,13 @@ def _remap_line_references(
     return result
 
 
-def _aggressive_minify(source: str, *, dialect: str) -> MinifyResult:
+def _aggressive_minify(
+    source: str,
+    *,
+    dialect: str,
+    isolated: bool = False,
+    seed_map: SymbolMap | None = None,
+) -> MinifyResult:
     """Maximum compression: optimise → compact names → minify whitespace.
 
     Pipeline:
@@ -477,7 +517,7 @@ def _aggressive_minify(source: str, *, dialect: str) -> MinifyResult:
     opt_count += fold_count
 
     # Phase 2: Compact names.
-    renamed, symbol_map = _compact_names(folded)
+    renamed, symbol_map = _compact_names(folded, isolated=isolated, seed_map=seed_map)
     if static_fold_map:
         symbol_map.static_folds = static_fold_map
 
@@ -519,8 +559,21 @@ _name_generator = name_generator
 # Name compaction using the semantic model
 
 
-def _compact_names(source: str) -> tuple[str, SymbolMap]:
+def _compact_names(
+    source: str,
+    *,
+    isolated: bool = False,
+    seed_map: SymbolMap | None = None,
+) -> tuple[str, SymbolMap]:
     """Compact variable and proc names using the analyser's semantic model.
+
+    When *isolated* is True, also rename variables in the global scope.
+    This is safe when the script is self-contained (e.g. an iRules event
+    handler) and no external code references its variables by name.
+
+    When *seed_map* is provided, pre-populate rename mappings from a
+    previous minification so that shared variable names get consistent
+    short names across files.
 
     Returns (renamed_source, symbol_map).
     """
@@ -536,41 +589,72 @@ def _compact_names(source: str) -> tuple[str, SymbolMap]:
     edits: list[tuple[int, int, str]] = []
 
     # Detect barrier commands to identify unsafe scopes.
-    barrier_scopes = _find_barrier_scopes(analysis)
+    barrier_scopes = _find_barrier_scopes(analysis, include_global=isolated)
 
     builtin_names = set(REGISTRY.command_names())
 
     # Variable renaming (per-proc scope)
 
+    # Collect all short names claimed by the seed map so we don't collide.
+    _seed_claimed: set[str] = set()
+    if seed_map:
+        for var_map in seed_map.variables.values():
+            _seed_claimed.update(var_map.values())
+        _seed_claimed.update(seed_map.procs.values())
+
     def _process_scope(scope: Scope, scope_label: str) -> None:
-        if scope.kind == "proc" and scope_label not in barrier_scopes:
+        rename_scope = (
+            scope.kind == "proc" or (isolated and scope.kind == "global")
+        ) and scope_label not in barrier_scopes
+
+        if rename_scope:
             # Find the ProcDef for this scope to get param info.
             proc_def = None
-            for pd in analysis.all_procs.values():
-                if pd.name == scope.name:
-                    proc_def = pd
-                    break
+            if scope.kind == "proc":
+                for pd in analysis.all_procs.values():
+                    if pd.name == scope.name:
+                        proc_def = pd
+                        break
 
             param_names = set()
             if proc_def:
                 param_names = {p.name for p in proc_def.params}
 
             var_gen = _name_generator()
-            var_map: dict[str, str] = {}
             existing_names = set(scope.variables.keys())
 
-            for var_name, var_def in sorted(scope.variables.items()):
-                # Skip single-char names -- already minimal.
-                if len(var_name) <= 1:
-                    continue
-                # Skip namespace-qualified variables.
-                if "::" in var_name:
-                    continue
+            # Pre-seed from prior minification for cross-file consistency.
+            # Only accept seeded mappings when the short name is safe in
+            # this scope (not already a variable name, no collisions).
+            var_map: dict[str, str] = {}
+            seeded_shorts: set[str] = set()
+            if seed_map and scope_label in seed_map.variables:
+                for orig, short in seed_map.variables[scope_label].items():
+                    if (
+                        orig in scope.variables
+                        and len(short) < len(orig)
+                        and short not in existing_names
+                        and short not in seeded_shorts
+                    ):
+                        var_map[orig] = short
+                        seeded_shorts.add(short)
 
-                short = _next_unused_name(var_gen, existing_names, var_map)
-                if short is None or len(short) >= len(var_name):
-                    continue
-                var_map[var_name] = short
+            for var_name, var_def in sorted(scope.variables.items()):
+                if var_name in var_map:
+                    # Already seeded — just emit edits.
+                    short = var_map[var_name]
+                else:
+                    # Skip single-char names -- already minimal.
+                    if len(var_name) <= 1:
+                        continue
+                    # Skip namespace-qualified variables.
+                    if "::" in var_name:
+                        continue
+
+                    short = _next_unused_name(var_gen, existing_names, var_map, _seed_claimed)
+                    if short is None or len(short) >= len(var_name):
+                        continue
+                    var_map[var_name] = short
 
                 is_param = var_name in param_names
 
@@ -1158,6 +1242,13 @@ def _scan_argument_tokens(
             if len(val) < 3 or any(c in val for c in ' \t\n"{}[]$\\;'):
                 continue
 
+            # Never alias control-flow keywords — they must remain literal
+            # for body/expr index detection to work (e.g. _if_body_indices
+            # checks for "elseif"/"else"/"then", _try_body_indices checks
+            # for "on"/"trap"/"finally").
+            if val in _CONTROL_FLOW_KEYWORDS:
+                continue
+
             arg_uses.setdefault(val, []).append(abs_off)
 
 
@@ -1523,9 +1614,12 @@ def _next_unused_name(
     gen,
     existing_vars: set[str],
     already_mapped: dict[str, str],
+    extra_claimed: set[str] | None = None,
 ) -> str | None:
     """Get the next short name that doesn't collide with existing variables."""
     used_shorts = set(already_mapped.values())
+    if extra_claimed:
+        used_shorts |= extra_claimed
     for _ in range(1000):  # Safety limit.
         short = next(gen)
         if short not in existing_vars and short not in used_shorts:
@@ -1533,28 +1627,42 @@ def _next_unused_name(
     return None
 
 
-def _find_barrier_scopes(analysis) -> set[str]:
-    """Find proc scope labels that contain barrier commands."""
+def _find_barrier_scopes(analysis, *, include_global: bool = False) -> set[str]:
+    """Find scope labels that contain barrier commands.
+
+    When *include_global* is True, also flag the global scope (``"::"``)
+    if barrier commands appear at the top level.  This is needed when
+    ``isolated=True`` enables global variable renaming — barrier commands
+    in the global scope still prevent renaming.
+    """
     barrier_scopes: set[str] = set()
     barrier_cmds = _scope_barrier_commands()
     for invocation in analysis.command_invocations:
         if invocation.name in barrier_cmds:
-            scope_label = _scope_label_at_line(analysis.global_scope, invocation.range.start.line)
+            scope_label = _scope_label_at_line(
+                analysis.global_scope,
+                invocation.range.start.line,
+                include_global=include_global,
+            )
             if scope_label:
                 barrier_scopes.add(scope_label)
     return barrier_scopes
 
 
-def _scope_label_at_line(scope, line: int, prefix: str = "::") -> str | None:
+def _scope_label_at_line(
+    scope, line: int, prefix: str = "::", *, include_global: bool = False
+) -> str | None:
     """Find the deepest scope label containing the given line."""
     for child in scope.children:
         child_label = f"{prefix}::{child.name}" if prefix != "::" else f"::{child.name}"
         if child.body_range and child.body_range.start.line <= line <= child.body_range.end.line:
-            deeper = _scope_label_at_line(child, line, child_label)
+            deeper = _scope_label_at_line(child, line, child_label, include_global=include_global)
             if deeper:
                 return deeper
             return child_label
     if scope.kind == "proc":
+        return prefix
+    if include_global and scope.kind == "global":
         return prefix
     return None
 
@@ -1636,11 +1744,20 @@ def _minify_body(source: str, *, dialect: str | None = None) -> str:
         body_indices = _get_body_indices(cmd_name, cmd_args)
         expr_indices = _get_expr_indices(cmd_name, cmd_args)
 
+        # Detect switch braced case-list form so we can minify each
+        # case body individually (the registry tells us the structure).
+        is_case_list = cmd_name == "switch" and is_switch_case_list_form(
+            [_token_text(a) for a in cmd_args[1:]]
+        )
+
         arg_strs: list[str] = []
         for i, arg in enumerate(cmd_args):
             if i in body_indices and arg.is_braced and len(arg.tokens) == 1:
                 inner = arg.tokens[0].text
-                minified_inner = _minify_body(inner, dialect=dialect)
+                if is_case_list:
+                    minified_inner = _minify_switch_case_list(inner, dialect=dialect)
+                else:
+                    minified_inner = _minify_body(inner, dialect=dialect)
                 arg_strs.append("{" + minified_inner + "}")
             elif i in expr_indices and arg.is_braced and len(arg.tokens) == 1:
                 inner = arg.tokens[0].text
@@ -1680,6 +1797,25 @@ def _minify_body(source: str, *, dialect: str | None = None) -> str:
             parts.append(" ".join(arg_strs))
 
     return ";".join(parts)
+
+
+def _minify_switch_case_list(source: str, *, dialect: str | None = None) -> str:
+    """Minify the content of a ``switch`` braced case list.
+
+    Parses the case list into pattern/body pairs using
+    :func:`iter_switch_case_list` from the command registry, then
+    recursively minifies each body via :func:`_minify_body`.
+    """
+    parts: list[str] = []
+    for case in iter_switch_case_list(source):
+        if case.body is None:
+            parts.append(f"{case.pattern} -")
+        elif case.is_braced:
+            minified = _minify_body(case.body, dialect=dialect)
+            parts.append(f"{case.pattern} {{{minified}}}")
+        else:
+            parts.append(f"{case.pattern} {case.body}")
+    return " ".join(parts)
 
 
 def _dedup_templates(

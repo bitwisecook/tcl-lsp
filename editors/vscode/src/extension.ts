@@ -903,18 +903,28 @@ async function minifyDocument(): Promise<void> {
         description: "Strip comments and collapse whitespace",
         compact: false,
         aggressive: false,
+        isolated: false,
       },
       {
         label: "Minify + Compact Names",
         description: "Also shorten variable and proc names",
         compact: true,
         aggressive: false,
+        isolated: false,
       },
       {
         label: "Aggressive",
         description: "Optimise, compact names, and minify for maximum compression",
         compact: false,
         aggressive: true,
+        isolated: false,
+      },
+      {
+        label: "Aggressive + Isolated",
+        description: "Maximum compression — also compact global-scope variable names",
+        compact: false,
+        aggressive: true,
+        isolated: true,
       },
     ],
     { placeHolder: "Select minification mode" },
@@ -926,7 +936,7 @@ async function minifyDocument(): Promise<void> {
   const uri = editor.document.uri.toString();
   const result = (await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.minifyDocument",
-    arguments: [uri, mode.compact, mode.aggressive],
+    arguments: [uri, mode.compact, mode.aggressive, mode.isolated],
   })) as {
     source: string;
     originalLength: number;

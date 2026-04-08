@@ -145,8 +145,57 @@ class TestMinifyRealWorld:
     def test_switch_command(self):
         source = "switch $x {\n    a {\n        puts a\n    }\n    b {\n        puts b\n    }\n}\n"
         result = minify_tcl(source)
-        assert "switch" in result
-        assert result.startswith("switch $x")
+        assert result == "switch $x {a {puts a} b {puts b}}"
+
+    def test_switch_case_list_strips_comments(self):
+        source = (
+            "switch -glob $path {\n"
+            "    *.gif {\n"
+            "        # Handle GIF files\n"
+            '        HTTP::respond 200 content "gif"\n'
+            "    }\n"
+            "    *.js {\n"
+            "        # Handle JavaScript\n"
+            "        # with multiple comment lines\n"
+            '        set x "js"\n'
+            "    }\n"
+            "}\n"
+        )
+        result = minify_tcl(source)
+        assert "#" not in result, f"Comments survived minification: {result}"
+        assert "*.gif" in result
+        assert "*.js" in result
+
+    def test_switch_case_list_with_default(self):
+        source = "switch $x {\n    a {\n        puts a\n    }\n    default {\n        puts default\n    }\n}\n"
+        result = minify_tcl(source)
+        assert result == "switch $x {a {puts a} default {puts default}}"
+
+    def test_switch_case_list_with_fallthrough(self):
+        source = "switch $x {\n    a -\n    b {\n        puts ab\n    }\n}\n"
+        result = minify_tcl(source)
+        assert result == "switch $x {a - b {puts ab}}"
+
+    def test_switch_nonbraced_form_still_works(self):
+        source = "switch -glob $x *.gif {\n    # comment\n    puts gif\n} *.js {\n    puts js\n}\n"
+        result = minify_tcl(source)
+        assert "#" not in result
+        assert result == "switch -glob $x *.gif {puts gif} *.js {puts js}"
+
+    def test_switch_case_list_nested_bodies(self):
+        source = (
+            "switch $x {\n"
+            "    a {\n"
+            "        if {1} {\n"
+            "            # nested comment\n"
+            "            puts nested\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        )
+        result = minify_tcl(source)
+        assert "#" not in result
+        assert "puts nested" in result
 
     def test_for_loop(self):
         source = "for {set i 0} {$i < 10} {incr i} {\n    puts $i\n}\n"
@@ -1191,6 +1240,72 @@ class TestStaticSubstrEdgeCases:
         result, count = _eliminate_dead_sets(source, {"x"})
         assert count == 0
         assert "set x 0" in result
+
+
+class TestIsolatedMode:
+    """isolated=True enables global-scope variable renaming."""
+
+    def test_global_vars_renamed(self):
+        # Use dynamic values so the optimizer can't fold them away
+        source = "set longvar [clock seconds]\nputs $longvar\n"
+        result = minify_tcl(source, aggressive=True, isolated=True)
+        assert "longvar" not in result.source
+        assert result.symbol_map.variables
+
+    def test_global_vars_not_renamed_without_isolated(self):
+        source = "set longvar [clock seconds]\nputs $longvar\n"
+        result = minify_tcl(source, aggressive=True, isolated=False)
+        assert "longvar" in result.source
+        assert not result.symbol_map.variables
+
+    def test_barrier_prevents_rename_in_isolated(self):
+        source = "set longvar hello\nupvar 1 longvar ref\nputs $longvar\n"
+        result = minify_tcl(source, aggressive=True, isolated=True)
+        # upvar references longvar by name — global scope is a barrier
+        assert "longvar" in result.source
+
+    def test_compact_names_isolated(self):
+        source = "set longvar [clock seconds]\nputs $longvar\n"
+        minified, sym = minify_tcl(source, compact_names=True, isolated=True)
+        assert "longvar" not in minified
+        assert sym.variables
+
+    def test_proc_vars_still_renamed(self):
+        source = "proc foo {longparam} { set longlocal 1; puts $longparam $longlocal }\n"
+        result = minify_tcl(source, aggressive=True, isolated=False)
+        assert "longparam" not in result.source
+        assert "longlocal" not in result.source
+
+    def test_seed_map_reuses_names(self):
+        source1 = "set longvar [clock seconds]\nputs $longvar\n"
+        result1 = minify_tcl(source1, aggressive=True, isolated=True)
+        map1 = result1.symbol_map
+
+        # Second file with same variable — should get same short name
+        source2 = "set longvar [clock clicks]\nputs $longvar\n"
+        result2 = minify_tcl(source2, aggressive=True, isolated=True, seed_map=map1)
+        map2 = result2.symbol_map
+
+        name1 = map1.variables.get("::", {}).get("longvar")
+        name2 = map2.variables.get("::", {}).get("longvar")
+        assert name1 is not None
+        assert name1 == name2, f"Expected consistent name: {name1} vs {name2}"
+
+    def test_seed_map_avoids_collisions(self):
+        source1 = "set alpha [clock seconds]\nputs $alpha\n"
+        result1 = minify_tcl(source1, aggressive=True, isolated=True)
+        map1 = result1.symbol_map
+
+        # Second file has a different variable — should NOT collide
+        source2 = "set beta [clock clicks]\nputs $beta\n"
+        result2 = minify_tcl(source2, aggressive=True, isolated=True, seed_map=map1)
+        map2 = result2.symbol_map
+
+        short1 = map1.variables.get("::", {}).get("alpha")
+        short2 = map2.variables.get("::", {}).get("beta")
+        assert short1 is not None
+        assert short2 is not None
+        assert short1 != short2, f"Names should differ: {short1} vs {short2}"
 
 
 class TestIRulesBraceSeparatorMinifier:

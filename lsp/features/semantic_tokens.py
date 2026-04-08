@@ -28,6 +28,7 @@ from core.commands.registry.runtime import (
     SubcommandSig,
     arg_indices_for_role,
     arg_indices_for_roles,
+    iter_switch_case_list,
     options_with_value,
     regexp_pattern_index,
     skip_options,
@@ -1538,33 +1539,32 @@ def _collect_switch_case_bodies(
         return set()
 
     case_offset, case_line, case_col = token_content_base(case_list_tok)
-    elements, element_tokens = _split_words(
+
+    for case in iter_switch_case_list(
         args[i],
         base_offset=case_offset,
         base_line=case_line,
         base_col=case_col,
-    )
-
-    idx = 0
-    while idx + 1 < len(elements):
+    ):
         # Emit regex token for pattern in braced case list
-        if is_regexp and elements[idx] != "default":
-            if idx < len(element_tokens):
-                _emit_regex_token(
-                    out, element_tokens[idx], line_starts=line_starts, source_len=source_len
-                )
-        body = elements[idx + 1]
-        body_tok = element_tokens[idx + 1]
-        if body != "-" and body_tok.type is TokenType.STR and body.strip():
+        if is_regexp and case.pattern != "default":
+            _emit_regex_token(
+                out, case.pattern_token, line_starts=line_starts, source_len=source_len
+            )
+        if (
+            case.body is not None
+            and case.body_token is not None
+            and case.body_token.type is TokenType.STR
+            and case.body.strip()
+        ):
             _collect_tokens(
                 out,
-                body,
-                body_token=body_tok,
+                case.body,
+                body_token=case.body_token,
                 regex_positions=regex_positions,
                 _line_starts=line_starts,
                 _source_len=source_len or None,
             )
-        idx += 2
 
     return {i}
 

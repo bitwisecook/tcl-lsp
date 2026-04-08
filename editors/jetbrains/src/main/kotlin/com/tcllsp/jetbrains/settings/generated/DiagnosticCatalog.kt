@@ -41,6 +41,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W121", "warning", "W121: Subnet mask has non-contiguous bits", true),
         DiagnosticDef("W122", "warning", "W122: Mistyped IPv4 address (octet > 255 or leading zero)", true),
         DiagnosticDef("W124", "warning", "W124: Invalid IP address literal", true),
+        DiagnosticDef("W125", "warning", "W125: Orphaned control-flow keyword used as standalone com...", true),
         DiagnosticDef("W126", "warning", "W126: Non-channel value in channel argument position", true),
         DiagnosticDef("W200", "warning", "W200: exec result not captured or binary format modifier r...", true),
         DiagnosticDef("W201", "warning", "W201: Manual path concatenation", true),
