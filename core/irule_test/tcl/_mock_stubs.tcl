@@ -4576,7 +4576,27 @@ namespace eval ::itest::cmd {
     }
 
 
-    # cmdline:: stubs (3 commands)
+    # cmdline:: stubs (10 commands)
+
+    proc cmdline_getArgv0 {args} {
+        ::itest::log_decision cmdline getArgv0 $args
+        return ""
+    }
+
+    proc cmdline_getKnownOpt {args} {
+        ::itest::log_decision cmdline getKnownOpt $args
+        return ""
+    }
+
+    proc cmdline_getKnownOptions {args} {
+        ::itest::log_decision cmdline getKnownOptions $args
+        return ""
+    }
+
+    proc cmdline_getfiles {args} {
+        ::itest::log_decision cmdline getfiles $args
+        return ""
+    }
 
     proc cmdline_getopt {args} {
         ::itest::log_decision cmdline getopt $args
@@ -4588,21 +4608,56 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc cmdline_typedGetopt {args} {
+        ::itest::log_decision cmdline typedGetopt $args
+        return ""
+    }
+
+    proc cmdline_typedGetoptions {args} {
+        ::itest::log_decision cmdline typedGetoptions $args
+        return ""
+    }
+
+    proc cmdline_typedUsage {args} {
+        ::itest::log_decision cmdline typedUsage $args
+        return ""
+    }
+
     proc cmdline_usage {args} {
         ::itest::log_decision cmdline usage $args
         return ""
     }
 
 
-    # csv:: stubs (4 commands)
+    # csv:: stubs (12 commands)
+
+    proc csv_iscomplete {args} {
+        ::itest::log_decision csv iscomplete $args
+        return ""
+    }
 
     proc csv_join {args} {
         ::itest::log_decision csv join $args
         return ""
     }
 
-    proc csv_read {args} {
-        ::itest::log_decision csv read $args
+    proc csv_joinlist {args} {
+        ::itest::log_decision csv joinlist $args
+        return ""
+    }
+
+    proc csv_joinmatrix {args} {
+        ::itest::log_decision csv joinmatrix $args
+        return ""
+    }
+
+    proc csv_read2matrix {args} {
+        ::itest::log_decision csv read2matrix $args
+        return ""
+    }
+
+    proc csv_read2queue {args} {
+        ::itest::log_decision csv read2queue $args
         return ""
     }
 
@@ -4616,8 +4671,28 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc csv_split2matrix {args} {
+        ::itest::log_decision csv split2matrix $args
+        return ""
+    }
 
-    # dns:: stubs (4 commands)
+    proc csv_split2queue {args} {
+        ::itest::log_decision csv split2queue $args
+        return ""
+    }
+
+    proc csv_writematrix {args} {
+        ::itest::log_decision csv writematrix $args
+        return ""
+    }
+
+    proc csv_writequeue {args} {
+        ::itest::log_decision csv writequeue $args
+        return ""
+    }
+
+
+    # dns:: stubs (13 commands)
 
     proc dns_address {args} {
         ::itest::log_decision dns address $args
@@ -4629,8 +4704,38 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc dns_cname {args} {
+        ::itest::log_decision dns cname $args
+        return ""
+    }
+
+    proc dns_configure {args} {
+        ::itest::log_decision dns configure $args
+        return ""
+    }
+
+    proc dns_dump {args} {
+        ::itest::log_decision dns dump $args
+        return ""
+    }
+
+    proc dns_error {args} {
+        ::itest::log_decision dns error $args
+        return ""
+    }
+
+    proc dns_errorcode {args} {
+        ::itest::log_decision dns errorcode $args
+        return ""
+    }
+
     proc dns_name {args} {
         ::itest::log_decision dns name $args
+        return ""
+    }
+
+    proc dns_reset {args} {
+        ::itest::log_decision dns reset $args
         return ""
     }
 
@@ -4639,11 +4744,116 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc dns_result {args} {
+        ::itest::log_decision dns result $args
+        return ""
+    }
 
-    # fileutil:: stubs (4 commands)
+    proc dns_status {args} {
+        ::itest::log_decision dns status $args
+        return ""
+    }
+
+    proc dns_wait {args} {
+        ::itest::log_decision dns wait $args
+        return ""
+    }
+
+
+    # fileutil:: stubs (26 commands)
+
+    proc fileutil_appendToFile {args} {
+        ::itest::log_decision fileutil appendToFile $args
+        return ""
+    }
 
     proc fileutil_cat {args} {
         ::itest::log_decision fileutil cat $args
+        return ""
+    }
+
+    proc fileutil_fileType {args} {
+        ::itest::log_decision fileutil fileType $args
+        return ""
+    }
+
+    proc fileutil_find {args} {
+        ::itest::log_decision fileutil find $args
+        return ""
+    }
+
+    proc fileutil_findByPattern {args} {
+        ::itest::log_decision fileutil findByPattern $args
+        return ""
+    }
+
+    proc fileutil_foreachLine {args} {
+        ::itest::log_decision fileutil foreachLine $args
+        return ""
+    }
+
+    proc fileutil_fullnormalize {args} {
+        ::itest::log_decision fileutil fullnormalize $args
+        return ""
+    }
+
+    proc fileutil_grep {args} {
+        ::itest::log_decision fileutil grep $args
+        return ""
+    }
+
+    proc fileutil_insertIntoFile {args} {
+        ::itest::log_decision fileutil insertIntoFile $args
+        return ""
+    }
+
+    proc fileutil_install {args} {
+        ::itest::log_decision fileutil install $args
+        return ""
+    }
+
+    proc fileutil_jail {args} {
+        ::itest::log_decision fileutil jail $args
+        return ""
+    }
+
+    proc fileutil_lexnormalize {args} {
+        ::itest::log_decision fileutil lexnormalize $args
+        return ""
+    }
+
+    proc fileutil_maketempdir {args} {
+        ::itest::log_decision fileutil maketempdir $args
+        return ""
+    }
+
+    proc fileutil_relative {args} {
+        ::itest::log_decision fileutil relative $args
+        return ""
+    }
+
+    proc fileutil_relativeUrl {args} {
+        ::itest::log_decision fileutil relativeUrl $args
+        return ""
+    }
+
+    proc fileutil_removeFromFile {args} {
+        ::itest::log_decision fileutil removeFromFile $args
+        return ""
+    }
+
+    proc fileutil_replaceInFile {args} {
+        ::itest::log_decision fileutil replaceInFile $args
+        return ""
+    }
+
+    proc fileutil_stripN {args} {
+        ::itest::log_decision fileutil stripN $args
+        return ""
+    }
+
+    proc fileutil_stripPwd {args} {
+        ::itest::log_decision fileutil stripPwd $args
         return ""
     }
 
@@ -4652,8 +4862,28 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc fileutil_tempdirReset {args} {
+        ::itest::log_decision fileutil tempdirReset $args
+        return ""
+    }
+
     proc fileutil_tempfile {args} {
         ::itest::log_decision fileutil tempfile $args
+        return ""
+    }
+
+    proc fileutil_test {args} {
+        ::itest::log_decision fileutil test $args
+        return ""
+    }
+
+    proc fileutil_touch {args} {
+        ::itest::log_decision fileutil touch $args
+        return ""
+    }
+
+    proc fileutil_updateInPlace {args} {
+        ::itest::log_decision fileutil updateInPlace $args
         return ""
     }
 
@@ -4676,7 +4906,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # http:: stubs (18 commands)
+    # http:: stubs (28 commands)
 
     proc http_cleanup {args} {
         ::itest::log_decision http cleanup $args
@@ -4695,16 +4925,6 @@ namespace eval ::itest::cmd {
 
     proc http_cookiejar {args} {
         ::itest::log_decision http cookiejar $args
-        return ""
-    }
-
-    proc http_IDNAdecode {args} {
-        ::itest::log_decision http IDNAdecode $args
-        return ""
-    }
-
-    proc http_IDNAencode {args} {
-        ::itest::log_decision http IDNAencode $args
         return ""
     }
 
@@ -4738,8 +4958,18 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc http_postError {args} {
+        ::itest::log_decision http postError $args
+        return ""
+    }
+
     proc http_quoteString {args} {
         ::itest::log_decision http quoteString $args
+        return ""
+    }
+
+    proc http_reasonPhrase {args} {
+        ::itest::log_decision http reasonPhrase $args
         return ""
     }
 
@@ -4748,8 +4978,58 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc http_registerError {args} {
+        ::itest::log_decision http registerError $args
+        return ""
+    }
+
+    proc http_requestHeaderValue {args} {
+        ::itest::log_decision http requestHeaderValue $args
+        return ""
+    }
+
+    proc http_requestHeaders {args} {
+        ::itest::log_decision http requestHeaders $args
+        return ""
+    }
+
+    proc http_requestLine {args} {
+        ::itest::log_decision http requestLine $args
+        return ""
+    }
+
     proc http_reset {args} {
         ::itest::log_decision http reset $args
+        return ""
+    }
+
+    proc http_responseBody {args} {
+        ::itest::log_decision http responseBody $args
+        return ""
+    }
+
+    proc http_responseCode {args} {
+        ::itest::log_decision http responseCode $args
+        return ""
+    }
+
+    proc http_responseHeaderValue {args} {
+        ::itest::log_decision http responseHeaderValue $args
+        return ""
+    }
+
+    proc http_responseHeaders {args} {
+        ::itest::log_decision http responseHeaders $args
+        return ""
+    }
+
+    proc http_responseInfo {args} {
+        ::itest::log_decision http responseInfo $args
+        return ""
+    }
+
+    proc http_responseLine {args} {
+        ::itest::log_decision http responseLine $args
         return ""
     }
 
@@ -4769,7 +5049,12 @@ namespace eval ::itest::cmd {
     }
 
 
-    # ip:: stubs (5 commands)
+    # ip:: stubs (10 commands)
+
+    proc ip_collapse {args} {
+        ::itest::log_decision ip collapse $args
+        return ""
+    }
 
     proc ip_contract {args} {
         ::itest::log_decision ip contract $args
@@ -4778,6 +5063,16 @@ namespace eval ::itest::cmd {
 
     proc ip_equal {args} {
         ::itest::log_decision ip equal $args
+        return ""
+    }
+
+    proc ip_is {args} {
+        ::itest::log_decision ip is $args
+        return ""
+    }
+
+    proc ip_mask {args} {
+        ::itest::log_decision ip mask $args
         return ""
     }
 
@@ -4791,13 +5086,23 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc ip_subtract {args} {
+        ::itest::log_decision ip subtract $args
+        return ""
+    }
+
+    proc ip_type {args} {
+        ::itest::log_decision ip type $args
+        return ""
+    }
+
     proc ip_version {args} {
         ::itest::log_decision ip version $args
         return ""
     }
 
 
-    # json:: stubs (2 commands)
+    # json:: stubs (6 commands)
 
     proc json_dict2json {args} {
         ::itest::log_decision json dict2json $args
@@ -4809,11 +5114,51 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc json_list2json {args} {
+        ::itest::log_decision json list2json $args
+        return ""
+    }
 
-    # logger:: stubs (4 commands)
+    proc json_many_json2dict {args} {
+        ::itest::log_decision json many-json2dict $args
+        return ""
+    }
+
+    proc json_string2json {args} {
+        ::itest::log_decision json string2json $args
+        return ""
+    }
+
+    proc json_validate {args} {
+        ::itest::log_decision json validate $args
+        return ""
+    }
+
+
+    # logger:: stubs (10 commands)
+
+    proc logger_disable {args} {
+        ::itest::log_decision logger disable $args
+        return ""
+    }
+
+    proc logger_enable {args} {
+        ::itest::log_decision logger enable $args
+        return ""
+    }
+
+    proc logger_import {args} {
+        ::itest::log_decision logger import $args
+        return ""
+    }
 
     proc logger_init {args} {
         ::itest::log_decision logger init $args
+        return ""
+    }
+
+    proc logger_initNamespace {args} {
+        ::itest::log_decision logger initNamespace $args
         return ""
     }
 
@@ -4832,11 +5177,101 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc logger_setlevel {args} {
+        ::itest::log_decision logger setlevel $args
+        return ""
+    }
 
-    # math:: stubs (6 commands)
+    proc logger_walk {args} {
+        ::itest::log_decision logger walk $args
+        return ""
+    }
+
+
+    # math:: stubs (43 commands)
+
+    proc math_analyse_Kruskal_Wallis {args} {
+        ::itest::log_decision math analyse-Kruskal-Wallis $args
+        return ""
+    }
+
+    proc math_autocorr {args} {
+        ::itest::log_decision math autocorr $args
+        return ""
+    }
 
     proc math_basic_stats {args} {
         ::itest::log_decision math basic-stats $args
+        return ""
+    }
+
+    proc math_control_Rchart {args} {
+        ::itest::log_decision math control-Rchart $args
+        return ""
+    }
+
+    proc math_control_xbar {args} {
+        ::itest::log_decision math control-xbar $args
+        return ""
+    }
+
+    proc math_corr {args} {
+        ::itest::log_decision math corr $args
+        return ""
+    }
+
+    proc math_crosscorr {args} {
+        ::itest::log_decision math crosscorr $args
+        return ""
+    }
+
+    proc math_filter {args} {
+        ::itest::log_decision math filter $args
+        return ""
+    }
+
+    proc math_group_rank {args} {
+        ::itest::log_decision math group-rank $args
+        return ""
+    }
+
+    proc math_histogram {args} {
+        ::itest::log_decision math histogram $args
+        return ""
+    }
+
+    proc math_histogram_alt {args} {
+        ::itest::log_decision math histogram-alt $args
+        return ""
+    }
+
+    proc math_interval_mean_stdev {args} {
+        ::itest::log_decision math interval-mean-stdev $args
+        return ""
+    }
+
+    proc math_lillieforsFit {args} {
+        ::itest::log_decision math lillieforsFit $args
+        return ""
+    }
+
+    proc math_linear_model {args} {
+        ::itest::log_decision math linear-model $args
+        return ""
+    }
+
+    proc math_linear_residuals {args} {
+        ::itest::log_decision math linear-residuals $args
+        return ""
+    }
+
+    proc math_map {args} {
+        ::itest::log_decision math map $args
+        return ""
+    }
+
+    proc math_max {args} {
+        ::itest::log_decision math max $args
         return ""
     }
 
@@ -4845,8 +5280,43 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc math_mean_histogram_limits {args} {
+        ::itest::log_decision math mean-histogram-limits $args
+        return ""
+    }
+
     proc math_median {args} {
         ::itest::log_decision math median $args
+        return ""
+    }
+
+    proc math_min {args} {
+        ::itest::log_decision math min $args
+        return ""
+    }
+
+    proc math_minmax_histogram_limits {args} {
+        ::itest::log_decision math minmax-histogram-limits $args
+        return ""
+    }
+
+    proc math_number {args} {
+        ::itest::log_decision math number $args
+        return ""
+    }
+
+    proc math_print_2x2 {args} {
+        ::itest::log_decision math print-2x2 $args
+        return ""
+    }
+
+    proc math_pstdev {args} {
+        ::itest::log_decision math pstdev $args
+        return ""
+    }
+
+    proc math_pvar {args} {
+        ::itest::log_decision math pvar $args
         return ""
     }
 
@@ -4855,8 +5325,78 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc math_samplescount {args} {
+        ::itest::log_decision math samplescount $args
+        return ""
+    }
+
+    proc math_spearman_rank {args} {
+        ::itest::log_decision math spearman-rank $args
+        return ""
+    }
+
+    proc math_spearman_rank_extended {args} {
+        ::itest::log_decision math spearman-rank-extended $args
+        return ""
+    }
+
     proc math_stdev {args} {
         ::itest::log_decision math stdev $args
+        return ""
+    }
+
+    proc math_t_test_mean {args} {
+        ::itest::log_decision math t-test-mean $args
+        return ""
+    }
+
+    proc math_test_2x2 {args} {
+        ::itest::log_decision math test-2x2 $args
+        return ""
+    }
+
+    proc math_test_Duckworth {args} {
+        ::itest::log_decision math test-Duckworth $args
+        return ""
+    }
+
+    proc math_test_Dunnett {args} {
+        ::itest::log_decision math test-Dunnett $args
+        return ""
+    }
+
+    proc math_test_Kruskal_Wallis {args} {
+        ::itest::log_decision math test-Kruskal-Wallis $args
+        return ""
+    }
+
+    proc math_test_Rchart {args} {
+        ::itest::log_decision math test-Rchart $args
+        return ""
+    }
+
+    proc math_test_Tukey_range {args} {
+        ::itest::log_decision math test-Tukey-range $args
+        return ""
+    }
+
+    proc math_test_Wilcoxon {args} {
+        ::itest::log_decision math test-Wilcoxon $args
+        return ""
+    }
+
+    proc math_test_anova_F {args} {
+        ::itest::log_decision math test-anova-F $args
+        return ""
+    }
+
+    proc math_test_normal {args} {
+        ::itest::log_decision math test-normal $args
+        return ""
+    }
+
+    proc math_test_xbar {args} {
+        ::itest::log_decision math test-xbar $args
         return ""
     }
 
@@ -4874,10 +5414,35 @@ namespace eval ::itest::cmd {
     }
 
 
-    # mime:: stubs (4 commands)
+    # mime:: stubs (19 commands)
+
+    proc mime_buildmessage {args} {
+        ::itest::log_decision mime buildmessage $args
+        return ""
+    }
+
+    proc mime_copymessage {args} {
+        ::itest::log_decision mime copymessage $args
+        return ""
+    }
+
+    proc mime_field_decode {args} {
+        ::itest::log_decision mime field_decode $args
+        return ""
+    }
 
     proc mime_finalize {args} {
         ::itest::log_decision mime finalize $args
+        return ""
+    }
+
+    proc mime_getContentType {args} {
+        ::itest::log_decision mime getContentType $args
+        return ""
+    }
+
+    proc mime_getTransferEncoding {args} {
+        ::itest::log_decision mime getTransferEncoding $args
         return ""
     }
 
@@ -4886,8 +5451,18 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc mime_getheader {args} {
+        ::itest::log_decision mime getheader $args
+        return ""
+    }
+
     proc mime_getproperty {args} {
         ::itest::log_decision mime getproperty $args
+        return ""
+    }
+
+    proc mime_getsize {args} {
+        ::itest::log_decision mime getsize $args
         return ""
     }
 
@@ -4896,8 +5471,48 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc mime_mapencoding {args} {
+        ::itest::log_decision mime mapencoding $args
+        return ""
+    }
 
-    # msgcat:: stubs (16 commands)
+    proc mime_parseaddress {args} {
+        ::itest::log_decision mime parseaddress $args
+        return ""
+    }
+
+    proc mime_parsedatetime {args} {
+        ::itest::log_decision mime parsedatetime $args
+        return ""
+    }
+
+    proc mime_reversemapencoding {args} {
+        ::itest::log_decision mime reversemapencoding $args
+        return ""
+    }
+
+    proc mime_setheader {args} {
+        ::itest::log_decision mime setheader $args
+        return ""
+    }
+
+    proc mime_uniqueID {args} {
+        ::itest::log_decision mime uniqueID $args
+        return ""
+    }
+
+    proc mime_word_decode {args} {
+        ::itest::log_decision mime word_decode $args
+        return ""
+    }
+
+    proc mime_word_encode {args} {
+        ::itest::log_decision mime word_encode $args
+        return ""
+    }
+
+
+    # msgcat:: stubs (18 commands)
 
     proc msgcat_mc {args} {
         ::itest::log_decision msgcat mc $args
@@ -4964,6 +5579,11 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc msgcat_mcpackagenamespaceget {args} {
+        ::itest::log_decision msgcat mcpackagenamespaceget $args
+        return ""
+    }
+
     proc msgcat_mcpreferences {args} {
         ::itest::log_decision msgcat mcpreferences $args
         return ""
@@ -4976,6 +5596,11 @@ namespace eval ::itest::cmd {
 
     proc msgcat_mcunknown {args} {
         ::itest::log_decision msgcat mcunknown $args
+        return ""
+    }
+
+    proc msgcat_mcutil {args} {
+        ::itest::log_decision msgcat mcutil $args
         return ""
     }
 
@@ -5083,7 +5708,17 @@ namespace eval ::itest::cmd {
     }
 
 
-    # snit:: stubs (5 commands)
+    # snit:: stubs (7 commands)
+
+    proc snit_compile {args} {
+        ::itest::log_decision snit compile $args
+        return ""
+    }
+
+    proc snit_macro {args} {
+        ::itest::log_decision snit macro $args
+        return ""
+    }
 
     proc snit_method {args} {
         ::itest::log_decision snit method $args
@@ -5134,7 +5769,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # tcl:: stubs (9 commands)
+    # tcl:: stubs (11 commands)
 
     proc tcl_OptKeyDelete {args} {
         ::itest::log_decision tcl OptKeyDelete $args
@@ -5168,6 +5803,16 @@ namespace eval ::itest::cmd {
 
     proc tcl_OptProcArgGiven {args} {
         ::itest::log_decision tcl OptProcArgGiven $args
+        return ""
+    }
+
+    proc tcl_decode {args} {
+        ::itest::log_decision tcl decode $args
+        return ""
+    }
+
+    proc tcl_encode {args} {
+        ::itest::log_decision tcl encode $args
         return ""
     }
 
@@ -5390,10 +6035,30 @@ namespace eval ::itest::cmd {
     }
 
 
-    # textutil:: stubs (5 commands)
+    # textutil:: stubs (23 commands)
 
     proc textutil_adjust {args} {
         ::itest::log_decision textutil adjust $args
+        return ""
+    }
+
+    proc textutil_blank {args} {
+        ::itest::log_decision textutil blank $args
+        return ""
+    }
+
+    proc textutil_cap {args} {
+        ::itest::log_decision textutil cap $args
+        return ""
+    }
+
+    proc textutil_capEachWord {args} {
+        ::itest::log_decision textutil capEachWord $args
+        return ""
+    }
+
+    proc textutil_chop {args} {
+        ::itest::log_decision textutil chop $args
         return ""
     }
 
@@ -5402,8 +6067,43 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc textutil_longestCommonPrefix {args} {
+        ::itest::log_decision textutil longestCommonPrefix $args
+        return ""
+    }
+
+    proc textutil_longestCommonPrefixList {args} {
+        ::itest::log_decision textutil longestCommonPrefixList $args
+        return ""
+    }
+
+    proc textutil_splitn {args} {
+        ::itest::log_decision textutil splitn $args
+        return ""
+    }
+
     proc textutil_splitx {args} {
         ::itest::log_decision textutil splitx $args
+        return ""
+    }
+
+    proc textutil_strRepeat {args} {
+        ::itest::log_decision textutil strRepeat $args
+        return ""
+    }
+
+    proc textutil_tabify {args} {
+        ::itest::log_decision textutil tabify $args
+        return ""
+    }
+
+    proc textutil_tabify2 {args} {
+        ::itest::log_decision textutil tabify2 $args
+        return ""
+    }
+
+    proc textutil_tail {args} {
+        ::itest::log_decision textutil tail $args
         return ""
     }
 
@@ -5412,8 +6112,43 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc textutil_trimEmptyHeading {args} {
+        ::itest::log_decision textutil trimEmptyHeading $args
+        return ""
+    }
+
+    proc textutil_trimPrefix {args} {
+        ::itest::log_decision textutil trimPrefix $args
+        return ""
+    }
+
+    proc textutil_trimleft {args} {
+        ::itest::log_decision textutil trimleft $args
+        return ""
+    }
+
+    proc textutil_trimright {args} {
+        ::itest::log_decision textutil trimright $args
+        return ""
+    }
+
+    proc textutil_uncap {args} {
+        ::itest::log_decision textutil uncap $args
+        return ""
+    }
+
     proc textutil_undent {args} {
         ::itest::log_decision textutil undent $args
+        return ""
+    }
+
+    proc textutil_untabify {args} {
+        ::itest::log_decision textutil untabify $args
+        return ""
+    }
+
+    proc textutil_untabify2 {args} {
+        ::itest::log_decision textutil untabify2 $args
         return ""
     }
 
@@ -5481,15 +6216,40 @@ namespace eval ::itest::cmd {
     }
 
 
-    # uri:: stubs (3 commands)
+    # uri:: stubs (8 commands)
+
+    proc uri_canonicalize {args} {
+        ::itest::log_decision uri canonicalize $args
+        return ""
+    }
+
+    proc uri_geturl {args} {
+        ::itest::log_decision uri geturl $args
+        return ""
+    }
+
+    proc uri_isrelative {args} {
+        ::itest::log_decision uri isrelative $args
+        return ""
+    }
 
     proc uri_join {args} {
         ::itest::log_decision uri join $args
         return ""
     }
 
+    proc uri_register {args} {
+        ::itest::log_decision uri register $args
+        return ""
+    }
+
     proc uri_resolve {args} {
         ::itest::log_decision uri resolve $args
+        return ""
+    }
+
+    proc uri_setQuirkOption {args} {
+        ::itest::log_decision uri setQuirkOption $args
         return ""
     }
 
@@ -5507,7 +6267,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # yaml:: stubs (3 commands)
+    # yaml:: stubs (6 commands)
 
     proc yaml_dict2yaml {args} {
         ::itest::log_decision yaml dict2yaml $args
@@ -5519,8 +6279,23 @@ namespace eval ::itest::cmd {
         return ""
     }
 
+    proc yaml_list2yaml {args} {
+        ::itest::log_decision yaml list2yaml $args
+        return ""
+    }
+
+    proc yaml_setOptions {args} {
+        ::itest::log_decision yaml setOptions $args
+        return ""
+    }
+
     proc yaml_yaml2dict {args} {
         ::itest::log_decision yaml yaml2dict $args
+        return ""
+    }
+
+    proc yaml_yaml2huddle {args} {
+        ::itest::log_decision yaml yaml2huddle $args
         return ""
     }
 
@@ -7029,4 +7804,4 @@ namespace eval ::itest::cmd {
 
 }
 
-# Total stub mocks generated: 1317
+# Total stub mocks generated: 1472

@@ -2264,7 +2264,7 @@ class Analyser:
                 case "unexport":
                     class_def.unexports.update(sub_args)
                 case "property":
-                    self._extract_property_defs(sub_args, sub_tokens, class_def)
+                    self._extract_property_defs(sub_args, sub_tokens, class_def, scope)
                 case "private":
                     # private wraps another definition subcommand
                     if sub_args and sub_tokens:
@@ -2337,6 +2337,8 @@ class Analyser:
                 class_def.exports.update(sub_args)
             case "unexport":
                 class_def.unexports.update(sub_args)
+            case "property":
+                self._extract_property_defs(sub_args, sub_tokens, class_def, scope)
 
     def _extract_method_def(
         self,
@@ -2443,22 +2445,65 @@ class Analyser:
         args: list[str],
         arg_tokens: list[Token],
         class_def: ClassDef,
+        scope: Scope | None = None,
     ) -> None:
-        """Extract property definitions from a ``property`` subcommand."""
+        """Extract property definitions from a ``property`` subcommand.
+
+        The property command accepts: ``property name ?name ...? ?-get body?
+        ?-set body? ?-kind readable|readwrite|writable?``.  All three options
+        take a value; there are no flag-only options.
+        """
+        # Collect property names first, then apply trailing options.
+        names: list[tuple[str, int]] = []
+        options: dict[str, str] = {}
+        option_tokens: dict[str, Token | None] = {}
         i = 0
         while i < len(args):
             arg = args[i]
             if arg.startswith("-"):
-                # Skip option flags and their values (-get body, -set body, etc.)
-                i += 2  # skip flag + value
+                # All property options (-get, -set, -kind) take a value.
+                if i + 1 < len(args):
+                    options[arg] = args[i + 1]
+                    option_tokens[arg] = arg_tokens[i + 1] if i + 1 < len(arg_tokens) else None
+                i += 2
                 continue
-            # This is a property name
-            prop_range = range_from_token(arg_tokens[i]) if i < len(arg_tokens) else Range.zero()
-            class_def.properties[arg] = PropertyDef(
-                name=arg,
-                name_range=prop_range,
-            )
+            names.append((arg, i))
             i += 1
+
+        kind = options.get("-kind", "readwrite")
+        has_getter = "-get" in options
+        has_setter = "-set" in options
+        for name, idx in names:
+            prop_range = (
+                range_from_token(arg_tokens[idx]) if idx < len(arg_tokens) else Range.zero()
+            )
+            class_def.properties[name] = PropertyDef(
+                name=name,
+                name_range=prop_range,
+                kind=kind,
+                has_getter=has_getter,
+                has_setter=has_setter,
+            )
+        # Recurse into accessor bodies.
+        if scope is not None:
+            for opt in ("-set", "-get"):
+                if opt in options:
+                    body = options[opt]
+                    body_tok = option_tokens.get(opt)
+                    prop_scope = Scope(
+                        kind="accessor",
+                        name=f"{class_def.name}::<{opt[1:]}>",
+                        parent=scope,
+                    )
+                    scope.children.append(prop_scope)
+                    for var_name in class_def.variables:
+                        if var_name not in prop_scope.variables:
+                            prop_scope.variables[var_name] = VarDef(
+                                name=var_name,
+                                definition_range=class_def.name_range,
+                                warn_if_unused=False,
+                            )
+                    self._analyse_body(body, prop_scope, body_token=body_tok)
 
     # ------------------------------------------------------------------
     # Unknown proc body analysis

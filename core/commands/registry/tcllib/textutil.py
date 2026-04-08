@@ -148,3 +148,79 @@ class TextutilUndentCommand(CommandDef):
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="textutil::undent text"),),
             validation=ValidationSpec(arity=Arity(1, 1)),
         )
+
+
+def _tu(name: str, summary: str, synopsis: str, arity: Arity) -> type:
+    """Register a pure textutil command."""
+
+    @register
+    class _Cmd(CommandDef):
+        pass
+
+    _Cmd.name = f"textutil::{name}"
+    _Cmd.spec = classmethod(  # type: ignore[assignment]
+        lambda cls, _n=f"textutil::{name}", _s=summary, _syn=synopsis, _a=arity: CommandSpec(
+            name=_n,
+            tcllib_package=_PACKAGE,
+            pure=True,
+            hover=HoverSnippet(summary=_s, synopsis=(_syn,), source=_SOURCE),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis=_syn),),
+            validation=ValidationSpec(arity=_a),
+        )
+    )
+    return _Cmd
+
+
+_tu("tabify", "Convert spaces to tabs.", "textutil::tabify string ?num?", Arity(1, 2))
+_tu("untabify", "Convert tabs to spaces.", "textutil::untabify string ?num?", Arity(1, 2))
+_tu(
+    "tabify2",
+    "Convert spaces to tabs (position-aware).",
+    "textutil::tabify2 string ?num?",
+    Arity(1, 2),
+)
+_tu(
+    "untabify2",
+    "Convert tabs to spaces (position-aware).",
+    "textutil::untabify2 string ?num?",
+    Arity(1, 2),
+)
+_tu("strRepeat", "Repeat a string N times.", "textutil::strRepeat char num", Arity(2, 2))
+_tu("blank", "Return a string of N spaces.", "textutil::blank n", Arity(1, 1))
+_tu("cap", "Capitalise the first character.", "textutil::cap string", Arity(1, 1))
+_tu("uncap", "Lowercase the first character.", "textutil::uncap string", Arity(1, 1))
+_tu("chop", "Remove the last character.", "textutil::chop string", Arity(1, 1))
+_tu("tail", "Remove the first character.", "textutil::tail string", Arity(1, 1))
+_tu("capEachWord", "Capitalise each word.", "textutil::capEachWord sentence", Arity(1, 1))
+_tu(
+    "longestCommonPrefix",
+    "Find the longest common prefix of strings.",
+    "textutil::longestCommonPrefix ?string ...?",
+    Arity(0),
+)
+_tu(
+    "longestCommonPrefixList",
+    "Find the longest common prefix of a list of strings.",
+    "textutil::longestCommonPrefixList list",
+    Arity(1, 1),
+)
+_tu(
+    "trimleft",
+    "Trim leading characters from each line.",
+    "textutil::trimleft text ?regexp?",
+    Arity(1, 2),
+)
+_tu(
+    "trimright",
+    "Trim trailing characters from each line.",
+    "textutil::trimright text ?regexp?",
+    Arity(1, 2),
+)
+_tu("trimPrefix", "Remove a prefix from a string.", "textutil::trimPrefix text prefix", Arity(2, 2))
+_tu(
+    "trimEmptyHeading",
+    "Remove leading empty lines.",
+    "textutil::trimEmptyHeading text",
+    Arity(1, 1),
+)
+_tu("splitn", "Split a string into chunks of length N.", "textutil::splitn str ?len?", Arity(1, 2))

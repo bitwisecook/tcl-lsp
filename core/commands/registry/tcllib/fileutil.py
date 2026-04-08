@@ -5,7 +5,7 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "tcllib fileutil package"
@@ -43,7 +43,6 @@ class FileutilCatCommand(CommandDef):
                 SideEffect(
                     target=SideEffectTarget.FILE_IO,
                     reads=True,
-                    writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
@@ -106,10 +105,204 @@ class FileutilTempdirCommand(CommandDef):
             tcllib_package=_PACKAGE,
             hover=HoverSnippet(
                 summary="Return the path of the system temporary directory.",
-                synopsis=("fileutil::tempdir",),
+                synopsis=("fileutil::tempdir ?path?",),
                 source=_SOURCE,
                 return_value="The system temporary directory path.",
             ),
-            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="fileutil::tempdir"),),
-            validation=ValidationSpec(arity=Arity(0, 0)),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="fileutil::tempdir ?path?"),),
+            validation=ValidationSpec(arity=Arity(0, 1)),
         )
+
+
+def _fileutil_se(
+    *,
+    reads: bool = False,
+    writes: bool = False,
+) -> tuple[SideEffect, ...]:
+    return (
+        SideEffect(
+            target=SideEffectTarget.FILE_IO,
+            reads=reads,
+            writes=writes,
+            connection_side=ConnectionSide.NONE,
+        ),
+    )
+
+
+def _update_in_place_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Last argument is the body script."""
+    if not args:
+        return {}
+    return {len(args) - 1: ArgRole.BODY}
+
+
+def _fu(name: str, summary: str, synopsis: str, arity: Arity, **kw: object) -> type:
+    """Helper to generate simple fileutil command defs."""
+    spec_kw: dict[str, object] = {
+        "name": f"fileutil::{name}",
+        "tcllib_package": _PACKAGE,
+        "hover": HoverSnippet(summary=summary, synopsis=(synopsis,), source=_SOURCE),
+        "forms": (FormSpec(kind=FormKind.DEFAULT, synopsis=synopsis),),
+        "validation": ValidationSpec(arity=arity),
+    }
+    spec_kw.update(kw)
+
+    @register
+    class _Cmd(CommandDef):
+        pass
+
+    _Cmd.name = f"fileutil::{name}"
+    _Cmd.spec = classmethod(lambda cls, _kw=spec_kw: CommandSpec(**_kw))  # type: ignore[assignment]
+    return _Cmd
+
+
+_fu(
+    "foreachLine",
+    "Iterate over each line of a file.",
+    "fileutil::foreachLine var filename cmd",
+    Arity(3, 3),
+    arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.BODY},
+    side_effect_hints=_fileutil_se(reads=True),
+)
+_fu(
+    "grep",
+    "Search for a pattern in files.",
+    "fileutil::grep pattern ?files?",
+    Arity(1, 2),
+    side_effect_hints=_fileutil_se(reads=True),
+)
+_fu(
+    "find",
+    "Recursively find files matching a filter.",
+    "fileutil::find ?basedir? ?filtercmd?",
+    Arity(0, 2),
+    side_effect_hints=_fileutil_se(reads=True),
+)
+_fu(
+    "findByPattern",
+    "Find files matching glob or regexp patterns.",
+    "fileutil::findByPattern basedir ?-glob|-regexp? ?--? patterns",
+    Arity(1),
+    side_effect_hints=_fileutil_se(reads=True),
+)
+_fu(
+    "touch",
+    "Update file access/modification times.",
+    "fileutil::touch ?options? filename ...",
+    Arity(0),
+    side_effect_hints=_fileutil_se(writes=True),
+)
+_fu(
+    "test",
+    "Test file properties.",
+    "fileutil::test path codes ?msgvar? ?label?",
+    Arity(2, 4),
+    arg_roles={2: ArgRole.VAR_NAME},
+)
+_fu(
+    "updateInPlace",
+    "Update a file in place using a command.",
+    "fileutil::updateInPlace ?options? fileName cmdOrBody",
+    Arity(2),
+    arg_role_resolver=_update_in_place_arg_roles,
+    side_effect_hints=_fileutil_se(reads=True, writes=True),
+)
+_fu(
+    "install",
+    "Copy a file and optionally set permissions.",
+    "fileutil::install ?-m mode? source destination",
+    Arity(2),
+    side_effect_hints=_fileutil_se(writes=True),
+)
+_fu(
+    "fileType",
+    "Determine the type of a file.",
+    "fileutil::fileType filename",
+    Arity(1, 1),
+    side_effect_hints=_fileutil_se(reads=True),
+)
+_fu(
+    "appendToFile",
+    "Append data to a file.",
+    "fileutil::appendToFile ?options? file data",
+    Arity(2),
+    side_effect_hints=_fileutil_se(writes=True),
+)
+_fu(
+    "insertIntoFile",
+    "Insert data into a file at an offset.",
+    "fileutil::insertIntoFile ?options? file at data",
+    Arity(3),
+    side_effect_hints=_fileutil_se(reads=True, writes=True),
+)
+_fu(
+    "removeFromFile",
+    "Remove data from a file.",
+    "fileutil::removeFromFile ?options? file at n",
+    Arity(3),
+    side_effect_hints=_fileutil_se(reads=True, writes=True),
+)
+_fu(
+    "replaceInFile",
+    "Replace data in a file.",
+    "fileutil::replaceInFile ?options? file at n data",
+    Arity(4),
+    side_effect_hints=_fileutil_se(reads=True, writes=True),
+)
+_fu(
+    "stripPwd",
+    "Remove the current directory prefix from a path.",
+    "fileutil::stripPwd path",
+    Arity(1, 1),
+    pure=True,
+)
+_fu(
+    "stripN", "Remove N leading path components.", "fileutil::stripN path n", Arity(2, 2), pure=True
+)
+_fu(
+    "jail",
+    "Confine a path under a base directory.",
+    "fileutil::jail base path",
+    Arity(2, 2),
+    pure=True,
+)
+_fu(
+    "lexnormalize",
+    "Lexically normalise a path.",
+    "fileutil::lexnormalize path",
+    Arity(1, 1),
+    pure=True,
+)
+_fu("relative", "Compute a relative path.", "fileutil::relative base dst", Arity(2, 2), pure=True)
+_fu(
+    "relativeUrl",
+    "Compute a relative URL path.",
+    "fileutil::relativeUrl base dst",
+    Arity(2, 2),
+    pure=True,
+)
+_fu(
+    "fullnormalize",
+    "Fully normalise a path (resolves symlinks).",
+    "fileutil::fullnormalize path",
+    Arity(1, 1),
+    side_effect_hints=_fileutil_se(reads=True),
+)
+_fu(
+    "maketempdir",
+    "Create a temporary directory.",
+    "fileutil::maketempdir ?options?",
+    Arity(0),
+    side_effect_hints=_fileutil_se(writes=True),
+)
+_fu(
+    "tempdirReset",
+    "Reset the cached temporary directory path.",
+    "fileutil::tempdirReset",
+    Arity(0, 0),
+    side_effect_hints=(
+        SideEffect(
+            target=SideEffectTarget.VARIABLE, writes=True, connection_side=ConnectionSide.NONE
+        ),
+    ),
+)

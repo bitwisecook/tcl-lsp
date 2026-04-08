@@ -62,6 +62,11 @@ class OoObjectCommand(CommandDef):
                                 "This method returns the globally qualified name of the variable varName in the unique namespace for the object obj.",
                                 "obj varname varName",
                             ),
+                            _av(
+                                "<cloned>",
+                                "This method is used by oo::copy to copy state from one object to another. It copies procedures and variables from the source object's namespace.",
+                                "obj <cloned> sourceObjectName",
+                            ),
                         )
                     },
                 ),

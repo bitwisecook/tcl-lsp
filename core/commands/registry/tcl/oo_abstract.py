@@ -9,6 +9,7 @@ from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
 from ._base import register
+from .oo_class import _oo_metaclass_arg_roles
 
 _SOURCE = "Tcl man page abstract.n"
 
@@ -40,17 +41,17 @@ class OoAbstractCommand(CommandDef):
                         0: (
                             _av(
                                 "create",
-                                "This creates a new abstract class called name, passing the arguments, arg ..., to the constructor.",
+                                "This creates a new abstract class called name. Note: create is not exported on instances of oo::abstract; abstract classes cannot be directly instantiated.",
                                 "cls create name ?arg ...?",
                             ),
                             _av(
                                 "new",
-                                "This creates a new abstract class with a new unique name, passing the arguments, arg ..., to the constructor.",
+                                "This creates a new abstract class with a unique name. Note: new is not exported on instances of oo::abstract; abstract classes cannot be directly instantiated.",
                                 "cls new ?arg ...?",
                             ),
                             _av(
                                 "createWithNamespace",
-                                "This creates a new abstract class called name with an explicitly chosen namespace nsName.",
+                                "This creates a new abstract class with an explicitly chosen namespace. Note: createWithNamespace is not exported on instances of oo::abstract.",
                                 "cls createWithNamespace name nsName ?arg ...?",
                             ),
                         )
@@ -60,6 +61,7 @@ class OoAbstractCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
+            arg_role_resolver=_oo_metaclass_arg_roles,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

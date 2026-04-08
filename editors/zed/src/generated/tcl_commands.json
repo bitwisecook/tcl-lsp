@@ -219,12 +219,42 @@
       "summary": "Close a channel."
     },
     {
+      "name": "cmdline::getArgv0",
+      "summary": "Return the application name from the command line.",
+      "pure": true
+    },
+    {
+      "name": "cmdline::getKnownOpt",
+      "summary": "Parse a single known command-line option."
+    },
+    {
+      "name": "cmdline::getKnownOptions",
+      "summary": "Parse all known command-line options according to a specification."
+    },
+    {
+      "name": "cmdline::getfiles",
+      "summary": "Expand file patterns into a list of matching files."
+    },
+    {
       "name": "cmdline::getopt",
       "summary": "Parse a single command-line option."
     },
     {
       "name": "cmdline::getoptions",
       "summary": "Parse all command-line options according to a specification."
+    },
+    {
+      "name": "cmdline::typedGetopt",
+      "summary": "Parse a single typed command-line option."
+    },
+    {
+      "name": "cmdline::typedGetoptions",
+      "summary": "Parse all typed command-line options according to a specification."
+    },
+    {
+      "name": "cmdline::typedUsage",
+      "summary": "Generate a usage string from a typed option specification.",
+      "pure": true
     },
     {
       "name": "cmdline::usage",
@@ -245,12 +275,30 @@
       "summary": "Create and produce values from coroutines"
     },
     {
+      "name": "csv::iscomplete",
+      "summary": "Test whether a CSV record is complete or has unbalanced quotes.",
+      "pure": true
+    },
+    {
       "name": "csv::join",
       "summary": "Join a list of values into a CSV-formatted line."
     },
     {
-      "name": "csv::read",
-      "summary": "Read a CSV file into a matrix object."
+      "name": "csv::joinlist",
+      "summary": "Join a list of lists into CSV-formatted lines.",
+      "pure": true
+    },
+    {
+      "name": "csv::joinmatrix",
+      "summary": "Join a matrix object into CSV-formatted lines."
+    },
+    {
+      "name": "csv::read2matrix",
+      "summary": "Read CSV data from a channel into a matrix object."
+    },
+    {
+      "name": "csv::read2queue",
+      "summary": "Read CSV data from a channel into a queue object."
     },
     {
       "name": "csv::report",
@@ -259,6 +307,22 @@
     {
       "name": "csv::split",
       "summary": "Split a CSV-formatted line into a list of values."
+    },
+    {
+      "name": "csv::split2matrix",
+      "summary": "Split CSV data and store it into a matrix object."
+    },
+    {
+      "name": "csv::split2queue",
+      "summary": "Split CSV data and store it into a queue object."
+    },
+    {
+      "name": "csv::writematrix",
+      "summary": "Write a matrix object to a channel in CSV format."
+    },
+    {
+      "name": "csv::writequeue",
+      "summary": "Write a queue object to a channel in CSV format."
     },
     {
       "name": "dict",
@@ -297,12 +361,48 @@
       "summary": "Clean up resources associated with a DNS query."
     },
     {
+      "name": "dns::cname",
+      "summary": "Return the canonical name from a DNS query result."
+    },
+    {
+      "name": "dns::configure",
+      "summary": "Get or set DNS client configuration options."
+    },
+    {
+      "name": "dns::dump",
+      "summary": "Dump the contents of a DNS query token for debugging."
+    },
+    {
+      "name": "dns::error",
+      "summary": "Return the error message from a DNS query."
+    },
+    {
+      "name": "dns::errorcode",
+      "summary": "Return the error code from a DNS query."
+    },
+    {
       "name": "dns::name",
       "summary": "Return the domain name from a DNS query result."
     },
     {
+      "name": "dns::reset",
+      "summary": "Reset a DNS query."
+    },
+    {
       "name": "dns::resolve",
       "summary": "Perform a DNS lookup."
+    },
+    {
+      "name": "dns::result",
+      "summary": "Return the result of a DNS query."
+    },
+    {
+      "name": "dns::status",
+      "summary": "Return the status of a DNS query."
+    },
+    {
+      "name": "dns::wait",
+      "summary": "Wait for a DNS query to complete."
     },
     {
       "name": "encoding",
@@ -408,16 +508,110 @@
       "summary": "File name conventions"
     },
     {
+      "name": "fileutil::appendToFile",
+      "summary": "Append data to a file."
+    },
+    {
       "name": "fileutil::cat",
       "summary": "Return the contents of one or more files."
+    },
+    {
+      "name": "fileutil::fileType",
+      "summary": "Determine the type of a file."
+    },
+    {
+      "name": "fileutil::find",
+      "summary": "Recursively find files matching a filter."
+    },
+    {
+      "name": "fileutil::findByPattern",
+      "summary": "Find files matching glob or regexp patterns."
+    },
+    {
+      "name": "fileutil::foreachLine",
+      "summary": "Iterate over each line of a file."
+    },
+    {
+      "name": "fileutil::fullnormalize",
+      "summary": "Fully normalise a path (resolves symlinks)."
+    },
+    {
+      "name": "fileutil::grep",
+      "summary": "Search for a pattern in files."
+    },
+    {
+      "name": "fileutil::insertIntoFile",
+      "summary": "Insert data into a file at an offset."
+    },
+    {
+      "name": "fileutil::install",
+      "summary": "Copy a file and optionally set permissions."
+    },
+    {
+      "name": "fileutil::jail",
+      "summary": "Confine a path under a base directory.",
+      "pure": true
+    },
+    {
+      "name": "fileutil::lexnormalize",
+      "summary": "Lexically normalise a path.",
+      "pure": true
+    },
+    {
+      "name": "fileutil::maketempdir",
+      "summary": "Create a temporary directory."
+    },
+    {
+      "name": "fileutil::relative",
+      "summary": "Compute a relative path.",
+      "pure": true
+    },
+    {
+      "name": "fileutil::relativeUrl",
+      "summary": "Compute a relative URL path.",
+      "pure": true
+    },
+    {
+      "name": "fileutil::removeFromFile",
+      "summary": "Remove data from a file."
+    },
+    {
+      "name": "fileutil::replaceInFile",
+      "summary": "Replace data in a file."
+    },
+    {
+      "name": "fileutil::stripN",
+      "summary": "Remove N leading path components.",
+      "pure": true
+    },
+    {
+      "name": "fileutil::stripPwd",
+      "summary": "Remove the current directory prefix from a path.",
+      "pure": true
     },
     {
       "name": "fileutil::tempdir",
       "summary": "Return the path of the system temporary directory."
     },
     {
+      "name": "fileutil::tempdirReset",
+      "summary": "Reset the cached temporary directory path."
+    },
+    {
       "name": "fileutil::tempfile",
       "summary": "Create a temporary file and return its path."
+    },
+    {
+      "name": "fileutil::test",
+      "summary": "Test file properties."
+    },
+    {
+      "name": "fileutil::touch",
+      "summary": "Update file access/modification times."
+    },
+    {
+      "name": "fileutil::updateInPlace",
+      "summary": "Update a file in place using a command."
     },
     {
       "name": "fileutil::writeFile",
@@ -501,16 +695,6 @@
       "summary": "Create or configure an HTTP cookie jar (TclOO class)."
     },
     {
-      "name": "http::cookiejar::IDNAdecode",
-      "summary": "Decode a hostname from IDNA format to Unicode.",
-      "pure": true
-    },
-    {
-      "name": "http::cookiejar::IDNAencode",
-      "summary": "Encode a hostname to IDNA (Internationalised Domain Names) format.",
-      "pure": true
-    },
-    {
       "name": "http::data",
       "summary": "Return the body of the HTTP response."
     },
@@ -536,8 +720,18 @@
       "summary": "Return the numeric HTTP status code (e.g. 200, 404)."
     },
     {
+      "name": "http::postError",
+      "summary": "Return the post-request error message, if any.",
+      "pure": true
+    },
+    {
       "name": "http::quoteString",
       "summary": "URL-encode a single string.",
+      "pure": true
+    },
+    {
+      "name": "http::reasonPhrase",
+      "summary": "Return the standard reason phrase for an HTTP status code.",
       "pure": true
     },
     {
@@ -545,8 +739,57 @@
       "summary": "Register a protocol handler (e.g. https) with the http package."
     },
     {
+      "name": "http::registerError",
+      "summary": "Register or retrieve an error message for a protocol handler."
+    },
+    {
+      "name": "http::requestHeaderValue",
+      "summary": "Return the value of a specific HTTP request header.",
+      "pure": true
+    },
+    {
+      "name": "http::requestHeaders",
+      "summary": "Return the HTTP request headers as a list.",
+      "pure": true
+    },
+    {
+      "name": "http::requestLine",
+      "summary": "Return the HTTP request line sent.",
+      "pure": true
+    },
+    {
       "name": "http::reset",
       "summary": "Reset an HTTP transaction."
+    },
+    {
+      "name": "http::responseBody",
+      "summary": "Return the body of the HTTP response.",
+      "pure": true
+    },
+    {
+      "name": "http::responseCode",
+      "summary": "Return the numeric HTTP response code.",
+      "pure": true
+    },
+    {
+      "name": "http::responseHeaderValue",
+      "summary": "Return the value of a specific HTTP response header.",
+      "pure": true
+    },
+    {
+      "name": "http::responseHeaders",
+      "summary": "Return the HTTP response headers as a list.",
+      "pure": true
+    },
+    {
+      "name": "http::responseInfo",
+      "summary": "Return a dict of response metadata.",
+      "pure": true
+    },
+    {
+      "name": "http::responseLine",
+      "summary": "Return the HTTP response status line.",
+      "pure": true
     },
     {
       "name": "http::size",
@@ -640,6 +883,11 @@
       ]
     },
     {
+      "name": "ip::collapse",
+      "summary": "Collapse a list of IP addresses or subnets into the minimal set.",
+      "pure": true
+    },
+    {
       "name": "ip::contract",
       "summary": "Contract an IPv6 address to its shortest form.",
       "pure": true
@@ -650,6 +898,16 @@
       "pure": true
     },
     {
+      "name": "ip::is",
+      "summary": "Test whether a value is a valid IP address of the given class.",
+      "pure": true
+    },
+    {
+      "name": "ip::mask",
+      "summary": "Return the network mask for an address.",
+      "pure": true
+    },
+    {
       "name": "ip::normalize",
       "summary": "Normalise an IP address to its canonical form.",
       "pure": true
@@ -657,6 +915,16 @@
     {
       "name": "ip::prefix",
       "summary": "Return the network prefix of an address/mask.",
+      "pure": true
+    },
+    {
+      "name": "ip::subtract",
+      "summary": "Subtract address ranges from a list of hosts.",
+      "pure": true
+    },
+    {
+      "name": "ip::type",
+      "summary": "Return the type of an IP address.",
       "pure": true
     },
     {
@@ -676,6 +944,26 @@
     {
       "name": "json::json2dict",
       "summary": "Convert a JSON string to a Tcl dict."
+    },
+    {
+      "name": "json::list2json",
+      "summary": "Convert a Tcl list to a JSON array.",
+      "pure": true
+    },
+    {
+      "name": "json::many-json2dict",
+      "summary": "Convert a string containing multiple JSON values to a list of dicts.",
+      "pure": true
+    },
+    {
+      "name": "json::string2json",
+      "summary": "Convert a Tcl string to a JSON string value.",
+      "pure": true
+    },
+    {
+      "name": "json::validate",
+      "summary": "Validate whether a string is valid JSON.",
+      "pure": true
     },
     {
       "name": "lappend",
@@ -718,8 +1006,24 @@
       "summary": "Load machine code and initialize new commands"
     },
     {
+      "name": "logger::disable",
+      "summary": "Disable logging at the specified level."
+    },
+    {
+      "name": "logger::enable",
+      "summary": "Enable logging at the specified level."
+    },
+    {
+      "name": "logger::import",
+      "summary": "Import logger commands into the current namespace."
+    },
+    {
       "name": "logger::init",
       "summary": "Initialise a logger for a service."
+    },
+    {
+      "name": "logger::initNamespace",
+      "summary": "Initialise logging for a namespace."
     },
     {
       "name": "logger::levels",
@@ -733,6 +1037,14 @@
     {
       "name": "logger::services",
       "summary": "Return a list of all active logger services."
+    },
+    {
+      "name": "logger::setlevel",
+      "summary": "Set the logging level for all logger services."
+    },
+    {
+      "name": "logger::walk",
+      "summary": "Walk the logger tree applying a command to each service."
     },
     {
       "name": "lrange",
@@ -775,8 +1087,88 @@
       "summary": "String-backed list command for testing (9.0+)."
     },
     {
+      "name": "math::statistics::analyse-Kruskal-Wallis",
+      "summary": "Analyse Kruskal-Wallis results.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::autocorr",
+      "summary": "Return the autocorrelation.",
+      "pure": true
+    },
+    {
       "name": "math::statistics::basic-stats",
       "summary": "Compute basic statistics (mean, min, max, count, stdev).",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::control-Rchart",
+      "summary": "Compute R-chart control limits.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::control-xbar",
+      "summary": "Compute X-bar control chart limits.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::corr",
+      "summary": "Return the correlation coefficient.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::crosscorr",
+      "summary": "Return the cross-correlation.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::filter",
+      "summary": "Filter data by expression.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::group-rank",
+      "summary": "Rank grouped data.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::histogram",
+      "summary": "Compute a histogram.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::histogram-alt",
+      "summary": "Compute a histogram (alternate boundaries).",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::interval-mean-stdev",
+      "summary": "Compute confidence interval for mean and stdev.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::lillieforsFit",
+      "summary": "Lilliefors goodness-of-fit test.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::linear-model",
+      "summary": "Fit a linear regression model.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::linear-residuals",
+      "summary": "Compute residuals of a linear model.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::map",
+      "summary": "Map data by expression.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::max",
+      "summary": "Return the maximum value.",
       "pure": true
     },
     {
@@ -785,8 +1177,43 @@
       "pure": true
     },
     {
+      "name": "math::statistics::mean-histogram-limits",
+      "summary": "Compute histogram limits from mean and stdev.",
+      "pure": true
+    },
+    {
       "name": "math::statistics::median",
       "summary": "Compute the median of a list of values.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::min",
+      "summary": "Return the minimum value.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::minmax-histogram-limits",
+      "summary": "Compute histogram limits from min and max.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::number",
+      "summary": "Return the count of values.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::print-2x2",
+      "summary": "Format a 2x2 contingency table.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::pstdev",
+      "summary": "Return the population standard deviation.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::pvar",
+      "summary": "Return the population variance.",
       "pure": true
     },
     {
@@ -795,8 +1222,78 @@
       "pure": true
     },
     {
+      "name": "math::statistics::samplescount",
+      "summary": "Count samples matching expression.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::spearman-rank",
+      "summary": "Spearman rank correlation.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::spearman-rank-extended",
+      "summary": "Extended Spearman rank correlation.",
+      "pure": true
+    },
+    {
       "name": "math::statistics::stdev",
       "summary": "Compute the standard deviation of a list of values.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::t-test-mean",
+      "summary": "Perform a t-test on the mean.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::test-2x2",
+      "summary": "Analyse a 2x2 contingency table.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::test-Duckworth",
+      "summary": "Perform Duckworth test.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::test-Dunnett",
+      "summary": "Dunnett multiple comparison test.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::test-Kruskal-Wallis",
+      "summary": "Kruskal-Wallis rank test.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::test-Rchart",
+      "summary": "Test data against R-chart control limits.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::test-Tukey-range",
+      "summary": "Tukey range test.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::test-Wilcoxon",
+      "summary": "Wilcoxon signed-rank test.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::test-anova-F",
+      "summary": "One-way ANOVA F-test.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::test-normal",
+      "summary": "Test for normal distribution.",
+      "pure": true
+    },
+    {
+      "name": "math::statistics::test-xbar",
+      "summary": "Test data against X-bar control limits.",
       "pure": true
     },
     {
@@ -814,20 +1311,91 @@
       "summary": "Memory debugging (debug builds only)"
     },
     {
+      "name": "mime::buildmessage",
+      "summary": "Construct a MIME message from a token."
+    },
+    {
+      "name": "mime::copymessage",
+      "summary": "Copy MIME message to a channel."
+    },
+    {
+      "name": "mime::field_decode",
+      "summary": "Decode an RFC 2047 header field.",
+      "pure": true
+    },
+    {
       "name": "mime::finalize",
       "summary": "Destroy a MIME part and free resources."
+    },
+    {
+      "name": "mime::getContentType",
+      "summary": "Return the content type of a MIME token.",
+      "pure": true
+    },
+    {
+      "name": "mime::getTransferEncoding",
+      "summary": "Return the transfer encoding of a MIME token.",
+      "pure": true
     },
     {
       "name": "mime::getbody",
       "summary": "Return the body of a MIME part."
     },
     {
+      "name": "mime::getheader",
+      "summary": "Get header value(s) from a MIME token.",
+      "pure": true
+    },
+    {
       "name": "mime::getproperty",
       "summary": "Return a property of a MIME part."
     },
     {
+      "name": "mime::getsize",
+      "summary": "Return the size of a MIME message.",
+      "pure": true
+    },
+    {
       "name": "mime::initialize",
       "summary": "Create a MIME part from data, a file, or a channel."
+    },
+    {
+      "name": "mime::mapencoding",
+      "summary": "Map a Tcl encoding name to a MIME charset.",
+      "pure": true
+    },
+    {
+      "name": "mime::parseaddress",
+      "summary": "Parse an RFC 2822 address string.",
+      "pure": true
+    },
+    {
+      "name": "mime::parsedatetime",
+      "summary": "Parse an RFC 2822 date/time string.",
+      "pure": true
+    },
+    {
+      "name": "mime::reversemapencoding",
+      "summary": "Map a MIME charset to a Tcl encoding name.",
+      "pure": true
+    },
+    {
+      "name": "mime::setheader",
+      "summary": "Set a header on a MIME token."
+    },
+    {
+      "name": "mime::uniqueID",
+      "summary": "Generate a globally unique identifier."
+    },
+    {
+      "name": "mime::word_decode",
+      "summary": "Decode an RFC 2047 encoded word.",
+      "pure": true
+    },
+    {
+      "name": "mime::word_encode",
+      "summary": "Encode a string per RFC 2047.",
+      "pure": true
     },
     {
       "name": "msgcat::mc",
@@ -882,6 +1450,10 @@
       "summary": "Get, set, or manage the locale for the calling package."
     },
     {
+      "name": "msgcat::mcpackagenamespaceget",
+      "summary": "Return the package namespace for the calling context."
+    },
+    {
       "name": "msgcat::mcpreferences",
       "summary": "Return the ordered list of locale preferences."
     },
@@ -892,6 +1464,10 @@
     {
       "name": "msgcat::mcunknown",
       "summary": "Called when a translation is not found; override for custom behaviour."
+    },
+    {
+      "name": "msgcat::mcutil",
+      "summary": "Utility subcommands for the message catalogue system."
     },
     {
       "name": "my",
@@ -1150,6 +1726,14 @@
       "summary": "Send an e-mail message via SMTP."
     },
     {
+      "name": "snit::compile",
+      "summary": "Compile a snit type definition into a Tcl script."
+    },
+    {
+      "name": "snit::macro",
+      "summary": "Define a snit macro for use in type definitions."
+    },
+    {
       "name": "snit::method",
       "summary": "Define an instance method outside a type definition body."
     },
@@ -1219,21 +1803,29 @@
         "assign",
         "dbJoin",
         "dbJoinKeyed",
+        "delete",
         "equal",
         "filter",
         "filterfor",
+        "firstperm",
         "flatten",
         "fold",
         "foreachperm",
         "iota",
         "lcsInvert",
+        "lcsInvertMerge",
         "longestCommonSubsequence",
+        "longestCommonSubsequence2",
         "map",
         "mapfor",
+        "nextperm",
+        "permutations",
         "repeat",
+        "repeatn",
         "reverse",
         "shift",
         "shuffle",
+        "split",
         "swap"
       ],
       "pure": true
@@ -1246,6 +1838,7 @@
       "name": "struct::set",
       "summary": "Set operations on Tcl lists (union, intersect, difference, etc.).",
       "subcommands": [
+        "add",
         "contains",
         "difference",
         "empty",
@@ -1253,7 +1846,10 @@
         "exclude",
         "include",
         "intersect",
+        "intersect3",
+        "size",
         "subsetof",
+        "subtract",
         "symdiff",
         "union"
       ],
@@ -1302,6 +1898,16 @@
     {
       "name": "tcl::OptProcArgGiven",
       "summary": "Return 1 if the named option was explicitly given, 0 otherwise."
+    },
+    {
+      "name": "tcl::idna::decode",
+      "summary": "Decode a hostname from IDNA format to Unicode.",
+      "pure": true
+    },
+    {
+      "name": "tcl::idna::encode",
+      "summary": "Encode a hostname to IDNA (Internationalised Domain Names) format.",
+      "pure": true
     },
     {
       "name": "tcl::tm::path",
@@ -1922,20 +2528,110 @@
       "summary": "Adjust a text block to a given line length."
     },
     {
+      "name": "textutil::blank",
+      "summary": "Return a string of N spaces.",
+      "pure": true
+    },
+    {
+      "name": "textutil::cap",
+      "summary": "Capitalise the first character.",
+      "pure": true
+    },
+    {
+      "name": "textutil::capEachWord",
+      "summary": "Capitalise each word.",
+      "pure": true
+    },
+    {
+      "name": "textutil::chop",
+      "summary": "Remove the last character.",
+      "pure": true
+    },
+    {
       "name": "textutil::indent",
       "summary": "Indent each line of text by a given prefix."
+    },
+    {
+      "name": "textutil::longestCommonPrefix",
+      "summary": "Find the longest common prefix of strings.",
+      "pure": true
+    },
+    {
+      "name": "textutil::longestCommonPrefixList",
+      "summary": "Find the longest common prefix of a list of strings.",
+      "pure": true
+    },
+    {
+      "name": "textutil::splitn",
+      "summary": "Split a string into chunks of length N.",
+      "pure": true
     },
     {
       "name": "textutil::splitx",
       "summary": "Split a string using a regexp pattern as delimiter."
     },
     {
+      "name": "textutil::strRepeat",
+      "summary": "Repeat a string N times.",
+      "pure": true
+    },
+    {
+      "name": "textutil::tabify",
+      "summary": "Convert spaces to tabs.",
+      "pure": true
+    },
+    {
+      "name": "textutil::tabify2",
+      "summary": "Convert spaces to tabs (position-aware).",
+      "pure": true
+    },
+    {
+      "name": "textutil::tail",
+      "summary": "Remove the first character.",
+      "pure": true
+    },
+    {
       "name": "textutil::trim",
       "summary": "Remove leading whitespace from each line of text."
     },
     {
+      "name": "textutil::trimEmptyHeading",
+      "summary": "Remove leading empty lines.",
+      "pure": true
+    },
+    {
+      "name": "textutil::trimPrefix",
+      "summary": "Remove a prefix from a string.",
+      "pure": true
+    },
+    {
+      "name": "textutil::trimleft",
+      "summary": "Trim leading characters from each line.",
+      "pure": true
+    },
+    {
+      "name": "textutil::trimright",
+      "summary": "Trim trailing characters from each line.",
+      "pure": true
+    },
+    {
+      "name": "textutil::uncap",
+      "summary": "Lowercase the first character.",
+      "pure": true
+    },
+    {
       "name": "textutil::undent",
       "summary": "Remove common leading whitespace from all lines."
+    },
+    {
+      "name": "textutil::untabify",
+      "summary": "Convert tabs to spaces.",
+      "pure": true
+    },
+    {
+      "name": "textutil::untabify2",
+      "summary": "Convert tabs to spaces (position-aware).",
+      "pure": true
     },
     {
       "name": "throw",
@@ -1986,12 +2682,34 @@
       "summary": "Create link to variable in a different stack frame"
     },
     {
+      "name": "uri::canonicalize",
+      "summary": "Canonicalize a URI.",
+      "pure": true
+    },
+    {
+      "name": "uri::geturl",
+      "summary": "Fetch the contents of a URI."
+    },
+    {
+      "name": "uri::isrelative",
+      "summary": "Test whether a URI is relative.",
+      "pure": true
+    },
+    {
       "name": "uri::join",
       "summary": "Construct a URI from component parts."
     },
     {
+      "name": "uri::register",
+      "summary": "Register a new URI scheme handler."
+    },
+    {
       "name": "uri::resolve",
       "summary": "Resolve a relative URI reference against a base URI."
+    },
+    {
+      "name": "uri::setQuirkOption",
+      "summary": "Set a quirk option for URI processing."
     },
     {
       "name": "uri::split",
@@ -2026,8 +2744,21 @@
       "summary": "Convert a huddle object to a YAML string."
     },
     {
+      "name": "yaml::list2yaml",
+      "summary": "Convert a Tcl list to a YAML string.",
+      "pure": true
+    },
+    {
+      "name": "yaml::setOptions",
+      "summary": "Set options for YAML processing."
+    },
+    {
       "name": "yaml::yaml2dict",
       "summary": "Parse a YAML string and return a Tcl dict."
+    },
+    {
+      "name": "yaml::yaml2huddle",
+      "summary": "Parse a YAML string and return a huddle object."
     },
     {
       "name": "yield",

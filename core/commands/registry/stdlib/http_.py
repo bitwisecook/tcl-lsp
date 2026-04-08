@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
@@ -204,7 +205,7 @@ class HttpRegister(CommandDef):
                 ),
                 source=_SOURCE,
             ),
-            validation=ValidationSpec(arity=Arity(3, 3)),
+            validation=ValidationSpec(arity=Arity(3, 6)),
         )
 
 
@@ -281,6 +282,7 @@ class HttpCode(CommandDef):
                 source=_SOURCE,
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),
+            deprecated_replacement="http::responseLine",
         )
 
 
@@ -299,6 +301,7 @@ class HttpNcode(CommandDef):
                 source=_SOURCE,
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),
+            deprecated_replacement="http::responseCode",
         )
 
 
@@ -317,6 +320,7 @@ class HttpMeta(CommandDef):
                 source=_SOURCE,
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),
+            deprecated_replacement="http::responseHeaders",
         )
 
 
@@ -335,6 +339,7 @@ class HttpData(CommandDef):
                 source=_SOURCE,
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),
+            deprecated_replacement="http::responseBody",
         )
 
 
@@ -353,4 +358,247 @@ class HttpError(CommandDef):
                 source=_SOURCE,
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),
+        )
+
+
+@register
+class HttpPostError(CommandDef):
+    name = "http::postError"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::postError",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the post-request error message, if any.",
+                synopsis=("http::postError token",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+        )
+
+
+@register
+class HttpRegisterError(CommandDef):
+    name = "http::registerError"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::registerError",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Register or retrieve an error message for a protocol handler.",
+                synopsis=("http::registerError token",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.VARIABLE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class HttpRequestLine(CommandDef):
+    name = "http::requestLine"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::requestLine",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the HTTP request line sent.",
+                synopsis=("http::requestLine token",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+        )
+
+
+@register
+class HttpRequestHeaders(CommandDef):
+    name = "http::requestHeaders"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::requestHeaders",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the HTTP request headers as a list.",
+                synopsis=(
+                    "http::requestHeaders token",
+                    "http::requestHeaders token ?name?",
+                ),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1, 2)),
+            pure=True,
+            return_type=TclType.LIST,
+        )
+
+
+@register
+class HttpRequestHeaderValue(CommandDef):
+    name = "http::requestHeaderValue"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::requestHeaderValue",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the value of a specific HTTP request header.",
+                synopsis=("http::requestHeaderValue token name",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(2, 2)),
+            pure=True,
+        )
+
+
+@register
+class HttpResponseLine(CommandDef):
+    name = "http::responseLine"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::responseLine",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the HTTP response status line.",
+                synopsis=("http::responseLine token",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+        )
+
+
+@register
+class HttpResponseHeaders(CommandDef):
+    name = "http::responseHeaders"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::responseHeaders",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the HTTP response headers as a list.",
+                synopsis=(
+                    "http::responseHeaders token",
+                    "http::responseHeaders token ?name?",
+                ),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1, 2)),
+            pure=True,
+            return_type=TclType.LIST,
+        )
+
+
+@register
+class HttpResponseHeaderValue(CommandDef):
+    name = "http::responseHeaderValue"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::responseHeaderValue",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the value of a specific HTTP response header.",
+                synopsis=("http::responseHeaderValue token name",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(2, 2)),
+            pure=True,
+        )
+
+
+@register
+class HttpResponseCode(CommandDef):
+    name = "http::responseCode"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::responseCode",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the numeric HTTP response code.",
+                synopsis=("http::responseCode token",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+        )
+
+
+@register
+class HttpResponseBody(CommandDef):
+    name = "http::responseBody"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::responseBody",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the body of the HTTP response.",
+                synopsis=("http::responseBody token",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+        )
+
+
+@register
+class HttpResponseInfo(CommandDef):
+    name = "http::responseInfo"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::responseInfo",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return a dict of response metadata.",
+                synopsis=("http::responseInfo token",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+            return_type=TclType.DICT,
+        )
+
+
+@register
+class HttpReasonPhrase(CommandDef):
+    name = "http::reasonPhrase"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="http::reasonPhrase",
+            required_package=_PKG,
+            hover=HoverSnippet(
+                summary="Return the standard reason phrase for an HTTP status code.",
+                synopsis=("http::reasonPhrase code",),
+                source=_SOURCE,
+            ),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
         )

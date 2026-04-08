@@ -13,6 +13,25 @@ from ._base import register
 _SOURCE = "Tcl man page try.n"
 
 
+def _try_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Resolve BODY roles for try/on/trap/finally."""
+    roles: dict[int, ArgRole] = {}
+    if args:
+        roles[0] = ArgRole.BODY
+    i = 1
+    while i < len(args):
+        kw = args[i]
+        if kw == "finally" and i + 1 < len(args):
+            roles[i + 1] = ArgRole.BODY
+            i += 2
+        elif kw in ("on", "trap") and i + 3 < len(args):
+            roles[i + 3] = ArgRole.BODY
+            i += 4
+        else:
+            i += 1
+    return roles
+
+
 @register
 class TryCommand(CommandDef):
     name = "try"
@@ -40,7 +59,7 @@ class TryCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
-            arg_roles={0: ArgRole.BODY},
+            arg_role_resolver=_try_arg_roles,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

@@ -204,6 +204,30 @@ class ArrayCommand(CommandDef):
                     synopsis="array default subcommand arrayName args...",
                     return_type=TclType.STRING,
                     arg_roles={1: ArgRole.VAR_NAME},
+                    arg_values={
+                        0: (
+                            _av(
+                                "exists",
+                                "Returns a boolean indicating whether a default value has been set for the array.",
+                                "array default exists arrayName",
+                            ),
+                            _av(
+                                "get",
+                                "Returns the current default value for the array.",
+                                "array default get arrayName",
+                            ),
+                            _av(
+                                "set",
+                                "Sets the default value for the array to value.",
+                                "array default set arrayName value",
+                            ),
+                            _av(
+                                "unset",
+                                "Removes the default value for the array.",
+                                "array default unset arrayName",
+                            ),
+                        )
+                    },
                 ),
                 "for": SubCommand(
                     name="for",

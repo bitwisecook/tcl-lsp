@@ -68,13 +68,13 @@ class CsvJoinCommand(CommandDef):
                     synopsis="csv::join values ?sepChar? ?quoteChar?",
                 ),
             ),
-            validation=ValidationSpec(arity=Arity(1, 3)),
+            validation=ValidationSpec(arity=Arity(1, 4)),
         )
 
 
 @register
-class CsvReadCommand(CommandDef):
-    name = "csv::read"
+class CsvRead2MatrixCommand(CommandDef):
+    name = "csv::read2matrix"
 
     @classmethod
     def spec(cls) -> CommandSpec:
@@ -82,18 +82,18 @@ class CsvReadCommand(CommandDef):
             name=cls.name,
             tcllib_package=_PACKAGE,
             hover=HoverSnippet(
-                summary="Read a CSV file into a matrix object.",
-                synopsis=("csv::read matrix chan ?sepChar? ?expand?",),
+                summary="Read CSV data from a channel into a matrix object.",
+                synopsis=("csv::read2matrix ?-alternate? chan m ?sepChar? ?expand?",),
                 source=_SOURCE,
                 return_value="The number of lines read.",
             ),
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="csv::read matrix chan ?sepChar? ?expand?",
+                    synopsis="csv::read2matrix ?-alternate? chan m ?sepChar? ?expand?",
                 ),
             ),
-            validation=ValidationSpec(arity=Arity(2, 4)),
+            validation=ValidationSpec(arity=Arity(2, 5)),
         )
 
 
@@ -118,4 +118,219 @@ class CsvReportCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(2, 3)),
+        )
+
+
+@register
+class CsvJoinlistCommand(CommandDef):
+    name = "csv::joinlist"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Join a list of lists into CSV-formatted lines.",
+                synopsis=("csv::joinlist values ?sepChar? ?quoteChar? ?quoteStyle?",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="csv::joinlist values ?sepChar? ?quoteChar? ?quoteStyle?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(1, 4)),
+            pure=True,
+        )
+
+
+@register
+class CsvJoinmatrixCommand(CommandDef):
+    name = "csv::joinmatrix"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Join a matrix object into CSV-formatted lines.",
+                synopsis=("csv::joinmatrix matrix ?sepChar? ?quoteChar? ?quoteStyle?",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="csv::joinmatrix matrix ?sepChar? ?quoteChar? ?quoteStyle?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(1, 4)),
+        )
+
+
+@register
+class CsvIscompleteCommand(CommandDef):
+    name = "csv::iscomplete"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Test whether a CSV record is complete or has unbalanced quotes.",
+                synopsis=("csv::iscomplete data",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="csv::iscomplete data",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(1, 1)),
+            pure=True,
+        )
+
+
+@register
+class CsvRead2queueCommand(CommandDef):
+    name = "csv::read2queue"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Read CSV data from a channel into a queue object.",
+                synopsis=("csv::read2queue ?-alternate? chan q ?sepChar? ?quoteChar?",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="csv::read2queue ?-alternate? chan q ?sepChar? ?quoteChar?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(2, 4)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.FILE_IO,
+                    reads=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class CsvSplit2matrixCommand(CommandDef):
+    name = "csv::split2matrix"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Split CSV data and store it into a matrix object.",
+                synopsis=("csv::split2matrix ?-alternate? m line ?sepChar? ?quoteChar?",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="csv::split2matrix ?-alternate? m line ?sepChar? ?quoteChar?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(2, 5)),
+        )
+
+
+@register
+class CsvSplit2queueCommand(CommandDef):
+    name = "csv::split2queue"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Split CSV data and store it into a queue object.",
+                synopsis=("csv::split2queue ?-alternate? q line ?sepChar?",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="csv::split2queue ?-alternate? q line ?sepChar?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(2, 4)),
+        )
+
+
+@register
+class CsvWritematrixCommand(CommandDef):
+    name = "csv::writematrix"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Write a matrix object to a channel in CSV format.",
+                synopsis=("csv::writematrix m chan ?sepChar? ?quoteChar?",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="csv::writematrix m chan ?sepChar? ?quoteChar?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(2, 4)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.FILE_IO,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class CsvWritequeueCommand(CommandDef):
+    name = "csv::writequeue"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Write a queue object to a channel in CSV format.",
+                synopsis=("csv::writequeue q chan ?sepChar? ?quoteChar?",),
+                source=_SOURCE,
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="csv::writequeue q chan ?sepChar? ?quoteChar?",
+                ),
+            ),
+            validation=ValidationSpec(arity=Arity(2, 4)),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.FILE_IO,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
         )

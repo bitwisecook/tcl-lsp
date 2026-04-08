@@ -28,7 +28,7 @@ class ReadCommand(CommandDef):
                     "read ?-nonewline? channel",
                     "read channel numChars",
                 ),
-                snippet="The read command has been superceded by the chan read command which supports the same syntax and options.",
+                snippet="The read command has been superseded by the chan read command which supports the same syntax and options.",
                 source=_SOURCE,
             ),
             forms=(

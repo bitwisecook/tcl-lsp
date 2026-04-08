@@ -5,7 +5,7 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "tcllib snit package"
@@ -147,4 +147,60 @@ class SnitMethodCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(4, 4)),
+        )
+
+
+@register
+class SnitCompileCommand(CommandDef):
+    name = "snit::compile"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Compile a snit type definition into a Tcl script.",
+                synopsis=("snit::compile which name body",),
+                source=_SOURCE,
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::compile which name body"),),
+            validation=ValidationSpec(arity=Arity(3, 3)),
+            arg_roles={2: ArgRole.BODY},
+            creates_dynamic_barrier=True,
+            never_inline_body=True,
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.INTERP_STATE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
+        )
+
+
+@register
+class SnitMacroCommand(CommandDef):
+    name = "snit::macro"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name=cls.name,
+            tcllib_package=_PACKAGE,
+            hover=HoverSnippet(
+                summary="Define a snit macro for use in type definitions.",
+                synopsis=("snit::macro name arglist body",),
+                source=_SOURCE,
+            ),
+            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::macro name arglist body"),),
+            validation=ValidationSpec(arity=Arity(3, 3)),
+            arg_roles={2: ArgRole.BODY},
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.INTERP_STATE,
+                    writes=True,
+                    connection_side=ConnectionSide.NONE,
+                ),
+            ),
         )

@@ -145,6 +145,11 @@ class NamespaceCommand(CommandDef):
                                 "Retrieves the value of an option associated with the ensemble command named command, or updates some options associated with that ensemble command.",
                                 "namespace ensemble configure command ?option? ?value ...?",
                             ),
+                            _av(
+                                "exists",
+                                "Returns 1 if command names an existing ensemble command, or 0 otherwise.",
+                                "namespace ensemble exists command",
+                            ),
                         )
                     },
                 ),
@@ -165,7 +170,6 @@ class NamespaceCommand(CommandDef):
                     synopsis="namespace code script",
                     pure=True,
                     return_type=TclType.STRING,
-                    arg_roles={0: ArgRole.BODY},
                 ),
                 "current": SubCommand(
                     name="current",

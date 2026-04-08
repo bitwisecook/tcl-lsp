@@ -13,6 +13,43 @@ from ._base import register
 _SOURCE = "Tcl if(1)"
 
 
+def _if_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Resolve BODY and EXPR roles for if/elseif/else chains."""
+    roles: dict[int, ArgRole] = {}
+    i = 0
+    if i < len(args):
+        roles[i] = ArgRole.EXPR
+        i += 1
+    if i < len(args) and args[i] == "then":
+        i += 1
+    if i < len(args):
+        roles[i] = ArgRole.BODY
+        i += 1
+    while i < len(args):
+        kw = args[i]
+        if kw == "elseif":
+            i += 1
+            if i < len(args):
+                roles[i] = ArgRole.EXPR
+                i += 1
+            if i < len(args) and args[i] == "then":
+                i += 1
+            if i < len(args):
+                roles[i] = ArgRole.BODY
+                i += 1
+            continue
+        if kw == "else":
+            if i + 1 < len(args):
+                roles[i + 1] = ArgRole.BODY
+            break
+        # Implicit else: a trailing word after the last body (no keyword).
+        if i == len(args) - 1:
+            roles[i] = ArgRole.BODY
+            break
+        i += 1
+    return roles
+
+
 @register
 class IfCommand(CommandDef):
     name = "if"
@@ -40,7 +77,7 @@ class IfCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2),
             ),
-            arg_roles={0: ArgRole.EXPR, 1: ArgRole.BODY, 3: ArgRole.BODY, 5: ArgRole.BODY},
+            arg_role_resolver=_if_arg_roles,
             return_type=TclType.STRING,
             arg_types={0: ArgTypeHint(expected=TclType.BOOLEAN, shimmers=True)},
             side_effect_hints=(
