@@ -45,7 +45,7 @@ class OoObjdefineCommand(CommandDef):
                             _av(
                                 "classmethod",
                                 "This creates a class method, or (if argList and bodyScript are omitted) promotes an existing method on the class object to be a class method.",
-                                "classmethod name ?argList bodyScrip?",
+                                "classmethod name ?argList bodyScript?",
                             ),
                             _av(
                                 "constructor",

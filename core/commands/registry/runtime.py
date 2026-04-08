@@ -677,9 +677,9 @@ def _oo_definition_body_indices(command: str, args: list[str]) -> set[int]:
     if command == "destructor" and len(args) >= 1:
         return {0}
     if command == "method" and len(args) >= 3:
-        return {2}
+        return {len(args) - 1}
     if command == "classmethod" and len(args) >= 3:
-        return {2}  # classmethod name argList bodyScript
+        return {len(args) - 1}
     if command in ("initialise", "initialize") and len(args) >= 1:
         return {0}  # initialise script
     if command == "private" and len(args) >= 1:
@@ -691,9 +691,9 @@ def _oo_definition_body_indices(command: str, args: list[str]) -> set[int]:
         if subcommand == "destructor" and len(args) >= 2:
             return {1}
         if subcommand == "method" and len(args) >= 4:
-            return {3}
+            return {len(args) - 1}
         if subcommand == "classmethod" and len(args) >= 4:
-            return {3}
+            return {len(args) - 1}
     if command == "property":
         result: set[int] = set()
         for i in range(len(args) - 1):

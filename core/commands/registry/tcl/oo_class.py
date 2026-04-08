@@ -14,13 +14,15 @@ _SOURCE = "Tcl man page class.n"
 
 
 def _oo_metaclass_arg_roles(args: list[str]) -> dict[int, ArgRole]:
-    """Resolve BODY roles for OO metaclass commands (create/new)."""
+    """Resolve BODY roles for OO metaclass commands (create/new/createWithNamespace)."""
     if len(args) < 2:
         return {}
     if args[0] == "create" and len(args) >= 3:
         return {2: ArgRole.BODY}
     if args[0] == "new" and len(args) >= 2:
         return {1: ArgRole.BODY}
+    if args[0] == "createWithNamespace" and len(args) >= 4:
+        return {3: ArgRole.BODY}
     return {}
 
 

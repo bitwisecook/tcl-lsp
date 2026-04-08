@@ -54,9 +54,9 @@ def _oo_define_arg_roles(args: list[str]) -> dict[int, ArgRole]:
     if subcommand == "destructor" and len(args) >= 3:
         return {2: ArgRole.BODY}
     if subcommand == "method" and len(args) >= 5:
-        return {4: ArgRole.BODY}
+        return {len(args) - 1: ArgRole.BODY}
     if subcommand == "classmethod" and len(args) >= 5:
-        return {4: ArgRole.BODY}
+        return {len(args) - 1: ArgRole.BODY}
     if subcommand in ("initialise", "initialize") and len(args) >= 3:
         return {2: ArgRole.BODY}
     if subcommand == "private" and len(args) >= 3:
@@ -68,9 +68,9 @@ def _oo_define_arg_roles(args: list[str]) -> dict[int, ArgRole]:
         if self_sub == "destructor" and len(args) >= 4:
             return {3: ArgRole.BODY}
         if self_sub == "method" and len(args) >= 6:
-            return {5: ArgRole.BODY}
+            return {len(args) - 1: ArgRole.BODY}
         if self_sub == "classmethod" and len(args) >= 6:
-            return {5: ArgRole.BODY}
+            return {len(args) - 1: ArgRole.BODY}
     if subcommand == "property":
         roles: dict[int, ArgRole] = {}
         for i in range(2, len(args) - 1):
@@ -111,7 +111,7 @@ class OoDefineCommand(CommandDef):
                             _av(
                                 "classmethod",
                                 "This creates a class method, or (if argList and bodyScript are omitted) promotes an existing method on the class object to be a class method.",
-                                "classmethod name ?argList bodyScrip?",
+                                "classmethod name ?argList bodyScript?",
                             ),
                             _av(
                                 "constructor",
