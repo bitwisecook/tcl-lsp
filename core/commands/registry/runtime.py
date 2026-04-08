@@ -67,9 +67,16 @@ def _role_hints_from_registry() -> dict[str, CommandSig | SubcommandSig]:
                             allow_unknown=spec.allow_unknown_subcommands,
                         ),
                     )
-            elif spec.arg_roles:
+            elif spec.arg_roles or spec.arg_role_resolver:
                 arity = spec.validation.arity if spec.validation else Arity()
-                hints.setdefault(name, CommandSig(arity=arity, arg_roles=dict(spec.arg_roles)))
+                hints.setdefault(
+                    name,
+                    CommandSig(
+                        arity=arity,
+                        arg_roles=dict(spec.arg_roles) if spec.arg_roles else {},
+                        arg_role_resolver=spec.arg_role_resolver,
+                    ),
+                )
     return hints
 
 
@@ -452,6 +459,7 @@ def _with_roles(name: str, sig: CommandSig | SubcommandSig) -> CommandSig | Subc
             return CommandSig(
                 arity=sig.arity,
                 arg_roles=dict(hint.arg_roles),
+                arg_role_resolver=hint.arg_role_resolver or sig.arg_role_resolver,
             )
         return sig
 
@@ -662,68 +670,6 @@ def configure_signatures(
     return True
 
 
-def _derive_oo_define_subcommands() -> frozenset[str]:
-    """Derive OO definition subcommand names from the oo::define registry spec."""
-    spec = REGISTRY.get("oo::define")
-    if spec is None:
-        return frozenset()
-    return frozenset(v.value for vals in spec.forms for v in vals.arg_values.get(0, ()))
-
-
-_TCL_OO_DEFINE_SUBCOMMANDS: frozenset[str] = frozenset()  # populated after init
-
-
-def _oo_class_object_body_indices(args: list[str]) -> set[int]:
-    """Return BODY argument indices for ``oo::class`` / ``oo::object``."""
-    if len(args) < 2:
-        return set()
-    subcommand = args[0]
-    if subcommand == "create" and len(args) >= 3:
-        return {2}
-    if subcommand == "new" and len(args) >= 2:
-        return {1}
-    return set()
-
-
-def _oo_define_body_indices(args: list[str]) -> set[int]:
-    """Return BODY argument indices for ``oo::define`` / ``oo::objdefine``."""
-    # Script form: oo::define Target { ...definition script... }
-    if len(args) == 2 and args[1] not in _TCL_OO_DEFINE_SUBCOMMANDS:
-        return {1}
-
-    if len(args) < 2:
-        return set()
-
-    subcommand = args[1]
-    if subcommand == "constructor" and len(args) >= 4:
-        return {3}
-    if subcommand == "destructor" and len(args) >= 3:
-        return {2}
-    if subcommand == "method" and len(args) >= 5:
-        return {4}
-    if subcommand == "classmethod" and len(args) >= 5:
-        return {4}  # oo::define Class classmethod name argList bodyScript
-    if subcommand in ("initialise", "initialize") and len(args) >= 3:
-        return {2}  # oo::define Class initialise script
-    if subcommand == "private" and len(args) >= 3:
-        return {2}  # oo::define Class private script
-    if subcommand == "self" and len(args) >= 3:
-        self_subcommand = args[2]
-        if self_subcommand == "constructor" and len(args) >= 5:
-            return {4}
-        if self_subcommand == "destructor" and len(args) >= 4:
-            return {3}
-        if self_subcommand == "method" and len(args) >= 6:
-            return {5}
-    if subcommand == "property":
-        result: set[int] = set()
-        for i in range(2, len(args) - 1):
-            if args[i] in ("-set", "-get"):
-                result.add(i + 1)
-        return result
-    return set()
-
-
 def _oo_definition_body_indices(command: str, args: list[str]) -> set[int]:
     """Return BODY argument indices for TclOO definition-script commands."""
     if command == "constructor" and len(args) >= 2:
@@ -746,6 +692,8 @@ def _oo_definition_body_indices(command: str, args: list[str]) -> set[int]:
             return {1}
         if subcommand == "method" and len(args) >= 4:
             return {3}
+        if subcommand == "classmethod" and len(args) >= 4:
+            return {3}
     if command == "property":
         result: set[int] = set()
         for i in range(len(args) - 1):
@@ -755,129 +703,10 @@ def _oo_definition_body_indices(command: str, args: list[str]) -> set[int]:
     return set()
 
 
-def _if_body_indices(args: list[str]) -> set[int]:
-    """Return BODY argument indices for an ``if`` command."""
-    result: set[int] = set()
-    i = 0
-
-    # Initial: if expr ?then? body
-    if i < len(args):
-        i += 1  # expr
-    if i < len(args) and args[i] == "then":
-        i += 1
-    if i < len(args):
-        result.add(i)
-        i += 1
-
-    # Repeated: ?elseif expr ?then? body? ... ?else body?
-    while i < len(args):
-        kw = args[i]
-        if kw == "elseif":
-            i += 1  # keyword
-            if i < len(args):
-                i += 1  # expr
-            if i < len(args) and args[i] == "then":
-                i += 1
-            if i < len(args):
-                result.add(i)
-                i += 1
-            continue
-        if kw == "else":
-            if i + 1 < len(args):
-                result.add(i + 1)
-            break
-        i += 1
-
-    return result
-
-
-def _if_expr_indices(args: list[str]) -> set[int]:
-    """Return EXPR argument indices for an ``if`` command."""
-    result: set[int] = set()
-    i = 0
-
-    # Initial: if expr ?then? body
-    if i < len(args):
-        result.add(i)
-        i += 1
-    if i < len(args) and args[i] == "then":
-        i += 1
-    if i < len(args):
-        i += 1  # body
-
-    # Repeated: ?elseif expr ?then? body? ... ?else body?
-    while i < len(args):
-        kw = args[i]
-        if kw == "elseif":
-            i += 1  # keyword
-            if i < len(args):
-                result.add(i)
-                i += 1
-            if i < len(args) and args[i] == "then":
-                i += 1
-            if i < len(args):
-                i += 1  # body
-            continue
-        if kw == "else":
-            break
-        i += 1
-
-    return result
-
-
-def _try_body_indices(args: list[str]) -> set[int]:
-    """Return BODY argument indices for a ``try`` command."""
-    result: set[int] = set()
-    if args:
-        result.add(0)  # try body
-
-    i = 1
-    while i < len(args):
-        kw = args[i]
-        if kw == "finally":
-            if i + 1 < len(args):
-                result.add(i + 1)
-            i += 2
-        elif kw in ("on", "trap"):
-            # on code varList body  /  trap pattern varList body
-            if i + 3 < len(args):
-                result.add(i + 3)
-            i += 4
-        else:
-            i += 1
-    return result
-
-
-def _switch_body_indices(args: list[str]) -> set[int]:
-    """Return BODY argument indices for a ``switch`` command."""
-    result: set[int] = set()
-    i = _skip_switch_options(args)
-    if i >= len(args):
-        return result
-
-    # Braced list form: single trailing argument.
-    if i == len(args) - 1:
-        result.add(i)
-        return result
-
-    # List form: pattern body pattern body ...
-    while i + 1 < len(args):
-        if args[i + 1] != "-":
-            result.add(i + 1)
-        i += 2
-
-    return result
-
-
 def _skip_switch_options(args: list[str]) -> int:
-    """Skip option flags and the switch value arg, return next index.
-
-    Handles ``-matchvar`` and ``-indexvar`` which consume a following
-    value argument, plus ``--`` which terminates option parsing.
-    """
+    """Skip option flags and the switch value arg, return next index."""
     value_opts = options_with_value("switch")
     i = skip_options(args, value_opts)
-    # Skip switch string/value argument.
     if i < len(args):
         i += 1
     return i
@@ -1055,34 +884,12 @@ def skip_options(
 def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[int]:
     """Return argument indices (0-based, after command name) for a role."""
     if role is ArgRole.BODY:
-        if command in (
-            "oo::class",
-            "oo::object",
-            "oo::configurable",
-            "oo::abstract",
-            "oo::singleton",
-        ):
-            return _oo_class_object_body_indices(args)
-        if command in ("oo::define", "oo::objdefine"):
-            return _oo_define_body_indices(args)
+        # OO definition subcommands are context-sensitive and cannot be
+        # registered in SIGNATURES (a user proc named "method" outside OO
+        # context would be misidentified).
         oo_body = _oo_definition_body_indices(command, args)
         if oo_body:
             return oo_body
-        if command == "when" and len(args) >= 2:
-            return {len(args) - 1}
-        if command == "if":
-            return _if_body_indices(args)
-        if command == "try":
-            return _try_body_indices(args)
-        if command == "switch":
-            return _switch_body_indices(args)
-        if command == "foreach" and len(args) >= 3:
-            return {len(args) - 1}
-        if command == "lmap" and len(args) >= 3:
-            return {len(args) - 1}
-    if role is ArgRole.EXPR:
-        if command == "if":
-            return _if_expr_indices(args)
     if role is ArgRole.PATTERN:
         if command in ("regexp", "regsub"):
             idx = regexp_pattern_index(args)
@@ -1091,6 +898,8 @@ def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[in
             return set()
 
     sig = SIGNATURES.get(command)
+    if sig is None:
+        sig = _ROLE_HINTS.get(command)
     if sig is None:
         return set()
 
@@ -1114,14 +923,12 @@ def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[in
         result = {
             idx for idx, arg_role in sig.arg_roles.items() if arg_role is role and idx < len(args)
         }
-        if role is ArgRole.BODY and command == "foreach" and len(args) >= 3:
-            result.add(len(args) - 1)
         return result
 
     return set()
 
 
-_SPECIAL_ROLES = frozenset({ArgRole.BODY, ArgRole.EXPR, ArgRole.PATTERN})
+_SPECIAL_ROLES = frozenset({ArgRole.BODY, ArgRole.PATTERN})
 
 
 def arg_indices_for_roles(
@@ -1151,6 +958,8 @@ def arg_indices_for_roles(
         return tuple(results)
 
     sig = SIGNATURES.get(command)
+    if sig is None:
+        sig = _ROLE_HINTS.get(command)
     if sig is None:
         return tuple(results)
 
@@ -1252,4 +1061,3 @@ _cmd_reg._on_specs_loaded = _invalidate_runtime_caches
 
 # Initialize runtime signatures for default profile.
 configure_signatures(dialect="tcl8.6", extra_commands=[])
-_TCL_OO_DEFINE_SUBCOMMANDS = _derive_oo_define_subcommands()

@@ -7,10 +7,77 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "Tcl man page define.n"
+
+_OO_DEFINE_SUBCOMMANDS = frozenset(
+    {
+        "classmethod",
+        "constructor",
+        "destructor",
+        "export",
+        "forward",
+        "initialise",
+        "initialize",
+        "method",
+        "private",
+        "self",
+        "superclass",
+        "unexport",
+        "variable",
+        "definitionnamespace",
+        "deletemethod",
+        "filter",
+        "mixin",
+        "renamemethod",
+        "property",
+        "class",
+        "Get",
+        "Resolve",
+        "Set",
+    }
+)
+
+
+def _oo_define_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Resolve BODY roles for ``oo::define`` / ``oo::objdefine``."""
+    # Script form: oo::define Target { script }
+    if len(args) == 2 and args[1] not in _OO_DEFINE_SUBCOMMANDS:
+        return {1: ArgRole.BODY}
+    if len(args) < 2:
+        return {}
+    subcommand = args[1]
+    if subcommand == "constructor" and len(args) >= 4:
+        return {3: ArgRole.BODY}
+    if subcommand == "destructor" and len(args) >= 3:
+        return {2: ArgRole.BODY}
+    if subcommand == "method" and len(args) >= 5:
+        return {4: ArgRole.BODY}
+    if subcommand == "classmethod" and len(args) >= 5:
+        return {4: ArgRole.BODY}
+    if subcommand in ("initialise", "initialize") and len(args) >= 3:
+        return {2: ArgRole.BODY}
+    if subcommand == "private" and len(args) >= 3:
+        return {2: ArgRole.BODY}
+    if subcommand == "self" and len(args) >= 3:
+        self_sub = args[2]
+        if self_sub == "constructor" and len(args) >= 5:
+            return {4: ArgRole.BODY}
+        if self_sub == "destructor" and len(args) >= 4:
+            return {3: ArgRole.BODY}
+        if self_sub == "method" and len(args) >= 6:
+            return {5: ArgRole.BODY}
+        if self_sub == "classmethod" and len(args) >= 6:
+            return {5: ArgRole.BODY}
+    if subcommand == "property":
+        roles: dict[int, ArgRole] = {}
+        for i in range(2, len(args) - 1):
+            if args[i] in ("-set", "-get"):
+                roles[i + 1] = ArgRole.BODY
+        return roles
+    return {}
 
 
 _av = make_av(_SOURCE)
@@ -158,6 +225,7 @@ class OoDefineCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
+            arg_role_resolver=_oo_define_arg_roles,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

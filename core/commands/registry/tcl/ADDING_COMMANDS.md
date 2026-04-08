@@ -306,6 +306,41 @@ subcommands={
 }
 ```
 
+### Variable-layout command (dynamic resolver)
+
+When argument positions depend on the actual invocation (optional keywords,
+option-value pairs, variable-length argument lists), use `arg_role_resolver`
+instead of static `arg_roles`.  The resolver receives the argument list
+(after the command name) and returns a dict mapping indices to roles:
+
+```python
+def _try_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    roles: dict[int, ArgRole] = {}
+    if args:
+        roles[0] = ArgRole.BODY          # try body
+    i = 1
+    while i < len(args):
+        kw = args[i]
+        if kw == "finally" and i + 1 < len(args):
+            roles[i + 1] = ArgRole.BODY  # finally body
+            i += 2
+        elif kw in ("on", "trap") and i + 3 < len(args):
+            roles[i + 3] = ArgRole.BODY  # handler body
+            i += 4
+        else:
+            i += 1
+    return roles
+
+CommandSpec(
+    name="try",
+    arg_role_resolver=_try_arg_roles,
+    ...
+)
+```
+
+Other examples: `if` (`if_.py`), `switch` (`switch_.py`),
+`tcltest::test` (`stdlib/tcltest.py`), `expect` (`expect/expect_.py`).
+
 ## Type hints
 
 Tell the shimmer analyser what internal representation a command

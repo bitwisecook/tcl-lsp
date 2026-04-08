@@ -18,10 +18,17 @@ from ..namespace_data import (
     get_event_description,
     get_event_detail,
 )
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/when.html"
+
+
+def _when_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Last argument is the event handler body."""
+    if len(args) >= 2:
+        return {len(args) - 1: ArgRole.BODY}
+    return {}
 
 
 def _when_event_values() -> tuple[ArgumentValueSpec, ...]:
@@ -151,6 +158,7 @@ class WhenCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2, 6),
             ),
+            arg_role_resolver=_when_arg_roles,
             irules_top_level_only=True,
             is_language_keyword=True,
             side_effect_hints=(

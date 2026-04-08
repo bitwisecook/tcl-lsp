@@ -6,11 +6,18 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 from .shimmer_resolvers import resolve_foreach
 
 _SOURCE = "Tcl foreach(1)"
+
+
+def _foreach_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Last argument is the body script."""
+    if len(args) >= 3:
+        return {len(args) - 1: ArgRole.BODY}
+    return {}
 
 
 @register
@@ -41,6 +48,7 @@ class ForeachCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(3),
             ),
+            arg_role_resolver=_foreach_arg_roles,
             return_type=TclType.STRING,
             arg_type_resolver=resolve_foreach,
             side_effect_hints=(

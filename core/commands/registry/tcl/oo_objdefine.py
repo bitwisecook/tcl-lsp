@@ -9,6 +9,7 @@ from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
 from ._base import register
+from .oo_define import _oo_define_arg_roles
 
 _SOURCE = "Tcl man page define.n"
 
@@ -158,6 +159,7 @@ class OoObjdefineCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
+            arg_role_resolver=_oo_define_arg_roles,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

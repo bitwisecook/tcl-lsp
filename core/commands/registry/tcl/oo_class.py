@@ -7,10 +7,21 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "Tcl man page class.n"
+
+
+def _oo_metaclass_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Resolve BODY roles for OO metaclass commands (create/new)."""
+    if len(args) < 2:
+        return {}
+    if args[0] == "create" and len(args) >= 3:
+        return {2: ArgRole.BODY}
+    if args[0] == "new" and len(args) >= 2:
+        return {1: ArgRole.BODY}
+    return {}
 
 
 _av = make_av(_SOURCE)
@@ -61,6 +72,7 @@ class OoClassCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
+            arg_role_resolver=_oo_metaclass_arg_roles,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

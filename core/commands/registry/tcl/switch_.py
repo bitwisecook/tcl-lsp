@@ -13,10 +13,45 @@ from ..models import (
     OptionSpec,
     ValidationSpec,
 )
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "Tcl switch(1)"
+
+_SWITCH_VALUE_OPTIONS = frozenset({"-matchvar", "-indexvar"})
+
+
+def _switch_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Resolve BODY roles for switch command."""
+    # Skip option flags.
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            i += 1
+            break
+        if not a.startswith("-"):
+            break
+        if a in _SWITCH_VALUE_OPTIONS:
+            i += 2
+        else:
+            i += 1
+    # Skip switch value.
+    if i < len(args):
+        i += 1
+    if i >= len(args):
+        return {}
+    roles: dict[int, ArgRole] = {}
+    # Braced list form: single trailing argument.
+    if i == len(args) - 1:
+        roles[i] = ArgRole.BODY
+        return roles
+    # List form: pattern body pairs.
+    while i + 1 < len(args):
+        if args[i + 1] != "-":
+            roles[i + 1] = ArgRole.BODY
+        i += 2
+    return roles
 
 
 @register
@@ -64,6 +99,7 @@ class SwitchCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2),
             ),
+            arg_role_resolver=_switch_arg_roles,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

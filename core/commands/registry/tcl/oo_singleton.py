@@ -9,6 +9,7 @@ from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
 from ._base import register
+from .oo_class import _oo_metaclass_arg_roles
 
 _SOURCE = "Tcl man page singleton.n"
 
@@ -60,6 +61,7 @@ class OoSingletonCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
+            arg_role_resolver=_oo_metaclass_arg_roles,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(
