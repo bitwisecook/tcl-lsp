@@ -108,13 +108,11 @@ def _pip_install_pure(stage: Path, *packages: str) -> None:
     """
     subprocess.check_call(
         [
-            sys.executable,
-            "-m",
+            "uv",
             "pip",
             "install",
             "--target",
             str(stage),
-            "--no-user",
             "--quiet",
             *packages,
         ]
@@ -293,13 +291,11 @@ def build_lsp(version: str, output: Path, *, minify: bool = False) -> None:
         # Install pygls + lsprotocol (and their deps) into the staging dir
         subprocess.check_call(
             [
-                sys.executable,
-                "-m",
+                "uv",
                 "pip",
                 "install",
                 "--target",
                 str(stage),
-                "--no-user",
                 "--quiet",
                 "pygls>=2.0",
                 "lsprotocol>=2024.0.0",
