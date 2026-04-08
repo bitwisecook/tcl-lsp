@@ -23,4 +23,5 @@
 - Fixed selection range ordering to sort by span size.
 - Fixed clock bootstrap on Tcl 8.5.
 - Fixed zipapp builds to use project-managed Python.
+- Fixed zipapp dependency installation to use `uv pip` instead of `python -m pip`.
 - Tightened protocol namespace validation.
