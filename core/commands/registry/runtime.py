@@ -858,13 +858,13 @@ def _switch_body_indices(args: list[str]) -> set[int]:
 
 
 def _skip_switch_options(args: list[str]) -> int:
-    """Skip option flags and the switch value arg, return next index."""
-    i = 0
-    while i < len(args) and args[i].startswith("-"):
-        if args[i] == "--":
-            i += 1
-            break
-        i += 1
+    """Skip option flags and the switch value arg, return next index.
+
+    Handles ``-matchvar`` and ``-indexvar`` which consume a following
+    value argument, plus ``--`` which terminates option parsing.
+    """
+    value_opts = options_with_value("switch")
+    i = skip_options(args, value_opts)
     # Skip switch string/value argument.
     if i < len(args):
         i += 1
@@ -898,7 +898,7 @@ class SwitchCase:
     """First token of the pattern word."""
 
     body_token: Token | None
-    """First token of the body word, or ``None`` for fallthrough."""
+    """First token of the body word; for fallthrough this is the ``-`` token."""
 
 
 def iter_switch_case_list(
@@ -925,10 +925,17 @@ def iter_switch_case_list(
         base_line=base_line,
         base_col=base_col,
     )
-    words: list[str] = []
+    # Collect words with their raw source spans so we preserve
+    # original quoting/bracing (e.g. $var keeps its $, braced
+    # patterns keep their braces).
+    #
+    # Each entry: (raw_text, inner_text, first_token, is_braced, start_offset, end_offset)
+    word_starts: list[int] = []
+    word_ends: list[int] = []
     word_tokens: list[Token] = []
-    prev_type = TokenType.EOL
+    word_inner: list[str] = []  # tok.text (content without delimiters)
     word_braced: list[bool] = []
+    prev_type = TokenType.EOL
 
     while True:
         tok = lexer.get_token()
@@ -938,24 +945,30 @@ def iter_switch_case_list(
             prev_type = tok.type
             continue
         if prev_type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
-            words.append(tok.text)
+            word_starts.append(tok.start.offset - base_offset)
+            word_ends.append(tok.end.offset - base_offset + 1)
             word_tokens.append(tok)
+            word_inner.append(tok.text)
             word_braced.append(tok.type == TokenType.STR)
-        elif words:
-            words[-1] += tok.text
+        elif word_ends:
+            word_ends[-1] = tok.end.offset - base_offset + 1
+            word_inner[-1] += tok.text
         else:
-            words.append(tok.text)
+            word_starts.append(tok.start.offset - base_offset)
+            word_ends.append(tok.end.offset - base_offset + 1)
             word_tokens.append(tok)
+            word_inner.append(tok.text)
             word_braced.append(tok.type == TokenType.STR)
         prev_type = tok.type
 
     idx = 0
-    while idx + 1 < len(words):
-        pattern = words[idx]
-        body_text = words[idx + 1]
-        if body_text == "-":
+    while idx + 1 < len(word_starts):
+        # Use the raw source span for the pattern so quoting is preserved.
+        raw_pattern = case_list_text[word_starts[idx] : word_ends[idx]]
+        body_inner = word_inner[idx + 1]
+        if body_inner == "-":
             yield SwitchCase(
-                pattern=pattern,
+                pattern=raw_pattern,
                 body=None,
                 is_braced=False,
                 pattern_token=word_tokens[idx],
@@ -963,8 +976,8 @@ def iter_switch_case_list(
             )
         else:
             yield SwitchCase(
-                pattern=pattern,
-                body=body_text,
+                pattern=raw_pattern,
+                body=body_inner,
                 is_braced=word_braced[idx + 1],
                 pattern_token=word_tokens[idx],
                 body_token=word_tokens[idx + 1],

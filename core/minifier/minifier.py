@@ -624,11 +624,20 @@ def _compact_names(
             existing_names = set(scope.variables.keys())
 
             # Pre-seed from prior minification for cross-file consistency.
+            # Only accept seeded mappings when the short name is safe in
+            # this scope (not already a variable name, no collisions).
             var_map: dict[str, str] = {}
+            seeded_shorts: set[str] = set()
             if seed_map and scope_label in seed_map.variables:
                 for orig, short in seed_map.variables[scope_label].items():
-                    if orig in scope.variables:
+                    if (
+                        orig in scope.variables
+                        and len(short) < len(orig)
+                        and short not in existing_names
+                        and short not in seeded_shorts
+                    ):
                         var_map[orig] = short
+                        seeded_shorts.add(short)
 
             for var_name, var_def in sorted(scope.variables.items()):
                 if var_name in var_map:
