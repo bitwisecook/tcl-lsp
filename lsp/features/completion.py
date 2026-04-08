@@ -226,6 +226,7 @@ def get_completions(
     formatter_config: FormatterConfig | None = None,
     *,
     lines: list[str] | None = None,
+    embedded_rules: list | None = None,
 ) -> list[types.CompletionItem]:
     """Generate completion items for a position in source."""
     if analysis is None:
@@ -431,7 +432,11 @@ def get_completions(
         # Event-aware ranking: boost commands valid in the current event.
         current_event: str | None = None
         if dialect == "f5-irules":
-            current_event, _ = find_enclosing_when_event(source, line)
+            current_event, _ = find_enclosing_when_event(
+                source,
+                line,
+                embedded_rules=embedded_rules,
+            )
         # Built-in commands — merge registry names (already package-filtered)
         # with SIGNATURES keys, but exclude SIGNATURES-only entries that are
         # package-gated and whose package is not active.

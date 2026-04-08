@@ -35,6 +35,11 @@ class EmbeddedRule:
     range: Range  # range covering the entire stanza
 
 
+def is_conf_wrapped_irules(source: str) -> bool:
+    """Return ``True`` if *source* contains ``ltm rule`` or ``gtm rule`` stanzas."""
+    return bool(_RULE_HEADER_RE.search(source))
+
+
 def find_embedded_rules(source: str) -> list[EmbeddedRule]:
     """Find all ``ltm rule`` and ``gtm rule`` blocks in *source*."""
     source_map = DocumentBuffer.from_source(source)

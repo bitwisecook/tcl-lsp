@@ -183,6 +183,63 @@ def _analyse_document_fresh(
     except Exception:
         pass
 
+    # Conf-wrapped iRules: analyse each rule body independently.
+    from core.bigip.rule_extract import is_conf_wrapped_irules
+
+    if is_irules_dialect() and is_conf_wrapped_irules(source):
+        from core.analysis.conf_wrapped import analyse_conf_wrapped
+
+        analysis, embedded_rules = analyse_conf_wrapped(
+            source,
+            disabled_diagnostics=default_disabled_diagnostics(),
+            file_path=uri,
+        )
+        all_profiles: set[str] = set()
+        for rule in embedded_rules:
+            all_profiles.update(EVENT_REGISTRY.compute_file_profiles(rule.body))
+        file_profiles = frozenset(all_profiles) | file_profiles
+
+        buf = DocumentBuffer.from_source(source, version)
+        basic_diags = []
+        suppressed: dict[int, frozenset[str]] = {}
+        try:
+            from lsp.features.diagnostics import get_basic_diagnostics
+
+            basic_diags, _analysis_out, suppressed = get_basic_diagnostics(
+                source,
+                analysis=analysis,
+                cu=None,
+                optimiser_enabled=False,
+                disabled_diagnostics=disabled_diagnostics or set(),
+                disabled_optimisations=disabled_optimisations or set(),
+                line_length=line_length,
+                cached_style_diagnostics=None,
+                workspace_context=None,
+                uri=uri,
+            )
+        except Exception:
+            log.debug("subprocess: conf-wrapped basic diagnostics failed", exc_info=True)
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log.info(
+            "[timing] _analyse_document_fresh (conf-wrapped) %.0fms (rules=%d)",
+            elapsed_ms,
+            len(embedded_rules),
+        )
+        return {
+            "analysis": analysis,
+            "compilation_unit": None,
+            "chunks": chunks,
+            "has_partial": has_partial,
+            "chunk_caches": [],
+            "file_profiles": file_profiles,
+            "buffer": buf,
+            "basic_diags": basic_diags,
+            "suppressed": suppressed,
+            "conf_wrapped": True,
+            "embedded_rules": embedded_rules,
+        }
+
     compilation_unit: CompilationUnit | None = None
     try:
         compilation_unit = compile_source(source)
@@ -413,6 +470,10 @@ class _StateSnapshot:
     buffer: DocumentBuffer | None = None
     deep_diag_proc_key: frozenset[tuple[str, int]] | None = None
     deep_diag_result: list[Any] | None = None
+    # Conf-wrapped iRules mode: file contains ``ltm rule`` / ``gtm rule``
+    # stanzas rather than bare iRule bodies.
+    conf_wrapped: bool = False
+    embedded_rules: list[Any] = field(default_factory=list)
 
 
 @dataclass
@@ -540,6 +601,16 @@ class DocumentState:
     @_buffer.setter
     def _buffer(self, value: DocumentBuffer | None) -> None:
         self._snap.buffer = value
+
+    @property
+    def conf_wrapped(self) -> bool:
+        """Whether this document is a conf-wrapped iRules file."""
+        return self._snap.conf_wrapped
+
+    @property
+    def embedded_rules(self) -> list:
+        """The list of ``EmbeddedRule`` objects for conf-wrapped files."""
+        return self._snap.embedded_rules
 
     @property
     def _deep_diag_proc_key(self) -> frozenset[tuple[str, int]] | None:
@@ -683,6 +754,8 @@ class DocumentState:
             file_profiles=result.get("file_profiles", frozenset()),
             chunk_caches=result.get("chunk_caches", []),
             buffer=result.get("buffer"),
+            conf_wrapped=result.get("conf_wrapped", False),
+            embedded_rules=result.get("embedded_rules", []),
         )
 
     def precompute_syntax_tokens(
@@ -1182,6 +1255,28 @@ class DocumentState:
         self._snap._tokens = None  # invalidate — rebuilt lazily on access
         t_tok = time.perf_counter()
 
+        # Conf-wrapped iRules: extract rule bodies and analyse each
+        # independently, then merge.  Skips compilation and chunk caching
+        # since the outer structure is not Tcl.
+        if is_irules_dialect():
+            from core.bigip.rule_extract import is_conf_wrapped_irules
+
+            if is_conf_wrapped_irules(source):
+                self._update_full_conf_wrapped(
+                    source,
+                    version,
+                    new_chunks,
+                    has_partial,
+                    file_profiles=file_profiles,
+                    line_length=line_length,
+                )
+                t_cw = time.perf_counter()
+                log.info(
+                    "[timing] _update_full (conf-wrapped) %.0fms",
+                    (t_cw - t0) * 1000,
+                )
+                return
+
         prev_proc_cache = dict(self._proc_cache)
         prev_interproc_cache = dict(self._interproc_cache)
         compilation_unit: CompilationUnit | None = None
@@ -1249,6 +1344,48 @@ class DocumentState:
             (t_caches - t_analyse) * 1000,
             (t_caches - t0) * 1000,
             n_procs,
+        )
+
+    def _update_full_conf_wrapped(
+        self,
+        source: str,
+        version: int | None,
+        new_chunks: list[TopLevelChunk],
+        has_partial: bool,
+        *,
+        file_profiles: frozenset[str] = frozenset(),
+        line_length: int = 120,
+    ) -> None:
+        """Full rebuild for conf-wrapped iRules files.
+
+        Extracts each ``ltm rule`` / ``gtm rule`` body, analyses it as
+        a standalone iRule, and merges the results with shifted ranges.
+        """
+        from core.analysis.conf_wrapped import analyse_conf_wrapped
+
+        analysis, embedded_rules = analyse_conf_wrapped(
+            source,
+            disabled_diagnostics=default_disabled_diagnostics(),
+            file_path=self.uri,
+        )
+
+        # Compute file profiles from ALL embedded rule bodies.
+        all_profiles: set[str] = set()
+        for rule in embedded_rules:
+            all_profiles.update(EVENT_REGISTRY.compute_file_profiles(rule.body))
+        file_profiles = frozenset(all_profiles) | file_profiles
+
+        self._snap = _StateSnapshot(
+            source=source,
+            version=version,
+            analysis=analysis,
+            compilation_unit=None,
+            chunks=new_chunks,
+            has_partial_commands=has_partial,
+            file_profiles=file_profiles,
+            chunk_caches=[],
+            conf_wrapped=True,
+            embedded_rules=embedded_rules,
         )
 
     def _build_full_chunk_caches(

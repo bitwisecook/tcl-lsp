@@ -90,4 +90,10 @@ def detect_dialect_from_source(source: str) -> str | None:
         if m:
             return _TCL_VERSION_MAP.get(m.group(1))
 
+    # Conf-wrapped iRules: ``ltm rule /path { ... }`` or ``gtm rule /path { ... }``
+    from ..bigip.rule_extract import is_conf_wrapped_irules
+
+    if is_conf_wrapped_irules(source):
+        return "f5-irules"
+
     return None

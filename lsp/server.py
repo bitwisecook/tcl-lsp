@@ -573,11 +573,12 @@ def on_semantic_tokens_full(
         else:
             cache_status = "no_cache"
     ls = state.buffer.line_starts if state is not None else None
+    is_cw = state is not None and state.conf_wrapped
     data = semantic_tokens_full(
         source,
         analysis=analysis,
-        is_bigip_conf=_is_bigip_conf(uri),
-        is_irules=_is_irules_source(uri),
+        is_bigip_conf=_is_bigip_conf(uri) or is_cw,
+        is_irules=_is_irules_source(uri) or is_cw,
         is_apl=_is_apl_source(uri),
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
@@ -636,11 +637,12 @@ def on_semantic_tokens_delta(
         if cache_info is not None:
             chunk_token_cache, chunk_line_ranges = cache_info
     ls = state.buffer.line_starts if state is not None else None
+    is_cw_delta = state is not None and state.conf_wrapped
     new_data = semantic_tokens_full(
         source,
         analysis=analysis,
-        is_bigip_conf=_is_bigip_conf(uri),
-        is_irules=_is_irules_source(uri),
+        is_bigip_conf=_is_bigip_conf(uri) or is_cw_delta,
+        is_irules=_is_irules_source(uri) or is_cw_delta,
         is_apl=_is_apl_source(uri),
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
@@ -714,6 +716,7 @@ def on_completion(
         workspace_proc_usage=workspace_index.proc_usage_counts(),
         formatter_config=formatter_config,
         lines=state.lines if state else None,
+        embedded_rules=state.embedded_rules if state and state.conf_wrapped else None,
     )
 
 
@@ -911,7 +914,12 @@ def on_document_symbol(
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
     chunks = state.chunks if state else None
-    return get_document_symbols(source, analysis=analysis, chunks=chunks)
+    return get_document_symbols(
+        source,
+        analysis=analysis,
+        chunks=chunks,
+        embedded_rules=state.embedded_rules if state and state.conf_wrapped else None,
+    )
 
 
 # Folding ranges
@@ -2205,7 +2213,7 @@ def _update_workspace_index(uri: str, source: str, state: object) -> None:
             if resolved:
                 sourced.add(path_to_uri(resolved))
         workspace_index.update_source_graph(uri, frozenset(sourced))
-    if _is_irules_source(uri):
+    if _is_irules_source(uri) or state.conf_wrapped:
         if state.analysis.all_procs:
             workspace_index.update_irules_globals(
                 uri,
@@ -2213,8 +2221,16 @@ def _update_workspace_index(uri: str, source: str, state: object) -> None:
             )
         from core.compiler.irules_flow import extract_rule_init_vars
 
-        exports = extract_rule_init_vars(source, cu=state.compilation_unit)
-        workspace_index.update_rule_init_vars(uri, exports)
+        if state.conf_wrapped and state.embedded_rules:
+            # For conf-wrapped files, extract RULE_INIT vars from each
+            # rule body independently and merge.
+            all_exports: list = []
+            for rule in state.embedded_rules:
+                all_exports.extend(extract_rule_init_vars(rule.body))
+            workspace_index.update_rule_init_vars(uri, all_exports)
+        else:
+            exports = extract_rule_init_vars(source, cu=state.compilation_unit)
+            workspace_index.update_rule_init_vars(uri, exports)
     _load_packages_if_needed(state.analysis)
 
 
@@ -2307,9 +2323,10 @@ async def _publish_diagnostics(
     # heavy analysis thread holds the GIL.  Only for newly opened files
     # that don't have a token cache yet.
     if state.get_semantic_token_cache() is None and state.chunks:
+        is_cw_pre = state.conf_wrapped
         state.precompute_syntax_tokens(
-            is_irules=_is_irules_source(uri),
-            is_bigip_conf=_is_bigip_conf(uri),
+            is_irules=_is_irules_source(uri) or is_cw_pre,
+            is_bigip_conf=_is_bigip_conf(uri) or is_cw_pre,
             is_apl=_is_apl_source(uri),
         )
 
