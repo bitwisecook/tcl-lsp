@@ -705,7 +705,7 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
 	rm -rf $(BUILD_DIR)/sublime-stage/server/explorer/static
 	find $(BUILD_DIR)/sublime-stage/server -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 	find $(BUILD_DIR)/sublime-stage/server -name '*.pyc' -delete 2>/dev/null || true
-	$(PYTHON) -m pip install --target $(BUILD_DIR)/sublime-stage/server --no-user --quiet \
+	$(UV) pip install --target $(BUILD_DIR)/sublime-stage/server --quiet \
 		"pygls>=2.0" "lsprotocol>=2024.0.0"
 	find $(BUILD_DIR)/sublime-stage/server -name '*.dist-info' -type d -exec rm -rf {} + 2>/dev/null || true
 	find $(BUILD_DIR)/sublime-stage/server -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
