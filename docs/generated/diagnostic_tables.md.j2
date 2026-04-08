@@ -8,8 +8,13 @@
 
 ### Optimisation Codes
 
-| Code | Description | Default |
-|------|-------------|---------|
+| Code | Category | Description | readability | standard | full |
+|------|----------|-------------|:-----------:|:--------:|:----:|
 {% for o in optimisations %}
-| {{ o.code }} | {{ o.description }} | {{ "✓" if o.default else "✗" }} |
+| {{ o.code }} | {{ o.category }} | {{ o.description }} | {{ "✓" if o.readability else "" }} | {{ "✓" if o.standard else "" }} | ✓ |
 {% endfor %}
+
+**Profiles:** `off` disables all passes. `readability`, `standard`, and `full` enable
+progressively more passes (single-pass). `aggressive` = `full` with multi-pass
+to fixpoint (up to 5 iterations). The default editor profile is `readability`;
+explicit actions (CLI, chat, MCP) default to `full`.

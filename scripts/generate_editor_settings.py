@@ -66,10 +66,17 @@ from core.common.codes import (  # noqa: E402
     diagnostics_sorted,
     optimisations_sorted,
 )
+from core.common.optimisation_profiles import (  # noqa: E402
+    READABILITY_CODES,
+    OptimisationProfile,
+    profile_spec,
+)
 from core.formatting.config import (  # noqa: E402
     FORMATTER_SETTINGS_CATALOGUE,
     FormatterConfig,
 )
+
+_STANDARD_CODES = profile_spec(OptimisationProfile.STANDARD).enabled_codes
 
 
 def _snake_to_camel(name: str) -> str:
@@ -718,6 +725,9 @@ def _opt_dicts() -> list[dict]:
             "code": o.code,
             "description": o.description,
             "default": o.default,
+            "category": o.opt_category or "",
+            "readability": o.code in READABILITY_CODES,
+            "standard": o.code in _STANDARD_CODES,
         }
         for o in optimisations_sorted()
     ]
@@ -857,7 +867,6 @@ def _ai_template_context() -> dict:
         CONSTANT_FOLDING_CODES,
         DCE_CODES,
         PATTERN_CODES,
-        READABILITY_CODES,
         RECURSION_CODES,
     )
 
