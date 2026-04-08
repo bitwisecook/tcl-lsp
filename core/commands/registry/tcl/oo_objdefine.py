@@ -129,8 +129,8 @@ class OoObjdefineCommand(CommandDef):
                             ),
                             _av(
                                 "property",
-                                "This slot defines a configurable property on the class, with optional getter/setter configuration.",
-                                "property ?-slotOperation? ?name ...? ?-get getBody? ?-set setBody?",
+                                "This defines configurable properties on the class, with optional getter/setter scripts and access kind.",
+                                "property name ?name ...? ?-get getBody? ?-set setBody? ?-kind access?",
                             ),
                             _av(
                                 "class",
