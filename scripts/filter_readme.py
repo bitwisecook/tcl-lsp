@@ -73,16 +73,17 @@ def filter_readme(text: str, editor: str) -> str:
     skip_until_level: int | None = None  # skip until a heading at this level or higher
     in_editor_support = False  # inside ## Editor support
     in_fence = False  # inside a fenced code block
-    fence_marker: str = ""  # the opening fence string (to match the closer)
+    fence_marker: str = ""  # the full opening fence string (to match the closer)
 
     for line in lines:
         # ── Track fenced code blocks ─────────────────────────────────
         fence_match = _FENCE_RE.match(line)
         if fence_match:
+            matched_fence = fence_match.group(1)
             if not in_fence:
                 in_fence = True
-                fence_marker = fence_match.group(1)[0]  # ` or ~
-            elif line.strip().startswith(fence_marker):
+                fence_marker = matched_fence
+            elif matched_fence[0] == fence_marker[0] and len(matched_fence) >= len(fence_marker):
                 in_fence = False
                 fence_marker = ""
 
@@ -119,8 +120,8 @@ def filter_readme(text: str, editor: str) -> str:
             if level == 2:
                 in_editor_support = title == "Editor support"
 
-            # Rule 3: ### All editors — strip entirely.
-            if title == "All editors":
+            # Rule 3: ### All editors under ## Editor support — strip entirely.
+            if in_editor_support and level == 3 and title == "All editors":
                 skip_until_level = level
                 continue
 
@@ -178,7 +179,11 @@ def main() -> None:
     parser.add_argument(
         "--editor",
         default="VS Code",
-        help="Target editor name (default: 'VS Code')",
+        choices=sorted(KNOWN_EDITORS),
+        help=(
+            "Target editor name (default: 'VS Code'). "
+            f"Valid values: {', '.join(sorted(KNOWN_EDITORS))}"
+        ),
     )
     parser.add_argument("-o", "--output", help="Output path (default: stdout)")
     args = parser.parse_args()
