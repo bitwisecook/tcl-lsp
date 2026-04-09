@@ -6,11 +6,13 @@
 //! (starting with `tcl-lexer`) remain free of `pyo3` and are shaped for
 //! idiomatic Rust use.
 //!
-//! In the initial workspace bootstrap (chunk **L0**) this module exposes a
-//! single `hello_rust()` function that is exercised by
-//! `tests/test_rust_bindings_smoke.py` to verify that the whole build,
-//! install, and import pipeline is wired up correctly end-to-end. Real
-//! lexer bindings arrive in later chunks (L1 onward).
+//! Exposed so far:
+//!
+//! - `hello_rust()` / `lexer_version()` — L0 smoke-test bridge.
+//! - `backslash_subst(text)` — L1 port of
+//!   `core/parsing/substitution.py::backslash_subst`.
+
+use std::borrow::Cow;
 
 use pyo3::prelude::*;
 
@@ -31,6 +33,19 @@ fn lexer_version() -> &'static str {
     tcl_lexer::VERSION
 }
 
+/// Process Tcl backslash escapes in `text`.
+///
+/// Thin wrapper around [`tcl_lexer::backslash_subst`]. The underlying Rust
+/// function returns `Cow<'_, str>` so backslash-free inputs cost zero
+/// allocations on the Rust side; `PyO3` still materialises exactly one
+/// Python `str` on the way back either way. See the core crate docs for
+/// the full list of supported escapes.
+#[pyfunction]
+#[pyo3(text_signature = "(text, /)")]
+fn backslash_subst(text: &str) -> Cow<'_, str> {
+    tcl_lexer::backslash_subst(text)
+}
+
 /// The Python-visible module. The name here must match the `name` field in
 /// `rust/tcl-lsp-rust/pyproject.toml` so `maturin` emits a wheel that
 /// imports as `tcl_lsp_rust`.
@@ -38,5 +53,6 @@ fn lexer_version() -> &'static str {
 fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hello_rust, m)?)?;
     m.add_function(wrap_pyfunction!(lexer_version, m)?)?;
+    m.add_function(wrap_pyfunction!(backslash_subst, m)?)?;
     Ok(())
 }
