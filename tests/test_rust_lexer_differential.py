@@ -222,6 +222,31 @@ CORPUS: list[tuple[str, str]] = [
     # L5 unterminated — best-effort tokenisation
     ("unterminated_cmd", "[unterminated"),
     ("unterminated_nested_cmd", "[outer [inner"),
+    # L6 — braced strings
+    ("braced_simple", "{hello}"),
+    ("braced_with_space", "{hello world}"),
+    ("braced_after_word", "proc foo {body}"),
+    ("braced_after_sep", "set x {braced body}"),
+    ("braced_nested", "{a {b c} d}"),
+    ("braced_nested_deep", "{a {b {c {d}}}}"),
+    ("braced_multiline", "{line1\nline2\nline3}"),
+    ("braced_with_dollar_literal", "{no $subst here}"),
+    ("braced_with_cmd_literal", "{no [subst] here}"),
+    ("braced_with_backslash_pair", r"{foo\nbar}"),
+    ("braced_with_backslash_close", r"{a\}b}"),
+    ("braced_with_backslash_open", r"{a\{b}"),
+    ("braced_midword_is_word", "foo{not-a-brace}"),
+    ("close_brace_midword_is_word", "foo}bar"),
+    ("braced_followed_by_word", "{foo} bar"),
+    ("braced_then_braced", "{a}{b}"),
+    ("braced_alone_at_line_start", "{hello}\nbar"),
+    ("braced_inside_cmd", "[list {a b c}]"),
+    ("empty_braced", "{}"),
+    ("empty_braced_followed_by_word", "{} tail"),
+    ("proc_body_shape", "proc p {a b c} {set x 1; return $x}"),
+    ("if_else_shape", "if {$a == 1} {puts ok} else {puts bad}"),
+    ("while_shape", "while {$i < 10} {incr i}"),
+    ("foreach_shape", "foreach item {a b c d} {puts $item}"),
 ]
 
 
@@ -238,9 +263,9 @@ class TestHarnessItself:
     # Characters whose handling the Rust lexer defers to later
     # chunks. Keep this list in sync with the Rust
     # `is_deferred_special` helper (not imported here to keep the
-    # harness pytest-only). After L5: `$`, `[`, `]` have been
-    # removed; `{`, `}`, `"`, `\` remain.
-    _EXPECTED_DEFERRED = frozenset('{}"\\')
+    # harness pytest-only). After L6: `$`, `[`, `]`, `{`, `}` have
+    # all been removed; `"`, `\` remain.
+    _EXPECTED_DEFERRED = frozenset('"\\')
 
     def test_deferred_inputs_are_filtered(self):
         # Every character we say is deferred must actually trigger
@@ -264,6 +289,13 @@ class TestHarnessItself:
         assert _rust_supports("[+ 1 2]")
         assert _rust_supports("foo]bar")  # lone `]` is part of a word
 
+    def test_braces_are_no_longer_deferred(self):
+        # Regression guard for L6: `{` / `}` must pass the filter.
+        assert _rust_supports("{body}")
+        assert _rust_supports("proc foo {a b} {return $a}")
+        assert _rust_supports("foo}bar")  # lone `}` is part of a word
+        assert _rust_supports("foo{not-a-brace}baz")  # mid-word `{` is part of a word
+
     def test_non_ascii_is_filtered(self):
         assert not _rust_supports("café")
 
@@ -272,6 +304,7 @@ class TestHarnessItself:
         assert _rust_supports("# comment\nfoo")
         assert _rust_supports("set x $y")
         assert _rust_supports("set x [+ 1 2]")
+        assert _rust_supports("set x {literal body}")
 
 
 # Pull additional inputs from the broader lexer test suite wherever
@@ -330,22 +363,43 @@ def test_harvested_fixtures_match_python(source: str):
 import ast  # noqa: E402  — imported late so the main body stays readable
 from pathlib import Path as _Path  # noqa: E402
 
-# Known degenerate inputs where the Rust lexer has a minor parity
-# drift with the Python reference. All are unterminated wrappers
-# with empty content at EOF: Python's end-position clamp produces a
-# past-end `SourcePosition` that the Rust span cannot represent
-# without growing `span.end` past `source.len()` (which would make
-# `SourceMap::text(span)` panic on slicing). The drift is a
-# one-column end-position difference only — the token stream is
-# otherwise identical and nothing in production code depends on
-# the past-end convention. Tracked in `docs/rust-rewrite.md` as
-# deferred work.
-_KNOWN_PARITY_DRIFT: frozenset[str] = frozenset(
-    [
-        "[",  # unterminated empty command
-        "${",  # unterminated empty braced var
-    ]
-)
+# Inputs that are known to drift against the Python reference at
+# the current migration stage. The harness filters these out of the
+# dynamic corpus so a later chunk landing is not a parity regression
+# on previously-excluded inputs; each entry documents *why* it's
+# excluded so the list can be rechecked chunk-by-chunk.
+#
+# Category A — past-EOF end-position drift.
+#   Unterminated empty wrappers at EOF: Python's end-offset clamp
+#   produces a past-end `SourcePosition` that the Rust span cannot
+#   represent without growing `span.end` past `source.len()` (which
+#   would make `SourceMap::text(span)` panic on slicing). The drift
+#   is a one-column end-position difference only — the token
+#   stream, kinds, and texts are otherwise identical, and nothing
+#   in production code depends on the past-EOF convention.
+#
+# Category B — `{*}` argument-expansion prefix (L8).
+#   When `{*}` appears at a word boundary and is followed by a
+#   non-separator, Python's `_parse_string` dispatches to
+#   `_parse_expand` which emits an EXPAND token. L6 has no EXPAND
+#   handling yet; the Rust lexer treats `{*}` as a STR("*") braced
+#   string. L8 adds the EXPAND port and this filter stops being
+#   necessary for the affected inputs.
+
+
+def _is_known_drift(source: str) -> bool:
+    # Category A: unterminated empty wrapper at EOF.
+    if source.endswith(("{", "[", "${")):
+        return True
+    # Category B: `{*}` anywhere in the input is a safe proxy for
+    # "contains the expansion prefix" because the only way `{*}`
+    # can legitimately appear in a correct Tcl source buffer is
+    # via the expansion prefix — literal `{*}` inside a braced
+    # string is inert but still triggers this drift at the outer
+    # dispatch when the braced string ends.
+    if "{*}" in source:
+        return True
+    return False
 
 
 def _harvest_lexer_inputs() -> list[str]:
@@ -381,7 +435,7 @@ def _harvest_lexer_inputs() -> list[str]:
                     continue
                 if s.startswith("    "):
                     continue
-                if s in _KNOWN_PARITY_DRIFT:
+                if _is_known_drift(s):
                     continue
                 harvested.add(s)
     return sorted(harvested)

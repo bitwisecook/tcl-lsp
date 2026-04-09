@@ -1,7 +1,7 @@
 //! Streaming Tcl lexer.
 //!
-//! **L3 + L4 + L5.** The first three lexer chunks, taken together,
-//! handle six token kinds plus variable and command substitution:
+//! **L3 + L4 + L5 + L6.** The first four lexer chunks, taken
+//! together, handle every non-quoted top-level Tcl construct:
 //!
 //! - **EOF handling** — emits a trailing ghost `EOL` (once) when the
 //!   source does not already end with an EOL token, matching the
@@ -38,11 +38,25 @@
 //!   advance); `${…}` sub-scans exist to stop a `)` or `}` inside a
 //!   braced variable name from fooling the counter. Unterminated
 //!   `[` tokenizes best-effort (L9 adds the warning).
+//! - **STR (L6)** — braced strings `{…}`. Emitted when a `{` appears
+//!   at a word boundary (the previous token was `EOL` / `SEP` / `STR`
+//!   / `EXPAND`, matching Python's `newword` predicate). The body
+//!   is scanned with balanced `{` / `}` counting; backslash
+//!   sequences consume two characters as a pair (preserving Python's
+//!   "backslash is inert inside braces" semantics — the backslash
+//!   and the following character are retained literally in the
+//!   token text). A `{` that is NOT at a word boundary is a regular
+//!   word character in the enclosing `ESC` token, matching Python's
+//!   `_parse_string` fall-through for mid-word braces. Unterminated
+//!   `{` tokenizes best-effort (L9 adds the warning). The `}{ ` iRules
+//!   word-boundary injection and the "extra characters after
+//!   close-brace" warning are deferred to L8 (dialect flags) and
+//!   L9 (warning collection) respectively.
 //!
-//! The "deferred" set is now `{ } " \`. Encountering any of them
+//! The "deferred" set is now `" \`. Encountering either of them
 //! trips [`LexError::UnsupportedCharacter`] carrying the character
 //! and its position. Callers filter inputs on that error rather than
-//! receiving silently-wrong token streams. Chunks L6–L9 shrink the
+//! receiving silently-wrong token streams. Chunks L7–L9 shrink the
 //! set to zero.
 //!
 //! ### Architecture
@@ -77,9 +91,9 @@
 //!
 //! - ~~L4: variable substitution (`$name`, `${name}`, `$arr(idx)`,~~
 //!   ~~`$ns::var`)~~ — landed
-//! - ~~L5: command substitution (`[…]`, possibly nested)~~ —
+//! - ~~L5: command substitution (`[…]`, possibly nested)~~ — landed
+//! - ~~L6: braced strings (`{…}`, possibly nested)~~ —
 //!   **landed in this chunk**
-//! - L6: braced strings (`{…}`, possibly nested)
 //! - L7: quoted strings (`"…"`)
 //! - L8: expansion prefix (`{*}`), `strict_quoting`, `expand_syntax`,
 //!   `irules_brace_separator`
@@ -477,6 +491,120 @@ impl<'src> Lexer<'src> {
             .copied()
     }
 
+    /// Mirror of Python's `_parse_string` `newword` predicate: the
+    /// next token is at a word boundary (so `{` at `self.pos`
+    /// starts a braced string rather than being part of a bare
+    /// word) when the previously emitted token was `Sep`, `Eol`,
+    /// `Str`, or `Expand`. The initial state before any token is
+    /// emitted is `Eol`, so the first character of the source is
+    /// always at a word boundary.
+    #[inline]
+    fn is_newword(&self) -> bool {
+        matches!(
+            self.last_kind,
+            TokenType::Sep | TokenType::Eol | TokenType::Str | TokenType::Expand
+        )
+    }
+
+    /// Parse a braced string starting at the current `{`. The caller
+    /// is responsible for checking `is_newword()` before dispatching
+    /// here — a `{` in the middle of a bare word is a regular
+    /// character in `parse_esc`, not a braced-string opener.
+    ///
+    /// The scanner counts balanced `{` / `}` pairs (`level` starts
+    /// at 1 after skipping the opening `{`). Backslash sequences
+    /// consume two characters as a pair (CRLF counted as one), but
+    /// the backslash and the following character are preserved
+    /// literally in the token text — braces are "verbatim" in Tcl,
+    /// so `\}` inside a brace body does NOT count as a close brace
+    /// even though the scanner skips over it.
+    ///
+    /// The span starts at the `{` and normally ends at the last
+    /// character of the body (NOT the closing `}`), matching
+    /// Python's `_end = self.pos - 1` before the `}` advance. The
+    /// empty-body degenerate `{}` extends the span by one so
+    /// `range_positions` reports the `}` as the end position,
+    /// matching Python's `end_offset = _start` clamp.
+    /// `SourceMap::token_text` strips the leading `{` (and the
+    /// trailing `}` for the degenerate `{}` case) so Python callers
+    /// see just the inside of the braces.
+    ///
+    /// Never fails. Unterminated `{` tokenizes best-effort; the
+    /// "extra characters after close-brace" warning and the
+    /// iRules `}{` word-boundary injection are deferred to L8/L9.
+    fn parse_brace(&mut self) -> Token {
+        let brace_pos = self.pos;
+        self.pos += 1; // skip opening '{'
+        let content_start = self.pos;
+
+        let mut level: u32 = 1;
+        let mut span_end: u32 = self.pos;
+
+        while let Some(ch) = self.current_char() {
+            match ch {
+                '\\' => {
+                    // Consume the backslash and the next character
+                    // as a pair. Matches Python's `_parse_brace`
+                    // which skips the backslash then the escaped
+                    // char, with CRLF counted as one character.
+                    self.pos += 1;
+                    match self.current_char() {
+                        Some(esc @ ('\n' | '\r')) => {
+                            self.pos += 1;
+                            if esc == '\r' && self.current_byte() == Some(b'\n') {
+                                self.pos += 1;
+                            }
+                        }
+                        Some(esc) => {
+                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
+                        }
+                        None => {
+                            // Trailing backslash at EOF — leave as is.
+                        }
+                    }
+                }
+                '{' => {
+                    level += 1;
+                    self.pos += 1;
+                }
+                '}' => {
+                    level -= 1;
+                    if level == 0 {
+                        // Leave `self.pos` at the closing `}`; the
+                        // code after the loop decides whether to
+                        // include it in the span and consume it.
+                        span_end = self.pos;
+                        break;
+                    }
+                    self.pos += 1;
+                }
+                _ => {
+                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                }
+            }
+        }
+
+        // At this point `self.pos` is at the closing `}` (level
+        // reached zero) or at EOF. `span_end` was set inside the
+        // `}` branch; if the loop fell through (EOF), set it now.
+        if level > 0 {
+            span_end = self.pos;
+        }
+
+        let content_empty = span_end == content_start;
+        let has_close_brace = self.current_byte() == Some(b'}');
+        let final_span_end = if content_empty && has_close_brace {
+            span_end + 1 // include the `}` so the end position lands on it
+        } else {
+            span_end
+        };
+        if has_close_brace {
+            self.pos += 1;
+        }
+
+        Token::new(TokenType::Str, Span::new(brace_pos, final_span_end))
+    }
+
     /// Parse a command substitution starting at the current `[`.
     ///
     /// Scans the command body until a matching `]`, tracking outer
@@ -634,6 +762,7 @@ impl Iterator for Lexer<'_> {
             '#' if self.at_command_start => self.parse_comment(),
             '$' => Ok(self.parse_var()),
             '[' => Ok(self.parse_command()),
+            '{' if self.is_newword() => Ok(self.parse_brace()),
             _ if is_deferred_special(ch) => Err(LexError::UnsupportedCharacter {
                 ch,
                 position: self.position_at(self.pos),
@@ -683,14 +812,16 @@ fn is_eol_byte(byte: u8) -> bool {
 }
 
 /// Characters whose handling the Rust lexer has not yet implemented.
-/// Triggers [`LexError::UnsupportedCharacter`]. Chunks L6–L9
+/// Triggers [`LexError::UnsupportedCharacter`]. Chunks L7–L9
 /// incrementally drain this set. L4 removed `$`; L5 removed `[`
 /// (now dispatches to `parse_command`) and `]` (now a regular
-/// word character outside a command body, matching Python's
-/// `_parse_string` behaviour).
+/// word character outside a command body); L6 removed `{` (now
+/// dispatches to `parse_brace` when at a word boundary, otherwise
+/// a regular word character) and `}` (now a regular word
+/// character outside a brace body).
 #[inline]
 fn is_deferred_special(ch: char) -> bool {
-    matches!(ch, '{' | '}' | '"' | '\\')
+    matches!(ch, '"' | '\\')
 }
 
 #[cfg(test)]
@@ -959,12 +1090,20 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_character_brace_errors() {
-        let err = Lexer::new("foo {bar}").tokenise_all().unwrap_err();
-        assert!(matches!(
-            err,
-            LexError::UnsupportedCharacter { ch: '{', .. }
-        ));
+    fn brace_is_no_longer_an_unsupported_character() {
+        // Regression guard: L6 removed `{` and `}` from the deferred
+        // set. `foo {bar}` should now lex as ESC + SEP + STR + EOL.
+        let tokens = Lexer::new("foo {bar}").tokenise_all().unwrap();
+        let kinds: Vec<TokenType> = tokens.iter().map(|t| t.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                TokenType::Esc,
+                TokenType::Sep,
+                TokenType::Str,
+                TokenType::Eol,
+            ]
+        );
     }
 
     #[test]
@@ -996,8 +1135,8 @@ mod tests {
 
     #[test]
     fn after_error_iterator_stops() {
-        // Use `{` which is still in the deferred set after L5.
-        let mut lex = Lexer::new("foo {bar}");
+        // Use `"` which is still in the deferred set after L6.
+        let mut lex = Lexer::new(r#"foo "bar""#);
         let mut tokens = Vec::new();
         let mut err_seen = false;
         for result in lex.by_ref() {
@@ -1465,5 +1604,198 @@ mod tests {
         let (rows, _) = cmd_token_rows("# c\n[cmd]");
         assert!(rows.iter().any(|(k, _)| *k == TokenType::Comment));
         assert!(rows.iter().any(|(k, _)| *k == TokenType::Cmd));
+    }
+
+    // ------------------------------------------------------------------
+    // L6 — braced strings
+    // ------------------------------------------------------------------
+
+    fn str_token_rows(source: &str) -> (Vec<(TokenType, String)>, SourceMap<'_>) {
+        let lexer = Lexer::new(source);
+        let map = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().expect("L6 lexer accepts fixture");
+        let rows = tokens
+            .iter()
+            .map(|t| (t.kind, map.token_text(*t).to_owned()))
+            .collect();
+        (rows, map)
+    }
+
+    #[test]
+    fn braced_simple_body() {
+        let (rows, _) = str_token_rows("{hello world}");
+        assert_eq!(
+            rows,
+            vec![
+                (TokenType::Str, "hello world".into()),
+                (TokenType::Eol, String::new()),
+            ]
+        );
+    }
+
+    #[test]
+    fn braced_empty_body() {
+        let (rows, _) = str_token_rows("{}");
+        assert_eq!(rows[0], (TokenType::Str, String::new()));
+    }
+
+    #[test]
+    fn braced_nested_once() {
+        let (rows, _) = str_token_rows("{a {b c} d}");
+        assert_eq!(rows[0], (TokenType::Str, "a {b c} d".into()));
+    }
+
+    #[test]
+    fn braced_deeply_nested() {
+        let (rows, _) = str_token_rows("{a {b {c {d}}}}");
+        assert_eq!(rows[0], (TokenType::Str, "a {b {c {d}}}".into()));
+    }
+
+    #[test]
+    fn braced_after_word() {
+        // `proc foo {body}` — SEP after "foo" makes `{body}` a
+        // newword, so the `{` starts a braced string.
+        let (rows, _) = str_token_rows("proc foo {body}");
+        assert_eq!(rows[0], (TokenType::Esc, "proc".into()));
+        assert_eq!(rows[2], (TokenType::Esc, "foo".into()));
+        assert_eq!(rows[4], (TokenType::Str, "body".into()));
+    }
+
+    #[test]
+    fn braced_midword_is_regular_character() {
+        // `foo{bar}` — the `{` is NOT at a word boundary (the
+        // previous token was ESC, not SEP/EOL/STR/EXPAND), so it's
+        // a regular character in the bare word. Matches Python's
+        // `_parse_string` fall-through.
+        let (rows, _) = str_token_rows("foo{bar}");
+        assert_eq!(rows[0], (TokenType::Esc, "foo{bar}".into()));
+    }
+
+    #[test]
+    fn close_brace_midword_is_regular_character() {
+        let (rows, _) = str_token_rows("foo}bar");
+        assert_eq!(rows[0], (TokenType::Esc, "foo}bar".into()));
+    }
+
+    #[test]
+    fn braced_multiline_body() {
+        let (rows, _) = str_token_rows("{line1\nline2}");
+        assert_eq!(rows[0], (TokenType::Str, "line1\nline2".into()));
+    }
+
+    #[test]
+    fn braced_with_dollar_is_literal() {
+        // `{foo $bar}` — `$` inside a braced string is a literal
+        // character, not a variable substitution. This happens
+        // naturally because the brace scanner only looks for
+        // balanced `{` / `}` and backslashes.
+        let (rows, _) = str_token_rows("{foo $bar}");
+        assert_eq!(rows[0], (TokenType::Str, "foo $bar".into()));
+    }
+
+    #[test]
+    fn braced_with_brackets_is_literal() {
+        let (rows, _) = str_token_rows("{foo [bar]}");
+        assert_eq!(rows[0], (TokenType::Str, "foo [bar]".into()));
+    }
+
+    #[test]
+    fn braced_with_backslash_is_literal_pair() {
+        // `{foo\nbar}` — the backslash and `n` are preserved in
+        // the token text because braces are verbatim in Tcl. The
+        // scanner skips them as a pair so `\}` does not count as
+        // a close brace.
+        let (rows, _) = str_token_rows(r"{foo\nbar}");
+        assert_eq!(rows[0], (TokenType::Str, r"foo\nbar".into()));
+    }
+
+    #[test]
+    fn braced_with_backslash_close_brace_is_inert() {
+        let (rows, _) = str_token_rows(r"{a\}b}");
+        assert_eq!(rows[0], (TokenType::Str, r"a\}b".into()));
+    }
+
+    #[test]
+    fn braced_with_backslash_open_brace_is_inert() {
+        let (rows, _) = str_token_rows(r"{a\{b}");
+        assert_eq!(rows[0], (TokenType::Str, r"a\{b".into()));
+    }
+
+    #[test]
+    fn braced_followed_by_word() {
+        let (rows, _) = str_token_rows("{foo} bar");
+        assert_eq!(rows[0], (TokenType::Str, "foo".into()));
+        assert_eq!(rows[1], (TokenType::Sep, " ".into()));
+        assert_eq!(rows[2], (TokenType::Esc, "bar".into()));
+    }
+
+    #[test]
+    fn braced_then_braced() {
+        // After a STR token, `newword` is True again (STR is in
+        // the `newword` set alongside SEP/EOL/EXPAND), so a second
+        // `{` starts another braced string.
+        let (rows, _) = str_token_rows("{a}{b}");
+        assert_eq!(rows[0], (TokenType::Str, "a".into()));
+        assert_eq!(rows[1], (TokenType::Str, "b".into()));
+    }
+
+    #[test]
+    fn braced_unterminated_tokenises_best_effort() {
+        let (rows, _) = str_token_rows("{unterminated");
+        assert_eq!(rows[0], (TokenType::Str, "unterminated".into()));
+    }
+
+    #[test]
+    fn braced_at_command_start() {
+        // A `{` at the start of a line (initial at_command_start=
+        // true, initial last_kind=Eol → newword=true) is a STR.
+        let (rows, _) = str_token_rows("{hello}");
+        assert_eq!(rows[0], (TokenType::Str, "hello".into()));
+    }
+
+    #[test]
+    fn braced_inside_command_substitution() {
+        // `[list {a b}]` — the braces inside a CMD body are handled
+        // by `parse_command`'s own `blevel` tracking, not by
+        // `parse_brace`. The STR stays one CMD token.
+        let (rows, _) = str_token_rows("[list {a b}]");
+        assert_eq!(rows[0], (TokenType::Cmd, "list {a b}".into()));
+    }
+
+    #[test]
+    fn braced_span_positions() {
+        // `{hello}` — span covers `{hello` (0..6), token_text
+        // strips `{`, end position is at the 'o' not the `}`.
+        let lexer = Lexer::new("{hello}");
+        let map = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().unwrap();
+        let brace = tokens.iter().find(|t| t.kind == TokenType::Str).unwrap();
+        assert_eq!(brace.span.start(), 0);
+        assert_eq!(brace.span.end(), 6);
+        let (start, end) = map.range_positions(brace.span);
+        assert_eq!(start, SourcePosition::new(0, 0, 0));
+        assert_eq!(end, SourcePosition::new(0, 5, 5));
+        assert_eq!(map.token_text(*brace), "hello");
+    }
+
+    #[test]
+    fn braced_resets_at_command_start() {
+        // After a STR, `at_command_start` is False so `#` is not
+        // a comment.
+        let (rows, _) = str_token_rows("{body} #not-a-comment");
+        assert_eq!(rows[0], (TokenType::Str, "body".into()));
+        assert_eq!(rows[1], (TokenType::Sep, " ".into()));
+        assert_eq!(rows[2], (TokenType::Esc, "#not-a-comment".into()));
+    }
+
+    #[test]
+    fn braced_preserves_newword_for_next_token() {
+        // `{a}{b}{c}` — every STR sets `last_kind = Str`, which is
+        // in the `newword` set, so subsequent `{`s start new
+        // braced strings.
+        let (rows, _) = str_token_rows("{a}{b}{c}");
+        assert_eq!(rows[0], (TokenType::Str, "a".into()));
+        assert_eq!(rows[1], (TokenType::Str, "b".into()));
+        assert_eq!(rows[2], (TokenType::Str, "c".into()));
     }
 }
