@@ -98,53 +98,61 @@ impl<'src> SourceMap<'src> {
     #[must_use]
     pub fn token_text(&self, tok: Token) -> &'src str {
         let raw = self.text(tok.span);
+        // Strip the lexer-computed prefix (`$`, `${`, `[`, `{`, `"`,
+        // etc.) to get to the content.
+        let stripped = &raw[tok.content_offset as usize..];
+        // Kind-specific trailing-strip or empty-clamp rules.
         match tok.kind {
             TokenType::Var => {
-                if let Some(after_open) = raw.strip_prefix("${") {
-                    // For the degenerate `${}` case the lexer
-                    // extends the span to cover the closing `}` so
-                    // the token's end position matches Python's
-                    // clamp. Strip it here; non-degenerate braced
-                    // forms have no trailing `}` inside the span.
-                    after_open.strip_suffix('}').unwrap_or(after_open)
-                } else if let Some(inner) = raw.strip_prefix('$') {
-                    inner
-                } else {
-                    raw
-                }
+                // `${...}` braced form: the degenerate `${}` case
+                // extends the span by one byte to cover the
+                // closing `}`. Non-degenerate braced forms have no
+                // trailing `}` inside the span.
+                stripped.strip_suffix('}').unwrap_or(stripped)
             }
             TokenType::Cmd => {
-                // CMD spans start at the `[` and normally end
-                // before the matching close bracket, so the span
-                // content is `[ + body`. For the degenerate `[]`
-                // case the lexer extends the span by one byte so
-                // the end position lands on the `]`; handle that
-                // with an exact-match check rather than an
-                // unconditional `strip_suffix(']')`, because
-                // nested commands like `[+ 1 [inner]]` have a
-                // legitimate `]` at the last byte of the span
-                // (the inner close bracket) that must NOT be
-                // stripped.
-                if raw == "[]" {
+                // `[]` degenerate: span extended by one to cover
+                // the `]`. Non-empty nested commands like
+                // `[+ 1 [inner]]` also end with `]` as a
+                // legitimate inner bracket, so we must NOT
+                // unconditionally strip — check for the exact
+                // 1-character `]` remainder instead.
+                if stripped == "]" {
                     ""
                 } else {
-                    raw.strip_prefix('[').unwrap_or(raw)
+                    stripped
                 }
             }
             TokenType::Str => {
-                // STR spans start at the `{` and normally end
-                // before the matching close brace. The degenerate
-                // `{}` case extends the span to cover the `}`; use
-                // the same exact-match check as `Cmd` so nested
-                // braces like `{a {b} c}` keep their inner `}`
-                // intact.
-                if raw == "{}" {
+                // `{}` degenerate: same shape as `[]`.
+                if stripped == "}" {
                     ""
                 } else {
-                    raw.strip_prefix('{').unwrap_or(raw)
+                    stripped
                 }
             }
-            _ => raw,
+            TokenType::Esc => {
+                // Quoted-string empty-clamp cases: when the
+                // scanner stops with zero content consumed it
+                // extends the span by one byte to cover the
+                // terminator (`"`, `$`, or `[`). After stripping
+                // the opening `"` via `content_offset`, a
+                // one-character remainder that is exactly a
+                // terminator character indicates an empty-body
+                // token — return `""`. A legitimate one-character
+                // body like `"a"` has `stripped = "a"` → 'a' is
+                // not a terminator → return `"a"`. And a bare
+                // word containing `"` characters has
+                // `content_offset = 0`, so `stripped == raw`
+                // (including any quote marks) and the check
+                // doesn't fire.
+                if stripped.len() == 1 && matches!(stripped.chars().next(), Some('"' | '$' | '[')) {
+                    ""
+                } else {
+                    stripped
+                }
+            }
+            _ => stripped,
         }
     }
 

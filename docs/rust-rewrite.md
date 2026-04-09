@@ -295,8 +295,11 @@ list and should add any new ones it discovers.
   preserves brace bodies verbatim as the Python lexer does; the
   `}{ ` iRules word-boundary injection and the "extra characters
   after close-brace" warning are deferred to L8 / L9 respectively),
-  quoted strings (`"` — L7), expansion prefix (`{*}` — L8),
-  backslash escapes and line continuation (`\` — L9), dialect flags
+  ~~quoted strings~~ (L7, landed — the current impl supports `$`
+  and `[` interpolation inside a quoted run; the "extra characters
+  after close-quote" warning and backslash handling inside quotes
+  are deferred to L9), expansion prefix (`{*}` — L8), backslash
+  escapes and line continuation (`\` — L9), dialect flags
   (`strict_quoting`, `expand_syntax`, `irules_brace_separator` —
   L8), warning collection (L9), ghost character insertion for
   error recovery (L9).
@@ -571,7 +574,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L4    | Variable substitution in the Rust lexer (`$name`, `${name}`, `$arr(idx)`, `$ns::var`, bare `$`) + `SourceMap::token_text` for Python-parity text extraction + try/catch-based differential harness filter | landed |
 | L5    | Command substitution in the Rust lexer (`[…]` with bracket nesting, brace/quote aware, embedded `${…}` sub-scan, backslash-pair escapes) + per-kind content stripping in `SourceMap::token_text` | landed |
 | L6    | Braced strings in the Rust lexer (`{…}` at word boundaries, balanced nesting, backslash-pair escapes, Python-parity `newword` predicate) + `token_text` `Str` stripping + dynamic harness harvesting ~200 new L6-eligible inputs | landed |
-| L7    | Quoted strings in the Rust lexer | planned |
+| L7    | Quoted strings in the Rust lexer (`"…"` with `$` / `[` interpolation, `in_quote` propagation, mid-word quote as bare word) + `Token::content_offset` for per-kind prefix stripping | landed |
 | L8    | `EXPAND` / dialect flags reshaped into `LexerConfig` | planned |
 | L9    | Warnings collection and ghost-character-insertion error recovery | planned |
 | L10   | `core/parsing/expr_lexer.py` → Rust | planned |
