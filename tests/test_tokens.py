@@ -58,9 +58,33 @@ class TestTokenType:
         assert TokenType.ESC != TokenType.STR
 
     def test_name_matches_attribute(self):
+        # Exhaustive: every variant's `.name` attribute returns its
+        # SCREAMING_CASE Python name. `scripts/tcl_test_client.py` uses
+        # `tok.type.name` when printing debug output.
         assert TokenType.ESC.name == "ESC"
+        assert TokenType.STR.name == "STR"
+        assert TokenType.CMD.name == "CMD"
+        assert TokenType.VAR.name == "VAR"
+        assert TokenType.SEP.name == "SEP"
+        assert TokenType.EOL.name == "EOL"
+        assert TokenType.EOF.name == "EOF"
         assert TokenType.COMMENT.name == "COMMENT"
         assert TokenType.EXPAND.name == "EXPAND"
+
+    def test_value_discriminants_are_one_indexed_stable(self):
+        # The integer discriminants mirror the original Python `auto()`
+        # declarations, 1-indexed. Tests and external scripts are not
+        # expected to read `.value` in any hot path, but the contract
+        # stays stable so ad-hoc debug logging doesn't drift.
+        assert TokenType.ESC.value == 1
+        assert TokenType.STR.value == 2
+        assert TokenType.CMD.value == 3
+        assert TokenType.VAR.value == 4
+        assert TokenType.SEP.value == 5
+        assert TokenType.EOL.value == 6
+        assert TokenType.EOF.value == 7
+        assert TokenType.COMMENT.value == 8
+        assert TokenType.EXPAND.value == 9
 
     def test_hashable_and_set_membership(self):
         seen = {TokenType.ESC, TokenType.STR, TokenType.ESC}
@@ -125,6 +149,11 @@ class TestToken:
         assert tok.end == end
         assert tok.in_quote is False
 
+    # AUDIT: low-value, remove at end of rewrite. Real callers always
+    # construct `Token` with keyword arguments for clarity; positional
+    # construction adds no additional contract beyond what
+    # `test_construction_with_keywords` already covers. Tracked in
+    # `docs/rust-rewrite-test-audit.md`.
     def test_construction_positional(self):
         start, end = self._pos(0), self._pos(3)
         tok = Token(TokenType.VAR, "abc", start, end)
@@ -137,6 +166,11 @@ class TestToken:
         tok = Token(type=TokenType.ESC, text="x", start=pos, end=pos)
         assert tok.in_quote is False
 
+    # AUDIT: low-value, remove at end of rewrite. The `in_quote=True`
+    # branch is already exercised by `test_equality_compares_all_fields`
+    # (via the `diff_quote` case) and by the Rust-side
+    # `token_quoted_constructor_sets_in_quote` unit test. Tracked in
+    # `docs/rust-rewrite-test-audit.md`.
     def test_in_quote_true_propagates(self):
         pos = self._pos()
         tok = Token(type=TokenType.ESC, text="x", start=pos, end=pos, in_quote=True)

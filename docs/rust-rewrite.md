@@ -222,6 +222,17 @@ Some concrete rules of thumb:
   differential harness is green across the whole corpus.
 - Avoid golden-file tests for things that are cheap to compute. Prefer
   assertions that state the actual invariant.
+- **Test audit.** Every chunk classifies the pytest tests it touches as
+  **ported** (Rust has equivalent coverage), **bridge-only** (Python-
+  specific behaviour — kept in pytest, not ported), **remove at end**
+  (low-value, flagged inline with an `AUDIT:` comment and tracked for
+  deletion when the Python layer is retired), or **deferred** (covered
+  by a later chunk). The living audit lives in
+  [`rust-rewrite-test-audit.md`](rust-rewrite-test-audit.md); update
+  the relevant section in the same commit that lands the chunk. No
+  pytest test is deleted during the rewrite — the Python suite is the
+  behavioural oracle for every chunk, and only comes out when the
+  Python layer itself comes out.
 
 ### What a bad port looks like
 
