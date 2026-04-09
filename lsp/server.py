@@ -87,6 +87,7 @@ from .features.type_definition import get_type_definition
 from .features.type_hierarchy import (
     prepare_type_hierarchy,
 )
+from .features.workspace_file_ops import compute_batch_rename_edits
 from .features.type_hierarchy import (
     subtypes as get_subtypes,
 )
@@ -3280,6 +3281,60 @@ def did_change_watched_files(
                                 uri,
                                 scan_result.rule_init_exports,
                             )
+
+
+# File rename hooks
+
+
+_RENAME_FILE_OPERATION_OPTIONS = types.FileOperationRegistrationOptions(
+    filters=[
+        types.FileOperationFilter(
+            pattern=types.FileOperationPattern(
+                glob="**/*.{tcl,tm,itcl,irule,irul}",
+            ),
+        ),
+    ],
+)
+
+
+@server.feature(types.WORKSPACE_WILL_RENAME_FILES, _RENAME_FILE_OPERATION_OPTIONS)
+def on_will_rename_files(
+    params: types.RenameFilesParams,
+) -> types.WorkspaceEdit | None:
+    """Rewrite ``source`` lines in dependents so the workspace still loads."""
+    if not feature_config.workspace_file_ops_enabled:
+        return None
+    roots: list[str] = []
+    ws = server.workspace
+    if ws.root_path:
+        roots.append(ws.root_path)
+    return compute_batch_rename_edits(
+        list(params.files),
+        workspace_index,
+        workspace_roots=roots,
+    )
+
+
+@server.feature(types.WORKSPACE_DID_RENAME_FILES, _RENAME_FILE_OPERATION_OPTIONS)
+def on_did_rename_files(params: types.RenameFilesParams) -> None:
+    """Reindex renamed files after the client applies the rename on disk."""
+    if not feature_config.workspace_file_ops_enabled:
+        return
+    for f in params.files:
+        old_uri = f.old_uri
+        new_uri = f.new_uri
+        workspace_index.remove(old_uri)
+        background_scanner.remove_file(old_uri)
+        new_path = uri_to_path(new_uri)
+        if not new_path:
+            continue
+        scan_result = background_scanner.rescan_file(new_path)
+        if scan_result:
+            workspace_index.update(
+                new_uri,
+                scan_result.analysis,
+                EntrySource.BACKGROUND,
+            )
 
 
 # Configuration
