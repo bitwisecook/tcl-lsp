@@ -11,10 +11,14 @@
 //! - `hello_rust()` / `lexer_version()` — L0 smoke-test bridge.
 //! - `backslash_subst(text)` — L1 port of
 //!   `core/parsing/substitution.py::backslash_subst`.
+//! - `TokenType`, `SourcePosition`, `Token` — L2 port of the
+//!   `core/parsing/tokens.py` data types.
 
 use std::borrow::Cow;
 
 use pyo3::prelude::*;
+
+mod tokens;
 
 /// Return the Rust-side greeting used by the smoke test.
 ///
@@ -54,5 +58,6 @@ fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hello_rust, m)?)?;
     m.add_function(wrap_pyfunction!(lexer_version, m)?)?;
     m.add_function(wrap_pyfunction!(backslash_subst, m)?)?;
+    tokens::register_with(m)?;
     Ok(())
 }
