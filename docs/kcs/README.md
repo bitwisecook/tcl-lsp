@@ -15,7 +15,7 @@ This folder contains small, searchable Knowledge-Centered Service (KCS) notes.
 - [kcs-lsp-diagnostics-publication.md](kcs-lsp-diagnostics-publication.md) — LSP diagnostics publication and suppression model.
 - [kcs-vm-bytecode-test-boundary.md](kcs-vm-bytecode-test-boundary.md) — VM/bytecode identity and fixture boundary guidance.
 - [kcs-vscode-extension-contracts.md](kcs-vscode-extension-contracts.md) — VS Code extension integration contracts.
-- [kcs-vscode-lsp-startup-logs.md](kcs-vscode-lsp-startup-logs.md) — troubleshooting VS Code LSP startup: `Tcl Language Server` output channel, `tcl-lsp.trace.server`, Extension Host log.
+- [kcs-vscode-lsp-startup-logs.md](kcs-vscode-lsp-startup-logs.md) — user guide: viewing the VS Code `Tcl Language Server` output channel to confirm the LSP started.
 - [kcs-pipeline-lsp-first.md](kcs-pipeline-lsp-first.md) — how to think about pipeline layering for LSP use.
 - [kcs-shimmer-reference-behaviour.md](kcs-shimmer-reference-behaviour.md) — practical shimmer expectations and current validation strategy.
 - [kcs-project-layout-contracts.md](kcs-project-layout-contracts.md) — repository layout ownership and dependency direction contracts.
