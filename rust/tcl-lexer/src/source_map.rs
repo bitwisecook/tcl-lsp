@@ -131,6 +131,19 @@ impl<'src> SourceMap<'src> {
                     raw.strip_prefix('[').unwrap_or(raw)
                 }
             }
+            TokenType::Str => {
+                // STR spans start at the `{` and normally end
+                // before the matching close brace. The degenerate
+                // `{}` case extends the span to cover the `}`; use
+                // the same exact-match check as `Cmd` so nested
+                // braces like `{a {b} c}` keep their inner `}`
+                // intact.
+                if raw == "{}" {
+                    ""
+                } else {
+                    raw.strip_prefix('{').unwrap_or(raw)
+                }
+            }
             _ => raw,
         }
     }
