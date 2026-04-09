@@ -1922,6 +1922,43 @@ def on_range_formatting(
     return edits or None
 
 
+# Format on save
+
+
+@server.feature(
+    types.TEXT_DOCUMENT_WILL_SAVE_WAIT_UNTIL,
+    types.TextDocumentSaveRegistrationOptions(
+        document_selector=_TCL_DOCUMENT_SELECTOR,
+        include_text=False,
+    ),
+)
+def on_will_save_wait_until(
+    params: types.WillSaveTextDocumentParams,
+) -> list[types.TextEdit] | None:
+    if not feature_config.will_save_wait_until_enabled:
+        return None
+    if not feature_config.formatting_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    source = _get_doc_source(uri)
+    # Build a FormattingOptions from the active FormatterConfig so the format
+    # matches what on_formatting would produce.
+    from core.formatting.config import IndentStyle
+
+    options = types.FormattingOptions(
+        tab_size=formatter_config.indent_size,
+        insert_spaces=formatter_config.indent_style == IndentStyle.SPACES,
+    )
+    edits = get_formatting(
+        source,
+        options,
+        formatter_config,
+        lines=state.lines if state else None,
+    )
+    return edits or None
+
+
 # Diagnostics
 
 
