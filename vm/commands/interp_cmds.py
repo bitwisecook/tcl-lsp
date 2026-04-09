@@ -63,7 +63,13 @@ def _cmd_interp(interp: TclInterp, args: list[str]) -> TclResult:
 
     match args[0]:
         case "issafe":
-            return TclResult(value="0")
+            # Resolve the target interp (defaults to the current one).  This
+            # mirrors C Tcl's ``interp issafe ?path?`` and reports the
+            # interpreter's actual safe-mode state rather than a stub.
+            target = interp
+            if len(args) > 1:
+                target = _resolve_interp(interp, args[1])
+            return TclResult(value="1" if getattr(target, "_is_safe", False) else "0")
         case "create":
             return _interp_create(interp, args[1:])
         case "eval":
@@ -119,7 +125,15 @@ def _interp_create(caller: TclInterp, args: list[str]) -> TclResult:
     if name in _child_interps:
         raise TclError(f'interpreter named "{name}" already exists')
 
-    child = TclInterp(source_init=False)
+    # ``-safe`` children get an empty whitelist by default; the caller is
+    # expected to tag individual commands via ``interp expose`` / aliases.
+    # That matches C Tcl's hidden-command model closely enough for our
+    # current tests.
+    child_kwargs: dict[str, object] = {"source_init": False}
+    if _safe:
+        child_kwargs["safe"] = True
+        child_kwargs["safe_whitelist"] = frozenset()
+    child = TclInterp(**child_kwargs)  # type: ignore[arg-type]
     _set_interp_name(child, name)
     _child_interps[name] = child
     _hidden_commands[name] = {}
