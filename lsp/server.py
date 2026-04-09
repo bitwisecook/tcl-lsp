@@ -67,6 +67,7 @@ from .features.document_symbols import get_document_symbols
 from .features.folding import get_folding_ranges
 from .features.formatting import get_formatting, get_range_formatting
 from .features.hover import get_hover
+from .features.implementation import get_implementations
 from .features.inlay_hints import get_inlay_hints
 from .features.package_suggestions import rank_package_suggestions
 from .features.references import get_references
@@ -1056,6 +1057,31 @@ def on_subtypes(
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
     return get_subtypes(item, analysis=analysis, source=source)
+
+
+# Go to implementation
+
+
+@server.feature(types.TEXT_DOCUMENT_IMPLEMENTATION)
+def on_implementation(
+    params: types.ImplementationParams,
+) -> list[types.Location] | None:
+    if not feature_config.implementation_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    if state is not None and state.analysis is None:
+        return None
+    source = _get_doc_source(uri)
+    analysis = state.analysis if state else None
+    return get_implementations(
+        source,
+        uri,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
+        workspace_classes=workspace_index.iter_classes(),
+    )
 
 
 # Document links
