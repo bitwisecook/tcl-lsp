@@ -532,17 +532,32 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
         # When expansion is present, arity checks must treat the expanded
         # word as an unknown count rather than a single positional arg.
         arg_expand: list[bool] | None = None
+        arg_tokens: list[Token] | None = None
+        arg_single: list[bool] | None = None
         if ct is not None and ct.expand_word is not None:
             # If the command name itself is expanded ({*}$dispatch), we
             # cannot resolve the actual command — skip arity checks.
             if ct.expand_word and ct.expand_word[0]:
                 return
             arg_expand = list(ct.expand_word[1:])
+            if ct.argv:
+                arg_tokens = list(ct.argv[1:])
+            if ct.single_token_word:
+                arg_single = list(ct.single_token_word[1:])
 
         # Built-in command arity checking
         sig = _resolve_signature(cmd_name)
         if sig is not None:
-            _check_arity(cmd_name, args, sig, cmd_token_range, diagnostics, arg_expand)
+            _check_arity(
+                cmd_name,
+                args,
+                sig,
+                cmd_token_range,
+                diagnostics,
+                arg_expand,
+                arg_tokens,
+                arg_single,
+            )
 
     def _walk_ir(script: IRScript) -> None:
         for stmt in iter_ir_statements(script):
@@ -564,6 +579,8 @@ def _check_arity(
     diag_range: Range,
     diagnostics: list[Diagnostic],
     arg_expand: list[bool] | None = None,
+    arg_tokens: list[Token] | None = None,
+    arg_single: list[bool] | None = None,
 ) -> None:
     """Check argument count against a command signature.
 
@@ -571,6 +588,11 @@ def _check_arity(
     ``True`` for arguments preceded by the Tcl 8.5+ ``{*}`` expansion
     prefix.  Expanded words contribute an unknown number of runtime
     arguments and must not be counted as a single positional arg.
+
+    ``arg_tokens`` and ``arg_single`` (when provided) carry the original
+    token and the single-token-word marker for each argument so that
+    literal-list expansions can be statically resolved to an exact
+    element count.
     """
     if isinstance(sig, SubcommandSig):
         if not args:
@@ -616,32 +638,85 @@ def _check_arity(
         # Check arity of subcommand (args after subcommand name)
         sub_args = args[1:]
         sub_expand = arg_expand[1:] if arg_expand else None
+        sub_tokens = arg_tokens[1:] if arg_tokens else None
+        sub_single = arg_single[1:] if arg_single else None
         _check_simple_arity(
-            f"{cmd_name} {sub_name}", sub_args, sub_sig, diag_range, diagnostics, sub_expand
+            f"{cmd_name} {sub_name}",
+            sub_args,
+            sub_sig,
+            diag_range,
+            diagnostics,
+            sub_expand,
+            sub_tokens,
+            sub_single,
         )
         return
 
-    _check_simple_arity(cmd_name, args, sig, diag_range, diagnostics, arg_expand)
+    _check_simple_arity(
+        cmd_name, args, sig, diag_range, diagnostics, arg_expand, arg_tokens, arg_single
+    )
 
 
-def _resolve_expansion_count(arg_text: str) -> int | None:
-    """Return the static element count of an IR argument word being expanded.
+def _resolve_expansion_elements(
+    arg_text: str,
+    tok: Token | None,
+    single_token: bool,
+) -> list[str] | None:
+    """Return the static element list of a ``{*}``-expanded IR argument word.
 
-    Uses the same literal-list extractor the constant-propagation pass
-    uses for ``foreach`` — handles braced literals, ``[list a b c]``
-    command substitutions, and bare literal lists.  Returns ``None`` when
-    the count cannot be statically determined (variable substitution,
-    dynamic command substitution, interpolation, etc.), in which case
-    the caller treats the expansion as contributing 0..∞ runtime args,
-    matching Tcl's runtime semantics (``Tcl_ListObjGetElements`` shimmers
-    the value to a list at call time).
+    The IR text alone is ambiguous — for the literal expansion
+    ``{*}{$x}`` the segmenter strips the braces, leaving the IR arg
+    text ``$x``, which is indistinguishable from a variable
+    substitution.  Disambiguation requires the original token type and
+    the single-token-word marker:
+
+    - **STR token, single-token word** — the word came from a braced
+      literal ``{...}``.  The IR text is the brace contents (which may
+      legitimately contain ``$`` or ``[``); split it directly with
+      :func:`_split_tcl_list`.  An empty word resolves to zero elements.
+    - **CMD token, single-token word, ``[list ...]`` form** — the
+      command substitution is a literal ``list`` call; reuse
+      :func:`_extract_foreach_elements` to fold it.
+    - **Concatenated word, variable substitution, command substitution
+      with non-list head, etc.** — return ``None``: the count is not
+      statically known and the caller treats the expansion as
+      contributing 0..∞ runtime arguments, matching Tcl's runtime
+      semantics where ``{*}`` calls ``Tcl_ListObjGetElements`` to
+      shimmer the value to a list at call time.
     """
+    from ..parsing.tokens import TokenType
     from .core_analyses import _extract_foreach_elements
+    from .tcl_expr_eval import _split_tcl_list
 
-    elements = _extract_foreach_elements(arg_text)
-    if elements is None:
+    if not single_token or tok is None:
         return None
-    return len(elements)
+    if tok.type is TokenType.STR:
+        # Empty braced literal ``{*}{}`` → zero elements (the segmenter
+        # strips the braces, so the IR text is empty).
+        if not arg_text:
+            return []
+        try:
+            return _split_tcl_list(arg_text)
+        except Exception:
+            return None
+    if tok.type is TokenType.CMD:
+        # Only refine when the command substitution is a literal list,
+        # i.e. ``[list a b c]``.  ``_extract_foreach_elements`` handles
+        # the bracketed form for us.
+        elements = _extract_foreach_elements(arg_text)
+        if elements is not None:
+            return elements
+    return None
+
+
+def _resolve_expansion_count(
+    arg_text: str,
+    tok: Token | None,
+    single_token: bool,
+) -> int | None:
+    """Convenience wrapper around :func:`_resolve_expansion_elements`."""
+    elements = _resolve_expansion_elements(arg_text, tok, single_token)
+    return None if elements is None else len(elements)
 
 
 @diag("E002", "Too few arguments for command.", section="error")
@@ -653,6 +728,8 @@ def _check_simple_arity(
     diag_range: Range,
     diagnostics: list[Diagnostic],
     arg_expand: list[bool] | None = None,
+    arg_tokens: list[Token] | None = None,
+    arg_single: list[bool] | None = None,
 ) -> None:
     """Check argument count for a simple (non-subcommand) signature.
 
@@ -670,13 +747,42 @@ def _check_simple_arity(
     unbounded and the lower bound remains the count of non-expanded
     positional words).
     """
+    # First, expand statically-resolvable ``{*}`` words inline so the
+    # leading-option scan and the positional count both see the real
+    # element list.  Words whose expansion count is unknown are kept as
+    # a single placeholder entry whose ``flat_expand`` flag stays True.
+    flat_args: list[str] = []
+    flat_expand: list[bool] = []
+    flat_tokens: list[Token | None] = []
+    flat_single: list[bool] = []
+    for i, word in enumerate(args):
+        expanded = bool(arg_expand and i < len(arg_expand) and arg_expand[i])
+        tok = arg_tokens[i] if arg_tokens and i < len(arg_tokens) else None
+        single = bool(arg_single and i < len(arg_single) and arg_single[i])
+        if expanded:
+            elements = _resolve_expansion_elements(word, tok, single)
+            if elements is not None:
+                # Resolved literal expansion — inline each element so
+                # leading_options scanning and positional counting both
+                # see real string values, not the brace text.
+                for element in elements:
+                    flat_args.append(element)
+                    flat_expand.append(False)
+                    flat_tokens.append(None)
+                    flat_single.append(True)
+                continue
+        flat_args.append(word)
+        flat_expand.append(expanded)
+        flat_tokens.append(tok)
+        flat_single.append(single)
+
     # Count positional args by skipping leading declared options.
-    # An expanded word can't be reliably classified as an option, so
-    # option skipping stops at the first expanded or non-option arg.
+    # An unresolved expanded word can't be reliably classified as an
+    # option, so option skipping stops at the first such word.
     positional_start = 0
     if sig.leading_options:
-        for i, arg in enumerate(args):
-            if arg_expand and i < len(arg_expand) and arg_expand[i]:
+        for i, arg in enumerate(flat_args):
+            if flat_expand[i]:
                 break
             if arg in sig.leading_options:
                 positional_start = i + 1
@@ -684,25 +790,13 @@ def _check_simple_arity(
                     break  # -- terminates option parsing
             else:
                 break
-    positional = args[positional_start:]
-    positional_expand = arg_expand[positional_start:] if arg_expand else None
-    if positional_expand and any(positional_expand):
-        nargs_min = 0
-        nargs_max = 0
-        unbounded = False
-        for i, word in enumerate(positional):
-            if positional_expand[i]:
-                count = _resolve_expansion_count(word)
-                if count is None:
-                    unbounded = True
-                else:
-                    nargs_min += count
-                    nargs_max += count
-            else:
-                nargs_min += 1
-                nargs_max += 1
-        if unbounded:
-            nargs_max = Arity.ANY
+    positional = flat_args[positional_start:]
+    positional_expand = flat_expand[positional_start:]
+    if any(positional_expand):
+        # Lower bound: non-expanded positional args.  Upper bound:
+        # unbounded once any unresolved expansion appears.
+        nargs_min = sum(1 for exp in positional_expand if not exp)
+        nargs_max = Arity.ANY
     else:
         nargs_min = len(positional)
         nargs_max = len(positional)

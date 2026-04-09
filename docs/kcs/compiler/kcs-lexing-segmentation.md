@@ -98,13 +98,33 @@ sets the flag based on the active dialect:
 Arity checks at both the analyser (`_check_proc_call_arity` in
 `core/analysis/analyser.py`) and the IR layer (`_check_simple_arity` in
 `core/compiler/compiler_checks.py`) treat each expanded word as an
-unknown number of runtime arguments and try to refine the bound via
-constant folding: braced literal lists, `[list ...]` substitutions,
-and variables with known constant values resolve to an exact element
-count, so E002/E003 still fire when the count is statically wrong.
-Otherwise the expanded word contributes `0..∞` arguments, E002 is
-suppressed, and E003 only fires when the non-expanded arguments alone
-exceed the signature maximum.
+unknown number of runtime arguments and try to refine the bound by
+constant-folding the expanded word.  Refinement requires the word to
+be **single-token** (so concatenations like `{*}$x$y` or
+`{*}{a b}$suffix` stay unrefined) and depends on the layer:
+
+- **Analyser layer (user proc calls)** can refine
+  - braced literal lists (`{*}{a b c}` → 3, `{*}{}` → 0),
+  - pure variable references with a known constant string value
+    (`set rgb {255 255 255}; foo {*}$rgb` → 3) via the
+    `_const_strings` map.
+- **IR layer (built-in commands)** can refine
+  - braced literal lists (the segmenter strips the braces, so the
+    refinement uses the original `STR` token type to disambiguate
+    the resulting text from a variable substitution),
+  - literal `[list ...]` command substitutions via
+    `_extract_foreach_elements`.
+  IR-layer refinement does *not* yet resolve `$var` substitutions
+  back to their constant values — pure-var expansions in built-in
+  calls fall back to the `0..∞` range below.
+
+When refinement succeeds the leading-options scan and the positional
+count both see the inlined elements, so E002/E003 still fire when the
+count is statically wrong (and `puts {*}{-nonewline} chan msg` is
+correctly accepted because the literal list contributes a leading
+option).  Otherwise the expanded word contributes `0..∞` arguments,
+E002 is suppressed, and E003 only fires when the non-expanded
+arguments alone exceed the signature maximum.
 
 ### How segmented data feeds the compiler
 

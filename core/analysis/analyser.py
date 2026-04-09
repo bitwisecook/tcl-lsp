@@ -554,6 +554,7 @@ class Analyser:
                 scope,
                 source,
                 expand_word=cmd.expand_word,
+                single_token_word=cmd.single_token_word,
             )
             cmd_idx += 1 + consumed
 
@@ -766,6 +767,7 @@ class Analyser:
                 scope,
                 source,
                 expand_word=cmd.expand_word,
+                single_token_word=cmd.single_token_word,
             )
             cmd_idx += 1 + consumed
 
@@ -1311,6 +1313,7 @@ class Analyser:
         scope: Scope,
         source: str,
         expand_word: list[bool] | None = None,
+        single_token_word: list[bool] | None = None,
     ) -> None:
         """Process a single command (argv[0] is the command name).
 
@@ -1319,6 +1322,13 @@ class Analyser:
         ``{*}`` expansion prefix.  Arity checks must treat expanded words
         as an unknown number of runtime arguments rather than counting
         them as one.
+
+        ``single_token_word`` (when provided) is a list parallel to
+        ``argv`` whose entries are ``True`` when the word consists of a
+        single atomic token.  Used to gate constant-folding of expanded
+        words: a multi-token word like ``$x$y`` exposes only its first
+        token in ``argv``, so refinement based on that single token
+        would be incorrect.
         """
         if not argv:
             return
@@ -1328,6 +1338,7 @@ class Analyser:
         args = argv_texts[1:]
         arg_tokens = argv[1:]
         arg_expand = list(expand_word[1:]) if expand_word else None
+        arg_single_token = list(single_token_word[1:]) if single_token_word else None
         resolved_proc = self._resolve_proc_call(cmd_name, scope)
         self.result.command_invocations.append(
             CommandInvocation(
@@ -1557,6 +1568,7 @@ class Analyser:
                     argv[0],
                     arg_expand=arg_expand,
                     arg_tokens=arg_tokens,
+                    arg_single_token=arg_single_token,
                     scope=scope,
                 )
 
@@ -1571,6 +1583,7 @@ class Analyser:
                     arg_tokens[0],
                     arg_expand=arg_expand[1:] if arg_expand else None,
                     arg_tokens=arg_tokens[1:],
+                    arg_single_token=arg_single_token[1:] if arg_single_token else None,
                     scope=scope,
                 )
 
@@ -3071,6 +3084,7 @@ class Analyser:
     def _resolve_expansion_count(
         self,
         tok: Token,
+        single_token: bool,
         scope: Scope,
     ) -> int | None:
         """Return the static element count of an expanded ({*}-prefixed) word.
@@ -3079,12 +3093,20 @@ class Analyser:
 
         - Braced literal ``{a b c}`` → the segmenter has already stripped
           the outer braces; the token is a :class:`TokenType.STR` whose
-          text is the inner list (``"a b c"``), which we split.
+          text is the inner list (``"a b c"``), which we split.  Empty
+          braces ``{*}{}`` resolve to zero elements.
         - Pure variable reference ``$x`` → the token is a :class:`TokenType.VAR`;
           if the variable has a known constant value in the current
           scope chain, split that value.
-        - Anything else (command substitution, interpolated string,
-          dynamic value) → ``None``: the count is not statically known.
+        - Anything else (command substitution, interpolated/concatenated
+          word, dynamic value) → ``None``: the count is not statically
+          known.
+
+        Refinement is only attempted when ``single_token`` is true:
+        for concatenated words like ``{*}$x$y`` or ``{*}{a b}$suffix``
+        the segmenter exposes only the *first* token in ``argv[i]``,
+        which would otherwise be misinterpreted as a pure literal or
+        pure var ref.
 
         Returns ``None`` when the count cannot be determined.  The caller
         must then treat the expansion as contributing an unknown number
@@ -3094,6 +3116,8 @@ class Analyser:
         """
         from ..compiler.tcl_expr_eval import _split_tcl_list
 
+        if not single_token:
+            return None
         if tok.type is TokenType.STR:
             try:
                 return len(_split_tcl_list(tok.text))
@@ -3116,6 +3140,7 @@ class Analyser:
         cmd_token: Token,
         arg_expand: list[bool] | None = None,
         arg_tokens: list[Token] | None = None,
+        arg_single_token: list[bool] | None = None,
         scope: Scope | None = None,
     ) -> None:
         """Check a proc call against the proc's parameter list.
@@ -3124,12 +3149,14 @@ class Analyser:
         ``True`` for arguments preceded by the ``{*}`` expansion prefix.
         Each expanded argument may yield zero or more runtime arguments.
 
-        When ``arg_tokens`` and ``scope`` are provided, each expansion is
-        resolved to a static element count where possible (literal lists,
+        When ``arg_tokens``, ``arg_single_token`` and ``scope`` are
+        provided, each expansion is resolved to a static element count
+        where possible (single-token literal lists, single-token
         variables with known constant values).  When an expansion cannot
-        be resolved, it contributes an unknown number of arguments (0..∞)
-        and E002 is suppressed for that call; E003 only fires when the
-        minimum statically-known argument count still exceeds the max.
+        be resolved, it contributes an unknown number of arguments
+        (0..∞) and E002 is suppressed for that call; E003 only fires
+        when the minimum statically-known argument count still exceeds
+        the max.
         """
         required = 0
         variadic = False
@@ -3141,7 +3168,9 @@ class Analyser:
                 required += 1
 
         arity = Arity(required, Arity.ANY if variadic else len(proc_def.params))
-        nargs_min, nargs_max = self._arg_count_bounds(args, arg_expand, arg_tokens, scope)
+        nargs_min, nargs_max = self._arg_count_bounds(
+            args, arg_expand, arg_tokens, arg_single_token, scope
+        )
         display_name = proc_def.qualified_name
         if nargs_max < arity.min:
             self.result.diagnostics.append(
@@ -3167,6 +3196,7 @@ class Analyser:
         args: list[str],
         arg_expand: list[bool] | None,
         arg_tokens: list[Token] | None,
+        arg_single_token: list[bool] | None,
         scope: Scope | None,
     ) -> tuple[int, int]:
         """Return the static (min, max) runtime argument count for a call.
@@ -3189,9 +3219,12 @@ class Analyser:
                 nargs_max += 1
                 continue
             tok = arg_tokens[i] if arg_tokens and i < len(arg_tokens) else None
+            single = (
+                arg_single_token[i] if arg_single_token and i < len(arg_single_token) else False
+            )
             count: int | None = None
             if tok is not None and scope is not None:
-                count = self._resolve_expansion_count(tok, scope)
+                count = self._resolve_expansion_count(tok, single, scope)
             if count is None:
                 unbounded = True
                 continue

@@ -321,16 +321,17 @@ class TestDiagnostics:
         assert len(errors) >= 1
 
     def test_builtin_call_arg_expansion_suppresses_too_many(self):
-        """``set x {*}$args`` should not fire E003 even when set's max is 2.
+        """``set x {*}$dynamic`` should not fire E003 when ``$dynamic`` is
+        unresolvable.
 
-        The runtime may expand ``{*}$args`` to zero or one elements, so
-        the static count ``(x, {*}$args)`` cannot be used to decide that
-        too many arguments are present.
+        The IR-level arity check does not yet resolve variable references
+        back to constant values, so any ``{*}$var`` expansion is treated
+        as contributing 0..∞ arguments and the static count cannot be
+        used to decide that too many arguments are present.
         """
-        source = textwrap.dedent("""\
-            set args {42}
-            set x y {*}$args
-        """)
+        # Use a dynamic value (command substitution) so neither layer can
+        # statically resolve the element count.
+        source = "set x y {*}[exec true]"
         result = analyse(source)
         errors = [d for d in result.diagnostics if d.code == "E003" and "'set'" in d.message]
         assert errors == [], f"unexpected E003 diagnostics: {errors}"
@@ -559,6 +560,68 @@ class TestDiagnostics:
         source = "set x y {*}$rest"
         result = analyse(source)
         errors = [d for d in result.diagnostics if d.code == "E003" and "'set'" in d.message]
+        assert errors == []
+
+    def test_builtin_expansion_leading_options_through_literal(self):
+        """``puts {*}{-nonewline} stdout hello`` is valid: the literal
+        ``{*}{-nonewline}`` expansion contributes a leading option, not
+        a positional argument."""
+        source = "puts {*}{-nonewline} stdout hello"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'puts'" in d.message]
+        assert errors == []
+
+    def test_builtin_expansion_leading_options_too_many_positional(self):
+        """Too many positional arguments after a literal-option expansion
+        still produces E003."""
+        source = "puts {*}{-nonewline} stdout a b c"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'puts'" in d.message]
+        assert len(errors) == 1
+
+    def test_builtin_expansion_literal_with_dollar_in_brace(self):
+        """``pwd {*}{$x}`` — the braced literal contains the literal text
+        ``$x`` (no substitution because braces).  The list has one
+        element, and ``pwd`` takes none, so E003 must fire."""
+        source = "pwd {*}{$x}"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'pwd'" in d.message]
+        assert len(errors) == 1
+        assert "got 1" in errors[0].message
+
+    def test_builtin_expansion_empty_brace_resolves_to_zero(self):
+        """``set {*}{}`` expands to zero elements → E002 fires (set
+        requires at least one positional argument)."""
+        source = "set {*}{}"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E002" and "'set'" in d.message]
+        assert len(errors) == 1
+        assert "got 0" in errors[0].message
+
+    def test_builtin_expansion_empty_brace_combined_with_positional(self):
+        """``set foo {*}{}`` is valid: 1 positional + 0 expanded = 1 arg."""
+        source = "set foo {*}{}"
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "'set'" in d.message
+        ]
+        assert errors == []
+
+    def test_proc_call_expansion_concatenated_word_unknown(self):
+        """``foo {*}$y$z`` is a concatenated word (multi-token) — the
+        analyser must NOT refine via the first token alone, otherwise
+        ``y='a b'`` would falsely resolve to 2 elements when the actual
+        runtime count depends on ``$z``."""
+        source = textwrap.dedent("""\
+            proc foo {x} { return 1 }
+            set y "a b"
+            set z xyz
+            foo {*}$y$z
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::foo" in d.message
+        ]
         assert errors == []
 
     def test_multiline_diagnostics(self):
