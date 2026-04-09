@@ -1,4 +1,4 @@
-# Floating stable toolchain. See docs/kcs/kcs-rust-migration.md for rationale.
+# Floating stable toolchain. See docs/rust-rewrite.md for rationale.
 [toolchain]
 channel = "stable"
 components = ["rustfmt", "clippy"]

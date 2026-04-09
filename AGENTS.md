@@ -269,12 +269,12 @@ alongside the diagnostic/optimisation change — CI will fail if they are stale.
 
 ## Rust workspace
 
-The project is in the middle of an incremental Python-to-Rust migration that
+The project is in the middle of an incremental Python-to-Rust rewrite that
 starts at the lexer and works upward through the compiler and LSP server.
-The full chunking strategy, rollout/rollback procedure, and naming
-conventions live in `docs/kcs/kcs-rust-migration.md` — read it before
-touching anything under `rust/` or the native-extension bits of the zipapp
-builder.
+The full strategy, the chunk log, and the guide to "what a good port looks
+like" live in [`docs/rust-rewrite.md`](docs/rust-rewrite.md) — read it
+before touching anything under `rust/` or the native-extension bits of the
+zipapp builder.
 
 The workspace is deliberately split in two:
 

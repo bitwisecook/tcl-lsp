@@ -47,7 +47,7 @@ jobs:
         run: uv run --extra dev ty check --exclude 'lsp/server.py' lsp core explorer tests scripts/tcl_test_client.py
 
   # Lint/test the Rust workspace and build a PR-time wheel.
-  # See docs/kcs/kcs-rust-migration.md for the migration strategy.
+  # See docs/rust-rewrite.md for the migration strategy.
   rust:
     runs-on: ubuntu-latest
     steps:
