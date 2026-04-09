@@ -48,6 +48,157 @@ We get there by porting the codebase bottom-up, in dependency order:
 unrelated to this rewrite. It's intentionally excluded from the main
 Cargo workspace and should be left alone.
 
+## Chosen libraries and data structures
+
+Rewrites that drag Python structure into Rust — dataclasses with
+dunder methods, hand-rolled line indices when a rope already has one,
+thread-local globals ported verbatim — are bad ports. To avoid that
+we commit up front to a concrete set of Rust libraries and lean on
+them hard. Pick these, document them here, and use them idiomatically
+from day one.
+
+- **Buffer storage (LSP layer): [`ropey`](https://crates.io/crates/ropey).**
+  Rope for the document store. Standard Rust LSP choice, used by
+  Helix, O(log n) edits, cheap slicing, built-in line indexing via
+  `Rope::byte_to_line` / `Rope::line_to_byte`. Adopted when the LSP
+  server chunks land (R*). The lexer itself does **not** take a
+  `Rope` — see below.
+- **LSP framework: [`tower-lsp`](https://crates.io/crates/tower-lsp).**
+  Async/Tokio, modern, the standard for new Rust LSP servers.
+- **Error types: [`thiserror`](https://crates.io/crates/thiserror) in
+  library crates, [`anyhow`](https://crates.io/crates/anyhow) in
+  binaries.** Already in use in `tcl-lexer` for `LexError`.
+- **Python bindings: [`PyO3`](https://pyo3.rs) + [`maturin`](https://maturin.rs).**
+  Already in place for the soft-dependency build.
+- **CLI argument parsing (when CLI tools arrive):
+  [`clap`](https://crates.io/crates/clap) with `derive`.**
+- **Logging: [`tracing`](https://crates.io/crates/tracing) + `tracing-subscriber`.**
+
+### Spans threaded through everything
+
+The single most important architectural invariant of the Rust side:
+**every positional entity carries a [`Span`], not inline position
+data**. Tokens today; IR nodes, CFG nodes, diagnostics, refactoring
+ranges, semantic-token outputs, and everything else tomorrow. A
+[`Span`] is just two `u32`s — an inclusive start and an exclusive
+end, byte offsets into the source. It's 8 bytes, `Copy`, no
+lifetime, trivially storable in containers.
+
+To go from a span back to anything human-readable — text, line
+number, LSP `Position`, etc. — callers thread a [`SourceMap`] (a
+`&str` source buffer bundled with a [`LineIndex`]) and ask it:
+
+```rust
+let source_map = SourceMap::new(source);
+let tokens = Lexer::new(source).tokenise_all()?;
+for tok in &tokens {
+    let text = source_map.text(tok.span);
+    let (start, end) = source_map.range_positions(tok.span);
+    println!("{:?} {:?} {}-{}", tok.kind, text, start.line, end.line);
+}
+```
+
+This matches the design used by rust-analyzer (`TextRange`), swc
+(`Span`), and tree-sitter (`Range`). It keeps entities tiny, keeps
+position lookups in one place, and means a future incremental story
+can invalidate spans without touching every downstream struct.
+
+Consequences of the rule:
+
+- **Tokens have no lifetime.** `pub struct Token { kind, span,
+  in_quote }` is 16 bytes and `Copy`. A `Vec<Token>` is a plain
+  buffer; it can be serialised, sent across threads, cached, and
+  diffed without lifetime bookkeeping.
+- **IR / CFG nodes (future chunks) carry `Span`s, not
+  `SourcePosition`s.** Passes rewrite nodes freely; positions stay
+  deferred to the `SourceMap` and are computed only at the point of
+  diagnostic emission or LSP response formatting.
+- **Diagnostics carry `Span`s.** LSP `Range` values are derived on
+  publish, not stored on the diagnostic.
+- **Sub-lexing** (L5 command substitution, future expression
+  re-lexing) inherits the parent `SourceMap`. It never builds its
+  own line index; the spans it produces are offsets into the same
+  top-level buffer, so downstream consumers see one coherent
+  coordinate system.
+- **Positional parity with Python is a [`SourceMap`] concern.** If
+  we ever need UTF-16 column parity with the LSP specification, we
+  fix it once inside [`LineIndex::position_at`] and every
+  downstream entity gets correct positions for free.
+
+### Position infrastructure — lexer vs. document layer
+
+The Python side has a single `DocumentBuffer` type that holds the
+source text plus a `line_starts` tuple. In Rust we split the concern
+along the same span-threading principle above:
+
+- **At the lexer layer** (`rust/tcl-lexer/`), the lexer consumes a
+  `&'src str` slice and produces `Token` values that carry only a
+  `Span`. It owns a [`SourceMap`] — a zero-allocation wrapper over
+  `(source, LineIndex)` — that any consumer can borrow via
+  `Lexer::source_map()` or take over via `Lexer::into_source_map()`.
+  [`LineIndex`] itself is a pure-Rust `Box<[u32]>` with O(log n)
+  `partition_point` lookups — not a port of `DocumentBuffer`, just
+  the minimum needed to resolve spans to positions.
+- **At the LSP server layer** (future `rust/tcl-lsp-server/`), the
+  Document store is a [`ropey::Rope`]. The rope has its own internal
+  line index; when the document layer needs to lex a chunk it
+  flattens the affected rope range into a `&str` (cheap: most ranges
+  are a single contiguous chunk), wraps it in a [`SourceMap`], and
+  hands the `SourceMap` to the lexer via `Lexer::with_source_map`.
+  No `LineIndex` gets built twice, and no rope reference leaks into
+  `tcl-lexer`.
+- The seam between the two layers is one cheap flatten plus a
+  [`SourceMap`]. When we need to avoid even that, a future
+  `LineIndex::from_rope_slice` adapter will skip the linear scan and
+  pull line offsets straight out of the rope's B-tree.
+
+The key point: the **lexer's public API is `&str`-based**, the
+**document store's public API is rope-based**, and the seam between
+them is a cheap rope → `&str` flatten plus a shared [`SourceMap`].
+No rope references leak into `tcl-lexer`, no `LineIndex` leaks into
+the document store (beyond the rope adapter).
+
+[`Span`]: ../rust/tcl-lexer/src/span.rs
+[`LineIndex`]: ../rust/tcl-lexer/src/line_index.rs
+[`LineIndex::position_at`]: ../rust/tcl-lexer/src/line_index.rs
+[`SourceMap`]: ../rust/tcl-lexer/src/source_map.rs
+[`ropey::Rope`]: https://docs.rs/ropey
+
+### Deferred work (lexer)
+
+Tracked here so we can't forget; every chunk may close items on this
+list and should add any new ones it discovers.
+
+- **`LineIndex::from_rope_slice`** — an adapter that wraps
+  `RopeSlice`'s own line offsets so the document store can reuse the
+  rope's B-tree instead of scanning a flattened `&str`. Deferred
+  until the first rope-backed consumer lands (R* chunks).
+- **UTF-16 column parity with Python.** Both lexers currently treat
+  `character` as byte-offset-within-line. The Python implementation
+  happens to be code-point-offset-within-line because Python `str` is
+  code-point indexed; the two agree for ASCII and diverge for
+  supplementary characters. The LSP specification says `character`
+  must be UTF-16 code units. The fix is a coordinated change across
+  both lexers and the `LineIndex` lookup; do it before any LSP
+  handler that cares (probably alongside the semantic-tokens or
+  hover chunk).
+- **Rust lexer does not yet handle**: variable substitution (`$` —
+  L4), command substitution (`[` — L5), braced strings (`{` — L6),
+  quoted strings (`"` — L7), expansion prefix (`{*}` — L8), backslash
+  escapes and line continuation (`\` — L9), dialect flags
+  (`strict_quoting`, `expand_syntax`, `irules_brace_separator` — L8),
+  warning collection (L9), virtual character insertion for error
+  recovery (L9), `base_offset` / `base_line` / `base_col` for
+  sub-lexing (L5 when command substitution gains nested lexing).
+- **Synthetic tokens, virtual insertions, error recovery.** The
+  Python lexer emits virtual characters at specific offsets to
+  recover from missing delimiters. The Rust lexer has no equivalent
+  yet. Add it when the analyser starts relying on it through the
+  Rust path.
+- **Performance parity.** Not measured yet; the L3 skeleton is
+  correctness-first. Benchmark when the Rust lexer becomes the
+  default on a real workload.
+
 ## How we're doing it
 
 ### Two crates per domain
@@ -160,6 +311,14 @@ Some concrete rules of thumb:
 - Use **structs with named fields** for product types. Python dataclasses
   become Rust structs. Frozen dataclasses become `#[derive(Clone, Copy,
   Debug, Eq, PartialEq, Hash)]` as appropriate.
+- **Positional entities carry a `Span`, not inline positions.**
+  Tokens, IR nodes, CFG nodes, diagnostics — anything that refers to
+  a region of source — stores a byte range, not a start/end
+  `SourcePosition` pair. Text and `(line, character)` positions are
+  resolved on demand via a `SourceMap`. This keeps entities tiny,
+  centralises position lookups, and lets the whole rewrite inherit
+  the same coordinate system. See the "Spans threaded through
+  everything" section above.
 - Use **`&str` and `Cow<'_, str>`** instead of `String` wherever you can
   borrow. The caller usually owns the buffer; a new allocation per
   token is a waste. The PyO3 wrapper clones on the way out if needed.
@@ -239,6 +398,11 @@ Some concrete rules of thumb:
 If your port has any of these, reshape it before asking for review:
 
 - A `#[pyclass]` in the pure crate.
+- An IR node, CFG node, or diagnostic that stores `start:
+  SourcePosition, end: SourcePosition` instead of a `Span`. Positions
+  belong on the `SourceMap`, not on every entity.
+- A second line-index implementation. There is one `LineIndex`, owned
+  by the `SourceMap`. Everything else borrows it.
 - A `String` field where `&'src str` would borrow from the caller's
   buffer.
 - A translation of Python's class-level `strict_quoting = False` into a
@@ -263,7 +427,11 @@ rust/
     src/
       lib.rs
       substitution.rs                    backslash_subst (L1)
-      …                                  tokens, lexer, expr_lexer (L2+)
+      tokens.rs                          Token, TokenType, SourcePosition (L2)
+      span.rs                            Span — byte range (L3)
+      line_index.rs                      LineIndex — byte offset → line/col (L3)
+      source_map.rs                      SourceMap — source + LineIndex (L3)
+      lexer.rs                           Lexer skeleton (L3)
   tcl-lsp-rust/                          PyO3 binding crate
     Cargo.toml
     pyproject.toml                       maturin build backend
@@ -283,7 +451,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L0    | Rust workspace bootstrap: two crates, hello-world `tcl_lsp_rust`, CI, packaging plumbing | landed |
 | L1    | `core/parsing/substitution.py::backslash_subst` → `rust/tcl-lexer/src/substitution.rs` with PyO3 bridge and Python fallback | landed |
 | L2    | `core/parsing/tokens.py` → `rust/tcl-lexer/src/tokens.rs` (`TokenType`, `SourcePosition`, `Token<'src>`) plus PyO3 wrappers preserving singleton/identity semantics; new `tests/test_tokens.py` contract test | landed |
-| L3    | Rust `Lexer` skeleton (EOF/SEP/EOL/COMMENT/plain ESC) + differential test harness | planned |
+| L3    | Rust `Lexer` skeleton (EOF/SEP/EOL/COMMENT/plain ESC) + span-first architecture (`Span`, `LineIndex`, `SourceMap`) + differential test harness + committed library choices (`ropey`, `tower-lsp`, `thiserror`/`anyhow`, `clap`, `tracing`) | landed |
 | L4    | Variable substitution in the Rust lexer | planned |
 | L5    | Command substitution in the Rust lexer | planned |
 | L6    | Brace strings in the Rust lexer | planned |
