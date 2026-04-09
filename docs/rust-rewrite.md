@@ -291,12 +291,15 @@ list and should add any new ones it discovers.
   impl scans `[…]` without re-lexing the body; sub-lexing with
   `base_offset` / `base_line` / `base_col` is deferred until the
   first consumer needs a positional token stream for the inner
-  command), braced strings (`{` — L6), quoted strings (`"` — L7),
-  expansion prefix (`{*}` — L8), backslash escapes and line
-  continuation (`\` — L9), dialect flags (`strict_quoting`,
-  `expand_syntax`, `irules_brace_separator` — L8), warning
-  collection (L9), ghost character insertion for error recovery
-  (L9).
+  command), ~~braced strings~~ (L6, landed — the current impl
+  preserves brace bodies verbatim as the Python lexer does; the
+  `}{ ` iRules word-boundary injection and the "extra characters
+  after close-brace" warning are deferred to L8 / L9 respectively),
+  quoted strings (`"` — L7), expansion prefix (`{*}` — L8),
+  backslash escapes and line continuation (`\` — L9), dialect flags
+  (`strict_quoting`, `expand_syntax`, `irules_brace_separator` —
+  L8), warning collection (L9), ghost character insertion for
+  error recovery (L9).
 - **Ghost tokens and ghost character insertions for error recovery.**
   The Python lexer refers to these as "synthetic" tokens and
   "virtual" character insertions; we call them **ghost** tokens and
@@ -567,7 +570,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L3    | Rust `Lexer` skeleton (EOF/SEP/EOL/COMMENT/plain ESC) + span-first architecture (`Span`, `LineIndex`, `SourceMap`) + differential test harness + committed library choices (`ropey`, `tower-lsp`, `thiserror`/`anyhow`, `clap`, `tracing`) | landed |
 | L4    | Variable substitution in the Rust lexer (`$name`, `${name}`, `$arr(idx)`, `$ns::var`, bare `$`) + `SourceMap::token_text` for Python-parity text extraction + try/catch-based differential harness filter | landed |
 | L5    | Command substitution in the Rust lexer (`[…]` with bracket nesting, brace/quote aware, embedded `${…}` sub-scan, backslash-pair escapes) + per-kind content stripping in `SourceMap::token_text` | landed |
-| L6    | Brace strings in the Rust lexer | planned |
+| L6    | Braced strings in the Rust lexer (`{…}` at word boundaries, balanced nesting, backslash-pair escapes, Python-parity `newword` predicate) + `token_text` `Str` stripping + dynamic harness harvesting ~200 new L6-eligible inputs | landed |
 | L7    | Quoted strings in the Rust lexer | planned |
 | L8    | `EXPAND` / dialect flags reshaped into `LexerConfig` | planned |
 | L9    | Warnings collection and ghost-character-insertion error recovery | planned |
