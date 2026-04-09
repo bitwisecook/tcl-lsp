@@ -1,7 +1,8 @@
 //! Streaming Tcl lexer.
 //!
-//! **L3 + L4 + L5 + L6.** The first four lexer chunks, taken
-//! together, handle every non-quoted top-level Tcl construct:
+//! **L3 + L4 + L5 + L6 + L7.** The first five lexer chunks, taken
+//! together, handle every top-level Tcl construct except backslash
+//! escapes (L9) and the `{*}` expansion prefix (L8):
 //!
 //! - **EOF handling** — emits a trailing ghost `EOL` (once) when the
 //!   source does not already end with an EOL token, matching the
@@ -52,12 +53,32 @@
 //!   word-boundary injection and the "extra characters after
 //!   close-brace" warning are deferred to L8 (dialect flags) and
 //!   L9 (warning collection) respectively.
+//! - **Quoted ESC (L7)** — `"…"` quoted strings emit `ESC` tokens
+//!   carrying the `in_quote = true` flag for the duration of the
+//!   quoted run. The lexer keeps an `in_quote: bool` field that is
+//!   toggled on the opening and closing `"`; while it is set, the
+//!   dispatch ignores separators, EOL characters, `#`, and `{` (all
+//!   of which become literal content) and handles only the four
+//!   active constructs `$`, `[`, `\`, and `"`. The opening `"` is
+//!   captured in the first emitted `ESC`'s span (with
+//!   `token_text` stripping it), not as a separate token; if the
+//!   body begins with `$` or `[` the first `ESC` is an empty-body
+//!   token whose span is extended to cover the terminator so the
+//!   end position matches Python's clamp. Sub-tokens (`VAR`,
+//!   `CMD`) emitted inside a quoted run carry `in_quote = true`;
+//!   the **last** `ESC` before the closing `"` and the closing
+//!   `"` itself (emitted as a possibly empty `ESC`) reset
+//!   `in_quote` to `false` before the token is returned, matching
+//!   Python's `self.insidequote = False` placement inside
+//!   `_parse_string`. A `"` mid-word (not at a word boundary) is
+//!   a regular character inside the enclosing `ESC` — matching
+//!   Python's `_parse_string` fall-through for literal quotes
+//!   inside bare words.
 //!
-//! The "deferred" set is now `" \`. Encountering either of them
-//! trips [`LexError::UnsupportedCharacter`] carrying the character
-//! and its position. Callers filter inputs on that error rather than
-//! receiving silently-wrong token streams. Chunks L7–L9 shrink the
-//! set to zero.
+//! The "deferred" set is now just `\`. Only backslash escapes
+//! remain; chunk L9 drains it and turns the trigger into proper
+//! `\n` / `\t` / `\xNN` etc. handling plus line-continuation
+//! and warning collection.
 //!
 //! ### Architecture
 //!
@@ -92,9 +113,8 @@
 //! - ~~L4: variable substitution (`$name`, `${name}`, `$arr(idx)`,~~
 //!   ~~`$ns::var`)~~ — landed
 //! - ~~L5: command substitution (`[…]`, possibly nested)~~ — landed
-//! - ~~L6: braced strings (`{…}`, possibly nested)~~ —
-//!   **landed in this chunk**
-//! - L7: quoted strings (`"…"`)
+//! - ~~L6: braced strings (`{…}`, possibly nested)~~ — landed
+//! - ~~L7: quoted strings (`"…"`)~~ — **landed in this chunk**
 //! - L8: expansion prefix (`{*}`), `strict_quoting`, `expand_syntax`,
 //!   `irules_brace_separator`
 //! - L9: backslash escapes and line continuation; warning collection
@@ -167,8 +187,16 @@ pub struct Lexer<'src> {
     /// Whether the next token starts a new command. Set on construction
     /// and after every EOL; preserved across SEP tokens.
     at_command_start: bool,
+    /// Whether we are currently inside a `"…"` quoted string.
+    /// Toggled by [`Lexer::parse_quoted`] on the opening and closing
+    /// `"`. While set, the dispatch in [`Iterator::next`] ignores
+    /// separators, EOL characters, `#`, and `{` — they become
+    /// literal content — and only `$`, `[`, `\`, and `"` are
+    /// meaningful. Mirrors Python's `TclLexer.insidequote`.
+    in_quote: bool,
     /// Kind of the most recently emitted token. Used to decide whether
-    /// EOF needs a trailing ghost EOL.
+    /// EOF needs a trailing ghost EOL and to compute
+    /// [`Lexer::is_newword`].
     last_kind: TokenType,
     /// Once true, [`Iterator::next`] returns `None`.
     done: bool,
@@ -195,6 +223,7 @@ impl<'src> Lexer<'src> {
             source_map,
             pos: 0,
             at_command_start: true,
+            in_quote: false,
             // Start in "last kind was EOL" so an empty source produces
             // zero tokens rather than a lone ghost trailing EOL,
             // matching `TclLexer.__init__` in Python.
@@ -250,13 +279,11 @@ impl<'src> Lexer<'src> {
         self.source_map.position_at(offset)
     }
 
-    /// Build a token whose span covers `start_offset..self.pos`.
+    /// Build a token whose span covers `start_offset..self.pos`
+    /// with `content_offset = 0` (no prefix delimiter to strip).
+    /// Used for `Sep`, `Eol`, `Comment`, and plain `Esc`.
     fn make_token(&self, kind: TokenType, start_offset: u32) -> Token {
-        Token {
-            kind,
-            span: Span::new(start_offset, self.pos),
-            in_quote: false,
-        }
+        Token::new(kind, Span::new(start_offset, self.pos))
     }
 
     fn parse_sep(&mut self) -> Token {
@@ -367,7 +394,8 @@ impl<'src> Lexer<'src> {
         let dollar_pos = self.pos;
         self.pos += 1; // skip '$'
 
-        // `${name}` braced form.
+        // `${name}` braced form — content starts after `${`, so
+        // `content_offset = 2`.
         if self.current_byte() == Some(b'{') {
             self.pos += 1; // skip '{'
             let content_start = self.pos;
@@ -377,36 +405,21 @@ impl<'src> Lexer<'src> {
                 }
                 self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
             }
-            // Compute the token's exclusive-end offset. Python's
-            // `_parse_var` uses the clamp
-            // `end_offset = _end if _end >= _start else _start`,
-            // which produces one of three cases:
-            //
-            // - `${name}`: end is the last char of `name` —
-            //   `span_end == self.pos` (before `}` is consumed).
-            // - `${}`: `_end < _start` (no content scanned), so the
-            //   clamp pins end to `_start`, which is the `}`
-            //   position itself. We match by extending
-            //   `span_end` to include the `}`.
-            // - `${` (unterminated, empty): no content, no `}`. We
-            //   stop at the current `self.pos`; this is a minor
-            //   parity drift against Python (which emits a past-end
-            //   position there) and does not affect any input in
-            //   the differential corpus.
             let content_empty = self.pos == content_start;
             let has_close_brace = self.current_byte() == Some(b'}');
             let span_end = if content_empty && has_close_brace {
-                self.pos + 1 // include the `}`
+                self.pos + 1 // include the `}` so the end position lands on it
             } else {
                 self.pos
             };
             if has_close_brace {
                 self.pos += 1;
             }
-            return Token::new(TokenType::Var, Span::new(dollar_pos, span_end));
+            return Token::with_content_offset(TokenType::Var, Span::new(dollar_pos, span_end), 2);
         }
 
-        // `$name` or `$ns::var` identifier form.
+        // `$name` or `$ns::var` identifier form — `content_offset = 1`
+        // (just the `$`).
         let name_start = self.pos;
         while let Some(ch) = self.current_char() {
             if ch.is_alphanumeric() || ch == '_' {
@@ -420,22 +433,20 @@ impl<'src> Lexer<'src> {
             break;
         }
 
-        // `$arr(idx)` array-index form. The `(` only counts as an
-        // array index when it immediately follows an identifier,
-        // matching the Python dispatcher's `if self.remaining and
-        // self._cur() == "("` branch inside `_parse_var`.
+        // `$arr(idx)` array-index form.
         if self.current_byte() == Some(b'(') {
             self.scan_array_index_body();
-            return Token::new(TokenType::Var, Span::new(dollar_pos, self.pos));
+            return Token::with_content_offset(TokenType::Var, Span::new(dollar_pos, self.pos), 1);
         }
 
         // Bare `$` — no identifier chars were consumed. Python emits
-        // this as an `STR` token whose text is just `$`, not a `VAR`.
+        // this as an `STR` token whose text is just `$` (the whole
+        // span IS the content, so `content_offset = 0`).
         if self.pos == name_start {
             return Token::new(TokenType::Str, Span::new(dollar_pos, dollar_pos + 1));
         }
 
-        Token::new(TokenType::Var, Span::new(dollar_pos, self.pos))
+        Token::with_content_offset(TokenType::Var, Span::new(dollar_pos, self.pos), 1)
     }
 
     /// Consume a `(…)` array-index body starting at the `(`,
@@ -489,6 +500,110 @@ impl<'src> Lexer<'src> {
             .as_bytes()
             .get((self.pos + offset) as usize)
             .copied()
+    }
+
+    /// Parse a quoted-string `ESC` token.
+    ///
+    /// Called from the iterator in two modes:
+    ///
+    /// - `opening = true`: the iterator has seen a `"` at a word
+    ///   boundary (top-level, `!in_quote`, `is_newword()`). Skip
+    ///   the opening `"`, set `in_quote = true`, then scan content
+    ///   until a terminator.
+    /// - `opening = false`: the iterator is already `in_quote`.
+    ///   Scan content from the current position until a terminator.
+    ///   If the terminator is the closing `"`, consume it and
+    ///   reset `in_quote = false`.
+    ///
+    /// The content scan stops at `$`, `[`, `"`, or `\`, or EOF.
+    /// `$` and `[` are left in the stream for the iterator to
+    /// dispatch to `parse_var` / `parse_command` on the next
+    /// iteration. `\` is left in the stream so the iterator can
+    /// surface it as an unsupported character (L9 adds proper
+    /// handling). Everything else — separators, EOL characters,
+    /// `#`, `{`, `}` — is consumed as literal content.
+    ///
+    /// ### Span convention
+    ///
+    /// The span starts at `start_offset` (the opening `"` when
+    /// `opening`, or the first content byte otherwise) and normally
+    /// ends at the position where the scanner stopped. In the
+    /// **empty-content** case — where the scanner stopped
+    /// immediately without consuming any content — the span is
+    /// extended by one byte to cover the stop character itself,
+    /// so the end position lands on it. This matches Python's
+    /// end-offset clamp `end_offset = _end if _end >= _start else
+    /// _start` for the degenerate cases:
+    ///
+    /// - `""` — empty body, stop char is the closing `"`. Span
+    ///   covers `""`; `token_text` returns `""`.
+    /// - `"$foo"` opening ESC — stop char is `$`. Span covers
+    ///   `"$`; `token_text` returns `""` and the next dispatch
+    ///   handles the `$`.
+    /// - `"[cmd]"` opening ESC — same, stop char is `[`.
+    /// - Closing empty ESC after a sub-token (`$foo"` after a
+    ///   VAR) — stop char is the closing `"`. Span covers `"`;
+    ///   `token_text` returns `""`.
+    ///
+    /// Never fails. An unterminated quoted string tokenizes
+    /// best-effort — the scanner consumes everything up to EOF
+    /// and returns an `ESC` with `in_quote = true` still set, so
+    /// the trailing synthetic EOL inherits the `true` flag too.
+    /// The "missing close-quote" warning is deferred to L9.
+    fn parse_quoted(&mut self, opening: bool) -> Token {
+        let start_offset = self.pos;
+        if opening {
+            self.pos += 1; // skip opening `"`
+            self.in_quote = true;
+        }
+        let content_start = self.pos;
+        let mut closed = false;
+
+        while let Some(ch) = self.current_char() {
+            match ch {
+                '"' => {
+                    closed = true;
+                    break;
+                }
+                '$' | '[' | '\\' => break,
+                _ => {
+                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                }
+            }
+        }
+
+        let content_empty = self.pos == content_start;
+        // Empty-content clamp: extend the span by one byte so the
+        // end position lands on the terminator (closing `"`, or the
+        // `$` / `[` that stopped the scan). Don't extend at EOF
+        // with no terminator — that would push `span.end` past
+        // `source.len()` and make `SourceMap::text` panic on
+        // slicing.
+        let has_stop = closed || self.current_char().is_some();
+        let span_end = if content_empty && has_stop {
+            self.pos + 1
+        } else {
+            self.pos
+        };
+
+        if closed {
+            self.pos += 1; // advance past closing `"`
+            self.in_quote = false;
+        }
+
+        // `content_offset` is 1 for the opening ESC (the first
+        // character of the span is the opening `"`, which is not
+        // content) and 0 for all subsequent ESCs in the run (their
+        // span starts at a content byte). The empty-closing ESC
+        // has `content_offset = 0` and its single-byte `"` is
+        // handled by the "1-char terminator" check in
+        // `token_text`.
+        let content_offset: u8 = opening.into();
+        Token::with_content_offset(
+            TokenType::Esc,
+            Span::new(start_offset, span_end),
+            content_offset,
+        )
     }
 
     /// Mirror of Python's `_parse_string` `newword` predicate: the
@@ -602,7 +717,7 @@ impl<'src> Lexer<'src> {
             self.pos += 1;
         }
 
-        Token::new(TokenType::Str, Span::new(brace_pos, final_span_end))
+        Token::with_content_offset(TokenType::Str, Span::new(brace_pos, final_span_end), 1)
     }
 
     /// Parse a command substitution starting at the current `[`.
@@ -730,7 +845,7 @@ impl<'src> Lexer<'src> {
             self.pos += 1;
         }
 
-        Token::new(TokenType::Cmd, Span::new(bracket_pos, span_end))
+        Token::with_content_offset(TokenType::Cmd, Span::new(bracket_pos, span_end), 1)
     }
 }
 
@@ -756,22 +871,46 @@ impl Iterator for Lexer<'_> {
             .current_char()
             .expect("source[pos..] is non-empty when pos < len");
 
-        let result = match ch {
-            _ if is_horizontal_whitespace(ch) => Ok(self.parse_sep()),
-            _ if is_eol_char(ch) => Ok(self.parse_eol()),
-            '#' if self.at_command_start => self.parse_comment(),
-            '$' => Ok(self.parse_var()),
-            '[' => Ok(self.parse_command()),
-            '{' if self.is_newword() => Ok(self.parse_brace()),
-            _ if is_deferred_special(ch) => Err(LexError::UnsupportedCharacter {
-                ch,
-                position: self.position_at(self.pos),
-            }),
-            _ => self.parse_esc(),
+        // Dispatch splits on `in_quote`. Inside a quoted string
+        // the scanner ignores separators, EOL characters, `#`, and
+        // `{` / `}` — they become literal content — and only `$`,
+        // `[`, `"`, and `\` are meaningful. Outside a quoted
+        // string the dispatch is the full top-level one from L3–L6.
+        let result = if self.in_quote {
+            // Inside a quoted string: `$`, `[` dispatch to their
+            // own parsers; `\` is still a deferred error; every
+            // other character (including the closing `"`) is
+            // handled by `parse_quoted(false)`, which scans
+            // content and consumes the closing `"` when it
+            // encounters one.
+            match ch {
+                '$' => Ok(self.parse_var()),
+                '[' => Ok(self.parse_command()),
+                '\\' => Err(LexError::UnsupportedCharacter {
+                    ch,
+                    position: self.position_at(self.pos),
+                }),
+                _ => Ok(self.parse_quoted(false)),
+            }
+        } else {
+            match ch {
+                _ if is_horizontal_whitespace(ch) => Ok(self.parse_sep()),
+                _ if is_eol_char(ch) => Ok(self.parse_eol()),
+                '#' if self.at_command_start => self.parse_comment(),
+                '$' => Ok(self.parse_var()),
+                '[' => Ok(self.parse_command()),
+                '{' if self.is_newword() => Ok(self.parse_brace()),
+                '"' if self.is_newword() => Ok(self.parse_quoted(true)),
+                _ if is_deferred_special(ch) => Err(LexError::UnsupportedCharacter {
+                    ch,
+                    position: self.position_at(self.pos),
+                }),
+                _ => self.parse_esc(),
+            }
         };
 
         match result {
-            Ok(tok) => {
+            Ok(mut tok) => {
                 match tok.kind {
                     TokenType::Eol => self.at_command_start = true,
                     TokenType::Sep | TokenType::Comment => {
@@ -780,6 +919,14 @@ impl Iterator for Lexer<'_> {
                     _ => self.at_command_start = false,
                 }
                 self.last_kind = tok.kind;
+                // Tag the token with the current `in_quote` state.
+                // `parse_quoted` resets `self.in_quote = false`
+                // *before* returning when it consumes the closing
+                // `"`, so the last ESC of a quoted run picks up
+                // `false` here — mirroring Python's `get_token`
+                // which reads `self.insidequote` after
+                // `_parse_string` has already written to it.
+                tok.in_quote = self.in_quote;
                 Some(Ok(tok))
             }
             Err(err) => {
@@ -812,16 +959,14 @@ fn is_eol_byte(byte: u8) -> bool {
 }
 
 /// Characters whose handling the Rust lexer has not yet implemented.
-/// Triggers [`LexError::UnsupportedCharacter`]. Chunks L7–L9
-/// incrementally drain this set. L4 removed `$`; L5 removed `[`
-/// (now dispatches to `parse_command`) and `]` (now a regular
-/// word character outside a command body); L6 removed `{` (now
-/// dispatches to `parse_brace` when at a word boundary, otherwise
-/// a regular word character) and `}` (now a regular word
-/// character outside a brace body).
+/// Triggers [`LexError::UnsupportedCharacter`]. Chunk L9 drains the
+/// last entry. L4 removed `$`; L5 removed `[` and `]`; L6 removed
+/// `{` and `}`; L7 removed `"` (now dispatches to `parse_quoted`
+/// when at a word boundary or when already in a quoted string,
+/// otherwise a regular word character).
 #[inline]
 fn is_deferred_special(ch: char) -> bool {
-    matches!(ch, '"' | '\\')
+    ch == '\\'
 }
 
 #[cfg(test)]
@@ -1135,8 +1280,9 @@ mod tests {
 
     #[test]
     fn after_error_iterator_stops() {
-        // Use `"` which is still in the deferred set after L6.
-        let mut lex = Lexer::new(r#"foo "bar""#);
+        // Use `\` which is the last character in the deferred set
+        // after L7.
+        let mut lex = Lexer::new(r"foo \n bar");
         let mut tokens = Vec::new();
         let mut err_seen = false;
         for result in lex.by_ref() {
@@ -1797,5 +1943,203 @@ mod tests {
         assert_eq!(rows[0], (TokenType::Str, "a".into()));
         assert_eq!(rows[1], (TokenType::Str, "b".into()));
         assert_eq!(rows[2], (TokenType::Str, "c".into()));
+    }
+
+    // ------------------------------------------------------------------
+    // L7 — quoted strings
+    // ------------------------------------------------------------------
+
+    fn quoted_rows(source: &str) -> (Vec<(TokenType, String, bool)>, SourceMap<'_>) {
+        let lexer = Lexer::new(source);
+        let map = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().expect("L7 lexer accepts fixture");
+        let rows = tokens
+            .iter()
+            .map(|t| (t.kind, map.token_text(*t).to_owned(), t.in_quote))
+            .collect();
+        (rows, map)
+    }
+
+    #[test]
+    fn quoted_simple() {
+        let (rows, _) = quoted_rows(r#""hello""#);
+        assert_eq!(
+            rows,
+            vec![
+                (TokenType::Esc, "hello".into(), false),
+                (TokenType::Eol, String::new(), false),
+            ]
+        );
+    }
+
+    #[test]
+    fn quoted_with_space() {
+        let (rows, _) = quoted_rows(r#""hello world""#);
+        assert_eq!(rows[0], (TokenType::Esc, "hello world".into(), false));
+    }
+
+    #[test]
+    fn quoted_empty() {
+        // `""` — empty body. The span covers both `"`s (end clamp)
+        // and `token_text` returns `""`.
+        let (rows, _) = quoted_rows(r#""""#);
+        assert_eq!(rows[0], (TokenType::Esc, String::new(), false));
+    }
+
+    #[test]
+    fn quoted_contains_braces_literally() {
+        // Inside a quoted string, `{` and `}` are regular content,
+        // NOT braced-string delimiters. Python's `_parse_string`
+        // fall-through reaches this path because `insidequote` is
+        // true.
+        let (rows, _) = quoted_rows(r#""hello {world}""#);
+        assert_eq!(rows[0], (TokenType::Esc, "hello {world}".into(), false));
+    }
+
+    #[test]
+    fn quoted_contains_separators_literally() {
+        let (rows, _) = quoted_rows(r#""tab  spaces""#);
+        assert_eq!(rows[0], (TokenType::Esc, "tab  spaces".into(), false));
+    }
+
+    #[test]
+    fn quoted_with_hash_is_literal() {
+        let (rows, _) = quoted_rows("\"# not a comment\"");
+        assert_eq!(rows[0], (TokenType::Esc, "# not a comment".into(), false));
+    }
+
+    #[test]
+    fn quoted_with_var_interpolation() {
+        let (rows, _) = quoted_rows(r#""hello $foo world""#);
+        assert_eq!(rows[0], (TokenType::Esc, "hello ".into(), true));
+        assert_eq!(rows[1], (TokenType::Var, "foo".into(), true));
+        assert_eq!(rows[2], (TokenType::Esc, " world".into(), false));
+    }
+
+    #[test]
+    fn quoted_with_cmd_interpolation() {
+        let (rows, _) = quoted_rows(r#""a [cmd] b""#);
+        assert_eq!(rows[0], (TokenType::Esc, "a ".into(), true));
+        assert_eq!(rows[1], (TokenType::Cmd, "cmd".into(), true));
+        assert_eq!(rows[2], (TokenType::Esc, " b".into(), false));
+    }
+
+    #[test]
+    fn quoted_with_var_and_cmd() {
+        let (rows, _) = quoted_rows(r#""a $b [c] d""#);
+        assert_eq!(rows[0], (TokenType::Esc, "a ".into(), true));
+        assert_eq!(rows[1], (TokenType::Var, "b".into(), true));
+        assert_eq!(rows[2], (TokenType::Esc, " ".into(), true));
+        assert_eq!(rows[3], (TokenType::Cmd, "c".into(), true));
+        assert_eq!(rows[4], (TokenType::Esc, " d".into(), false));
+    }
+
+    #[test]
+    fn quoted_opening_empty_with_var() {
+        // `"$foo"` — empty first ESC, then VAR, then empty
+        // closing ESC.
+        let (rows, _) = quoted_rows(r#""$foo""#);
+        assert_eq!(rows[0], (TokenType::Esc, String::new(), true));
+        assert_eq!(rows[1], (TokenType::Var, "foo".into(), true));
+        assert_eq!(rows[2], (TokenType::Esc, String::new(), false));
+    }
+
+    #[test]
+    fn quoted_opening_empty_with_cmd() {
+        let (rows, _) = quoted_rows(r#""[cmd]""#);
+        assert_eq!(rows[0], (TokenType::Esc, String::new(), true));
+        assert_eq!(rows[1], (TokenType::Cmd, "cmd".into(), true));
+        assert_eq!(rows[2], (TokenType::Esc, String::new(), false));
+    }
+
+    #[test]
+    fn quoted_mid_word_is_regular_character() {
+        // `foo"bar"` — the `"` is NOT at a word boundary, so it's
+        // a regular character in the bare word.
+        let (rows, _) = quoted_rows(r#"foo"bar""#);
+        assert_eq!(rows[0], (TokenType::Esc, r#"foo"bar""#.into(), false));
+    }
+
+    #[test]
+    fn quoted_after_esc_then_space_is_word_start() {
+        let (rows, _) = quoted_rows(r#"foo "bar""#);
+        assert_eq!(rows[0], (TokenType::Esc, "foo".into(), false));
+        assert_eq!(rows[1], (TokenType::Sep, " ".into(), false));
+        assert_eq!(rows[2], (TokenType::Esc, "bar".into(), false));
+    }
+
+    #[test]
+    fn quoted_then_mid_word_quote() {
+        // `"ab""cd"` — first `"ab"` is a quoted string, then `"cd"`
+        // is NOT (the preceding token was an ESC, so `newword =
+        // false`). The second run becomes a bare ESC containing
+        // literal quote characters.
+        let (rows, _) = quoted_rows(r#""ab""cd""#);
+        assert_eq!(rows[0], (TokenType::Esc, "ab".into(), false));
+        assert_eq!(rows[1], (TokenType::Esc, r#""cd""#.into(), false));
+    }
+
+    #[test]
+    fn quoted_unterminated_tokenises_best_effort() {
+        // `"abc` — no closing quote. The lexer scans "abc" and
+        // leaves `in_quote = true`. The trailing ghost EOL
+        // inherits `in_quote = false` because it uses the default
+        // `Token::new` which sets `in_quote = false`.
+        let (rows, _) = quoted_rows(r#""abc"#);
+        assert_eq!(rows[0], (TokenType::Esc, "abc".into(), true));
+    }
+
+    #[test]
+    fn quoted_multiline_body() {
+        let (rows, _) = quoted_rows("\"line1\nline2\"");
+        assert_eq!(rows[0], (TokenType::Esc, "line1\nline2".into(), false));
+    }
+
+    #[test]
+    fn quoted_span_positions() {
+        // `"hello"` — span covers `"hello`, end position is at the
+        // last content char (the 'o'), not at the closing `"`.
+        let lexer = Lexer::new(r#""hello""#);
+        let map = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().unwrap();
+        let esc = tokens.iter().find(|t| t.kind == TokenType::Esc).unwrap();
+        assert_eq!(esc.span.start(), 0);
+        assert_eq!(esc.span.end(), 6);
+        let (start, end) = map.range_positions(esc.span);
+        assert_eq!(start, SourcePosition::new(0, 0, 0));
+        assert_eq!(end, SourcePosition::new(0, 5, 5));
+        assert_eq!(map.token_text(*esc), "hello");
+    }
+
+    #[test]
+    fn quoted_inside_cmd_is_managed_by_parse_command() {
+        // `[puts "hello"]` — the `"…"` inside a command body is
+        // handled by `parse_command`'s own `in_quotes` tracking,
+        // not by the outer `in_quote` state. The result is a
+        // single CMD token.
+        let (rows, _) = quoted_rows(r#"[puts "hello"]"#);
+        assert_eq!(rows[0], (TokenType::Cmd, r#"puts "hello""#.into(), false));
+    }
+
+    #[test]
+    fn quoted_resets_at_command_start() {
+        let (rows, _) = quoted_rows(r#""body" #not-a-comment"#);
+        assert_eq!(rows[0], (TokenType::Esc, "body".into(), false));
+        assert_eq!(rows[1], (TokenType::Sep, " ".into(), false));
+        assert_eq!(rows[2], (TokenType::Esc, "#not-a-comment".into(), false));
+    }
+
+    #[test]
+    fn quoted_in_quote_propagates_to_sub_tokens() {
+        // Verify explicitly that sub-tokens inside a quoted run
+        // carry `in_quote = true`, matching Python's convention.
+        let (rows, _) = quoted_rows(r#""$a [b] $c""#);
+        assert_eq!(rows[0], (TokenType::Esc, String::new(), true));
+        assert_eq!(rows[1], (TokenType::Var, "a".into(), true));
+        assert_eq!(rows[2], (TokenType::Esc, " ".into(), true));
+        assert_eq!(rows[3], (TokenType::Cmd, "b".into(), true));
+        assert_eq!(rows[4], (TokenType::Esc, " ".into(), true));
+        assert_eq!(rows[5], (TokenType::Var, "c".into(), true));
+        assert_eq!(rows[6], (TokenType::Esc, String::new(), false));
     }
 }
