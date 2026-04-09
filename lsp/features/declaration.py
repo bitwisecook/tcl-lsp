@@ -22,6 +22,11 @@ from lsprotocol import types
 
 from core.analysis.analyser import analyse
 from core.analysis.semantic_model import AnalysisResult, Range, Scope
+from core.analysis.var_scoping import (
+    global_declaration_indices,
+    upvar_local_declaration_indices,
+    variable_declaration_indices,
+)
 from core.commands.registry.runtime import iter_body_arguments
 from core.common.lsp import to_lsp_location
 from core.parsing.command_segmenter import segment_commands
@@ -42,33 +47,19 @@ def _declaration_tokens(
 ) -> list[Token]:
     """Return the tokens declared by a ``variable``/``global``/``upvar`` command.
 
-    - ``global a b c`` -> ``[a, b, c]``
-    - ``variable a 1 b 2`` -> ``[a, b]`` (every other token)
-    - ``upvar ?level? otherVar myVar ...`` -> the *myVar* positions
-
-    Matches the compiler's own detection logic in
-    :mod:`core.compiler.memory_ssa`.  Tokens whose text is non-literal
-    (e.g. ``{*}$args``) are skipped rather than guessed at.
+    Delegates to :mod:`core.analysis.var_scoping` so the LSP provider and
+    the compiler's memory-SSA alias detector share a single source of
+    truth for the upvar/global/variable grammar.
     """
     if cmd_name == "global":
-        return list(arg_tokens)
-    if cmd_name == "variable":
-        # Even-indexed args are names, odd-indexed are optional values.
-        return [tok for i, tok in enumerate(arg_tokens) if i % 2 == 0]
-    if cmd_name == "upvar":
-        # Optional first arg is the level: either a bare integer, or
-        # ``#`` followed by one or more digits.  Anything else is already
-        # a variable name and the level defaults to 1.
-        rest = list(arg_tokens)
-        if rest:
-            head = rest[0].text
-            is_level = head.isdigit() or (head.startswith("#") and head[1:].isdigit())
-            if is_level:
-                rest = rest[1:]
-        # Remaining args are pairs: (otherVar, myVar).  We want the myVar
-        # positions (every odd index starting from 1).
-        return [tok for i, tok in enumerate(rest) if i % 2 == 1]
-    return []
+        indices = global_declaration_indices(arg_tokens)
+    elif cmd_name == "variable":
+        indices = variable_declaration_indices(arg_tokens)
+    elif cmd_name == "upvar":
+        indices = upvar_local_declaration_indices("upvar", arg_tokens)
+    else:
+        return []
+    return [arg_tokens[i] for i in indices]
 
 
 def _range_contains(outer: Range, inner: Range) -> bool:

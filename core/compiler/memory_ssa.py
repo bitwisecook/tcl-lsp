@@ -23,6 +23,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
+from ..analysis.var_scoping import (
+    global_declaration_indices,
+    upvar_local_declaration_indices,
+    variable_declaration_indices,
+)
 from .ir import IRBarrier, IRCall, IRStatement
 from .ssa import BlockName, SSAFunction
 
@@ -189,71 +194,40 @@ def _detect_upvar(stmt: IRStatement) -> list[tuple[str, str]]:
 
     Returns a list of ``(caller_var, local_var)`` pairs.
 
-    Handles both direct forms (``command="upvar"`` / ``command="namespace upvar"``)
-    and the lowered form where ``namespace upvar`` becomes
-    ``IRCall(command="namespace", args=("upvar", ns, src, dst, ...))``.
+    Delegates to :func:`core.analysis.var_scoping.upvar_local_declaration_indices`
+    so the LSP declaration provider and the compiler share a single source
+    of truth for the upvar grammar.
     """
     if not isinstance(stmt, (IRCall, IRBarrier)):
         return []
-
-    command = stmt.command
-    args = stmt.args
-
-    # Handle lowered form: command="namespace", args=("upvar", ns, src, dst, ...)
-    if command == "namespace" and args and args[0] == "upvar":
-        args = args[1:]  # strip "upvar" subcommand
-        command = "namespace upvar"
-
-    if command not in ("upvar", "namespace upvar"):
-        return []
-    if not args:
-        return []
-
-    pairs: list[tuple[str, str]] = []
-    start = 0
-    if command == "upvar":
-        # Skip optional level argument
-        if args[0].lstrip("-").isdigit() or args[0].startswith("#"):
-            start = 1
-    elif command == "namespace upvar":
-        start = 1  # skip namespace arg
-
-    # Pairs: otherVar myVar
-    for i in range(start, len(args) - 1, 2):
-        caller_name = args[i]
-        local_name = args[i + 1]
-        if not caller_name.startswith("$") and not local_name.startswith("$"):
-            pairs.append((caller_name, local_name))
-    return pairs
+    local_indices = upvar_local_declaration_indices(stmt.command, stmt.args)
+    # Translate the local-alias indices back to (caller, local) pairs.
+    # The caller name is always one slot to the left of the local name.
+    return [(stmt.args[i - 1], stmt.args[i]) for i in local_indices if i - 1 >= 0]
 
 
 def _detect_global(stmt: IRStatement) -> list[str]:
     """Detect ``global varName ...`` declarations.
 
-    Returns the list of variable names declared global.
+    Delegates to :func:`core.analysis.var_scoping.global_declaration_indices`.
     """
     if not isinstance(stmt, (IRCall, IRBarrier)):
         return []
     if stmt.command != "global":
         return []
-    return [a for a in stmt.args if a and not a.startswith("$")]
+    return [stmt.args[i] for i in global_declaration_indices(stmt.args)]
 
 
 def _detect_namespace_variable(stmt: IRStatement) -> list[str]:
     """Detect ``variable varName ?value?`` declarations.
 
-    Returns variable names declared via the ``variable`` command.
+    Delegates to :func:`core.analysis.var_scoping.variable_declaration_indices`.
     """
     if not isinstance(stmt, (IRCall, IRBarrier)):
         return []
     if stmt.command != "variable":
         return []
-    # variable name ?value? ?name value? ...
-    names: list[str] = []
-    for i in range(0, len(stmt.args), 2):
-        if i < len(stmt.args) and stmt.args[i] and not stmt.args[i].startswith("$"):
-            names.append(stmt.args[i])
-    return names
+    return [stmt.args[i] for i in variable_declaration_indices(stmt.args)]
 
 
 def _is_clobber(stmt: IRStatement) -> bool:

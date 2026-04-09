@@ -38,6 +38,19 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureCallHierarchy: Boolean = true
     var featureDocumentLinks: Boolean = true
     var featureSelectionRange: Boolean = true
+    // New in 1.6.x — see editors/vscode/package.json for matching defaults.
+    var featureDocumentHighlight: Boolean = true
+    var featureCodeLens: Boolean = true
+    var featureWorkspaceFileOps: Boolean = true
+    // Pull diagnostics are opt-in: advertising diagnosticProvider flips
+    // most LSP clients into pull mode and disables the push pipeline.
+    var featurePullDiagnostics: Boolean = false
+    var featureWillSaveWaitUntil: Boolean = true
+    var featureProgress: Boolean = true
+    var featureImplementation: Boolean = true
+    var featureTypeDefinition: Boolean = true
+    var featureDeclaration: Boolean = true
+    var featureLinkedEditingRange: Boolean = true
 
     // Formatting
 
@@ -255,6 +268,16 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "callHierarchy" to featureCallHierarchy,
                 "documentLinks" to featureDocumentLinks,
                 "selectionRange" to featureSelectionRange,
+                "documentHighlight" to featureDocumentHighlight,
+                "codeLens" to featureCodeLens,
+                "workspaceFileOps" to featureWorkspaceFileOps,
+                "pullDiagnostics" to featurePullDiagnostics,
+                "willSaveWaitUntil" to featureWillSaveWaitUntil,
+                "progress" to featureProgress,
+                "implementation" to featureImplementation,
+                "typeDefinition" to featureTypeDefinition,
+                "declaration" to featureDeclaration,
+                "linkedEditingRange" to featureLinkedEditingRange,
             ),
             "formatting" to mapOf(
                 "indentSize" to formattingIndentSize,
