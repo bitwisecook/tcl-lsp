@@ -11,6 +11,7 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
@@ -173,6 +174,7 @@ class BackgroundScanner:
     def scan_all(
         self,
         skip_uris: frozenset[str] = frozenset(),
+        progress_cb: Callable[[int, int, str], None] | None = None,
     ) -> dict[str, ScanResult]:
         """Scan all configured directories.  Returns all results.
 
@@ -181,6 +183,11 @@ class BackgroundScanner:
 
         *skip_uris* is an optional set of URIs to skip (e.g. files
         already open and analysed via ``didOpen``).
+
+        *progress_cb* is an optional callback invoked as
+        ``progress_cb(index, total, file_path)`` after each file is
+        processed.  Implementations must be fast and non-blocking —
+        typically they marshal a notification onto the event loop.
         """
         t_start = time.perf_counter()
         files = self.collect_files()
@@ -191,12 +198,18 @@ class BackgroundScanner:
             len(files),
         )
 
+        total_files = len(files)
         skipped_open = 0
         skipped_cached = 0
         discovered_uris: set[str] = set()
-        for full_path, ext in files:
+        for idx, (full_path, ext) in enumerate(files, start=1):
             uri = path_to_uri(full_path)
             discovered_uris.add(uri)
+            if progress_cb is not None:
+                try:
+                    progress_cb(idx, total_files, full_path)
+                except Exception:  # pragma: no cover - defensive
+                    log.debug("progress_cb raised", exc_info=True)
             if skip_uris and uri in skip_uris:
                 skipped_open += 1
                 continue

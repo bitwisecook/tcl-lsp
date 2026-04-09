@@ -10,6 +10,7 @@ import multiprocessing
 import re
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
@@ -2950,7 +2951,9 @@ def _upgrade_dialect_from_workspace() -> None:
             )
 
 
-def _run_background_scan() -> None:
+def _run_background_scan(
+    progress_cb: Callable[[int, int, str], None] | None = None,
+) -> None:
     """Execute background scan in a daemon thread.
 
     Each file is analysed with a per-file timeout so that a single
@@ -2960,6 +2963,11 @@ def _run_background_scan() -> None:
 
     Concurrent scan requests are deduplicated: if a scan is already
     running, subsequent calls return immediately.
+
+    ``progress_cb`` is an optional callback invoked with ``(idx, total,
+    path)`` after each file is processed.  When supplied it should be
+    thread-safe; the canonical use is to marshal a
+    ``$/progress`` notification onto the event loop.
     """
     if not _scan_lock.acquire(blocking=False):
         log.debug("Background scan already running — skipping duplicate request")
@@ -2967,7 +2975,9 @@ def _run_background_scan() -> None:
     t0 = time.perf_counter()
     try:
         open_uris = frozenset(uri for uri, _ in workspace_state.items())
-        results = background_scanner.scan_all(skip_uris=open_uris)
+        results = background_scanner.scan_all(
+            skip_uris=open_uris, progress_cb=progress_cb
+        )
         for uri, scan_result in results.items():
             # Don't overwrite entries for currently open files
             if workspace_state.get(uri) is not None:
@@ -3007,6 +3017,83 @@ def _run_background_scan() -> None:
         log.error("Background scan failed", exc_info=True)
     finally:
         _scan_lock.release()
+
+
+def _start_scan_with_progress() -> None:
+    """Run the background scan with $/progress notifications.
+
+    The scan itself runs in a daemon thread (same as the silent path).  A
+    tiny coordinator runs on the event loop: it issues
+    ``window/workDoneProgress/create``, calls ``begin``, kicks off the
+    scan thread, receives progress ticks via ``call_soon_threadsafe``, and
+    emits ``end`` when the thread finishes.
+    """
+    import uuid
+
+    loop = getattr(server, "loop", None)
+    if loop is None or not loop.is_running():
+        # Fallback: no event loop — run silently.
+        threading.Thread(target=_run_background_scan, daemon=True).start()
+        return
+
+    token = f"tcl-lsp-scan-{uuid.uuid4()}"
+
+    def _progress_cb(idx: int, total: int, path: str) -> None:
+        percentage = int((idx / total) * 100) if total else 0
+        try:
+            loop.call_soon_threadsafe(
+                server.work_done_progress.report,
+                token,
+                types.WorkDoneProgressReport(
+                    message=f"{idx}/{total}",
+                    percentage=percentage,
+                ),
+            )
+        except Exception:
+            pass  # pragma: no cover - event loop may be closing
+
+    async def _coordinator() -> None:
+        try:
+            await server.work_done_progress.create_async(token)
+        except Exception:
+            log.debug("work_done_progress/create failed; running scan silently")
+            threading.Thread(target=_run_background_scan, daemon=True).start()
+            return
+        try:
+            server.work_done_progress.begin(
+                token,
+                types.WorkDoneProgressBegin(
+                    title="Scanning workspace",
+                    cancellable=False,
+                    percentage=0,
+                ),
+            )
+        except Exception:
+            pass
+
+        done = threading.Event()
+
+        def _worker() -> None:
+            try:
+                _run_background_scan(progress_cb=_progress_cb)
+            finally:
+                done.set()
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+        # Wait for completion without blocking the event loop.
+        while not done.is_set():
+            await asyncio.sleep(0.1)
+
+        try:
+            server.work_done_progress.end(
+                token,
+                types.WorkDoneProgressEnd(message="done"),
+            )
+        except Exception:
+            pass
+
+    asyncio.ensure_future(_coordinator(), loop=loop)
 
 
 @server.feature(types.INITIALIZED)
@@ -3068,7 +3155,19 @@ def on_initialized(params: types.InitializedParams) -> None:
     if ws.root_path:
         roots.append(ws.root_path)
     background_scanner.configure(workspace_roots=roots)
-    threading.Thread(target=_run_background_scan, daemon=True).start()
+
+    # Kick off the scan with optional progress reporting.  When the client
+    # advertises window/workDoneProgress we emit begin/report/end notifications
+    # under a fresh token.  Otherwise we just run the silent daemon path as
+    # before.
+    progress_supported = bool(
+        feature_config.progress_enabled
+        and getattr(getattr(caps, "window", None), "work_done_progress", False)
+    )
+    if progress_supported:
+        _start_scan_with_progress()
+    else:
+        threading.Thread(target=_run_background_scan, daemon=True).start()
 
     # Eagerly import heavy modules in a background thread so that the
     # first didOpen/didChange does not pay the ~500ms import cost for
