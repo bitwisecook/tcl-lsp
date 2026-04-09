@@ -200,3 +200,91 @@ None of the L3 Rust tests are flagged for removal.
 - **bridge-only** (Python-specific, stays in pytest forever): 13 pytest tests
 - **remove-at-end** (low-value, flagged inline): 2 pytest tests
 - **deferred** (covered by later chunks): ~75 pytest tests in `test_lexer.py` and friends
+
+## L4 — Variable substitution (`rust/tcl-lexer/src/lexer.rs::parse_var`)
+
+Second Rust lexer chunk. Removes `$` from the deferred set and
+implements all four Tcl variable substitution forms plus
+`SourceMap::token_text` for Python-parity text extraction.
+
+### Pytest tests — `tests/test_lexer.py::TestBasicTokens` / `TestExtendedVars`
+
+The variable-substitution tests in `test_lexer.py` are now
+indirectly exercised end-to-end via the differential harness, which
+runs each Python test's input string through both lexers and
+asserts byte-perfect parity on the token stream (including the
+Python-API asymmetry where `tok.start` points at the `$` but
+`tok.text` strips it).
+
+| Test | Category | Rust equivalent |
+|---|---|---|
+| `TestBasicTokens::test_variable` (`$foo`) | Ported | `var_simple_identifier` + differential corpus |
+| `TestBasicTokens::test_bare_dollar` (`$`) | Ported | `bare_dollar_is_an_str_token` + differential corpus |
+| `TestExtendedVars::test_braced_var` (`${my var}`) | Ported | `var_braced_allows_arbitrary_characters` + differential corpus |
+| `TestExtendedVars::test_namespace_var` (`$ns::var`) | Ported | `var_namespace_separator` + differential corpus |
+| `TestExtendedVars::test_nested_namespace_var` (`$a::b::c`) | Ported | `var_multi_level_namespace` + differential corpus |
+| `TestExtendedVars::test_array_var` (`$arr(idx)`) | Ported | `var_array_index` + differential corpus |
+| `TestExtendedVars::test_array_with_namespace` (`$ns::arr(key)`) | Ported | differential corpus (`var_array_ns`) |
+| `TestPositions::test_var_position` (`set x $y`) | Ported | `var_span_positions` + differential corpus (`var_in_command`) |
+
+### Pytest tests — `tests/test_rust_lexer_differential.py`
+
+| Change | Notes |
+|---|---|
+| `_rust_supports` rewritten as try/catch filter | No more hand-maintained deferred-character blacklist. As chunks L5–L9 remove triggers, the harness auto-detects the expanded support surface without any harness edit. Also handles context-sensitive cases correctly (e.g. `{` / `}` inside a `${…}` braced name are fine even though `{` / `}` as top-level constructs are still deferred). |
+| Corpus grew from 47 to 74 parametrised cases | Added 27 L4 variable-substitution inputs: `var_simple`, `var_underscore`, `var_digit`, `var_alnum`, `var_uppercase`, `var_ns`, `var_ns_deep`, `var_leading_ns`, `var_single_colon_ends`, `var_braced`, `var_braced_empty`, `var_braced_with_spaces`, `var_braced_with_special`, `var_array`, `var_array_ns`, `var_array_nested`, `var_array_braced_inner`, `bare_dollar`, `bare_dollar_space`, `bare_dollar_lf`, `var_then_word`, `word_then_var`, `multiple_vars`, `var_in_command`, `var_resets_command_start`, `var_after_comment`, `var_mid_stream`, plus 2 unterminated cases for best-effort recovery coverage (`unterminated_braced_var`, `unterminated_array_var`). |
+| `TestHarnessItself::test_deferred_inputs_are_filtered` | Updated to the post-L4 deferred set `{}[]"\\` (no more `$`). |
+| `TestHarnessItself::test_dollar_is_no_longer_deferred` | **New**: regression guard ensuring `$foo`, `${name}`, `$arr(idx)`, bare `$` all pass the filter. |
+
+### Rust unit tests — `rust/tcl-lexer/src/lexer.rs`
+
+New tests (25 added, all in the `L4 — variable substitution`
+section at the end of the lexer's test module):
+
+| Test | Notes |
+|---|---|
+| `var_simple_identifier` | Plain `$foo`. |
+| `var_with_underscore` | `$_private` — underscore is a valid name char. |
+| `var_alphanumeric_accepts_digits_anywhere` | `$foo1` and `$1` (Tcl uses `$1`, `$2` for regex backrefs). |
+| `var_uppercase` | `$FOO`. |
+| `var_namespace_separator` | `$ns::var`. |
+| `var_multi_level_namespace` | `$a::b::c`. |
+| `var_leading_namespace` | `$::global`. |
+| `var_single_colon_terminates_name` | `$foo:bar` — single `:` is not a name char. |
+| `var_braced_form` | `${name}`. |
+| `var_braced_empty_body` | `${}` — exercises the empty-content end-position clamp. |
+| `var_braced_allows_arbitrary_characters` | `${weird name with spaces}`. |
+| `var_braced_unterminated_tokenises_best_effort` | `${unterminated` — L9 will add the warning. |
+| `var_array_index` | `$arr(idx)`. |
+| `var_array_index_nested_parens` | `$arr(one(two)three)`. |
+| `var_array_index_with_inner_braced_var` | `$arr(${key})` — `${…}` inside an array index is scanned as a unit. |
+| `var_array_index_unterminated_tokenises_best_effort` | `$arr(idx`. |
+| `bare_dollar_is_an_str_token` | `$` alone emits an STR, not a VAR (matching Python). |
+| `bare_dollar_followed_by_space` | `$ foo`. |
+| `bare_dollar_followed_by_lf` | `$\n`. |
+| `var_followed_by_word` | `$foo bar`. |
+| `multiple_vars` | `$a $b $c`. |
+| `var_resets_at_command_start` | After a VAR, `#` is no longer a comment opener. |
+| `esc_stops_at_dollar` | `foo$bar` → ESC then VAR. |
+| `var_span_positions` | Pins the "span starts at `$`, text strips `$`" convention via explicit span and `token_text` assertions. |
+| `braced_var_span_covers_delimiter_and_name` | Same convention for `${name}`. |
+
+Regression guard `dollar_is_no_longer_an_unsupported_character`
+replaces the pre-L4 `unsupported_character_dollar_errors` test so
+the check that `$` is accepted survives into the chunk log.
+
+### Pytest tests — ported elsewhere
+
+The wider `tests/test_lexer.py` classes for variable substitution
+(`TestBasicTokens::test_variable`, `TestBasicTokens::test_bare_dollar`,
+`TestExtendedVars::*`, `TestPositions::test_var_position`) are all
+exercised end-to-end by the differential harness now. They stay in
+pytest as the bridge oracle but the Rust side has byte-perfect
+parity coverage.
+
+### Category totals after L4
+
+- **ported** (data behaviour has Rust coverage): 21 pytest + 74 Rust unit tests + 100 differential cases
+- **bridge-only** (Python-specific, stays in pytest forever): 14 pytest tests
+- **remove-at-end** (low-value, flagged inline): 2 pytest tests
+- **deferred** (covered by later chunks): ~60 pytest tests in `test_lexer.py` and friends (shrunk from ~75 as the variable tests were ported)

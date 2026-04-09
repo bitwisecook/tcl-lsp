@@ -1,7 +1,7 @@
 //! Streaming Tcl lexer.
 //!
-//! **L3 skeleton.** First Rust lexer chunk. Handles the five simplest
-//! token kinds:
+//! **L3 + L4.** The first two lexer chunks, taken together, handle
+//! five token kinds plus variable substitution:
 //!
 //! - **EOF handling** — emits a trailing ghost `EOL` (once) when the
 //!   source does not already end with an EOL token, matching the
@@ -12,16 +12,24 @@
 //!   horizontal whitespace, mirroring Python's `_parse_eol`.
 //! - **COMMENT** — `#` at command start, scanned to the next `\n`
 //!   (exclusive). Backslash-newline continuation inside comments is
-//!   not handled in L3; an input whose comment contains a `\` is
+//!   not handled yet; an input whose comment contains a `\` is
 //!   reported as [`LexError::UnsupportedCharacter`] so the
 //!   differential harness can filter it.
 //! - **ESC** — runs of characters that are neither whitespace nor EOL
 //!   nor one of the "deferred" special characters.
+//! - **VAR (L4)** — variable substitution in all four Tcl forms:
+//!   `$name`, `$ns::var` (namespace-separated), `${name}` (braced),
+//!   and `$arr(idx)` (array index with nested parens and embedded
+//!   `${...}` support). A bare `$` with no name following is emitted
+//!   as an `STR` token whose span covers just the `$`, matching
+//!   Python's `_parse_var` fallback. Unterminated `${` and `$arr(`
+//!   tokenize best-effort (L9 will add the warning-collection
+//!   machinery to report them as diagnostics).
 //!
-//! The "deferred" set is `$ [ ] { } " \`. Encountering any of them
+//! The "deferred" set is now `[ ] { } " \`. Encountering any of them
 //! trips [`LexError::UnsupportedCharacter`] carrying the character and
 //! its position. Callers filter inputs on that error rather than
-//! receiving silently-wrong token streams. Chunks L4–L9 shrink the set
+//! receiving silently-wrong token streams. Chunks L5–L9 shrink the set
 //! to zero.
 //!
 //! ### Architecture
@@ -54,19 +62,21 @@
 //!
 //! Explicit list of deferrals so reviewers can tell what lives where:
 //!
-//! - L4: variable substitution (`$name`, `${name}`, `$arr(idx)`,
-//!   `$ns::var`)
+//! - ~~L4: variable substitution (`$name`, `${name}`, `$arr(idx)`,~~
+//!   ~~`$ns::var`)~~ — **landed in this chunk**
 //! - L5: command substitution (`[…]`, possibly nested)
 //! - L6: braced strings (`{…}`, possibly nested)
 //! - L7: quoted strings (`"…"`)
 //! - L8: expansion prefix (`{*}`), `strict_quoting`, `expand_syntax`,
 //!   `irules_brace_separator`
-//! - L9: backslash escapes and line continuation; warning collection;
-//!   ghost character insertion for error recovery. "Ghost" is our
-//!   term of art (chosen over "synthetic" / "virtual" to avoid
-//!   collisions with Rust vocabulary — `virtual` is a reserved
-//!   keyword) for tokens and characters that exist in the token
-//!   stream without corresponding bytes in the source buffer.
+//! - L9: backslash escapes and line continuation; warning collection
+//!   (which will turn L4's best-effort recovery of unterminated
+//!   `${` / `$arr(` into proper diagnostics); ghost character
+//!   insertion for error recovery. "Ghost" is our term of art
+//!   (chosen over "synthetic" / "virtual" to avoid collisions with
+//!   Rust vocabulary — `virtual` is a reserved keyword) for tokens
+//!   and characters that exist in the token stream without
+//!   corresponding bytes in the source buffer.
 //! - Later: sub-lexing support for nested constructs; UTF-16 column
 //!   parity; `LineIndex::from_rope_slice` adapter
 //!
@@ -271,6 +281,10 @@ impl<'src> Lexer<'src> {
             if is_horizontal_whitespace(ch) || is_eol_char(ch) {
                 break;
             }
+            // `$` terminates a bare word — the next token is a VAR.
+            if ch == '$' {
+                break;
+            }
             if is_deferred_special(ch) {
                 if self.pos == start_offset {
                     // Did not consume anything yet; surface the error
@@ -288,6 +302,162 @@ impl<'src> Lexer<'src> {
             self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
         }
         Ok(self.make_token(TokenType::Esc, start_offset))
+    }
+
+    /// Parse a variable substitution starting at the current `$`.
+    ///
+    /// Handles all four Tcl forms:
+    ///
+    /// - `$name`, `$ns::var` — identifier scan accepting Unicode
+    ///   alphanumerics, underscores, and `::` namespace separators.
+    /// - `${name}` — braced scan; the closing `}` is consumed but
+    ///   NOT included in the token span (matching Python's `_end =
+    ///   self.pos - 1` before the `}` advance).
+    /// - `$arr(idx)` — array indexing with balanced `(`/`)` and
+    ///   embedded `${…}` support, matching the Python lexer's
+    ///   `_parse_var` behaviour. The `)` IS included in the span.
+    /// - bare `$` — emitted as an `STR` token whose span covers
+    ///   just the `$`, matching `_parse_var`'s fallback.
+    ///
+    /// **Span convention.** The span always starts at the `$`
+    /// position so the resolved start/end `SourcePosition`s include
+    /// the dollar sign, matching the Python lexer's `Token.start`
+    /// behaviour. The "human-readable" content (variable name
+    /// without the leading `$` or `${`) is accessed via
+    /// [`SourceMap::token_text`] rather than `SourceMap::text(span)`;
+    /// the bridge layer uses `token_text` so Python callers see the
+    /// same `tok.text` they always have.
+    ///
+    /// Never fails. Unterminated `${` and `$arr(` tokenize
+    /// best-effort; the Python lexer emits non-fatal warnings for
+    /// those cases, which the Rust lexer will start reproducing in
+    /// L9 when warning collection lands.
+    fn parse_var(&mut self) -> Token {
+        let dollar_pos = self.pos;
+        self.pos += 1; // skip '$'
+
+        // `${name}` braced form.
+        if self.current_byte() == Some(b'{') {
+            self.pos += 1; // skip '{'
+            let content_start = self.pos;
+            while let Some(ch) = self.current_char() {
+                if ch == '}' {
+                    break;
+                }
+                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+            }
+            // Compute the token's exclusive-end offset. Python's
+            // `_parse_var` uses the clamp
+            // `end_offset = _end if _end >= _start else _start`,
+            // which produces one of three cases:
+            //
+            // - `${name}`: end is the last char of `name` —
+            //   `span_end == self.pos` (before `}` is consumed).
+            // - `${}`: `_end < _start` (no content scanned), so the
+            //   clamp pins end to `_start`, which is the `}`
+            //   position itself. We match by extending
+            //   `span_end` to include the `}`.
+            // - `${` (unterminated, empty): no content, no `}`. We
+            //   stop at the current `self.pos`; this is a minor
+            //   parity drift against Python (which emits a past-end
+            //   position there) and does not affect any input in
+            //   the differential corpus.
+            let content_empty = self.pos == content_start;
+            let has_close_brace = self.current_byte() == Some(b'}');
+            let span_end = if content_empty && has_close_brace {
+                self.pos + 1 // include the `}`
+            } else {
+                self.pos
+            };
+            if has_close_brace {
+                self.pos += 1;
+            }
+            return Token::new(TokenType::Var, Span::new(dollar_pos, span_end));
+        }
+
+        // `$name` or `$ns::var` identifier form.
+        let name_start = self.pos;
+        while let Some(ch) = self.current_char() {
+            if ch.is_alphanumeric() || ch == '_' {
+                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                continue;
+            }
+            if ch == ':' && self.peek_byte(1) == Some(b':') {
+                self.pos += 2;
+                continue;
+            }
+            break;
+        }
+
+        // `$arr(idx)` array-index form. The `(` only counts as an
+        // array index when it immediately follows an identifier,
+        // matching the Python dispatcher's `if self.remaining and
+        // self._cur() == "("` branch inside `_parse_var`.
+        if self.current_byte() == Some(b'(') {
+            self.scan_array_index_body();
+            return Token::new(TokenType::Var, Span::new(dollar_pos, self.pos));
+        }
+
+        // Bare `$` — no identifier chars were consumed. Python emits
+        // this as an `STR` token whose text is just `$`, not a `VAR`.
+        if self.pos == name_start {
+            return Token::new(TokenType::Str, Span::new(dollar_pos, dollar_pos + 1));
+        }
+
+        Token::new(TokenType::Var, Span::new(dollar_pos, self.pos))
+    }
+
+    /// Consume a `(…)` array-index body starting at the `(`,
+    /// including balanced nested `(` / `)` and any embedded
+    /// `${…}`. Advances `self.pos` past the closing `)` (or to
+    /// EOF for unterminated input).
+    fn scan_array_index_body(&mut self) {
+        debug_assert_eq!(self.current_byte(), Some(b'('));
+        self.pos += 1; // skip '('
+        let mut depth: u32 = 1;
+        while depth > 0 {
+            let Some(ch) = self.current_char() else {
+                // Unterminated — leave `self.pos` at EOF. L9 adds
+                // the warning.
+                return;
+            };
+            match ch {
+                '(' => {
+                    depth += 1;
+                    self.pos += 1;
+                }
+                ')' => {
+                    depth -= 1;
+                    self.pos += 1;
+                }
+                '$' if self.peek_byte(1) == Some(b'{') => {
+                    // `${…}` inside an array index — scan to the
+                    // matching `}`. Python does this to avoid
+                    // mis-counting any `(` or `)` characters inside
+                    // the braced name.
+                    self.pos += 2; // skip '${'
+                    while let Some(inner) = self.current_char() {
+                        if inner == '}' {
+                            self.pos += 1;
+                            break;
+                        }
+                        self.pos += u32::try_from(inner.len_utf8()).expect("char len fits u32");
+                    }
+                }
+                _ => {
+                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                }
+            }
+        }
+    }
+
+    /// Return the byte at `self.pos + offset`, if any.
+    #[inline]
+    fn peek_byte(&self, offset: u32) -> Option<u8> {
+        self.source()
+            .as_bytes()
+            .get((self.pos + offset) as usize)
+            .copied()
     }
 }
 
@@ -317,6 +487,7 @@ impl Iterator for Lexer<'_> {
             _ if is_horizontal_whitespace(ch) => Ok(self.parse_sep()),
             _ if is_eol_char(ch) => Ok(self.parse_eol()),
             '#' if self.at_command_start => self.parse_comment(),
+            '$' => Ok(self.parse_var()),
             _ if is_deferred_special(ch) => Err(LexError::UnsupportedCharacter {
                 ch,
                 position: self.position_at(self.pos),
@@ -366,11 +537,11 @@ fn is_eol_byte(byte: u8) -> bool {
 }
 
 /// Characters whose handling the Rust lexer has not yet implemented.
-/// Triggers [`LexError::UnsupportedCharacter`]. Chunks L4–L9
-/// incrementally drain this set.
+/// Triggers [`LexError::UnsupportedCharacter`]. Chunks L5–L9
+/// incrementally drain this set. L4 removed `$`.
 #[inline]
 fn is_deferred_special(ch: char) -> bool {
-    matches!(ch, '$' | '[' | ']' | '{' | '}' | '"' | '\\')
+    matches!(ch, '[' | ']' | '{' | '}' | '"' | '\\')
 }
 
 #[cfg(test)]
@@ -622,14 +793,20 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_character_dollar_errors() {
-        let err = Lexer::new("foo $bar").tokenise_all().unwrap_err();
-        match err {
-            LexError::UnsupportedCharacter { ch, position } => {
-                assert_eq!(ch, '$');
-                assert_eq!(position.offset, 4);
-            }
-        }
+    fn dollar_is_no_longer_an_unsupported_character() {
+        // Regression guard: L4 removed `$` from the deferred set.
+        // The lexer should accept `$bar` as a VAR token, not error.
+        let tokens = Lexer::new("foo $bar").tokenise_all().unwrap();
+        let kinds: Vec<TokenType> = tokens.iter().map(|t| t.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                TokenType::Esc,
+                TokenType::Sep,
+                TokenType::Var,
+                TokenType::Eol,
+            ]
+        );
     }
 
     #[test]
@@ -670,7 +847,8 @@ mod tests {
 
     #[test]
     fn after_error_iterator_stops() {
-        let mut lex = Lexer::new("foo $bar");
+        // Use `[` which is still in the deferred set after L4.
+        let mut lex = Lexer::new("foo [bar]");
         let mut tokens = Vec::new();
         let mut err_seen = false;
         for result in lex.by_ref() {
@@ -705,6 +883,241 @@ mod tests {
             .tokenise_all()
             .unwrap();
         assert!(!tokens.is_empty());
+    }
+
+    // ------------------------------------------------------------------
+    // L4 — variable substitution
+    // ------------------------------------------------------------------
+
+    fn var_token_text(source: &str) -> (Vec<(TokenType, String)>, SourceMap<'_>) {
+        let lexer = Lexer::new(source);
+        let map = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().expect("L4 lexer accepts fixture");
+        // `token_text` strips the leading `$` / `${` for VAR tokens
+        // so the assertions mirror Python's `tok.text` field.
+        let rows = tokens
+            .iter()
+            .map(|t| (t.kind, map.token_text(*t).to_owned()))
+            .collect();
+        (rows, map)
+    }
+
+    #[test]
+    fn var_simple_identifier() {
+        let (rows, _) = var_token_text("$foo");
+        assert_eq!(
+            rows,
+            vec![
+                (TokenType::Var, "foo".into()),
+                (TokenType::Eol, String::new()),
+            ]
+        );
+    }
+
+    #[test]
+    fn var_with_underscore() {
+        let (rows, _) = var_token_text("$_private");
+        assert_eq!(rows[0], (TokenType::Var, "_private".into()));
+    }
+
+    #[test]
+    fn var_alphanumeric_accepts_digits_anywhere() {
+        assert_eq!(
+            var_token_text("$foo1").0[0],
+            (TokenType::Var, "foo1".into())
+        );
+        // Python allows digits at the start of variable names —
+        // Tcl uses `$1`, `$2` etc. for regexp backrefs.
+        assert_eq!(var_token_text("$1").0[0], (TokenType::Var, "1".into()));
+    }
+
+    #[test]
+    fn var_uppercase() {
+        assert_eq!(var_token_text("$FOO").0[0], (TokenType::Var, "FOO".into()));
+    }
+
+    #[test]
+    fn var_namespace_separator() {
+        let (rows, _) = var_token_text("$ns::var");
+        assert_eq!(rows[0], (TokenType::Var, "ns::var".into()));
+    }
+
+    #[test]
+    fn var_multi_level_namespace() {
+        let (rows, _) = var_token_text("$a::b::c");
+        assert_eq!(rows[0], (TokenType::Var, "a::b::c".into()));
+    }
+
+    #[test]
+    fn var_leading_namespace() {
+        // `$::global` — starts with `::` (double colon).
+        let (rows, _) = var_token_text("$::global");
+        assert_eq!(rows[0], (TokenType::Var, "::global".into()));
+    }
+
+    #[test]
+    fn var_single_colon_terminates_name() {
+        // A single `:` is not part of the identifier; it ends the
+        // VAR token and the rest becomes an ESC token.
+        let (rows, _) = var_token_text("$foo:bar");
+        assert_eq!(rows[0], (TokenType::Var, "foo".into()));
+        assert_eq!(rows[1], (TokenType::Esc, ":bar".into()));
+    }
+
+    #[test]
+    fn var_braced_form() {
+        let (rows, _) = var_token_text("${name}");
+        // The braces are stripped — the token text is the body only.
+        assert_eq!(rows[0], (TokenType::Var, "name".into()));
+    }
+
+    #[test]
+    fn var_braced_empty_body() {
+        let (rows, _) = var_token_text("${}");
+        assert_eq!(rows[0], (TokenType::Var, String::new()));
+    }
+
+    #[test]
+    fn var_braced_allows_arbitrary_characters() {
+        // Inside `${…}` all characters except `}` are legal, including
+        // spaces, `$`, `[`, etc.
+        let (rows, _) = var_token_text("${weird name with spaces}");
+        assert_eq!(rows[0], (TokenType::Var, "weird name with spaces".into()));
+    }
+
+    #[test]
+    fn var_braced_unterminated_tokenises_best_effort() {
+        // Missing `}` — Python emits a non-fatal warning and
+        // tokenises the remaining input as the variable name. L4
+        // matches the tokenisation but does not emit the warning
+        // (L9 adds warning collection).
+        let (rows, _) = var_token_text("${unterminated");
+        assert_eq!(rows[0], (TokenType::Var, "unterminated".into()));
+    }
+
+    #[test]
+    fn var_array_index() {
+        let (rows, _) = var_token_text("$arr(idx)");
+        // Span covers the whole `arr(idx)` — including the parens —
+        // but not the leading `$`, matching Python.
+        assert_eq!(rows[0], (TokenType::Var, "arr(idx)".into()));
+    }
+
+    #[test]
+    fn var_array_index_nested_parens() {
+        let (rows, _) = var_token_text("$arr(one(two)three)");
+        assert_eq!(rows[0], (TokenType::Var, "arr(one(two)three)".into()));
+    }
+
+    #[test]
+    fn var_array_index_with_inner_braced_var() {
+        // `${key}` inside the index scans to the matching `}` as a
+        // unit — the `(` / `)` inside such a braced name would not
+        // count against the array-index depth. Python does this so
+        // a variable-named-with-parens doesn't fool the index
+        // scanner.
+        let (rows, _) = var_token_text("$arr(${key})");
+        assert_eq!(rows[0], (TokenType::Var, "arr(${key})".into()));
+    }
+
+    #[test]
+    fn var_array_index_unterminated_tokenises_best_effort() {
+        let (rows, _) = var_token_text("$arr(idx");
+        assert_eq!(rows[0], (TokenType::Var, "arr(idx".into()));
+    }
+
+    #[test]
+    fn bare_dollar_is_an_str_token() {
+        // Python emits bare `$` as an STR token whose text is the
+        // `$` character — not a VAR.
+        let (rows, _) = var_token_text("$");
+        assert_eq!(rows[0], (TokenType::Str, "$".into()));
+    }
+
+    #[test]
+    fn bare_dollar_followed_by_space() {
+        let (rows, _) = var_token_text("$ foo");
+        assert_eq!(rows[0], (TokenType::Str, "$".into()));
+        assert_eq!(rows[1], (TokenType::Sep, " ".into()));
+        assert_eq!(rows[2], (TokenType::Esc, "foo".into()));
+    }
+
+    #[test]
+    fn bare_dollar_followed_by_lf() {
+        let (rows, _) = var_token_text("$\n");
+        assert_eq!(rows[0], (TokenType::Str, "$".into()));
+        assert_eq!(rows[1], (TokenType::Eol, "\n".into()));
+    }
+
+    #[test]
+    fn var_followed_by_word() {
+        // `$foo bar` — VAR then SEP then ESC.
+        let (rows, _) = var_token_text("$foo bar");
+        assert_eq!(rows[0], (TokenType::Var, "foo".into()));
+        assert_eq!(rows[1], (TokenType::Sep, " ".into()));
+        assert_eq!(rows[2], (TokenType::Esc, "bar".into()));
+    }
+
+    #[test]
+    fn multiple_vars() {
+        let (rows, _) = var_token_text("$a $b $c");
+        assert_eq!(rows[0], (TokenType::Var, "a".into()));
+        assert_eq!(rows[2], (TokenType::Var, "b".into()));
+        assert_eq!(rows[4], (TokenType::Var, "c".into()));
+    }
+
+    #[test]
+    fn var_resets_at_command_start() {
+        // After a VAR token, `#` is no longer a comment opener.
+        let (rows, _) = var_token_text("$foo #bar");
+        assert_eq!(rows[0], (TokenType::Var, "foo".into()));
+        assert_eq!(rows[1], (TokenType::Sep, " ".into()));
+        // `#bar` should be an ESC, not a COMMENT.
+        assert_eq!(rows[2], (TokenType::Esc, "#bar".into()));
+    }
+
+    #[test]
+    fn esc_stops_at_dollar() {
+        // `foo$bar` — ESC "foo", VAR "bar". The `$` terminates the
+        // bare word rather than being consumed as a literal.
+        let (rows, _) = var_token_text("foo$bar");
+        assert_eq!(rows[0], (TokenType::Esc, "foo".into()));
+        assert_eq!(rows[1], (TokenType::Var, "bar".into()));
+    }
+
+    #[test]
+    fn var_span_positions() {
+        // `$foo bar` — the VAR span covers the whole `$foo` (offset
+        // 0..4), matching the Python lexer's convention that
+        // `Token.start` points at the `$` and `Token.end` at the
+        // last char of the name. `token_text` is how you get just
+        // the "foo" part.
+        let lexer = Lexer::new("$foo bar");
+        let map = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().unwrap();
+        let var = tokens.iter().find(|t| t.kind == TokenType::Var).unwrap();
+        assert_eq!(var.span.start(), 0);
+        assert_eq!(var.span.end(), 4);
+        let (start, end) = map.range_positions(var.span);
+        assert_eq!(start, SourcePosition::new(0, 0, 0));
+        assert_eq!(end, SourcePosition::new(0, 3, 3));
+        assert_eq!(map.token_text(*var), "foo");
+    }
+
+    #[test]
+    fn braced_var_span_covers_delimiter_and_name() {
+        // `${name}` — span is [0, 6), covering "${name" but NOT the
+        // closing `}`. The lexer consumes the `}` so the next
+        // dispatch starts at offset 7. `token_text` strips the `${`
+        // wrapper so the visible text is "name".
+        let lexer = Lexer::new("${name}");
+        let map = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().unwrap();
+        let var = tokens.iter().find(|t| t.kind == TokenType::Var).unwrap();
+        assert_eq!(var.span.start(), 0);
+        assert_eq!(var.span.end(), 6);
+        assert_eq!(map.text(var.span), "${name");
+        assert_eq!(map.token_text(*var), "name");
     }
 
     #[test]
