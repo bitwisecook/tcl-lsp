@@ -169,6 +169,23 @@ mod tests {
     // differential lexer harness runs.
 
     #[test]
+    fn token_type_name_exact_mapping() {
+        // Rust variant → Python-visible name. This is the contract the
+        // PyO3 binding crate relies on when it exposes the enum with
+        // `#[pyo3(name = "…")]` on each variant; if these ever
+        // disagree, Python callers see a mismatched symbol.
+        assert_eq!(TokenType::Esc.name(), "ESC");
+        assert_eq!(TokenType::Str.name(), "STR");
+        assert_eq!(TokenType::Cmd.name(), "CMD");
+        assert_eq!(TokenType::Var.name(), "VAR");
+        assert_eq!(TokenType::Sep.name(), "SEP");
+        assert_eq!(TokenType::Eol.name(), "EOL");
+        assert_eq!(TokenType::Eof.name(), "EOF");
+        assert_eq!(TokenType::Comment.name(), "COMMENT");
+        assert_eq!(TokenType::Expand.name(), "EXPAND");
+    }
+
+    #[test]
     fn token_type_variants_have_distinct_names() {
         let names = [
             TokenType::Esc.name(),
@@ -265,6 +282,18 @@ mod tests {
     }
 
     #[test]
+    fn source_position_accepts_u32_max_values() {
+        // A paranoid check that the struct's `u32` fields do not
+        // narrow on any supported target. We don't expect real Tcl
+        // files to approach these values, but the type must not panic
+        // or overflow if something synthetic does.
+        let pos = SourcePosition::new(u32::MAX, u32::MAX, u32::MAX);
+        assert_eq!(pos.line, u32::MAX);
+        assert_eq!(pos.character, u32::MAX);
+        assert_eq!(pos.offset, u32::MAX);
+    }
+
+    #[test]
     fn token_construction_borrows_text() {
         // Mirrors `Token(type=TokenType.ESC, text="hello", start=p, end=p)`
         // from tests/test_formatter.py.
@@ -316,6 +345,22 @@ mod tests {
         set.insert(bare);
         set.insert(quoted);
         assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn synthetic_eof_token_uses_empty_static_text() {
+        // Documents the convention the future Rust lexer will use for
+        // tokens that have no corresponding slice of the source buffer
+        // (EOF, synthetic EOL, virtual separators for error recovery).
+        // The empty string literal `""` is `&'static str` and satisfies
+        // the lifetime requirement for any `Token<'src>`.
+        let pos = SourcePosition::new(42, 0, 100);
+        let eof = Token::new(TokenType::Eof, "", pos, pos);
+        assert_eq!(eof.kind, TokenType::Eof);
+        assert_eq!(eof.text, "");
+        assert_eq!(eof.start, pos);
+        assert_eq!(eof.end, pos);
+        assert!(!eof.in_quote);
     }
 
     #[test]
