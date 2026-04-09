@@ -19,7 +19,7 @@
 
 use crate::line_index::LineIndex;
 use crate::span::Span;
-use crate::tokens::SourcePosition;
+use crate::tokens::{SourcePosition, Token, TokenType};
 
 /// A source buffer paired with its line index.
 ///
@@ -63,13 +63,58 @@ impl<'src> SourceMap<'src> {
 
     /// Return the text slice covered by `span`. O(1).
     ///
+    /// Returns the raw contents of the source buffer in the given
+    /// byte range — including any syntactic delimiters (`$`, `${`,
+    /// `{`, `"`, etc.) that the token's span covers. Pure-Rust
+    /// callers that want to inspect raw source should use this.
+    /// Callers that want the "human-readable" content matching the
+    /// Python `Token.text` field should use [`Self::token_text`]
+    /// instead.
+    ///
     /// # Panics
     ///
-    /// Panics if `span` is not a valid byte range in the source (either
-    /// out of bounds or not on a UTF-8 character boundary).
+    /// Panics if `span` is not a valid byte range in the source
+    /// (either out of bounds or not on a UTF-8 character boundary).
     #[must_use]
     pub fn text(&self, span: Span) -> &'src str {
         &self.source[span.as_range()]
+    }
+
+    /// Return the "human-readable" text of a token — the same thing
+    /// the Python `Token.text` field contains.
+    ///
+    /// For most kinds this is identical to `self.text(tok.span)`.
+    /// For `VAR` tokens, the leading `$` (and the `{` of a `${…}`
+    /// braced form) is stripped so the result is the variable name
+    /// alone. As more wrapper-style tokens arrive (`STR` braced
+    /// strings in L6, quoted strings in L7), this helper grows
+    /// additional stripping rules; it is the **one place** in the
+    /// codebase that encodes the Python-API convention of "position
+    /// range spans the full token, text field is the inner content".
+    ///
+    /// The `PyO3` binding uses this helper when constructing
+    /// `PyToken.text`; Rust consumers that want parity with the
+    /// Python API should use it too.
+    #[must_use]
+    pub fn token_text(&self, tok: Token) -> &'src str {
+        let raw = self.text(tok.span);
+        match tok.kind {
+            TokenType::Var => {
+                if let Some(after_open) = raw.strip_prefix("${") {
+                    // For the degenerate `${}` case the lexer
+                    // extends the span to cover the closing `}` so
+                    // the token's end position matches Python's
+                    // clamp. Strip it here; non-degenerate braced
+                    // forms have no trailing `}` inside the span.
+                    after_open.strip_suffix('}').unwrap_or(after_open)
+                } else if let Some(inner) = raw.strip_prefix('$') {
+                    inner
+                } else {
+                    raw
+                }
+            }
+            _ => raw,
+        }
     }
 
     /// Resolve a byte offset to a full `SourcePosition`. O(log n).
