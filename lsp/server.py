@@ -1179,6 +1179,69 @@ def on_code_lens_resolve(lens: types.CodeLens) -> types.CodeLens:
     return resolve_code_lens(lens, workspace_index)
 
 
+# Pull diagnostics
+
+
+@server.feature(types.TEXT_DOCUMENT_DIAGNOSTIC)
+def on_document_diagnostic(
+    params: types.DocumentDiagnosticParams,
+) -> (
+    types.RelatedFullDocumentDiagnosticReport
+    | types.RelatedUnchangedDocumentDiagnosticReport
+):
+    uri = params.text_document.uri
+    cached = _pull_diag_cache.get(uri, [])
+    current_result_id = _pull_diag_result_ids.get(uri)
+    previous = getattr(params, "previous_result_id", None)
+    if (
+        current_result_id is not None
+        and previous is not None
+        and previous == current_result_id
+    ):
+        return types.RelatedUnchangedDocumentDiagnosticReport(
+            result_id=current_result_id,
+        )
+    return types.RelatedFullDocumentDiagnosticReport(
+        items=list(cached),
+        result_id=current_result_id,
+    )
+
+
+@server.feature(types.WORKSPACE_DIAGNOSTIC)
+def on_workspace_diagnostic(
+    params: types.WorkspaceDiagnosticParams,
+) -> types.WorkspaceDiagnosticReport:
+    previous_ids: dict[str, str] = {}
+    for item in getattr(params, "previous_result_ids", []) or []:
+        previous_ids[item.uri] = item.value
+
+    report_items: list[
+        types.WorkspaceFullDocumentDiagnosticReport
+        | types.WorkspaceUnchangedDocumentDiagnosticReport
+    ] = []
+    for uri, diagnostics in _pull_diag_cache.items():
+        current_result_id = _pull_diag_result_ids.get(uri, "")
+        prev = previous_ids.get(uri)
+        if prev is not None and prev == current_result_id and current_result_id:
+            report_items.append(
+                types.WorkspaceUnchangedDocumentDiagnosticReport(
+                    uri=uri,
+                    result_id=current_result_id,
+                    version=None,
+                )
+            )
+        else:
+            report_items.append(
+                types.WorkspaceFullDocumentDiagnosticReport(
+                    uri=uri,
+                    items=list(diagnostics),
+                    result_id=current_result_id or None,
+                    version=None,
+                )
+            )
+    return types.WorkspaceDiagnosticReport(items=report_items)
+
+
 # Selection range
 
 
@@ -1980,12 +2043,39 @@ def on_will_save_wait_until(
 # Diagnostics
 
 
+# Pull-model diagnostics cache.  Populated on every publish so that
+# textDocument/diagnostic and workspace/diagnostic handlers can serve the
+# latest results without recomputing.  ``_client_supports_pull_diagnostics``
+# is set from the client capabilities at initialize time; when True the
+# push step is skipped to avoid duplicate diagnostics.
+_pull_diag_cache: dict[str, list[types.Diagnostic]] = {}
+_pull_diag_result_ids: dict[str, str] = {}
+_pull_diag_counter: int = 0
+_client_supports_pull_diagnostics: bool = False
+
+
+def _next_pull_diag_result_id() -> str:
+    global _pull_diag_counter
+    _pull_diag_counter += 1
+    return f"tcl-lsp-diag-{_pull_diag_counter}"
+
+
 def _publish_diags_to_client(
     uri: str,
     diagnostics: list[types.Diagnostic],
     version: int | None = None,
 ) -> None:
-    """Push a diagnostics notification to the client."""
+    """Push a diagnostics notification to the client (and update the pull cache).
+
+    When the client supports pull diagnostics the push is skipped and the
+    cache entry is the only effect; otherwise the notification is sent as
+    before and the cache is still updated so the pull handlers remain
+    consistent if the client probes them.
+    """
+    _pull_diag_cache[uri] = list(diagnostics)
+    _pull_diag_result_ids[uri] = _next_pull_diag_result_id()
+    if _client_supports_pull_diagnostics:
+        return
     server.text_document_publish_diagnostics(
         types.PublishDiagnosticsParams(
             uri=uri,
@@ -2949,6 +3039,15 @@ def on_initialized(params: types.InitializedParams) -> None:
 
     # Advise editors that don't request semantic tokens.
     caps = server.client_capabilities
+
+    # Detect pull-diagnostics client support — when advertised, skip the push
+    # path so the client is not double-fed diagnostics.
+    global _client_supports_pull_diagnostics
+    diag_caps = getattr(getattr(caps, "text_document", None), "diagnostic", None)
+    if diag_caps is not None and feature_config.pull_diagnostics_enabled:
+        _client_supports_pull_diagnostics = True
+        log.info("Client supports pull diagnostics; disabling push path")
+
     st = getattr(getattr(caps, "text_document", None), "semantic_tokens", None)
     if st is None:
         log.info("Client did not advertise semantic token support")
