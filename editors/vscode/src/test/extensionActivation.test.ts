@@ -63,6 +63,21 @@ suite("Extension Activation", () => {
     assert.ok(caps.documentLinkProvider, "Should have documentLinkProvider");
     assert.ok(caps.selectionRangeProvider, "Should have selectionRangeProvider");
     assert.ok(caps.callHierarchyProvider, "Should have callHierarchyProvider");
+    // New LSP features.
+    assert.ok(caps.documentHighlightProvider, "Should have documentHighlightProvider");
+    assert.ok(caps.implementationProvider, "Should have implementationProvider");
+    assert.ok(caps.typeDefinitionProvider, "Should have typeDefinitionProvider");
+    assert.ok(caps.declarationProvider, "Should have declarationProvider");
+    assert.ok(caps.linkedEditingRangeProvider, "Should have linkedEditingRangeProvider");
+    assert.ok(caps.codeLensProvider, "Should have codeLensProvider");
+    assert.ok(caps.typeHierarchyProvider, "Should have typeHierarchyProvider");
+    // workspace/willRenameFiles + didRenameFiles are surfaced under
+    // workspace.fileOperations.
+    const workspace = caps.workspace as Record<string, unknown> | undefined;
+    const fileOps = workspace?.fileOperations as Record<string, unknown> | undefined;
+    assert.ok(fileOps, "Should have workspace.fileOperations");
+    assert.ok(fileOps.willRename, "Should have willRename file-operation filter");
+    assert.ok(fileOps.didRename, "Should have didRename file-operation filter");
   });
 
   test("server reports semantic token capabilities", () => {
