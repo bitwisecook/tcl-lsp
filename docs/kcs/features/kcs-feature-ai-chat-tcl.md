@@ -50,4 +50,4 @@ Uses the same analysis engine as `@irule` but with general Tcl system prompts an
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [VS Code extension contracts](../kcs-vscode-extension-contracts.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)

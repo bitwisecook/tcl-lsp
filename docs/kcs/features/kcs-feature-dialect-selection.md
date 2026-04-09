@@ -51,4 +51,4 @@ The dialect controls which commands are available in completions and hover, whic
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [Command registry event model](../kcs-command-registry-event-model.md)
+- [Command registry event model](../../../docs/design/contracts/command-registry-event-model.md)

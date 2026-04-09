@@ -47,4 +47,4 @@ The formatter rewrites source using the configurable style engine. It is idempot
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [Formatter engine contracts](../kcs-formatter-engine-contracts.md)
+- [Formatter engine contracts](../../../docs/design/contracts/formatter-engine.md)

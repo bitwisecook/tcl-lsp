@@ -40,4 +40,4 @@ The hover provider resolves the symbol under the cursor and returns documentatio
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

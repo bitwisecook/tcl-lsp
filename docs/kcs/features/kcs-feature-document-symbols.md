@@ -39,4 +39,4 @@ Produces a hierarchical symbol tree with procs nested inside namespaces, variabl
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

@@ -54,4 +54,4 @@ The compiler explorer runs the full compilation pipeline (parse, lower, optimise
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [VS Code extension contracts](../kcs-vscode-extension-contracts.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)

@@ -43,4 +43,4 @@ BIG-IP configuration files embed iRules as `ltm rule` blocks. These commands par
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [VS Code extension contracts](../kcs-vscode-extension-contracts.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)

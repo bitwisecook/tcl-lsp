@@ -1,7 +1,7 @@
 # Compiler Glossary
 
 Terms used throughout the Tcl LSP compiler documentation, ordered by
-pipeline phase.  See also the [example walkthroughs](example-script-walkthroughs.md)
+pipeline phase.  See also the [example walkthroughs](design/example-script-walkthroughs.md)
 for worked examples of each concept.
 
 ---
@@ -58,7 +58,7 @@ graph TD
 ## Phase 2 — Segmentation and error recovery
 
 No new terms — this phase produces `SegmentedCommand` objects and
-`VirtualToken` injections (see [Example 20](example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
+`VirtualToken` injections (see [Example 20](design/example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
 
 ```mermaid
 flowchart LR

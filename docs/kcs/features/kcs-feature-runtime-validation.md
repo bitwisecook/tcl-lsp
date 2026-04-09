@@ -38,4 +38,4 @@ Runtime validation complements static analysis by executing the code in a real T
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [VS Code extension contracts](../kcs-vscode-extension-contracts.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)

@@ -45,4 +45,4 @@ The Tk preview extracts the widget hierarchy from source code and renders it in 
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [VS Code extension contracts](../kcs-vscode-extension-contracts.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)

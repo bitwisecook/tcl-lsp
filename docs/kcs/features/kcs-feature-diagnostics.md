@@ -49,4 +49,4 @@ The analyser produces diagnostics in categories: errors (E-codes), security (S-c
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP diagnostics publication](../kcs-lsp-diagnostics-publication.md)
+- [LSP diagnostics publication](../../../docs/design/contracts/lsp-diagnostics-publication.md)

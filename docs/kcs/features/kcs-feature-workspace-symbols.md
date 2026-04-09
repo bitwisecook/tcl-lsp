@@ -32,5 +32,5 @@ Searches the workspace index for procs, namespaces, and variables matching the q
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
-- [Workspace indexing contracts](../kcs-workspace-indexing-contracts.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)
+- [Workspace indexing contracts](../../../docs/design/contracts/workspace-indexing.md)

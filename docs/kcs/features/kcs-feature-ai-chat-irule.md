@@ -77,4 +77,4 @@ The chat participant uses the LSP server for diagnostics, symbols, and optimisat
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [VS Code extension contracts](../kcs-vscode-extension-contracts.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)

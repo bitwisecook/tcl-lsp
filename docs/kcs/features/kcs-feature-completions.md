@@ -40,4 +40,4 @@ The completion provider offers context-sensitive suggestions based on the cursor
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

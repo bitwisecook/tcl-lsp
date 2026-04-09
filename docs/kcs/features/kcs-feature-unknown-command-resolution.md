@@ -37,9 +37,9 @@ W123 behaviour accordingly:
 
 - **Dynamic providers**: If `load`, `set auto_path`, `lappend auto_path`, `rename`, or `namespace import` is detected, W123 is suppressed for the entire file.
 - **Package require**: If any `package require` is present, W123 is suppressed (external packages may define commands).
-- **Dialect stubs**: Commands declared via `# tcl-lsp: stub` are treated as known. See [Dialect Stubs](../kcs-dialect-stubs.md).
+- **Dialect stubs**: Commands declared via `# tcl-lsp: stub` are treated as known. See [Dialect Stubs](../../../docs/design/contracts/dialect-stubs.md).
 - **User-defined procs**: Any `proc` defined in the file (or sourced via packages) is a known command.
-- **Command aliases**: Commands defined via `interp alias` are treated as known. See [Command Alias Resolution](../kcs-command-alias-resolution.md).
+- **Command aliases**: Commands defined via `interp alias` are treated as known. See [Command Alias Resolution](../../../docs/design/contracts/command-alias-resolution.md).
 - **Namespace-qualified names**: Commands containing `::` are skipped (may come from `namespace import`).
 
 ## Operational context
@@ -72,5 +72,5 @@ against the union of: registry commands, user-defined procs, stub commands,
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [Diagnostics calculation](../compiler/kcs-diagnostics-calculation.md)
-- [Dialect stubs](../kcs-dialect-stubs.md)
+- [Diagnostics calculation](../../../docs/design/compiler/diagnostics-calculation.md)
+- [Dialect stubs](../../../docs/design/contracts/dialect-stubs.md)

@@ -48,4 +48,4 @@ The skeleton generator uses the event registry to know which events exist, their
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [Command registry event model](../kcs-command-registry-event-model.md)
+- [Command registry event model](../../../docs/design/contracts/command-registry-event-model.md)
