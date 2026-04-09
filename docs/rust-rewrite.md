@@ -48,23 +48,127 @@ We get there by porting the codebase bottom-up, in dependency order:
 unrelated to this rewrite. It's intentionally excluded from the main
 Cargo workspace and should be left alone.
 
+## Non-negotiable principles
+
+Two architectural constraints that every chunk is measured against.
+They override local simplicity when they conflict; if you find
+yourself working around them, stop and raise the design question.
+
+### 1. Performance to first semantic tokens is paramount
+
+The single user-visible latency metric that matters for the LSP
+experience is **time from `textDocument/didOpen` to the first
+`textDocument/semanticTokens/full` response**. That's what the user
+sees as "how long until syntax highlighting shows up" when they open
+a file. Every other performance consideration — throughput,
+incremental update latency, memory footprint — is subordinate to
+this one until time-to-first-tokens is in the single-digit
+milliseconds for a typical file.
+
+Consequences for every chunk:
+
+- **Benchmark against `perf_track.py` before and after.** The
+  chunk commit message cites the numbers. Regressions (beyond run
+  noise) are a blocker; absence of improvement is OK as long as no
+  regression lands.
+- **The open → first-tokens path is hot.** Anything on that path
+  gets optimised first — lexer, AST build, semantic-token encoding,
+  JSON-RPC write. Anything off that path (incremental edits,
+  diagnostics beyond the first batch, hover, completion) is
+  secondary.
+- **No lazy initialisation on the hot path.** Anything the first
+  tokens response needs is eagerly computed on open, in parallel
+  with the response construction where possible.
+- **No blocking I/O, no DB roundtrips, no cross-process calls on
+  the hot path.** If a feature needs them, it runs in the
+  background and feeds results in when ready — it does not gate the
+  first tokens response.
+- **Measure before optimising.** The L3 benchmark showed that at
+  the LSP pipeline level, L1-L3 haven't moved the needle because
+  the lexer isn't wired in yet. That's expected; the point is that
+  we _have_ the measurement and can see when each chunk starts
+  showing up.
+
+### 2. Async through and through
+
+The Rust LSP server is async-first from the protocol handler down
+to the analysis pipeline. Every layer above the raw lexer is
+`async fn`, runs on Tokio, yields cooperatively, and composes with
+cancellation. This is how we get responsiveness: a fresh
+`textDocument/semanticTokens/full` request while an older one is
+still computing should cancel the older one cleanly, not wait for
+it to finish.
+
+Consequences for every chunk:
+
+- **`tower-lsp` is the LSP framework.** Ratified in the "Chosen
+  libraries" section below — it gives us `async fn` handlers for
+  every LSP method out of the box, built on Tokio.
+- **`ropey` is the document buffer.** Also ratified below. Ropes
+  are the standard async-friendly document storage: cheap clone
+  (`Arc<Rope>`), O(log n) slicing, built-in line indexing,
+  incremental-edit-friendly.
+- **The lexer itself is synchronous** (fast, CPU-bound, a few μs
+  per typical file), **but it is `Send`**, holds no thread-local or
+  `static mut` state, and is trivially safe to call from any async
+  task. For files large enough that lexing would block the
+  executor for more than a frame (rare for Tcl, possible for
+  generated iRules bundles), the caller moves the call into
+  `tokio::task::spawn_blocking` or splits the work across chunks —
+  a decision taken by the caller, not baked into the lexer.
+- **The analysis pipeline (above the lexer) is async.** Each pass
+  is `async fn` even when its body is CPU-bound, so it composes
+  with cancellation tokens and can yield between phases. Long
+  CPU-bound phases call `tokio::task::yield_now().await` at
+  coarse-grained checkpoints so the executor stays responsive.
+- **Document store updates use `tokio::sync` primitives.** No
+  `std::sync::Mutex` on paths that can be held across `.await`,
+  no blocking read locks. `RwLock<Arc<DocumentState>>` is the
+  common pattern; read-heavy operations clone the `Arc` and drop
+  the lock immediately.
+- **No globals, no thread-locals, no singletons.** Anything that
+  looks like state lives on an owned struct that the task holds or
+  is passed in as a parameter. The Python lexer's `_thread_local`
+  for `strict_quoting` is an explicit anti-pattern here; the Rust
+  equivalent is a field on `LexerConfig`.
+- **Diagnostics, semantic tokens, hover, completion, definition,
+  references, formatting, code actions, inlay hints — every
+  `async fn` handler.** Cancellation propagates via
+  `tokio::select!` with the LSP cancellation token. No handler
+  body blocks for more than a few μs without an `.await`.
+
+These are non-negotiable because the whole point of the rewrite is
+to be faster and more responsive than the Python server. Ignoring
+either principle wastes the rewrite.
+
 ## Chosen libraries and data structures
 
-Rewrites that drag Python structure into Rust — dataclasses with
-dunder methods, hand-rolled line indices when a rope already has one,
-thread-local globals ported verbatim — are bad ports. To avoid that
-we commit up front to a concrete set of Rust libraries and lean on
-them hard. Pick these, document them here, and use them idiomatically
-from day one.
+The library choices below are selected **specifically** to serve
+the two principles above: time-to-first-tokens and async-to-the-core.
+Each entry notes why it wins for those criteria.
 
 - **Buffer storage (LSP layer): [`ropey`](https://crates.io/crates/ropey).**
-  Rope for the document store. Standard Rust LSP choice, used by
-  Helix, O(log n) edits, cheap slicing, built-in line indexing via
-  `Rope::byte_to_line` / `Rope::line_to_byte`. Adopted when the LSP
-  server chunks land (R*). The lexer itself does **not** take a
-  `Rope` — see below.
+  Rope for the document store. Used by Helix, chosen for the Rust
+  rewrite because: (a) O(log n) slicing means the time-to-first-
+  tokens path can flatten a rope range into a `&str` and hand it
+  to the lexer without an O(n) full-source copy — critical for
+  large iRules bundles; (b) rope handles are cheaply shareable via
+  `Arc<Rope>`, so async tasks that need to read the document
+  concurrently don't contend on a lock; (c) built-in line indexing
+  via `Rope::byte_to_line` / `Rope::line_to_byte` means we don't
+  rebuild `LineIndex` on every edit in steady state. Adopted when
+  the LSP server chunks land (R*). The lexer itself does **not**
+  take a `Rope` — see the "Position infrastructure" section below.
 - **LSP framework: [`tower-lsp`](https://crates.io/crates/tower-lsp).**
-  Async/Tokio, modern, the standard for new Rust LSP servers.
+  Chosen for async-to-the-core: every LSP method is an `async fn`
+  on the `Backend` trait, dispatched on Tokio, so cancellation
+  composes trivially with `tokio::select!` and the LSP
+  cancellation token. The alternatives were considered and
+  rejected: `lsp-server` (from rust-analyzer) is synchronous and
+  would force us to build our own async layer on top; `async-lsp`
+  is also async but has a smaller ecosystem and less momentum.
+  `tower-lsp` is the default modern choice and the one with the
+  most production deployments (taplo, wat, nixd, …).
 - **Error types: [`thiserror`](https://crates.io/crates/thiserror) in
   library crates, [`anyhow`](https://crates.io/crates/anyhow) in
   binaries.** Already in use in `tcl-lexer` for `LexError`.
@@ -458,7 +562,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L1    | `core/parsing/substitution.py::backslash_subst` → `rust/tcl-lexer/src/substitution.rs` with PyO3 bridge and Python fallback | landed |
 | L2    | `core/parsing/tokens.py` → `rust/tcl-lexer/src/tokens.rs` (`TokenType`, `SourcePosition`, `Token<'src>`) plus PyO3 wrappers preserving singleton/identity semantics; new `tests/test_tokens.py` contract test | landed |
 | L3    | Rust `Lexer` skeleton (EOF/SEP/EOL/COMMENT/plain ESC) + span-first architecture (`Span`, `LineIndex`, `SourceMap`) + differential test harness + committed library choices (`ropey`, `tower-lsp`, `thiserror`/`anyhow`, `clap`, `tracing`) | landed |
-| L4    | Variable substitution in the Rust lexer | planned |
+| L4    | Variable substitution in the Rust lexer (`$name`, `${name}`, `$arr(idx)`, `$ns::var`, bare `$`) + `SourceMap::token_text` for Python-parity text extraction + try/catch-based differential harness filter | landed |
 | L5    | Command substitution in the Rust lexer | planned |
 | L6    | Brace strings in the Rust lexer | planned |
 | L7    | Quoted strings in the Rust lexer | planned |

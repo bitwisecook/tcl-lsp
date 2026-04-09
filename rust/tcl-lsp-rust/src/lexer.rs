@@ -53,11 +53,19 @@ pub fn lexer_tokenise(source: &str) -> PyResult<Vec<PyToken>> {
 /// Lift a pure-Rust `Token` into a Python-visible `PyToken`,
 /// resolving its span against `source_map` to produce the
 /// `text` / `start` / `end` fields the Python API exposes.
+///
+/// Note that the Rust `Token.span` covers the full extent of the
+/// token including any leading `$` / `${` wrappers, so that
+/// `range_positions(span)` produces the same start/end the Python
+/// lexer does. The text field, however, uses `source_map.token_text`
+/// which strips those wrappers — matching Python's quirky-but-
+/// long-standing convention that `tok.text` is the "human-readable"
+/// content (e.g. `"foo"` for `$foo`, `"name"` for `${name}`).
 fn lift(tok: Token, source_map: &SourceMap<'_>) -> PyToken {
     let (start_pos, end_pos) = source_map.range_positions(tok.span);
     PyToken::new_from_core(
         PyTokenType::from(tok.kind),
-        source_map.text(tok.span).to_owned(),
+        source_map.token_text(tok).to_owned(),
         PySourcePosition::from_core(start_pos),
         PySourcePosition::from_core(end_pos),
         tok.in_quote,

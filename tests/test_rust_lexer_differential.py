@@ -45,21 +45,34 @@ tcl_lsp_rust = pytest.importorskip(
 
 lexer_tokenise = tcl_lsp_rust.lexer_tokenise
 
-# Characters the L3 Rust lexer does not yet handle. An input with any
-# of these is skipped (cleanly) by the differential harness.
-_DEFERRED_CHARS = frozenset('${}[]"\\')
-
 
 def _rust_supports(source: str) -> bool:
-    """True if the input is in the Rust L3 supported subset.
+    """True if the input is in the Rust lexer's currently supported subset.
 
-    ASCII-only to avoid the UTF-8 / UTF-16 column discrepancy; no
-    deferred characters; no explicit tab-vs-space weirdness that the
-    harness cannot express.
+    We ask the Rust lexer directly instead of hand-maintaining a
+    deferred-characters blacklist. This has two advantages:
+
+    1. As each chunk (L4, L5, L6, …) removes constructs from the
+       Rust lexer's ``LexError::UnsupportedCharacter`` trigger set,
+       the harness auto-detects the expanded support surface — no
+       blacklist edit needed.
+    2. It handles context-sensitive cases correctly. `{` and `}`
+       inside a `${…}` braced variable name are fine even though
+       `{` / `}` as top-level constructs are still deferred until
+       L6; a character-only blacklist would reject such inputs
+       unnecessarily.
+
+    Restricted to ASCII so the non-ASCII column drift between Python
+    and Rust (tracked in `docs/rust-rewrite.md` as deferred work)
+    never shows up in parity checks.
     """
     if not source.isascii():
         return False
-    return not any(ch in _DEFERRED_CHARS for ch in source)
+    try:
+        lexer_tokenise(source)
+    except ValueError:
+        return False
+    return True
 
 
 def _python_tokens(source: str) -> list[Token]:
@@ -149,6 +162,37 @@ CORPUS: list[tuple[str, str]] = [
     ("multi_line_with_comment", "foo\n# hello\nbar"),
     ("stress_whitespace", "  foo  bar  baz  "),
     ("only_separators", "\n;\n; \n"),
+    # L4 — variable substitution
+    ("var_simple", "$foo"),
+    ("var_underscore", "$_private"),
+    ("var_digit", "$1"),
+    ("var_alnum", "$foo123"),
+    ("var_uppercase", "$FOO"),
+    ("var_ns", "$ns::var"),
+    ("var_ns_deep", "$a::b::c"),
+    ("var_leading_ns", "$::global"),
+    ("var_single_colon_ends", "$foo:bar"),
+    ("var_braced", "${name}"),
+    ("var_braced_empty", "${}"),
+    ("var_braced_with_spaces", "${my var}"),
+    ("var_braced_with_special", "${weird#name}"),
+    ("var_array", "$arr(idx)"),
+    ("var_array_ns", "$ns::arr(key)"),
+    ("var_array_nested", "$arr(one(two)three)"),
+    ("var_array_braced_inner", "$arr(${key})"),
+    ("bare_dollar", "$"),
+    ("bare_dollar_space", "$ foo"),
+    ("bare_dollar_lf", "$\n"),
+    ("var_then_word", "$foo bar"),
+    ("word_then_var", "foo$bar"),
+    ("multiple_vars", "$a $b $c"),
+    ("var_in_command", "set x $y"),
+    ("var_resets_command_start", "$foo #not-a-comment"),
+    ("var_after_comment", "# c\n$foo"),
+    ("var_mid_stream", "puts $name; return $val"),
+    # L4 unterminated — best-effort tokenisation
+    ("unterminated_braced_var", "${unterminated"),
+    ("unterminated_array_var", "$arr(idx"),
 ]
 
 
@@ -162,14 +206,28 @@ def test_curated_corpus_matches_python(label: str, source: str):
 
 
 class TestHarnessItself:
+    # Characters whose handling the Rust lexer defers to later
+    # chunks. Keep this list in sync with the Rust
+    # `is_deferred_special` helper (not imported here to keep the
+    # harness pytest-only). After L4: `$` has been removed, `[`, `]`,
+    # `{`, `}`, `"`, `\` remain.
+    _EXPECTED_DEFERRED = frozenset('{}[]"\\')
+
     def test_deferred_inputs_are_filtered(self):
-        # Every character we say is deferred must actually trigger the
-        # Rust ValueError so the harness's skip logic is sound.
-        for ch in _DEFERRED_CHARS:
+        # Every character we say is deferred must actually trigger
+        # the Rust ValueError so the harness's filter is sound.
+        for ch in self._EXPECTED_DEFERRED:
             sample = f"foo{ch}bar"
             assert not _rust_supports(sample), f"{ch!r} should be filtered"
             with pytest.raises(ValueError):
                 lexer_tokenise(sample)
+
+    def test_dollar_is_no_longer_deferred(self):
+        # Regression guard for L4: `$` must pass the filter now.
+        assert _rust_supports("$foo")
+        assert _rust_supports("${name}")
+        assert _rust_supports("$arr(idx)")
+        assert _rust_supports("$")
 
     def test_non_ascii_is_filtered(self):
         assert not _rust_supports("café")
@@ -177,6 +235,7 @@ class TestHarnessItself:
     def test_supported_input_passes_filter(self):
         assert _rust_supports("foo bar\nbaz")
         assert _rust_supports("# comment\nfoo")
+        assert _rust_supports("set x $y")
 
 
 # Pull additional inputs from the broader lexer test suite wherever
