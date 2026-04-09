@@ -4,15 +4,17 @@ This folder holds Knowledge-Centered Service (KCS) notes. A KCS note is a
 small, searchable answer to one question, written in plain English for a
 named audience.
 
-Every KCS note belongs to one of four categories:
+Every KCS note belongs to one of six categories:
 
 - **Issue** — "Why is X not working, and how do I fix it?"
 - **Q&A** — "What is X?" / "When should I use Y?"
 - **How-To** — "How do I do X?"
 - **Functionality** — "What does command/feature/tool X do, and how do I
   use it?"
+- **Diagnostic** — per-code page for an E/W/S/T/IRULE diagnostic.
+- **Optimisation** — per-code page for an O-code optimiser rewrite.
 
-If your content does not fit one of these four categories, you are writing
+If your content does not fit one of these six categories, you are writing
 a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 ## How to write a KCS note
@@ -64,6 +66,22 @@ Per-feature KCS notes live under [`features/`](features/README.md). The
 `help` subcommand, the MCP `help` tool, and the VS Code `/help` chat
 command all read these files at runtime to build their feature catalogues,
 so the filename and top-level heading format of each file is fixed.
+
+## Diagnostics and optimisations (per-code pages)
+
+Per-code KCS notes live under [`codes/`](codes/README.md). Every
+diagnostic (E, W, S, T, IRULE families) and every optimisation
+(O family) has its own page written against
+[`templates/kcs-template-diagnostic.md`](templates/kcs-template-diagnostic.md)
+or
+[`templates/kcs-template-optimisation.md`](templates/kcs-template-optimisation.md),
+and tags the compiler pass that produces it so readers can follow
+the link to the [glossary](../GLOSSARY.md) and from there to the
+relevant [compiler design doc](../design/compiler/README.md). Per-code
+pages are filled in as the KCS completeness plan
+([`../design/kcs-completeness-plan.md`](../design/kcs-completeness-plan.md))
+progresses; today the section is scaffolded and the pages are
+being added family by family.
 
 ## Templates
 
