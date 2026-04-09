@@ -44,9 +44,17 @@ class TestGetCodeLenses:
         lenses = get_code_lenses(source, TEST_URI, analysis)
         assert lenses == []
 
-    def test_none_analysis_returns_empty(self):
-        lenses = get_code_lenses("proc f {} {}", TEST_URI, None)
-        assert lenses == []
+    def test_none_analysis_runs_inline_analysis(self):
+        """Passing analysis=None triggers a throwaway analyse() inline.
+
+        This happens on every codeLens request that arrives before the
+        fire-and-forget did_open analysis completes, so it must return
+        the same result shape as the pre-analysed path.
+        """
+        lenses = get_code_lenses("proc f {} {}\nproc g {} {}\n", TEST_URI, None)
+        assert len(lenses) == 2
+        for lens in lenses:
+            assert lens.data is not None
 
 
 class TestResolveCodeLens:

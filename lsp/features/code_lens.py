@@ -16,6 +16,7 @@ from typing import Protocol
 
 from lsprotocol import types
 
+from core.analysis.analyser import analyse
 from core.analysis.semantic_model import AnalysisResult, ProcDef
 from core.common.lsp import to_lsp_range
 
@@ -59,9 +60,14 @@ def get_code_lenses(
     uri: str,
     analysis: AnalysisResult | None,
 ) -> list[types.CodeLens]:
-    """Return unresolved code lenses for every proc in ``analysis``."""
+    """Return unresolved code lenses for every proc in ``analysis``.
+
+    When ``analysis`` is ``None`` the function runs a throwaway
+    :func:`analyse` inline so callers can pass through unprepared document
+    state (e.g. immediately after a fire-and-forget ``didOpen``).
+    """
     if analysis is None:
-        return []
+        analysis = analyse(source)
     lenses: list[types.CodeLens] = []
     for _qname, proc in analysis.all_procs.items():
         lenses.append(_proc_ref_lens(uri, proc))

@@ -803,9 +803,12 @@ def on_type_definition(
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
-    if state is not None and state.analysis is None:
-        return None
     source = _get_doc_source(uri)
+    # Pass None when analysis hasn't completed yet; the feature function
+    # will run a throwaway analyse() inline.  This matches the behaviour
+    # of on_references / on_definition and keeps the feature working on
+    # slow CI runners where activate() may return before the fire-and-
+    # forget did_open task has populated state.analysis.
     analysis = state.analysis if state else None
     return get_type_definition(
         source,
@@ -828,9 +831,9 @@ def on_declaration(
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
-    if state is not None and state.analysis is None:
-        return None
     source = _get_doc_source(uri)
+    # See on_type_definition for the rationale behind passing analysis=None
+    # when state.analysis has not been populated yet.
     analysis = state.analysis if state else None
     return get_declaration(
         source,
@@ -876,9 +879,9 @@ def on_document_highlight(
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
-    if state is not None and state.analysis is None:
-        return None
     source = _get_doc_source(uri)
+    # See on_type_definition for the rationale behind passing analysis=None
+    # when state.analysis has not been populated yet.
     analysis = state.analysis if state else None
     return get_document_highlights(
         source,
@@ -1130,9 +1133,9 @@ def on_implementation(
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
-    if state is not None and state.analysis is None:
-        return None
     source = _get_doc_source(uri)
+    # See on_type_definition for the rationale behind passing analysis=None
+    # when state.analysis has not been populated yet.
     analysis = state.analysis if state else None
     return get_implementations(
         source,
@@ -1175,9 +1178,9 @@ def on_code_lens(
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
-    if state is not None and state.analysis is None:
-        return None
     source = _get_doc_source(uri)
+    # See on_type_definition for the rationale behind passing analysis=None
+    # when state.analysis has not been populated yet.
     analysis = state.analysis if state else None
     return get_code_lenses(source, uri, analysis)
 
@@ -1283,9 +1286,9 @@ def on_linked_editing_range(
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
-    if state is not None and state.analysis is None:
-        return None
     source = _get_doc_source(uri)
+    # See on_type_definition for the rationale behind passing analysis=None
+    # when state.analysis has not been populated yet.
     analysis = state.analysis if state else None
     return get_linked_editing_ranges(
         source,
@@ -3048,6 +3051,13 @@ def _run_background_scan(
         _scan_lock.release()
 
 
+# Strong reference for the scan coordinator task so asyncio does not
+# garbage-collect it mid-run.  Reset on each new scan; we only ever have
+# one coordinator alive at a time because ``_run_background_scan`` uses
+# ``_scan_lock`` to deduplicate concurrent calls.
+_scan_progress_task: "asyncio.Task[None] | None" = None
+
+
 def _start_scan_with_progress() -> None:
     """Run the background scan with $/progress notifications.
 
@@ -3056,8 +3066,14 @@ def _start_scan_with_progress() -> None:
     ``window/workDoneProgress/create``, calls ``begin``, kicks off the
     scan thread, receives progress ticks via ``call_soon_threadsafe``, and
     emits ``end`` when the thread finishes.
+
+    The coordinator is designed to be *best-effort*: any failure in the
+    ``$/progress`` dance falls through to the plain daemon-thread scan so
+    a misbehaving client never blocks indexing.
     """
     import uuid
+
+    global _scan_progress_task
 
     loop = getattr(server, "loop", None)
     if loop is None or not loop.is_running():
@@ -3066,28 +3082,48 @@ def _start_scan_with_progress() -> None:
         return
 
     token = f"tcl-lsp-scan-{uuid.uuid4()}"
+    # True once ``begin`` has successfully been sent to the client.
+    # Reports arriving before this flag is set are dropped rather than
+    # risking an "unknown token" error from the client.
+    progress_active = False
 
     def _progress_cb(idx: int, total: int, path: str) -> None:
+        if not progress_active:
+            return
         percentage = int((idx / total) * 100) if total else 0
+
+        def _send() -> None:
+            try:
+                server.work_done_progress.report(
+                    token,
+                    types.WorkDoneProgressReport(
+                        message=f"{idx}/{total}",
+                        percentage=percentage,
+                    ),
+                )
+            except Exception:  # pragma: no cover - defensive
+                pass
+
         try:
-            loop.call_soon_threadsafe(
-                server.work_done_progress.report,
-                token,
-                types.WorkDoneProgressReport(
-                    message=f"{idx}/{total}",
-                    percentage=percentage,
-                ),
-            )
-        except Exception:
-            pass  # pragma: no cover - event loop may be closing
+            loop.call_soon_threadsafe(_send)
+        except Exception:  # pragma: no cover - event loop may be closing
+            pass
 
     async def _coordinator() -> None:
+        nonlocal progress_active
+        # Give the create_async call a short window to reach the client.
+        # Some clients ignore the request silently; without a timeout the
+        # coordinator (and therefore the scan) would hang forever.
         try:
-            await server.work_done_progress.create_async(token)
-        except Exception:
-            log.debug("work_done_progress/create failed; running scan silently")
+            await asyncio.wait_for(server.work_done_progress.create_async(token), timeout=5.0)
+        except (Exception, asyncio.TimeoutError):
+            log.debug(
+                "work_done_progress/create failed or timed out; running scan silently",
+                exc_info=True,
+            )
             threading.Thread(target=_run_background_scan, daemon=True).start()
             return
+
         try:
             server.work_done_progress.begin(
                 token,
@@ -3097,8 +3133,11 @@ def _start_scan_with_progress() -> None:
                     percentage=0,
                 ),
             )
-        except Exception:
-            pass
+            progress_active = True
+        except Exception:  # pragma: no cover - defensive
+            # ``begin`` failed — bail out to the silent path.
+            threading.Thread(target=_run_background_scan, daemon=True).start()
+            return
 
         done = threading.Event()
 
@@ -3114,15 +3153,18 @@ def _start_scan_with_progress() -> None:
         while not done.is_set():
             await asyncio.sleep(0.1)
 
+        progress_active = False
         try:
             server.work_done_progress.end(
                 token,
                 types.WorkDoneProgressEnd(message="done"),
             )
-        except Exception:
+        except Exception:  # pragma: no cover - defensive
             pass
 
-    asyncio.ensure_future(_coordinator(), loop=loop)
+    # Keep a strong reference so the task does not get garbage-collected
+    # if the enclosing scope is dropped before the coroutine finishes.
+    _scan_progress_task = asyncio.ensure_future(_coordinator(), loop=loop)
 
 
 @server.feature(types.INITIALIZED)

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
+from core.analysis.analyser import analyse
 from core.analysis.semantic_model import AnalysisResult
 from core.common.lsp import find_var_in_scopes, to_lsp_range
 
@@ -79,10 +80,14 @@ def get_document_highlights(
     classes, methods) are marked as Text.
     """
     # Variable path — use the scope tree so shadowed names stay separate.
-    if analysis is not None:
-        var_highlights = _variable_highlights(source, line, character, analysis)
-        if var_highlights is not None:
-            return var_highlights
+    # Compute analysis on demand when state.analysis has not been populated
+    # yet (did_open runs analysis as a fire-and-forget task, so callers may
+    # hit us before state.analysis is ready on slow CI runners).
+    if analysis is None:
+        analysis = analyse(source)
+    var_highlights = _variable_highlights(source, line, character, analysis)
+    if var_highlights is not None:
+        return var_highlights
 
     # Non-variable path — delegate to the reference provider and mark
     # each occurrence as Text (procs, classes, method names have no
