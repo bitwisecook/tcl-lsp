@@ -1,7 +1,7 @@
 //! Streaming Tcl lexer.
 //!
-//! **L3 + L4.** The first two lexer chunks, taken together, handle
-//! five token kinds plus variable substitution:
+//! **L3 + L4 + L5.** The first three lexer chunks, taken together,
+//! handle six token kinds plus variable and command substitution:
 //!
 //! - **EOF handling** — emits a trailing ghost `EOL` (once) when the
 //!   source does not already end with an EOL token, matching the
@@ -16,7 +16,9 @@
 //!   reported as [`LexError::UnsupportedCharacter`] so the
 //!   differential harness can filter it.
 //! - **ESC** — runs of characters that are neither whitespace nor EOL
-//!   nor one of the "deferred" special characters.
+//!   nor one of the "deferred" special characters. Terminated by
+//!   `$` (L4) or `[` (L5) so that variable and command substitutions
+//!   dispatch on the next iteration.
 //! - **VAR (L4)** — variable substitution in all four Tcl forms:
 //!   `$name`, `$ns::var` (namespace-separated), `${name}` (braced),
 //!   and `$arr(idx)` (array index with nested parens and embedded
@@ -25,12 +27,23 @@
 //!   Python's `_parse_var` fallback. Unterminated `${` and `$arr(`
 //!   tokenize best-effort (L9 will add the warning-collection
 //!   machinery to report them as diagnostics).
+//! - **CMD (L5)** — command substitution `[…]` with Python-parity
+//!   nesting rules. The scanner tracks three pieces of state while
+//!   inside the command body: outer bracket nesting (`level`),
+//!   brace nesting (`blevel`), and whether we are inside a `"…"`
+//!   quoted sub-region (`in_quotes`). A `[` increments `level` only
+//!   when not inside braces or quotes; a `]` closes the command only
+//!   when the outer bracket is the innermost nesting. Backslash
+//!   escapes consume two characters (CRLF counted as one line
+//!   advance); `${…}` sub-scans exist to stop a `)` or `}` inside a
+//!   braced variable name from fooling the counter. Unterminated
+//!   `[` tokenizes best-effort (L9 adds the warning).
 //!
-//! The "deferred" set is now `[ ] { } " \`. Encountering any of them
-//! trips [`LexError::UnsupportedCharacter`] carrying the character and
-//! its position. Callers filter inputs on that error rather than
-//! receiving silently-wrong token streams. Chunks L5–L9 shrink the set
-//! to zero.
+//! The "deferred" set is now `{ } " \`. Encountering any of them
+//! trips [`LexError::UnsupportedCharacter`] carrying the character
+//! and its position. Callers filter inputs on that error rather than
+//! receiving silently-wrong token streams. Chunks L6–L9 shrink the
+//! set to zero.
 //!
 //! ### Architecture
 //!
@@ -63,8 +76,9 @@
 //! Explicit list of deferrals so reviewers can tell what lives where:
 //!
 //! - ~~L4: variable substitution (`$name`, `${name}`, `$arr(idx)`,~~
-//!   ~~`$ns::var`)~~ — **landed in this chunk**
-//! - L5: command substitution (`[…]`, possibly nested)
+//!   ~~`$ns::var`)~~ — landed
+//! - ~~L5: command substitution (`[…]`, possibly nested)~~ —
+//!   **landed in this chunk**
 //! - L6: braced strings (`{…}`, possibly nested)
 //! - L7: quoted strings (`"…"`)
 //! - L8: expansion prefix (`{*}`), `strict_quoting`, `expand_syntax`,
@@ -281,8 +295,11 @@ impl<'src> Lexer<'src> {
             if is_horizontal_whitespace(ch) || is_eol_char(ch) {
                 break;
             }
-            // `$` terminates a bare word — the next token is a VAR.
-            if ch == '$' {
+            // `$` and `[` terminate a bare word so the next iteration
+            // dispatches to `parse_var` / `parse_command`. Matches
+            // Python `_parse_string`'s `elif ch == "$" or ch == "["`
+            // branch.
+            if ch == '$' || ch == '[' {
                 break;
             }
             if is_deferred_special(ch) {
@@ -459,6 +476,134 @@ impl<'src> Lexer<'src> {
             .get((self.pos + offset) as usize)
             .copied()
     }
+
+    /// Parse a command substitution starting at the current `[`.
+    ///
+    /// Scans the command body until a matching `]`, tracking outer
+    /// bracket nesting (`level`), brace nesting (`blevel`), and
+    /// whether we are inside a `"…"` sub-region (`in_quotes`). Each
+    /// piece of state gates which characters are meaningful:
+    ///
+    /// - `"` — toggles `in_quotes` when `blevel == 0`.
+    /// - `[` — increments `level` when not braced and not quoted.
+    /// - `]` — decrements `level` when not braced and not quoted;
+    ///   closes the command when `level` reaches zero.
+    /// - `\\` — consumes the next character unconditionally (CRLF
+    ///   counted as one pair). This makes `\]` and `\"` inside a
+    ///   command body inert.
+    /// - `$` followed by `{` (outside braces and quotes) — sub-scans
+    ///   a `${…}` construct so a `}` or `)` inside a braced
+    ///   variable name does not fool the counter.
+    /// - `{` / `}` — adjust `blevel` when not quoted.
+    ///
+    /// The span always starts at the `[` and normally ends at the
+    /// last character of the body (NOT the closing `]`), matching
+    /// Python's `_end = self.pos - 1`. The empty-command degenerate
+    /// case `[]` extends the span by one so `range_positions`
+    /// reports the `]` as the end position, matching Python's
+    /// `end_offset = _start` clamp. `SourceMap::token_text` strips
+    /// the leading `[` (and the trailing `]` from the degenerate
+    /// case) so Python callers see just the command body.
+    ///
+    /// Never fails. An unterminated `[` tokenizes best-effort; the
+    /// Python lexer emits a `missing close-bracket` warning, which
+    /// L9's warning-collection infrastructure will start
+    /// reproducing.
+    fn parse_command(&mut self) -> Token {
+        let bracket_pos = self.pos;
+        self.pos += 1; // skip '['
+        let content_start = self.pos;
+
+        let mut level: u32 = 1;
+        let mut blevel: u32 = 0;
+        let mut in_quotes = false;
+
+        while let Some(ch) = self.current_char() {
+            match ch {
+                '"' if blevel == 0 => {
+                    in_quotes = !in_quotes;
+                    self.pos += 1;
+                }
+                '[' if blevel == 0 && !in_quotes => {
+                    level += 1;
+                    self.pos += 1;
+                }
+                ']' if blevel == 0 && !in_quotes => {
+                    level -= 1;
+                    if level == 0 {
+                        // Leave `self.pos` at the closing `]`; the
+                        // code after the loop decides whether to
+                        // include it in the span and consume it.
+                        break;
+                    }
+                    self.pos += 1;
+                }
+                '\\' => {
+                    // Consume the backslash and the next character
+                    // as a pair (CRLF counted as one). This matches
+                    // Python's "Skip backslash. Skip escaped char."
+                    // logic inside `_parse_command`.
+                    self.pos += 1;
+                    match self.current_char() {
+                        Some(esc @ ('\n' | '\r')) => {
+                            self.pos += 1;
+                            if esc == '\r' && self.current_byte() == Some(b'\n') {
+                                self.pos += 1;
+                            }
+                        }
+                        Some(esc) => {
+                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
+                        }
+                        None => {
+                            // Trailing backslash at EOF — leave as is.
+                        }
+                    }
+                }
+                '$' if !in_quotes && blevel == 0 => {
+                    // `${…}` inside a command body: sub-scan to the
+                    // matching `}` so any `)` or `]` inside a braced
+                    // variable name does not fool the outer counter.
+                    if self.peek_byte(1) == Some(b'{') {
+                        self.pos += 2; // skip '${'
+                        while let Some(inner) = self.current_char() {
+                            if inner == '}' {
+                                self.pos += 1;
+                                break;
+                            }
+                            self.pos += u32::try_from(inner.len_utf8()).expect("char len fits u32");
+                        }
+                    } else {
+                        self.pos += 1;
+                    }
+                }
+                '{' if !in_quotes => {
+                    blevel += 1;
+                    self.pos += 1;
+                }
+                '}' if !in_quotes => {
+                    blevel = blevel.saturating_sub(1);
+                    self.pos += 1;
+                }
+                _ => {
+                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                }
+            }
+        }
+
+        // At this point `self.pos` is at the closing `]` or at EOF.
+        let content_empty = self.pos == content_start;
+        let has_close_bracket = self.current_byte() == Some(b']');
+        let span_end = if content_empty && has_close_bracket {
+            self.pos + 1 // include the `]` so the end position lands on it
+        } else {
+            self.pos
+        };
+        if has_close_bracket {
+            self.pos += 1;
+        }
+
+        Token::new(TokenType::Cmd, Span::new(bracket_pos, span_end))
+    }
 }
 
 impl Iterator for Lexer<'_> {
@@ -488,6 +633,7 @@ impl Iterator for Lexer<'_> {
             _ if is_eol_char(ch) => Ok(self.parse_eol()),
             '#' if self.at_command_start => self.parse_comment(),
             '$' => Ok(self.parse_var()),
+            '[' => Ok(self.parse_command()),
             _ if is_deferred_special(ch) => Err(LexError::UnsupportedCharacter {
                 ch,
                 position: self.position_at(self.pos),
@@ -537,11 +683,14 @@ fn is_eol_byte(byte: u8) -> bool {
 }
 
 /// Characters whose handling the Rust lexer has not yet implemented.
-/// Triggers [`LexError::UnsupportedCharacter`]. Chunks L5–L9
-/// incrementally drain this set. L4 removed `$`.
+/// Triggers [`LexError::UnsupportedCharacter`]. Chunks L6–L9
+/// incrementally drain this set. L4 removed `$`; L5 removed `[`
+/// (now dispatches to `parse_command`) and `]` (now a regular
+/// word character outside a command body, matching Python's
+/// `_parse_string` behaviour).
 #[inline]
 fn is_deferred_special(ch: char) -> bool {
-    matches!(ch, '[' | ']' | '{' | '}' | '"' | '\\')
+    matches!(ch, '{' | '}' | '"' | '\\')
 }
 
 #[cfg(test)]
@@ -819,12 +968,12 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_character_bracket_errors() {
-        let err = Lexer::new("[cmd]").tokenise_all().unwrap_err();
-        assert!(matches!(
-            err,
-            LexError::UnsupportedCharacter { ch: '[', .. }
-        ));
+    fn bracket_is_no_longer_an_unsupported_character() {
+        // Regression guard: L5 removed `[` from the deferred set.
+        // `[cmd]` should now lex as a CMD token, not error.
+        let tokens = Lexer::new("[cmd]").tokenise_all().unwrap();
+        let kinds: Vec<TokenType> = tokens.iter().map(|t| t.kind).collect();
+        assert_eq!(kinds, vec![TokenType::Cmd, TokenType::Eol]);
     }
 
     #[test]
@@ -847,8 +996,8 @@ mod tests {
 
     #[test]
     fn after_error_iterator_stops() {
-        // Use `[` which is still in the deferred set after L4.
-        let mut lex = Lexer::new("foo [bar]");
+        // Use `{` which is still in the deferred set after L5.
+        let mut lex = Lexer::new("foo {bar}");
         let mut tokens = Vec::new();
         let mut err_seen = false;
         for result in lex.by_ref() {
@@ -1126,5 +1275,195 @@ mod tests {
         let lexer = Lexer::new(source);
         let map = lexer.into_source_map();
         assert_eq!(map.line_index().line_count(), 3);
+    }
+
+    // ------------------------------------------------------------------
+    // L5 — command substitution
+    // ------------------------------------------------------------------
+
+    fn cmd_token_rows(source: &str) -> (Vec<(TokenType, String)>, SourceMap<'_>) {
+        let lexer = Lexer::new(source);
+        let map = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().expect("L5 lexer accepts fixture");
+        let rows = tokens
+            .iter()
+            .map(|t| (t.kind, map.token_text(*t).to_owned()))
+            .collect();
+        (rows, map)
+    }
+
+    #[test]
+    fn cmd_simple_body() {
+        let (rows, _) = cmd_token_rows("[+ 1 2]");
+        assert_eq!(
+            rows,
+            vec![
+                (TokenType::Cmd, "+ 1 2".into()),
+                (TokenType::Eol, String::new()),
+            ]
+        );
+    }
+
+    #[test]
+    fn cmd_empty_body() {
+        // Degenerate `[]` — exercises the empty-body end-position clamp.
+        let (rows, _) = cmd_token_rows("[]");
+        assert_eq!(rows[0], (TokenType::Cmd, String::new()));
+    }
+
+    #[test]
+    fn cmd_nested_brackets() {
+        let (rows, _) = cmd_token_rows("[+ 1 [+ 2 3]]");
+        assert_eq!(rows[0], (TokenType::Cmd, "+ 1 [+ 2 3]".into()));
+    }
+
+    #[test]
+    fn cmd_deeply_nested_brackets() {
+        let (rows, _) = cmd_token_rows("[a [b [c [d]]]]");
+        assert_eq!(rows[0], (TokenType::Cmd, "a [b [c [d]]]".into()));
+    }
+
+    #[test]
+    fn cmd_followed_by_word() {
+        let (rows, _) = cmd_token_rows("[cmd] tail");
+        assert_eq!(rows[0], (TokenType::Cmd, "cmd".into()));
+        assert_eq!(rows[1], (TokenType::Sep, " ".into()));
+        assert_eq!(rows[2], (TokenType::Esc, "tail".into()));
+    }
+
+    #[test]
+    fn word_then_cmd() {
+        // `foo[cmd]` — ESC then CMD. The `[` terminates the bare
+        // word.
+        let (rows, _) = cmd_token_rows("foo[cmd]");
+        assert_eq!(rows[0], (TokenType::Esc, "foo".into()));
+        assert_eq!(rows[1], (TokenType::Cmd, "cmd".into()));
+    }
+
+    #[test]
+    fn cmd_then_word() {
+        let (rows, _) = cmd_token_rows("[cmd]tail");
+        assert_eq!(rows[0], (TokenType::Cmd, "cmd".into()));
+        assert_eq!(rows[1], (TokenType::Esc, "tail".into()));
+    }
+
+    #[test]
+    fn cmd_with_quoted_substring() {
+        // `"..."` inside a command body is NOT a quoted string at
+        // the top level — parse_command just tracks it for its
+        // bracket-nesting state so that `]` inside the quotes does
+        // not close the command.
+        let (rows, _) = cmd_token_rows(r#"[puts "hello world"]"#);
+        assert_eq!(rows[0], (TokenType::Cmd, r#"puts "hello world""#.into()));
+    }
+
+    #[test]
+    fn cmd_with_bracket_inside_quotes_does_not_close() {
+        let (rows, _) = cmd_token_rows(r#"[puts "a]b"]"#);
+        assert_eq!(rows[0], (TokenType::Cmd, r#"puts "a]b""#.into()));
+    }
+
+    #[test]
+    fn cmd_with_braced_substring() {
+        // `{…}` inside a command body adjusts `blevel` so `]`
+        // inside the braces does not close the command.
+        let (rows, _) = cmd_token_rows("[list {a b c}]");
+        assert_eq!(rows[0], (TokenType::Cmd, "list {a b c}".into()));
+    }
+
+    #[test]
+    fn cmd_with_bracket_inside_braces_does_not_close() {
+        let (rows, _) = cmd_token_rows("[list {a ] b}]");
+        assert_eq!(rows[0], (TokenType::Cmd, "list {a ] b}".into()));
+    }
+
+    #[test]
+    fn cmd_with_nested_braces() {
+        let (rows, _) = cmd_token_rows("[list {a {nested} b}]");
+        assert_eq!(rows[0], (TokenType::Cmd, "list {a {nested} b}".into()));
+    }
+
+    #[test]
+    fn cmd_with_backslash_escape() {
+        // `\]` inside the body is inert — it doesn't close the
+        // command. The backslash consumes two bytes as a pair.
+        let (rows, _) = cmd_token_rows(r"[a \] b]");
+        assert_eq!(rows[0], (TokenType::Cmd, r"a \] b".into()));
+    }
+
+    #[test]
+    fn cmd_with_backslash_quote() {
+        // `\"` inside the body is inert — the quote state does not
+        // toggle because the `"` is escaped.
+        let (rows, _) = cmd_token_rows(r#"[a \" b]"#);
+        assert_eq!(rows[0], (TokenType::Cmd, r#"a \" b"#.into()));
+    }
+
+    #[test]
+    fn cmd_with_dollar_braced_var_inside() {
+        // `${...}` inside the command body is sub-scanned so a `}`
+        // inside the braced name does not throw off the counter.
+        let (rows, _) = cmd_token_rows("[set ${odd}name value]");
+        assert_eq!(rows[0], (TokenType::Cmd, "set ${odd}name value".into()));
+    }
+
+    #[test]
+    fn cmd_with_plain_dollar_var_inside() {
+        let (rows, _) = cmd_token_rows("[expr $a + $b]");
+        assert_eq!(rows[0], (TokenType::Cmd, "expr $a + $b".into()));
+    }
+
+    #[test]
+    fn cmd_multiline_body() {
+        let (rows, _) = cmd_token_rows("[a\nb\nc]");
+        assert_eq!(rows[0], (TokenType::Cmd, "a\nb\nc".into()));
+    }
+
+    #[test]
+    fn cmd_unterminated_tokenises_best_effort() {
+        let (rows, _) = cmd_token_rows("[unterminated");
+        assert_eq!(rows[0], (TokenType::Cmd, "unterminated".into()));
+    }
+
+    #[test]
+    fn cmd_span_positions() {
+        // `[cmd] rest` — the CMD span covers the whole `[cmd]` range
+        // (offset 0..4 per Python's convention: start at `[`, end
+        // at the last char of the body, `token_text` strips the
+        // leading `[`).
+        let lexer = Lexer::new("[cmd] rest");
+        let map = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().unwrap();
+        let cmd = tokens.iter().find(|t| t.kind == TokenType::Cmd).unwrap();
+        assert_eq!(cmd.span.start(), 0);
+        assert_eq!(cmd.span.end(), 4);
+        let (start, end) = map.range_positions(cmd.span);
+        assert_eq!(start, SourcePosition::new(0, 0, 0));
+        assert_eq!(end, SourcePosition::new(0, 3, 3));
+        assert_eq!(map.token_text(*cmd), "cmd");
+    }
+
+    #[test]
+    fn standalone_closing_bracket_is_part_of_word() {
+        // `foo]bar` — `]` is not a deferred character after L5, so
+        // it's included in the bare word matching Python's
+        // `_parse_string` behaviour.
+        let (rows, _) = cmd_token_rows("foo]bar");
+        assert_eq!(rows[0], (TokenType::Esc, "foo]bar".into()));
+    }
+
+    #[test]
+    fn cmd_resets_at_command_start() {
+        let (rows, _) = cmd_token_rows("[cmd] #not-a-comment");
+        assert_eq!(rows[0], (TokenType::Cmd, "cmd".into()));
+        assert_eq!(rows[1], (TokenType::Sep, " ".into()));
+        assert_eq!(rows[2], (TokenType::Esc, "#not-a-comment".into()));
+    }
+
+    #[test]
+    fn cmd_after_eol_allows_comment_before() {
+        let (rows, _) = cmd_token_rows("# c\n[cmd]");
+        assert!(rows.iter().any(|(k, _)| *k == TokenType::Comment));
+        assert!(rows.iter().any(|(k, _)| *k == TokenType::Cmd));
     }
 }

@@ -193,6 +193,35 @@ CORPUS: list[tuple[str, str]] = [
     # L4 unterminated — best-effort tokenisation
     ("unterminated_braced_var", "${unterminated"),
     ("unterminated_array_var", "$arr(idx"),
+    # L5 — command substitution
+    ("cmd_empty", "[]"),
+    ("cmd_simple", "[cmd]"),
+    ("cmd_with_args", "[+ 1 2]"),
+    ("cmd_nested_once", "[+ 1 [+ 2 3]]"),
+    ("cmd_nested_deep", "[a [b [c [d]]]]"),
+    ("cmd_followed_by_word", "[cmd] tail"),
+    ("cmd_then_text", "[cmd]tail"),
+    ("word_then_cmd", "foo[cmd]"),
+    ("cmd_with_var", "[expr $a + $b]"),
+    ("cmd_with_braced_var", "[set ${odd}name value]"),
+    ("cmd_with_quoted_substring", '[puts "hello world"]'),
+    ("cmd_bracket_in_quotes", '[puts "a]b"]'),
+    ("cmd_bracket_in_braces", "[list {a ] b}]"),
+    ("cmd_nested_braces", "[list {a {nested} b}]"),
+    ("cmd_backslash_close", "[a \\] b]"),
+    ("cmd_backslash_quote", '[a \\" b]'),
+    ("cmd_multiline", "[a\nb\nc]"),
+    ("standalone_close_bracket", "foo]bar"),
+    ("trailing_close_bracket", "foo bar]"),
+    ("cmd_mid_command", "set x [+ 1 2]"),
+    ("cmd_and_var_mix", "puts [expr $a * $b]"),
+    ("multiple_cmds", "[a] [b] [c]"),
+    ("cmd_at_line_start", "\n[cmd]"),
+    ("cmd_then_var", "[foo]$bar"),
+    ("var_then_cmd", "$foo[bar]"),
+    # L5 unterminated — best-effort tokenisation
+    ("unterminated_cmd", "[unterminated"),
+    ("unterminated_nested_cmd", "[outer [inner"),
 ]
 
 
@@ -209,9 +238,9 @@ class TestHarnessItself:
     # Characters whose handling the Rust lexer defers to later
     # chunks. Keep this list in sync with the Rust
     # `is_deferred_special` helper (not imported here to keep the
-    # harness pytest-only). After L4: `$` has been removed, `[`, `]`,
-    # `{`, `}`, `"`, `\` remain.
-    _EXPECTED_DEFERRED = frozenset('{}[]"\\')
+    # harness pytest-only). After L5: `$`, `[`, `]` have been
+    # removed; `{`, `}`, `"`, `\` remain.
+    _EXPECTED_DEFERRED = frozenset('{}"\\')
 
     def test_deferred_inputs_are_filtered(self):
         # Every character we say is deferred must actually trigger
@@ -229,6 +258,12 @@ class TestHarnessItself:
         assert _rust_supports("$arr(idx)")
         assert _rust_supports("$")
 
+    def test_brackets_are_no_longer_deferred(self):
+        # Regression guard for L5: `[` / `]` must pass the filter.
+        assert _rust_supports("[cmd]")
+        assert _rust_supports("[+ 1 2]")
+        assert _rust_supports("foo]bar")  # lone `]` is part of a word
+
     def test_non_ascii_is_filtered(self):
         assert not _rust_supports("café")
 
@@ -236,6 +271,7 @@ class TestHarnessItself:
         assert _rust_supports("foo bar\nbaz")
         assert _rust_supports("# comment\nfoo")
         assert _rust_supports("set x $y")
+        assert _rust_supports("set x [+ 1 2]")
 
 
 # Pull additional inputs from the broader lexer test suite wherever

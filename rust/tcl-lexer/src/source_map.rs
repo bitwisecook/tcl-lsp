@@ -113,6 +113,24 @@ impl<'src> SourceMap<'src> {
                     raw
                 }
             }
+            TokenType::Cmd => {
+                // CMD spans start at the `[` and normally end
+                // before the matching close bracket, so the span
+                // content is `[ + body`. For the degenerate `[]`
+                // case the lexer extends the span by one byte so
+                // the end position lands on the `]`; handle that
+                // with an exact-match check rather than an
+                // unconditional `strip_suffix(']')`, because
+                // nested commands like `[+ 1 [inner]]` have a
+                // legitimate `]` at the last byte of the span
+                // (the inner close bracket) that must NOT be
+                // stripped.
+                if raw == "[]" {
+                    ""
+                } else {
+                    raw.strip_prefix('[').unwrap_or(raw)
+                }
+            }
             _ => raw,
         }
     }
