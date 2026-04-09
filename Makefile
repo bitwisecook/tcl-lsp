@@ -236,10 +236,10 @@ typecheck-py-full: $(UV_STAMP) $(BUILD_INFO) ## Type-check all Python code with 
 	@echo "==> Type-checking all Python code with ty"
 	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' ai core explorer lsp tests vm scripts
 
-# Rust workspace targets. See docs/kcs/kcs-rust-migration.md for the
-# migration strategy. The pure-Rust crate lives at rust/tcl-lexer/; the
-# PyO3 binding crate that produces the `tcl_lsp_rust` Python extension
-# module lives at rust/tcl-lsp-rust/.
+# Rust workspace targets. See docs/rust-rewrite.md for the migration
+# strategy. The pure-Rust crate lives at rust/tcl-lexer/; the PyO3
+# binding crate that produces the `tcl_lsp_rust` Python extension module
+# lives at rust/tcl-lsp-rust/.
 #
 # Cargo commands are invoked with MAKEFLAGS/MFLAGS/MAKEOVERRIDES cleared so
 # they don't attempt to attach to Make's jobserver (cargo prints a warning

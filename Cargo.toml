@@ -1,7 +1,7 @@
 # Workspace manifest for the Rust side of tcl-lsp.
 #
 # This is the first step of an incremental Python-to-Rust migration. See
-# `docs/kcs/kcs-rust-migration.md` for the chunking strategy and the
+# `docs/rust-rewrite.md` for the chunking strategy and the
 # "binding layer owns Python compatibility" rule.
 #
 # Layout:
