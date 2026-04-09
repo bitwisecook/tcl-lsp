@@ -29,31 +29,52 @@ def _mk_diag(line: int, msg: str) -> types.Diagnostic:
 
 
 class TestCacheWriteThrough:
-    def test_publish_populates_cache(self):
+    def test_publish_populates_cache(self, monkeypatch):
         _reset_cache()
         uri = "file:///a.tcl"
-        # Force pull mode so publish does not actually try to push to a real client.
-        server_module._client_supports_pull_diagnostics = True
-        try:
-            server_module._publish_diags_to_client(uri, [_mk_diag(0, "e")], version=1)
-            assert uri in server_module._pull_diag_cache
-            assert len(server_module._pull_diag_cache[uri]) == 1
-            assert server_module._pull_diag_result_ids[uri] != ""
-        finally:
-            server_module._client_supports_pull_diagnostics = False
+        # Stub the push path — we only care about the cache side-effect.
+        monkeypatch.setattr(
+            server_module.server,
+            "text_document_publish_diagnostics",
+            lambda params: None,
+        )
+        server_module._publish_diags_to_client(uri, [_mk_diag(0, "e")], version=1)
+        assert uri in server_module._pull_diag_cache
+        assert len(server_module._pull_diag_cache[uri]) == 1
+        assert server_module._pull_diag_result_ids[uri] != ""
 
-    def test_result_ids_increment(self):
+    def test_result_ids_increment(self, monkeypatch):
         _reset_cache()
         uri = "file:///b.tcl"
-        server_module._client_supports_pull_diagnostics = True
-        try:
-            server_module._publish_diags_to_client(uri, [], version=1)
-            first = server_module._pull_diag_result_ids[uri]
-            server_module._publish_diags_to_client(uri, [_mk_diag(1, "e")], version=2)
-            second = server_module._pull_diag_result_ids[uri]
-            assert first != second
-        finally:
-            server_module._client_supports_pull_diagnostics = False
+        monkeypatch.setattr(
+            server_module.server,
+            "text_document_publish_diagnostics",
+            lambda params: None,
+        )
+        server_module._publish_diags_to_client(uri, [], version=1)
+        first = server_module._pull_diag_result_ids[uri]
+        server_module._publish_diags_to_client(uri, [_mk_diag(1, "e")], version=2)
+        second = server_module._pull_diag_result_ids[uri]
+        assert first != second
+
+    def test_push_still_called(self, monkeypatch):
+        """The always-push path must still invoke publishDiagnostics.
+
+        A previous iteration short-circuited this when the client advertised
+        pull support, which broke every VS Code integration test that waits
+        for pushed diagnostics.
+        """
+        _reset_cache()
+        calls: list[types.PublishDiagnosticsParams] = []
+        monkeypatch.setattr(
+            server_module.server,
+            "text_document_publish_diagnostics",
+            lambda params: calls.append(params),
+        )
+        server_module._publish_diags_to_client("file:///e.tcl", [_mk_diag(0, "err")], version=7)
+        assert len(calls) == 1
+        assert calls[0].uri == "file:///e.tcl"
+        assert len(calls[0].diagnostics) == 1
 
 
 class TestDocumentDiagnosticHandler:

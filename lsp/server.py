@@ -129,7 +129,12 @@ class FeatureConfig:
     document_highlight_enabled: bool = True
     code_lens_enabled: bool = True
     workspace_file_ops_enabled: bool = True
-    pull_diagnostics_enabled: bool = True
+    # Pull-model diagnostics are opt-in.  vscode-languageclient auto-enables
+    # its pull flow whenever the server advertises ``diagnosticProvider`` in
+    # ServerCapabilities, which disables the push pipeline that the existing
+    # test suite and most clients rely on.  Users who explicitly want the
+    # pull model can opt in via ``tclLsp.features.pullDiagnostics``.
+    pull_diagnostics_enabled: bool = False
     will_save_wait_until_enabled: bool = True
     progress_enabled: bool = True
     implementation_enabled: bool = True
@@ -1183,9 +1188,16 @@ def on_code_lens_resolve(lens: types.CodeLens) -> types.CodeLens:
 
 
 # Pull diagnostics
+#
+# These handlers are only registered when the user opts in via
+# ``tclLsp.features.pullDiagnostics``.  Registering them causes pygls to
+# advertise ``diagnosticProvider`` in ServerCapabilities, which flips
+# vscode-languageclient into pull mode and disables the push pipeline that
+# the existing test suite depends on.  The handler functions stay defined
+# so the unit tests in ``tests/test_pull_diagnostics.py`` can invoke them
+# directly.
 
 
-@server.feature(types.TEXT_DOCUMENT_DIAGNOSTIC)
 def on_document_diagnostic(
     params: types.DocumentDiagnosticParams,
 ) -> types.RelatedFullDocumentDiagnosticReport | types.RelatedUnchangedDocumentDiagnosticReport:
@@ -1203,7 +1215,6 @@ def on_document_diagnostic(
     )
 
 
-@server.feature(types.WORKSPACE_DIAGNOSTIC)
 def on_workspace_diagnostic(
     params: types.WorkspaceDiagnosticParams,
 ) -> types.WorkspaceDiagnosticReport:
@@ -1236,6 +1247,11 @@ def on_workspace_diagnostic(
                 )
             )
     return types.WorkspaceDiagnosticReport(items=report_items)
+
+
+if feature_config.pull_diagnostics_enabled:
+    server.feature(types.TEXT_DOCUMENT_DIAGNOSTIC)(on_document_diagnostic)
+    server.feature(types.WORKSPACE_DIAGNOSTIC)(on_workspace_diagnostic)
 
 
 # Selection range
@@ -2064,13 +2080,19 @@ def on_will_save_wait_until(
 
 # Pull-model diagnostics cache.  Populated on every publish so that
 # textDocument/diagnostic and workspace/diagnostic handlers can serve the
-# latest results without recomputing.  ``_client_supports_pull_diagnostics``
-# is set from the client capabilities at initialize time; when True the
-# push step is skipped to avoid duplicate diagnostics.
+# latest results without recomputing.
+#
+# We ALWAYS push via textDocument/publishDiagnostics regardless of whether
+# the client advertises pull-diagnostic support.  vscode-languageclient
+# advertises that capability unconditionally in fillClientCapabilities but
+# many clients still rely on push notifications, so a naive short-circuit
+# broke every integration test that waits for pushed diagnostics.  Clients
+# that actively use the pull model can simply ignore the duplicate push or
+# configure diagnosticPullOptions to suppress it; the LSP spec allows both
+# modes to coexist.
 _pull_diag_cache: dict[str, list[types.Diagnostic]] = {}
 _pull_diag_result_ids: dict[str, str] = {}
 _pull_diag_counter: int = 0
-_client_supports_pull_diagnostics: bool = False
 
 
 def _next_pull_diag_result_id() -> str:
@@ -2084,17 +2106,9 @@ def _publish_diags_to_client(
     diagnostics: list[types.Diagnostic],
     version: int | None = None,
 ) -> None:
-    """Push a diagnostics notification to the client (and update the pull cache).
-
-    When the client supports pull diagnostics the push is skipped and the
-    cache entry is the only effect; otherwise the notification is sent as
-    before and the cache is still updated so the pull handlers remain
-    consistent if the client probes them.
-    """
+    """Push a diagnostics notification to the client and update the pull cache."""
     _pull_diag_cache[uri] = list(diagnostics)
     _pull_diag_result_ids[uri] = _next_pull_diag_result_id()
-    if _client_supports_pull_diagnostics:
-        return
     server.text_document_publish_diagnostics(
         types.PublishDiagnosticsParams(
             uri=uri,
@@ -3142,15 +3156,6 @@ def on_initialized(params: types.InitializedParams) -> None:
 
     # Advise editors that don't request semantic tokens.
     caps = server.client_capabilities
-
-    # Detect pull-diagnostics client support — when advertised, skip the push
-    # path so the client is not double-fed diagnostics.
-    global _client_supports_pull_diagnostics
-    diag_caps = getattr(getattr(caps, "text_document", None), "diagnostic", None)
-    if diag_caps is not None and feature_config.pull_diagnostics_enabled:
-        _client_supports_pull_diagnostics = True
-        log.info("Client supports pull diagnostics; disabling push path")
-
     st = getattr(getattr(caps, "text_document", None), "semantic_tokens", None)
     if st is None:
         log.info("Client did not advertise semantic token support")
