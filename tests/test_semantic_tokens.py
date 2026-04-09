@@ -1091,6 +1091,42 @@ class TestE100StrayBracketRecovery:
         assert len(valid_tokens) == len(broken_tokens)
         assert [t["type"] for t in valid_tokens] == [t["type"] for t in broken_tokens]
 
+    def test_e100_no_recovery_on_quoted_close_bracket_issue_130(self):
+        """Regression for bitwisecook/tcl-lsp#130.
+
+        ``foo "bar]"`` is a valid call with a string literal ending in
+        ``]`` — the semantic-token provider must NOT invoke its stray-
+        bracket recovery and merge the literal into a virtual CMD.
+        """
+        source = 'puts "bar]"\n'
+        # Should produce tokens without raising; the "bar]" span must
+        # be classified as a string, not as a command substitution.
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        types = [t["type"] for t in tokens]
+        assert "string" in types
+
+    def test_issue_130_full_proc_tokenises_cleanly(self):
+        """The full proc from issue #130 produces semantic tokens without
+        crashing or misclassifying the ``"}"`` literal.
+        """
+        source = (
+            "proc getInfoCmd {name} {\n"
+            '    append result "proc $name {[info args $name]} {"\n'
+            "    append result [info body $name]\n"
+            '    append result "}"\n'
+            "    return $result\n"
+            "}\n"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert tokens  # non-empty, no crash
+        # All three `append` occurrences must be classified as function.
+        function_texts = [
+            source.split("\n")[t["line"]][t["char"] : t["char"] + t["length"]]
+            for t in tokens
+            if t["type"] == "function"
+        ]
+        assert function_texts.count("append") == 3
+
 
 class TestE101MissingBraceRecovery:
     """E101: orphaned switch case semantic token recovery."""

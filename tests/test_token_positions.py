@@ -109,3 +109,40 @@ def test_classify_quoted_contexts_mid_quote_after_cmd_subst_bracket() -> None:
         "]" in text and flag for _text, flag in names_and_quoted for text in [_text]
     )
     assert has_quoted_bracket
+
+
+def test_classify_quoted_contexts_empty_list() -> None:
+    # Defensive: an empty token list yields an empty classification.
+    assert classify_quoted_contexts([]) == []
+
+
+def test_classify_quoted_contexts_parallel_length() -> None:
+    # The result list must always have exactly one entry per token.
+    for src in (
+        "puts hello",
+        'puts "hello"',
+        'puts "foo$bar"',
+        'puts "[cmd]}"',
+        "set x {}",
+        "set x 1\n}\n",
+        'append result "proc $name {[info args $name]} {"',
+    ):
+        toks = TclLexer(src).tokenise_all()
+        flags = classify_quoted_contexts(toks)
+        assert len(flags) == len(toks), f"length mismatch for {src!r}"
+
+
+def test_classify_quoted_contexts_empty_quoted_string() -> None:
+    # `""` — a zero-content quoted ESC must still be marked as quoted.
+    info = _classify('set x ""')
+    empty_esc = [flag for name, text, flag in info if name == "ESC" and text == ""]
+    assert empty_esc, "expected at least one empty ESC token"
+    assert all(empty_esc), "empty quoted ESC must be classified as in_quoted"
+
+
+def test_classify_quoted_contexts_braced_string_is_not_quoted() -> None:
+    # A STR token is a braced string, not a double-quoted word — it
+    # must NOT be marked as in_quoted even though its shift is > 0.
+    info = _classify("set x {foo}")
+    str_flags = [flag for name, text, flag in info if name == "STR"]
+    assert str_flags == [False]

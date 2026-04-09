@@ -428,6 +428,39 @@ class TestInlineBodies:
         result = format_tcl(source)
         assert "    set x {value}" in result
 
+    def test_quoted_close_brace_preserved_issue_130(self):
+        """Regression for bitwisecook/tcl-lsp#130.
+
+        The formatter must treat ``"}"`` as a string literal, not as a
+        stray close brace to be stripped.
+        """
+        source = 'append result "}"\n'
+        result = format_tcl(source)
+        assert '"}"' in result
+
+    def test_quoted_close_bracket_preserved(self):
+        """Mirror: ``"]"`` is a string literal, not a stray bracket."""
+        source = 'puts "]"\n'
+        result = format_tcl(source)
+        assert '"]"' in result
+
+    def test_issue_130_full_proc_round_trips(self):
+        """The full proc from issue #130 formats without corruption."""
+        source = (
+            "proc getInfoCmd {name} {\n"
+            '    append result "proc $name {[info args $name]} {"\n'
+            "    append result [info body $name]\n"
+            '    append result "}"\n'
+            "    return $result\n"
+            "}\n"
+        )
+        result = format_tcl(source)
+        # Every quoted literal from the source survives.
+        assert 'append result "proc $name {[info args $name]} {"' in result
+        assert "append result [info body $name]" in result
+        assert 'append result "}"' in result
+        assert "return $result" in result
+
 
 class TestConfigVariations:
     def test_indent_size_2(self):

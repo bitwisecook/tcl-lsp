@@ -560,6 +560,23 @@ class TestFullCommandRange:
         # Must end at 'set x 1', not include the stray '}'.
         assert source[r.start.offset : r.end.offset + 1] == "set x 1"
 
+    def test_issue_130_optimise_source_preserves_quoted_literals(self):
+        """End-to-end: ``optimise_source`` must not rewrite the issue proc
+        in a way that drops or mangles the ``"}"`` literal.
+        """
+        source = (
+            "proc getInfoCmd {name} {\n"
+            '    append result "proc $name {[info args $name]} {"\n'
+            "    append result [info body $name]\n"
+            '    append result "}"\n'
+            "    return $result\n"
+            "}\n"
+        )
+        optimised, _rewrites = optimise_source(source)
+        assert 'append result "}"' in optimised
+        assert 'append result "proc $name {[info args $name]} {"' in optimised
+        assert "append result [info body $name]" in optimised
+
 
 class TestUnusedVariableElimination:
     """O126: remove unused variable assignments."""

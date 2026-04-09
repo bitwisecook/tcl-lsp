@@ -540,6 +540,20 @@ class TestE100StrayCloseBracketRecovery:
         e100 = [d for d in result.diagnostics if d.code == "E100"]
         assert len(e100) >= 1
 
+    def test_no_stray_bracket_recovery_on_quoted_close_bracket(self):
+        """Analyser must not trigger recovery on a quoted ``"]"``.
+
+        Previously the analyser's ``_recover_stray_close_bracket``
+        merged any ESC ending in ``]`` into a virtual CMD, which would
+        have misclassified ``set x "foo bar]"`` as a command
+        substitution and corrupted argv.
+        """
+        source = 'set x "foo bar]"\n'
+        result = analyse(source)
+        assert not any(d.code == "E100" for d in result.diagnostics)
+        cmd_names = [ci.name for ci in result.command_invocations]
+        assert "set" in cmd_names
+
 
 class TestE101MissingOpenBrace:
     """E101: detect missing '{' on switch and recover orphaned case commands."""

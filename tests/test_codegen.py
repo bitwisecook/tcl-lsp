@@ -128,6 +128,27 @@ class TestSimpleCodegen:
         fa = _top_asm("set x 1")
         assert fa.instructions[-1].op == Op.DONE
 
+    def test_quoted_close_brace_is_string_literal_issue_130(self):
+        """Regression for bitwisecook/tcl-lsp#130.
+
+        ``append x "}"`` must compile with the bare character ``}`` in
+        the literal table — not as a body/bracket delimiter.  This
+        matches tclsh's ``::tcl::unsupported::disassemble`` output which
+        pushes ``"}"`` as a single literal before ``appendScalar``.
+        """
+        fa = _top_asm('append x "}"')
+        lits = fa.literals.entries()
+        assert "}" in lits, f"Expected '}}' literal, got {lits}"
+        # The ops must be PUSH + APPEND — not a stray syntax error path.
+        ops = _opcodes(fa)
+        assert Op.PUSH1 in ops
+
+    def test_quoted_close_bracket_is_string_literal(self):
+        """Mirror: ``puts "]"`` must compile with literal ``]`` pushed."""
+        fa = _top_asm('puts "]"')
+        lits = fa.literals.entries()
+        assert "]" in lits, f"Expected ']' literal, got {lits}"
+
 
 # Expression compilation
 
