@@ -247,6 +247,37 @@ CORPUS: list[tuple[str, str]] = [
     ("if_else_shape", "if {$a == 1} {puts ok} else {puts bad}"),
     ("while_shape", "while {$i < 10} {incr i}"),
     ("foreach_shape", "foreach item {a b c d} {puts $item}"),
+    # L7 — quoted strings
+    ("quoted_simple", '"hello"'),
+    ("quoted_with_spaces", '"hello world"'),
+    ("quoted_empty", '""'),
+    ("quoted_single_char", '"a"'),
+    ("quoted_multiline", '"line1\nline2"'),
+    ("quoted_contains_braces", '"literal {braces} inside"'),
+    ("quoted_contains_hash", '"# not a comment"'),
+    ("quoted_contains_semicolon", '"a; not an EOL"'),
+    ("quoted_with_var", '"hello $foo world"'),
+    ("quoted_with_var_namespace", '"value is $ns::var"'),
+    ("quoted_with_cmd", '"a [cmd] b"'),
+    ("quoted_with_var_and_cmd", '"a $b [c] d"'),
+    ("quoted_opening_empty_var", '"$foo"'),
+    ("quoted_opening_empty_cmd", '"[cmd]"'),
+    ("quoted_only_var", '"$x"'),
+    ("quoted_only_cmd", '"[f x]"'),
+    ("quoted_mid_word", 'foo"bar"'),
+    ("quoted_mid_word_then_word", 'foo"bar"baz'),
+    ("quoted_after_esc", 'foo "bar"'),
+    ("quoted_then_sep_then_word", '"a" b'),
+    ("quoted_then_mid_word_quote", '"ab""cd"'),
+    ("multiple_quoted_strings", '"a" "b" "c"'),
+    ("quoted_inside_cmd", '[puts "hello"]'),
+    ("quoted_inside_braced", '{literal "quotes" here}'),
+    ("quoted_with_bracket_literal", '"contains ] bracket"'),
+    ("quoted_with_brace_literal", '"contains } brace"'),
+    ("set_with_quoted_value", 'set x "hello world"'),
+    ("puts_quoted", 'puts "hello, world"'),
+    # L7 unterminated — best-effort tokenisation
+    ("unterminated_quoted", '"abc'),
 ]
 
 
@@ -263,9 +294,9 @@ class TestHarnessItself:
     # Characters whose handling the Rust lexer defers to later
     # chunks. Keep this list in sync with the Rust
     # `is_deferred_special` helper (not imported here to keep the
-    # harness pytest-only). After L6: `$`, `[`, `]`, `{`, `}` have
-    # all been removed; `"`, `\` remain.
-    _EXPECTED_DEFERRED = frozenset('"\\')
+    # harness pytest-only). After L7: every character except `\`
+    # has been removed from the deferred set.
+    _EXPECTED_DEFERRED = frozenset("\\")
 
     def test_deferred_inputs_are_filtered(self):
         # Every character we say is deferred must actually trigger
@@ -295,6 +326,12 @@ class TestHarnessItself:
         assert _rust_supports("proc foo {a b} {return $a}")
         assert _rust_supports("foo}bar")  # lone `}` is part of a word
         assert _rust_supports("foo{not-a-brace}baz")  # mid-word `{` is part of a word
+
+    def test_quotes_are_no_longer_deferred(self):
+        # Regression guard for L7: `"` must pass the filter.
+        assert _rust_supports('"hello"')
+        assert _rust_supports('"hello $foo world"')
+        assert _rust_supports('foo"bar"')  # mid-word `"` is part of a word
 
     def test_non_ascii_is_filtered(self):
         assert not _rust_supports("café")
@@ -388,8 +425,12 @@ from pathlib import Path as _Path  # noqa: E402
 
 
 def _is_known_drift(source: str) -> bool:
-    # Category A: unterminated empty wrapper at EOF.
-    if source.endswith(("{", "[", "${")):
+    # Category A: unterminated empty wrapper at EOF. Python's
+    # end-offset clamp produces a past-end `SourcePosition` that
+    # the Rust span cannot represent without growing `span.end`
+    # past `source.len()` (which would make `SourceMap::text(span)`
+    # panic on slicing).
+    if source.endswith(("{", "[", "${", '"')):
         return True
     # Category B: `{*}` anywhere in the input is a safe proxy for
     # "contains the expansion prefix" because the only way `{*}`

@@ -431,3 +431,97 @@ pre-L6 error regression test.
 - **bridge-only**: 16 pytest tests (new `test_braces_are_no_longer_deferred` regression guard)
 - **remove-at-end**: 2 pytest tests
 - **deferred**: ~40 pytest tests — mostly backslash-heavy tests (L9), quoted-string tests (L7), iRules dialect tests (L8)
+
+## L7 — Quoted strings (`rust/tcl-lexer/src/lexer.rs::parse_quoted`)
+
+Fifth Rust lexer chunk. Removes `"` from the deferred set and
+implements Tcl's `"…"` quoted strings with Python-parity
+interpolation rules: `$` and `[` inside a quoted run still
+dispatch to `parse_var` / `parse_command`, but separators, EOL
+characters, `#`, `{`, and `}` are all literal content while
+`in_quote` is set.
+
+Adds a new `Token::content_offset: u8` field that records how
+many leading bytes of the span are delimiter rather than
+content. `SourceMap::token_text` uses this to strip the opening
+`$` / `${` / `[` / `{` / `"` from the wrapper tokens uniformly,
+replacing the per-kind `strip_prefix` logic. The new field
+distinguishes quoted ESCs (whose span starts with an opening
+`"`) from bare-word ESCs that happen to contain literal `"`
+characters (like the `"cd"` in `"ab""cd"`) — the latter have
+`content_offset = 0` and are NOT stripped.
+
+### Pytest tests — `tests/test_lexer.py::TestBasicTokens` / `TestTclConstructs`
+
+| Test | Category | Rust equivalent |
+|---|---|---|
+| `TestBasicTokens::test_quoted_string` (`"hello world"`) | Ported | `quoted_simple` / `quoted_with_space` + dynamic harvest |
+| `TestTclConstructs::test_string_interpolation` (`"hello $name, result is [+ 1 2]!"`) | Ported | `quoted_with_var_and_cmd` + dynamic harvest |
+| `TestTclConstructs::test_backslash_in_string` | Deferred — L9 | Uses `\`, out of scope until L9. |
+
+The wider `test_tcl_parse.py` / `test_upstream_parse.py` suites
+now pick up quoted-string inputs via the dynamic harvester.
+
+### Pytest tests — `tests/test_rust_lexer_differential.py`
+
+| Change | Notes |
+|---|---|
+| `_is_known_drift` updated | Added `endswith('"')` to Category A (past-EOF clamp) — inputs ending with an unterminated empty `"` like `set x "` hit the same drift class as `{`, `[`, `${`. |
+| `TestHarnessItself::_EXPECTED_DEFERRED` | Updated to `\\` — the last character in the deferred set after L7. |
+| `TestHarnessItself::test_quotes_are_no_longer_deferred` | **New**: regression guard ensuring `"hello"`, `"hello $foo world"`, and `foo"bar"` all pass the filter. |
+| Curated corpus grew from 127 to 156 cases | Added 29 L7 inputs: simple, empty, single-char, multiline, literal braces/hash/semicolon inside, var/cmd interpolation, opening-empty cases, mid-word quote, quoted-after-esc, multiple quoted strings, quoted inside cmd/brace, quoted with bracket/brace literals, set/puts fixtures, unterminated. |
+
+### Rust unit tests — `rust/tcl-lexer/src/lexer.rs`
+
+19 new tests in a dedicated `L7 — quoted strings` section:
+
+    quoted_simple, quoted_with_space, quoted_empty,
+    quoted_contains_braces_literally,
+    quoted_contains_separators_literally,
+    quoted_with_hash_is_literal, quoted_with_var_interpolation,
+    quoted_with_cmd_interpolation, quoted_with_var_and_cmd,
+    quoted_opening_empty_with_var,
+    quoted_opening_empty_with_cmd,
+    quoted_mid_word_is_regular_character,
+    quoted_after_esc_then_space_is_word_start,
+    quoted_then_mid_word_quote,
+    quoted_unterminated_tokenises_best_effort,
+    quoted_multiline_body, quoted_span_positions,
+    quoted_inside_cmd_is_managed_by_parse_command,
+    quoted_resets_at_command_start,
+    quoted_in_quote_propagates_to_sub_tokens
+
+### `Token::content_offset` refactor
+
+The pre-L7 `SourceMap::token_text` used kind-specific
+`strip_prefix` calls (`raw.strip_prefix("${")`,
+`raw.strip_prefix('[')`, etc.). This worked for VAR, CMD, and
+STR because their spans always start with a known delimiter. It
+broke for quoted ESCs because a bare-word ESC like `"cd"` (from
+`"ab""cd"`) also starts with `"` but its content should NOT
+strip the leading quote.
+
+L7 replaces the per-kind prefix stripping with a single
+`Token::content_offset: u8` field that the lexer sets at
+construction time:
+
+| Kind | `content_offset` |
+|---|---|
+| `Sep`, `Eol`, `Comment`, bare `Esc` | 0 |
+| `Var` (`$name`, `$arr(idx)`) | 1 (skip `$`) |
+| `Var` (`${name}`) | 2 (skip `${`) |
+| `Str` (bare `$`) | 0 (the `$` IS the content) |
+| `Cmd` | 1 (skip `[`) |
+| `Str` (braced) | 1 (skip `{`) |
+| `Esc` (quoted opening) | 1 (skip `"`) |
+| `Esc` (quoted mid/closing) | 0 |
+
+`token_text` then does `&raw[content_offset..]` uniformly, plus
+a per-kind trailing-strip for the empty-degenerate clamp cases.
+
+### Category totals after L7
+
+- **ported**: ~40 pytest + 134 Rust unit tests + ~1290 differential cases
+- **bridge-only**: 17 pytest tests (new `test_quotes_are_no_longer_deferred` regression guard)
+- **remove-at-end**: 2 pytest tests
+- **deferred**: ~30 pytest tests — backslash-heavy (L9) and iRules dialect (L8) remain

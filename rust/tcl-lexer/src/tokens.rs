@@ -130,6 +130,20 @@ pub struct Token {
     /// Byte range in the source. Resolve to text or positions via a
     /// [`SourceMap`](crate::SourceMap).
     pub span: crate::span::Span,
+    /// Number of leading bytes in `span` that are delimiters rather
+    /// than content. Used by [`SourceMap::token_text`] to strip the
+    /// opening `$` / `${` / `[` / `{` / `"` (etc.) from wrapper
+    /// tokens so the "human-readable" text matches Python's
+    /// `Token.text` without needing a separate content range.
+    ///
+    /// Always `0` for bare-word `Esc` / `Sep` / `Eol` / `Comment`
+    /// tokens where the span is the content. For `Var`, `Cmd`,
+    /// `Str`, and quoted-opening `Esc` tokens, the lexer sets this
+    /// to the number of opening delimiter bytes (1 for most
+    /// wrappers, 2 for `${...}`).
+    ///
+    /// [`SourceMap::token_text`]: crate::SourceMap::token_text
+    pub content_offset: u8,
     /// True when the token was emitted inside a quoted-string context.
     /// Carried for downstream consumers that need to distinguish bare
     /// words from quoted runs.
@@ -137,24 +151,45 @@ pub struct Token {
 }
 
 impl Token {
-    /// Construct a token with `in_quote = false`. The lexer uses this
-    /// for the overwhelmingly common bare-word case; tokens emitted
-    /// inside quotes use [`Token::new_quoted`].
+    /// Construct a token with `in_quote = false` and
+    /// `content_offset = 0`. Used for bare-word and
+    /// non-wrapper kinds.
     #[must_use]
     pub const fn new(kind: TokenType, span: crate::span::Span) -> Self {
         Self {
             kind,
             span,
+            content_offset: 0,
             in_quote: false,
         }
     }
 
-    /// Construct a token with `in_quote = true`.
+    /// Construct a token with an explicit content offset (bytes of
+    /// leading delimiter to strip). Used by parsers for wrapper
+    /// kinds — `Var` (strip `$` or `${`), `Cmd` (strip `[`),
+    /// `Str` (strip `{`), and quoted-opening `Esc` (strip `"`).
+    #[must_use]
+    pub const fn with_content_offset(
+        kind: TokenType,
+        span: crate::span::Span,
+        content_offset: u8,
+    ) -> Self {
+        Self {
+            kind,
+            span,
+            content_offset,
+            in_quote: false,
+        }
+    }
+
+    /// Construct a token with `in_quote = true` and
+    /// `content_offset = 0`.
     #[must_use]
     pub const fn new_quoted(kind: TokenType, span: crate::span::Span) -> Self {
         Self {
             kind,
             span,
+            content_offset: 0,
             in_quote: true,
         }
     }
