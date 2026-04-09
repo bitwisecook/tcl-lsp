@@ -20,6 +20,11 @@ def lower_expr(lowerer: object, cmd: _Command) -> object | None:
 
     args = cmd.args
     arg_single = cmd.arg_single_token
+    # {*} expansion means the argument is not really ``args[0]`` — fall
+    # through to the default IRCall lowering so codegen sees the
+    # expansion and arity checks operate on the token list.
+    if cmd.expand_word is not None and any(cmd.expand_word):
+        return None
     if len(args) != 1 or not arg_single or not arg_single[0]:
         return None  # fall through to default
     return IRExprEval(range=cmd.range, expr=_parse_expr(args[0]))
@@ -34,6 +39,17 @@ def lower_return(lowerer: object, cmd: _Command) -> object | None:
     from ...parsing.tokens import TokenType
 
     args = cmd.args
+    # {*} expansion makes the argument list unknown at compile time —
+    # emit a barrier so downstream passes do not treat any particular
+    # arg slot as the return value.
+    if cmd.expand_word is not None and any(cmd.expand_word):
+        return IRBarrier(
+            range=cmd.range,
+            reason="return with expansion",
+            command=cmd.name,
+            args=tuple(args),
+            tokens=cmd.cmd_tokens,
+        )
     if args and args[0].startswith("-"):
         return IRBarrier(
             range=cmd.range,

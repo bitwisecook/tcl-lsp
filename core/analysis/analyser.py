@@ -2632,8 +2632,16 @@ class Analyser:
                     has_auto_load = True
 
             elif isinstance(stmt, IRBarrier):
-                if stmt.command in self._CHAIN_TARGETS:
+                # ``exec $cmd {*}$args`` is lowered to IRBarrier (because
+                # argument expansion defeats specialised lowering), so
+                # recognise exec / auto_load / chain targets here too.
+                cmd = stmt.command
+                if cmd in self._CHAIN_TARGETS:
                     chains_original = True
+                elif cmd == "exec":
+                    has_exec = True
+                elif cmd == "auto_load":
+                    has_auto_load = True
 
         self.result.unknown_proc_info = UnknownProcInfo(
             dispatch_targets=frozenset(dispatch_targets),

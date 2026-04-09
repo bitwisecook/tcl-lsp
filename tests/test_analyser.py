@@ -435,6 +435,132 @@ class TestDiagnostics:
         finally:
             configure_signatures(dialect="tcl8.6")
 
+    def test_proc_call_arg_expansion_disabled_for_f5_irules(self):
+        """iRules is 8.4-based — ``{*}`` is not recognised as expansion."""
+        from core.commands.registry.runtime import configure_signatures
+
+        source = textwrap.dedent("""\
+            proc myproc {x y z} { return $x }
+            when HTTP_REQUEST {
+                set args {1 2 3}
+                call myproc {*}$args
+            }
+        """)
+        try:
+            configure_signatures(dialect="f5-irules")
+            result = analyse(source)
+            errors = [d for d in result.diagnostics if d.code == "E002" and "::myproc" in d.message]
+            assert len(errors) >= 1
+        finally:
+            configure_signatures(dialect="tcl8.6")
+
+    def test_configure_signatures_sets_lexer_expand_flag(self):
+        """``configure_signatures`` must toggle ``TclLexer.expand_syntax``
+        based on the active dialect's base Tcl version."""
+        from core.commands.registry.runtime import configure_signatures
+        from core.parsing.lexer import TclLexer
+
+        try:
+            configure_signatures(dialect="tcl8.4")
+            assert TclLexer.expand_syntax is False
+            configure_signatures(dialect="f5-irules")
+            assert TclLexer.expand_syntax is False
+            configure_signatures(dialect="tcl8.5")
+            assert TclLexer.expand_syntax is True
+            configure_signatures(dialect="tcl8.6")
+            assert TclLexer.expand_syntax is True
+            configure_signatures(dialect="tcl9.0")
+            assert TclLexer.expand_syntax is True
+            configure_signatures(dialect="f5-iapps")
+            assert TclLexer.expand_syntax is True
+        finally:
+            configure_signatures(dialect="tcl8.6")
+
+    def test_command_name_expansion_skips_arity_check(self):
+        """``{*}$cmd args`` expands the command name itself — we can't
+        resolve the command, so no arity diagnostic should fire."""
+        source = textwrap.dedent("""\
+            proc dispatch {name args} { return 1 }
+            set cmd dispatch
+            set args {a b c}
+            {*}$cmd $args
+        """)
+        result = analyse(source)
+        arity = [d for d in result.diagnostics if d.code in ("E001", "E002", "E003", "W001")]
+        assert arity == []
+
+    def test_proc_call_expansion_variadic_proc(self):
+        """``proc foo {level args}`` with ``{*}`` on trailing args is clean."""
+        source = textwrap.dedent("""\
+            proc logger {level args} { return $level }
+            set rest {a b c}
+            logger info {*}$rest
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::logger" in d.message
+        ]
+        assert errors == []
+
+    def test_proc_call_expansion_proc_with_default_param(self):
+        """A call that fills the required arg via ``{*}`` still satisfies
+        defaults — no arity error for ``greet {*}$args`` when the value
+        is an unknown single name."""
+        source = textwrap.dedent("""\
+            proc greet {name {title Mr}} { return 1 }
+            greet {*}$dynamic
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::greet" in d.message
+        ]
+        assert errors == []
+
+    def test_proc_call_expansion_constant_exactly_satisfies_variadic(self):
+        """Variadic proc with enough constant elements in expansion passes."""
+        source = textwrap.dedent("""\
+            proc foo {a b args} { return 1 }
+            set items {1 2}
+            foo {*}$items
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::foo" in d.message
+        ]
+        assert errors == []
+
+    def test_subcommand_position_expansion_skips_subcommand_check(self):
+        """``string {*}$sub text`` — the subcommand position is expanded,
+        so W001/E001 and arity checks must be skipped."""
+        source = textwrap.dedent("""\
+            set sub length
+            string {*}$sub hello
+        """)
+        result = analyse(source)
+        noise = [
+            d
+            for d in result.diagnostics
+            if d.code in ("E001", "E002", "E003", "W001") and "string" in d.message
+        ]
+        assert noise == []
+
+    def test_builtin_expansion_list_cmd_literal_refinement(self):
+        """``{*}[list a b]`` resolves to exactly two elements — ``set x {*}[list a b]``
+        is 1 + 2 = 3 positional args → E003 for ``set`` (max 2)."""
+        source = "set x {*}[list a b]"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'set'" in d.message]
+        assert len(errors) == 1
+        assert "got 3" in errors[0].message
+
+    def test_builtin_expansion_unknown_var_suppresses_set_arity(self):
+        """``set x y {*}$rest`` — ``{*}$rest`` contributes 0..∞ args,
+        so E003 must not fire based on the static count."""
+        source = "set x y {*}$rest"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'set'" in d.message]
+        assert errors == []
+
     def test_multiline_diagnostics(self):
         source = "set x 1\nbreak extra\nset y 2"
         result = analyse(source)
