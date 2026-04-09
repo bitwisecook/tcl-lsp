@@ -187,14 +187,20 @@ list and should add any new ones it discovers.
   quoted strings (`"` — L7), expansion prefix (`{*}` — L8), backslash
   escapes and line continuation (`\` — L9), dialect flags
   (`strict_quoting`, `expand_syntax`, `irules_brace_separator` — L8),
-  warning collection (L9), virtual character insertion for error
+  warning collection (L9), ghost character insertion for error
   recovery (L9), `base_offset` / `base_line` / `base_col` for
   sub-lexing (L5 when command substitution gains nested lexing).
-- **Synthetic tokens, virtual insertions, error recovery.** The
-  Python lexer emits virtual characters at specific offsets to
-  recover from missing delimiters. The Rust lexer has no equivalent
-  yet. Add it when the analyser starts relying on it through the
-  Rust path.
+- **Ghost tokens and ghost character insertions for error recovery.**
+  The Python lexer refers to these as "synthetic" tokens and
+  "virtual" character insertions; we call them **ghost** tokens and
+  ghost characters in Rust to avoid collisions with Rust vocabulary
+  (`virtual` is a reserved keyword). The concept is the same: a
+  ghost entity has no corresponding bytes in the source buffer, but
+  participates in the token stream so downstream passes see a
+  well-formed structure. The EOF-trailing ghost `EOL` is the one
+  ghost token L3 produces; the broader error-recovery story (ghost
+  `}`, ghost `]`, ghost `{` inserted at specific offsets to balance
+  brace/bracket pairs) arrives with L9.
 - **Performance parity.** Not measured yet; the L3 skeleton is
   correctness-first. Benchmark when the Rust lexer becomes the
   default on a real workload.
@@ -457,7 +463,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L6    | Brace strings in the Rust lexer | planned |
 | L7    | Quoted strings in the Rust lexer | planned |
 | L8    | `EXPAND` / dialect flags reshaped into `LexerConfig` | planned |
-| L9    | Warnings collection and virtual-insertion error recovery | planned |
+| L9    | Warnings collection and ghost-character-insertion error recovery | planned |
 | L10   | `core/parsing/expr_lexer.py` → Rust | planned |
 | L11   | Flip the Rust lexer to the default; keep Python fallback for one release | planned |
 | L12   | Remove the pure-Python lexer | planned |

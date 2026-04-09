@@ -120,7 +120,7 @@ Commit: `c7ab728` + this audit pass.
 | `token_quoted_constructor_sets_in_quote` | Original; stays. |
 | `token_equality_compares_all_fields` | Original; stays. |
 | `token_hash_distinguishes_in_quote` | Original; stays. |
-| `synthetic_eof_token_uses_empty_static_text` | Added in the audit pass. Documents the `&""` pattern for EOF tokens the L3 Rust lexer will use. |
+| `ghost_eof_token_uses_empty_span` | Added in the audit pass, renamed from `synthetic_eof_token_uses_empty_static_text` when L3 introduced the span-first architecture. Documents the empty-span pattern for ghost EOF tokens the Rust lexer emits. |
 | `token_text_lifetime_borrows_from_source` | Original; stays. |
 
 None of the Rust tests are flagged for removal.
@@ -174,8 +174,8 @@ differential harness can filter inputs cleanly.
 | `semicolon_is_eol` | Python parity. |
 | `mixed_eol_and_whitespace_becomes_single_eol_token` | Pins Python's `_parse_eol` behaviour. |
 | `leading_whitespace_before_word` | Python parity. |
-| `trailing_whitespace_still_emits_synthetic_eol` | Pins the `_at_command_start` preservation across SEP. |
-| `trailing_newline_does_not_add_second_eol` | Guards against double-emitting the synthetic EOL. |
+| `trailing_whitespace_still_emits_ghost_eol` | Pins the `_at_command_start` preservation across SEP. |
+| `trailing_newline_does_not_add_second_eol` | Guards against double-emitting the ghost EOL. |
 | `comment_at_command_start` | Python parity. |
 | `comment_terminated_by_newline` | Python parity; the `\n` is a separate EOL token. |
 | `comment_after_whitespace_at_command_start` | Pins SEP preserving `at_command_start`. |
