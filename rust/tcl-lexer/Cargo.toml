@@ -1,0 +1,12 @@
+[package]
+name = "tcl-lexer"
+description = "Position-aware lexer for Tcl, iRules, and related dialects"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true

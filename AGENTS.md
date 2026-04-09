@@ -17,6 +17,9 @@ debugger/        Interactive Tcl debugger (CLI, VM/tclsh/tkinter backends)
 editors/vscode/  VS Code extension (TypeScript)
 editors/         Other editor integrations (Neovim, Zed, Emacs, Helix, Sublime, JetBrains)
 explorer/        Web-based compiler explorer (Pyodide GUI)
+rust/            Rust workspace for the incremental Python-to-Rust migration
+                 rust/tcl-lexer/    pure Rust crate (no pyo3)
+                 rust/tcl-lsp-rust/ PyO3 binding crate → `tcl_lsp_rust` wheel
 tests/           Python test suite (pytest)
 scripts/         Build and release automation
 ai/              AI integrations (Claude skills, MCP server)
@@ -27,6 +30,8 @@ samples/         Sample Tcl and iRules code
 
 - Python 3.10+ with [uv](https://docs.astral.sh/uv/)
 - Node.js 20+ with npm
+- Rust stable toolchain via [rustup](https://rustup.rs/); the floating
+  `channel = "stable"` in `rust-toolchain.toml` is respected automatically
 
 ### Version requirements — sources of truth and update checklist
 
@@ -62,6 +67,10 @@ The project uses GNU Make. Key targets:
 | `make format-py`   | Auto-fix Python formatting with Ruff     |
 | `make compile`     | Compile the TypeScript extension         |
 | `make vsix`        | Build the .vsix VS Code extension        |
+| `make rust-build`  | Build the `tcl_lsp_rust` wheel with maturin and install it into the uv venv |
+| `make rust-test`   | Run `cargo test` on the Rust workspace   |
+| `make rust-lint`   | `cargo fmt --check` + `cargo clippy -D warnings` |
+| `make rust-format` | Auto-format Rust with `cargo fmt`        |
 
 ## Workflow requirements
 
@@ -318,6 +327,44 @@ prove is safe.
 See `docs/design/compiler/lowering-dispatch.md` for the dispatch hierarchy.
 
 ## Position infrastructure
+
+## Rust workspace
+
+The project is in the middle of an incremental Python-to-Rust migration that
+starts at the lexer and works upward through the compiler and LSP server.
+The full chunking strategy, rollout/rollback procedure, and naming
+conventions live in `docs/kcs/kcs-rust-migration.md` — read it before
+touching anything under `rust/` or the native-extension bits of the zipapp
+builder.
+
+The workspace is deliberately split in two:
+
+- **`rust/tcl-lexer/`** — pure Rust crate, no `pyo3` dependency. Data
+  structures, lifetimes, error types, and module boundaries are shaped for
+  idiomatic Rust, not for mirroring the Python source. Downstream Rust
+  consumers (future `tcl-compiler`, `tcl-lsp-server`, a standalone CLI) link
+  against this crate directly.
+- **`rust/tcl-lsp-rust/`** — PyO3 binding crate. This is the **only** place
+  that knows about Python. It owns every `#[pyclass]` wrapper, `PyErr`
+  translation, and back-compat shim needed to mimic the current Python API
+  surface. The underlying Rust crates stay Python-agnostic.
+
+**Rule: Python compatibility lives only in the binding layer.** If the
+Python API demands something awkward (thread-local flags, class-level
+state, mutable global configuration) the binding crate implements the
+awkwardness and the pure-Rust crate gets a clean `&Config` or equivalent.
+Do not plumb Python concerns through the core crate.
+
+**Rule: restructure code when porting, do not transliterate.** The point of
+moving to Rust is to benefit from enums, lifetimes, iterators, `Result`,
+and zero-copy slices. A port that looks like Python with `;`s added has
+missed the point. Reshape data structures, split/merge modules, and revise
+names to match how a Rust developer would write the code today. Keep the
+binding layer as the adapter.
+
+`editors/zed/` is a pre-existing standalone Rust cdylib targeting
+`wasm32-wasip2` and is intentionally **excluded** from the main Cargo
+workspace. Leave its lockfile and target directory alone.
 
 `DocumentBuffer` (`core/common/document_buffer.py`) is the per-document
 position type. Use it instead of constructing `SourceMap` or calling
