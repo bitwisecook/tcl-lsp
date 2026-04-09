@@ -3105,6 +3105,66 @@
             "default": true,
             "description": "Enable selection range (smart expand/shrink selection with ⌥⇧→ / ⌥⇧←).",
             "order": 16
+          },
+          "tclLsp.features.documentHighlight": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable document highlight (highlight all occurrences of the symbol under the cursor).",
+            "order": 17
+          },
+          "tclLsp.features.codeLens": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable code lens (inline reference counts, test runners, iRule event availability).",
+            "order": 18
+          },
+          "tclLsp.features.workspaceFileOps": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable workspace file operations (auto-rewrite source paths when Tcl files are renamed).",
+            "order": 19
+          },
+          "tclLsp.features.pullDiagnostics": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable pull-model diagnostics (textDocument/diagnostic, workspace/diagnostic).",
+            "order": 20
+          },
+          "tclLsp.features.willSaveWaitUntil": {
+            "type": "boolean",
+            "default": true,
+            "description": "Format Tcl files on save via willSaveWaitUntil.",
+            "order": 21
+          },
+          "tclLsp.features.progress": {
+            "type": "boolean",
+            "default": true,
+            "description": "Report work-done progress for long-running operations (initial workspace scan).",
+            "order": 22
+          },
+          "tclLsp.features.implementation": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable Go to Implementation (TclOO method overrides).",
+            "order": 23
+          },
+          "tclLsp.features.typeDefinition": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable Go to Type Definition (class for a variable / method receiver).",
+            "order": 24
+          },
+          "tclLsp.features.declaration": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable Go to Declaration (variable/global/upvar declarations).",
+            "order": 25
+          },
+          "tclLsp.features.linkedEditingRange": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable linked editing range (synchronized edits for recursive proc self-calls).",
+            "order": 26
           }
         }
       },

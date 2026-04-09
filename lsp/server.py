@@ -61,6 +61,7 @@ from .features.code_actions import get_code_actions
 from .features.completion import get_completions
 from .features.definition import get_bigip_definition, get_definition
 from .features.diagnostics import get_basic_diagnostics, get_deep_diagnostics, get_diagnostics
+from .features.document_highlight import get_document_highlights
 from .features.document_links import get_document_links
 from .features.document_symbols import get_document_symbols
 from .features.folding import get_folding_ranges
@@ -118,6 +119,16 @@ class FeatureConfig:
     call_hierarchy_enabled: bool = True
     document_links_enabled: bool = True
     selection_range_enabled: bool = True
+    document_highlight_enabled: bool = True
+    code_lens_enabled: bool = True
+    workspace_file_ops_enabled: bool = True
+    pull_diagnostics_enabled: bool = True
+    will_save_wait_until_enabled: bool = True
+    progress_enabled: bool = True
+    implementation_enabled: bool = True
+    type_definition_enabled: bool = True
+    declaration_enabled: bool = True
+    linked_editing_range_enabled: bool = True
 
     # Per-code diagnostic filters -- codes present here are *disabled*.
     # Initialised from codes with ``default=False`` (opt-in diagnostics).
@@ -790,6 +801,30 @@ def on_references(
         params.position.character,
         analysis=analysis,
         include_declaration=include_decl,
+    )
+
+
+# Document highlight
+
+
+@server.feature(types.TEXT_DOCUMENT_DOCUMENT_HIGHLIGHT)
+def on_document_highlight(
+    params: types.DocumentHighlightParams,
+) -> list[types.DocumentHighlight] | None:
+    if not feature_config.document_highlight_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    if state is not None and state.analysis is None:
+        return None
+    source = _get_doc_source(uri)
+    analysis = state.analysis if state else None
+    return get_document_highlights(
+        source,
+        uri,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
     )
 
 
@@ -3040,6 +3075,16 @@ _FEATURE_TOGGLE_KEYS = {
     "callHierarchy": "call_hierarchy_enabled",
     "documentLinks": "document_links_enabled",
     "selectionRange": "selection_range_enabled",
+    "documentHighlight": "document_highlight_enabled",
+    "codeLens": "code_lens_enabled",
+    "workspaceFileOps": "workspace_file_ops_enabled",
+    "pullDiagnostics": "pull_diagnostics_enabled",
+    "willSaveWaitUntil": "will_save_wait_until_enabled",
+    "progress": "progress_enabled",
+    "implementation": "implementation_enabled",
+    "typeDefinition": "type_definition_enabled",
+    "declaration": "declaration_enabled",
+    "linkedEditingRange": "linked_editing_range_enabled",
 }
 
 
