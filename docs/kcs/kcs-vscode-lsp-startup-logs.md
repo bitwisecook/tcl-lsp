@@ -3,10 +3,32 @@
 ## Description
 
 You want to confirm that the Tcl Language Server started correctly inside
-VS Code — for example, because diagnostics, hover, or semantic tokens are
-missing, or you are not sure whether the extension activated at all. The
-extension writes its startup log to an output channel you can open from
-inside VS Code.
+VS Code. When the LSP fails to start you still get the basic TextMate
+syntax highlighting that ships with the extension — keywords, strings,
+and comments are still coloured — but every feature that needs the
+running server is silently missing. Typical symptoms:
+
+- Your `.tcl`, `.tm`, `.itcl`, `.irul`, or `.iapp` file shows only plain
+  TextMate colours; variable references, proc names, and commands are
+  not given the richer semantic-token colours you see in the extension
+  screenshots.
+- No red or yellow squiggles appear even on obviously broken code
+  (unclosed braces, unknown commands, typos).
+- Hovering a command or variable does not show a documentation tooltip.
+- Typing does not offer auto-completion for commands, subcommands, or
+  iRule events.
+- "Go to Definition", "Find References", and rename do nothing or
+  report "No definition found".
+- The `tcl-lsp v<version>` badge and the dialect indicator are missing
+  from the status bar in the bottom right of the window.
+- The `Tcl: ...` entries in the Command Palette
+  (`Tcl: Restart Language Server`, `Tcl: Optimise Document`,
+  `Tcl: Open Compiler Explorer`, etc.) are missing, greyed out, or
+  error as soon as you run them.
+
+The extension writes its startup log to an output channel you can open
+from inside VS Code, and that log tells you which of the startup steps
+failed.
 
 ## Audience
 
