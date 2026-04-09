@@ -4,9 +4,11 @@
 //! progresses. Currently exported:
 //!
 //! - [`backslash_subst`] — Tcl backslash escape processing (chunk **L1**).
+//! - [`Token`], [`TokenType`], [`SourcePosition`] — token data types
+//!   (chunk **L2**).
 //!
-//! Upcoming chunks will add `Token`, `TokenType`, `SourcePosition`, a
-//! `LexerConfig`, and a streaming `Lexer` iterator.
+//! Upcoming chunks will add a `LexerConfig` and a streaming `Lexer`
+//! iterator.
 //!
 //! The crate has no `pyo3` dependency and no Python-compat concerns — those
 //! belong in the `tcl-lsp-rust` binding crate. See `docs/rust-rewrite.md`
@@ -15,8 +17,10 @@
 #![deny(missing_docs)]
 
 mod substitution;
+mod tokens;
 
 pub use substitution::backslash_subst;
+pub use tokens::{SourcePosition, Token, TokenType};
 
 /// Crate version string, useful for migration diagnostics.
 ///
