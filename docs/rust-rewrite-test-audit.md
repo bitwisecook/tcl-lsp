@@ -288,3 +288,72 @@ parity coverage.
 - **bridge-only** (Python-specific, stays in pytest forever): 14 pytest tests
 - **remove-at-end** (low-value, flagged inline): 2 pytest tests
 - **deferred** (covered by later chunks): ~60 pytest tests in `test_lexer.py` and friends (shrunk from ~75 as the variable tests were ported)
+
+## L5 — Command substitution (`rust/tcl-lexer/src/lexer.rs::parse_command`)
+
+Third Rust lexer chunk. Removes `[` and `]` from the deferred set
+and implements Tcl command substitution with Python-parity nesting
+rules. Also extends `SourceMap::token_text` with CMD stripping
+(and a subtle fix for nested cases that had their inner `]`
+incorrectly consumed by the original VAR-style suffix strip).
+
+### Pytest tests — `tests/test_lexer.py::TestBasicTokens` / `TestTclConstructs`
+
+| Test | Category | Rust equivalent |
+|---|---|---|
+| `TestBasicTokens::test_command_substitution` (`[+ 1 2]`) | Ported | `cmd_simple_body` + differential corpus |
+| `TestBasicTokens::test_nested_brackets` (`[+ 1 [+ 2 3]]`) | Ported | `cmd_nested_brackets` + differential corpus |
+| `TestPositions::test_cmd_position` (`set x [+ 1 2]`) | Ported | `cmd_span_positions` + differential corpus (`cmd_mid_command`) |
+
+The broader `tests/test_tcl_parse.py` and `test_upstream_parse.py`
+test classes that use `[…]` are now eligible for the differential
+harness. They stay in pytest as the Python-bridge oracle; the Rust
+side gains byte-perfect parity as the harness corpus expands.
+
+### Pytest tests — `tests/test_rust_lexer_differential.py`
+
+| Change | Notes |
+|---|---|
+| `TestHarnessItself::_EXPECTED_DEFERRED` | Updated to `{}"\\` (no more `[]`). |
+| `TestHarnessItself::test_brackets_are_no_longer_deferred` | **New**: regression guard ensuring `[cmd]`, `[+ 1 2]`, and lone `foo]bar` all pass the filter. |
+| Corpus grew from 74 to 102 parametrised cases | Added 28 L5 command-substitution inputs covering empty, simple, nested, mixed-with-var, quoted-substring-inside-cmd, braced-substring-inside-cmd, backslash-escaped close, multiline, standalone `]`, and unterminated best-effort cases. |
+
+### Rust unit tests — `rust/tcl-lexer/src/lexer.rs`
+
+20 new tests in a dedicated `L5 — command substitution` section:
+
+| Test | Notes |
+|---|---|
+| `cmd_simple_body` | `[+ 1 2]`. |
+| `cmd_empty_body` | `[]` — exercises the empty-body end-position clamp. |
+| `cmd_nested_brackets` | `[+ 1 [+ 2 3]]` — pins the level-counter correctness. |
+| `cmd_deeply_nested_brackets` | `[a [b [c [d]]]]`. |
+| `cmd_followed_by_word` | `[cmd] tail`. |
+| `word_then_cmd` | `foo[cmd]` — `[` terminates the bare word. |
+| `cmd_then_word` | `[cmd]tail`. |
+| `cmd_with_quoted_substring` | `"…"` inside a CMD body toggles `in_quotes` so a `]` inside the quotes does not close the command. |
+| `cmd_with_bracket_inside_quotes_does_not_close` | Same, with explicit `]` inside `"…"`. |
+| `cmd_with_braced_substring` | `{…}` inside a CMD body adjusts `blevel` so a `]` inside the braces is inert. |
+| `cmd_with_bracket_inside_braces_does_not_close` | Same, explicit. |
+| `cmd_with_nested_braces` | Multi-level brace nesting inside a command. |
+| `cmd_with_backslash_escape` | `\]` inside the body is inert (backslash consumes two chars as a pair). |
+| `cmd_with_backslash_quote` | `\"` inside the body does not toggle `in_quotes`. |
+| `cmd_with_dollar_braced_var_inside` | `${odd}name` sub-scan so a `}` inside a braced variable name doesn't fool `blevel`. |
+| `cmd_with_plain_dollar_var_inside` | `$a + $b` inside a command. |
+| `cmd_multiline_body` | `[a\nb\nc]`. |
+| `cmd_unterminated_tokenises_best_effort` | `[unterminated`. |
+| `cmd_span_positions` | Pins the span convention ("span starts at `[`, text strips `[`") via explicit span and `token_text` assertions. |
+| `standalone_closing_bracket_is_part_of_word` | `foo]bar` — `]` is no longer deferred; it's a regular word char. |
+| `cmd_resets_at_command_start` | After a CMD, `#` is no longer a comment opener. |
+| `cmd_after_eol_allows_comment_before` | Mirror of the `after_eol` comment-opener test for CMD contexts. |
+
+Regression guard `bracket_is_no_longer_an_unsupported_character`
+replaces the pre-L5 `unsupported_character_bracket_errors` test
+so the check that `[` is accepted survives into the chunk log.
+
+### Category totals after L5
+
+- **ported**: 24 pytest + 94 Rust unit tests + 128 differential cases
+- **bridge-only**: 15 pytest tests (the new `test_brackets_are_no_longer_deferred` regression guard)
+- **remove-at-end**: 2 pytest tests
+- **deferred**: ~50 pytest tests (shrunk from ~60 as command-substitution tests became eligible for the harness)
