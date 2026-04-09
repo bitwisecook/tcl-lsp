@@ -17,11 +17,7 @@ from .symbol_resolution import find_scope_at_line, find_word_at_position
 
 def _class_matches(cd: ClassDef, name: str) -> bool:
     """True when ``cd`` is addressed by ``name`` (simple or qualified)."""
-    return (
-        cd.name == name
-        or cd.qualified_name == name
-        or cd.qualified_name == f"::{name}"
-    )
+    return cd.name == name or cd.qualified_name == name or cd.qualified_name == f"::{name}"
 
 
 def _is_parent_of(candidate: ClassDef, parent_qnames: set[str]) -> bool:
@@ -112,9 +108,7 @@ def get_implementations(
     while cursor is not None:
         if cursor.kind == "method":
             # Scope name is "Class::method"; strip to get the class name.
-            class_name = (
-                cursor.name.rsplit("::", 1)[0] if "::" in cursor.name else cursor.name
-            )
+            class_name = cursor.name.rsplit("::", 1)[0] if "::" in cursor.name else cursor.name
             for _ent_uri, cd in entries:
                 if _class_matches(cd, class_name):
                     enclosing_class_qname = cd.qualified_name

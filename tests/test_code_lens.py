@@ -68,6 +68,7 @@ class TestResolveCodeLens:
         lenses = get_code_lenses(source, TEST_URI, analysis)
         ws = _FakeWorkspaceIndex({"::greet": 1})
         resolved = resolve_code_lens(lenses[0], ws)
+        assert resolved.command is not None
         assert resolved.command.title == "1 reference"
 
     def test_zero_references(self):
@@ -76,4 +77,5 @@ class TestResolveCodeLens:
         lenses = get_code_lenses(source, TEST_URI, analysis)
         ws = _FakeWorkspaceIndex({})
         resolved = resolve_code_lens(lenses[0], ws)
+        assert resolved.command is not None
         assert resolved.command.title == "0 references"

@@ -89,13 +89,13 @@ from .features.type_definition import get_type_definition
 from .features.type_hierarchy import (
     prepare_type_hierarchy,
 )
-from .features.workspace_file_ops import compute_batch_rename_edits
 from .features.type_hierarchy import (
     subtypes as get_subtypes,
 )
 from .features.type_hierarchy import (
     supertypes as get_supertypes,
 )
+from .features.workspace_file_ops import compute_batch_rename_edits
 from .features.workspace_symbols import get_workspace_symbols
 from .workspace.document_state import WorkspaceState
 from .workspace.scanner import BackgroundScanner, path_to_uri, uri_to_path
@@ -1188,19 +1188,12 @@ def on_code_lens_resolve(lens: types.CodeLens) -> types.CodeLens:
 @server.feature(types.TEXT_DOCUMENT_DIAGNOSTIC)
 def on_document_diagnostic(
     params: types.DocumentDiagnosticParams,
-) -> (
-    types.RelatedFullDocumentDiagnosticReport
-    | types.RelatedUnchangedDocumentDiagnosticReport
-):
+) -> types.RelatedFullDocumentDiagnosticReport | types.RelatedUnchangedDocumentDiagnosticReport:
     uri = params.text_document.uri
     cached = _pull_diag_cache.get(uri, [])
     current_result_id = _pull_diag_result_ids.get(uri)
     previous = getattr(params, "previous_result_id", None)
-    if (
-        current_result_id is not None
-        and previous is not None
-        and previous == current_result_id
-    ):
+    if current_result_id is not None and previous is not None and previous == current_result_id:
         return types.RelatedUnchangedDocumentDiagnosticReport(
             result_id=current_result_id,
         )
@@ -2999,9 +2992,7 @@ def _run_background_scan(
     t0 = time.perf_counter()
     try:
         open_uris = frozenset(uri for uri, _ in workspace_state.items())
-        results = background_scanner.scan_all(
-            skip_uris=open_uris, progress_cb=progress_cb
-        )
+        results = background_scanner.scan_all(skip_uris=open_uris, progress_cb=progress_cb)
         for uri, scan_result in results.items():
             # Don't overwrite entries for currently open files
             if workspace_state.get(uri) is not None:

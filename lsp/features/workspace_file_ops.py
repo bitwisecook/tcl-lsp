@@ -92,9 +92,7 @@ def _collect_edits_for_rename(
             if os.path.normpath(resolved) != old_path:
                 continue
             new_text = _compute_new_literal(target.raw_path, dep_path, new_path)
-            edits.append(
-                _RenameEdit(dep_uri=dep_uri, target=target, new_text=new_text)
-            )
+            edits.append(_RenameEdit(dep_uri=dep_uri, target=target, new_text=new_text))
     return edits
 
 
@@ -140,9 +138,7 @@ def compute_batch_rename_edits(
     """Compute a single WorkspaceEdit covering multiple renames."""
     all_edits: list[_RenameEdit] = []
     for f in files:
-        all_edits.extend(
-            _collect_edits_for_rename(f.old_uri, f.new_uri, index, workspace_roots)
-        )
+        all_edits.extend(_collect_edits_for_rename(f.old_uri, f.new_uri, index, workspace_roots))
     if not all_edits:
         return None
     by_dep: dict[str, list[types.TextEdit]] = {}

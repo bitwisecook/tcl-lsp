@@ -53,9 +53,12 @@ class TestComputeRenameEdits:
             assert result.document_changes is not None
             assert len(result.document_changes) == 1
             doc_edit = result.document_changes[0]
+            assert isinstance(doc_edit, types.TextDocumentEdit)
             assert doc_edit.text_document.uri == _path_to_uri(a)
             assert len(doc_edit.edits) == 1
-            assert doc_edit.edits[0].new_text == "c.tcl"
+            edit0 = doc_edit.edits[0]
+            assert isinstance(edit0, types.TextEdit)
+            assert edit0.new_text == "c.tcl"
 
     def test_leaves_substitution_paths_alone(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -115,6 +118,9 @@ class TestComputeBatchRenameEdits:
             assert result.document_changes is not None
             assert len(result.document_changes) == 1
             doc_edit = result.document_changes[0]
+            assert isinstance(doc_edit, types.TextDocumentEdit)
             assert len(doc_edit.edits) == 2
-            new_texts = sorted(e.new_text for e in doc_edit.edits)
+            plain_edits = [e for e in doc_edit.edits if isinstance(e, types.TextEdit)]
+            assert len(plain_edits) == 2
+            new_texts = sorted(e.new_text for e in plain_edits)
             assert new_texts == ["bb.tcl", "cc.tcl"]

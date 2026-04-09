@@ -23,9 +23,7 @@ class TestRunBackgroundScanProgress:
         monkeypatch.setattr(server_module, "background_scanner", fake_scanner)
 
         # Prevent dialect upgrade from touching real state.
-        monkeypatch.setattr(
-            server_module.feature_config, "dialect_explicitly_set", True
-        )
+        monkeypatch.setattr(server_module.feature_config, "dialect_explicitly_set", True)
 
         observed = []
 
@@ -45,9 +43,7 @@ class TestRunBackgroundScanProgress:
         fake_scanner.irules_rule_init_vars = {}
         fake_scanner.auto_index_entries = {}
         monkeypatch.setattr(server_module, "background_scanner", fake_scanner)
-        monkeypatch.setattr(
-            server_module.feature_config, "dialect_explicitly_set", True
-        )
+        monkeypatch.setattr(server_module.feature_config, "dialect_explicitly_set", True)
         server_module._run_background_scan()
         fake_scanner.scan_all.assert_called_once()
         assert fake_scanner.scan_all.call_args.kwargs.get("progress_cb") is None

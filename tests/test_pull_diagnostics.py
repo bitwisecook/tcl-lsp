@@ -118,6 +118,4 @@ class TestWorkspaceDiagnosticHandler:
         )
         report = server_module.on_workspace_diagnostic(params)
         assert len(report.items) == 1
-        assert isinstance(
-            report.items[0], types.WorkspaceUnchangedDocumentDiagnosticReport
-        )
+        assert isinstance(report.items[0], types.WorkspaceUnchangedDocumentDiagnosticReport)

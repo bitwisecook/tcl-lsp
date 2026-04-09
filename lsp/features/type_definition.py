@@ -42,19 +42,11 @@ def _find_class(
 ) -> tuple[str | None, ClassDef] | None:
     """Resolve ``name`` to ``(uri or None, ClassDef)`` from local/workspace scope."""
     for _qname, cd in analysis.all_classes.items():
-        if (
-            cd.name == name
-            or cd.qualified_name == name
-            or cd.qualified_name == f"::{name}"
-        ):
+        if cd.name == name or cd.qualified_name == name or cd.qualified_name == f"::{name}":
             return (None, cd)
     if workspace_classes:
         for w_uri, cd in workspace_classes:
-            if (
-                cd.name == name
-                or cd.qualified_name == name
-                or cd.qualified_name == f"::{name}"
-            ):
+            if cd.name == name or cd.qualified_name == name or cd.qualified_name == f"::{name}":
                 return (w_uri, cd)
     return None
 

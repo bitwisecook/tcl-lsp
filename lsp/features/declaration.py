@@ -69,9 +69,7 @@ def _scan_declarations(source: str, var_name: str) -> list[Range]:
             if bare == stripped:
                 results.append(
                     Range(
-                        start=SourcePosition(
-                            line=line_no, character=col_start, offset=0
-                        ),
+                        start=SourcePosition(line=line_no, character=col_start, offset=0),
                         end=SourcePosition(
                             line=line_no,
                             character=col_start + len(name_token),
