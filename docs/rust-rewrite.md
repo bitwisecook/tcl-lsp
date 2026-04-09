@@ -271,7 +271,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 |-------|-------|--------|
 | L0    | Rust workspace bootstrap: two crates, hello-world `tcl_lsp_rust`, CI, packaging plumbing | landed |
 | L1    | `core/parsing/substitution.py::backslash_subst` → `rust/tcl-lexer/src/substitution.rs` with PyO3 bridge and Python fallback | landed |
-| L2    | `core/parsing/tokens.py` → Rust enum/struct + PyO3 wrappers | planned |
+| L2    | `core/parsing/tokens.py` → `rust/tcl-lexer/src/tokens.rs` (`TokenType`, `SourcePosition`, `Token<'src>`) plus PyO3 wrappers preserving singleton/identity semantics; new `tests/test_tokens.py` contract test | landed |
 | L3    | Rust `Lexer` skeleton (EOF/SEP/EOL/COMMENT/plain ESC) + differential test harness | planned |
 | L4    | Variable substitution in the Rust lexer | planned |
 | L5    | Command substitution in the Rust lexer | planned |
