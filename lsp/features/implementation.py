@@ -110,10 +110,13 @@ def get_implementations(
     scope = find_scope_at_line(analysis.global_scope, line)
     cursor = scope
     while cursor is not None:
-        if cursor.kind == "method" and cursor.parent is not None:
-            parent_name = cursor.parent.name
+        if cursor.kind == "method":
+            # Scope name is "Class::method"; strip to get the class name.
+            class_name = (
+                cursor.name.rsplit("::", 1)[0] if "::" in cursor.name else cursor.name
+            )
             for _ent_uri, cd in entries:
-                if _class_matches(cd, parent_name):
+                if _class_matches(cd, class_name):
                     enclosing_class_qname = cd.qualified_name
                     break
             if enclosing_class_qname:

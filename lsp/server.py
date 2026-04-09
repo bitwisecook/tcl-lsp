@@ -59,6 +59,7 @@ from .features.call_hierarchy import (
 )
 from .features.code_actions import get_code_actions
 from .features.completion import get_completions
+from .features.declaration import get_declaration
 from .features.definition import get_bigip_definition, get_definition
 from .features.diagnostics import get_basic_diagnostics, get_deep_diagnostics, get_diagnostics
 from .features.document_highlight import get_document_highlights
@@ -81,6 +82,7 @@ from .features.semantic_tokens import (
 )
 from .features.signature_help import get_signature_help
 from .features.symbol_resolution import find_word_at_position
+from .features.type_definition import get_type_definition
 from .features.type_hierarchy import (
     prepare_type_hierarchy,
 )
@@ -779,6 +781,55 @@ def on_definition(
                 locations.append(to_lsp_location(ve.source_uri, ve.definition_range))
 
     return locations
+
+
+# Go to type definition
+
+
+@server.feature(types.TEXT_DOCUMENT_TYPE_DEFINITION)
+def on_type_definition(
+    params: types.TypeDefinitionParams,
+) -> list[types.Location] | None:
+    if not feature_config.type_definition_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    if state is not None and state.analysis is None:
+        return None
+    source = _get_doc_source(uri)
+    analysis = state.analysis if state else None
+    return get_type_definition(
+        source,
+        uri,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
+        workspace_classes=workspace_index.iter_classes(),
+    )
+
+
+# Go to declaration
+
+
+@server.feature(types.TEXT_DOCUMENT_DECLARATION)
+def on_declaration(
+    params: types.DeclarationParams,
+) -> list[types.Location] | None:
+    if not feature_config.declaration_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    if state is not None and state.analysis is None:
+        return None
+    source = _get_doc_source(uri)
+    analysis = state.analysis if state else None
+    return get_declaration(
+        source,
+        uri,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
+    )
 
 
 # Find references
