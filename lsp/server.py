@@ -58,6 +58,7 @@ from .features.call_hierarchy import (
     prepare_call_hierarchy as get_call_hierarchy,
 )
 from .features.code_actions import get_code_actions
+from .features.code_lens import get_code_lenses, resolve_code_lens
 from .features.completion import get_completions
 from .features.declaration import get_declaration
 from .features.definition import get_bigip_definition, get_definition
@@ -1153,6 +1154,29 @@ def on_document_link(
     source = _get_doc_source(uri)
     analysis = state.analysis if state else None
     return get_document_links(source, analysis=analysis)
+
+
+# Code lens
+
+
+@server.feature(types.TEXT_DOCUMENT_CODE_LENS)
+def on_code_lens(
+    params: types.CodeLensParams,
+) -> list[types.CodeLens] | None:
+    if not feature_config.code_lens_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    if state is not None and state.analysis is None:
+        return None
+    source = _get_doc_source(uri)
+    analysis = state.analysis if state else None
+    return get_code_lenses(source, uri, analysis)
+
+
+@server.feature(types.CODE_LENS_RESOLVE)
+def on_code_lens_resolve(lens: types.CodeLens) -> types.CodeLens:
+    return resolve_code_lens(lens, workspace_index)
 
 
 # Selection range
