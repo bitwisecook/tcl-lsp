@@ -29,11 +29,39 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [CommandSpec](#commandspec) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [LICM](#licm) · [Liveness](#liveness) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [SubCommand](#subcommand) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference)
+[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination)
 
 ---
 
 ## Phase 1 — Parsing
+
+### Lexing
+
+The first pass of the compiler. Turns source text into a stream of
+tokens with exact source ranges, handling Tcl's substitution rules
+(word expansion, braces, brackets, quotes, backslash escapes). The
+lexer is also responsible for preserving the whitespace and range
+information every later pass relies on to point diagnostics at the
+right character. Implemented in
+[`lexer.py`](../core/parsing/lexer.py).
+
+```mermaid
+flowchart LR
+    SRC["set x $y"] --> L["Lexer"]
+    L --> T1["WORD 'set'"]
+    L --> T2["SEP"]
+    L --> T3["WORD 'x'"]
+    L --> T4["SEP"]
+    L --> T5["VAR_SUB '$y'"]
+
+    style L fill:#e1f5fe
+```
+
+> Every token carries a start and end offset; ranges are the single
+> source of truth used by diagnostics, hover, and code actions.
+
+See also: [Lexing and segmentation](design/compiler/lexing-segmentation.md).
+KCS tag: `lexing`.
 
 ### AST
 
@@ -52,6 +80,9 @@ graph TD
 
 > Example: `expr {$a + $b * 2}` — the AST respects operator precedence
 > (`*` binds tighter than `+`).
+
+See also: [Expression parsing](design/compiler/expression-parsing.md).
+KCS tag: `lexing`.
 
 ---
 
@@ -73,6 +104,32 @@ flowchart LR
 ---
 
 ## Phase 3 — IR lowering
+
+### Lowering
+
+The pass that turns the tokenised command stream into typed IR
+statements. Every command known to the registry maps to one or more
+`IRStatement` nodes via an `arg_roles` table that says which tokens
+are expressions, bodies, variable names, or literal arguments. The
+lowering dispatch is what lets the analyser treat `if`, `while`,
+`proc`, and user-defined commands uniformly downstream. Implemented
+in [`lowering.py`](../core/compiler/lowering.py).
+
+```mermaid
+flowchart LR
+    TOKENS["set x [expr {$a + 1}]"] --> LOW["lowering<br/>dispatch"]
+    LOW --> IR["IRAssign<br/>target=x<br/>value=IRExpr($a + 1)"]
+
+    style LOW fill:#e1f5fe
+    style IR fill:#e8f5e9
+```
+
+> Lowering is where a token stream stops being a list of words and
+> starts being a program the analyser can reason about.
+
+See also: [IR types and lowering](design/compiler/ir-types-lowering.md)
+and [Lowering dispatch](design/compiler/lowering-dispatch.md).
+KCS tag: `lowering`.
 
 ### IR
 
@@ -131,6 +188,9 @@ classDiagram
     IRStatement <|-- IRFor
 ```
 
+See also: [IR types and lowering](design/compiler/ir-types-lowering.md).
+KCS tag: `lowering`.
+
 ### CommandSpec
 
 The central metadata type for a Tcl command — describes its argument
@@ -150,6 +210,9 @@ flowchart TD
     SC --> CG["CodegenHook<br/>specialised bytecode"]
 ```
 
+See also: [Command registry](design/compiler/command-registry.md)
+and [Command registry event model](design/contracts/command-registry-event-model.md).
+
 ### SubCommand
 
 An ensemble operation selected by the first argument (e.g.
@@ -157,11 +220,15 @@ An ensemble operation selected by the first argument (e.g.
 return type, and taint transform hooks.  See
 [`models.py:319`](../core/commands/registry/models.py).
 
+See also: [Command registry](design/compiler/command-registry.md).
+
 ### FormSpec
 
 An invocation form of a command — getter (reads state) or setter (writes
 state), each with its own arity and side-effect classification.  See
 [`models.py:249`](../core/commands/registry/models.py).
+
+See also: [Command registry](design/compiler/command-registry.md).
 
 ---
 
@@ -172,6 +239,9 @@ state), each with its own arity and side-effect classification.  See
 A straight-line sequence of IR statements with no branches except at the
 end.  Represented by
 [`CFGBlock`](../core/compiler/cfg.py) (`cfg.py:374`).
+
+See also: [CFG construction](design/compiler/cfg-construction.md).
+KCS tag: `cfg`.
 
 ### CFG
 
@@ -210,6 +280,10 @@ flowchart TD
 
 > Example: `while` loop with back-edge from body to header.
 
+See also: [CFG construction](design/compiler/cfg-construction.md)
+and [Control flow patterns](design/compiler/control-flow-patterns.md).
+KCS tag: `cfg`.
+
 ---
 
 ## Phase 5 — SSA construction
@@ -235,11 +309,18 @@ flowchart TD
 
 > Unique version per definition: `x₁` in entry, `y₁` in then-branch.
 
+See also: [SSA construction](design/compiler/ssa-construction.md)
+and [CFG/SSA fact model](design/compiler/cfg-ssa-fact-model.md).
+KCS tag: `ssa`.
+
 ### SSA value key
 
 A `(variable_name, version)` tuple that uniquely identifies one
 definition of a variable.  Type alias
 [`SSAValueKey`](../core/compiler/ssa.py) (`ssa.py:50`).
+
+See also: [SSA construction](design/compiler/ssa-construction.md).
+KCS tag: `ssa`.
 
 ### Phi node (φ)
 
@@ -271,6 +352,9 @@ flowchart TD
 > Loop phi: merges the initial value (`i₁ = 0`) with the loop-carried
 > update (`i₃`).
 
+See also: [SSA construction](design/compiler/ssa-construction.md).
+KCS tag: `ssa`.
+
 ### Dominator / idom
 
 Block A *dominates* block B if every path from the entry to B passes
@@ -291,6 +375,9 @@ flowchart TD
 > Dominator tree for an `if/else`: entry dominates all blocks.
 > `if_end` dominates `exit`.
 
+See also: [SSA construction](design/compiler/ssa-construction.md).
+KCS tag: `ssa`.
+
 ### Dominance frontier
 
 The set of blocks where a variable's dominance "ends" — these are where
@@ -310,6 +397,9 @@ flowchart TD
 > `if_end` is in the dominance frontier of `if_then` for variable `x` —
 > a phi node is placed here.
 
+See also: [SSA construction](design/compiler/ssa-construction.md).
+KCS tag: `ssa`.
+
 ---
 
 ## Phase 6 — Core analyses
@@ -320,6 +410,9 @@ Sparse Conditional Constant Propagation — a combined constant propagation
 and unreachable-code analysis that runs over the SSA graph.  Implemented
 in [`analyse_function()`](../core/compiler/core_analyses.py)
 (`core_analyses.py:1210`).
+
+See also: [SCCP and core analyses](design/compiler/sccp-core-analyses.md).
+KCS tag: `sccp`.
 
 ### Lattice
 
@@ -360,6 +453,10 @@ flowchart BT
 
 > Type lattice.  SHIMMERED records forced type coercion.
 
+See also: [SCCP and core analyses](design/compiler/sccp-core-analyses.md)
+and [Constant folding and type inference](design/compiler/constant-folding-type-inference.md).
+KCS tag: `sccp`.
+
 ### Liveness
 
 A dataflow analysis that determines which SSA values are "live" (may
@@ -379,6 +476,9 @@ flowchart LR
 
 > A value is live from its definition until its last use.  After that,
 > it is dead and can be eliminated.
+
+See also: [SCCP and core analyses](design/compiler/sccp-core-analyses.md).
+KCS tag: `liveness`.
 
 ### Shimmer
 
@@ -610,11 +710,48 @@ flowchart TD
 See also: [Tail-call recursion optimisation](design/compiler/tail-call-recursion-optimisation.md).
 KCS tag: `tail-call`.
 
+### Constant folding
+
+Compile-time evaluation of expressions whose inputs are all known
+constants, so the runtime sees the result directly instead of the
+computation. Covers constant propagation (`O100`), integer expression
+folding (`O101`), constant command-substitution folding (`O102`),
+redundant-nested-`[expr]` removal (`O115`), list folding (`O116`,
+`O118`), and string-compare simplification (`O117`). Implemented in
+[`_propagation.py`](../core/compiler/optimiser/_propagation.py).
+
+```mermaid
+flowchart LR
+    IN["set x [expr {2 + 3}]"] -->|"O101/O102: fold"| OUT["set x 5"]
+
+    style IN fill:#e1f5fe
+    style OUT fill:#e8f5e9
+```
+
+See also: [Optimisation passes](design/compiler/optimisation-passes.md)
+and [Constant folding and type inference](design/compiler/constant-folding-type-inference.md).
+KCS tag: `const-fold`.
+
+### Strength reduction
+
+A family of peephole rewrites that replace an expensive operation
+with a cheaper one that computes the same value: `$x ** 2` becomes
+`$x * $x`, `$x % 8` becomes `$x & 7`, and so on. The pass fires as
+part of expression simplification and is reported under `O113`.
+Implemented in
+[`_propagation.py`](../core/compiler/optimiser/_propagation.py).
+
+See also: [Optimisation passes](design/compiler/optimisation-passes.md).
+KCS tag: `strength-reduce`.
+
 ### GVN
 
 Global Value Numbering — an optimisation that detects redundant
 computations by assigning a canonical identity to each expression.  See
 [`gvn.py:76`](../core/compiler/gvn.py).
+
+See also: [Optimisation passes](design/compiler/optimisation-passes.md).
+KCS tag: `gvn`.
 
 ### CSE
 
@@ -632,6 +769,9 @@ flowchart TD
     style FIX fill:#e8f5e9
 ```
 
+See also: [Optimisation passes](design/compiler/optimisation-passes.md).
+KCS tag: `cse`.
+
 ### DCE
 
 Dead Code Elimination — removes code whose result is never used.  `O107`
@@ -648,12 +788,18 @@ flowchart TD
     style S2 fill:#ffcdd2
 ```
 
+See also: [Optimisation passes](design/compiler/optimisation-passes.md).
+KCS tag: `dce`.
+
 ### InstCombine
 
 Instruction Combine — canonicalises and simplifies expressions by
 applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).
 Reported as `O110`.  See
 [`_expr_simplify.py`](../core/compiler/optimiser/_expr_simplify.py).
+
+See also: [Optimisation passes](design/compiler/optimisation-passes.md).
+KCS tag: `instcombine`.
 
 ### LCP
 
@@ -670,6 +816,33 @@ flowchart TD
     style BEFORE fill:#ffcdd2
     style AFTER fill:#e8f5e9
 ```
+
+See also: [O125 code sinking](design/compiler/o125-code-sinking.md).
+KCS tag: `code-sinking`.
+
+### Unused procs elimination
+
+Comments out procs that are defined but never called from any iRule
+event or from another reachable proc. The pass walks the call graph
+from every event entry point, marks every reachable proc as live,
+and turns anything unreached into a `# ` commented-out block so the
+reader can see what the pass did. Reported as `O124`. Implemented in
+[`_unused_procs.py`](../core/compiler/optimiser/_unused_procs.py).
+
+```mermaid
+flowchart LR
+    EV1["when HTTP_REQUEST"] --> P1["proc handle_req"]
+    P1 --> P2["proc parse_uri"]
+    P3["proc legacy_helper<br/>(never called)"] -.->|"O124: comment out"| DEAD["# proc legacy_helper ..."]
+
+    style P1 fill:#e8f5e9
+    style P2 fill:#e8f5e9
+    style P3 fill:#ffcdd2
+    style DEAD fill:#ffcdd2
+```
+
+See also: [O124 unused iRule procs](design/compiler/optimiser-o124-unused-irule-procs.md).
+KCS tag: `unused-procs`.
 
 ### Taint analysis
 
@@ -688,6 +861,9 @@ flowchart LR
     style SINK fill:#ffcdd2
     style WARN fill:#fff3e0
 ```
+
+See also: [Taint analysis](design/compiler/taint-analysis.md).
+KCS tag: `taint`.
 
 ### Taint colour
 
@@ -714,11 +890,17 @@ flowchart TD
 > Colours join by intersection: only properties present on **all** incoming
 > paths survive the merge.
 
+See also: [Taint analysis](design/compiler/taint-analysis.md).
+KCS tag: `taint`.
+
 ### Taint source
 
 A command whose return value introduces tainted data (e.g. `HTTP::host`,
 `HTTP::uri`).  Declared via `TaintHint.source` on the command's registry
 spec (`taint_hints.py:60`).
+
+See also: [Taint analysis](design/compiler/taint-analysis.md).
+KCS tag: `taint`.
 
 ### Taint sink
 
@@ -727,9 +909,35 @@ header injection, SSRF).  Classified by
 [`_classify_sink()`](../core/compiler/taint/_sinks.py)
 (`taint/_sinks.py:99`).
 
+See also: [Taint analysis](design/compiler/taint-analysis.md).
+KCS tag: `taint`.
+
 ---
 
 ## Phase 8 — Bytecode codegen
+
+### Codegen
+
+The last pass of the compiler. Walks the optimised CFG/SSA function
+and emits Tcl bytecode plus a local variable table, a jump table,
+and a peephole-optimised instruction stream. Codegen is the point at
+which an IR program becomes something the Tcl VM (or `tclsh`) can
+run byte-for-byte. Implemented under
+[`codegen/`](../core/compiler/codegen/).
+
+```mermaid
+flowchart LR
+    SSA["optimised SSA"] --> LIN["linearise"]
+    LIN --> EMIT["emit instructions"]
+    EMIT --> PEEP["peephole"]
+    PEEP --> BC["bytecode + LVT"]
+
+    style BC fill:#e8f5e9
+```
+
+See also: [Codegen internals](design/compiler/codegen-internals.md)
+and [Codegen module map](design/compiler/codegen-module-map.md).
+KCS tag: `codegen`.
 
 ### LVT
 
@@ -754,3 +962,6 @@ flowchart LR
 > Inside a `proc`, LVT-indexed access (`loadScalar1 %v0`) replaces the
 > slower name-based `loadStk`.  Slot 0, 1, … are assigned in parameter
 > order.
+
+See also: [Codegen internals](design/compiler/codegen-internals.md).
+KCS tag: `codegen`.
