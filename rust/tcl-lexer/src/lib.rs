@@ -9,9 +9,8 @@
 //! `LexerConfig`, and a streaming `Lexer` iterator.
 //!
 //! The crate has no `pyo3` dependency and no Python-compat concerns — those
-//! belong in the `tcl-lsp-rust` binding crate. See
-//! `docs/kcs/kcs-rust-migration.md` in the main repository for the full
-//! migration strategy.
+//! belong in the `tcl-lsp-rust` binding crate. See `docs/rust-rewrite.md`
+//! in the main repository for the full migration strategy.
 
 #![deny(missing_docs)]
 
