@@ -67,10 +67,44 @@ Key fields:
 - `single_token_word[i]` = `True` when word `i` is a single atomic token —
   tells the lowerer the value is a compile-time constant
 - `argv[i]` = first token of word `i` (for token-type pattern matching)
+- `expand_word[i]` = `True` when word `i` is preceded by the `{*}`
+  argument-expansion prefix (Tcl 8.5+).  `None` when no word in the
+  command uses expansion.
 - Multi-token words (e.g. `"hello $name"`) are concatenated into `texts[i]`
 
 **Variable references in texts:**
 VAR tokens are wrapped in `${…}` form: `$x` → `texts[i] = "${x}"`.
+
+### Argument expansion `{*}` and dialect gating
+
+`{*}` is the Tcl 8.5+ argument-expansion prefix.  When enabled, the
+lexer emits a zero-width `EXPAND` token at word start, and the
+segmenter records `expand_word[i] = True` for the following word so
+that downstream passes can distinguish `{*}$list` (expanded to zero or
+more runtime args) from a literal `*${list}` word.
+
+The `TclLexer.expand_syntax` flag controls whether `{*}` is recognised.
+`configure_signatures()` in
+[`core/commands/registry/runtime.py`](../../../core/commands/registry/runtime.py)
+sets the flag based on the active dialect:
+
+- **Enabled** for dialects in `dialects_since("tcl8.5")` — all Tcl
+  8.5 / 8.6 / 9.0 profiles and every dialect whose base Tcl version is
+  at least 8.5 (f5-iapps, f5-tmsh, EDA vendors, Expect).
+- **Disabled** for 8.4-based dialects (`tcl8.4`, `f5-irules`) because
+  `{*}` did not exist in Tcl 8.4 — the lexer must treat `{*}$x` as a
+  braced literal `{*}` concatenated with `$x`.
+
+Arity checks at both the analyser (`_check_proc_call_arity` in
+`core/analysis/analyser.py`) and the IR layer (`_check_simple_arity` in
+`core/compiler/compiler_checks.py`) treat each expanded word as an
+unknown number of runtime arguments and try to refine the bound via
+constant folding: braced literal lists, `[list ...]` substitutions,
+and variables with known constant values resolve to an exact element
+count, so E002/E003 still fire when the count is statically wrong.
+Otherwise the expanded word contributes `0..∞` arguments, E002 is
+suppressed, and E003 only fires when the non-expanded arguments alone
+exceed the signature maximum.
 
 ### How segmented data feeds the compiler
 

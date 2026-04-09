@@ -18,6 +18,7 @@ from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_R
 from ..commands.registry.runtime import (
     SIGNATURES,
     ArgRole,
+    Arity,
     CommandSig,
     SubcommandSig,
     arg_indices_for_role,
@@ -526,10 +527,22 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
 
         args = list(stmt.args) if isinstance(stmt, IRCall) else list(getattr(stmt, "args", ()))
 
+        # Extract {*} expansion markers for the argument words (position 0
+        # in ``expand_word`` is the command name, 1..n are the arguments).
+        # When expansion is present, arity checks must treat the expanded
+        # word as an unknown count rather than a single positional arg.
+        arg_expand: list[bool] | None = None
+        if ct is not None and ct.expand_word is not None:
+            # If the command name itself is expanded ({*}$dispatch), we
+            # cannot resolve the actual command — skip arity checks.
+            if ct.expand_word and ct.expand_word[0]:
+                return
+            arg_expand = list(ct.expand_word[1:])
+
         # Built-in command arity checking
         sig = _resolve_signature(cmd_name)
         if sig is not None:
-            _check_arity(cmd_name, args, sig, cmd_token_range, diagnostics)
+            _check_arity(cmd_name, args, sig, cmd_token_range, diagnostics, arg_expand)
 
     def _walk_ir(script: IRScript) -> None:
         for stmt in iter_ir_statements(script):
@@ -550,8 +563,15 @@ def _check_arity(
     sig: CommandSig | SubcommandSig,
     diag_range: Range,
     diagnostics: list[Diagnostic],
+    arg_expand: list[bool] | None = None,
 ) -> None:
-    """Check argument count against a command signature."""
+    """Check argument count against a command signature.
+
+    ``arg_expand`` is a list parallel to ``args`` whose entries are
+    ``True`` for arguments preceded by the Tcl 8.5+ ``{*}`` expansion
+    prefix.  Expanded words contribute an unknown number of runtime
+    arguments and must not be counted as a single positional arg.
+    """
     if isinstance(sig, SubcommandSig):
         if not args:
             diagnostics.append(
@@ -564,6 +584,10 @@ def _check_arity(
             )
             return
         sub_name = args[0]
+        # If the subcommand position itself is {*}-expanded, the actual
+        # subcommand is unknown — skip subcommand resolution and arity.
+        if arg_expand and arg_expand[0]:
+            return
         # In the IR, $var and ${var} forms represent real substitutions
         # (braced literals are resolved during lowering).  A $ or [ in
         # an IR arg always indicates a dynamic value that cannot be
@@ -591,10 +615,33 @@ def _check_arity(
             return
         # Check arity of subcommand (args after subcommand name)
         sub_args = args[1:]
-        _check_simple_arity(f"{cmd_name} {sub_name}", sub_args, sub_sig, diag_range, diagnostics)
+        sub_expand = arg_expand[1:] if arg_expand else None
+        _check_simple_arity(
+            f"{cmd_name} {sub_name}", sub_args, sub_sig, diag_range, diagnostics, sub_expand
+        )
         return
 
-    _check_simple_arity(cmd_name, args, sig, diag_range, diagnostics)
+    _check_simple_arity(cmd_name, args, sig, diag_range, diagnostics, arg_expand)
+
+
+def _resolve_expansion_count(arg_text: str) -> int | None:
+    """Return the static element count of an IR argument word being expanded.
+
+    Uses the same literal-list extractor the constant-propagation pass
+    uses for ``foreach`` — handles braced literals, ``[list a b c]``
+    command substitutions, and bare literal lists.  Returns ``None`` when
+    the count cannot be statically determined (variable substitution,
+    dynamic command substitution, interpolation, etc.), in which case
+    the caller treats the expansion as contributing 0..∞ runtime args,
+    matching Tcl's runtime semantics (``Tcl_ListObjGetElements`` shimmers
+    the value to a list at call time).
+    """
+    from .core_analyses import _extract_foreach_elements
+
+    elements = _extract_foreach_elements(arg_text)
+    if elements is None:
+        return None
+    return len(elements)
 
 
 @diag("E002", "Too few arguments for command.", section="error")
@@ -605,6 +652,7 @@ def _check_simple_arity(
     sig: CommandSig,
     diag_range: Range,
     diagnostics: list[Diagnostic],
+    arg_expand: list[bool] | None = None,
 ) -> None:
     """Check argument count for a simple (non-subcommand) signature.
 
@@ -614,32 +662,64 @@ def _check_simple_arity(
     command explicitly declares it.  This lets ``puts -nonewline channel
     string`` (3 raw args) pass arity ``(1, 2)`` because only 2 are
     positional.
+
+    ``arg_expand`` marks arguments preceded by ``{*}``.  Each expanded
+    word may contribute zero or more runtime arguments; when the word is
+    a statically-resolvable literal list the exact count is used, and
+    otherwise the word contributes 0..∞ (so the upper bound becomes
+    unbounded and the lower bound remains the count of non-expanded
+    positional words).
     """
     # Count positional args by skipping leading declared options.
+    # An expanded word can't be reliably classified as an option, so
+    # option skipping stops at the first expanded or non-option arg.
     positional_start = 0
     if sig.leading_options:
         for i, arg in enumerate(args):
+            if arg_expand and i < len(arg_expand) and arg_expand[i]:
+                break
             if arg in sig.leading_options:
                 positional_start = i + 1
                 if arg == "--":
                     break  # -- terminates option parsing
             else:
                 break
-    nargs = len(args) - positional_start
-    if nargs < sig.arity.min:
+    positional = args[positional_start:]
+    positional_expand = arg_expand[positional_start:] if arg_expand else None
+    if positional_expand and any(positional_expand):
+        nargs_min = 0
+        nargs_max = 0
+        unbounded = False
+        for i, word in enumerate(positional):
+            if positional_expand[i]:
+                count = _resolve_expansion_count(word)
+                if count is None:
+                    unbounded = True
+                else:
+                    nargs_min += count
+                    nargs_max += count
+            else:
+                nargs_min += 1
+                nargs_max += 1
+        if unbounded:
+            nargs_max = Arity.ANY
+    else:
+        nargs_min = len(positional)
+        nargs_max = len(positional)
+    if nargs_max < sig.arity.min:
         diagnostics.append(
             Diagnostic(
                 range=diag_range,
-                message=f"Too few arguments for '{display_name}': expected at least {sig.arity.min}, got {nargs}",
+                message=f"Too few arguments for '{display_name}': expected at least {sig.arity.min}, got {nargs_max}",
                 severity=Severity.ERROR,
                 code="E002",
             )
         )
-    elif nargs > sig.arity.max:
+    elif nargs_min > sig.arity.max:
         diagnostics.append(
             Diagnostic(
                 range=diag_range,
-                message=f"Too many arguments for '{display_name}': expected at most {sig.arity.max}, got {nargs}",
+                message=f"Too many arguments for '{display_name}': expected at most {sig.arity.max}, got {nargs_min}",
                 severity=Severity.ERROR,
                 code="E003",
             )
