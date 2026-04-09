@@ -767,13 +767,23 @@ class Analyser:
         first known-command-name argument through the ``]`` are merged
         into a virtual CMD token.  This lets ``_handle_switch`` detect
         the compact form and properly parse pattern/body pairs.
+
+        A ``]`` inside a double-quoted string is a literal character, not
+        a stray bracket — quoted-context ESC tokens must be skipped.
         """
+        from ..parsing.token_positions import classify_quoted_contexts
+
         # Step 1: Find an ESC token containing ']' at its end.
+        # Skip ESC tokens whose ']' is inside a double-quoted string
+        # (e.g. `foo "bar]"`).
+        in_quoted = classify_quoted_contexts(list(cmd.all_tokens))
         bracket_tok: Token | None = None
         bracket_tok_idx = -1
         bracket_char_idx = -1
         for ti, tok in enumerate(cmd.all_tokens):
             if tok.type is not TokenType.ESC:
+                continue
+            if in_quoted[ti]:
                 continue
             idx = tok.text.find("]")
             if idx >= 0 and idx == len(tok.text) - 1:

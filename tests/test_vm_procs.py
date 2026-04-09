@@ -175,6 +175,34 @@ class TestInfoCommand:
         result = interp.eval("f")
         assert result.value == "1"
 
+    def test_get_info_cmd_regression_issue_130(self) -> None:
+        """Regression for bitwisecook/tcl-lsp#130.
+
+        ``"}"`` must be treated as a literal close-brace character (a
+        string argument), not as a stray close brace.  The proc below is
+        taken verbatim from the reported issue and builds a serialised
+        proc definition by appending quoted literals together.  The VM
+        must produce the exact same output as real tclsh.
+        """
+        interp = TclInterp()
+        interp.eval(
+            "proc getInfoCmd {name} {\n"
+            '    append result "proc $name {[info args $name]} {"\n'
+            "    append result [info body $name]\n"
+            '    append result "}"\n'
+            "    return $result\n"
+            "}"
+        )
+        interp.eval("proc myTest {a b} { return [expr {$a + $b}] }")
+        result = interp.eval("getInfoCmd myTest")
+        # Tclsh output for this exact proc — captured from Tcl 8.6.
+        expected = "proc myTest {a b} { return [expr {$a + $b}] }"
+        assert result.value == expected, (
+            f"VM serialisation differs from tclsh.\n"
+            f"got:      {result.value!r}\n"
+            f"expected: {expected!r}"
+        )
+
 
 class TestNestedProcs:
     """Tests for procs calling other procs."""

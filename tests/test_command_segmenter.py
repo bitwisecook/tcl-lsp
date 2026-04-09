@@ -512,6 +512,34 @@ class TestE100StrayCloseBracketRecovery:
         cmd_names = [ci.name for ci in result.command_invocations]
         assert "set" in cmd_names
 
+    def test_e100_no_false_positive_on_quoted_close_bracket(self):
+        """A "]" string literal is a character, not an unmatched bracket."""
+        source = 'puts "]"\n'
+        result = analyse(source)
+        e100 = [d for d in result.diagnostics if d.code == "E100"]
+        assert len(e100) == 0
+
+    def test_e100_no_false_positive_on_close_bracket_in_quoted_string(self):
+        """ "foo ]" should not trigger E100."""
+        source = 'puts "foo ]"\n'
+        result = analyse(source)
+        e100 = [d for d in result.diagnostics if d.code == "E100"]
+        assert len(e100) == 0
+
+    def test_e100_no_false_positive_on_close_bracket_after_cmd_subst_in_quote(self):
+        """ "[cmd] ]" — trailing ']' after a CMD in the same quoted word."""
+        source = 'puts "[set x 1] ]"\n'
+        result = analyse(source)
+        e100 = [d for d in result.diagnostics if d.code == "E100"]
+        assert len(e100) == 0
+
+    def test_e100_still_fires_on_actual_stray_bracket(self):
+        """Genuine stray ']' must still produce E100."""
+        source = "set x foobar]\n"
+        result = analyse(source)
+        e100 = [d for d in result.diagnostics if d.code == "E100"]
+        assert len(e100) >= 1
+
 
 class TestE101MissingOpenBrace:
     """E101: detect missing '{' on switch and recover orphaned case commands."""
@@ -685,6 +713,41 @@ class TestE102StrayCloseBrace:
         # Applying the fix should remove the stray '}' line entirely.
         fixed = source[: fix.range.start.offset] + fix.new_text + source[fix.range.end.offset :]
         assert fixed == ("proc foo {} {\n    set x 1\n}\n")
+
+    def test_e102_no_false_positive_on_quoted_close_brace(self):
+        """A "}" string literal is a close brace character, not a stray brace."""
+        source = 'append result "}"\n'
+        result = analyse(source)
+        e102 = [d for d in result.diagnostics if d.code == "E102"]
+        assert len(e102) == 0
+
+    def test_e102_no_false_positive_on_quoted_close_brace_in_proc(self):
+        """String literals inside a proc body must not trigger E102."""
+        source = (
+            "proc getInfoCmd {name} {\n"
+            '    append result "proc $name {[info args $name]} {"\n'
+            "    append result [info body $name]\n"
+            '    append result "}"\n'
+            "    return $result\n"
+            "}\n"
+        )
+        result = analyse(source)
+        e102 = [d for d in result.diagnostics if d.code == "E102"]
+        assert len(e102) == 0
+
+    def test_e102_no_false_positive_on_close_brace_after_cmd_subst_in_quote(self):
+        """A "[cmd]}" ESC token carries no delimiter but is still in-quote."""
+        source = 'puts "[set x 1]}"\n'
+        result = analyse(source)
+        e102 = [d for d in result.diagnostics if d.code == "E102"]
+        assert len(e102) == 0
+
+    def test_e102_no_false_positive_on_close_brace_after_var_in_quote(self):
+        """A "$var}" tail should not trigger E102 when text is bare '}'."""
+        source = 'set x 1; puts "$x}"\n'
+        result = analyse(source)
+        e102 = [d for d in result.diagnostics if d.code == "E102"]
+        assert len(e102) == 0
 
 
 class TestE103MissingCloseBrace:

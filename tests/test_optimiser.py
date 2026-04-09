@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.analysis.analyser import analyse
+from core.analysis.semantic_model import Range
 from core.commands.registry.runtime import configure_signatures
 from core.compiler.optimiser import (
     demorgan_transform,
@@ -16,6 +17,8 @@ from core.compiler.optimiser import (
     invert_expression,
     optimise_source,
 )
+from core.compiler.optimiser._helpers import _full_command_range
+from core.parsing.tokens import SourcePosition
 
 
 class TestOptimiser:
@@ -496,6 +499,66 @@ class TestOptimiser:
         assert any(r.code == "O110" for r in rewrites)
         o110 = [r for r in rewrites if r.code == "O110"][0]
         assert o110.replacement == "{$x}"
+
+
+class TestFullCommandRange:
+    """Regression for bitwisecook/tcl-lsp#130: `_full_command_range` must
+    not truncate a command early when a quoted ``"}"`` argument appears.
+
+    The helper iterates tokens via ``lexer.get_token()`` and previously
+    treated **any** ESC token with ``text == "}"`` as a body-closing brace.
+    That broke commands like ``append result "}"`` because the quoted
+    close-brace literal looks identical to a stray brace at the text level.
+    """
+
+    def test_quoted_close_brace_does_not_truncate_command(self):
+        source = 'append result "}"\n'
+        start = SourcePosition(line=0, character=0, offset=0)
+        end = SourcePosition(line=0, character=5, offset=5)
+        r = _full_command_range(source, Range(start=start, end=end))
+        assert r is not None
+        assert source[r.start.offset : r.end.offset + 1] == 'append result "}"'
+
+    def test_quoted_close_bracket_does_not_truncate_command(self):
+        # Mirror case: a quoted "]" should also be preserved.
+        source = 'puts "]"\n'
+        start = SourcePosition(line=0, character=0, offset=0)
+        end = SourcePosition(line=0, character=3, offset=3)
+        r = _full_command_range(source, Range(start=start, end=end))
+        assert r is not None
+        assert source[r.start.offset : r.end.offset + 1] == 'puts "]"'
+
+    def test_quoted_close_brace_in_multiline_proc_body(self):
+        # Full user reproducer from the issue report.
+        source = (
+            "proc getInfoCmd {name} {\n"
+            '    append result "proc $name {[info args $name]} {"\n'
+            "    append result [info body $name]\n"
+            '    append result "}"\n'
+            "    return $result\n"
+            "}\n"
+        )
+        # Point at the third append — after `    append result ` on line 4.
+        # Line offsets: line 0 len 24, line 1 len 50, line 2 len 36, line 3 start 112.
+        line3_start = source.find('    append result "}"')
+        assert line3_start > 0
+        # Start of the command word 'append'.
+        cmd_start = line3_start + 4
+        start = SourcePosition(line=3, character=4, offset=cmd_start)
+        end = SourcePosition(line=3, character=9, offset=cmd_start + 5)
+        r = _full_command_range(source, Range(start=start, end=end))
+        assert r is not None
+        assert source[r.start.offset : r.end.offset + 1] == 'append result "}"'
+
+    def test_stray_close_brace_still_terminates_range(self):
+        # Regression guard: an actual stray '}' must still terminate.
+        source = "set x 1\n}\nset y 2\n"
+        start = SourcePosition(line=0, character=0, offset=0)
+        end = SourcePosition(line=0, character=2, offset=2)
+        r = _full_command_range(source, Range(start=start, end=end))
+        assert r is not None
+        # Must end at 'set x 1', not include the stray '}'.
+        assert source[r.start.offset : r.end.offset + 1] == "set x 1"
 
 
 class TestUnusedVariableElimination:
