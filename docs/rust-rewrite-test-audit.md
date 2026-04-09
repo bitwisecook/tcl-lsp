@@ -357,3 +357,77 @@ so the check that `[` is accepted survives into the chunk log.
 - **bridge-only**: 15 pytest tests (the new `test_brackets_are_no_longer_deferred` regression guard)
 - **remove-at-end**: 2 pytest tests
 - **deferred**: ~50 pytest tests (shrunk from ~60 as command-substitution tests became eligible for the harness)
+
+## L6 — Braced strings (`rust/tcl-lexer/src/lexer.rs::parse_brace`)
+
+Fourth Rust lexer chunk. Removes `{` and `}` from the deferred
+set and implements Tcl's brace-quoted strings with Python-parity
+nesting rules. Adds `Lexer::is_newword()` — a mirror of Python
+`_parse_string`'s `newword` predicate based on `last_kind` —
+because a `{` at a word boundary starts a braced string but a
+`{` in the middle of a bare word is a regular character.
+
+### Dynamic harness harvest
+
+Between L5 and L6, the differential harness gained a
+`_harvest_lexer_inputs()` helper that scans every pytest test
+file for ASCII string literals and filters by `_rust_supports`.
+As L6 removes braces from the deferred set, the corpus grows
+automatically with every brace-using test literal.
+
+- Pre-L6: ~1011 harvested inputs (L3-L5 supported subset).
+- Post-L6: ~1210 harvested inputs (+~200 brace-using literals).
+- Per-chunk harvest growth will continue as L7-L9 land.
+
+The `_is_known_drift` rule-based filter replaces the earlier
+exact-match `_KNOWN_PARITY_DRIFT` set and catches two classes of
+drift automatically: (a) inputs ending with `{`, `[`, or `${`
+(past-EOF end-position clamp), and (b) inputs containing `{*}`
+(L8 expansion prefix). Both shrink as later chunks land.
+
+### Pytest tests — `tests/test_lexer.py::TestBasicTokens` / `TestTclConstructs`
+
+| Test | Category | Rust equivalent |
+|---|---|---|
+| `TestBasicTokens::test_braces` (`{hello world}`) | Ported | `braced_simple_body` + dynamic harvest |
+| `TestBasicTokens::test_nested_braces` (`{a {b c} d}`) | Ported | `braced_nested_once` + dynamic harvest |
+| `TestPositions::test_multiline_braced_string` (`{line1\nline2}`) | Ported | `braced_multiline_body` + dynamic harvest |
+| `TestTclConstructs::test_if_else`, `test_while_loop`, `test_proc_definition`, `test_foreach`, `test_switch`, `test_namespace_eval` | Ported via harvester | Every one of these fixtures is now eligible for the dynamic corpus; the harness runs byte-perfect parity on them automatically. |
+
+### Pytest tests — `tests/test_rust_lexer_differential.py`
+
+| Change | Notes |
+|---|---|
+| `_is_known_drift` helper | Replaces the hand-maintained `_KNOWN_PARITY_DRIFT` set with a rule-based filter. |
+| `TestHarnessItself::_EXPECTED_DEFERRED` | Updated to `"\\` (no more `{}`). |
+| `TestHarnessItself::test_braces_are_no_longer_deferred` | **New**: regression guard ensuring `{body}`, `proc foo {a b} {return $a}`, `foo}bar`, and `foo{not-a-brace}baz` all pass the filter. |
+| Curated corpus grew from 102 to 127 cases | Added 25 L6 inputs: simple, multiline, nested, backslash-pair escapes, literals inside braces, mid-word `{` / `}`, braced-then-braced, empty, and realistic proc/if/while/foreach shapes. |
+
+### Rust unit tests — `rust/tcl-lexer/src/lexer.rs`
+
+21 new tests in a dedicated `L6 — braced strings` section:
+
+    braced_simple_body, braced_empty_body, braced_nested_once,
+    braced_deeply_nested, braced_after_word,
+    braced_midword_is_regular_character,
+    close_brace_midword_is_regular_character,
+    braced_multiline_body, braced_with_dollar_is_literal,
+    braced_with_brackets_is_literal,
+    braced_with_backslash_is_literal_pair,
+    braced_with_backslash_close_brace_is_inert,
+    braced_with_backslash_open_brace_is_inert,
+    braced_followed_by_word, braced_then_braced,
+    braced_unterminated_tokenises_best_effort,
+    braced_at_command_start, braced_inside_command_substitution,
+    braced_span_positions, braced_resets_at_command_start,
+    braced_preserves_newword_for_next_token
+
+Plus `brace_is_no_longer_an_unsupported_character` replacing the
+pre-L6 error regression test.
+
+### Category totals after L6
+
+- **ported**: ~35 pytest + 115 Rust unit tests + ~1210 differential cases (dynamic harvest ballooned as `{…}` became eligible)
+- **bridge-only**: 16 pytest tests (new `test_braces_are_no_longer_deferred` regression guard)
+- **remove-at-end**: 2 pytest tests
+- **deferred**: ~40 pytest tests — mostly backslash-heavy tests (L9), quoted-string tests (L7), iRules dialect tests (L8)
