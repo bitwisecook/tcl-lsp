@@ -1,9 +1,12 @@
 //! Position-aware lexer for Tcl, iRules, and related dialects.
 //!
-//! This crate is intentionally empty in the initial workspace bootstrap
-//! (chunk **L0** of the Python-to-Rust migration). Subsequent chunks will
-//! populate it with `Token`, `TokenType`, `SourcePosition`, a `LexerConfig`,
-//! and a streaming `Lexer` iterator.
+//! This crate is populated chunk-by-chunk as the Python-to-Rust migration
+//! progresses. Currently exported:
+//!
+//! - [`backslash_subst`] — Tcl backslash escape processing (chunk **L1**).
+//!
+//! Upcoming chunks will add `Token`, `TokenType`, `SourcePosition`, a
+//! `LexerConfig`, and a streaming `Lexer` iterator.
 //!
 //! The crate has no `pyo3` dependency and no Python-compat concerns — those
 //! belong in the `tcl-lsp-rust` binding crate. See
@@ -11,6 +14,10 @@
 //! migration strategy.
 
 #![deny(missing_docs)]
+
+mod substitution;
+
+pub use substitution::backslash_subst;
 
 /// Crate version string, useful for migration diagnostics.
 ///
