@@ -286,14 +286,17 @@ list and should add any new ones it discovers.
   both lexers and the `LineIndex` lookup; do it before any LSP
   handler that cares (probably alongside the semantic-tokens or
   hover chunk).
-- **Rust lexer does not yet handle**: variable substitution (`$` —
-  L4), command substitution (`[` — L5), braced strings (`{` — L6),
-  quoted strings (`"` — L7), expansion prefix (`{*}` — L8), backslash
-  escapes and line continuation (`\` — L9), dialect flags
-  (`strict_quoting`, `expand_syntax`, `irules_brace_separator` — L8),
-  warning collection (L9), ghost character insertion for error
-  recovery (L9), `base_offset` / `base_line` / `base_col` for
-  sub-lexing (L5 when command substitution gains nested lexing).
+- **Rust lexer does not yet handle**: ~~variable substitution~~
+  (L4, landed), ~~command substitution~~ (L5, landed — the current
+  impl scans `[…]` without re-lexing the body; sub-lexing with
+  `base_offset` / `base_line` / `base_col` is deferred until the
+  first consumer needs a positional token stream for the inner
+  command), braced strings (`{` — L6), quoted strings (`"` — L7),
+  expansion prefix (`{*}` — L8), backslash escapes and line
+  continuation (`\` — L9), dialect flags (`strict_quoting`,
+  `expand_syntax`, `irules_brace_separator` — L8), warning
+  collection (L9), ghost character insertion for error recovery
+  (L9).
 - **Ghost tokens and ghost character insertions for error recovery.**
   The Python lexer refers to these as "synthetic" tokens and
   "virtual" character insertions; we call them **ghost** tokens and
@@ -563,7 +566,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L2    | `core/parsing/tokens.py` → `rust/tcl-lexer/src/tokens.rs` (`TokenType`, `SourcePosition`, `Token<'src>`) plus PyO3 wrappers preserving singleton/identity semantics; new `tests/test_tokens.py` contract test | landed |
 | L3    | Rust `Lexer` skeleton (EOF/SEP/EOL/COMMENT/plain ESC) + span-first architecture (`Span`, `LineIndex`, `SourceMap`) + differential test harness + committed library choices (`ropey`, `tower-lsp`, `thiserror`/`anyhow`, `clap`, `tracing`) | landed |
 | L4    | Variable substitution in the Rust lexer (`$name`, `${name}`, `$arr(idx)`, `$ns::var`, bare `$`) + `SourceMap::token_text` for Python-parity text extraction + try/catch-based differential harness filter | landed |
-| L5    | Command substitution in the Rust lexer | planned |
+| L5    | Command substitution in the Rust lexer (`[…]` with bracket nesting, brace/quote aware, embedded `${…}` sub-scan, backslash-pair escapes) + per-kind content stripping in `SourceMap::token_text` | landed |
 | L6    | Brace strings in the Rust lexer | planned |
 | L7    | Quoted strings in the Rust lexer | planned |
 | L8    | `EXPAND` / dialect flags reshaped into `LexerConfig` | planned |
