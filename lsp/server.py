@@ -72,6 +72,7 @@ from .features.formatting import get_formatting, get_range_formatting
 from .features.hover import get_hover
 from .features.implementation import get_implementations
 from .features.inlay_hints import get_inlay_hints
+from .features.linked_editing_range import get_linked_editing_ranges
 from .features.package_suggestions import rank_package_suggestions
 from .features.references import get_references
 from .features.rename import get_rename_edits, prepare_rename
@@ -1259,6 +1260,29 @@ def on_selection_range(
     analysis = state.analysis if state else None
     return get_selection_ranges(
         source, list(params.positions), analysis=analysis, lines=state.lines if state else None
+    )
+
+
+# Linked editing range
+
+
+@server.feature(types.TEXT_DOCUMENT_LINKED_EDITING_RANGE)
+def on_linked_editing_range(
+    params: types.LinkedEditingRangeParams,
+) -> types.LinkedEditingRanges | None:
+    if not feature_config.linked_editing_range_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    if state is not None and state.analysis is None:
+        return None
+    source = _get_doc_source(uri)
+    analysis = state.analysis if state else None
+    return get_linked_editing_ranges(
+        source,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
     )
 
 
