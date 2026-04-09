@@ -138,6 +138,53 @@ class TestMinifyPreservation:
         assert "string" in result
         assert "length" in result
 
+    def test_quoted_close_brace_preserved_issue_130(self):
+        """Regression for bitwisecook/tcl-lsp#130.
+
+        The minifier previously crashed or corrupted commands like
+        ``append result "}"`` because the E102 / full-command-range
+        heuristics mistook the quoted ``}`` for a stray brace.  The
+        close-brace literal must survive minification (keeping the
+        quotes here because a bare ``}`` would close the enclosing
+        word / script).
+        """
+        result = minify_tcl('append result "}"\n')
+        assert '"}"' in result
+
+    def test_quoted_close_bracket_round_trips_via_tclsh_semantics(self):
+        """Mirror: the minifier may strip quotes from ``"]"`` because a
+        bare ``]`` outside a command substitution is a literal character
+        in Tcl — but the minified command must still mean exactly the
+        same thing.  We assert the minified form is one of the two
+        semantically-equivalent shapes.
+        """
+        result = minify_tcl('puts "]"\n')
+        assert result in ('puts "]"', "puts ]")
+
+    def test_mid_quote_brace_preserved(self):
+        """Braces mid-quote are literal and must be preserved."""
+        result = minify_tcl('set x "a}b"\n')
+        assert '"a}b"' in result
+
+    def test_issue_130_full_proc_minifies_without_corruption(self):
+        """The full proc from issue #130 minifies without dropping the
+        ``"}"`` literal (which would turn ``append result "}"`` into
+        ``append result`` and change the resulting string).
+        """
+        source = (
+            "proc getInfoCmd {name} {\n"
+            '    append result "proc $name {[info args $name]} {"\n'
+            "    append result [info body $name]\n"
+            '    append result "}"\n'
+            "    return $result\n"
+            "}\n"
+        )
+        result = minify_tcl(source)
+        # The outer proc body is re-emitted as a single braced script.
+        # The ``append result "}"`` line must be present in some form
+        # that still appends the literal ``}`` character.
+        assert 'append result "}"' in result or "append result }" in result
+
 
 class TestMinifyRealWorld:
     """Realistic Tcl code patterns."""

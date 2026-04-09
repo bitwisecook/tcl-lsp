@@ -15,6 +15,7 @@ from ...common.naming import (
 )
 from ...parsing.command_shapes import extract_single_expr_argument
 from ...parsing.lexer import TclLexer
+from ...parsing.token_positions import token_content_shift
 from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..core_analyses import LatticeKind, LatticeValue
 from ..interprocedural import InterproceduralAnalysis
@@ -202,6 +203,7 @@ def _full_command_range(source: str, command_range: Range) -> Range | None:
 
     saw_word = False
     end_offset = start
+    prev_in_quote = False
 
     while True:
         tok = lexer.get_token()
@@ -213,20 +215,31 @@ def _full_command_range(source: str, command_range: Range) -> Range | None:
         if tok.type is TokenType.COMMENT:
             continue
         if tok.type is TokenType.SEP:
+            prev_in_quote = False
             continue
         if tok.type is TokenType.EOL:
             if not saw_word:
+                prev_in_quote = False
                 continue
             end_offset = tok.start.offset - 1
             break
         # A standalone "}" is a body-closing brace, not a command word.
-        if tok.text == "}":
+        # A "}" inside a double-quoted string (e.g. `append result "}"`) is
+        # just a string argument — it has shift>0 (leading quote delimiter)
+        # or follows a token that is still inside a quoted word.
+        if (
+            tok.text == "}"
+            and tok.type is TokenType.ESC
+            and not prev_in_quote
+            and token_content_shift(tok) == 0
+        ):
             if not saw_word:
                 return None
             # End the command range before the closing brace.
             end_offset = tok.start.offset - 1
             break
         saw_word = True
+        prev_in_quote = tok.in_quote
 
     if end_offset < start:
         return None

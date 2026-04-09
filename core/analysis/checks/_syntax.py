@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ...common.codes import diag
+from ...parsing.token_positions import classify_quoted_contexts
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 from ._helpers import (
@@ -27,12 +28,22 @@ def check_unmatched_close_bracket(
     missing '[' (e.g. after a bad edit removed it).  When a known command
     name precedes the ']', a CodeFix is attached suggesting where to
     insert the missing '['.
+
+    A ']' inside a double-quoted string (e.g. ``puts "foo ]"``) is just a
+    literal character and must not trigger this diagnostic.  Quoted-context
+    detection is centralised in :func:`classify_quoted_contexts` —
+    see its docstring for the underlying lexer contract.
     """
     from ...parsing.tokens import SourcePosition
 
     diagnostics: list[Diagnostic] = []
+    in_quoted = classify_quoted_contexts(all_tokens)
     for tok_idx, tok in enumerate(all_tokens):
         if tok.type is not TokenType.ESC:
+            continue
+        # Skip ESC tokens that are part of a quoted word — a ']' inside
+        # a "..." string is a literal character, not an unmatched bracket.
+        if in_quoted[tok_idx]:
             continue
         # Find the first unescaped ']' in the token text.
         idx = -1
@@ -115,10 +126,15 @@ def check_unmatched_close_brace(
     A bare ``}`` outside of a brace-quoted string almost always indicates a
     missing ``{`` (e.g. a switch body that closed an enclosing scope).
     Attaches a CodeFix to remove the stray ``}`` line.
+
+    A ``}`` inside a double-quoted string (e.g. ``append result "}"``) is
+    just a string character and must not trigger this diagnostic — quoted
+    context is determined by :func:`classify_quoted_contexts`.
     """
     diagnostics: list[Diagnostic] = []
-    for tok in all_tokens:
-        if tok.type is TokenType.ESC and tok.text == "}":
+    in_quoted = classify_quoted_contexts(all_tokens)
+    for i, tok in enumerate(all_tokens):
+        if tok.type is TokenType.ESC and tok.text == "}" and not in_quoted[i]:
             fix = _stray_brace_fix(tok, source)
             diagnostics.append(
                 Diagnostic(

@@ -1091,6 +1091,87 @@ class TestE100StrayBracketRecovery:
         assert len(valid_tokens) == len(broken_tokens)
         assert [t["type"] for t in valid_tokens] == [t["type"] for t in broken_tokens]
 
+    def test_e100_no_recovery_on_quoted_close_bracket_issue_130(self):
+        """Regression for bitwisecook/tcl-lsp#130.
+
+        ``foo "bar]"`` is a valid call with a string literal ending in
+        ``]`` — the semantic-token provider must NOT invoke its stray-
+        bracket recovery and merge the literal into a virtual CMD.
+        """
+        source = 'puts "bar]"\n'
+        # Should produce tokens without raising; the "bar]" span must
+        # be classified as a string, not as a command substitution.
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        types = [t["type"] for t in tokens]
+        assert "string" in types
+
+    def test_issue_130_full_proc_tokenises_cleanly(self):
+        """The full proc from issue #130 produces semantic tokens without
+        crashing or misclassifying the ``"}"`` literal.
+        """
+        source = (
+            "proc getInfoCmd {name} {\n"
+            '    append result "proc $name {[info args $name]} {"\n'
+            "    append result [info body $name]\n"
+            '    append result "}"\n'
+            "    return $result\n"
+            "}\n"
+        )
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert tokens  # non-empty, no crash
+        # All three `append` occurrences must be classified as function.
+        function_texts = [
+            source.split("\n")[t["line"]][t["char"] : t["char"] + t["length"]]
+            for t in tokens
+            if t["type"] == "function"
+        ]
+        assert function_texts.count("append") == 3
+
+    def test_recovery_lookup_uses_identity_not_offset(self):
+        """Regression guard for PR #131 Copilot review feedback.
+
+        ``_recover_stray_close_bracket_in_flush`` used to key its
+        quoted-context lookup by ``tok.start.offset``, which collapses
+        when two tokens legitimately share an offset — notably the
+        zero-width synthetic SEP injected at the iRules ``}{`` word
+        boundary, which shares an offset with the next STR token.
+
+        Constructs the exact collision by hand, calls the recovery
+        helper on it, and verifies the helper does the right thing:
+        no stray ``]`` is present, so no virtual CMD should be
+        injected into argv.
+        """
+        from core.parsing.tokens import SourcePosition, Token, TokenType
+        from lsp.features.semantic_tokens import _recover_stray_close_bracket_in_flush
+
+        def pos(offset: int) -> SourcePosition:
+            return SourcePosition(line=0, character=offset, offset=offset)
+
+        # Model: when HTTP_REQUEST {set x 1}{set y 1}
+        # The iRules }{ boundary emits a zero-width SEP at offset 27
+        # sharing the same start.offset as the following STR.
+        all_tokens = [
+            Token(TokenType.ESC, "when", pos(0), pos(3)),
+            Token(TokenType.SEP, " ", pos(4), pos(4)),
+            Token(TokenType.ESC, "HTTP_REQUEST", pos(5), pos(16)),
+            Token(TokenType.SEP, " ", pos(17), pos(17)),
+            Token(TokenType.STR, "set x 1", pos(18), pos(25)),
+            # Zero-width synthetic SEP (collides with next token).
+            Token(TokenType.SEP, "", pos(27), pos(27)),
+            Token(TokenType.STR, "set y 1", pos(27), pos(34)),
+        ]
+        argv = [all_tokens[0], all_tokens[2], all_tokens[4], all_tokens[6]]
+        argv_texts = ["when", "HTTP_REQUEST", "set x 1", "set y 1"]
+        # Collision confirmed:
+        assert all_tokens[5].start.offset == all_tokens[6].start.offset == 27
+
+        before = list(argv)
+        _recover_stray_close_bracket_in_flush(
+            argv, argv_texts, all_tokens, source="", body_token=None
+        )
+        # No stray `]` in argv — helper must not inject a virtual CMD.
+        assert argv == before
+
 
 class TestE101MissingBraceRecovery:
     """E101: orphaned switch case semantic token recovery."""

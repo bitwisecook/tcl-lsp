@@ -2238,15 +2238,33 @@ def _recover_stray_close_bracket_in_flush(
     """Merge tokens around a stray ``]`` into a virtual CMD for recovery.
 
     Mirrors the analyser's ``_recover_stray_close_bracket`` so that the
-    semantic token provider sees the same argument structure.
+    semantic token provider sees the same argument structure.  A ``]``
+    inside a double-quoted string (e.g. ``foo "bar]"``) is a literal
+    character, not a stray bracket — quoted-context ESCs are skipped.
     """
+    from core.parsing.token_positions import classify_quoted_contexts
+
     base_off = (body_token.start.offset + 1) if body_token else 0
+
+    # Compute quoted-context flags on the full token stream, then look up
+    # each argv token by object identity.  We must NOT key the dict by
+    # ``tok.start.offset`` because multiple tokens can legitimately share
+    # the same start offset — notably the zero-width synthetic SEP
+    # injected at the iRules ``}{`` word boundary, which sits at the same
+    # offset as the following STR/ESC token.  Object identity is safe
+    # because ``argv`` and ``all_tokens_buf`` hold the same ``Token``
+    # instances (see the flush loop below).
+    in_quoted_by_id = {
+        id(tok): flag for tok, flag in zip(all_tokens_buf, classify_quoted_contexts(all_tokens_buf))
+    }
 
     # Step 1: Find an ESC token in argv containing ']' at its end.
     bracket_argv_idx = -1
     bracket_char_idx = -1
     for i, tok in enumerate(argv):
         if tok.type is not TokenType.ESC:
+            continue
+        if in_quoted_by_id.get(id(tok), False):
             continue
         idx = tok.text.find("]")
         if idx >= 0 and idx == len(tok.text) - 1:
