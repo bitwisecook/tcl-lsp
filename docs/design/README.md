@@ -20,6 +20,14 @@ rules for the KCS/documentation split live in
 - [code-importing-examples.md](code-importing-examples.md) — reference
   patterns for Tcl code importing (package require, sourcing).
 
+## Planning documents
+
+- [kcs-completeness-plan.md](kcs-completeness-plan.md) — the phased plan
+  to bring the knowledge base to 100% coverage of diagnostic,
+  warning, and optimisation codes, with compiler-pass tagging and
+  strong cross-linking between KCS pages, the glossary, and the
+  design docs. Tracks scope, naming, templates, and the quality bar.
+
 ## Compiler internals
 
 See [compiler/README.md](compiler/README.md) for the compiler design-doc

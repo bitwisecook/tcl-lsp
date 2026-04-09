@@ -24,13 +24,38 @@ DOCS = ROOT / "docs"
 
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 AUDIENCE_RE = re.compile(r"^>\s*\*\*Audience:\*\*", re.MULTILINE)
+FENCE_RE = re.compile(r"^(```|~~~)", re.MULTILINE)
+
+
+def _strip_fenced_code(text: str) -> str:
+    """Remove fenced code blocks from markdown so links inside code
+    examples are not validated. Both ``` and ~~~ fences are supported.
+    An unterminated fence at end of file is treated as extending to EOF.
+    """
+    out: list[str] = []
+    in_fence = False
+    fence_marker = ""
+    for line in text.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if not in_fence:
+            if stripped.startswith(("```", "~~~")):
+                in_fence = True
+                fence_marker = "```" if stripped.startswith("```") else "~~~"
+                continue
+            out.append(line)
+        else:
+            if stripped.startswith(fence_marker):
+                in_fence = False
+                fence_marker = ""
+            # drop the fenced line either way
+    return "".join(out)
 
 
 def _check_local_markdown_links() -> list[str]:
     files = list(DOCS.rglob("*.md")) + [ROOT / "CONTRIBUTING.md", ROOT / "AGENTS.md"]
     problems: list[str] = []
     for file_path in files:
-        text = file_path.read_text(encoding="utf-8")
+        text = _strip_fenced_code(file_path.read_text(encoding="utf-8"))
         for link in LINK_RE.findall(text):
             if link.startswith(("http://", "https://", "#", "mailto:")):
                 continue
@@ -44,7 +69,7 @@ def _check_local_markdown_links() -> list[str]:
 def _extract_link_targets(md_path: Path) -> set[str]:
     if not md_path.exists():
         return set()
-    text = md_path.read_text(encoding="utf-8")
+    text = _strip_fenced_code(md_path.read_text(encoding="utf-8"))
     return {target.split("#", 1)[0] for target in LINK_RE.findall(text)}
 
 
