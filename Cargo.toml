@@ -1,0 +1,51 @@
+# Workspace manifest for the Rust side of tcl-lsp.
+#
+# This is the first step of an incremental Python-to-Rust migration. See
+# `docs/kcs/kcs-rust-migration.md` for the chunking strategy and the
+# "binding layer owns Python compatibility" rule.
+#
+# Layout:
+#
+#   rust/tcl-lexer/     Pure Rust lexer crate (no pyo3 dependency).
+#                       Uses borrowed `&str`, `thiserror`, iterators, enums.
+#                       Reusable by any downstream Rust consumer.
+#
+#   rust/tcl-lsp-rust/  PyO3 binding crate. Owns all `#[pyclass]` wrappers,
+#                       PyErr translations, and Python-compat shims.
+#                       This is the only crate that knows about Python.
+#
+# `editors/zed/` is a pre-existing standalone cdylib targeting wasm32-wasip2;
+# it is intentionally excluded from this workspace so it continues to build
+# with its own resolver and lockfile.
+
+[workspace]
+resolver = "2"
+members = [
+    "rust/tcl-lexer",
+    "rust/tcl-lsp-rust",
+]
+exclude = [
+    "editors/zed",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/bitwisecook/tcl-lsp"
+authors = ["tcl-lsp contributors"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Not useful in this codebase:
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

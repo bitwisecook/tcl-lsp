@@ -45,8 +45,60 @@ jobs:
 
       - name: Type-check with ty
         run: uv run --extra dev ty check --exclude 'lsp/server.py' lsp core explorer tests scripts/tcl_test_client.py
+
+  # Lint/test the Rust workspace and build a PR-time wheel.
+  # See docs/kcs/kcs-rust-migration.md for the migration strategy.
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock', 'rust/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace --quiet
+
+      - name: Build tcl_lsp_rust wheel (linux x86_64)
+        run: uv run --with 'maturin>=1.7,<2.0' maturin build --release --manifest-path rust/tcl-lsp-rust/Cargo.toml --out target/wheels
+
+      - name: Upload tcl_lsp_rust wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: tcl-lsp-rust-wheel-linux-x86_64
+          path: target/wheels/tcl_lsp_rust-*.whl
+          retention-days: 7
+
   # Test: Python test suite
   test-py:
+    needs: [rust]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -65,6 +117,15 @@ jobs:
 
       - name: Sync Python environment
         run: uv sync --extra dev
+
+      - name: Download tcl_lsp_rust wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: tcl-lsp-rust-wheel-linux-x86_64
+          path: target/wheels
+
+      - name: Install tcl_lsp_rust wheel
+        run: uv pip install --reinstall target/wheels/tcl_lsp_rust-*.whl
 
       - name: Run Python tests
         run: >-
@@ -684,10 +745,81 @@ jobs:
           tag="${GITHUB_REF#refs/tags/}"
           gh release upload "$tag" build/tcl-lsp-zed-*.zip --clobber
 
+  # Build: multi-platform tcl_lsp_rust wheels (tagged releases only).
+  # The PR-time `rust` job above already builds a linux x86_64 wheel and
+  # exposes it as an artifact; this job extends coverage to every platform
+  # we ship to and attaches the wheels to the GitHub release so
+  # scripts/build_zipapp.py can fetch them at packaging time on older
+  # tagged releases.
+  build-rust-wheels-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release, rust]
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            wheel-suffix: linux-x86_64
+            manylinux: auto
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            wheel-suffix: linux-aarch64
+            manylinux: auto
+          - os: macos-13
+            target: x86_64-apple-darwin
+            wheel-suffix: macos-x86_64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            wheel-suffix: macos-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            wheel-suffix: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --manifest-path rust/tcl-lsp-rust/Cargo.toml --out target/wheels --target ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux || 'auto' }}
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tcl-lsp-rust-wheel-${{ matrix.wheel-suffix }}
+          path: target/wheels/tcl_lsp_rust-*.whl
+          retention-days: 30
+
+      - name: Upload wheel to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" target/wheels/tcl_lsp_rust-*.whl --clobber
+
   # Cleanup: delete workflow artifacts for all releases except the 3 most recent
   cleanup-old-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-vsix, build-zipapp-cli, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
+    needs: [build-vsix, build-zipapp-cli, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed, build-rust-wheels-release]
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -738,7 +870,7 @@ jobs:
   # Cleanup: delete all non-release artifacts (runs only during releases)
   cleanup-untagged-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-vsix, build-zipapp-cli, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
+    needs: [build-vsix, build-zipapp-cli, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed, build-rust-wheels-release]
     runs-on: ubuntu-latest
     permissions:
       actions: write
