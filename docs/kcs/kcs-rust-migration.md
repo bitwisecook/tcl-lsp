@@ -89,8 +89,8 @@ end-user behaviour, even temporarily.
 
 | Chunk | Scope | Status |
 |-------|-------|--------|
-| L0    | Rust workspace bootstrap (two crates, hello-world `tcl_lsp_rust`, CI, packaging plumbing) | in progress |
-| L1    | `core/parsing/substitution.py::backslash_subst` → Rust | planned |
+| L0    | Rust workspace bootstrap (two crates, hello-world `tcl_lsp_rust`, CI, packaging plumbing) | landed |
+| L1    | `core/parsing/substitution.py::backslash_subst` → `rust/tcl-lexer/src/substitution.rs` with PyO3 bridge and Python fallback | landed |
 | L2    | `core/parsing/tokens.py` → Rust enum/struct + PyO3 wrappers | planned |
 | L3+   | Rust `Lexer` skeleton and incremental feature porting | planned |
 
