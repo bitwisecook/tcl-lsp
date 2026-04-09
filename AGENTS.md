@@ -146,9 +146,10 @@ type:
    consider whether it should be a design doc.
 10. **Name the file after the question, not the implementation.** Use
     `kcs-issue-lsp-features-are-missing.md`, not
-    `kcs-issue-vscode-lsp-startup-logs.md`. Functionality notes are the
-    exception and are named after the feature
-    (`kcs-feature-rename.md`).
+    `kcs-issue-vscode-lsp-startup-logs.md`. Functionality, diagnostic,
+    and optimisation notes are named around their stable identifier:
+    `kcs-feature-rename.md`, `kcs-diagnostic-w210-variable-read-before-set.md`,
+    `kcs-optimisation-o105-constant-var-ref-propagation.md`.
 11. **Functionality notes must include at least one concrete example**
     — a before/after code block for a transform, a code pointer
     showing where a diagnostic or hover appears, or a screenshot of a
@@ -158,11 +159,22 @@ type:
     header, as a comma-separated plain-text list (not bullets):
     `VS Code, Zed, JetBrains, Neovim, tcl-lsp CLI`. Use `all-editors`
     when the note runs everywhere; the build script expands it to
-    the full LSP editor set. The canonical tag vocabulary (`vs-code`,
-    `zed`, `jetbrains`, `neovim`, `helix`, `emacs`, `sublime-text`,
-    `tcl-lsp-cli`, `mcp`, `claude-skill`, `copilot-chat`) lives in
-    [`core/help/kcs_db.py`](core/help/kcs_db.py) and is documented in
-    [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11).
+    the full LSP editor set. The canonical tag vocabulary covers
+    editors (`vs-code`, `zed`, `jetbrains`, `neovim`, `helix`,
+    `emacs`, `sublime-text`), tools (`tcl-lsp-cli`, `mcp`,
+    `claude-skill`, `copilot-chat`), content kinds (`diagnostic`,
+    `optimisation`, `warning`, `refactoring`, `analyser`,
+    `transform`), and compiler passes (`lexing`, `lowering`, `cfg`,
+    `ssa`, `sccp`, `liveness`, `type-infer`, `gvn`, `cse`, `dce`,
+    `licm`, `instcombine`, `ipa`, `memssa`, `dataflow`, `taint`,
+    `shimmer`, `tail-call`, `code-sinking`, `unused-procs`,
+    `side-effects`, `exec-intent`, `rendered-props`, `const-fold`,
+    `strength-reduce`, `codegen`). The vocabulary lives in
+    [`core/help/kcs_db.py`](core/help/kcs_db.py) and is documented
+    in [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11). Per-code
+    pages and compiler-internals feature pages must carry the
+    compiler-pass tag of the pass that produces the code or the
+    facts they consume.
 13. **If the answer differs per editor or tool, split it into
     sub-headings** under the answer section, in the same order as
     `## Applies to`. Do not bury per-editor differences in inline

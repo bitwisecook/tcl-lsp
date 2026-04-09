@@ -69,13 +69,48 @@ TAG_DISPLAY: dict[str, str] = {
     "qa": "Q&A",
     "howto": "How-to",
     "feature": "Feature",
-    # Content tags (what kind of thing the note documents).
     "diagnostic": "Diagnostic",
-    "warning": "Warning",
     "optimisation": "Optimisation",
+    # Content tags (what kind of thing the note documents).
+    # `diagnostic` and `optimisation` are both type tags (auto-derived
+    # from the filename) and content tags (hand-written in the Applies
+    # to line of Functionality notes). The same key is used for both;
+    # there is no conflict because they mean the same thing in both
+    # roles.
+    "warning": "Warning",
     "refactoring": "Refactoring",
     "analyser": "Analyser",
     "transform": "Transform",
+    # Compiler pass tags. Attach to a code page to say which pass
+    # produces the code, and to a feature page to say which passes
+    # the feature consumes. See docs/GLOSSARY.md for definitions and
+    # docs/design/compiler/ for the design docs each tag points at.
+    "lexing": "Lexing",
+    "lowering": "IR lowering",
+    "cfg": "CFG construction",
+    "ssa": "SSA construction",
+    "sccp": "SCCP",
+    "liveness": "Liveness",
+    "type-infer": "Type inference",
+    "gvn": "GVN",
+    "cse": "CSE",
+    "dce": "DCE",
+    "licm": "LICM",
+    "instcombine": "InstCombine",
+    "ipa": "IPA",
+    "memssa": "Memory-SSA",
+    "dataflow": "Data-flow",
+    "taint": "Taint",
+    "shimmer": "Shimmer",
+    "tail-call": "Tail-call",
+    "code-sinking": "Code sinking",
+    "unused-procs": "Unused procs",
+    "side-effects": "Side-effects",
+    "exec-intent": "Execution intent",
+    "rendered-props": "Rendered properties",
+    "const-fold": "Constant folding",
+    "strength-reduce": "Strength reduction",
+    "codegen": "Codegen",
 }
 
 

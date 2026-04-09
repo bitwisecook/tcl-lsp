@@ -192,7 +192,16 @@ The shape is:
 kcs-<type>-<short-question-in-plain-words>.md
 ```
 
-where `<type>` is `issue`, `qa`, `howto`, or `feature`.
+where `<type>` is one of:
+
+| Type prefix | Used for |
+|---|---|
+| `issue` | A user hits a problem and wants the fix. |
+| `qa` | A single question with a short, plain answer. |
+| `howto` | Task-oriented steps a user or contributor follows. |
+| `feature` | A command, feature, or tool (Functionality notes). |
+| `diagnostic` | A per-code page for an E/W/S/T/IRULE diagnostic. |
+| `optimisation` | A per-code page for an O-code optimiser rewrite. |
 
 **Bad**
 
@@ -203,6 +212,8 @@ where `<type>` is `issue`, `qa`, `howto`, or `feature`.
   internal class name. A user does not know it exists.
 - `kcs-howto-invoke-package-resolver.md` — `package resolver` is a
   module. The question is "how do I make tcl-lsp find my packages?".
+- `kcs-diagnostic-w210.md` — the code alone is not a plain-English
+  tail. A reader searching for "variable not used" will not find it.
 
 **Good**
 
@@ -210,11 +221,14 @@ where `<type>` is `issue`, `qa`, `howto`, or `feature`.
 - `kcs-issue-go-to-definition-jumps-to-wrong-line.md`
 - `kcs-howto-make-tcl-lsp-find-my-packages.md`
 - `kcs-qa-when-should-i-restart-the-server.md`
+- `kcs-diagnostic-w210-variable-read-before-set.md`
+- `kcs-optimisation-o105-constant-var-ref-propagation.md`
 
-Functionality notes are the one exception: they are named after the
-feature itself (`kcs-feature-rename.md`, `kcs-feature-optimiser.md`)
-because the question *is* "what does feature X do?" and the feature
-name is the subject the reader is looking for.
+Functionality, diagnostic, and optimisation notes are named around
+their stable identifier (the feature name or the code) because the
+reader searches for them by that identifier: "what does O105 do?",
+"why am I seeing W210?", "what is the rename feature?". The code or
+feature name is the subject; the tail describes it in plain English.
 
 ### 11. List the editors and tools the note applies to
 
@@ -274,9 +288,9 @@ optimisation").
 
 | Tag | What it means |
 |---|---|
-| `diagnostic` | An error-severity check (E-codes) |
-| `warning` | A warning or style check (W-codes, S-codes, T-codes) |
-| `optimisation` | A rewrite performed by the optimiser (O-codes) |
+| `diagnostic` | An error, warning, security, taint, or iRule check (E, W, S, T, IRULE families). Also used as a type tag on per-code pages. |
+| `warning` | A warning-severity check (subset of diagnostics) |
+| `optimisation` | A rewrite performed by the optimiser (O-codes). Also used as a type tag on per-code pages. |
 | `refactoring` | A manual code-action refactor the user triggers |
 | `analyser` | A read-only analysis surface (hover, references, call hierarchy) |
 | `transform` | A whole-document rewrite (format, minify, unminify) |
@@ -285,6 +299,49 @@ Add a content tag when the note is primarily about that kind of
 thing. A page that documents O105 gets `optimisation`; a page
 about call hierarchy gets `analyser`. Mixing tags is fine — the
 minifier gets both `transform` and `tcl-lsp-cli`.
+
+#### Compiler pass tags
+
+Every per-code page and every feature page that directly consumes
+compiler facts gets a compiler-pass tag in its `## Applies to` line,
+naming the pass that produces the code or the facts the feature
+reads. The tag is also the anchor the reader follows to the glossary
+entry for the pass, which in turn links to the compiler design doc.
+
+| Tag | What it means |
+|---|---|
+| `lexing` | Lexer and command segmenter (token stream, ranges) |
+| `lowering` | IR lowering — source tokens to typed IR statements |
+| `cfg` | Control-flow graph construction (basic blocks) |
+| `ssa` | SSA construction (phi placement, version numbering) |
+| `sccp` | Sparse conditional constant propagation |
+| `liveness` | Live-variable analysis |
+| `type-infer` | Type lattice inference over SSA |
+| `gvn` | Global value numbering (redundancy elimination) |
+| `cse` | Common subexpression elimination |
+| `dce` | Dead-code elimination (unreachable, transitive, stores) |
+| `licm` | Loop-invariant code motion |
+| `instcombine` | Expression canonicalisation and strength reduction |
+| `ipa` | Interprocedural analysis and `ProcSummary` |
+| `memssa` | Memory-SSA, alias sets, versioned memory operations |
+| `dataflow` | Def-use chains and the data-flow graph |
+| `taint` | Taint source/sink propagation and colours |
+| `shimmer` | Shimmer detection over the type lattice |
+| `tail-call` | Tail-call and tail-recursion rewrites (O121–O123) |
+| `code-sinking` | Assignment sinking into decision blocks (O125) |
+| `unused-procs` | Unused iRules proc removal (O124) |
+| `side-effects` | Structured side-effect classification |
+| `exec-intent` | Command-substitution execution-intent classification |
+| `rendered-props` | String content properties over SSA |
+| `const-fold` | Compile-time constant folding |
+| `strength-reduce` | Strength reduction (`x**2` → `x*x`) |
+| `codegen` | Bytecode codegen, local variable table, peephole |
+
+Every tag in this table matches a glossary entry in
+[`docs/GLOSSARY.md`](../GLOSSARY.md). The glossary entry links to the
+design doc under [`docs/design/compiler/`](../design/compiler/README.md).
+When you add a compiler pass, update all three in the same change:
+the `TAG_DISPLAY` dict, this table, and the glossary.
 
 #### Writing the Applies to line
 
