@@ -3,7 +3,7 @@
 //! **L3 skeleton.** First Rust lexer chunk. Handles the five simplest
 //! token kinds:
 //!
-//! - **EOF handling** — emits a trailing synthetic `EOL` (once) when the
+//! - **EOF handling** — emits a trailing ghost `EOL` (once) when the
 //!   source does not already end with an EOL token, matching the
 //!   Python lexer's `get_token()` / `tokenise_all()` contract.
 //! - **SEP** — runs of horizontal whitespace (`' '`, `\t`, `\r`, VT, FF).
@@ -62,7 +62,11 @@
 //! - L8: expansion prefix (`{*}`), `strict_quoting`, `expand_syntax`,
 //!   `irules_brace_separator`
 //! - L9: backslash escapes and line continuation; warning collection;
-//!   virtual character insertion for error recovery
+//!   ghost character insertion for error recovery. "Ghost" is our
+//!   term of art (chosen over "synthetic" / "virtual" to avoid
+//!   collisions with Rust vocabulary — `virtual` is a reserved
+//!   keyword) for tokens and characters that exist in the token
+//!   stream without corresponding bytes in the source buffer.
 //! - Later: sub-lexing support for nested constructs; UTF-16 column
 //!   parity; `LineIndex::from_rope_slice` adapter
 //!
@@ -126,7 +130,7 @@ pub struct Lexer<'src> {
     /// and after every EOL; preserved across SEP tokens.
     at_command_start: bool,
     /// Kind of the most recently emitted token. Used to decide whether
-    /// EOF needs a trailing synthetic EOL.
+    /// EOF needs a trailing ghost EOL.
     last_kind: TokenType,
     /// Once true, [`Iterator::next`] returns `None`.
     done: bool,
@@ -154,7 +158,7 @@ impl<'src> Lexer<'src> {
             pos: 0,
             at_command_start: true,
             // Start in "last kind was EOL" so an empty source produces
-            // zero tokens rather than a lone synthetic trailing EOL,
+            // zero tokens rather than a lone ghost trailing EOL,
             // matching `TclLexer.__init__` in Python.
             last_kind: TokenType::Eol,
             done: false,
@@ -295,7 +299,7 @@ impl Iterator for Lexer<'_> {
             return None;
         }
 
-        // EOF: emit a trailing synthetic EOL (once) then stop.
+        // EOF: emit a trailing ghost EOL (once) then stop.
         if self.pos as usize >= self.source().len() {
             if self.last_kind == TokenType::Eol {
                 self.done = true;
@@ -514,7 +518,7 @@ mod tests {
     }
 
     #[test]
-    fn trailing_whitespace_still_emits_synthetic_eol() {
+    fn trailing_whitespace_still_emits_ghost_eol() {
         let lexed = Lexed::run("foo  ");
         assert_eq!(
             lexed.kinds(),
@@ -614,7 +618,7 @@ mod tests {
         assert_eq!(lexed.tokens[0].span, Span::new(0, 3)); // "foo"
         assert_eq!(lexed.tokens[1].span, Span::new(3, 4)); // " "
         assert_eq!(lexed.tokens[2].span, Span::new(4, 7)); // "bar"
-        assert!(lexed.tokens[3].span.is_empty()); // synthetic EOL
+        assert!(lexed.tokens[3].span.is_empty()); // ghost EOL
     }
 
     #[test]

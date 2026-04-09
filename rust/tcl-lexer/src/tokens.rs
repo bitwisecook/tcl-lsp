@@ -290,8 +290,8 @@ mod tests {
     fn source_position_accepts_u32_max_values() {
         // A paranoid check that the struct's `u32` fields do not
         // narrow on any supported target. We don't expect real Tcl
-        // files to approach these values, but the type must not panic
-        // or overflow if something synthetic does.
+        // files to approach these values, but the type must not
+        // panic or overflow if a fabricated test fixture does.
         let pos = SourcePosition::new(u32::MAX, u32::MAX, u32::MAX);
         assert_eq!(pos.line, u32::MAX);
         assert_eq!(pos.character, u32::MAX);
@@ -356,10 +356,15 @@ mod tests {
     }
 
     #[test]
-    fn synthetic_eof_token_uses_empty_span() {
-        // EOF tokens have no source coverage — they use an empty span
-        // anchored at the EOF offset. The SourceMap resolves them to
-        // a zero-width range at the correct position.
+    fn ghost_eof_token_uses_empty_span() {
+        // EOF tokens have no source coverage — they are "ghost"
+        // tokens, anchored at the EOF offset via an empty span. The
+        // SourceMap resolves them to a zero-width range at the
+        // correct position. "Ghost" is our term of art for tokens
+        // (and, later, characters emitted during error recovery)
+        // that exist in the stream without backing source bytes —
+        // chosen over "synthetic" / "virtual" to avoid collisions
+        // with Rust vocabulary (`virtual` is a reserved keyword).
         use crate::{SourceMap, Span};
         let source = "foo";
         let map = SourceMap::new(source);
