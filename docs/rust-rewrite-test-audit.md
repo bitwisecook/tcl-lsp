@@ -124,3 +124,79 @@ Commit: `c7ab728` + this audit pass.
 | `token_text_lifetime_borrows_from_source` | Original; stays. |
 
 None of the Rust tests are flagged for removal.
+
+## L3 — Rust lexer skeleton (`rust/tcl-lexer/src/lexer.rs` + `line_index.rs`)
+
+First Rust lexer chunk. Handles EOF / SEP / EOL / COMMENT / plain ESC;
+every other construct trips `LexError::UnsupportedCharacter` so the
+differential harness can filter inputs cleanly.
+
+### Pytest tests — `tests/test_rust_lexer_differential.py` (new)
+
+| Test / group | Category | Notes |
+|---|---|---|
+| `test_curated_corpus_matches_python` (~47 cases) | **Ported** (as a differential harness) | Each parametrised case feeds one input through both lexers and asserts the flattened token tuples match. Becomes the regression gate for every future lexer chunk. |
+| `test_harvested_fixtures_match_python` (~20 cases) | **Ported** | Harvests simple string literals from the existing lexer suite; the set grows automatically as chunks L4–L9 remove filter triggers. |
+| `TestHarnessItself::test_deferred_inputs_are_filtered` | Bridge-only | Asserts the harness's skip-list matches the Rust lexer's actual `UnsupportedCharacter` set. Bridge-only because the Rust unit tests already cover each individual deferred character. |
+| `TestHarnessItself::test_non_ascii_is_filtered` | Bridge-only | Same — documents the multi-byte column workaround, not lexer behaviour. |
+| `TestHarnessItself::test_supported_input_passes_filter` | Bridge-only | Sanity check on the filter logic. |
+
+### Pytest tests — elsewhere
+
+| Test | Category | Notes |
+|---|---|---|
+| `tests/test_lexer.py` (~56 tests) | **Deferred** (most) | The majority exercise constructs the L3 lexer has not implemented yet. Individual classes will be re-classified chunk-by-chunk:<br>&nbsp;&nbsp;• `TestBasicTokens` — partially ported through the differential harness.<br>&nbsp;&nbsp;• `TestCommentBehavior` / `TestCommentSemicolon` — partially ported.<br>&nbsp;&nbsp;• `TestVariableSubst`, `TestCommandSubst`, `TestBracedString`, `TestQuotedString` — deferred to L4–L7.<br>&nbsp;&nbsp;• `TestBackslashNewlineMidWord`, `TestBackslashCRLFContinuation` — deferred to L9. |
+| `tests/test_tcl_parse.py`, `tests/test_tcl_parse_old.py`, `tests/test_upstream_parse.py` | **Deferred** | End-to-end Python lexer tests; rely on features not yet ported. Stay Python-only until the Rust lexer subsumes them. |
+| `tests/test_command_segmenter.py`, `tests/test_recovery.py`, `tests/test_parsing_helpers.py` | **Deferred** | Consume Token streams from the Python lexer. Will re-classify when their producer is Rust-backed. |
+
+### Rust unit tests — `rust/tcl-lexer/src/line_index.rs`
+
+| Test | Notes |
+|---|---|
+| `empty_source_has_one_line` | Original; stays. |
+| `single_line_no_newline` | Original; stays. |
+| `two_lines` | Original; stays. |
+| `many_lines` | Original; stays. |
+| `consecutive_newlines_yield_empty_lines` | Original; stays. |
+| `line_index_is_cloneable` | Original; stays. |
+
+### Rust unit tests — `rust/tcl-lexer/src/lexer.rs`
+
+| Test | Notes |
+|---|---|
+| `empty_source_produces_no_tokens` | Python parity. |
+| `single_word_emits_esc_and_trailing_eol` | Python parity. |
+| `two_words_separated_by_space` | Python parity. |
+| `multiple_spaces_collapse_into_one_sep_token` | Python parity. |
+| `tab_separator` | Python parity. |
+| `cr_is_separator_not_eol` | Pins the `\r ∈ _SEP_CHARS` Python detail. |
+| `lf_is_eol` | Python parity. |
+| `semicolon_is_eol` | Python parity. |
+| `mixed_eol_and_whitespace_becomes_single_eol_token` | Pins Python's `_parse_eol` behaviour. |
+| `leading_whitespace_before_word` | Python parity. |
+| `trailing_whitespace_still_emits_synthetic_eol` | Pins the `_at_command_start` preservation across SEP. |
+| `trailing_newline_does_not_add_second_eol` | Guards against double-emitting the synthetic EOL. |
+| `comment_at_command_start` | Python parity. |
+| `comment_terminated_by_newline` | Python parity; the `\n` is a separate EOL token. |
+| `comment_after_whitespace_at_command_start` | Pins SEP preserving `at_command_start`. |
+| `hash_not_at_command_start_is_part_of_word` | Pins `#` inside a word. |
+| `two_commands_separated_by_eol_both_allow_comments` | Pins EOL resetting `at_command_start`. |
+| `position_tracking_simple_word` | LineIndex-backed position. |
+| `position_tracking_across_newline` | LineIndex-backed multi-line position. |
+| `unsupported_character_dollar_errors` | Locks in the error surface until L4. |
+| `unsupported_character_brace_errors` | Locks in the error surface until L6. |
+| `unsupported_character_bracket_errors` | Locks in the error surface until L5. |
+| `unsupported_character_backslash_errors` | Locks in the error surface until L9. |
+| `unsupported_character_in_comment_errors` | Pins comment-scanner error for backslashes. |
+| `after_error_iterator_stops` | Fuses the iterator on fatal error. |
+| `shared_line_index_constructor` | Pins `Lexer::with_line_index` parity. |
+| `into_line_index_round_trip` | Pins the LineIndex extraction API. |
+
+None of the L3 Rust tests are flagged for removal.
+
+### Category totals after L3
+
+- **ported** (data behaviour has Rust coverage): 13 pytest + 49 Rust unit tests + 67 differential cases
+- **bridge-only** (Python-specific, stays in pytest forever): 13 pytest tests
+- **remove-at-end** (low-value, flagged inline): 2 pytest tests
+- **deferred** (covered by later chunks): ~75 pytest tests in `test_lexer.py` and friends

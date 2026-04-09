@@ -185,6 +185,30 @@ pub struct PyToken {
     in_quote: bool,
 }
 
+impl PyToken {
+    /// Rust-side constructor used by other binding modules (notably
+    /// `crate::lexer`) when lifting a pure-Rust `tcl_lexer::Token<'_>`
+    /// into a Python-visible `PyToken`. Separate from `#[new]` so the
+    /// signature stays Rust-friendly; the Python `__init__` is a thin
+    /// wrapper that delegates here.
+    #[must_use]
+    pub fn new_from_core(
+        kind: PyTokenType,
+        text: String,
+        start: PySourcePosition,
+        end: PySourcePosition,
+        in_quote: bool,
+    ) -> Self {
+        Self {
+            kind,
+            text,
+            start,
+            end,
+            in_quote,
+        }
+    }
+}
+
 #[pymethods]
 impl PyToken {
     #[new]

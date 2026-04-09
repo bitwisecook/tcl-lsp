@@ -13,11 +13,16 @@
 //!   `core/parsing/substitution.py::backslash_subst`.
 //! - `TokenType`, `SourcePosition`, `Token` — L2 port of the
 //!   `core/parsing/tokens.py` data types.
+//! - `lexer_tokenise(source)` — L3 port of the Tcl lexer skeleton
+//!   (EOF / SEP / EOL / COMMENT / plain ESC). Inputs containing
+//!   deferred constructs (`$ [ ] {} " \`) raise `ValueError` so the
+//!   differential harness can filter them.
 
 use std::borrow::Cow;
 
 use pyo3::prelude::*;
 
+mod lexer;
 mod tokens;
 
 /// Return the Rust-side greeting used by the smoke test.
@@ -58,6 +63,7 @@ fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hello_rust, m)?)?;
     m.add_function(wrap_pyfunction!(lexer_version, m)?)?;
     m.add_function(wrap_pyfunction!(backslash_subst, m)?)?;
+    m.add_function(wrap_pyfunction!(lexer::lexer_tokenise, m)?)?;
     tokens::register_with(m)?;
     Ok(())
 }
