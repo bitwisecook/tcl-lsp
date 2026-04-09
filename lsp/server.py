@@ -1925,13 +1925,7 @@ def on_range_formatting(
 # Format on save
 
 
-@server.feature(
-    types.TEXT_DOCUMENT_WILL_SAVE_WAIT_UNTIL,
-    types.TextDocumentSaveRegistrationOptions(
-        document_selector=_TCL_DOCUMENT_SELECTOR,
-        include_text=False,
-    ),
-)
+@server.feature(types.TEXT_DOCUMENT_WILL_SAVE_WAIT_UNTIL)
 def on_will_save_wait_until(
     params: types.WillSaveTextDocumentParams,
 ) -> list[types.TextEdit] | None:
