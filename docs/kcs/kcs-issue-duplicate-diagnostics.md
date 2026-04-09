@@ -1,5 +1,12 @@
 # KCS: Troubleshooting duplicate diagnostics across passes
 
+> **Audience:** Contributor
+> **Type:** Issue
+
+## Applies to
+
+all-editors
+
 ## Symptom
 
 Users see near-identical diagnostics (same location or semantic issue) emitted under multiple code families.

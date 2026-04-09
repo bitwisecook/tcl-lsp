@@ -4,9 +4,9 @@
 
 VS Code Copilot Chat participant for creating, explaining, fixing, reviewing, and transforming F5 BIG-IP iRules.
 
-## Surface
+## Applies to
 
-vscode-chat
+Copilot Chat
 
 ## Availability
 

@@ -4,9 +4,9 @@
 
 View incoming and outgoing calls for a proc.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, analyser
 
 ## How to use
 
@@ -30,6 +30,27 @@ The call hierarchy provider traces call relationships between procs, showing whi
 ## Test anchors
 
 - `tests/test_call_hierarchy.py`
+
+## Example
+
+Given this Tcl source:
+
+```tcl
+proc greet {name} {
+    puts "Hello, [format_name $name]"
+}
+
+proc format_name {name} {
+    return [string totitle $name]
+}
+
+greet "world"
+```
+
+Placing the cursor on `format_name` and running **Show Call
+Hierarchy** opens a tree view where the **Incoming calls** pane
+lists `greet` and the **Outgoing calls** pane lists `string` —
+click either one to jump to its definition.
 
 ## Discoverability
 

@@ -3,6 +3,10 @@
 > **Audience:** User
 > **Type:** Q&A
 
+## Applies to
+
+all-editors
+
 ## Question
 
 When do I need to restart the Tcl Language Server?
@@ -21,7 +25,7 @@ There are three situations where a restart is the right thing to do:
    `Connection to server got closed. Server will restart.` line in the
    **Tcl Language Server** output channel, or features like **Go to
    Definition** stop responding. See
-   [The Tcl Language Server does not seem to be running in VS Code](kcs-issue-vscode-lsp-startup-logs.md)
+   [LSP features are missing in VS Code](kcs-issue-lsp-features-are-missing.md)
    for how to read the startup log.
 2. **You changed a tcl-lsp setting that is read only at startup.** A few
    settings — the Python interpreter path, the server path, and the log
@@ -46,5 +50,5 @@ the output channel log attached rather than restarting silently.
 
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
-- [The Tcl Language Server does not seem to be running in VS Code](kcs-issue-vscode-lsp-startup-logs.md)
+- [LSP features are missing in VS Code](kcs-issue-lsp-features-are-missing.md)
 - [VS Code extension contracts](../design/contracts/vscode-extension.md)

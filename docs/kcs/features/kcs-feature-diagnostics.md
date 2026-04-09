@@ -4,9 +4,9 @@
 
 Errors, warnings, security, taint tracking, and style checks shown as you type.
 
-## Surface
+## Applies to
 
-lsp, mcp, claude-code, all-editors
+all-editors, MCP, Claude skill, diagnostic, warning
 
 ## How to use
 

@@ -4,9 +4,9 @@
 
 Parameter hints for commands and procs as you type arguments.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 

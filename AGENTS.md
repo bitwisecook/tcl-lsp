@@ -144,6 +144,29 @@ type:
    signatures. Link to the relevant design doc instead.
 9. Keep notes **short** — aim for one screen. If longer is required,
    consider whether it should be a design doc.
+10. **Name the file after the question, not the implementation.** Use
+    `kcs-issue-lsp-features-are-missing.md`, not
+    `kcs-issue-vscode-lsp-startup-logs.md`. Functionality notes are the
+    exception and are named after the feature
+    (`kcs-feature-rename.md`).
+11. **Functionality notes must include at least one concrete example**
+    — a before/after code block for a transform, a code pointer
+    showing where a diagnostic or hover appears, or a screenshot of a
+    visual panel.
+12. **Every note lists the editors and tools it applies to**, in an
+    `## Applies to` section immediately after the audience/type
+    header, as a comma-separated plain-text list (not bullets):
+    `VS Code, Zed, JetBrains, Neovim, tcl-lsp CLI`. Use `all-editors`
+    when the note runs everywhere; the build script expands it to
+    the full LSP editor set. The canonical tag vocabulary (`vs-code`,
+    `zed`, `jetbrains`, `neovim`, `helix`, `emacs`, `sublime-text`,
+    `tcl-lsp-cli`, `mcp`, `claude-skill`, `copilot-chat`) lives in
+    [`core/help/kcs_db.py`](core/help/kcs_db.py) and is documented in
+    [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11).
+13. **If the answer differs per editor or tool, split it into
+    sub-headings** under the answer section, in the same order as
+    `## Applies to`. Do not bury per-editor differences in inline
+    asides.
 
 For the full style guide with worked examples, see
 [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md).
@@ -164,7 +187,7 @@ link or define locally.
 
 | Content kind | Folder | Example |
 |---|---|---|
-| User/contributor answer to one question | `docs/kcs/` | `kcs-issue-vscode-lsp-startup-logs.md` |
+| User/contributor answer to one question | `docs/kcs/` | `kcs-issue-lsp-features-are-missing.md` |
 | Feature, command, or tool description | `docs/kcs/features/` | `kcs-feature-rename.md` |
 | KCS style guide and templates | `docs/kcs/STYLE.md`, `docs/kcs/templates/` | — |
 | Architecture and pipeline walkthroughs | `docs/design/` | `compiler-architecture.md` |

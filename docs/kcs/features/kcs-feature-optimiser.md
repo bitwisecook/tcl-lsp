@@ -4,9 +4,9 @@
 
 Finds optimisation opportunities in Tcl/iRules code and produces rewritten source.
 
-## Surface
+## Applies to
 
-lsp, vscode-command, vscode-chat, mcp, claude-code, all-editors
+all-editors, Copilot Chat, MCP, Claude skill, optimisation
 
 ## Availability
 

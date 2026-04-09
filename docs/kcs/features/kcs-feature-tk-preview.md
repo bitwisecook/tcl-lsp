@@ -4,9 +4,9 @@
 
 Live preview pane for Tk GUI applications that updates as you edit.
 
-## Surface
+## Applies to
 
-vscode-command, vscode-chat, mcp
+VS Code, Copilot Chat, MCP
 
 ## Availability
 
@@ -41,6 +41,26 @@ The Tk preview extracts the widget hierarchy from source code and renders it in 
 ## Test anchors
 
 - `tests/test_tk_extract.py`
+
+## Example
+
+With this file open in the editor:
+
+```tcl
+package require Tk
+frame .main
+label .main.title -text "Welcome"
+entry .main.name
+button .main.ok -text "OK"
+pack .main.title .main.name .main.ok -side top
+pack .main
+```
+
+Running **Tcl: Open Tk Preview** opens a side panel rendering a
+frame with a "Welcome" label, an empty entry box, and an "OK"
+button stacked vertically. Edits to the file refresh the panel
+live — for example, changing `-text "Welcome"` to `-text "Hello"`
+updates the rendered label without reloading.
 
 ## Discoverability
 

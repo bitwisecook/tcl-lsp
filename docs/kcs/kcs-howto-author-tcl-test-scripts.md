@@ -1,5 +1,12 @@
 # KCS: Authoring Tcl scripts for examples and tests
 
+> **Audience:** Contributor
+> **Type:** How-To
+
+## Applies to
+
+all-editors
+
 ## Goal
 
 Produce small Tcl scripts that isolate one behaviour so failures are obvious.

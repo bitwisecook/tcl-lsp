@@ -4,9 +4,9 @@
 
 Context-aware completions for commands, subcommands, variables, switches, and procs.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, analyser
 
 ## How to use
 

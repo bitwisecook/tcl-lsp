@@ -1,5 +1,12 @@
 # KCS: Authoring screenshot samples
 
+> **Audience:** Contributor
+> **Type:** How-To
+
+## Applies to
+
+all-editors
+
 ## Goal
 
 Keep screenshot scene source files easy to edit without touching TypeScript, while giving deterministic cursor placement for captures.

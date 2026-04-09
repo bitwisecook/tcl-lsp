@@ -4,9 +4,9 @@
 
 Code folding for procs, namespaces, event handlers, and braced blocks.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 

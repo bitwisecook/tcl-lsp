@@ -1,5 +1,12 @@
 # KCS: Troubleshooting range drift across passes
 
+> **Audience:** Contributor
+> **Type:** Issue
+
+## Applies to
+
+all-editors
+
 ## Symptom
 
 A diagnostic code is correct in principle but highlights the wrong token/span, especially after transformations, concatenated words, or control-flow lowering.

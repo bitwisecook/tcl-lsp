@@ -4,9 +4,9 @@
 
 Generate a Tcl package skeleton with namespace, package provide, and test stubs.
 
-## Surface
+## Applies to
 
-vscode-command
+VS Code
 
 ## Availability
 
@@ -33,6 +33,34 @@ The scaffold creates a standard Tcl package layout with `pkgIndex.tcl`, a main s
 ## Test anchors
 
 - `editors/vscode/src/test/scaffold.test.ts`
+
+## Example
+
+Running **Tcl: Scaffold Tcl Package Starter** and entering the
+package name `greet` and version `1.0` creates this directory
+layout:
+
+```
+greet/
+├── pkgIndex.tcl
+├── greet.tcl
+└── tests/
+    └── greet.test
+```
+
+`greet.tcl` starts with a ready-to-edit namespace declaration:
+
+```tcl
+package provide greet 1.0
+
+namespace eval ::greet {
+    namespace export hello
+}
+
+proc ::greet::hello {name} {
+    return "Hello, $name"
+}
+```
 
 ## Discoverability
 

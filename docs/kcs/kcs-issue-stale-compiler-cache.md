@@ -1,5 +1,12 @@
 # KCS: Troubleshooting stale cache diagnostics
 
+> **Audience:** Contributor
+> **Type:** Issue
+
+## Applies to
+
+all-editors
+
 ## Symptom
 
 Diagnostics (or optimisation suggestions) appear to reference previous edits, incorrect source ranges, or old proc bodies after incremental changes.

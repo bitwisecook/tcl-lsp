@@ -4,9 +4,9 @@
 
 Search symbols across all open files in the workspace.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 
@@ -28,6 +28,19 @@ Searches the workspace index for procs, namespaces, and variables matching the q
 ## Test anchors
 
 - `tests/test_workspace_symbols.py`
+
+## Example
+
+In a workspace containing `lib/http.tcl` with:
+
+```tcl
+proc http_get {url} { ... }
+proc http_post {url body} { ... }
+```
+
+Pressing Ctrl+T and typing `http_` lists `http_get` and
+`http_post` — each entry shows the containing file and line
+number, and selecting one jumps straight to its definition.
 
 ## Discoverability
 

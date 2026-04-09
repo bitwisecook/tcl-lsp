@@ -4,9 +4,9 @@
 
 Configurable code formatting: indent size/style, brace style, line length, whitespace.
 
-## Surface
+## Applies to
 
-lsp, mcp, vscode-command, all-editors
+all-editors, MCP, transform
 
 ## How to use
 

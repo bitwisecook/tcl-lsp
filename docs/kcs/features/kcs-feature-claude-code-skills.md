@@ -4,9 +4,9 @@
 
 21 slash-command skills for Claude Code providing iRules, Tcl, and Tk development assistance.
 
-## Surface
+## Applies to
 
-claude-code
+Claude skill
 
 ## Availability
 
@@ -77,6 +77,26 @@ Skills invoke the `tcl_ai.py` CLI tool for analysis, then use AI to interpret re
 ## Test anchors
 
 - Manual testing via Claude Code sessions.
+
+## Example
+
+In a Claude Code session with the `/irule-create` skill:
+
+> `/irule-create an iRule that rewrites incoming /api requests to /v2/api`
+
+Claude returns a draft iRule, then loops through `/irule-validate`
+until all LSP diagnostics are clean:
+
+```tcl
+when HTTP_REQUEST {
+    if {[HTTP::uri] starts_with "/api"} {
+        HTTP::uri [string map {"/api" "/v2/api"} [HTTP::uri]]
+    }
+}
+```
+
+Follow-up commands such as `/irule-review` or `/irule-optimise`
+operate on the same draft without you having to copy it back.
 
 ## Discoverability
 

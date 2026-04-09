@@ -7,9 +7,9 @@
 
 Rename a proc or a variable consistently across the file.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, refactoring
 
 ## Question
 

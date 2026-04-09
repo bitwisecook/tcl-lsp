@@ -1,5 +1,12 @@
 # KCS: Contributor runbook (IR -> CFG -> SSA -> diagnostics)
 
+> **Audience:** Contributor
+> **Type:** How-To
+
+## Applies to
+
+all-editors
+
 ## Symptom
 
 A contributor needs to trace one Tcl sample through the compiler pipeline to understand where a regression is introduced.

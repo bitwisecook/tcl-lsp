@@ -4,9 +4,9 @@
 
 Switch between Tcl versions and iRules/iApps/BIG-IP/EDA dialects to get dialect-specific analysis.
 
-## Surface
+## Applies to
 
-vscode-command, mcp, all-editors
+MCP, all-editors
 
 ## Availability
 

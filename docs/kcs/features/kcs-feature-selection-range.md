@@ -4,9 +4,9 @@
 
 Smart expand/shrink selection by syntactic structure.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 
@@ -28,6 +28,22 @@ Selection ranges are computed from the AST, expanding from the innermost express
 ## Test anchors
 
 - `tests/test_selection_range.py`
+
+## Example
+
+With the caret placed on `$x` in:
+
+```tcl
+proc square {x} {
+    return [expr {$x * $x}]
+}
+```
+
+Pressing Shift+Alt+Right once selects `$x`, again expands to
+`$x * $x`, then to the braced expression `{$x * $x}`, then to the
+full `[expr {$x * $x}]` command substitution, then to the `return`
+command, then to the proc body, then to the whole `proc` command.
+Shift+Alt+Left shrinks back through the same levels.
 
 ## Discoverability
 

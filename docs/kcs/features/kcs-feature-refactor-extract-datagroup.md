@@ -4,9 +4,9 @@
 
 Extract hardcoded if/elseif chains or switch statements with literal values into F5 BIG-IP data-group lookups, with type-aware inference for IP/CIDR (IPv4 + IPv6), integer, and string values.
 
-## Surface
+## Applies to
 
-lsp, mcp, claude-code, all-editors
+all-editors, MCP, Claude skill, refactoring
 
 ## How to use
 

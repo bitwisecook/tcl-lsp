@@ -4,9 +4,9 @@
 
 Interactive web panel showing bytecode disassembly, AST, IR, and compiler passes.
 
-## Surface
+## Applies to
 
-vscode-command
+VS Code
 
 ## Availability
 

@@ -4,9 +4,9 @@
 
 Rich syntax highlighting for regex, format strings, binary specs, and clock formats with incremental delta delivery and per-chunk caching.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 

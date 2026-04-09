@@ -21,42 +21,29 @@ def sample_features_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
         """\
 # KCS: feature — Hover
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Command documentation and proc signatures on hover.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP
 
 ## How to use
 
-- **Editor**: Hover over any symbol.
-- **MCP**: `hover` tool.
+Hover over any symbol in your editor to see its documentation.
 
-## Operational context
+## Example
 
-The hover provider resolves the symbol under the cursor.
-
-## File-path anchors
-
-- `lsp/features/hover.py`
-
-## Failure modes
-
-- Missing hover after updates.
-
-## Test anchors
-
-- `tests/test_hover.py`
+Hovering over `string` in `set x [string length "abc"]` shows the
+`string` command signature and a link to the Tcl reference.
 
 ## Screenshots
 
 - `02-hover-proc` — hover showing proc signature
-
-## Discoverability
-
-- [KCS feature index](README.md)
 """,
         encoding="utf-8",
     )
@@ -65,17 +52,25 @@ The hover provider resolves the symbol under the cursor.
         """\
 # KCS: feature — Completions
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Command, variable, and switch completions.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors
 
 ## How to use
 
-- **Editor**: Type and press Ctrl+Space.
+Type part of a command and press Ctrl+Space to see completions.
+
+## Example
+
+Typing `str` in a `.tcl` file offers `string`, `strtrim`, and other
+completions drawn from the command registry.
 
 ## Screenshots
 
@@ -143,7 +138,7 @@ def test_build_creates_database(built_db: Path) -> None:
 
 def test_build_contains_features(built_db: Path) -> None:
     conn = sqlite3.connect(str(built_db))
-    rows = conn.execute("SELECT name, summary, surface, category FROM kcs_features").fetchall()
+    rows = conn.execute("SELECT name, summary, category FROM kcs_features").fetchall()
     conn.close()
 
     names = {r[0] for r in rows}
@@ -177,14 +172,52 @@ def test_build_fts_search(built_db: Path) -> None:
     assert any(r[0] == "Hover" for r in rows)
 
 
-def test_build_surface_category(built_db: Path) -> None:
+def test_build_applies_to_category(built_db: Path) -> None:
     conn = sqlite3.connect(str(built_db))
     rows = conn.execute("SELECT name, category FROM kcs_features").fetchall()
     conn.close()
 
     cats = {r[0]: r[1] for r in rows}
-    assert cats["Hover"] == "LSP + AI Features"  # has mcp
-    assert cats["Completions"] == "LSP Features (all editors)"  # no mcp
+    assert cats["Hover"] == "LSP + AI Features"  # includes MCP
+    assert cats["Completions"] == "LSP Features (all editors)"  # no AI surfaces
+
+
+def test_build_feature_tags_populated(built_db: Path) -> None:
+    conn = sqlite3.connect(str(built_db))
+    rows = conn.execute("SELECT file, tag FROM feature_tags ORDER BY file, tag").fetchall()
+    conn.close()
+
+    by_file: dict[str, set[str]] = {}
+    for file_, tag in rows:
+        by_file.setdefault(file_, set()).add(tag)
+
+    # all-editors expanded to the full LSP editor set; no literal 'all-editors'
+    # tag survives in the table
+    assert "all-editors" not in by_file["kcs-feature-hover.md"]
+    assert "vs-code" in by_file["kcs-feature-hover.md"]
+    assert "zed" in by_file["kcs-feature-hover.md"]
+    assert "neovim" in by_file["kcs-feature-hover.md"]
+    assert "mcp" in by_file["kcs-feature-hover.md"]
+    assert "mcp" not in by_file["kcs-feature-completions.md"]
+
+    # The KCS type tag (derived from the filename prefix) is stored
+    # alongside the editor/tool tags so callers can filter by note kind.
+    assert "feature" in by_file["kcs-feature-hover.md"]
+    assert "feature" in by_file["kcs-feature-completions.md"]
+
+
+def test_parse_applies_to_normalises_and_expands() -> None:
+    from core.help.kcs_db import parse_applies_to
+
+    # Plain text with spaces normalises to hyphenated tags.
+    assert parse_applies_to("VS Code, Zed") == {"vs-code", "zed"}
+
+    # The 'all editors' shorthand (with or without hyphen) expands to the
+    # full LSP editor set and does not appear as a literal tag.
+    expanded = parse_applies_to("all editors, MCP")
+    assert "all-editors" not in expanded
+    assert "mcp" in expanded
+    assert {"vs-code", "zed", "jetbrains", "neovim", "helix", "emacs", "sublime-text"} <= expanded
 
 
 # Runtime query API tests
@@ -230,9 +263,30 @@ def test_get_feature(kcs_db_connection: None) -> None:
     feat = get_feature("Hover")
     assert feat is not None
     assert feat["name"] == "Hover"
+    # applies_to is attached as a sorted list of normalised tags.
+    assert "vs-code" in feat["applies_to"]
+    assert "mcp" in feat["applies_to"]
+    assert "all-editors" not in feat["applies_to"]
     assert "screenshots" in feat
     assert feat["screenshots"][0]["ref_id"] == "02-hover-proc"
     assert feat["screenshots"][0]["has_image"] is True
+
+
+def test_features_with_tag(kcs_db_connection: None) -> None:
+    from core.help.kcs_db import features_with_tag
+
+    # Querying for an editor tag returns every feature that includes it.
+    results = features_with_tag("zed")
+    names = {r["name"] for r in results}
+    assert names == {"Hover", "Completions"}
+
+    # Querying for MCP returns only the feature that opted in explicitly.
+    mcp_results = features_with_tag("mcp")
+    assert {r["name"] for r in mcp_results} == {"Hover"}
+
+    # The shorthand "all editors" expands and returns everything LSP-wide.
+    all_results = features_with_tag("all-editors")
+    assert {r["name"] for r in all_results} == {"Hover", "Completions"}
 
 
 def test_get_feature_case_insensitive(kcs_db_connection: None) -> None:

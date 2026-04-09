@@ -6,9 +6,9 @@ Quick fixes for diagnostics and refactoring actions: brace expressions, add
 option terminators, modernise patterns, extract selection into proc, inline
 proc, De Morgan's law, invert expression, IP conversion.
 
-## Surface
+## Applies to
 
-lsp, mcp, vscode-command, all-editors
+all-editors, MCP
 
 ## How to use
 

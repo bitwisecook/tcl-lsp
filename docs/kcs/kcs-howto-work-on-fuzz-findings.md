@@ -1,5 +1,12 @@
 # KCS: Working on Fuzz Findings
 
+> **Audience:** Contributor
+> **Type:** How-To
+
+## Applies to
+
+all-editors
+
 How to triage, fix, test, and close differential-fuzzer findings.
 
 ## Where findings live

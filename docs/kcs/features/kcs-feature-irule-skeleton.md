@@ -4,9 +4,9 @@
 
 Pick iRules events from a list and generate a skeleton iRule with those event handlers.
 
-## Surface
+## Applies to
 
-vscode-command, vscode-chat, claude-code
+VS Code, Copilot Chat, Claude skill
 
 ## Availability
 

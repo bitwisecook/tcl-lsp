@@ -1,11 +1,16 @@
-# KCS: The Tcl Language Server does not seem to be running in VS Code
+# KCS: LSP features are missing in VS Code
 
 > **Audience:** User
 > **Type:** Issue
 
+## Applies to
+
+VS Code
+
 ## Question
 
-How do I tell whether the Tcl Language Server started inside VS Code, and
+Squiggles, hovers, and completions are missing from my Tcl files in
+VS Code — how do I tell whether the Tcl Language Server started, and
 where do I read its startup log if it did not?
 
 ## Symptoms

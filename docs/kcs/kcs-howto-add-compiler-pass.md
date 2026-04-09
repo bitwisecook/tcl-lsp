@@ -3,6 +3,10 @@
 > **Audience:** Contributor
 > **Type:** How-To
 
+## Applies to
+
+all-editors
+
 ## Question
 
 How do I add a new analysis pass to the compiler, or materially change an

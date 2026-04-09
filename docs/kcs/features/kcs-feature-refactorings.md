@@ -4,9 +4,9 @@
 
 Mechanical code refactorings: extract/inline variables, if-to-switch, switch-to-dict, brace expr, and data-group extraction with type-aware IP/CIDR support.
 
-## Surface
+## Applies to
 
-lsp, mcp, claude-code, all-editors
+all-editors, MCP, Claude skill, refactoring
 
 ## How to use
 
@@ -76,6 +76,35 @@ The AI-enhanced data-group tool (`suggest_datagroup_extractions`) returns struct
 ## Test anchors
 
 - `tests/test_refactoring.py`
+
+## Example
+
+This page is an index — for a concrete before/after, open any of
+the individual refactoring notes linked below. As a quick taste,
+the if-to-switch refactoring turns this:
+
+```tcl
+if {$method eq "GET"} {
+    set action read
+} elseif {$method eq "POST"} {
+    set action create
+} else {
+    set action unknown
+}
+```
+
+into this:
+
+```tcl
+switch -exact -- $method {
+    "GET"   { set action read }
+    "POST"  { set action create }
+    default { set action unknown }
+}
+```
+
+See [if/elseif → switch](kcs-feature-refactor-if-to-switch.md)
+for the full walkthrough.
 
 ## Samples
 

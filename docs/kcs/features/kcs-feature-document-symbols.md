@@ -4,9 +4,9 @@
 
 Outline of procs, namespaces, event handlers, and variables in the current file.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, analyser
 
 ## How to use
 

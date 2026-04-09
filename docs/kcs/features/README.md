@@ -6,26 +6,49 @@ chat command) reads these files at runtime to build the feature catalogue.
 
 ## Format convention
 
-Every file must follow this structure so the help parser can extract metadata:
+Every file in this directory is a KCS note of type **Functionality**.
+Use the [functionality template](../templates/kcs-template-functionality.md)
+and follow the [KCS style guide](../STYLE.md) — British English,
+Oxford comma, short plain sentences, one core question per note, no
+inline contracts or file-path anchors (those belong in a design doc
+under [`docs/design/`](../../design/README.md)).
+
+The `help` tool parses the first few sections at runtime, so their
+names and order must match the template exactly:
 
 ```markdown
 # KCS: feature — <Feature Name>
+
+> **Audience:** User
+> **Type:** Functionality
 
 ## Summary
 
 <one-line description>
 
-## Surface
+## Applies to
 
-<comma-separated list: lsp, vscode-command, vscode-chat, mcp, claude-code, all-editors>
+<comma-separated plain-text tags — see docs/kcs/STYLE.md rule 11>
 
 ## How to use
 
-<brief usage instructions — may differ per surface>
-
-## Operational context / File-path anchors / ...
-<standard KCS sections>
+<plain instructions; one sub-heading per editor or tool when they differ>
 ```
+
+### Examples are mandatory
+
+Every feature note must include at least one concrete example under an
+`## Example` section. Pick whichever form shows the feature best, and
+combine them when more than one form helps:
+
+- **Before / after code** — for transforms (refactor, format, minify,
+  optimise, unminify).
+- **Where it appears** — for analysers (diagnostics, hover,
+  completions, inlay hints, signature help, semantic tokens). Show a
+  short snippet and say what the user sees on which token or line.
+- **Screenshot** — for panels and visual features (compiler explorer,
+  call hierarchy, debugger, document symbols). Reference an image
+  from `../screenshots/` with a short caption.
 
 ## LSP features
 

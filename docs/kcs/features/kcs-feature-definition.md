@@ -4,9 +4,9 @@
 
 Jump to proc or variable definitions within and across files.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, analyser
 
 ## How to use
 

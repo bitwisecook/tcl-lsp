@@ -4,9 +4,9 @@
 
 Inline a single-use `set var value` — replace the one reference with the value and remove the set command.
 
-## Surface
+## Applies to
 
-lsp, mcp, claude-code, all-editors
+all-editors, MCP, Claude skill, refactoring
 
 ## How to use
 

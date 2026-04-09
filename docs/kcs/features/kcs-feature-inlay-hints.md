@@ -4,9 +4,9 @@
 
 Inline type and value information displayed alongside code.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 

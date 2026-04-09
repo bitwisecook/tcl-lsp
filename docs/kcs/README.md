@@ -28,9 +28,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 ## Issues
 
-- [kcs-issue-vscode-lsp-startup-logs.md](kcs-issue-vscode-lsp-startup-logs.md)
-  — confirm the Tcl Language Server started in VS Code and read its
-  startup log.
+- [kcs-issue-lsp-features-are-missing.md](kcs-issue-lsp-features-are-missing.md)
+  — squiggles, hovers, and completions do not appear in VS Code and
+  you want to know whether the Tcl Language Server started at all.
 - [kcs-issue-stale-compiler-cache.md](kcs-issue-stale-compiler-cache.md)
   — stale incremental cache produces wrong diagnostics.
 - [kcs-issue-range-drift.md](kcs-issue-range-drift.md) — diagnostic or

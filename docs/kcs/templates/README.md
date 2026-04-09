@@ -11,16 +11,26 @@ rules.
 
 ## The four categories
 
-| Type | Use for | Template |
-|---|---|---|
-| **Issue** | A user hits a problem, wants the fix. | [`kcs-template-issue.md`](kcs-template-issue.md) |
-| **Q&A** | A single question with a short, plain answer. | [`kcs-template-qa.md`](kcs-template-qa.md) |
-| **How-To** | Task-oriented steps a user or contributor follows. | [`kcs-template-how-to.md`](kcs-template-how-to.md) |
-| **Functionality** | A command, feature, or tool and how to use it. | [`kcs-template-functionality.md`](kcs-template-functionality.md) |
+| Type | Use for | Template | Filename shape |
+|---|---|---|---|
+| **Issue** | A user hits a problem, wants the fix. | [`kcs-template-issue.md`](kcs-template-issue.md) | `kcs-issue-<problem-in-plain-words>.md` |
+| **Q&A** | A single question with a short, plain answer. | [`kcs-template-qa.md`](kcs-template-qa.md) | `kcs-qa-<the-question>.md` |
+| **How-To** | Task-oriented steps a user or contributor follows. | [`kcs-template-how-to.md`](kcs-template-how-to.md) | `kcs-howto-<the-task>.md` |
+| **Functionality** | A command, feature, or tool and how to use it. | [`kcs-template-functionality.md`](kcs-template-functionality.md) | `kcs-feature-<feature-name>.md` |
 
 If your content does not fit any of these four categories, you are writing
 a design doc. Put it under [`../../design/`](../../design/README.md)
 instead.
+
+## Naming notes
+
+Name a KCS file after the question it answers in the reader's own
+words, not after the internal class, module, or mechanism behind the
+answer. `kcs-issue-lsp-features-are-missing.md` is better than
+`kcs-issue-vscode-lsp-startup-logs.md` — the user experiences "nothing
+works", not "I should read a log channel". Functionality notes are the
+exception and are named after the feature itself. See rule 10 in
+[`../STYLE.md`](../STYLE.md) for worked examples.
 
 ## Shared skeleton
 

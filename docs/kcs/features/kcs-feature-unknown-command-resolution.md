@@ -6,9 +6,9 @@ Detects unresolved commands and offers "did you mean?" suggestions. Static
 analysis of user-defined `unknown` procs extracts dispatch targets to reduce
 false positives.
 
-## Surface
+## Applies to
 
-lsp, vscode, jetbrains (other editors via XDG config)
+all-editors, jetbrains (other editors via XDG config), warning
 
 ## How to use
 
@@ -68,6 +68,23 @@ against the union of: registry commands, user-defined procs, stub commands,
 
 - `tests/test_analyser.py` — W123 test cases
 - `tests/test_text_utils.py` — edit distance and suggestion tests
+
+## Example
+
+With `tclLsp.diagnostics.W123` enabled:
+
+```tcl
+proc greet {name} {
+    puts "Hello, $name"
+}
+
+gret "Alice"
+```
+
+Line 5 shows a hint-level squiggle under `gret` with the message
+`W123 unresolved command 'gret' — did you mean 'greet'?`. A
+lightbulb code action offers **Replace with `greet`** which
+rewrites the call in one click.
 
 ## Discoverability
 

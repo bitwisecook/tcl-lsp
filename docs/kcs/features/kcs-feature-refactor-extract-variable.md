@@ -4,9 +4,9 @@
 
 Extract a selected expression into a named variable, replacing the selection with `$var`.
 
-## Surface
+## Applies to
 
-lsp, mcp, claude-code, all-editors
+all-editors, MCP, Claude skill, refactoring
 
 ## How to use
 

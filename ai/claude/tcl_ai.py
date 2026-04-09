@@ -874,6 +874,8 @@ def _build_feature_catalogue() -> dict:
     """Build a structured catalogue by reading KCS feature docs from disk."""
     import glob
 
+    from core.help.kcs_db import applies_to_category, parse_applies_to
+
     features_dir = _find_features_dir()
     if features_dir is None:
         return {"error": "Could not locate docs/kcs/features/ directory"}
@@ -882,14 +884,14 @@ def _build_feature_catalogue() -> dict:
     for path in sorted(glob.glob(os.path.join(features_dir, "kcs-feature-*.md"))):
         parsed = _parse_kcs_feature(path)
         if parsed:
+            # Expand and attach the tag set so callers can filter by editor.
+            parsed["tags"] = sorted(parse_applies_to(parsed.get("applies_to", "")))
             features.append(parsed)
 
-    # Group by surface for structured output
+    # Group by the category derived from each note's Applies to tags.
     catalogue: dict[str, list[dict]] = {}
     for feat in features:
-        surfaces = [s.strip() for s in feat.get("surface", "").split(",")]
-        # Primary grouping: put each feature under its first surface category
-        cat = _surface_category(surfaces)
+        cat = applies_to_category(set(feat["tags"]))
         catalogue.setdefault(cat, []).append(feat)
 
     return catalogue
@@ -936,24 +938,6 @@ def _parse_kcs_feature(path: str) -> dict | None:
         result[key] = body
 
     return result
-
-
-def _surface_category(surfaces: list[str]) -> str:
-    """Map surface tags to human-readable category names."""
-    surface_set = set(surfaces)
-    if "all-editors" in surface_set or "lsp" in surface_set:
-        if "mcp" in surface_set or "claude-code" in surface_set:
-            return "LSP + AI Features"
-        return "LSP Features (all editors)"
-    if "vscode-chat" in surface_set:
-        return "VS Code AI Chat"
-    if "claude-code" in surface_set:
-        return "Claude Code Skills"
-    if "mcp" in surface_set:
-        return "MCP Tools"
-    if "vscode-command" in surface_set:
-        return "VS Code Commands"
-    return "Other"
 
 
 # Subcommand: generate-test

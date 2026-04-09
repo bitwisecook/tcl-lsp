@@ -4,9 +4,9 @@
 
 Find all references to a proc or variable across the file.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, analyser
 
 ## How to use
 

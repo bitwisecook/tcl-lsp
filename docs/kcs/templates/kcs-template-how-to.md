@@ -3,6 +3,13 @@
 > **Audience:** User | Contributor
 > **Type:** How-To
 
+## Applies to
+
+<Comma-separated plain-text list of the editors and tools the task
+runs in, for example: VS Code, Neovim, tcl-lsp CLI. Do not use bullet
+points. Use `all-editors` if the steps are the same everywhere. The
+full tag vocabulary lives in [`../STYLE.md`](../STYLE.md) (rule 11).>
+
 ## Question
 
 How do I <task>?
@@ -13,6 +20,10 @@ How do I <task>?
 - <Prerequisite 2.>
 
 ## Answer
+
+<Plain steps if they are the same in every editor. If the steps differ
+per editor or tool, use a sub-heading for each one in the same order as
+"Applies to".>
 
 1. <Step 1 — one action, one sentence, using the exact label or command.>
 2. <Step 2.>
