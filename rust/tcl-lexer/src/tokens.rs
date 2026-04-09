@@ -5,17 +5,22 @@
 //! - [`TokenType`] is a `Copy` enum with `PascalCase` variants. The
 //!   `PyO3` binding crate exposes the variants under their original
 //!   `SCREAMING_CASE` Python names.
-//! - [`SourcePosition`] is a 12-byte `Copy` struct of `u32` fields. Both
-//!   line/character (LSP UTF-16 code units) and offset (byte offset)
-//!   comfortably fit in 32 bits for any source we care about.
-//! - [`Token`] borrows its text from the source buffer via `&'src str`.
-//!   The `PyO3` wrapper clones the slice into an owned `String` on the
-//!   way out — Python doesn't model lifetimes, and the source buffer
-//!   cannot be assumed to outlive the Python token object.
+//! - [`SourcePosition`] is a 12-byte `Copy` struct of `u32` fields.
+//!   Line, character, and offset all fit comfortably in 32 bits for
+//!   any source we care about. Exposed to Python via the binding
+//!   crate and returned by [`SourceMap`] lookups.
+//! - [`Token`] carries a [`Span`] — not an inline text slice and not
+//!   inline start/end positions. Text and positions are resolved on
+//!   demand via a [`SourceMap`], the same way every future IR and
+//!   CFG node will work. `Token` has no lifetime, is 16 bytes, and
+//!   trivially `Copy`.
 //!
-//! Field names follow Rust conventions (`kind`, not `type`); the binding
-//! crate renames `kind` to `type` for Python callers in the obvious
-//! place.
+//! Field names follow Rust conventions (`kind`, not `type`); the
+//! binding crate renames `kind` to `type` for Python callers and
+//! resolves `span` to `start` / `end` / `text` at the FFI boundary.
+//!
+//! [`Span`]: crate::Span
+//! [`SourceMap`]: crate::SourceMap
 
 /// Kinds of tokens produced by the Tcl lexer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -93,63 +98,63 @@ impl SourcePosition {
     }
 }
 
-/// A token: kind, text, source range, and quoting context.
+/// A Tcl token: kind, source span, and quoting context.
 ///
-/// `text` borrows from the source buffer via `&'src str`. Synthetic
-/// tokens (e.g. EOF, error-recovery markers) borrow from `&""` or any
-/// other `'static` string. Borrowing rather than owning means the lexer
-/// allocates nothing per token; the binding crate clones into owned
-/// `String`s only when crossing the FFI boundary.
+/// Stores **only** the kind, a byte-level [`Span`] into the source
+/// buffer, and the `in_quote` flag. Text and `(line, character)`
+/// positions live exclusively on [`SourceMap`], so callers that need
+/// them ask the `SourceMap` explicitly:
+///
+/// ```
+/// use tcl_lexer::{Lexer, SourceMap};
+/// let source = "puts hello";
+/// let source_map = SourceMap::new(source);
+/// let tokens = Lexer::new(source).tokenise_all().unwrap();
+/// let first = tokens[0];
+/// assert_eq!(source_map.text(first.span), "puts");
+/// let (start, end) = source_map.range_positions(first.span);
+/// assert_eq!(start.line, 0);
+/// assert_eq!(end.character, 3);
+/// ```
+///
+/// The `Token` itself is 16 bytes, `Copy`, and has no lifetime —
+/// trivially storable in arrays, channels, IR nodes, and CFG
+/// structures.
+///
+/// [`Span`]: crate::Span
+/// [`SourceMap`]: crate::SourceMap
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Token<'src> {
+pub struct Token {
     /// Token kind.
     pub kind: TokenType,
-    /// Borrowed text content (no surrounding `{}`, `[]`, `"`, or `$`).
-    pub text: &'src str,
-    /// Position of the first character of the token in the source.
-    pub start: SourcePosition,
-    /// Position of the last character of the token in the source
-    /// (inclusive).
-    pub end: SourcePosition,
+    /// Byte range in the source. Resolve to text or positions via a
+    /// [`SourceMap`](crate::SourceMap).
+    pub span: crate::span::Span,
     /// True when the token was emitted inside a quoted-string context.
-    /// The Python lexer carries this for downstream consumers that need
-    /// to distinguish bare words from quoted runs.
+    /// Carried for downstream consumers that need to distinguish bare
+    /// words from quoted runs.
     pub in_quote: bool,
 }
 
-impl<'src> Token<'src> {
+impl Token {
     /// Construct a token with `in_quote = false`. The lexer uses this
     /// for the overwhelmingly common bare-word case; tokens emitted
     /// inside quotes use [`Token::new_quoted`].
     #[must_use]
-    pub const fn new(
-        kind: TokenType,
-        text: &'src str,
-        start: SourcePosition,
-        end: SourcePosition,
-    ) -> Self {
+    pub const fn new(kind: TokenType, span: crate::span::Span) -> Self {
         Self {
             kind,
-            text,
-            start,
-            end,
+            span,
             in_quote: false,
         }
     }
 
     /// Construct a token with `in_quote = true`.
     #[must_use]
-    pub const fn new_quoted(
-        kind: TokenType,
-        text: &'src str,
-        start: SourcePosition,
-        end: SourcePosition,
-    ) -> Self {
+    pub const fn new_quoted(kind: TokenType, span: crate::span::Span) -> Self {
         Self {
             kind,
-            text,
-            start,
-            end,
+            span,
             in_quote: true,
         }
     }
@@ -294,53 +299,56 @@ mod tests {
     }
 
     #[test]
-    fn token_construction_borrows_text() {
-        // Mirrors `Token(type=TokenType.ESC, text="hello", start=p, end=p)`
-        // from tests/test_formatter.py.
-        let source = String::from("hello world");
-        let start = SourcePosition::new(0, 0, 0);
-        let end = SourcePosition::new(0, 4, 4);
-        let tok = Token::new(TokenType::Esc, &source[..5], start, end);
+    fn token_construction_carries_span() {
+        // Mirrors the shape every real call site uses: build a span
+        // pointing at some byte range in the source, then resolve it
+        // via a SourceMap for text or positions.
+        use crate::{SourceMap, Span};
+        let source = "hello world";
+        let map = SourceMap::new(source);
+        let span = Span::new(0, 5);
+        let tok = Token::new(TokenType::Esc, span);
         assert_eq!(tok.kind, TokenType::Esc);
-        assert_eq!(tok.text, "hello");
-        assert_eq!(tok.start, start);
-        assert_eq!(tok.end, end);
+        assert_eq!(tok.span, span);
         assert!(!tok.in_quote);
+        assert_eq!(map.text(tok.span), "hello");
     }
 
     #[test]
     fn token_default_in_quote_is_false() {
-        let pos = SourcePosition::default();
-        let tok = Token::new(TokenType::Str, "abc", pos, pos);
+        use crate::Span;
+        let tok = Token::new(TokenType::Str, Span::empty(0));
         assert!(!tok.in_quote);
     }
 
     #[test]
     fn token_quoted_constructor_sets_in_quote() {
-        let pos = SourcePosition::default();
-        let tok = Token::new_quoted(TokenType::Esc, "abc", pos, pos);
+        use crate::Span;
+        let tok = Token::new_quoted(TokenType::Esc, Span::empty(0));
         assert!(tok.in_quote);
     }
 
     #[test]
     fn token_equality_compares_all_fields() {
-        let pos = SourcePosition::default();
-        let baseline = Token::new(TokenType::Esc, "x", pos, pos);
-        let same = Token::new(TokenType::Esc, "x", pos, pos);
-        let different_text = Token::new(TokenType::Esc, "y", pos, pos);
-        let different_kind = Token::new(TokenType::Str, "x", pos, pos);
-        let different_quote = Token::new_quoted(TokenType::Esc, "x", pos, pos);
+        use crate::Span;
+        let span = Span::new(0, 1);
+        let baseline = Token::new(TokenType::Esc, span);
+        let same = Token::new(TokenType::Esc, span);
+        let different_span = Token::new(TokenType::Esc, Span::new(1, 2));
+        let different_kind = Token::new(TokenType::Str, span);
+        let different_quote = Token::new_quoted(TokenType::Esc, span);
         assert_eq!(baseline, same);
-        assert_ne!(baseline, different_text);
+        assert_ne!(baseline, different_span);
         assert_ne!(baseline, different_kind);
         assert_ne!(baseline, different_quote);
     }
 
     #[test]
     fn token_hash_distinguishes_in_quote() {
-        let pos = SourcePosition::default();
-        let bare = Token::new(TokenType::Esc, "x", pos, pos);
-        let quoted = Token::new_quoted(TokenType::Esc, "x", pos, pos);
+        use crate::Span;
+        let span = Span::new(0, 1);
+        let bare = Token::new(TokenType::Esc, span);
+        let quoted = Token::new_quoted(TokenType::Esc, span);
         let mut set = HashSet::new();
         set.insert(bare);
         set.insert(quoted);
@@ -348,41 +356,34 @@ mod tests {
     }
 
     #[test]
-    fn synthetic_eof_token_uses_empty_static_text() {
-        // Documents the convention the future Rust lexer will use for
-        // tokens that have no corresponding slice of the source buffer
-        // (EOF, synthetic EOL, virtual separators for error recovery).
-        // The empty string literal `""` is `&'static str` and satisfies
-        // the lifetime requirement for any `Token<'src>`.
-        let pos = SourcePosition::new(42, 0, 100);
-        let eof = Token::new(TokenType::Eof, "", pos, pos);
+    fn synthetic_eof_token_uses_empty_span() {
+        // EOF tokens have no source coverage — they use an empty span
+        // anchored at the EOF offset. The SourceMap resolves them to
+        // a zero-width range at the correct position.
+        use crate::{SourceMap, Span};
+        let source = "foo";
+        let map = SourceMap::new(source);
+        let eof_offset = u32::try_from(source.len()).unwrap();
+        let eof = Token::new(TokenType::Eof, Span::empty(eof_offset));
         assert_eq!(eof.kind, TokenType::Eof);
-        assert_eq!(eof.text, "");
-        assert_eq!(eof.start, pos);
-        assert_eq!(eof.end, pos);
-        assert!(!eof.in_quote);
+        assert!(eof.span.is_empty());
+        assert_eq!(map.text(eof.span), "");
+        let (start, end) = map.range_positions(eof.span);
+        assert_eq!(start, SourcePosition::new(0, 3, 3));
+        assert_eq!(end, SourcePosition::new(0, 3, 3));
     }
 
     #[test]
-    fn token_text_lifetime_borrows_from_source() {
-        // Compile-time check: a Token's text borrows the source slice
-        // and is not allowed to outlive it. The function signature
-        // makes the borrow explicit; if `Token` ever grew an owned
-        // `String` field this would still compile but the test would
-        // become much less informative.
-        fn first_word(src: &str) -> Token<'_> {
-            let end_idx =
-                u32::try_from(src.find(' ').unwrap_or(src.len())).expect("test source fits in u32");
-            Token::new(
-                TokenType::Esc,
-                &src[..end_idx as usize],
-                SourcePosition::new(0, 0, 0),
-                SourcePosition::new(0, end_idx, end_idx),
-            )
+    fn token_has_no_lifetime() {
+        // Compile-time invariant: tokens are pure data, no lifetime,
+        // so they can be stored in `Vec`s that outlive the source
+        // buffer without lifetime bookkeeping. Resolving tokens back
+        // to text always requires a fresh `SourceMap` reference.
+        use crate::Span;
+        fn make_token() -> Token {
+            Token::new(TokenType::Esc, Span::new(0, 5))
         }
-        let source = String::from("alpha beta");
-        let tok = first_word(&source);
-        assert_eq!(tok.text, "alpha");
-        assert_eq!(tok.end.offset, 5);
+        let tok = make_token();
+        assert_eq!(tok.span.len(), 5);
     }
 }

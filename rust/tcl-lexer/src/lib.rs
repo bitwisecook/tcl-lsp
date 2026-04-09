@@ -5,20 +5,37 @@
 //!
 //! - [`backslash_subst`] — Tcl backslash escape processing (chunk **L1**).
 //! - [`Token`], [`TokenType`], [`SourcePosition`] — token data types
-//!   (chunk **L2**).
+//!   (chunk **L2**). `Token` carries only a [`Span`]; text and
+//!   positions are resolved through a [`SourceMap`].
+//! - [`Span`], [`LineIndex`], [`SourceMap`] — the span-threaded
+//!   source-mapping layer. Every positional entity in the Rust
+//!   rewrite (tokens now, IR and CFG nodes later) holds a bare
+//!   [`Span`] and asks a [`SourceMap`] for text or positions on
+//!   demand (chunk **L3**).
+//! - [`Lexer`], [`LexerConfig`], [`LexError`] — the L3 lexer
+//!   skeleton. Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens;
+//!   every other construct is surfaced as
+//!   [`LexError::UnsupportedCharacter`] until later chunks implement
+//!   it.
 //!
-//! Upcoming chunks will add a `LexerConfig` and a streaming `Lexer`
-//! iterator.
-//!
-//! The crate has no `pyo3` dependency and no Python-compat concerns — those
-//! belong in the `tcl-lsp-rust` binding crate. See `docs/rust-rewrite.md`
-//! in the main repository for the full migration strategy.
+//! The crate has no `pyo3` dependency and no Python-compat concerns —
+//! those belong in the `tcl-lsp-rust` binding crate. See
+//! `docs/rust-rewrite.md` in the main repository for the full
+//! migration strategy.
 
 #![deny(missing_docs)]
 
+mod lexer;
+mod line_index;
+mod source_map;
+mod span;
 mod substitution;
 mod tokens;
 
+pub use lexer::{LexError, Lexer, LexerConfig};
+pub use line_index::LineIndex;
+pub use source_map::SourceMap;
+pub use span::Span;
 pub use substitution::backslash_subst;
 pub use tokens::{SourcePosition, Token, TokenType};
 

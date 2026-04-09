@@ -8,5 +8,8 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[dependencies]
+thiserror = "1.0"
+
 [lints]
 workspace = true
