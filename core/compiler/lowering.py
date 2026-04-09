@@ -947,6 +947,35 @@ class _Lowerer:
             if result is not None:
                 return cast(IRStatement, result)
 
+        # {*} argument expansion hides the runtime arg list from the
+        # specialised structured lowerings below (proc, when, namespace
+        # eval, if, switch, for, while, foreach) which index args
+        # positionally.  Emit an IRBarrier so downstream analysis sees
+        # the original tokens (for codegen and arity checks) without
+        # assuming a particular arg shape.  Generic commands (e.g.
+        # ``list {*}{a b c}``) fall through to the default IRCall path,
+        # which preserves ``tokens.expand_word`` and lets the codegen's
+        # ``_try_list_expand_call`` / ``_emit_expanded_call`` handle it.
+        _structured_with_expansion = cmd_name in (
+            "proc",
+            "when",
+            "namespace",
+            "if",
+            "switch",
+            "for",
+            "while",
+            "foreach",
+            "foreach_in_collection",
+        )
+        if _structured_with_expansion and cmd.expand_word is not None and any(cmd.expand_word):
+            return IRBarrier(
+                range=cmd.range,
+                reason=f"{cmd_name} with argument expansion",
+                command=cmd_name,
+                args=tuple(args),
+                tokens=cmd.cmd_tokens,
+            )
+
         match cmd_name:
             case "proc" if len(args) == 3 and len(arg_tokens) >= 3:
                 proc_name = args[0]

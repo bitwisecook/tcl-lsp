@@ -667,7 +667,13 @@ def configure_signatures(
     # Configure lexer flags for the active dialect.
     from core.parsing.lexer import TclLexer
 
+    from .dialects import dialects_since
+
     TclLexer.irules_brace_separator = next_dialect == "f5-irules"
+    # {*} argument expansion was introduced in Tcl 8.5.  Disable it for
+    # 8.4-based dialects (tcl8.4, f5-irules) so ``cmd {*}$args`` is
+    # lexed as a single ``*${args}`` word rather than an expansion.
+    TclLexer.expand_syntax = next_dialect in dialects_since("tcl8.5")
 
     return True
 

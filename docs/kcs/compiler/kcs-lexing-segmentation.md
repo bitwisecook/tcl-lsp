@@ -67,10 +67,64 @@ Key fields:
 - `single_token_word[i]` = `True` when word `i` is a single atomic token —
   tells the lowerer the value is a compile-time constant
 - `argv[i]` = first token of word `i` (for token-type pattern matching)
+- `expand_word[i]` = `True` when word `i` is preceded by the `{*}`
+  argument-expansion prefix (Tcl 8.5+).  `None` when no word in the
+  command uses expansion.
 - Multi-token words (e.g. `"hello $name"`) are concatenated into `texts[i]`
 
 **Variable references in texts:**
 VAR tokens are wrapped in `${…}` form: `$x` → `texts[i] = "${x}"`.
+
+### Argument expansion `{*}` and dialect gating
+
+`{*}` is the Tcl 8.5+ argument-expansion prefix.  When enabled, the
+lexer emits a zero-width `EXPAND` token at word start, and the
+segmenter records `expand_word[i] = True` for the following word so
+that downstream passes can distinguish `{*}$list` (expanded to zero or
+more runtime args) from a literal `*${list}` word.
+
+The `TclLexer.expand_syntax` flag controls whether `{*}` is recognised.
+`configure_signatures()` in
+[`core/commands/registry/runtime.py`](../../../core/commands/registry/runtime.py)
+sets the flag based on the active dialect:
+
+- **Enabled** for dialects in `dialects_since("tcl8.5")` — all Tcl
+  8.5 / 8.6 / 9.0 profiles and every dialect whose base Tcl version is
+  at least 8.5 (f5-iapps, f5-tmsh, EDA vendors, Expect).
+- **Disabled** for 8.4-based dialects (`tcl8.4`, `f5-irules`) because
+  `{*}` did not exist in Tcl 8.4 — the lexer must treat `{*}$x` as a
+  braced literal `{*}` concatenated with `$x`.
+
+Arity checks at both the analyser (`_check_proc_call_arity` in
+`core/analysis/analyser.py`) and the IR layer (`_check_simple_arity` in
+`core/compiler/compiler_checks.py`) treat each expanded word as an
+unknown number of runtime arguments and try to refine the bound by
+constant-folding the expanded word.  Refinement requires the word to
+be **single-token** (so concatenations like `{*}$x$y` or
+`{*}{a b}$suffix` stay unrefined) and depends on the layer:
+
+- **Analyser layer (user proc calls)** can refine
+  - braced literal lists (`{*}{a b c}` → 3, `{*}{}` → 0),
+  - pure variable references with a known constant string value
+    (`set rgb {255 255 255}; foo {*}$rgb` → 3) via the
+    `_const_strings` map.
+- **IR layer (built-in commands)** can refine
+  - braced literal lists (the segmenter strips the braces, so the
+    refinement uses the original `STR` token type to disambiguate
+    the resulting text from a variable substitution),
+  - literal `[list ...]` command substitutions via
+    `_extract_foreach_elements`.
+  IR-layer refinement does *not* yet resolve `$var` substitutions
+  back to their constant values — pure-var expansions in built-in
+  calls fall back to the `0..∞` range below.
+
+When refinement succeeds the leading-options scan and the positional
+count both see the inlined elements, so E002/E003 still fire when the
+count is statically wrong (and `puts {*}{-nonewline} chan msg` is
+correctly accepted because the literal list contributes a leading
+option).  Otherwise the expanded word contributes `0..∞` arguments,
+E002 is suppressed, and E003 only fires when the non-expanded
+arguments alone exceed the signature maximum.
 
 ### How segmented data feeds the compiler
 

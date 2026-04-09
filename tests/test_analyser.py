@@ -267,6 +267,363 @@ class TestDiagnostics:
         errors = [d for d in result.diagnostics if d.code == "E002" and "::math::add" in d.message]
         assert len(errors) >= 1
 
+    def test_proc_call_arg_expansion_suppresses_too_few(self):
+        """Regression test for issue #129.
+
+        ``{*}$var`` may expand to any number of arguments at runtime, so the
+        static arity check must not treat it as a single argument when the
+        required minimum is higher.
+        """
+        source = textwrap.dedent("""\
+            proc rgbToLab {r g b} { return 1 }
+            set rgb1 {255 255 255}
+            rgbToLab {*}$rgb1
+        """)
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E002" and "::rgbToLab" in d.message]
+        assert errors == [], f"unexpected E002 diagnostics: {errors}"
+
+    def test_proc_call_arg_expansion_only(self):
+        """A call whose only argument is ``{*}$x`` should not fire E002/E003."""
+        source = textwrap.dedent("""\
+            proc myproc {x y z} { return 1 }
+            set args {1 2 3}
+            myproc {*}$args
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::myproc" in d.message
+        ]
+        assert errors == []
+
+    def test_proc_call_arg_expansion_mixed_literal_and_expansion(self):
+        """``foo a {*}$x`` where foo takes (a, b, c) is valid at runtime."""
+        source = textwrap.dedent("""\
+            proc myproc {a b c} { return 1 }
+            set rest {2 3}
+            myproc 1 {*}$rest
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::myproc" in d.message
+        ]
+        assert errors == []
+
+    def test_proc_call_arg_expansion_still_detects_too_many(self):
+        """Non-expansion args alone exceeding the max arity → E003 still fires."""
+        source = textwrap.dedent("""\
+            proc myproc {x} { return 1 }
+            set args {}
+            myproc a b {*}$args
+        """)
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "::myproc" in d.message]
+        assert len(errors) >= 1
+
+    def test_builtin_call_arg_expansion_suppresses_too_many(self):
+        """``set x {*}$dynamic`` should not fire E003 when ``$dynamic`` is
+        unresolvable.
+
+        The IR-level arity check does not yet resolve variable references
+        back to constant values, so any ``{*}$var`` expansion is treated
+        as contributing 0..∞ arguments and the static count cannot be
+        used to decide that too many arguments are present.
+        """
+        # Use a dynamic value (command substitution) so neither layer can
+        # statically resolve the element count.
+        source = "set x y {*}[exec true]"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'set'" in d.message]
+        assert errors == [], f"unexpected E003 diagnostics: {errors}"
+
+    def test_proc_call_expansion_constant_resolves_to_exact_count(self):
+        """``{*}$x`` with a known constant value should use the exact count.
+
+        If the variable's value is statically known (from a prior
+        constant ``set``), ``{*}$x`` contributes exactly that many
+        arguments — the call should be treated the same as writing
+        the elements inline.
+        """
+        # Exact count — clean
+        source = textwrap.dedent("""\
+            proc rgbToLab {r g b} { return 1 }
+            set rgb1 {255 255 255}
+            rgbToLab {*}$rgb1
+        """)
+        result = analyse(source)
+        arity_errors = [
+            d
+            for d in result.diagnostics
+            if d.code in ("E002", "E003") and "::rgbToLab" in d.message
+        ]
+        assert arity_errors == []
+
+    def test_proc_call_expansion_constant_too_few_still_reports(self):
+        """Constant expansion with fewer elements than required → E002."""
+        source = textwrap.dedent("""\
+            proc rgbToLab {r g b} { return 1 }
+            set rgb1 {255 255}
+            rgbToLab {*}$rgb1
+        """)
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E002" and "::rgbToLab" in d.message]
+        assert len(errors) == 1
+        assert "got 2" in errors[0].message
+
+    def test_proc_call_expansion_constant_too_many_still_reports(self):
+        """Constant expansion with more elements than allowed → E003."""
+        source = textwrap.dedent("""\
+            proc greet {name} { return $name }
+            set many {a b c}
+            greet {*}$many
+        """)
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "::greet" in d.message]
+        assert len(errors) == 1
+        assert "got 3" in errors[0].message
+
+    def test_proc_call_expansion_literal_list(self):
+        """``{*}{a b c}`` is a literal list with a statically known count."""
+        source = textwrap.dedent("""\
+            proc foo {a b c} { return 1 }
+            foo {*}{1 2 3}
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::foo" in d.message
+        ]
+        assert errors == []
+
+    def test_proc_call_expansion_literal_list_wrong_count(self):
+        """Literal list expansion with wrong element count → E002/E003."""
+        source = textwrap.dedent("""\
+            proc foo {a b c} { return 1 }
+            foo {*}{1 2}
+        """)
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E002" and "::foo" in d.message]
+        assert len(errors) == 1
+
+    def test_proc_call_expansion_unknown_variable_is_barrier(self):
+        """Unknown dynamic ``$x`` in ``{*}$x`` contributes an unknown count."""
+        source = textwrap.dedent("""\
+            proc foo {a b c} { return 1 }
+            foo {*}$dynamic
+        """)
+        result = analyse(source)
+        # No arity errors — the expansion count is unknown.
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::foo" in d.message
+        ]
+        assert errors == []
+
+    def test_proc_call_arg_expansion_disabled_for_tcl84(self):
+        """In Tcl 8.4 dialect ``{*}`` is not expansion — E002 should still fire."""
+        from core.commands.registry.runtime import configure_signatures
+
+        source = textwrap.dedent("""\
+            proc rgbToLab {r g b} { return 1 }
+            set rgb1 {255 255 255}
+            rgbToLab {*}$rgb1
+        """)
+        try:
+            configure_signatures(dialect="tcl8.4")
+            result = analyse(source)
+            errors = [
+                d for d in result.diagnostics if d.code == "E002" and "::rgbToLab" in d.message
+            ]
+            assert len(errors) >= 1
+        finally:
+            configure_signatures(dialect="tcl8.6")
+
+    def test_proc_call_arg_expansion_disabled_for_f5_irules(self):
+        """iRules is 8.4-based — ``{*}`` is not recognised as expansion."""
+        from core.commands.registry.runtime import configure_signatures
+
+        source = textwrap.dedent("""\
+            proc myproc {x y z} { return $x }
+            when HTTP_REQUEST {
+                set args {1 2 3}
+                call myproc {*}$args
+            }
+        """)
+        try:
+            configure_signatures(dialect="f5-irules")
+            result = analyse(source)
+            errors = [d for d in result.diagnostics if d.code == "E002" and "::myproc" in d.message]
+            assert len(errors) >= 1
+        finally:
+            configure_signatures(dialect="tcl8.6")
+
+    def test_configure_signatures_sets_lexer_expand_flag(self):
+        """``configure_signatures`` must toggle ``TclLexer.expand_syntax``
+        based on the active dialect's base Tcl version."""
+        from core.commands.registry.runtime import configure_signatures
+        from core.parsing.lexer import TclLexer
+
+        try:
+            configure_signatures(dialect="tcl8.4")
+            assert TclLexer.expand_syntax is False
+            configure_signatures(dialect="f5-irules")
+            assert TclLexer.expand_syntax is False
+            configure_signatures(dialect="tcl8.5")
+            assert TclLexer.expand_syntax is True
+            configure_signatures(dialect="tcl8.6")
+            assert TclLexer.expand_syntax is True
+            configure_signatures(dialect="tcl9.0")
+            assert TclLexer.expand_syntax is True
+            configure_signatures(dialect="f5-iapps")
+            assert TclLexer.expand_syntax is True
+        finally:
+            configure_signatures(dialect="tcl8.6")
+
+    def test_command_name_expansion_skips_arity_check(self):
+        """``{*}$cmd args`` expands the command name itself — we can't
+        resolve the command, so no arity diagnostic should fire."""
+        source = textwrap.dedent("""\
+            proc dispatch {name args} { return 1 }
+            set cmd dispatch
+            set args {a b c}
+            {*}$cmd $args
+        """)
+        result = analyse(source)
+        arity = [d for d in result.diagnostics if d.code in ("E001", "E002", "E003", "W001")]
+        assert arity == []
+
+    def test_proc_call_expansion_variadic_proc(self):
+        """``proc foo {level args}`` with ``{*}`` on trailing args is clean."""
+        source = textwrap.dedent("""\
+            proc logger {level args} { return $level }
+            set rest {a b c}
+            logger info {*}$rest
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::logger" in d.message
+        ]
+        assert errors == []
+
+    def test_proc_call_expansion_proc_with_default_param(self):
+        """A call that fills the required arg via ``{*}`` still satisfies
+        defaults — no arity error for ``greet {*}$args`` when the value
+        is an unknown single name."""
+        source = textwrap.dedent("""\
+            proc greet {name {title Mr}} { return 1 }
+            greet {*}$dynamic
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::greet" in d.message
+        ]
+        assert errors == []
+
+    def test_proc_call_expansion_constant_exactly_satisfies_variadic(self):
+        """Variadic proc with enough constant elements in expansion passes."""
+        source = textwrap.dedent("""\
+            proc foo {a b args} { return 1 }
+            set items {1 2}
+            foo {*}$items
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::foo" in d.message
+        ]
+        assert errors == []
+
+    def test_subcommand_position_expansion_skips_subcommand_check(self):
+        """``string {*}$sub text`` — the subcommand position is expanded,
+        so W001/E001 and arity checks must be skipped."""
+        source = textwrap.dedent("""\
+            set sub length
+            string {*}$sub hello
+        """)
+        result = analyse(source)
+        noise = [
+            d
+            for d in result.diagnostics
+            if d.code in ("E001", "E002", "E003", "W001") and "string" in d.message
+        ]
+        assert noise == []
+
+    def test_builtin_expansion_list_cmd_literal_refinement(self):
+        """``{*}[list a b]`` resolves to exactly two elements — ``set x {*}[list a b]``
+        is 1 + 2 = 3 positional args → E003 for ``set`` (max 2)."""
+        source = "set x {*}[list a b]"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'set'" in d.message]
+        assert len(errors) == 1
+        assert "got 3" in errors[0].message
+
+    def test_builtin_expansion_unknown_var_suppresses_set_arity(self):
+        """``set x y {*}$rest`` — ``{*}$rest`` contributes 0..∞ args,
+        so E003 must not fire based on the static count."""
+        source = "set x y {*}$rest"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'set'" in d.message]
+        assert errors == []
+
+    def test_builtin_expansion_leading_options_through_literal(self):
+        """``puts {*}{-nonewline} stdout hello`` is valid: the literal
+        ``{*}{-nonewline}`` expansion contributes a leading option, not
+        a positional argument."""
+        source = "puts {*}{-nonewline} stdout hello"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'puts'" in d.message]
+        assert errors == []
+
+    def test_builtin_expansion_leading_options_too_many_positional(self):
+        """Too many positional arguments after a literal-option expansion
+        still produces E003."""
+        source = "puts {*}{-nonewline} stdout a b c"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'puts'" in d.message]
+        assert len(errors) == 1
+
+    def test_builtin_expansion_literal_with_dollar_in_brace(self):
+        """``pwd {*}{$x}`` — the braced literal contains the literal text
+        ``$x`` (no substitution because braces).  The list has one
+        element, and ``pwd`` takes none, so E003 must fire."""
+        source = "pwd {*}{$x}"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E003" and "'pwd'" in d.message]
+        assert len(errors) == 1
+        assert "got 1" in errors[0].message
+
+    def test_builtin_expansion_empty_brace_resolves_to_zero(self):
+        """``set {*}{}`` expands to zero elements → E002 fires (set
+        requires at least one positional argument)."""
+        source = "set {*}{}"
+        result = analyse(source)
+        errors = [d for d in result.diagnostics if d.code == "E002" and "'set'" in d.message]
+        assert len(errors) == 1
+        assert "got 0" in errors[0].message
+
+    def test_builtin_expansion_empty_brace_combined_with_positional(self):
+        """``set foo {*}{}`` is valid: 1 positional + 0 expanded = 1 arg."""
+        source = "set foo {*}{}"
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "'set'" in d.message
+        ]
+        assert errors == []
+
+    def test_proc_call_expansion_concatenated_word_unknown(self):
+        """``foo {*}$y$z`` is a concatenated word (multi-token) — the
+        analyser must NOT refine via the first token alone, otherwise
+        ``y='a b'`` would falsely resolve to 2 elements when the actual
+        runtime count depends on ``$z``."""
+        source = textwrap.dedent("""\
+            proc foo {x} { return 1 }
+            set y "a b"
+            set z xyz
+            foo {*}$y$z
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code in ("E002", "E003") and "::foo" in d.message
+        ]
+        assert errors == []
+
     def test_multiline_diagnostics(self):
         source = "set x 1\nbreak extra\nset y 2"
         result = analyse(source)

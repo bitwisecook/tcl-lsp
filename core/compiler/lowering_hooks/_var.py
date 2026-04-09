@@ -53,6 +53,12 @@ def lower_set(lowerer: _LowererLike, cmd: _Command) -> object | None:
     arg_tokens = cmd.arg_tokens
     arg_single = cmd.arg_single_token
 
+    # {*} argument expansion makes the runtime arg count indeterminate,
+    # so the ``set x value`` specialised lowering is unsafe — fall
+    # through to a generic IRCall so arity checks and the expanded
+    # codegen path see the full token list.
+    if cmd.expand_word is not None and any(cmd.expand_word):
+        return IRCall(range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens)
     if not args:
         return IRCall(range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens)
     name = args[0]
@@ -88,6 +94,10 @@ def lower_set(lowerer: _LowererLike, cmd: _Command) -> object | None:
 def lower_incr(lowerer: object, cmd: _Command) -> object | None:
     """Lower ``incr`` to IRIncr."""
     args = cmd.args
+    # {*} expansion hides the real arg count — keep as a generic call
+    # so the specialised IRIncr path isn't given wrong indices.
+    if cmd.expand_word is not None and any(cmd.expand_word):
+        return IRCall(range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens)
     if not args or len(args) > 2:
         return IRCall(range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens)
     name = args[0]
