@@ -103,7 +103,7 @@ def _create_archive(
 #: Package names whose native `.so`/`.pyd` extensions must survive
 #: `_pip_install_pure`. Everything else falls back to pure Python inside the
 #: zipapp. Keep this set minimal — only Rust crates owned by tcl-lsp belong
-#: here. See `docs/kcs/kcs-rust-migration.md` for the migration story.
+#: here. See `docs/rust-rewrite.md` for the migration story.
 _RUST_NATIVE_PACKAGES: frozenset[str] = frozenset({"tcl_lsp_rust"})
 
 
