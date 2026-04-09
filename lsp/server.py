@@ -3164,7 +3164,10 @@ def _start_scan_with_progress() -> None:
 
     # Keep a strong reference so the task does not get garbage-collected
     # if the enclosing scope is dropped before the coroutine finishes.
-    _scan_progress_task = asyncio.ensure_future(_coordinator(), loop=loop)
+    # ``loop.create_task`` avoids the deprecated ``loop=`` keyword on
+    # ``asyncio.ensure_future`` and does exactly what we need: schedule
+    # the coroutine on the already-running loop.
+    _scan_progress_task = loop.create_task(_coordinator())
 
 
 @server.feature(types.INITIALIZED)
@@ -3551,9 +3554,17 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     global feature_config
     changed = False
 
-    def _set_toggle(attr: str, val: bool) -> bool:
-        """Update a toggle and return True if the change affects diagnostics."""
+    def _set_toggle(attr: str, val: object) -> bool:
+        """Update a toggle and return True if the change affects diagnostics.
+
+        Defensively rejects non-bool inputs.  Both the nested-dict and the
+        flat-key paths already filter on ``isinstance(value, bool)``, but
+        the check lives here too so the invariant survives call-site
+        refactors and catches malformed settings payloads.
+        """
         nonlocal changed
+        if not isinstance(val, bool):
+            return False
         if val == getattr(feature_config, attr):
             return False
         setattr(feature_config, attr, val)

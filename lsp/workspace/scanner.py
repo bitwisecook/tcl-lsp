@@ -205,21 +205,23 @@ class BackgroundScanner:
         for idx, (full_path, ext) in enumerate(files, start=1):
             uri = path_to_uri(full_path)
             discovered_uris.add(uri)
+            if skip_uris and uri in skip_uris:
+                skipped_open += 1
+            elif uri in self._cached:
+                skipped_cached += 1
+            else:
+                self._analyse_file_with_timeout(full_path, ext)
+                # Yield the GIL between files so the asyncio event
+                # loop's stdin reader thread can make progress.
+                time.sleep(0)
+            # Progress is reported *after* each file has either been
+            # analysed or skipped — never before — so the percentage
+            # reflects work actually completed and never regresses.
             if progress_cb is not None:
                 try:
                     progress_cb(idx, total_files, full_path)
                 except Exception:  # pragma: no cover - defensive
                     log.debug("progress_cb raised", exc_info=True)
-            if skip_uris and uri in skip_uris:
-                skipped_open += 1
-                continue
-            if uri in self._cached:
-                skipped_cached += 1
-                continue
-            self._analyse_file_with_timeout(full_path, ext)
-            # Yield the GIL between files so the asyncio event
-            # loop's stdin reader thread can make progress.
-            time.sleep(0)
         if skipped_open or skipped_cached:
             log.info(
                 "Scanner: skipped %d open + %d cached files",
