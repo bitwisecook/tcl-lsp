@@ -9,10 +9,12 @@ Use these templates when adding or updating KCS notes.
 - [kcs-template-runbook.md](kcs-template-runbook.md) — for contributor execution workflows.
 - [kcs-template-matrix.md](kcs-template-matrix.md) — for producer/consumer ownership matrices.
 - [kcs-template-reference.md](kcs-template-reference.md) — for compact reference/decision pages.
+- [kcs-template-user-issue.md](kcs-template-user-issue.md) — for simple user-facing issue notes (description, audience, resolution, related content).
 
 ## Minimum quality bar
 
-Every KCS note should include:
+Contributor-facing notes (contract, troubleshooting, runbook, matrix,
+reference) should include:
 
 - symptom,
 - operational context,
@@ -21,3 +23,10 @@ Every KCS note should include:
 - failure modes,
 - test anchors,
 - discoverability links.
+
+User-facing notes (user-issue template) should include:
+
+- description (no internal jargon),
+- audience,
+- step-by-step resolution using exact UI labels,
+- related content links.
