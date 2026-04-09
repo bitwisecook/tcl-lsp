@@ -18,20 +18,12 @@ from core.analysis.semantic_model import AnalysisResult, SourceTarget
 from core.analysis.source_resolver import resolve_source_target
 from core.common.lsp import to_lsp_range
 
+from ..workspace.scanner import path_to_uri, uri_to_path  # noqa: F401  (path_to_uri re-exported)
+
 
 class _WorkspaceLike(Protocol):
     def reverse_dependents(self, uri: str) -> frozenset[str]: ...
     def get_analysis(self, uri: str) -> AnalysisResult | None: ...
-
-
-def _uri_to_path(uri: str) -> str:
-    if uri.startswith("file://"):
-        return uri[len("file://") :]
-    return uri
-
-
-def _path_to_uri(path: str) -> str:
-    return "file://" + path
 
 
 def _compute_new_literal(
@@ -69,15 +61,21 @@ def _collect_edits_for_rename(
     index: _WorkspaceLike,
     workspace_roots: list[str] | None,
 ) -> list[_RenameEdit]:
-    old_path = os.path.normpath(_uri_to_path(old_uri))
-    new_path = os.path.normpath(_uri_to_path(new_uri))
+    new_path_raw = uri_to_path(new_uri)
+    old_path_raw = uri_to_path(old_uri)
+    if not new_path_raw or not old_path_raw:
+        return []  # non-file URIs (untitled://, vscode-vfs://) are not renameable
+    new_path = os.path.normpath(new_path_raw)
+    old_path = os.path.normpath(old_path_raw)
     dependents = index.reverse_dependents(old_uri)
     edits: list[_RenameEdit] = []
     for dep_uri in dependents:
         analysis = index.get_analysis(dep_uri)
         if analysis is None:
             continue
-        dep_path = _uri_to_path(dep_uri)
+        dep_path = uri_to_path(dep_uri)
+        if not dep_path:
+            continue
         for target in analysis.source_targets:
             if not target.is_literal:
                 continue  # conservative: leave substitution paths alone

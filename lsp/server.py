@@ -3493,6 +3493,14 @@ _FEATURE_TOGGLE_KEYS = {
 }
 
 
+# Feature toggles in this set are evaluated only at import time because the
+# associated handler registration happens via the @server.feature decorator
+# before any configuration is read.  Flipping them at runtime via
+# didChangeConfiguration has no effect — a server restart is required.  The
+# config loader logs a warning when it sees one change so users know.
+_RESTART_REQUIRED_TOGGLES = frozenset({"pull_diagnostics_enabled"})
+
+
 def _apply_feature_settings(tcl_settings: dict) -> bool:
     """Apply feature toggles and diagnostic/optimiser filters.
 
@@ -3500,6 +3508,25 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     """
     global feature_config
     changed = False
+
+    def _set_toggle(attr: str, val: bool) -> bool:
+        """Update a toggle and return True if the change affects diagnostics."""
+        nonlocal changed
+        if val == getattr(feature_config, attr):
+            return False
+        setattr(feature_config, attr, val)
+        if attr in _RESTART_REQUIRED_TOGGLES:
+            log.warning(
+                "Feature toggle %r changed at runtime but takes effect only "
+                "after a server restart (handler registration is fixed at "
+                "startup).",
+                attr,
+            )
+            # Don't mark diagnostics as changed — the underlying capability
+            # hasn't really moved and republishing would be misleading.
+            return False
+        changed = True
+        return True
 
     # Feature-level toggles  (tclLsp.features.hover etc.)
     features = tcl_settings.get("features")
@@ -3509,9 +3536,8 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             if val is None:
                 # Also accept snake_case variant from flat key extraction.
                 val = features.get(_camel_to_snake(json_key))
-            if isinstance(val, bool) and val != getattr(feature_config, attr):
-                setattr(feature_config, attr, val)
-                changed = True
+            if isinstance(val, bool):
+                _set_toggle(attr, val)
 
     # Also accept flat keys: tclLsp.features.hover -> features.hover
     for key, value in tcl_settings.items():
@@ -3520,9 +3546,8 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             attr = _FEATURE_TOGGLE_KEYS.get(json_key) or _FEATURE_TOGGLE_KEYS.get(
                 _camel_to_snake(json_key)
             )
-            if attr and value != getattr(feature_config, attr):
-                setattr(feature_config, attr, value)
-                changed = True
+            if attr:
+                _set_toggle(attr, value)
 
     # Per-diagnostic-code filters  (tclLsp.diagnostics.W100 etc.)
     diagnostics_section = tcl_settings.get("diagnostics")

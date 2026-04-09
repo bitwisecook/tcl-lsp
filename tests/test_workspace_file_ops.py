@@ -17,6 +17,7 @@ from lsp.features.workspace_file_ops import (
     compute_batch_rename_edits,
     compute_rename_edits,
 )
+from lsp.workspace.scanner import path_to_uri
 
 
 class _FakeIndex:
@@ -31,7 +32,12 @@ class _FakeIndex:
 
 
 def _path_to_uri(p: str) -> str:
-    return "file://" + p
+    """Convert an absolute filesystem path to a ``file://`` URI.
+
+    Delegates to the shared scanner helper so Windows drives, spaces, and
+    non-ASCII characters encode correctly on every platform.
+    """
+    return path_to_uri(p)
 
 
 class TestComputeRenameEdits:

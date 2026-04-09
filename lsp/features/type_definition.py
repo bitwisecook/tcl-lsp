@@ -1,38 +1,26 @@
 """Go-to-type-definition provider.
 
-Tcl has no static typing, so this is intentionally narrow:
+Uses the compiler's type lattice (``core.compiler.core_analyses``) to resolve
+a variable's inferred class, then jumps to that ``ClassDef``.  No regex or
+source-text scanning -- the compiler already tracks TclOO instance types via
+``TypeLattice.object_of(class_name)`` when it sees ``[Class new ...]`` or
+``[Class create ...]`` assignments.
 
-- For a ``$var`` where the variable was initialised via ``[ClassName new ...]``
-  (or ``[ClassName create ...]``), return ``ClassName``'s declaration.
-- For a ``my method`` call inside a class body, return the enclosing class's
-  declaration.
-- Otherwise return an empty list.
+For cursor-on-``my``-method-call, we fall back to the enclosing class scope
+(looked up via the analyser's lexical scope chain).
 """
 
 from __future__ import annotations
-
-import re
 
 from lsprotocol import types
 
 from core.analysis.analyser import analyse
 from core.analysis.semantic_model import AnalysisResult, ClassDef
-from core.common.lsp import find_var_in_scopes, to_lsp_location
+from core.common.lsp import to_lsp_location
+from core.compiler.core_analyses import analyse_source
+from core.compiler.types import TclType, TypeKind
 
 from .symbol_resolution import find_scope_at_line, find_var_at_position, find_word_at_position
-
-# set|lassign|variable  name  [ClassName new|create ...]
-# The class name is captured as group 1.
-_CLASS_ASSIGN_RE = re.compile(
-    r"""
-    \b(?:set|variable|lassign)\s+
-    [\w:]+\s+                  # variable name (possibly namespace-qualified)
-    \[\s*
-    ([\w:]+)                   # class name
-    \s+(?:new|create)\b
-    """,
-    re.VERBOSE,
-)
 
 
 def _find_class(
@@ -51,24 +39,28 @@ def _find_class(
     return None
 
 
-def _class_of_var(source: str, var_name: str) -> str | None:
-    """Return the class name the variable is constructed with, if any.
+def _infer_var_class(source: str, var_name: str) -> str | None:
+    """Look up the inferred class for ``var_name`` in the compiler type lattice.
 
-    Looks for the first ``set|variable|lassign VAR [ClassName new|create ...]``
-    assignment naming ``var_name``.
+    Returns the first ``class_name`` for any SSA version of ``var_name``
+    whose type is ``KNOWN OBJECT`` with a concrete ``class_name``.  Searches
+    both the top-level function and every analysed procedure.
     """
-    stripped = var_name.lstrip(":")
-    for line in source.splitlines():
-        m = _CLASS_ASSIGN_RE.search(line)
-        if not m:
-            continue
-        # Extract the variable name from the line — recover the second word.
-        parts = line.strip().split(None, 2)
-        if len(parts) < 3:
-            continue
-        candidate_var = parts[1].lstrip(":")
-        if candidate_var == stripped:
-            return m.group(1)
+    try:
+        module = analyse_source(source)
+    except Exception:
+        return None
+
+    for function in [module.top_level, *module.procedures.values()]:
+        for (name, _version), type_lattice in function.types.items():
+            if name != var_name:
+                continue
+            if type_lattice.kind is not TypeKind.KNOWN:
+                continue
+            if type_lattice.tcl_type is not TclType.OBJECT:
+                continue
+            if type_lattice.class_name:
+                return type_lattice.class_name
     return None
 
 
@@ -84,14 +76,10 @@ def get_type_definition(
     if analysis is None:
         analysis = analyse(source)
 
-    # Variable receiver: look for [Class new ...] initialisation.
+    # Variable receiver: ask the compiler for the inferred class.
     var_name = find_var_at_position(source, line, character)
     if var_name:
-        scope = find_scope_at_line(analysis.global_scope, line)
-        var_def = find_var_in_scopes(var_name, scope)
-        if var_def is None:
-            return []
-        class_name = _class_of_var(source, var_name)
+        class_name = _infer_var_class(source, var_name)
         if class_name is None:
             return []
         resolved = _find_class(class_name, analysis, workspace_classes)
@@ -100,26 +88,24 @@ def get_type_definition(
         ent_uri, class_def = resolved
         return [to_lsp_location(ent_uri or uri, class_def.name_range)]
 
-    # Method receiver: ``my foo`` inside a class body -> enclosing class.
+    # Method receiver: only ``my`` call sites (or the method declaration name)
+    # inside a class body should resolve to the enclosing class.  Other
+    # identifiers fall through to the empty list so we do not over-report.
     word = find_word_at_position(source, line, character)
     if not word:
         return []
     scope = find_scope_at_line(analysis.global_scope, line)
-    cursor = scope
-    while cursor is not None:
-        if cursor.kind == "method":
-            # Scope name is "Class::method" — strip the method to get the class.
-            class_name = cursor.name.rsplit("::", 1)[0] if "::" in cursor.name else cursor.name
-            resolved = _find_class(class_name, analysis, workspace_classes)
-            if resolved:
-                ent_uri, class_def = resolved
-                return [to_lsp_location(ent_uri or uri, class_def.name_range)]
-            break
-        if cursor.kind == "class":
-            resolved = _find_class(cursor.name, analysis, workspace_classes)
-            if resolved:
-                ent_uri, class_def = resolved
-                return [to_lsp_location(ent_uri or uri, class_def.name_range)]
-            break
-        cursor = cursor.parent
-    return []
+    if scope.kind != "method":
+        return []
+    class_name = scope.name.rsplit("::", 1)[0] if "::" in scope.name else scope.name
+    if class_name in (None, "", "::"):
+        return []
+    # Require the cursor to actually be on a method name that exists on the
+    # enclosing class (either a declaration or a ``my <name>`` call).
+    resolved = _find_class(class_name, analysis, workspace_classes)
+    if resolved is None:
+        return []
+    ent_uri, class_def = resolved
+    if word not in class_def.methods and word not in class_def.class_methods:
+        return []
+    return [to_lsp_location(ent_uri or uri, class_def.name_range)]
