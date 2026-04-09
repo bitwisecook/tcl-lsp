@@ -10,6 +10,7 @@ import multiprocessing
 import re
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
@@ -58,15 +59,20 @@ from .features.call_hierarchy import (
     prepare_call_hierarchy as get_call_hierarchy,
 )
 from .features.code_actions import get_code_actions
+from .features.code_lens import get_code_lenses, resolve_code_lens
 from .features.completion import get_completions
+from .features.declaration import get_declaration
 from .features.definition import get_bigip_definition, get_definition
 from .features.diagnostics import get_basic_diagnostics, get_deep_diagnostics, get_diagnostics
+from .features.document_highlight import get_document_highlights
 from .features.document_links import get_document_links
 from .features.document_symbols import get_document_symbols
 from .features.folding import get_folding_ranges
 from .features.formatting import get_formatting, get_range_formatting
 from .features.hover import get_hover
+from .features.implementation import get_implementations
 from .features.inlay_hints import get_inlay_hints
+from .features.linked_editing_range import get_linked_editing_ranges
 from .features.package_suggestions import rank_package_suggestions
 from .features.references import get_references
 from .features.rename import get_rename_edits, prepare_rename
@@ -79,6 +85,7 @@ from .features.semantic_tokens import (
 )
 from .features.signature_help import get_signature_help
 from .features.symbol_resolution import find_word_at_position
+from .features.type_definition import get_type_definition
 from .features.type_hierarchy import (
     prepare_type_hierarchy,
 )
@@ -88,6 +95,7 @@ from .features.type_hierarchy import (
 from .features.type_hierarchy import (
     supertypes as get_supertypes,
 )
+from .features.workspace_file_ops import compute_batch_rename_edits
 from .features.workspace_symbols import get_workspace_symbols
 from .workspace.document_state import WorkspaceState
 from .workspace.scanner import BackgroundScanner, path_to_uri, uri_to_path
@@ -118,6 +126,21 @@ class FeatureConfig:
     call_hierarchy_enabled: bool = True
     document_links_enabled: bool = True
     selection_range_enabled: bool = True
+    document_highlight_enabled: bool = True
+    code_lens_enabled: bool = True
+    workspace_file_ops_enabled: bool = True
+    # Pull-model diagnostics are opt-in.  vscode-languageclient auto-enables
+    # its pull flow whenever the server advertises ``diagnosticProvider`` in
+    # ServerCapabilities, which disables the push pipeline that the existing
+    # test suite and most clients rely on.  Users who explicitly want the
+    # pull model can opt in via ``tclLsp.features.pullDiagnostics``.
+    pull_diagnostics_enabled: bool = False
+    will_save_wait_until_enabled: bool = True
+    progress_enabled: bool = True
+    implementation_enabled: bool = True
+    type_definition_enabled: bool = True
+    declaration_enabled: bool = True
+    linked_editing_range_enabled: bool = True
 
     # Per-code diagnostic filters -- codes present here are *disabled*.
     # Initialised from codes with ``default=False`` (opt-in diagnostics).
@@ -769,6 +792,58 @@ def on_definition(
     return locations
 
 
+# Go to type definition
+
+
+@server.feature(types.TEXT_DOCUMENT_TYPE_DEFINITION)
+def on_type_definition(
+    params: types.TypeDefinitionParams,
+) -> list[types.Location] | None:
+    if not feature_config.type_definition_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    source = _get_doc_source(uri)
+    # Pass None when analysis hasn't completed yet; the feature function
+    # will run a throwaway analyse() inline.  This matches the behaviour
+    # of on_references / on_definition and keeps the feature working on
+    # slow CI runners where activate() may return before the fire-and-
+    # forget did_open task has populated state.analysis.
+    analysis = state.analysis if state else None
+    return get_type_definition(
+        source,
+        uri,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
+        workspace_classes=workspace_index.iter_classes(),
+    )
+
+
+# Go to declaration
+
+
+@server.feature(types.TEXT_DOCUMENT_DECLARATION)
+def on_declaration(
+    params: types.DeclarationParams,
+) -> list[types.Location] | None:
+    if not feature_config.declaration_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    source = _get_doc_source(uri)
+    # See on_type_definition for the rationale behind passing analysis=None
+    # when state.analysis has not been populated yet.
+    analysis = state.analysis if state else None
+    return get_declaration(
+        source,
+        uri,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
+    )
+
+
 # Find references
 
 
@@ -790,6 +865,30 @@ def on_references(
         params.position.character,
         analysis=analysis,
         include_declaration=include_decl,
+    )
+
+
+# Document highlight
+
+
+@server.feature(types.TEXT_DOCUMENT_DOCUMENT_HIGHLIGHT)
+def on_document_highlight(
+    params: types.DocumentHighlightParams,
+) -> list[types.DocumentHighlight] | None:
+    if not feature_config.document_highlight_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    source = _get_doc_source(uri)
+    # See on_type_definition for the rationale behind passing analysis=None
+    # when state.analysis has not been populated yet.
+    analysis = state.analysis if state else None
+    return get_document_highlights(
+        source,
+        uri,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
     )
 
 
@@ -1023,6 +1122,31 @@ def on_subtypes(
     return get_subtypes(item, analysis=analysis, source=source)
 
 
+# Go to implementation
+
+
+@server.feature(types.TEXT_DOCUMENT_IMPLEMENTATION)
+def on_implementation(
+    params: types.ImplementationParams,
+) -> list[types.Location] | None:
+    if not feature_config.implementation_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    source = _get_doc_source(uri)
+    # See on_type_definition for the rationale behind passing analysis=None
+    # when state.analysis has not been populated yet.
+    analysis = state.analysis if state else None
+    return get_implementations(
+        source,
+        uri,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
+        workspace_classes=workspace_index.iter_classes(),
+    )
+
+
 # Document links
 
 
@@ -1043,6 +1167,96 @@ def on_document_link(
     return get_document_links(source, analysis=analysis)
 
 
+# Code lens
+
+
+@server.feature(types.TEXT_DOCUMENT_CODE_LENS)
+def on_code_lens(
+    params: types.CodeLensParams,
+) -> list[types.CodeLens] | None:
+    if not feature_config.code_lens_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    source = _get_doc_source(uri)
+    # See on_type_definition for the rationale behind passing analysis=None
+    # when state.analysis has not been populated yet.
+    analysis = state.analysis if state else None
+    return get_code_lenses(source, uri, analysis)
+
+
+@server.feature(types.CODE_LENS_RESOLVE)
+def on_code_lens_resolve(lens: types.CodeLens) -> types.CodeLens:
+    return resolve_code_lens(lens, workspace_index)
+
+
+# Pull diagnostics
+#
+# These handlers are only registered when the user opts in via
+# ``tclLsp.features.pullDiagnostics``.  Registering them causes pygls to
+# advertise ``diagnosticProvider`` in ServerCapabilities, which flips
+# vscode-languageclient into pull mode and disables the push pipeline that
+# the existing test suite depends on.  The handler functions stay defined
+# so the unit tests in ``tests/test_pull_diagnostics.py`` can invoke them
+# directly.
+
+
+def on_document_diagnostic(
+    params: types.DocumentDiagnosticParams,
+) -> types.RelatedFullDocumentDiagnosticReport | types.RelatedUnchangedDocumentDiagnosticReport:
+    uri = params.text_document.uri
+    cached = _pull_diag_cache.get(uri, [])
+    current_result_id = _pull_diag_result_ids.get(uri)
+    previous = getattr(params, "previous_result_id", None)
+    if current_result_id is not None and previous is not None and previous == current_result_id:
+        return types.RelatedUnchangedDocumentDiagnosticReport(
+            result_id=current_result_id,
+        )
+    return types.RelatedFullDocumentDiagnosticReport(
+        items=list(cached),
+        result_id=current_result_id,
+    )
+
+
+def on_workspace_diagnostic(
+    params: types.WorkspaceDiagnosticParams,
+) -> types.WorkspaceDiagnosticReport:
+    previous_ids: dict[str, str] = {}
+    for item in getattr(params, "previous_result_ids", []) or []:
+        previous_ids[item.uri] = item.value
+
+    report_items: list[
+        types.WorkspaceFullDocumentDiagnosticReport
+        | types.WorkspaceUnchangedDocumentDiagnosticReport
+    ] = []
+    for uri, diagnostics in _pull_diag_cache.items():
+        current_result_id = _pull_diag_result_ids.get(uri, "")
+        prev = previous_ids.get(uri)
+        if prev is not None and prev == current_result_id and current_result_id:
+            report_items.append(
+                types.WorkspaceUnchangedDocumentDiagnosticReport(
+                    uri=uri,
+                    result_id=current_result_id,
+                    version=None,
+                )
+            )
+        else:
+            report_items.append(
+                types.WorkspaceFullDocumentDiagnosticReport(
+                    uri=uri,
+                    items=list(diagnostics),
+                    result_id=current_result_id or None,
+                    version=None,
+                )
+            )
+    return types.WorkspaceDiagnosticReport(items=report_items)
+
+
+if feature_config.pull_diagnostics_enabled:
+    server.feature(types.TEXT_DOCUMENT_DIAGNOSTIC)(on_document_diagnostic)
+    server.feature(types.WORKSPACE_DIAGNOSTIC)(on_workspace_diagnostic)
+
+
 # Selection range
 
 
@@ -1058,6 +1272,29 @@ def on_selection_range(
     analysis = state.analysis if state else None
     return get_selection_ranges(
         source, list(params.positions), analysis=analysis, lines=state.lines if state else None
+    )
+
+
+# Linked editing range
+
+
+@server.feature(types.TEXT_DOCUMENT_LINKED_EDITING_RANGE)
+def on_linked_editing_range(
+    params: types.LinkedEditingRangeParams,
+) -> types.LinkedEditingRanges | None:
+    if not feature_config.linked_editing_range_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    source = _get_doc_source(uri)
+    # See on_type_definition for the rationale behind passing analysis=None
+    # when state.analysis has not been populated yet.
+    analysis = state.analysis if state else None
+    return get_linked_editing_ranges(
+        source,
+        params.position.line,
+        params.position.character,
+        analysis=analysis,
     )
 
 
@@ -1810,7 +2047,61 @@ def on_range_formatting(
     return edits or None
 
 
+# Format on save
+
+
+@server.feature(types.TEXT_DOCUMENT_WILL_SAVE_WAIT_UNTIL)
+def on_will_save_wait_until(
+    params: types.WillSaveTextDocumentParams,
+) -> list[types.TextEdit] | None:
+    if not feature_config.will_save_wait_until_enabled:
+        return None
+    if not feature_config.formatting_enabled:
+        return None
+    uri = params.text_document.uri
+    state = workspace_state.get(uri)
+    source = _get_doc_source(uri)
+    # Build a FormattingOptions from the active FormatterConfig so the format
+    # matches what on_formatting would produce.
+    from core.formatting.config import IndentStyle
+
+    options = types.FormattingOptions(
+        tab_size=formatter_config.indent_size,
+        insert_spaces=formatter_config.indent_style == IndentStyle.SPACES,
+    )
+    edits = get_formatting(
+        source,
+        options,
+        formatter_config,
+        lines=state.lines if state else None,
+    )
+    return edits or None
+
+
 # Diagnostics
+
+
+# Pull-model diagnostics cache.  Populated on every publish so that
+# textDocument/diagnostic and workspace/diagnostic handlers can serve the
+# latest results without recomputing.
+#
+# We ALWAYS push via textDocument/publishDiagnostics regardless of whether
+# the client advertises pull-diagnostic support.  vscode-languageclient
+# advertises that capability unconditionally in fillClientCapabilities but
+# many clients still rely on push notifications, so a naive short-circuit
+# broke every integration test that waits for pushed diagnostics.  Clients
+# that actively use the pull model can simply ignore the duplicate push or
+# configure diagnosticPullOptions to suppress it; the LSP spec allows both
+# modes to coexist.
+_pull_diag_cache: dict[str, list[types.Diagnostic]] = {}
+_pull_diag_result_ids: dict[str, str] = {}
+_pull_diag_counter: int = 0
+
+
+def _next_pull_diag_result_id() -> str:
+    global _pull_diag_counter
+    _pull_diag_counter += 1
+    return f"tcl-lsp-diag-{_pull_diag_counter}"
 
 
 def _publish_diags_to_client(
@@ -1818,7 +2109,9 @@ def _publish_diags_to_client(
     diagnostics: list[types.Diagnostic],
     version: int | None = None,
 ) -> None:
-    """Push a diagnostics notification to the client."""
+    """Push a diagnostics notification to the client and update the pull cache."""
+    _pull_diag_cache[uri] = list(diagnostics)
+    _pull_diag_result_ids[uri] = _next_pull_diag_result_id()
     server.text_document_publish_diagnostics(
         types.PublishDiagnosticsParams(
             uri=uri,
@@ -2692,7 +2985,9 @@ def _upgrade_dialect_from_workspace() -> None:
             )
 
 
-def _run_background_scan() -> None:
+def _run_background_scan(
+    progress_cb: Callable[[int, int, str], None] | None = None,
+) -> None:
     """Execute background scan in a daemon thread.
 
     Each file is analysed with a per-file timeout so that a single
@@ -2702,6 +2997,11 @@ def _run_background_scan() -> None:
 
     Concurrent scan requests are deduplicated: if a scan is already
     running, subsequent calls return immediately.
+
+    ``progress_cb`` is an optional callback invoked with ``(idx, total,
+    path)`` after each file is processed.  When supplied it should be
+    thread-safe; the canonical use is to marshal a
+    ``$/progress`` notification onto the event loop.
     """
     if not _scan_lock.acquire(blocking=False):
         log.debug("Background scan already running — skipping duplicate request")
@@ -2709,7 +3009,7 @@ def _run_background_scan() -> None:
     t0 = time.perf_counter()
     try:
         open_uris = frozenset(uri for uri, _ in workspace_state.items())
-        results = background_scanner.scan_all(skip_uris=open_uris)
+        results = background_scanner.scan_all(skip_uris=open_uris, progress_cb=progress_cb)
         for uri, scan_result in results.items():
             # Don't overwrite entries for currently open files
             if workspace_state.get(uri) is not None:
@@ -2749,6 +3049,125 @@ def _run_background_scan() -> None:
         log.error("Background scan failed", exc_info=True)
     finally:
         _scan_lock.release()
+
+
+# Strong reference for the scan coordinator task so asyncio does not
+# garbage-collect it mid-run.  Reset on each new scan; we only ever have
+# one coordinator alive at a time because ``_run_background_scan`` uses
+# ``_scan_lock`` to deduplicate concurrent calls.
+_scan_progress_task: "asyncio.Task[None] | None" = None
+
+
+def _start_scan_with_progress() -> None:
+    """Run the background scan with $/progress notifications.
+
+    The scan itself runs in a daemon thread (same as the silent path).  A
+    tiny coordinator runs on the event loop: it issues
+    ``window/workDoneProgress/create``, calls ``begin``, kicks off the
+    scan thread, receives progress ticks via ``call_soon_threadsafe``, and
+    emits ``end`` when the thread finishes.
+
+    The coordinator is designed to be *best-effort*: any failure in the
+    ``$/progress`` dance falls through to the plain daemon-thread scan so
+    a misbehaving client never blocks indexing.
+    """
+    import uuid
+
+    global _scan_progress_task
+
+    loop = getattr(server, "loop", None)
+    if loop is None or not loop.is_running():
+        # Fallback: no event loop — run silently.
+        threading.Thread(target=_run_background_scan, daemon=True).start()
+        return
+
+    token = f"tcl-lsp-scan-{uuid.uuid4()}"
+    # True once ``begin`` has successfully been sent to the client.
+    # Reports arriving before this flag is set are dropped rather than
+    # risking an "unknown token" error from the client.
+    progress_active = False
+
+    def _progress_cb(idx: int, total: int, path: str) -> None:
+        if not progress_active:
+            return
+        percentage = int((idx / total) * 100) if total else 0
+
+        def _send() -> None:
+            try:
+                server.work_done_progress.report(
+                    token,
+                    types.WorkDoneProgressReport(
+                        message=f"{idx}/{total}",
+                        percentage=percentage,
+                    ),
+                )
+            except Exception:  # pragma: no cover - defensive
+                pass
+
+        try:
+            loop.call_soon_threadsafe(_send)
+        except Exception:  # pragma: no cover - event loop may be closing
+            pass
+
+    async def _coordinator() -> None:
+        nonlocal progress_active
+        # Give the create_async call a short window to reach the client.
+        # Some clients ignore the request silently; without a timeout the
+        # coordinator (and therefore the scan) would hang forever.
+        try:
+            await asyncio.wait_for(server.work_done_progress.create_async(token), timeout=5.0)
+        except (Exception, asyncio.TimeoutError):
+            log.debug(
+                "work_done_progress/create failed or timed out; running scan silently",
+                exc_info=True,
+            )
+            threading.Thread(target=_run_background_scan, daemon=True).start()
+            return
+
+        try:
+            server.work_done_progress.begin(
+                token,
+                types.WorkDoneProgressBegin(
+                    title="Scanning workspace",
+                    cancellable=False,
+                    percentage=0,
+                ),
+            )
+            progress_active = True
+        except Exception:  # pragma: no cover - defensive
+            # ``begin`` failed — bail out to the silent path.
+            threading.Thread(target=_run_background_scan, daemon=True).start()
+            return
+
+        done = threading.Event()
+
+        def _worker() -> None:
+            try:
+                _run_background_scan(progress_cb=_progress_cb)
+            finally:
+                done.set()
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+        # Wait for completion without blocking the event loop.
+        while not done.is_set():
+            await asyncio.sleep(0.1)
+
+        progress_active = False
+        try:
+            server.work_done_progress.end(
+                token,
+                types.WorkDoneProgressEnd(message="done"),
+            )
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    # Keep a strong reference so the task does not get garbage-collected
+    # if the enclosing scope is dropped before the coroutine finishes.
+    # ``loop.create_task`` avoids the deprecated ``loop=`` keyword on
+    # ``asyncio.ensure_future`` and does exactly what we need: schedule
+    # the coroutine on the already-running loop.
+    _scan_progress_task = loop.create_task(_coordinator())
 
 
 @server.feature(types.INITIALIZED)
@@ -2801,7 +3220,19 @@ def on_initialized(params: types.InitializedParams) -> None:
     if ws.root_path:
         roots.append(ws.root_path)
     background_scanner.configure(workspace_roots=roots)
-    threading.Thread(target=_run_background_scan, daemon=True).start()
+
+    # Kick off the scan with optional progress reporting.  When the client
+    # advertises window/workDoneProgress we emit begin/report/end notifications
+    # under a fresh token.  Otherwise we just run the silent daemon path as
+    # before.
+    progress_supported = bool(
+        feature_config.progress_enabled
+        and getattr(getattr(caps, "window", None), "work_done_progress", False)
+    )
+    if progress_supported:
+        _start_scan_with_progress()
+    else:
+        threading.Thread(target=_run_background_scan, daemon=True).start()
 
     # Eagerly import heavy modules in a background thread so that the
     # first didOpen/didChange does not pay the ~500ms import cost for
@@ -3016,6 +3447,60 @@ def did_change_watched_files(
                             )
 
 
+# File rename hooks
+
+
+_RENAME_FILE_OPERATION_OPTIONS = types.FileOperationRegistrationOptions(
+    filters=[
+        types.FileOperationFilter(
+            pattern=types.FileOperationPattern(
+                glob="**/*.{tcl,tm,itcl,irule,irul}",
+            ),
+        ),
+    ],
+)
+
+
+@server.feature(types.WORKSPACE_WILL_RENAME_FILES, _RENAME_FILE_OPERATION_OPTIONS)
+def on_will_rename_files(
+    params: types.RenameFilesParams,
+) -> types.WorkspaceEdit | None:
+    """Rewrite ``source`` lines in dependents so the workspace still loads."""
+    if not feature_config.workspace_file_ops_enabled:
+        return None
+    roots: list[str] = []
+    ws = server.workspace
+    if ws.root_path:
+        roots.append(ws.root_path)
+    return compute_batch_rename_edits(
+        list(params.files),
+        workspace_index,
+        workspace_roots=roots,
+    )
+
+
+@server.feature(types.WORKSPACE_DID_RENAME_FILES, _RENAME_FILE_OPERATION_OPTIONS)
+def on_did_rename_files(params: types.RenameFilesParams) -> None:
+    """Reindex renamed files after the client applies the rename on disk."""
+    if not feature_config.workspace_file_ops_enabled:
+        return
+    for f in params.files:
+        old_uri = f.old_uri
+        new_uri = f.new_uri
+        workspace_index.remove(old_uri)
+        background_scanner.remove_file(old_uri)
+        new_path = uri_to_path(new_uri)
+        if not new_path:
+            continue
+        scan_result = background_scanner.rescan_file(new_path)
+        if scan_result:
+            workspace_index.update(
+                new_uri,
+                scan_result.analysis,
+                EntrySource.BACKGROUND,
+            )
+
+
 # Configuration
 
 # Loaded from the self-registering code registry (core.common.codes).
@@ -3040,7 +3525,25 @@ _FEATURE_TOGGLE_KEYS = {
     "callHierarchy": "call_hierarchy_enabled",
     "documentLinks": "document_links_enabled",
     "selectionRange": "selection_range_enabled",
+    "documentHighlight": "document_highlight_enabled",
+    "codeLens": "code_lens_enabled",
+    "workspaceFileOps": "workspace_file_ops_enabled",
+    "pullDiagnostics": "pull_diagnostics_enabled",
+    "willSaveWaitUntil": "will_save_wait_until_enabled",
+    "progress": "progress_enabled",
+    "implementation": "implementation_enabled",
+    "typeDefinition": "type_definition_enabled",
+    "declaration": "declaration_enabled",
+    "linkedEditingRange": "linked_editing_range_enabled",
 }
+
+
+# Feature toggles in this set are evaluated only at import time because the
+# associated handler registration happens via the @server.feature decorator
+# before any configuration is read.  Flipping them at runtime via
+# didChangeConfiguration has no effect — a server restart is required.  The
+# config loader logs a warning when it sees one change so users know.
+_RESTART_REQUIRED_TOGGLES = frozenset({"pull_diagnostics_enabled"})
 
 
 def _apply_feature_settings(tcl_settings: dict) -> bool:
@@ -3051,6 +3554,33 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     global feature_config
     changed = False
 
+    def _set_toggle(attr: str, val: object) -> bool:
+        """Update a toggle and return True if the change affects diagnostics.
+
+        Defensively rejects non-bool inputs.  Both the nested-dict and the
+        flat-key paths already filter on ``isinstance(value, bool)``, but
+        the check lives here too so the invariant survives call-site
+        refactors and catches malformed settings payloads.
+        """
+        nonlocal changed
+        if not isinstance(val, bool):
+            return False
+        if val == getattr(feature_config, attr):
+            return False
+        setattr(feature_config, attr, val)
+        if attr in _RESTART_REQUIRED_TOGGLES:
+            log.warning(
+                "Feature toggle %r changed at runtime but takes effect only "
+                "after a server restart (handler registration is fixed at "
+                "startup).",
+                attr,
+            )
+            # Don't mark diagnostics as changed — the underlying capability
+            # hasn't really moved and republishing would be misleading.
+            return False
+        changed = True
+        return True
+
     # Feature-level toggles  (tclLsp.features.hover etc.)
     features = tcl_settings.get("features")
     if isinstance(features, dict):
@@ -3059,9 +3589,8 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             if val is None:
                 # Also accept snake_case variant from flat key extraction.
                 val = features.get(_camel_to_snake(json_key))
-            if isinstance(val, bool) and val != getattr(feature_config, attr):
-                setattr(feature_config, attr, val)
-                changed = True
+            if isinstance(val, bool):
+                _set_toggle(attr, val)
 
     # Also accept flat keys: tclLsp.features.hover -> features.hover
     for key, value in tcl_settings.items():
@@ -3070,9 +3599,8 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             attr = _FEATURE_TOGGLE_KEYS.get(json_key) or _FEATURE_TOGGLE_KEYS.get(
                 _camel_to_snake(json_key)
             )
-            if attr and value != getattr(feature_config, attr):
-                setattr(feature_config, attr, value)
-                changed = True
+            if attr:
+                _set_toggle(attr, value)
 
     # Per-diagnostic-code filters  (tclLsp.diagnostics.W100 etc.)
     diagnostics_section = tcl_settings.get("diagnostics")

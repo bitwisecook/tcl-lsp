@@ -262,6 +262,15 @@ class WorkspaceIndex:
         with self._lock:
             return list(self._classes.keys())
 
+    def iter_classes(self) -> list[tuple[str, ClassDef]]:
+        """Return a snapshot list of ``(uri, ClassDef)`` for every known class.
+
+        Used by features that need to walk the entire class graph
+        (implementation, type hierarchy, class-usage code lens).
+        """
+        with self._lock:
+            return [entry for entries in self._classes.values() for entry in entries]
+
     def all_proc_names(self) -> list[str]:
         """Return all known proc qualified names."""
         with self._lock:

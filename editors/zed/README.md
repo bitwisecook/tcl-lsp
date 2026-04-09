@@ -9,13 +9,39 @@ Tcl, iRules, and iApps language support powered by
 - **Diagnostics** — errors, warnings, security, taint tracking, style
 - **Completions** — commands, subcommands, variables, switches
 - **Hover** — command help, proc signatures, variable info
-- **Go-to-definition** and **find references**
-- **Document symbols** and **workspace symbols**
-- **Formatting** — configurable indent, brace style, line length
+- **Go-to-definition**, **go-to-declaration**, **go-to-implementation**,
+  **go-to-type-definition**, and **find references**
+- **Document symbols**, **workspace symbols**, and **document highlight**
+  (with Read/Write kinds)
+- **Formatting** — configurable indent, brace style, line length; **format
+  on save** via `willSaveWaitUntil`
 - **Code actions** — quick fixes for diagnostics
+- **Code lens** — inline reference counts on proc definitions
 - **Signature help**, **rename**, **folding**, **inlay hints**
+- **Linked editing range** — synchronized edits on recursive proc self-calls
+- **Call hierarchy** and **type hierarchy** (TclOO classes)
+- **Work-done progress** — progress indicator during the first workspace
+  scan (requires Zed's workDoneProgress client capability)
 - **Snippets** — 16 built-in Tcl and iRules templates
 - **AI integration** — slash commands and MCP context server
+
+### Feature availability in Zed
+
+All features listed above are advertised by the language server and
+activate automatically when Zed's LSP client requests them.  Two features
+are intentionally gated on explicit client support:
+
+- **Pull diagnostics** (`textDocument/diagnostic`) are **off by default**.
+  Turning this on causes most LSP clients to stop honouring push
+  notifications, so the setting is opt-in and requires a server restart:
+  `"tclLsp": { "features": { "pullDiagnostics": true } }`.
+- **Workspace file operations** (`workspace/willRenameFiles` /
+  `didRenameFiles`) are auto-wired when the client advertises
+  `workspace.fileOperations` in its capabilities.  Zed forwards file
+  rename events from its project panel when the client capability is
+  set; if your Zed version does not yet expose this capability the
+  server's hooks remain dormant and you can continue to rename files
+  manually without side-effects.
 
 ## Supported languages
 
@@ -97,7 +123,17 @@ Add to your Zed `settings.json` to configure the language server:
             "inlayHints": false,
             "callHierarchy": true,
             "documentLinks": true,
-            "selectionRange": true
+            "selectionRange": true,
+            "documentHighlight": true,
+            "codeLens": true,
+            "workspaceFileOps": true,
+            "pullDiagnostics": false,
+            "willSaveWaitUntil": true,
+            "progress": true,
+            "implementation": true,
+            "typeDefinition": true,
+            "declaration": true,
+            "linkedEditingRange": true
           },
           "diagnostics": {
             "W100": true,

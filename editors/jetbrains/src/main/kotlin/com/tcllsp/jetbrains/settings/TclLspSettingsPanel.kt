@@ -37,6 +37,17 @@ class TclLspSettingsPanel {
     private val featureCallHierarchy = JBCheckBox("Call hierarchy")
     private val featureDocumentLinks = JBCheckBox("Document links")
     private val featureSelectionRange = JBCheckBox("Selection range")
+    private val featureDocumentHighlight = JBCheckBox("Document highlight")
+    private val featureCodeLens = JBCheckBox("Code lens")
+    private val featureWorkspaceFileOps = JBCheckBox("Auto-rewrite source paths on rename")
+    private val featurePullDiagnostics =
+        JBCheckBox("Pull diagnostics (opt-in; restart required)")
+    private val featureWillSaveWaitUntil = JBCheckBox("Format on save")
+    private val featureProgress = JBCheckBox("Workspace scan progress")
+    private val featureImplementation = JBCheckBox("Go to implementation")
+    private val featureTypeDefinition = JBCheckBox("Go to type definition")
+    private val featureDeclaration = JBCheckBox("Go to declaration")
+    private val featureLinkedEditingRange = JBCheckBox("Linked editing range")
 
     // Formatting
     private val fmtIndentSize = JSpinner(SpinnerNumberModel(4, 1, 16, 1))
@@ -249,6 +260,10 @@ class TclLspSettingsPanel {
                 featureDocumentSymbols, featureFolding, featureRename, featureSignatureHelp,
                 featureWorkspaceSymbols, featureInlayHints, featureCallHierarchy,
                 featureDocumentLinks, featureSelectionRange,
+                featureDocumentHighlight, featureCodeLens, featureWorkspaceFileOps,
+                featurePullDiagnostics, featureWillSaveWaitUntil, featureProgress,
+                featureImplementation, featureTypeDefinition, featureDeclaration,
+                featureLinkedEditingRange,
             )
             // Lay out in a 3-column grid
             val grid = JPanel(java.awt.GridLayout(0, 3, 8, 2))
@@ -434,6 +449,16 @@ class TclLspSettingsPanel {
             featureCallHierarchy.isSelected != s.featureCallHierarchy ||
             featureDocumentLinks.isSelected != s.featureDocumentLinks ||
             featureSelectionRange.isSelected != s.featureSelectionRange ||
+            featureDocumentHighlight.isSelected != s.featureDocumentHighlight ||
+            featureCodeLens.isSelected != s.featureCodeLens ||
+            featureWorkspaceFileOps.isSelected != s.featureWorkspaceFileOps ||
+            featurePullDiagnostics.isSelected != s.featurePullDiagnostics ||
+            featureWillSaveWaitUntil.isSelected != s.featureWillSaveWaitUntil ||
+            featureProgress.isSelected != s.featureProgress ||
+            featureImplementation.isSelected != s.featureImplementation ||
+            featureTypeDefinition.isSelected != s.featureTypeDefinition ||
+            featureDeclaration.isSelected != s.featureDeclaration ||
+            featureLinkedEditingRange.isSelected != s.featureLinkedEditingRange ||
             // Formatting
             (fmtIndentSize.value as Int) != s.formattingIndentSize ||
             fmtIndentStyle.selectedItem != s.formattingIndentStyle ||
@@ -621,6 +646,16 @@ class TclLspSettingsPanel {
         s.featureCallHierarchy = featureCallHierarchy.isSelected
         s.featureDocumentLinks = featureDocumentLinks.isSelected
         s.featureSelectionRange = featureSelectionRange.isSelected
+        s.featureDocumentHighlight = featureDocumentHighlight.isSelected
+        s.featureCodeLens = featureCodeLens.isSelected
+        s.featureWorkspaceFileOps = featureWorkspaceFileOps.isSelected
+        s.featurePullDiagnostics = featurePullDiagnostics.isSelected
+        s.featureWillSaveWaitUntil = featureWillSaveWaitUntil.isSelected
+        s.featureProgress = featureProgress.isSelected
+        s.featureImplementation = featureImplementation.isSelected
+        s.featureTypeDefinition = featureTypeDefinition.isSelected
+        s.featureDeclaration = featureDeclaration.isSelected
+        s.featureLinkedEditingRange = featureLinkedEditingRange.isSelected
 
         s.formattingIndentSize = fmtIndentSize.value as Int
         s.formattingIndentStyle = fmtIndentStyle.selectedItem as String
@@ -806,6 +841,16 @@ class TclLspSettingsPanel {
         featureCallHierarchy.isSelected = s.featureCallHierarchy
         featureDocumentLinks.isSelected = s.featureDocumentLinks
         featureSelectionRange.isSelected = s.featureSelectionRange
+        featureDocumentHighlight.isSelected = s.featureDocumentHighlight
+        featureCodeLens.isSelected = s.featureCodeLens
+        featureWorkspaceFileOps.isSelected = s.featureWorkspaceFileOps
+        featurePullDiagnostics.isSelected = s.featurePullDiagnostics
+        featureWillSaveWaitUntil.isSelected = s.featureWillSaveWaitUntil
+        featureProgress.isSelected = s.featureProgress
+        featureImplementation.isSelected = s.featureImplementation
+        featureTypeDefinition.isSelected = s.featureTypeDefinition
+        featureDeclaration.isSelected = s.featureDeclaration
+        featureLinkedEditingRange.isSelected = s.featureLinkedEditingRange
 
         fmtIndentSize.value = s.formattingIndentSize
         fmtIndentStyle.selectedItem = s.formattingIndentStyle
