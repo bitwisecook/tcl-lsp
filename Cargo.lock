@@ -161,6 +161,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
 
 [[package]]
+name = "tcl-compiler"
+version = "0.1.0"
+dependencies = [
+ "tcl-lexer",
+ "thiserror",
+]
+
+[[package]]
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
@@ -172,6 +180,7 @@ name = "tcl-lsp-rust"
 version = "0.1.0"
 dependencies = [
  "pyo3",
+ "tcl-compiler",
  "tcl-lexer",
 ]
 
