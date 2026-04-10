@@ -13,6 +13,10 @@
 //!   into [`ExprNode`] trees (chunk **C1**).
 //! - [`naming`] — variable and command name normalisation utilities
 //!   (chunk **C1**).
+//! - [`cfg`] — control-flow graph types: [`Block`](cfg::Block),
+//!   [`Function`](cfg::Function), [`CfgModule`](cfg::CfgModule),
+//!   [`Terminator`](cfg::Terminator), plus graph traversal utilities
+//!   (predecessors, reachability, reverse post-order) (chunk **C2**).
 //!
 //! The crate has no `pyo3` dependency and no Python-compat concerns —
 //! those belong in the `tcl-lsp-rust` binding crate. See
@@ -21,6 +25,7 @@
 
 #![deny(missing_docs)]
 
+pub mod cfg;
 pub mod expr_ast;
 pub mod expr_parser;
 pub mod ir;
