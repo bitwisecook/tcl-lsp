@@ -30,6 +30,10 @@ use crate::tokens::{SourcePosition, Token, TokenType};
 pub struct SourceMap<'src> {
     source: &'src str,
     line_index: LineIndex,
+    /// Sub-lexing base offsets. Added to every resolved position.
+    base_offset: u32,
+    base_line: u32,
+    base_col: u32,
 }
 
 impl<'src> SourceMap<'src> {
@@ -38,7 +42,13 @@ impl<'src> SourceMap<'src> {
     #[must_use]
     pub fn new(source: &'src str) -> Self {
         let line_index = LineIndex::new(source);
-        Self { source, line_index }
+        Self {
+            source,
+            line_index,
+            base_offset: 0,
+            base_line: 0,
+            base_col: 0,
+        }
     }
 
     /// Build a `SourceMap` from an already-computed line index. The
@@ -46,7 +56,26 @@ impl<'src> SourceMap<'src> {
     /// the same source string.
     #[must_use]
     pub fn with_line_index(source: &'src str, line_index: LineIndex) -> Self {
-        Self { source, line_index }
+        Self {
+            source,
+            line_index,
+            base_offset: 0,
+            base_line: 0,
+            base_col: 0,
+        }
+    }
+
+    /// Set sub-lexing base offsets. These are added to every
+    /// `SourcePosition` returned by [`Self::position_at`] and
+    /// [`Self::range_positions`], matching Python's
+    /// `base_offset` / `base_line` / `base_col` constructor
+    /// parameters on `TclLexer`.
+    #[must_use]
+    pub fn with_base(mut self, base_offset: u32, base_line: u32, base_col: u32) -> Self {
+        self.base_offset = base_offset;
+        self.base_line = base_line;
+        self.base_col = base_col;
+        self
     }
 
     /// Borrow the underlying source buffer.
@@ -157,9 +186,21 @@ impl<'src> SourceMap<'src> {
     }
 
     /// Resolve a byte offset to a full `SourcePosition`. O(log n).
+    ///
+    /// The returned position has `base_offset` / `base_line` /
+    /// `base_col` applied so sub-lexing offsets are reflected.
     #[must_use]
     pub fn position_at(&self, offset: u32) -> SourcePosition {
-        self.line_index.position_at(offset)
+        let raw = self.line_index.position_at(offset);
+        SourcePosition::new(
+            self.base_line + raw.line,
+            if raw.line == 0 {
+                self.base_col + raw.character
+            } else {
+                raw.character
+            },
+            self.base_offset + raw.offset,
+        )
     }
 
     /// Resolve a span to `(start, end)` positions, where `start` is
