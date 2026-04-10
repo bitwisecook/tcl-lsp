@@ -5,8 +5,9 @@ import { getDocUri, activate, sleep, waitForDiagnostics, setTestContent } from "
 suite("Configuration Settings", () => {
   const cfg = () => vscode.workspace.getConfiguration("tclLsp");
 
-  // Feature toggles
-  const featureKeys = [
+  // Feature toggles — all default to null (inherit from editor globals or
+  // default to enabled), except pullDiagnostics which defaults to false.
+  const triStateFeatureKeys = [
     "hover",
     "completion",
     "diagnostics",
@@ -25,19 +26,15 @@ suite("Configuration Settings", () => {
     "selectionRange",
   ];
 
-  for (const key of featureKeys) {
-    test(`features.${key} has a boolean default`, () => {
-      const value = cfg().get<boolean>(`features.${key}`);
-      assert.strictEqual(typeof value, "boolean", `features.${key} should be a boolean`);
+  for (const key of triStateFeatureKeys) {
+    test(`features.${key} defaults to null (inherit from editor)`, () => {
+      const value = cfg().get<boolean | null>(`features.${key}`);
+      assert.strictEqual(value, null, `features.${key} should default to null`);
     });
   }
 
-  test("features.inlayHints defaults to false", () => {
-    assert.strictEqual(cfg().get<boolean>("features.inlayHints"), false);
-  });
-
-  test("features.hover defaults to true", () => {
-    assert.strictEqual(cfg().get<boolean>("features.hover"), true);
+  test("features.pullDiagnostics defaults to false", () => {
+    assert.strictEqual(cfg().get<boolean>("features.pullDiagnostics"), false);
   });
 
   // Formatting options
