@@ -5,9 +5,9 @@ the VM runtime substitution engine.
 
 The implementation is provided by the Rust `tcl_lsp_rust` extension
 module (see `rust/tcl-lexer/src/substitution.rs`). A pure-Python
-fallback is kept in this file for developer environments that have not
-yet built the Rust wheel; it is removed in chunk L11 of the
-Python-to-Rust rewrite described in `docs/rust-rewrite.md`.
+fallback is kept in this file for developer environments and platforms
+that have not yet built the Rust wheel; it will remain until a later
+stage of the Python-to-Rust rewrite described in `docs/rust-rewrite.md`.
 """
 
 from __future__ import annotations
