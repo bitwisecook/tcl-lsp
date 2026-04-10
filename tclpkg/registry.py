@@ -163,7 +163,8 @@ class RegistryClient:
                 self._fetched_path().write_text(
                     datetime.now(timezone.utc).isoformat(), encoding="utf-8"
                 )
-                return self._load_cached()
+                self._entries = self._load_cached()
+                return self._entries
             if cached.is_file():
                 log.warning("Registry fetch failed (HTTP %s); using stale cache.", exc.code)
                 self._entries = self._load_cached()

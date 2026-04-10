@@ -140,7 +140,9 @@ def resolve(
             pending.append(ref)
 
     # Track what each package requires so we can build the graph later.
-    requires_map: dict[str, list[PackageRef]] = {}
+    # Keyed by name, stores (version_used, deps) so convergence can
+    # detect when a minimum was bumped after deps were fetched.
+    requires_map: dict[str, tuple[Version, list[PackageRef]]] = {}
 
     iterations = 0
     max_iterations = 10_000  # safety valve
@@ -182,7 +184,7 @@ def resolve(
                 f"failed to read requirements of {name}@{version}: {exc}",
             ) from exc
 
-        requires_map[name] = child_refs
+        requires_map[name] = (version, child_refs)
 
         for child in child_refs:
             pending.append(child)
@@ -194,16 +196,16 @@ def resolve(
         dirty = False
         for name, wanted in list(minimums.items()):
             recorded = requires_map.get(name)
-            if recorded is None:
-                # Not yet processed — this shouldn't happen after BFS,
-                # but handle it defensively.
+            if recorded is None or recorded[0] < wanted:
+                # Either not yet processed, or deps were fetched for an
+                # older version that has since been bumped.
                 try:
                     child_refs = _provider(name, wanted)
                 except Exception as exc:
                     raise ResolutionError(
                         f"failed to read requirements of {name}@{wanted}: {exc}",
                     ) from exc
-                requires_map[name] = child_refs
+                requires_map[name] = (wanted, child_refs)
                 for child in child_refs:
                     pending.append(child)
                 dirty = True
@@ -230,7 +232,7 @@ def resolve(
             raise ResolutionError(
                 f"failed to read requirements of {name}@{version}: {exc}",
             ) from exc
-        requires_map[name] = child_refs
+        requires_map[name] = (version, child_refs)
         for child in child_refs:
             pending.append(child)
 
@@ -238,7 +240,8 @@ def resolve(
     result: list[ResolvedPackage] = []
     for name in sorted(minimums):
         ver = minimums[name]
-        reqs = requires_map.get(name, [])
+        entry = requires_map.get(name)
+        reqs = entry[1] if entry else []
         is_dev = name in dev_names
         result.append(
             ResolvedPackage(

@@ -45,10 +45,20 @@ def _resolve_tclsh(requested: str | None) -> str:
         return path
     import shutil
 
-    for name in (f"tclsh{requested}", "tclsh"):
-        path = shutil.which(name)
-        if path:
-            return path
+    # Try the versioned name first.
+    path = shutil.which(f"tclsh{requested}")
+    if path:
+        return path
+    # Fallback to plain tclsh, but verify its version matches the request.
+    path = shutil.which("tclsh")
+    if path:
+        actual = _tclsh_version_string(path)
+        if actual and not actual.startswith(requested):
+            raise VenvError(
+                f"tclsh{requested} not found; plain tclsh is {actual}",
+                hint=f"install Tcl {requested} or omit --tcl",
+            )
+        return path
     raise VenvError(
         f"tclsh{requested} not found on PATH",
         hint="install the requested Tcl version or omit --tcl",

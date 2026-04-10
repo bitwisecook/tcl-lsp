@@ -15,6 +15,12 @@ def _run_create(args: argparse.Namespace) -> int:
     venv_path = Path(getattr(args, "path", ".venv"))
     colour = ui.use_colour(force=not getattr(args, "json", False))
 
+    # --force: remove existing directory before creating.
+    if getattr(args, "force", False) and venv_path.exists():
+        import shutil
+
+        shutil.rmtree(venv_path)
+
     try:
         created = create_venv(
             venv_path,

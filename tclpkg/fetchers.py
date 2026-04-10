@@ -55,6 +55,11 @@ def fetch_tarball(url: str, dest: Path, *, timeout: int = 60) -> None:
         lower = url.lower()
         if lower.endswith(".zip"):
             with zipfile.ZipFile(tmp_path) as zf:
+                # Zip Slip protection: reject members that escape the staging dir.
+                for member in zf.namelist():
+                    resolved = (staging / member).resolve()
+                    if not str(resolved).startswith(str(staging.resolve())):
+                        raise FetchError(f"zip member escapes target directory: {member}")
                 zf.extractall(staging)
         else:
             with tarfile.open(tmp_path) as tf:
@@ -93,9 +98,16 @@ def fetch_git(url: str, dest: Path, *, rev: str | None = None, timeout: int = 12
     # Strip git+ prefix if present (e.g. git+https://...).
     if url.startswith("git+"):
         url = url[4:]
-    # Strip @rev suffix if embedded in URL.
-    if "@" in url and rev is None:
-        url, rev = url.rsplit("@", 1)
+    # Strip @rev suffix if embedded in URL, but only when it looks like
+    # a ref marker (after .git or after a path segment), not an SSH user@
+    # prefix like git@github.com:org/repo.git.
+    if rev is None and "@" in url:
+        # Only split on the last @ if it appears after .git or after a /
+        last_at = url.rfind("@")
+        prefix = url[:last_at]
+        if "/" in prefix or prefix.endswith(".git"):
+            rev = url[last_at + 1 :]
+            url = prefix
 
     clone_cmd: list[str] = [git, "clone", "--depth", "1"]
     if rev:

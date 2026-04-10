@@ -64,7 +64,7 @@ def _walk_tree(root: Path, extra_ignore: set[str] | None = None) -> list[Path]:
     """
     ignored = _IGNORED_NAMES | (extra_ignore or set())
     result: list[Path] = []
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
         # Prune ignored directories in-place so os.walk skips them.
         dirnames[:] = [d for d in dirnames if d not in ignored]
         rel_dir = Path(dirpath).relative_to(root)
@@ -92,7 +92,9 @@ def integrity_of_tree(root: Path) -> str:
         except OSError:
             continue
         mode = stat.S_IMODE(st.st_mode)
-        if os.access(abs_path, os.X_OK):
+        # Derive executability from mode bits, not os.access(), for
+        # cross-machine determinism (os.access checks effective UID/ACL).
+        if mode & 0o111:
             mode |= 0o111
         try:
             content = abs_path.read_bytes()

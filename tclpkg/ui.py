@@ -21,9 +21,16 @@ _COLOUR_DIM = "\033[2m"
 _COLOUR_BOLD = "\033[1m"
 
 
-def _is_tty() -> bool:
+def _is_stdout_tty() -> bool:
     try:
         return sys.stdout.isatty()
+    except Exception:
+        return False
+
+
+def _is_stderr_tty() -> bool:
+    try:
+        return sys.stderr.isatty()
     except Exception:
         return False
 
@@ -43,7 +50,7 @@ def use_colour(*, force: bool | None = None) -> bool:
         return False
     if os.environ.get("FORCE_COLOR"):
         return True
-    return _is_tty()
+    return _is_stdout_tty()
 
 
 def _c(code: str, text: str, *, colour: bool) -> str:
@@ -78,7 +85,7 @@ def bold(text: str, *, colour: bool = True) -> str:
 
 def progress(message: str) -> None:
     """Print a progress line to stderr (overwritten by the next call)."""
-    if _is_tty():
+    if _is_stderr_tty():
         sys.stderr.write(f"\r  {message}\033[K")
         sys.stderr.flush()
     else:
@@ -87,7 +94,7 @@ def progress(message: str) -> None:
 
 def progress_done() -> None:
     """Clear the progress line."""
-    if _is_tty():
+    if _is_stderr_tty():
         sys.stderr.write("\r\033[K")
         sys.stderr.flush()
 

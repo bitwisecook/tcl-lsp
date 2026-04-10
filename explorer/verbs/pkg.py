@@ -120,6 +120,31 @@ def _run_install(args: argparse.Namespace) -> int:
         )
 
     lockfile_path = mpath.parent / "tclpkg.lock"
+
+    # --frozen: refuse to change the lockfile; error if it would differ.
+    if getattr(args, "frozen", False):
+        from tclpkg.lockfile import read_lockfile
+
+        if not lockfile_path.is_file():
+            print("error: --frozen requires an existing tclpkg.lock", file=sys.stderr)
+            return 1
+        existing = read_lockfile(lockfile_path)
+        # Compare packages only (ignore timestamp).
+        old_pkgs = sorted((p.name, p.version) for p in existing.packages)
+        new_pkgs = sorted((p.name, p.version) for p in lf.packages)
+        if old_pkgs != new_pkgs:
+            print(
+                "error: lockfile would change but --frozen is set; "
+                "update the manifest and re-run without --frozen",
+                file=sys.stderr,
+            )
+            return 1
+        if getattr(args, "json", False):
+            ui.json_output({"packages": len(lf.packages), "frozen": True})
+        else:
+            print(ui.ok(f"lockfile is up to date ({len(lf.packages)} packages)", colour=colour))
+        return 0
+
     write_lockfile(lf, lockfile_path)
 
     if getattr(args, "json", False):
