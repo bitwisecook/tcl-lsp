@@ -436,6 +436,7 @@ _KNOWN_TCL_LSP_SECTIONS = frozenset(
         "xcDiagnostics",
         "runtimeValidation",
         "ai",
+        "packageManager",
     }
 )
 _KNOWN_TCL_LSP_TOPLEVEL = frozenset(
@@ -2002,6 +2003,38 @@ def on_write_rule_back(
         types.ApplyWorkspaceEditParams(edit=edit, label="Write iRule back to config")
     )
     return True
+
+
+# tclpkg package manager commands
+
+
+@server.command("tcl-lsp.tclpkg.install")
+def on_tclpkg_install(package_name: str, uri: str = "") -> dict:
+    """Install a Tcl package via the tclpkg manifest.
+
+    This is a stub handler that the VS Code extension or other clients
+    invoke via the ``Install via tclpkg`` code action.  The full
+    implementation will call into ``tclpkg.manifest`` and
+    ``tclpkg.resolver`` in-process; for now it returns a status payload.
+    """
+    return {
+        "success": False,
+        "message": f"tclpkg install for '{package_name}' not yet wired (use the CLI: tcl pkg add {package_name})",
+    }
+
+
+@server.command("tcl-lsp.tclpkg.search")
+def on_tclpkg_search(query: str) -> dict:
+    """Search the tclpkg registry for packages matching *query*."""
+    try:
+        from core.common.user_config import _cache_dir
+        from tclpkg.registry import RegistryClient
+
+        client = RegistryClient(_cache_dir(), offline=True)
+        results = client.search(query)
+        return {"results": [{"name": e.name, "description": e.description} for e in results[:20]]}
+    except Exception as exc:
+        return {"results": [], "error": str(exc)}
 
 
 # Formatting

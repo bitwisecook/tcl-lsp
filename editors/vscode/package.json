@@ -4447,6 +4447,36 @@
         }
       },
       {
+        "title": "Package Manager — tclpkg",
+        "order": 18,
+        "properties": {
+          "tclLsp.packageManager.registryUrl": {
+            "type": "string",
+            "default": "https://raw.githubusercontent.com/tcltk-pkgs/registry/main/packages.json",
+            "markdownDescription": "URL of the Tcl package registry (`packages.json`). Used for `tcl pkg search` and dependency discovery.",
+            "order": 0
+          },
+          "tclLsp.packageManager.cacheDir": {
+            "type": "string",
+            "default": "",
+            "markdownDescription": "Override the tclpkg cache directory. Empty uses the platform-native cache path (`~/.cache/tcl-lsp/tclpkg/` on Linux).",
+            "order": 1
+          },
+          "tclLsp.packageManager.autoInstallOnSave": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "When `tclpkg.tcl` is saved, automatically run `tcl pkg install` to refresh the lockfile.",
+            "order": 2
+          },
+          "tclLsp.packageManager.offline": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Never touch the network — tclpkg always operates against the local cache.",
+            "order": 3
+          }
+        }
+      },
+      {
         "title": "XC Migration",
         "order": 16,
         "properties": {

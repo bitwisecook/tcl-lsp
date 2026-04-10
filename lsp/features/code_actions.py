@@ -202,6 +202,7 @@ def get_code_actions(
         # W120: offer to insert the missing ``package require``.
         if code == "W120":
             actions.extend(_missing_package_require_action(source, lsp_diag))
+            actions.extend(_tclpkg_install_action(source, lsp_diag))
 
         key = (code, lsp_diag.range.start.line, lsp_diag.range.start.character)
         fixes = fix_lookup.get(key, [])
@@ -374,6 +375,34 @@ def _missing_package_require_action(
             kind=types.CodeActionKind.QuickFix,
             diagnostics=[diag],
             edit=types.WorkspaceEdit(changes={"__current__": [edit]}),
+        )
+    ]
+
+
+def _tclpkg_install_action(
+    source: str,
+    diag: types.Diagnostic,
+) -> list[types.CodeAction]:
+    """Suggest installing a missing package via tclpkg.
+
+    Returns a command-based code action that triggers
+    ``tcl-lsp.tclpkg.install`` on the server — the client does not need
+    to know how to run tclpkg itself.
+    """
+    match = _W120_PKG_RE.search(diag.message or "")
+    if match is None:
+        return []
+    pkg = match.group(1)
+    return [
+        types.CodeAction(
+            title=f"Install '{pkg}' via tclpkg",
+            kind=types.CodeActionKind.QuickFix,
+            diagnostics=[diag],
+            command=types.Command(
+                title=f"Install {pkg}",
+                command="tcl-lsp.tclpkg.install",
+                arguments=[pkg],
+            ),
         )
     ]
 

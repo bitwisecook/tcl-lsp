@@ -34,6 +34,19 @@ python tcl.pyz diff old.irule new.irule --show ast,ir,cfg
 python tcl.pyz explore script.tcl --show ir,cfg,opt
 python tcl.pyz help taint analysis --dialect f5-irules
 python tcl.pyz help taint --json
+
+# Package management and virtual environments (tclpkg)
+python tcl.pyz pkg init --name myapp --version 1.0.0
+python tcl.pyz pkg install
+python tcl.pyz pkg list --json
+python tcl.pyz pkg tree
+python tcl.pyz pkg verify
+python tcl.pyz pkg info json
+python tcl.pyz pkg search json --json
+
+python tcl.pyz venv create .venv --tcl 8.6
+python tcl.pyz venv info .venv
+python tcl.pyz venv delete .venv
 ```
 
 ![Unified Tcl verb CLI](../../screenshots/30-tcl-verb-cli.png)

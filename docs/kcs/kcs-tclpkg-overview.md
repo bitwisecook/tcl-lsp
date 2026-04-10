@@ -1,0 +1,136 @@
+# KCS: tclpkg — Tcl package manager overview
+
+## Symptom
+
+Tcl projects lack a native way to declare, pin, fetch, verify, and
+reproduce third-party package dependencies.  `pkgIndex.tcl` covers
+discovery inside a single `auto_path`, but there is no manifest,
+lockfile, or content-addressable cache.
+
+## Operational context
+
+`tclpkg` is a deterministic, MVS-based dependency manager integrated into
+the `tcl` CLI (`explorer/tcl_cli.py`) via `tcl pkg …` and `tcl venv …`
+verb groups.  It draws design inspiration from Go modules (MVS resolver,
+lockfile as source of truth), Zig (content-addressable cache keyed by
+SHA-256), and Python venv (virtual environment model).
+
+### Architecture overview
+
+```
+tclpkg.tcl (manifest)
+       │
+       ▼
+  Sandboxed TclInterp  ──────────►  ManifestAST
+  (vm/interp.py safe mode)              │
+                                        ▼
+                               MVS Resolver (tclpkg/resolver.py)
+                                        │
+                                        ▼
+                              Content-Addressable Store
+                              (tclpkg/cas.py, ~/.cache/tcl-lsp/tclpkg/)
+                                        │
+                                        ▼
+                               tclpkg.lock (lockfile)
+                                        │
+                                        ▼
+                          Materialise → ./lib/<pkg>-<ver>/
+                          or            .venv/lib/<pkg>-<ver>/
+```
+
+## Decision rules / contracts
+
+### Manifest (`tclpkg.tcl`)
+
+1. Evaluated in a sandboxed `TclInterp(safe=True)` with a whitelist of
+   13 directives: `package`, `version`, `description`, `license`,
+   `author`, `homepage`, `tcl`, `require`, `dev-require`, `replace`,
+   `exclude`, `provides`, `entry`.
+2. Any command not on the whitelist is refused at the INVOKE level.
+3. `package` and `version` are required; all others are optional.
+4. `tcl` constraint defaults to `>=8.6` if omitted.
+5. Implemented in `tclpkg/manifest.py`.
+
+### Lockfile (`tclpkg.lock`)
+
+6. Canonical JSON: sorted keys, 2-space indent, LF endings, final newline.
+7. Two invocations against the same manifest + registry produce
+   byte-identical output (except the `generated` timestamp, preserved by
+   `--frozen`).
+8. Schema version (`"version": 1`) bumped only on breaking changes.
+9. Implemented in `tclpkg/lockfile.py`.
+
+### MVS Resolver
+
+10. BFS walk picks max-of-minimums for each package.
+11. `replace` from the root manifest forces a specific version; transitive
+    `replace` is ignored.
+12. `exclude` from the root manifest refuses a specific version; errors
+    with the dependency chain that selected it.
+13. Implemented in `tclpkg/resolver.py`.
+
+### Content-addressable cache
+
+14. Location: `~/.cache/tcl-lsp/tclpkg/cas/sha256/<ab>/<hash>/tree/`.
+15. Integrity string format: `sha256-<base64url-no-pad>`.
+16. Hash computed over canonicalised worktree (sorted paths, stripped
+    `.git/`, permission-masked, timestamps ignored).
+17. Entries are immutable once written.
+18. Implemented in `tclpkg/cas.py`.
+
+### Virtual environments
+
+19. `tcl venv create .venv` produces `bin/`, `lib/`, `tclvenv.cfg`.
+20. `bin/tclsh` wrapper always sets `TCLLIBPATH`.
+21. Activation scripts for bash/zsh and fish.
+22. Implemented in `tclpkg/venv.py`.
+
+### LSP integration
+
+23. `_KNOWN_TCL_LSP_SECTIONS` includes `"packageManager"`.
+24. `tcl-lsp.tclpkg.install` and `tcl-lsp.tclpkg.search` command handlers.
+25. W120 code action offers "Install '<pkg>' via tclpkg" alongside the
+    existing "Add 'package require'" action.
+26. VS Code settings under `tclLsp.packageManager.*`.
+
+## File-path anchors
+
+- `tclpkg/__init__.py` — public API surface
+- `tclpkg/manifest.py` — manifest loader
+- `tclpkg/lockfile.py` — lockfile I/O
+- `tclpkg/resolver.py` — MVS resolver
+- `tclpkg/cas.py` — CAS + integrity hashing
+- `tclpkg/fetchers.py` — tarball/git/path fetchers
+- `tclpkg/registry.py` — registry client
+- `tclpkg/venv.py` — virtual environment management
+- `tclpkg/ui.py` — CLI output helpers
+- `explorer/verbs/pkg.py` — `tcl pkg` CLI verb handlers
+- `explorer/verbs/venv.py` — `tcl venv` CLI verb handlers
+- `vm/interp.py:102` — `TclInterp(safe=…)` parameter
+- `vm/commands/interp_cmds.py:65` — `interp issafe` handler
+- `core/common/user_config.py:126` — `_cache_dir()` helper
+- `lsp/server.py:424` — `_KNOWN_TCL_LSP_SECTIONS`
+- `lsp/features/code_actions.py:381` — `_tclpkg_install_action()`
+
+## Failure modes
+
+1. **Manifest parse error** — `ManifestError` with file:line location.
+2. **Resolution failure** — `ResolutionError` with the dependency chain.
+3. **Integrity mismatch** — `IntegrityError` with expected vs actual hash.
+4. **Network failure** — falls back to cached registry; errors if no cache.
+5. **tclsh not found** — `VenvError` with hint to install or specify `--tcl`.
+
+## Test anchors
+
+- `tests/tclpkg/test_manifest.py` — 29 tests for manifest parsing
+- `tests/tclpkg/test_lockfile.py` — 23 tests for lockfile serialisation
+- `tests/tclpkg/test_cas.py` — 18 tests for CAS hashing + storage
+- `tests/tclpkg/test_resolver.py` — 15 tests for MVS resolution
+- `tests/tclpkg/test_version.py` — 34 tests for version ordering
+- `tests/test_vm_safe_mode.py` — 12 tests for VM safe-mode
+
+## Discoverability
+
+- [kcs-package-loading-contracts.md](kcs-package-loading-contracts.md) — pre-existing `pkgIndex.tcl` loading
+- [kcs-xdg-config.md](kcs-xdg-config.md) — XDG config paths (see also `_cache_dir`)
+- [features/kcs-feature-tcl-verb-cli.md](features/kcs-feature-tcl-verb-cli.md) — `tcl` CLI contracts
