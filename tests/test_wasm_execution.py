@@ -20,6 +20,36 @@ wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 # Captured output from puts calls during WASM execution
 _puts_output: list[int] = []
 
+# Python-side TclObj store — simulates the Zig runtime's linear-memory
+# object allocation.  Maps obj_id (i32) → integer value.
+_tcl_obj_store: dict[int, int] = {}
+_tcl_obj_str_store: dict[int, tuple[int, int]] = {}  # obj_id → (ptr, len)
+_tcl_obj_counter: int = 1
+
+
+def _reset_tcl_obj_state() -> None:
+    """Reset the TclObj store between test runs."""
+    global _tcl_obj_counter
+    _tcl_obj_store.clear()
+    _tcl_obj_str_store.clear()
+    _tcl_obj_counter = 1
+
+
+def _box_int(value: int) -> int:
+    """Allocate a TclObj for an integer, return its obj_id (i32)."""
+    global _tcl_obj_counter
+    obj_id = _tcl_obj_counter
+    _tcl_obj_counter += 1
+    _tcl_obj_store[obj_id] = value
+    return obj_id
+
+
+def _unbox_result(obj_id: int) -> int:
+    """Extract the integer value from a TclObj id.  0 = null → 0."""
+    if obj_id == 0:
+        return 0
+    return _tcl_obj_store.get(obj_id, 0)
+
 
 def _make_runtime_imports(
     store: wasmtime.Store,
@@ -28,18 +58,42 @@ def _make_runtime_imports(
     """Build stub runtime imports for a WASM module's import list.
 
     Provides Python-backed implementations of the Tcl runtime functions
-    declared in ``_RUNTIME_IMPORTS``.  For I/O stubs (puts), captures
-    output into ``_puts_output`` for test assertions.
+    declared in ``_RUNTIME_IMPORTS``.  Includes TclObj lifecycle stubs
+    (obj_new_int, obj_new_string, obj_get_int) that maintain a Python-side
+    object store for test verification.
     """
     imports: list[wasmtime.Func] = []
     for imp in module.imports:
         name = imp.name
         func_type = imp.type
 
-        if name == "puts":
+        if name == "obj_new_int":
 
-            def _puts(value: int) -> int:
-                _puts_output.append(value)
+            def _obj_new_int(value: int) -> int:
+                return _box_int(value)
+
+            imports.append(wasmtime.Func(store, func_type, _obj_new_int))
+        elif name == "obj_new_string":
+
+            def _obj_new_string(data_ptr: int, length: int) -> int:
+                global _tcl_obj_counter
+                obj_id = _tcl_obj_counter
+                _tcl_obj_counter += 1
+                _tcl_obj_str_store[obj_id] = (data_ptr, length)
+                _tcl_obj_store[obj_id] = 0  # strings have int value 0
+                return obj_id
+
+            imports.append(wasmtime.Func(store, func_type, _obj_new_string))
+        elif name == "obj_get_int":
+
+            def _obj_get_int(obj_id: int) -> int:
+                return _tcl_obj_store.get(obj_id, 0)
+
+            imports.append(wasmtime.Func(store, func_type, _obj_get_int))
+        elif name == "puts":
+
+            def _puts(obj_id: int) -> int:
+                _puts_output.append(_tcl_obj_store.get(obj_id, obj_id))
                 return 0
 
             imports.append(wasmtime.Func(store, func_type, _puts))
@@ -50,7 +104,7 @@ def _make_runtime_imports(
 
             imports.append(wasmtime.Func(store, func_type, _error))
         elif name == "append" or name == "lappend":
-            # append/lappend: return the second argument
+
             def _append(a: int, b: int) -> int:
                 return b
 
@@ -58,27 +112,30 @@ def _make_runtime_imports(
         elif name == "list_length":
 
             def _list_length(value: int) -> int:
-                return value
+                # Unbox the TclObj to get its integer value as the "length"
+                return _box_int(_tcl_obj_store.get(value, 0))
 
             imports.append(wasmtime.Func(store, func_type, _list_length))
         elif name == "string_length":
 
             def _string_length(value: int) -> int:
-                return 0
+                return _box_int(0)
 
             imports.append(wasmtime.Func(store, func_type, _string_length))
         elif name == "string_compare":
 
             def _string_compare(a: int, b: int) -> int:
-                if a < b:
-                    return -1
-                if a > b:
-                    return 1
-                return 0
+                va = _tcl_obj_store.get(a, 0)
+                vb = _tcl_obj_store.get(b, 0)
+                if va < vb:
+                    return _box_int(-1)
+                if va > vb:
+                    return _box_int(1)
+                return _box_int(0)
 
             imports.append(wasmtime.Func(store, func_type, _string_compare))
         else:
-            # Generic stub: return 0 for functions with results, no-op otherwise
+            # Generic stub: return null TclObj (0) for functions with results
             n_results = len(func_type.results)
             if n_results > 0:
 
@@ -114,15 +171,25 @@ def _compile_and_run(
     func_name: str = "::top",
     args: tuple[int, ...] = (),
 ) -> int:
-    """Compile Tcl source to WASM and execute a function, returning its i64 result."""
+    """Compile Tcl source to WASM and execute a function.
+
+    Arguments are boxed as TclObj i32 pointers before calling; the
+    i32 result is unboxed back to a Python integer.
+    """
+    _reset_tcl_obj_state()
     _, wasm_bytes = _compile_to_wasm(source, optimise=optimise)
 
     store = wasmtime.Store()
     module = wasmtime.Module(store.engine, wasm_bytes)
     runtime_imports = _make_runtime_imports(store, module)
     instance = wasmtime.Instance(store, module, runtime_imports)
+
+    # Box integer arguments as TclObj pointers
+    boxed_args = tuple(_box_int(a) for a in args)
+
     func = instance.exports(store)[func_name]
-    return func(store, *args)
+    result_obj = func(store, *boxed_args)
+    return _unbox_result(result_obj)
 
 
 def _compile_and_run_proc(
@@ -679,10 +746,12 @@ class TestCommandDispatch:
         )
         assert result == 99
 
-    def test_no_imports_for_pure_arithmetic(self):
-        """Pure arithmetic code should not require any runtime imports."""
+    def test_no_cmd_imports_for_pure_arithmetic(self):
+        """Pure arithmetic code should only import TclObj lifecycle functions."""
         wasm_mod, _ = _compile_to_wasm("proc add {a b} { expr {$a + $b} }\n")
-        assert len(wasm_mod.imports) == 0
+        # Only the TclObj lifecycle imports (obj_new_int, obj_new_string, obj_get_int)
+        import_names = {imp.name for imp in wasm_mod.imports}
+        assert import_names == {"obj_new_int", "obj_new_string", "obj_get_int"}
 
 
 # Runtime import architecture
@@ -781,3 +850,70 @@ proc caller {x y} { add $x $y }
 
         call_instrs = [i for i in caller_funcs[0].body if i.op == WasmOp.CALL]
         assert len(call_instrs) >= 1
+
+
+# Command substitution in expressions
+
+
+class TestCommandSubstitution:
+    """Test that [proc ...] inside expressions emits direct WASM calls."""
+
+    def test_set_from_proc_call(self):
+        """set x [proc_name $y] should call the proc and assign result."""
+        source = """\
+proc double {x} { expr {$x * 2} }
+proc caller {n} { set result [double $n]; return $result }
+"""
+        result = _compile_and_run_proc(source, "caller", (7,))
+        assert result == 14
+
+    def test_expr_with_nested_proc_call(self):
+        """expr {$n * [double $n]} should call double inside the expression."""
+        source = """\
+proc double {x} { expr {$x * 2} }
+proc caller {n} { expr {$n + [double $n]} }
+"""
+        result = _compile_and_run_proc(source, "caller", (5,))
+        assert result == 15  # 5 + 10
+
+    def test_nested_expr_command(self):
+        """[expr {$n - 1}] inside an expression should recursively compile."""
+        source = """\
+proc f {n} { expr {$n * [expr {$n - 1}]} }
+"""
+        result = _compile_and_run_proc(source, "f", (5,))
+        assert result == 20  # 5 * 4
+
+    def test_recursive_fibonacci(self):
+        """Recursive fib using command substitution for self-calls."""
+        source = """\
+proc fib {n} {
+    if {$n <= 1} { return $n }
+    expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}
+}
+"""
+        result = _compile_and_run_proc(source, "fib", (6,))
+        assert result == 8  # fib(6) = 8
+
+    def test_recursive_factorial(self):
+        """Recursive factorial using command substitution."""
+        source = """\
+proc fac {n} {
+    if {$n <= 1} { return 1 }
+    expr {$n * [fac [expr {$n - 1}]]}
+}
+"""
+        result = _compile_and_run_proc(source, "fac", (5,))
+        assert result == 120  # 5! = 120
+
+    def test_command_subst_in_set_value(self):
+        """set x [add $a $b] pattern via IRAssignValue."""
+        source = """\
+proc add {a b} { expr {$a + $b} }
+proc caller {x y} {
+    set sum [add $x $y]
+    return $sum
+}
+"""
+        result = _compile_and_run_proc(source, "caller", (10, 20))
+        assert result == 30
