@@ -273,6 +273,7 @@ def get_document_symbols(
     source: str,
     analysis: AnalysisResult | None = None,
     chunks: list | None = None,
+    embedded_rules: list | None = None,
 ) -> list[types.DocumentSymbol]:
     """Return the document symbol hierarchy for a Tcl source file.
 
@@ -280,8 +281,14 @@ def get_document_symbols(
     scope hierarchy.  When only *chunks* are available (analysis not yet
     complete), returns basic event/proc symbols extracted from command
     text — enough for a useful outline while the subprocess runs.
+
+    When *embedded_rules* is provided (conf-wrapped iRules mode), each
+    rule stanza becomes a top-level Module symbol containing the
+    per-body scope symbols.
     """
     if analysis is not None:
+        if embedded_rules:
+            return _conf_wrapped_symbols(analysis, embedded_rules)
         return _scope_symbols(analysis.global_scope)
 
     # Fast path: build symbols from chunks without running analysis.
@@ -291,3 +298,34 @@ def get_document_symbols(
     # Fallback: run analysis synchronously (legacy path).
     analysis = analyse(source)
     return _scope_symbols(analysis.global_scope)
+
+
+def _conf_wrapped_symbols(
+    analysis: AnalysisResult,
+    embedded_rules: list,
+) -> list[types.DocumentSymbol]:
+    """Build document symbols for conf-wrapped iRules.
+
+    Each ``ltm rule /path`` becomes a Module symbol containing the
+    scope symbols from its rule body.
+    """
+    rule_symbols: list[types.DocumentSymbol] = []
+    children = analysis.global_scope.children
+
+    for i, rule in enumerate(embedded_rules):
+        rule_range = to_lsp_range(rule.range)
+        # Get child scope symbols if available.
+        child_symbols: list[types.DocumentSymbol] = []
+        if i < len(children):
+            child_symbols = _scope_symbols(children[i])
+
+        rule_sym = types.DocumentSymbol(
+            name=rule.full_path,
+            detail=rule.header,
+            kind=types.SymbolKind.Module,
+            range=rule_range,
+            selection_range=rule_range,
+            children=child_symbols,
+        )
+        rule_symbols.append(rule_sym)
+    return rule_symbols
