@@ -43,6 +43,12 @@ fn lexer_version() -> &'static str {
     tcl_lexer::VERSION
 }
 
+/// Return the version of the underlying `tcl-compiler` crate.
+#[pyfunction]
+fn compiler_version() -> &'static str {
+    tcl_compiler::VERSION
+}
+
 /// Process Tcl backslash escapes in `text`.
 ///
 /// Thin wrapper around [`tcl_lexer::backslash_subst`]. The underlying Rust
@@ -63,6 +69,7 @@ fn backslash_subst(text: &str) -> Cow<'_, str> {
 fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hello_rust, m)?)?;
     m.add_function(wrap_pyfunction!(lexer_version, m)?)?;
+    m.add_function(wrap_pyfunction!(compiler_version, m)?)?;
     m.add_function(wrap_pyfunction!(backslash_subst, m)?)?;
     m.add_function(wrap_pyfunction!(lexer::lexer_tokenise, m)?)?;
     m.add_function(wrap_pyfunction!(lexer::lexer_tokenise_with_config, m)?)?;
