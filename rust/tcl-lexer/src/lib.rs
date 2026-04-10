@@ -25,6 +25,7 @@
 
 #![deny(missing_docs)]
 
+mod expr_lexer;
 mod lexer;
 mod line_index;
 mod source_map;
@@ -32,6 +33,10 @@ mod span;
 mod substitution;
 mod tokens;
 
+pub use expr_lexer::{
+    math_functions as expr_math_functions, tokenise_expr, tokenise_expr_checked, ExprToken,
+    ExprTokenType,
+};
 pub use lexer::{LexError, Lexer, LexerConfig};
 pub use line_index::LineIndex;
 pub use source_map::SourceMap;
