@@ -80,6 +80,7 @@ PROJECTS: dict[str, Project] = {
         git_ref="tcllib-2-0",
         sparse_paths=["modules", "devtools"],
         test_glob="modules/*/*.test",
+        source_init=True,
         pkgindex_dirs=["modules"],
         skip_files=[
             # These need network access
@@ -110,6 +111,7 @@ PROJECTS: dict[str, Project] = {
         git_ref="core-9-0-3",
         sparse_paths=["tests", "library"],
         test_glob="tests/*.test",
+        source_init=True,
         skip_files=[
             # These need the C test harness commands heavily
             "tests/io.test",
@@ -137,6 +139,7 @@ PROJECTS: dict[str, Project] = {
         git_ref="main",
         sparse_paths=["exercises/practice"],
         test_glob="exercises/practice/*/*.test",
+        source_init=True,
     ),
     "tclssg": Project(
         name="tclssg",
@@ -307,17 +310,62 @@ def _categorise_crash(error_msg: str, error_type: str) -> str:
 def _collect_tcltest_results(interp: TclInterp) -> dict:
     """Read tcltest results from the interpreter.
 
-    Tries Tcl variables first (real tcltest.tcl) and falls back to
-    the Python-internal ``_results`` dict (builtin reimplementation).
+    Tries multiple approaches to find the results:
+    1. Eval the Tcl expression to read the namespace variable
+    2. Read from the global frame (Python tcltest sync)
+    3. Parse stdout output for the summary line
+    4. Fall back to the Python-internal ``_results`` dict
     """
     results = {"Total": 0, "Passed": 0, "Skipped": 0, "Failed": 0}
+
+    # Method 1: Try reading via Tcl eval (works for real tcltest)
+    for key in results:
+        try:
+            val = interp.eval(f"set ::tcltest::numTests({key})")
+            results[key] = int(val.value)
+        except Exception:
+            pass
+
+    # If we got results, return them
+    if results["Total"] > 0:
+        return results
+
+    # Method 2: Try global frame variables (works for Python tcltest)
     for key in results:
         try:
             val = interp.global_frame.get_var(f"::tcltest::numTests({key})")
             results[key] = int(val)
         except Exception:
-            results[key] = tcltest_cmds._results.get(key, 0)
+            pass
+
+    if results["Total"] > 0:
+        return results
+
+    # Method 3: Fall back to Python internal state
+    for key in results:
+        results[key] = tcltest_cmds._results.get(key, 0)
+
     return results
+
+
+def _parse_tcltest_stdout(output: str) -> dict | None:
+    """Parse tcltest summary from stdout as last resort.
+
+    Looks for the line: ``filename:\tTotal\tN\tPassed\tN\tSkipped\tN\tFailed\tN``
+    """
+    for line in reversed(output.split("\n")):
+        m = re.search(
+            r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)",
+            line,
+        )
+        if m:
+            return {
+                "Total": int(m.group(1)),
+                "Passed": int(m.group(2)),
+                "Skipped": int(m.group(3)),
+                "Failed": int(m.group(4)),
+            }
+    return None
 
 
 def run_test_file(
@@ -385,13 +433,18 @@ def run_test_file(
             os.chdir(saved_cwd)
 
         # Collect results from Tcl variables or Python fallback
+        result.stdout = stdout_buf.getvalue()
         tcl_results = _collect_tcltest_results(interp)
+        if tcl_results["Total"] == 0:
+            # Try parsing stdout as last resort
+            parsed = _parse_tcltest_stdout(result.stdout)
+            if parsed:
+                tcl_results = parsed
         result.total = tcl_results["Total"]
         result.passed = tcl_results["Passed"]
         result.skipped = tcl_results["Skipped"]
         result.failed = tcl_results["Failed"]
         result.failed_tests = list(tcltest_cmds._failed_tests)
-        result.stdout = stdout_buf.getvalue()
 
     except SystemExit:
         # Catch exit calls that escape the inner handler
@@ -399,7 +452,12 @@ def run_test_file(
             os.chdir(saved_cwd)
         except Exception:
             pass
+        result.stdout = stdout_buf.getvalue() if stdout_buf else ""
         tcl_results = _collect_tcltest_results(interp)
+        if tcl_results["Total"] == 0:
+            parsed = _parse_tcltest_stdout(result.stdout)
+            if parsed:
+                tcl_results = parsed
         result.total = tcl_results["Total"]
         result.passed = tcl_results["Passed"]
         result.skipped = tcl_results["Skipped"]
@@ -416,8 +474,13 @@ def run_test_file(
         result.crash_type = type(exc).__name__
 
         # Still capture any partial results
+        result.stdout = stdout_buf.getvalue() if stdout_buf else ""
         try:
             tcl_results = _collect_tcltest_results(interp)
+            if tcl_results["Total"] == 0:
+                parsed = _parse_tcltest_stdout(result.stdout)
+                if parsed:
+                    tcl_results = parsed
             result.total = tcl_results["Total"]
             result.passed = tcl_results["Passed"]
             result.skipped = tcl_results["Skipped"]

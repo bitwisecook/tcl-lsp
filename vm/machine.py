@@ -1644,6 +1644,25 @@ class BytecodeVM:
                                     except (ValueError, TypeError):
                                         pass  # not numeric — leave as-is
 
+                case Op.TRY_CVT_TO_BOOLEAN:
+                    # Try to convert TOS to a boolean.  Pushes two values:
+                    # the converted value (0 or 1) and a flag indicating
+                    # whether the conversion succeeded (1) or not (0).
+                    # Used by bytecoded ``string is boolean``.
+                    val = stack.pop() if stack else ""
+                    _bool_true = {"1", "true", "yes", "on"}
+                    _bool_false = {"0", "false", "no", "off"}
+                    low = val.strip().lower()
+                    if low in _bool_true:
+                        stack.append("1")  # converted value
+                        stack.append("1")  # success flag
+                    elif low in _bool_false:
+                        stack.append("0")  # converted value
+                        stack.append("1")  # success flag
+                    else:
+                        stack.append(val)   # original value (unconverted)
+                        stack.append("0")   # failure flag
+
                 case Op.NOT:
                     # Logical not — Tcl uses "cannot use non-numeric string"
                     # error instead of "expected boolean value"
