@@ -210,7 +210,7 @@ test-tclpkg: $(UV_STAMP) ## Run tclpkg package manager tests only
 
 test-tclpkg-tcl: ## Run pure-Tcl tclpkg tests (requires tclsh8.6+)
 	@echo "==> Running pure-Tcl tclpkg tests"
-	cd $(ROOT)/tclpkg-tcl && tclsh8.6 tests/version_test.tcl && tclsh8.6 tests/manifest_test.tcl && tclsh8.6 tests/resolver_test.tcl
+	cd $(ROOT)/tclpkg-tcl && for t in tests/*_test.tcl; do tclsh8.6 "$$t" || exit 1; done
 
 test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files through our VM)
 	@echo "==> Running VM tcltest tests"
