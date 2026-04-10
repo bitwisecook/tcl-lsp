@@ -208,6 +208,10 @@ test-tclpkg: $(UV_STAMP) ## Run tclpkg package manager tests only
 	@echo "==> Running tclpkg tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/tclpkg/ tests/test_vm_safe_mode.py -v
 
+test-tclpkg-tcl: ## Run pure-Tcl tclpkg tests (requires tclsh8.6+)
+	@echo "==> Running pure-Tcl tclpkg tests"
+	cd $(ROOT)/tclpkg-tcl && tclsh8.6 tests/version_test.tcl && tclsh8.6 tests/manifest_test.tcl && tclsh8.6 tests/resolver_test.tcl
+
 test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files through our VM)
 	@echo "==> Running VM tcltest tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_vm_*_test.py -q
