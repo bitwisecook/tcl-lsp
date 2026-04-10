@@ -229,6 +229,8 @@ def download_project(project: Project) -> Path:
             )
         except subprocess.CalledProcessError as exc:
             print(f"    sparse-checkout failed: {exc}")
+            shutil.rmtree(target, ignore_errors=True)
+            return target
 
     marker.touch()
     return target
@@ -308,7 +310,7 @@ def _categorise_crash(error_msg: str, error_type: str) -> str:
     return f"other:{error_type}"
 
 
-def _collect_tcltest_results(interp: TclInterp) -> dict:
+def _collect_tcltest_results(interp: TclInterp | None) -> dict:
     """Read tcltest results from the interpreter.
 
     Tries multiple approaches to find the results:
@@ -318,6 +320,11 @@ def _collect_tcltest_results(interp: TclInterp) -> dict:
     4. Fall back to the Python-internal ``_results`` dict
     """
     results = {"Total": 0, "Passed": 0, "Skipped": 0, "Failed": 0}
+
+    if interp is None:
+        for key in results:
+            results[key] = tcltest_cmds._results.get(key, 0)
+        return results
 
     # Method 1: Try reading via Tcl eval (works for real tcltest)
     for key in results:
@@ -395,6 +402,9 @@ def run_test_file(
     )
 
     start = time.monotonic()
+    interp: TclInterp | None = None
+    stdout_buf: io.StringIO | None = None
+    saved_cwd = os.getcwd()
 
     try:
         interp = TclInterp(source_init=project.source_init)
@@ -436,7 +446,6 @@ def run_test_file(
 
         # Change to the test file's directory so relative `source`
         # commands resolve correctly
-        saved_cwd = os.getcwd()
         os.chdir(test_file.parent)
 
         # Source the test file
@@ -451,7 +460,7 @@ def run_test_file(
             os.chdir(saved_cwd)
 
         # Collect results from Tcl variables or Python fallback
-        result.stdout = stdout_buf.getvalue()
+        result.stdout = stdout_buf.getvalue() if stdout_buf else ""
         tcl_results = _collect_tcltest_results(interp)
         if tcl_results["Total"] == 0:
             # Try parsing stdout as last resort
@@ -518,7 +527,7 @@ def run_test_file(
     return result
 
 
-def run_project(project: Project, checkout_dir: Path) -> ProjectReport:
+def run_project(project: Project, checkout_dir: Path, *, max_files: int = 0) -> ProjectReport:
     """Run all test files for a project and build a report."""
     report = ProjectReport(
         name=project.name,
@@ -535,6 +544,10 @@ def run_project(project: Project, checkout_dir: Path) -> ProjectReport:
     skip_set = {str(checkout_dir / s) for s in project.skip_files}
     test_files = [f for f in test_files if str(f) not in skip_set]
     skipped_count = len(skip_set)
+
+    # Apply max-files limit
+    if max_files > 0 and len(test_files) > max_files:
+        test_files = test_files[:max_files]
 
     print(f"  Found {len(test_files)} test files ({skipped_count} pre-skipped)")
     report.files_skipped = skipped_count
@@ -825,7 +838,7 @@ def main() -> int:
             continue
 
         # Run tests
-        report = run_project(project, checkout_dir)
+        report = run_project(project, checkout_dir, max_files=args.max_files)
         reports.append(report)
 
         # Print per-project report

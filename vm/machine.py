@@ -1648,16 +1648,30 @@ class BytecodeVM:
                     # Try to convert TOS to a boolean.  Pushes two values:
                     # the converted value (0 or 1) and a flag indicating
                     # whether the conversion succeeded (1) or not (0).
-                    # Used by bytecoded ``string is boolean``.
+                    # Tcl accepts any unique prefix of the canonical words
+                    # true/false/yes/no/on/off (e.g. "t", "ye", "of"),
+                    # but rejects ambiguous prefixes like "o".
                     val = stack.pop() if stack else ""
-                    _bool_true = {"1", "true", "yes", "on"}
-                    _bool_false = {"0", "false", "no", "off"}
                     low = val.strip().lower()
-                    if low in _bool_true:
-                        stack.append("1")  # converted value
-                        stack.append("1")  # success flag
-                    elif low in _bool_false:
-                        stack.append("0")  # converted value
+                    converted: str | None = None
+                    if low == "1":
+                        converted = "1"
+                    elif low == "0":
+                        converted = "0"
+                    elif low:
+                        _true_words = ("true", "yes", "on")
+                        _false_words = ("false", "no", "off")
+                        matches: list[str] = []
+                        for w in _true_words:
+                            if w.startswith(low):
+                                matches.append("1")
+                        for w in _false_words:
+                            if w.startswith(low):
+                                matches.append("0")
+                        if len(matches) == 1:
+                            converted = matches[0]
+                    if converted is not None:
+                        stack.append(converted)  # converted value
                         stack.append("1")  # success flag
                     else:
                         stack.append(val)  # original value (unconverted)
@@ -1688,48 +1702,29 @@ class BytecodeVM:
 
                 case Op.LSET_LIST:
                     # lsetList: stack has [..., varName, indexList, newValue, listValue]
-                    # Replace element at indexList in listValue with newValue.
-                    # Result replaces the top 2 values (newValue, listValue → modifiedList).
+                    # indexList may be a Tcl list of indices for nested access.
                     list_val = stack.pop() if stack else ""
                     new_val = stack.pop() if stack else ""
                     idx_str = stack.pop() if stack else "0"
                     # varName is still on stack for storeStk
-                    lst = _split_list(list_val)
-                    idx = _parse_index(idx_str, len(lst))
-                    if 0 <= idx < len(lst):
-                        lst[idx] = new_val
-                    elif idx == len(lst):
-                        lst.append(new_val)
-                    else:
-                        raise TclError("list index out of range")
-                    stack.append(" ".join(_list_escape(e) for e in lst))
+                    indices = _split_list(idx_str)
+                    if not indices:
+                        indices = ["0"]
+                    stack.append(_lset_nested(list_val, indices, new_val))
 
                 case Op.LSET_FLAT:
-                    # lsetFlat count: pops count values: [..., varName, idx0, idx1, ..., newValue, listValue]
-                    # For single index, count=4 (varName, index, newValue, listValue).
-                    count = instr.operands[0] if instr.operands else 4
+                    # lsetFlat count: stack has [..., idx0, ..., newValue, listValue]
+                    # The operand is len(indices) + 2.
+                    count = instr.operands[0] if instr.operands else 3
                     if isinstance(count, str):
                         count = int(count)
                     list_val = stack.pop() if stack else ""
-                    # count includes varName, indices, newValue, listValue
-                    # varName stays on stack. The remaining pops are: indices + newValue.
                     new_val = stack.pop() if stack else ""
-                    num_indices = count - 4  # subtract varName, newValue, listValue, result
+                    num_indices = max(1, count - 2)
                     indices = []
-                    for _ in range(max(1, num_indices + 1)):
+                    for _ in range(num_indices):
                         indices.insert(0, stack.pop() if stack else "0")
-                    # varName still on stack for storeStk
-                    lst = _split_list(list_val)
-                    # Navigate to nested element
-                    if len(indices) == 1:
-                        idx = _parse_index(indices[0], len(lst))
-                        if 0 <= idx < len(lst):
-                            lst[idx] = new_val
-                        elif idx == len(lst):
-                            lst.append(new_val)
-                        else:
-                            raise TclError("list index out of range")
-                    stack.append(" ".join(_list_escape(e) for e in lst))
+                    stack.append(_lset_nested(list_val, indices, new_val))
 
                 case Op.STR_CLASS:
                     # strclass classId: check whether TOS is a member of
@@ -1829,6 +1824,24 @@ def _parse_lreplace_index(idx_str: str, length: int) -> int:
             right = int(idx_str[pos + 1 :])
             return left + right if op == "+" else left - right
     raise TclError(f'bad index "{idx_str}": must be integer?[+-]integer? or end?[+-]integer?')
+
+
+def _lset_nested(encoded_list: str, path: list[str], value: str) -> str:
+    """Recursively set a nested list element and return the modified list."""
+    lst = _split_list(encoded_list)
+    idx = _parse_index(path[0], len(lst))
+    if len(path) == 1:
+        if 0 <= idx < len(lst):
+            lst[idx] = value
+        elif idx == len(lst):
+            lst.append(value)
+        else:
+            raise TclError("list index out of range")
+    else:
+        if not (0 <= idx < len(lst)):
+            raise TclError("list index out of range")
+        lst[idx] = _lset_nested(lst[idx], path[1:], value)
+    return " ".join(_list_escape(e) for e in lst)
 
 
 def _split_list(text: str) -> list[str]:

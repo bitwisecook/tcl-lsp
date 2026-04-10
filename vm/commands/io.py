@@ -249,7 +249,14 @@ def _cmd_chan(interp: TclInterp, args: list[str]) -> TclResult:
             ch = interp.channels.get(rest[0])
             if ch is None:
                 raise TclError(f'can not find channel named "{rest[0]}"')
-            length = int(rest[1]) if len(rest) > 1 else 0
+            if len(rest) > 1:
+                length = int(rest[1])
+            else:
+                # Tcl truncates at the current position when no length given
+                try:
+                    length = ch.tell()
+                except (AttributeError, OSError):
+                    raise TclError(f'channel "{rest[0]}" is not seekable')
             ch.truncate(length)
             return TclResult()
         case "copy":
@@ -264,17 +271,22 @@ def _cmd_chan(interp: TclInterp, args: list[str]) -> TclResult:
                 raise TclError(f'can not find channel named "{rest[0]}"')
             if dst is None:
                 raise TclError(f'can not find channel named "{rest[1]}"')
-            # Parse optional -size
+            # Parse supported options
             size = -1
             i = 2
             while i < len(rest):
                 if rest[i] == "-size" and i + 1 < len(rest):
                     size = int(rest[i + 1])
                     i += 2
+                elif rest[i] == "-command" and i + 1 < len(rest):
+                    raise TclError("chan copy -command is not supported in this implementation")
                 else:
-                    i += 1
+                    raise TclError(
+                        'wrong # args: should be "chan copy inchan outchan ?-size size? ?-command callback?"'
+                    )
             data = src.read(size) if size >= 0 else src.read()
             dst.write(data)
+            dst.flush()
             return TclResult(value=str(len(data)))
         case "event":
             # fileevent stub — accept but ignore

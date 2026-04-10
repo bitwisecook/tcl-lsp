@@ -489,12 +489,14 @@ def _cmd_interpreter(interp: TclInterp, args: list[str]) -> TclResult:
 def _cmd_skip(interp: TclInterp, args: list[str]) -> TclResult:
     """skip ?patternList?
 
-    Add patterns to the skip list.  Tests whose names match any of
-    these patterns are skipped.
+    Return the current skip pattern list, or replace it when
+    ``patternList`` is provided.
     """
+    if len(args) > 1:
+        raise TclError('wrong # args: should be "skip ?patternList?"')
     if args:
-        _skip_patterns.extend(_split_list(args[0]))
-    return TclResult()
+        _skip_patterns[:] = _split_list(args[0])
+    return TclResult(value=" ".join(_list_escape(p) for p in _skip_patterns))
 
 
 def _cmd_output_channel(interp: TclInterp, args: list[str]) -> TclResult:

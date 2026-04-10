@@ -24,16 +24,14 @@ from vm.interp import TclInterp
 # When a VM bug is fixed the test will unexpectedly pass — the set
 # must be updated (removing the entry) to keep CI green.
 
-KNOWN_FAILURES_COMPILE: set[str] = {
-    # All previously-known failures now pass thanks to real tcltest.tcl
-    # integration which properly skips tests requiring C-level features
-    # (disassembler, coroutines) via testConstraints.
-}
+KNOWN_FAILURES_COMPILE: set[str] = set()
+# All previously-known failures now pass thanks to real tcltest.tcl
+# integration which properly skips tests requiring C-level features
+# (disassembler, coroutines) via testConstraints.
 
-KNOWN_FAILURES_EXECUTE: set[str] = {
-    # All previously-known failures now pass thanks to TRY_CVT_TO_BOOLEAN,
-    # STR_CLASS, and real tcltest.tcl integration.
-}
+KNOWN_FAILURES_EXECUTE: set[str] = set()
+# All previously-known failures now pass thanks to TRY_CVT_TO_BOOLEAN,
+# STR_CLASS, and real tcltest.tcl integration.
 
 
 # Test runner
