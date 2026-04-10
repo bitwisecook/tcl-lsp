@@ -87,17 +87,31 @@ in the pages; Phase 7 cross-links.
 
 ## Variables (W2xx)
 
-*6 codes — unused, read-before-set, dead-store, and related variable
-warnings. Populated in Phase 4.4.*
+- [W210 — variable read before set](kcs-diagnostic-w210-variable-read-before-set.md)
+- [W211 — variable set not used](kcs-diagnostic-w211-variable-set-not-used.md)
+- [W212 — variable substitution where name expected](kcs-diagnostic-w212-variable-substitution-where-name-expected.md)
+- [W213 — variable may not exist](kcs-diagnostic-w213-variable-may-not-exist.md)
+- [W214 — unused proc parameter](kcs-diagnostic-w214-unused-proc-parameter.md)
+- [W220 — dead store](kcs-diagnostic-w220-dead-store.md)
 
 ## Shimmer (S-codes)
 
-*3 codes — shimmer detection over the type lattice. Populated in
-Phase 4.4.*
+- [S100 — shimmer outside loop](kcs-diagnostic-s100-shimmer-outside-loop.md)
+- [S101 — shimmer inside loop](kcs-diagnostic-s101-shimmer-inside-loop.md)
+- [S102 — shimmer oscillation](kcs-diagnostic-s102-shimmer-oscillation.md)
 
 ## Taint (T-codes)
 
-*5 codes — source-to-sink taint propagation. Populated in Phase 4.4.*
+- [T100 — taint code execution sink](kcs-diagnostic-t100-taint-code-execution-sink.md)
+- [T101 — taint output sink](kcs-diagnostic-t101-taint-output-sink.md)
+- [T102 — taint option injection](kcs-diagnostic-t102-taint-option-injection.md)
+
+## iRule security (IRULE3xxx)
+
+- [IRULE3001 — taint HTTP response body](kcs-diagnostic-irule3001-taint-http-response-body.md)
+- [IRULE3002 — taint HTTP header](kcs-diagnostic-irule3002-taint-http-header.md)
+
+*3 more codes (IRULE3003, IRULE3101, IRULE3102) to be added in Phase 5.2.*
 
 ## iRule events and commands (IRULE1xxx, IRULE2xxx)
 
