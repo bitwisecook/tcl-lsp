@@ -665,7 +665,7 @@ class TcltestNormalizePath(CommandDef):
                 source=_SOURCE_DEPR,
             ),
             validation=ValidationSpec(arity=Arity(1, 1)),
-            arg_roles={0: ArgRole.VAR_NAME},
+            arg_roles={0: ArgRole.VAR_WRITE},
             deprecated_replacement="file normalize",
         )
 

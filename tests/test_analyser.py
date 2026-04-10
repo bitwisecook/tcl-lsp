@@ -648,6 +648,18 @@ class TestDiagnostics:
         warnings = [d for d in result.diagnostics if d.code == "W210"]
         assert len(warnings) == 0
 
+    def test_set_dual_shape_role_resolution(self):
+        """``set`` resolver returns VAR_READ for 1-arg shape, VAR_WRITE for 2-arg."""
+        from core.commands.registry.runtime import arg_indices_for_role
+        from core.commands.registry.signatures import ArgRole
+
+        # set x → read
+        assert arg_indices_for_role("set", ["x"], ArgRole.VAR_WRITE) == set()
+        assert arg_indices_for_role("set", ["x"], ArgRole.VAR_READ) == {0}
+        # set x 1 → write
+        assert arg_indices_for_role("set", ["x", "1"], ArgRole.VAR_WRITE) == {0}
+        assert arg_indices_for_role("set", ["x", "1"], ArgRole.VAR_READ) == set()
+
     def test_array_read_uses_base_variable(self):
         result = analyse("set arr(key) 1\nputs $arr(key)")
         warnings = [d for d in result.diagnostics if d.code == "W210"]

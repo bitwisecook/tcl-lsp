@@ -33,7 +33,7 @@ from .semantic_model import ProcArgTrait
 _SIMPLE_VAR_RE = re.compile(r"^\$(?:\{([A-Za-z_][\w:]*)\}|([A-Za-z_][\w:]*))\Z")
 
 # Variable-writing commands derived from CommandSpec.assigns_variable_at.
-# "dict set" etc. are handled via the registry's ArgRole.VAR_NAME on
+# "dict set" etc. are handled via the registry's ArgRole.VAR_WRITE on
 # subcommand specs, not here (cmd_name from the segmenter is just "dict").
 _var_write_cache: dict[str, int] | None = None
 
@@ -120,7 +120,7 @@ def _scan_commands(
                 traits[source_param].add(ProcArgTrait.BODY)
             elif role is ArgRole.EXPR:
                 traits[source_param].add(ProcArgTrait.EXPR)
-            elif role is ArgRole.VAR_NAME:
+            elif role is ArgRole.VAR_WRITE:
                 traits[source_param].add(ProcArgTrait.VAR_WRITE)
             elif role is ArgRole.VAR_READ:
                 traits[source_param].add(ProcArgTrait.VAR_READ)

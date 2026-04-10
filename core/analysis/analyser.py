@@ -1614,7 +1614,7 @@ class Analyser:
             self._current_event = prev_event
 
         if cmd_name not in ("set", "variable", "global", "incr"):
-            for virtual_idx in sorted(arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_NAME)):
+            for virtual_idx in sorted(arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_WRITE)):
                 idx = virtual_idx - prepend_n
                 if idx < 0 or idx >= len(args):
                     continue

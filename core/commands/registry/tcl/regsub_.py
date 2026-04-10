@@ -19,7 +19,7 @@ from ._base import register
 
 
 def _regsub_arg_role_resolver(args: list[str]) -> dict[int, ArgRole]:
-    """Dynamically assign VAR_NAME to the regsub result variable.
+    """Dynamically assign VAR_WRITE to the regsub result variable.
 
     ``regsub ?switches? exp string subSpec ?varName?``
 
@@ -31,7 +31,7 @@ def _regsub_arg_role_resolver(args: list[str]) -> dict[int, ArgRole]:
     first_positional = skip_options(args, options_with_value("regsub"))
     var_idx = first_positional + 3
     if var_idx < len(args):
-        return {var_idx: ArgRole.VAR_NAME}
+        return {var_idx: ArgRole.VAR_WRITE}
     return {}
 
 

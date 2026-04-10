@@ -1132,7 +1132,7 @@ class _Lowerer:
                     role_args = list(prepended) + list(args)
                     prepend_n = len(prepended)
                 body_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.BODY)
-                var_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_NAME)
+                var_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_WRITE)
                 var_read_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_READ)
                 if body_indices:
                     return IRBarrier(

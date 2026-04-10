@@ -385,7 +385,7 @@ class TestArgIndicesForRolesBatch:
         """Batched lookup should return same results as individual calls."""
         cmd = "proc"
         args = ["myproc", "{a b}", "{ return $a }"]
-        roles = (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_NAME, ArgRole.VAR_READ, ArgRole.PATTERN)
+        roles = (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_WRITE, ArgRole.VAR_READ, ArgRole.PATTERN)
         batch_results = arg_indices_for_roles(cmd, args, roles)
         for i, role in enumerate(roles):
             individual = arg_indices_for_role(cmd, args, role)
@@ -395,16 +395,16 @@ class TestArgIndicesForRolesBatch:
         """if command has BODY and EXPR roles."""
         cmd = "if"
         args = ["$x", "{ puts hi }"]
-        roles = (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_NAME)
+        roles = (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_WRITE)
         batch = arg_indices_for_roles(cmd, args, roles)
         for i, role in enumerate(roles):
             assert batch[i] == arg_indices_for_role(cmd, args, role)
 
     def test_batch_set_command(self):
-        """set command with VAR_NAME role."""
+        """set command with VAR_WRITE role."""
         cmd = "set"
         args = ["myvar", "myvalue"]
-        roles = (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_NAME, ArgRole.VAR_READ, ArgRole.PATTERN)
+        roles = (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_WRITE, ArgRole.VAR_READ, ArgRole.PATTERN)
         batch = arg_indices_for_roles(cmd, args, roles)
         for i, role in enumerate(roles):
             assert batch[i] == arg_indices_for_role(cmd, args, role)
@@ -413,7 +413,7 @@ class TestArgIndicesForRolesBatch:
         """Unknown command should return empty sets."""
         cmd = "nonexistent_command_xyz"
         args = ["a", "b"]
-        roles = (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_NAME)
+        roles = (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_WRITE)
         batch = arg_indices_for_roles(cmd, args, roles)
         assert all(s == set() for s in batch)
 
@@ -421,7 +421,7 @@ class TestArgIndicesForRolesBatch:
         """foreach has BODY at last arg."""
         cmd = "foreach"
         args = ["item", "$list", "{ puts $item }"]
-        roles = (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_NAME, ArgRole.VAR_READ)
+        roles = (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_WRITE, ArgRole.VAR_READ)
         batch = arg_indices_for_roles(cmd, args, roles)
         for i, role in enumerate(roles):
             assert batch[i] == arg_indices_for_role(cmd, args, role)

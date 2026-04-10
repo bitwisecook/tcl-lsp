@@ -19,13 +19,13 @@ from ._base import register
 
 
 def _regexp_arg_role_resolver(args: list[str]) -> dict[int, ArgRole]:
-    """Dynamically assign VAR_NAME to regexp capture variables.
+    """Dynamically assign VAR_WRITE to regexp capture variables.
 
     ``regexp ?switches? exp string ?matchVar? ?subMatchVar ...?``
 
     After skipping options, arg 0 = pattern, arg 1 = string, and
     args 2+ are capture variable names.  We need to map the raw
-    argument indices (including options) to the VAR_NAME role.
+    argument indices (including options) to the VAR_WRITE role.
     """
     from ..runtime import options_with_value, skip_options
 
@@ -34,7 +34,7 @@ def _regexp_arg_role_resolver(args: list[str]) -> dict[int, ArgRole]:
     result: dict[int, ArgRole] = {}
     capture_start = first_positional + 2
     for i in range(capture_start, len(args)):
-        result[i] = ArgRole.VAR_NAME
+        result[i] = ArgRole.VAR_WRITE
     return result
 
 

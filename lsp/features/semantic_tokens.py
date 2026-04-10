@@ -2566,7 +2566,7 @@ def _collect_tokens(
         ) = arg_indices_for_roles(
             cmd_name,
             argv_texts[1:],
-            (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_NAME, ArgRole.VAR_READ, ArgRole.PATTERN),
+            (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_WRITE, ArgRole.VAR_READ, ArgRole.PATTERN),
         )
         varname_indices = _varname_indices | _varread_indices
         param_arg_idx = _proc_param_list_arg_index(cmd_name, argv_texts)
