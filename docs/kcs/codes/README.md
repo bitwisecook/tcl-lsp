@@ -155,9 +155,45 @@ Populated in Phase 5.2.*
 
 ## Optimisations (O-codes)
 
-*28 codes — rewrites performed by the optimiser, grouped by category
-(constant folding, code motion, DCE, pattern, readability, recursion,
-code sinking). Populated in Phases 6.1-6.4.*
+### Constant folding and propagation
+
+- [O100 — constant propagation](kcs-optimisation-o100-constant-propagation.md)
+- [O101 — integer expression folding](kcs-optimisation-o101-integer-expression-folding.md)
+- [O102 — command substitution folding](kcs-optimisation-o102-command-substitution-folding.md)
+- [O103 — static proc folding](kcs-optimisation-o103-static-proc-folding.md)
+- [O104 — string build chain folding](kcs-optimisation-o104-string-build-chain-folding.md)
+- [O105 — constant var-ref propagation / GVN/CSE](kcs-optimisation-o105-constant-var-ref-propagation.md)
+
+### Code motion and dead-code elimination
+
+- [O106 — loop-invariant code motion](kcs-optimisation-o106-loop-invariant-code-motion.md)
+- [O107 — unreachable dead code](kcs-optimisation-o107-unreachable-dead-code.md)
+- [O108 — transitive dead code](kcs-optimisation-o108-transitive-dead-code.md)
+- [O109 — dead store](kcs-optimisation-o109-dead-store.md)
+- [O110 — expression canonicalisation](kcs-optimisation-o110-expression-canonicalisation.md)
+- [O111 — brace expression hints](kcs-optimisation-o111-brace-expression-hints.md)
+- [O112 — constant-condition elimination](kcs-optimisation-o112-constant-condition-elimination.md)
+
+### Pattern recognition and readability
+
+- [O113 — strength reduction](kcs-optimisation-o113-strength-reduction.md)
+- [O114 — incr idiom](kcs-optimisation-o114-incr-idiom.md)
+- [O115 — redundant nested expr](kcs-optimisation-o115-redundant-nested-expr.md)
+- [O116 — list literal folding](kcs-optimisation-o116-list-literal-folding.md)
+- [O117 — string length simplification](kcs-optimisation-o117-string-length-simplification.md)
+- [O118 — lindex folding](kcs-optimisation-o118-lindex-folding.md)
+- [O119 — multi-set packing](kcs-optimisation-o119-multi-set-packing.md)
+- [O120 — eq/ne for strings](kcs-optimisation-o120-eq-ne-for-strings.md)
+
+### Recursion, sinking, and elimination
+
+- [O121 — tailcall rewrite](kcs-optimisation-o121-tailcall-rewrite.md)
+- [O122 — tail-recursion to while](kcs-optimisation-o122-tail-recursion-to-while.md)
+- [O123 — accumulator hint](kcs-optimisation-o123-accumulator-hint.md)
+- [O124 — unused iRule procs](kcs-optimisation-o124-unused-irule-procs.md)
+- [O125 — code sinking](kcs-optimisation-o125-code-sinking.md)
+- [O126 — unused variable removal](kcs-optimisation-o126-unused-variable-removal.md)
+- [O127 — single-use inline](kcs-optimisation-o127-single-use-inline.md)
 
 ## Internal codes
 
