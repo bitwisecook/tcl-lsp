@@ -41,8 +41,7 @@ proc sum {lst acc} {
 
 ## Safety conditions
 
-- Skipped when the proc contains multiple recursive call sites.
-- Skipped when the proc uses `uplevel`, `upvar`, or other stack-sensitive commands.
+- Skipped when the proc contains multiple recursive call sites or uses `uplevel`, `upvar`, or other stack-sensitive commands.
 
 ## How to disable
 
