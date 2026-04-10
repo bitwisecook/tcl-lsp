@@ -17,6 +17,10 @@
 //!   [`Function`](cfg::Function), [`CfgModule`](cfg::CfgModule),
 //!   [`Terminator`](cfg::Terminator), plus graph traversal utilities
 //!   (predecessors, reachability, reverse post-order) (chunk **C2**).
+//! - [`ssa`] — SSA data structures ([`Phi`](ssa::Phi),
+//!   [`SsaBlock`](ssa::SsaBlock), [`SsaFunction`](ssa::SsaFunction)),
+//!   dominator algorithms, dominance frontier, phi placement, and
+//!   variable definition extraction (chunk **C3**).
 //!
 //! The crate has no `pyo3` dependency and no Python-compat concerns —
 //! those belong in the `tcl-lsp-rust` binding crate. See
@@ -30,6 +34,7 @@ pub mod expr_ast;
 pub mod expr_parser;
 pub mod ir;
 pub mod naming;
+pub mod ssa;
 
 // Re-export key types for convenience.
 pub use expr_ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
