@@ -352,16 +352,7 @@ def generate_dockerfile(spec: DockerfileSpec) -> str:
         lines.append("COPY . .")
         lines.append("")
 
-    # ── tcl pkg sync ───────────────────────────────────────────────────
-    if spec.install_packages:
-        lines.append("# Install Tcl packages from lockfile")
-        lines.append(
-            "RUN if [ -f tclpkg.lock ]; then "
-            "python3 /usr/local/bin/tcl.pyz pkg sync --frozen; fi"
-        )
-        lines.append("")
-
-    # ── tcl venv create ────────────────────────────────────────────────
+    # ── tcl venv create (before pkg sync so packages land in venv/lib) ──
     if spec.create_venv:
         lines.append("# Create Tcl virtual environment")
         lines.append(
@@ -370,6 +361,23 @@ def generate_dockerfile(spec: DockerfileSpec) -> str:
         )
         lines.append('ENV TCLLIBPATH="/app/.venv/lib"')
         lines.append('ENV PATH="/app/.venv/bin:$PATH"')
+        lines.append('ENV TCL_VENV="/app/.venv"')
+        lines.append("")
+
+    # ── tcl pkg sync (inside venv if one was created) ──────────────────
+    if spec.install_packages:
+        if spec.create_venv:
+            lines.append("# Install Tcl packages into the virtual environment")
+            lines.append(
+                "RUN if [ -f tclpkg.lock ]; then "
+                "python3 /usr/local/bin/tcl.pyz pkg sync --frozen; fi"
+            )
+        else:
+            lines.append("# Install Tcl packages from lockfile")
+            lines.append(
+                "RUN if [ -f tclpkg.lock ]; then "
+                "python3 /usr/local/bin/tcl.pyz pkg sync --frozen; fi"
+            )
         lines.append("")
 
     # ── Entrypoint ─────────────────────────────────────────────────────

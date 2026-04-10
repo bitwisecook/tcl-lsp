@@ -256,6 +256,17 @@ class TestGenerateDockerfile:
         assert "python3 /usr/local/bin/tcl.pyz venv create .venv" in result
         assert "TCLLIBPATH" in result
         assert ".venv" in result
+        assert 'TCL_VENV=' in result
+
+    def test_venv_created_before_pkg_sync(self) -> None:
+        """When both venv and packages are enabled, venv must come first
+        so that ``pkg sync`` materialises packages into ``.venv/lib/``."""
+        spec = DockerfileSpec(create_venv=True, install_packages=True)
+        result = generate_dockerfile(spec)
+        venv_pos = result.index("venv create")
+        pkg_pos = result.index("pkg sync")
+        assert venv_pos < pkg_pos, "venv create must appear before pkg sync"
+        assert "Install Tcl packages into the virtual environment" in result
 
     def test_no_copy(self) -> None:
         spec = DockerfileSpec(copy_project=False)
