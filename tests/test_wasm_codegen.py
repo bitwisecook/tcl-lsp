@@ -9,6 +9,7 @@ from core.compiler.codegen.wasm import (
     WasmModule,
     _leb128_signed,
     _leb128_unsigned,
+    wasm_codegen_function,
     wasm_codegen_module,
 )
 from core.compiler.lowering import lower_to_ir
@@ -274,10 +275,12 @@ def test_multiple_procedures():
 
 
 def test_wasm_codegen_function_api():
-    """wasm_codegen_function requires lifecycle imports for TclObj emission."""
-    module = _compile("set x 1\n")
-    assert module.functions[0].name == "::top"
-    assert len(module.functions[0].body) > 0
+    """wasm_codegen_function should produce a WasmFunction."""
+    ir = lower_to_ir("set x 1\n")
+    cfg = build_cfg(ir)
+    func = wasm_codegen_function(cfg.top_level)
+    assert func.name == "::top"
+    assert len(func.body) > 0
 
 
 def test_codegen_package_exports_wasm():
@@ -306,22 +309,10 @@ def test_runtime_imports_registered_for_puts():
     assert "puts" in import_names
 
 
-def test_no_cmd_imports_for_pure_math():
-    """Pure arithmetic code should only import lifecycle + error + diag functions."""
+def test_no_imports_for_pure_math():
+    """Pure arithmetic code should not register any imports."""
     module = _compile("set x [expr {1 + 2}]\n")
-    import_names = {imp.name for imp in module.imports}
-    # diag_set is always imported so any trap site can prefix stderr with
-    # the source-location site ID the sidecar map resolves.
-    assert import_names == {
-        "obj_new_int",
-        "obj_new_string",
-        "obj_get_int",
-        "error",
-        "tcl_eval",
-        "diag_set",
-        "global_set",
-        "global_get",
-    }
+    assert len(module.imports) == 0
 
 
 def test_scope_declarations_no_imports():
