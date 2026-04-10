@@ -1,6 +1,6 @@
 [package]
-name = "tcl-compiler"
-description = "IR, CFG, SSA, and codegen for the Tcl compiler pipeline"
+name = "tcl-registry"
+description = "Command registry — single source of truth for Tcl command metadata"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,9 +9,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-tcl-lexer = { path = "../tcl-lexer" }
-tcl-registry = { path = "../tcl-registry" }
-thiserror = "1.0"
+bitflags = "2"
 
 [lints]
 workspace = true

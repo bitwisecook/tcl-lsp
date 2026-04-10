@@ -22,6 +22,7 @@
 resolver = "2"
 members = [
     "rust/tcl-lexer",
+    "rust/tcl-registry",
     "rust/tcl-compiler",
     "rust/tcl-lsp-rust",
 ]
