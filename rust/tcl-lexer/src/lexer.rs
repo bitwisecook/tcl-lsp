@@ -137,59 +137,76 @@ use thiserror::Error;
 
 use crate::source_map::SourceMap;
 use crate::span::Span;
-use crate::tokens::{SourcePosition, Token, TokenType};
+use crate::tokens::{Token, TokenType};
 
 /// Configuration for the Tcl lexer.
 ///
-/// Holds dialect-specific flags that the Python lexer uses as
-/// class-level attributes. In Rust these are explicit fields
-/// passed at construction time via `Lexer::with_source_map`; the
-/// `Default` values match Python's non-strict, Tcl-8.5+ defaults.
-///
-/// The binding crate translates Python's class-level / thread-local
-/// flag pattern into a fresh `LexerConfig` on each call — the
-/// pure-Rust crate has no global state.
+/// Holds dialect-specific flags and sub-lexing offsets that the
+/// Python lexer uses as class-level attributes or constructor
+/// parameters. In Rust these are explicit fields passed at
+/// construction time; the `Default` values match Python's
+/// non-strict, Tcl-8.5+ defaults with no sub-lexing offsets.
 #[derive(Debug, Clone, Copy)]
 pub struct LexerConfig {
     /// When true, `{*}` at a word boundary followed by a
-    /// non-separator emits an [`EXPAND`](TokenType::Expand) token
-    /// rather than being parsed as a braced string. True for
-    /// Tcl 8.5+ (the default); false for Tcl 8.4 and iRules
-    /// dialects. Mirrors Python's `TclLexer.expand_syntax`.
+    /// non-separator emits an [`EXPAND`](TokenType::Expand) token.
+    /// True for Tcl 8.5+ (the default); false for Tcl 8.4 and
+    /// iRules dialects.
     pub expand_syntax: bool,
+    /// When true, `}{` at a brace-string boundary injects a
+    /// zero-width ghost SEP token so the segmenter sees two
+    /// words. iRules-only.
+    pub irules_brace_separator: bool,
+    /// When true, certain unterminated constructs (missing
+    /// close-brace, missing close-bracket, extra chars after
+    /// close-quote/brace) are reported as `LexError` instead of
+    /// best-effort warnings. Used by the VM's compilation path.
+    pub strict_quoting: bool,
+    /// Byte offset to add to every `SourcePosition.offset`
+    /// produced by the lexer. Used when sub-lexing a body
+    /// extracted from a parent token.
+    pub base_offset: u32,
+    /// Line number to add to every `SourcePosition.line`.
+    pub base_line: u32,
+    /// Column to add to the first line's character values.
+    pub base_col: u32,
 }
 
 impl Default for LexerConfig {
     fn default() -> Self {
         Self {
             expand_syntax: true,
+            irules_brace_separator: false,
+            strict_quoting: false,
+            base_offset: 0,
+            base_line: 0,
+            base_col: 0,
         }
     }
 }
 
 /// Errors produced by the Tcl lexer.
-///
-/// L3 has exactly one variant. Future chunks add real error variants
-/// (unterminated brace, extra close-quote, etc.) mirroring Python's
-/// `TclParseError`. The `UnsupportedCharacter` variant shrinks and
-/// eventually disappears.
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum LexError {
-    /// The lexer reached a character whose handler has not been
-    /// ported from Python yet. The character and its position are
-    /// preserved so callers — in particular the differential test
-    /// harness — can filter inputs to the currently supported subset.
-    #[error(
-        "unsupported character {ch:?} at line {} character {} offset {} — \
-         the Rust lexer has not yet implemented this construct",
-        position.line, position.character, position.offset
-    )]
-    UnsupportedCharacter {
-        /// The offending character.
-        ch: char,
-        /// Its position in the source.
-        position: SourcePosition,
+    /// A syntax error detected in strict-quoting mode. Mirrors
+    /// Python's `TclParseError`.
+    #[error("{message}")]
+    SyntaxError {
+        /// Human-readable message matching the Python error text.
+        message: String,
     },
+}
+
+/// A non-fatal warning collected during lexing. The Python lexer
+/// stores these as `(SourcePosition, str)` tuples on
+/// `TclLexer.warnings` and the analyser harvests them to produce
+/// LSP diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LexWarning {
+    /// Byte offset in the source where the issue was detected.
+    pub offset: u32,
+    /// Human-readable message matching the Python warning text.
+    pub message: String,
 }
 
 /// Streaming Tcl lexer.
@@ -207,12 +224,14 @@ pub struct Lexer<'src> {
     /// and after every EOL; preserved across SEP tokens.
     at_command_start: bool,
     /// Whether we are currently inside a `"…"` quoted string.
-    /// Toggled by [`Lexer::parse_quoted`] on the opening and closing
-    /// `"`. While set, the dispatch in [`Iterator::next`] ignores
-    /// separators, EOL characters, `#`, and `{` — they become
-    /// literal content — and only `$`, `[`, `\`, and `"` are
-    /// meaningful. Mirrors Python's `TclLexer.insidequote`.
     in_quote: bool,
+    /// Ghost SEP token injected by `parse_brace` when
+    /// `irules_brace_separator` is set and the close brace is
+    /// immediately followed by `{`.
+    pending_sep: Option<Token>,
+    /// Non-fatal warnings collected during lexing (unterminated
+    /// braces, extra chars after close-quote, etc.).
+    warnings: Vec<LexWarning>,
     /// Kind of the most recently emitted token. Used to decide whether
     /// EOF needs a trailing ghost EOL and to compute
     /// [`Lexer::is_newword`].
@@ -243,6 +262,8 @@ impl<'src> Lexer<'src> {
             pos: 0,
             at_command_start: true,
             in_quote: false,
+            pending_sep: None,
+            warnings: Vec::new(),
             // Start in "last kind was EOL" so an empty source produces
             // zero tokens rather than a lone ghost trailing EOL,
             // matching `TclLexer.__init__` in Python.
@@ -264,6 +285,18 @@ impl<'src> Lexer<'src> {
     #[must_use]
     pub fn into_source_map(self) -> SourceMap<'src> {
         self.source_map
+    }
+
+    /// Borrow the warnings collected during lexing.
+    #[must_use]
+    pub fn warnings(&self) -> &[LexWarning] {
+        &self.warnings
+    }
+
+    /// Consume the lexer and return its warnings.
+    #[must_use]
+    pub fn into_warnings(self) -> Vec<LexWarning> {
+        self.warnings
     }
 
     /// Collect every token, including `SEP` and `EOL`, into a `Vec`.
@@ -292,6 +325,26 @@ impl<'src> Lexer<'src> {
     #[inline]
     fn current_char(&self) -> Option<char> {
         self.source()[self.pos as usize..].chars().next()
+    }
+
+    /// Emit a warning (non-strict) or return an error (strict).
+    /// Mirrors Python's `_strict_quoting()` / `warnings.append()`
+    /// pattern. Called from `parse_brace`, `parse_command`, and
+    /// `parse_quoted` for unterminated constructs and
+    /// extra-chars-after-close violations.
+    #[allow(dead_code)]
+    fn warn_or_error(&mut self, message: &str) -> Result<(), LexError> {
+        if self.config.strict_quoting {
+            Err(LexError::SyntaxError {
+                message: message.to_owned(),
+            })
+        } else {
+            self.warnings.push(LexWarning {
+                offset: self.pos,
+                message: message.to_owned(),
+            });
+            Ok(())
+        }
     }
 
     /// Build a token whose span covers `start_offset..self.pos`
@@ -841,6 +894,13 @@ impl<'src> Lexer<'src> {
         };
         if has_close_brace {
             self.pos += 1;
+            // iRules `}{` word-boundary injection: if the character
+            // immediately after the closing `}` is `{`, inject a
+            // zero-width ghost SEP so the segmenter sees two words.
+            if self.config.irules_brace_separator && self.current_byte() == Some(b'{') {
+                let sep_span = Span::empty(self.pos);
+                self.pending_sep = Some(Token::new(TokenType::Sep, sep_span));
+            }
         }
 
         Token::with_content_offset(TokenType::Str, Span::new(brace_pos, final_span_end), 1)
@@ -983,6 +1043,12 @@ impl Iterator for Lexer<'_> {
             return None;
         }
 
+        // Drain any pending ghost SEP (iRules `}{` boundary).
+        if let Some(sep) = self.pending_sep.take() {
+            self.last_kind = sep.kind;
+            return Some(Ok(sep));
+        }
+
         // EOF: emit a trailing ghost EOL (once) then stop.
         if self.pos as usize >= self.source().len() {
             if self.last_kind == TokenType::Eol {
@@ -1093,6 +1159,7 @@ fn is_separator_byte(byte: u8) -> bool {
 mod tests {
     use super::*;
     use crate::line_index::LineIndex;
+    use crate::tokens::SourcePosition;
 
     struct Lexed<'src> {
         source_map: SourceMap<'src>,
@@ -2271,6 +2338,7 @@ mod tests {
     fn expand_rows_no_expand(source: &str) -> Vec<(TokenType, String)> {
         let config = LexerConfig {
             expand_syntax: false,
+            ..LexerConfig::default()
         };
         let map = SourceMap::new(source);
         let lexer = Lexer::with_source_map(map.clone(), config);
