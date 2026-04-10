@@ -22,45 +22,7 @@ pytestmark = pytest.mark.slow
 
 # Known failures
 
-KNOWN_FAILURES_DICT: set[str] = {
-    # dict for: scope/variable issues
-    "dict-2.3",
-    "dict-2.6",
-    "dict-2.7",
-    "dict-2.8",
-    "dict-2.11",
-    "dict-2.14",
-    # dict filter: missing filter modes or wrong result
-    "dict-3.12",
-    # dict map: scope/lappend/errorInfo issues
-    "dict-4.5",
-    "dict-4.6",
-    "dict-4.13",
-    "dict-4.14",
-    "dict-4.14a",
-    "dict-4.15",
-    "dict-4.15a",
-    "dict-4.16",
-    "dict-4.16a",
-    "dict-4.17",
-    # dict with: scope issues
-    "dict-5.7",
-    "dict-5.12",
-    # dict update: scope issues
-    "dict-6.8",
-    "dict-6.9",
-    # dict lappend/append list quoting
-    "dict-7.8",
-    "dict-7.9",
-    "dict-8.4",
-    "dict-8.5",
-    # dict info/smart-reference
-    "dict-9.7",
-    "dict-9.8",
-    # dict replace/remove edge cases
-    "dict-10.2",
-    "dict-10.3",
-}
+KNOWN_FAILURES_DICT: set[str] = set()
 
 
 # Test runner

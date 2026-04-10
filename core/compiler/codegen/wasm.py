@@ -609,6 +609,59 @@ def _decode_leb128_signed(data: bytes) -> int:
     return result
 
 
+# Runtime function signatures for Tcl commands compiled to WASM.
+# Each entry maps a Tcl command to (import_name, param_types, result_types).
+# The import_name is the function name in the "tcl" WASM import module.
+# param_types and result_types use ValType enum values.
+
+_RUNTIME_IMPORTS: dict[str, tuple[str, list[int], list[int]]] = {
+    # Value creation
+    "_new_string": ("tcl_obj_new_string", [ValType.I32, ValType.I32], [ValType.I32]),
+    "_new_int": ("tcl_obj_new_int", [ValType.I64], [ValType.I32]),
+    "_new_empty": ("tcl_obj_new_empty", [], [ValType.I32]),
+    # Reference counting
+    "_incr_ref": ("tcl_obj_incr_ref", [ValType.I32], []),
+    "_decr_ref": ("tcl_obj_decr_ref", [ValType.I32], []),
+    # Value access
+    "_get_int": ("tcl_obj_get_int", [ValType.I32], [ValType.I64]),
+    "_str_len": ("tcl_obj_str_len", [ValType.I32], [ValType.I32]),
+    "_is_true": ("tcl_obj_is_true", [ValType.I32], [ValType.I32]),
+    # String operations
+    "_string_append": ("tcl_string_append", [ValType.I32, ValType.I32], [ValType.I32]),
+    "_string_compare": ("tcl_string_compare", [ValType.I32, ValType.I32], [ValType.I32]),
+    "_string_equal": ("tcl_string_equal", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Integer arithmetic (returns new TclObj)
+    "_int_add": ("tcl_int_add", [ValType.I64, ValType.I64], [ValType.I32]),
+    "_int_sub": ("tcl_int_sub", [ValType.I64, ValType.I64], [ValType.I32]),
+    "_int_mul": ("tcl_int_mul", [ValType.I64, ValType.I64], [ValType.I32]),
+    "_int_div": ("tcl_int_div", [ValType.I64, ValType.I64], [ValType.I32]),
+    # Variable operations
+    "_var_set": ("tcl_var_set", [ValType.I32, ValType.I32], [ValType.I32]),
+    "_var_get": ("tcl_var_get", [ValType.I32], [ValType.I32]),
+    # List operations
+    "_list_length": ("tcl_list_length", [ValType.I32], [ValType.I64]),
+    "_list_append": ("tcl_list_append", [ValType.I32, ValType.I32], [ValType.I32]),
+    # IO
+    "_puts": ("tcl_puts", [ValType.I32], [ValType.I32]),
+    # Incr
+    "_incr": ("tcl_incr", [ValType.I32, ValType.I64], [ValType.I32]),
+}
+
+# Maps Tcl commands to their runtime implementation strategy.
+# "import" means call an imported runtime function.
+# "inline" means emit WASM instructions directly.
+_CMD_STRATEGY: dict[str, str] = {
+    "set": "inline",
+    "puts": "import",
+    "incr": "import",
+    "append": "import",
+    "string": "import",
+    "llength": "import",
+    "lappend": "import",
+    "expr": "inline",
+}
+
+
 # WASM Emitter
 
 
@@ -657,6 +710,7 @@ class _WasmEmitter:
         optimise: bool = False,
         is_proc: bool = False,
         func_index_base: int = 0,
+        shared_imports: dict[str, int] | None = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
@@ -686,6 +740,17 @@ class _WasmEmitter:
 
         # Constant propagation state (for optimised mode)
         self._const_map: dict[str, int] = {}
+
+        # Runtime import tracking: maps import key to function index.
+        # When shared_imports is provided (module-level compilation), all
+        # emitters use the same mapping so call indices are consistent.
+        self._shared_imports = shared_imports
+        self._runtime_imports: dict[str, int] = {} if shared_imports is None else shared_imports
+        self._next_import_idx: int = (
+            max(shared_imports.values(), default=-1) + 1
+            if shared_imports is not None
+            else func_index_base
+        )
 
     def _intern_local(self, name: str) -> int:
         idx = self._local_index.get(name)
@@ -1161,11 +1226,165 @@ class _WasmEmitter:
             case IRTry(body=body, handlers=handlers, finally_body=finally_body):
                 self._emit_try(body, handlers, finally_body)
 
+    def _ensure_runtime_import(self, key: str) -> int:
+        """Get the function index for a runtime import, registering if needed."""
+        idx = self._runtime_imports.get(key)
+        if idx is not None:
+            return idx
+        idx = self._next_import_idx
+        self._runtime_imports[key] = idx
+        self._next_import_idx += 1
+        return idx
+
     def _emit_call_stmt(self, command: str, args: tuple[str, ...]) -> None:
-        """Emit a command invocation as a nop (commands are runtime calls)."""
-        # In the WASM model, most Tcl commands would be imported functions.
-        # For now, emit nop placeholders.
-        self._emit(WasmOp.NOP)
+        """Emit a command invocation as WASM instructions.
+
+        For known commands, emits either inline WASM instructions or
+        calls to imported runtime functions.  Unknown commands emit a
+        NOP placeholder (to be replaced when the runtime is complete).
+        """
+        match command:
+            case "set":
+                self._emit_cmd_set(args)
+            case "puts":
+                self._emit_cmd_puts(args)
+            case "incr":
+                self._emit_cmd_incr(args)
+            case "append":
+                self._emit_cmd_append(args)
+            case "llength":
+                self._emit_cmd_llength(args)
+            case "lappend":
+                self._emit_cmd_lappend(args)
+            case "return":
+                self._emit_cmd_return(args)
+            case "global" | "variable" | "upvar":
+                # Scope declarations are no-ops in WASM (flat locals)
+                self._emit(WasmOp.NOP)
+            case _:
+                # Unknown command — emit NOP placeholder
+                self._emit(WasmOp.NOP)
+
+    def _emit_cmd_set(self, args: tuple[str, ...]) -> None:
+        """Emit WASM for: set varName ?value?"""
+        if not args:
+            self._emit(WasmOp.NOP)
+            return
+        # args[0] is a bare variable name (not a $-reference)
+        var_name = args[0]
+        idx = self._intern_local(var_name)
+        if len(args) >= 2:
+            # set var value — store the value
+            self._emit_value(args[1])
+            self._emit_local_tee(idx)
+            self._emit(WasmOp.DROP)
+        # Result is the variable value (left on stack by tee, but
+        # this is a statement so the caller will DROP if needed)
+
+    def _emit_cmd_puts(self, args: tuple[str, ...]) -> None:
+        """Emit WASM for: puts ?-nonewline? ?channelId? string
+
+        NOTE: Currently passes a raw i64 (string data offset) to the
+        runtime.  Once the value representation switches to TclObj
+        pointers (i32), this should pass the TclObj directly and the
+        runtime will extract the string data from the object header.
+        """
+        if not args:
+            self._emit(WasmOp.NOP)
+            return
+        # Get the string argument (last arg, skip -nonewline/channel)
+        str_arg = args[-1]
+        # Push the string value as i64 pointer
+        self._emit_value(str_arg)
+        # Call the runtime puts function
+        puts_idx = self._ensure_runtime_import("_puts")
+        self._emit(WasmOp.I32_WRAP_I64)
+        self._emit_call(puts_idx)
+        # puts returns void for the caller, extend result to i64
+        self._emit(WasmOp.I64_EXTEND_I32_S)
+        self._emit(WasmOp.DROP)
+
+    def _emit_cmd_incr(self, args: tuple[str, ...]) -> None:
+        """Emit WASM for: incr varName ?increment?
+
+        NOTE: This uses inline i64 arithmetic which is correct only when
+        values are known integers.  Once the value representation switches
+        to TclObj pointers, this should call the _incr runtime import
+        instead to handle string-to-int coercion.
+        """
+        if not args:
+            self._emit(WasmOp.NOP)
+            return
+        var_name = args[0]
+        idx = self._intern_local(var_name)
+        # Get current value
+        self._emit_local_get(idx)
+        # Add increment (default 1)
+        amt = 1
+        if len(args) >= 2:
+            try:
+                amt = int(args[1])
+            except ValueError:
+                amt = 1
+        self._emit_i64_const(amt)
+        self._emit(WasmOp.I64_ADD)
+        self._emit_local_set(idx)
+
+    def _emit_cmd_append(self, args: tuple[str, ...]) -> None:
+        """Emit WASM for: append varName ?value ...?"""
+        if not args:
+            self._emit(WasmOp.NOP)
+            return
+        var_name = args[0]
+        idx = self._intern_local(var_name)
+        if len(args) >= 2:
+            # Get current string, append each value
+            append_idx = self._ensure_runtime_import("_string_append")
+            self._emit_local_get(idx)
+            self._emit(WasmOp.I32_WRAP_I64)
+            for val in args[1:]:
+                self._emit_value(val)
+                self._emit(WasmOp.I32_WRAP_I64)
+                self._emit_call(append_idx)
+            self._emit(WasmOp.I64_EXTEND_I32_S)
+            self._emit_local_set(idx)
+
+    def _emit_cmd_llength(self, args: tuple[str, ...]) -> None:
+        """Emit WASM for: llength list"""
+        if not args:
+            self._emit_i64_const(0)
+            self._emit(WasmOp.DROP)
+            return
+        ll_idx = self._ensure_runtime_import("_list_length")
+        self._emit_value(args[0])
+        self._emit(WasmOp.I32_WRAP_I64)
+        self._emit_call(ll_idx)
+        self._emit(WasmOp.DROP)
+
+    def _emit_cmd_lappend(self, args: tuple[str, ...]) -> None:
+        """Emit WASM for: lappend varName ?value ...?"""
+        if not args:
+            self._emit(WasmOp.NOP)
+            return
+        var_name = args[0]
+        idx = self._intern_local(var_name)
+        la_idx = self._ensure_runtime_import("_list_append")
+        self._emit_local_get(idx)
+        self._emit(WasmOp.I32_WRAP_I64)
+        for val in args[1:]:
+            self._emit_value(val)
+            self._emit(WasmOp.I32_WRAP_I64)
+            self._emit_call(la_idx)
+        self._emit(WasmOp.I64_EXTEND_I32_S)
+        self._emit_local_set(idx)
+
+    def _emit_cmd_return(self, args: tuple[str, ...]) -> None:
+        """Emit WASM for: return ?value?"""
+        if args:
+            self._emit_value(args[0])
+        else:
+            self._emit_i64_const(0)
+        self._emit(WasmOp.RETURN)
 
     def _emit_if(
         self,
@@ -1705,6 +1924,11 @@ class _WasmEmitter:
             segments.append(WasmData(offset=offset, data=data))
         return segments
 
+    @property
+    def needed_imports(self) -> dict[str, int]:
+        """Return the set of runtime imports used by this emitter."""
+        return dict(self._runtime_imports)
+
 
 # Public API
 
@@ -1746,8 +1970,14 @@ def wasm_codegen_module(
     """
     module = WasmModule()
 
+    # Shared import registry — all emitters use the same mapping so
+    # call indices are globally consistent.
+    shared_imports: dict[str, int] = {}
+
     # Compile top-level
-    emitter = _WasmEmitter(cfg_module.top_level, optimise=optimise, is_proc=False)
+    emitter = _WasmEmitter(
+        cfg_module.top_level, optimise=optimise, is_proc=False, shared_imports=shared_imports
+    )
     top_func = emitter.generate()
     top_func.name = "::top"
     module.functions.append(top_func)
@@ -1764,6 +1994,7 @@ def wasm_codegen_module(
             params=params,
             optimise=optimise,
             is_proc=True,
+            shared_imports=shared_imports,
         )
         proc_func = proc_emitter.generate()
         module.functions.append(proc_func)
@@ -1779,11 +2010,28 @@ def wasm_codegen_module(
                 params=ir_method.params,
                 optimise=optimise,
                 is_proc=True,
+                shared_imports=shared_imports,
             )
             method_func = method_emitter.generate()
             method_func.name = key
             module.functions.append(method_func)
             module.data_segments.extend(method_emitter.data_segments)
+
+    # Register collected imports on the module
+    for key, idx in sorted(shared_imports.items(), key=lambda x: x[1]):
+        if key in _RUNTIME_IMPORTS:
+            import_name, param_types, result_types = _RUNTIME_IMPORTS[key]
+            type_idx = module._intern_type(
+                [ValType(p) for p in param_types],
+                [ValType(r) for r in result_types],
+            )
+            module.imports.append(
+                WasmImport(
+                    module="tcl",
+                    name=import_name,
+                    type_idx=type_idx,
+                )
+            )
 
     # Ensure types are registered
     for func in module.functions:

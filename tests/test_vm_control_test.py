@@ -28,170 +28,27 @@ pytestmark = pytest.mark.slow
 # When a VM bug is fixed the test will unexpectedly pass — the set
 # must be updated (removing the entry) to keep CI green.
 
-KNOWN_FAILURES_FOR_OLD: set[str] = {
-    # for wrong-args: compiled for dispatches args differently
-    "for-old-1.7",  # "invalid command name" instead of wrong # args
-    # Brace-quoting in for body not handled
-    "for-old-1.8",  # invalid command name "}" — braced body not parsed
-}
+KNOWN_FAILURES_FOR_OLD: set[str] = set()
 
-KNOWN_FAILURES_WHILE_OLD: set[str] = {
-    # Expression evaluation: quoted expression not stripped
-    "while-old-1.5",  # 'expected boolean value but got ""0 < 3"'
-    # while wrong-args: compiled while dispatches differently
-    "while-old-4.3",  # "invalid command name" instead of wrong # args
-}
+KNOWN_FAILURES_WHILE_OLD: set[str] = set()
 
-KNOWN_FAILURES_IF_OLD: set[str] = {
-    # Unbraced expression: if treats arg as expression, not command
-    "if-old-2.5",  # syntax error: "set a 2" treated as expression
-    "if-old-2.8",  # syntax error: "set a 4" treated as expression
-    # Error message format differences
-    "if-old-4.3",  # missing argument name in error message
-    # Parsing: elseif not recognised as keyword in some positions
-    "if-old-4.7",  # returns "0 {}" instead of elseif error
-    "if-old-4.8",  # syntax error instead of "invalid command name"
-    "if-old-4.10",  # syntax error instead of "invalid command name"
-}
+KNOWN_FAILURES_IF_OLD: set[str] = set()
 
-KNOWN_FAILURES_FOREACH: set[str] = {
-    # List parsing: braced element followed by non-space
-    "foreach-1.12",  # "invalid command name" vs list parsing error
-    # errorInfo: missing "(setting foreach loop variable)" frame
-    "foreach-1.14",
-    # Brace-quoting in foreach value list
-    "foreach-2.8",  # "invalid command name }" — braced body not parsed
-    # break/continue: extra iterations or missing error
-    "foreach-5.4",  # continue count: 4 instead of 1
-    "foreach-5.5",  # missing "wrong # args" for continue
-    "foreach-6.3",  # break count: 3 instead of 1
-    "foreach-6.4",  # missing "wrong # args" for break
-    # dict for: key "line" not known
-    "foreach-9.2",
-}
+KNOWN_FAILURES_FOREACH: set[str] = set()
 
-KNOWN_FAILURES_SWITCH: set[str] = {
-    # Duplicate match mode detection
-    "switch-3.15",
-    "switch-3.16",
-    "switch-3.17",
-    "switch-3.18",
-    # errorInfo: missing arm context frame
-    "switch-4.1",  # missing '("a" arm line 1)' frame
-    "switch-4.5",  # missing '("default" arm line 1)' frame
-    # Error message format
-    "switch-4.2",  # wrong # args text differs
-}
+KNOWN_FAILURES_SWITCH: set[str] = set()
 
-KNOWN_FAILURES_APPEND: set[str] = {
-    # append to undefined var should error when strict
-    "append-3.3",  # no error for reading undefined var
-    # Unicode / surrogate handling
-    "append-3.5",  # surrogate encoding difference
-    "append-3.6",  # surrogate encoding difference
-    # lappend list quoting: brace escaping
-    "append-4.7",
-    "append-4.13",
-    "append-4.14",  # extra space in result
-    "append-4.15",  # backslash-space vs braced space
-    "append-4.16",  # extra space in result
-    # lappend: unmatched brace/quote validation
-    "append-4.9",
-    "append-4.10",
-    "append-4.11",
-    "append-4.12",
-    "append-4.21",
-    "append-4.22",
-    "append-10.2",
-    "append-10.4",
-    # Trace handling
-    "append-7.1",  # trace on undefined var
-    "append-7.5",  # trace count
-}
+KNOWN_FAILURES_APPEND: set[str] = set()
 
-KNOWN_FAILURES_EVAL: set[str] = {
-    # errorInfo: missing "eval" body context frame
-    "eval-2.5",  # missing '("eval" body line 3)' frame in stack trace
-}
+KNOWN_FAILURES_EVAL: set[str] = set()
 
-KNOWN_FAILURES_FOR: set[str] = {
-    # Wrong # args error message format
-    "for-1.2",  # compiled for dispatches args differently
-    "for-1.4",  # wrong # args text differs
-    "for-1.10",  # wrong # args text differs
-    # Error message format: "invalid command name" vs wrong # args
-    "for-2.1",  # missing "wrong # args" for bad for body
-    # Braced body not parsed / execution
-    "for-3.1",  # "invalid command name }" — braced body not parsed
-    # errorInfo: missing "(\"for\" body line N)" frame
-    "for-6.6",  # errorInfo format differs
-    "for-6.7",  # errorInfo format differs
-    "for-6.9",  # errorInfo format differs
-    "for-6.13",  # errorInfo format differs
-    "for-6.17",  # errorInfo format differs
-    "for-6.18",  # errorInfo format differs
-}
+KNOWN_FAILURES_FOR: set[str] = set()
 
-KNOWN_FAILURES_IF: set[str] = {
-    # Unbraced expression / body not parsed
-    "if-1.13",  # "invalid command name" — unbraced body not parsed
-    # Expression error: "expected boolean … got a list"
-    "if-1.17",  # 'got "0 < 3"' instead of "got a list"
-    "if-5.17",  # 'got "0 < 3"' instead of "got a list"
-    # errorInfo: missing braces around body in error context
-    "if-1.3",  # errorInfo format: missing braces around expression
-    "if-2.4",  # errorInfo format: missing braces around expression
-    "if-5.3",  # errorInfo format: missing braces in $z expansion
-    "if-6.4",  # errorInfo format: missing braces in $z expansion
-    # if-10.x: compiled if tracing / conditional evaluation
-    "if-10.1",  # "01" instead of "00"
-    "if-10.2",  # "0badelseif" instead of "00"
-    "if-10.3",  # "01" instead of "00"
-    "if-10.4",  # "1" instead of "0"
-    "if-10.5",  # error instead of "0 ok"
-    "if-10.6",  # missing trace variable handling
-    # Missing validation: extra words after "else" clause
-    "if-2.2",  # no error for extra words after else
-    "if-3.2",  # no error for extra words after else
-    "if-6.2",  # no error for extra words after else
-    "if-7.2",  # no error for extra words after else
-    # Missing validation: no expression after "elseif"
-    "if-2.3",  # no error for missing elseif expression
-    # errorInfo: missing "invoked from within" context frame
-    "if-5.10",  # missing '("if" ... body line N)' frame
-    "if-7.4",  # missing 'invoked from within' frame
-}
+KNOWN_FAILURES_IF: set[str] = set()
 
-KNOWN_FAILURES_WHILE: set[str] = {
-    # Unbraced expression: missing braces in errorInfo context
-    "while-1.2",  # errorInfo format: missing braces around expression
-    "while-4.3",  # errorInfo format: missing braces in $z expansion
-    # String quoting: body not parsed correctly
-    "while-1.10",  # 'missing "' — unbraced body not parsed
-    # errorInfo: missing "(\"while\" body line N)" frame
-    "while-4.9",  # missing 'invoked from within' frame with body context
-}
+KNOWN_FAILURES_WHILE: set[str] = set()
 
-KNOWN_FAILURES_SOURCE: set[str] = {
-    # File I/O: source command not reading files
-    "source-2.3",  # errorInfo format for source file errors
-    "source-2.6",  # encoding option not supported
-    "source-2.7",  # encoding option not supported
-    # Error propagation
-    "source-3.3",  # errorInfo format
-    "source-3.4",  # errorInfo format
-    "source-3.5",  # errorInfo format
-    # Return code handling
-    "source-4.1",  # return code from sourced file
-    # File handling
-    "source-6.2",  # non-existent file error format
-    # Line tracking
-    "source-7.3",  # info frame/source line tracking
-    "source-7.4",  # info frame/source line tracking
-    "source-7.6",  # info frame/source line tracking
-    # $::errorInfo propagation
-    "source-8.1",  # errorInfo on source failure
-}
+KNOWN_FAILURES_SOURCE: set[str] = set()
 
 
 # Test runner
