@@ -13,6 +13,7 @@ import os
 import re
 import sys
 import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..machine import _list_escape, _split_list
@@ -517,21 +518,99 @@ def _cmd_error_channel(interp: TclInterp, args: list[str]) -> TclResult:
 # Registration
 
 
+def _find_tcltest_library() -> str | None:
+    """Locate the real tcltest.tcl in the Tcl library tree."""
+    candidates = [
+        Path(__file__).resolve().parent.parent.parent / "tmp" / "tcl9.0.3" / "library" / "tcltest" / "tcltest.tcl",
+        Path(__file__).resolve().parent.parent.parent / "tmp" / "tcl8.6.16" / "library" / "tcltest" / "tcltest.tcl",
+    ]
+    for p in candidates:
+        if p.is_file():
+            return str(p)
+    return None
+
+
 _initialised = False
 
 
-def setup_tcltest(interp: TclInterp) -> None:
+def setup_tcltest(interp: TclInterp, *, use_real_library: bool = True) -> None:
     """Register tcltest as a loadable package in the interpreter.
 
-    Called during interpreter initialisation so that
-    ``package require tcltest`` succeeds.
-    """
-    from ..scope import ensure_namespace
+    When *use_real_library* is True (the default) and the Tcl source
+    tree is available, registers the **real** ``tcltest.tcl`` from the
+    Tcl library as the package source.  This gives us the full,
+    production tcltest behaviour — ``-output``, ``-errorOutput``,
+    ``skip``, ``cleanupTests``, constraint checking, etc. — without
+    reimplementing it in Python.
 
+    Falls back to the built-in Python reimplementation if the real
+    library isn't found (e.g. offline environments without the Tcl
+    source tree).
+    """
     global _initialised
     if not _initialised:
         _reset_state()
         _initialised = True
+
+    real_tcltest = _find_tcltest_library() if use_real_library else None
+
+    if real_tcltest is not None:
+        _setup_real_tcltest(interp, real_tcltest)
+    else:
+        _setup_builtin_tcltest(interp)
+
+
+def _setup_real_tcltest(interp: TclInterp, tcltest_path: str) -> None:
+    """Set up tcltest using the real tcltest.tcl library.
+
+    Only registers the package ifneeded script — the actual loading
+    happens when the test file calls ``package require tcltest``.
+    Also provides stubs for Tcl library procs that tcltest.tcl
+    depends on (auto_load, parray) that normally come from init.tcl.
+    """
+    # Provide auto_load stub — tcltest.tcl calls `auto_load ::parray`
+    # to ensure parray is available.  We define parray directly and
+    # make auto_load a no-op.
+    interp.eval("""
+        proc auto_load {cmd args} { return 0 }
+        proc parray {a {pattern *}} {
+            upvar 1 $a array
+            if {![array exists array]} {
+                error "\"$a\" isn't an array"
+            }
+            set maxl 0
+            set names [lsort [array names array $pattern]]
+            foreach name $names {
+                if {[string length $name] > $maxl} {
+                    set maxl [string length $name]
+                }
+            }
+            set maxl [expr {$maxl + [string length $a] + 2}]
+            foreach name $names {
+                set nameString [format %s(%s) $a $name]
+                puts stdout [format "%-*s = %s" $maxl $nameString $array($name)]
+            }
+        }
+    """)
+
+    # Register package ifneeded so ``package require tcltest 2.5`` works
+    interp.packages.setdefault("tcltest", {
+        "version": "2.5.10",
+        "loaded": False,
+        "ifneeded": {"2.5.10": f"source {tcltest_path}"},
+    })
+    # Also register via the Tcl package mechanism
+    interp.eval(
+        f'package ifneeded tcltest 2.5.10 [list source {{{tcltest_path}}}]'
+    )
+
+
+def _setup_builtin_tcltest(interp: TclInterp) -> None:
+    """Set up tcltest using the built-in Python reimplementation.
+
+    Fallback for when the real tcltest.tcl isn't available.
+    """
+    from ..scope import ensure_namespace
 
     # Create the ::tcltest namespace
     ns = ensure_namespace(interp.root_namespace, "::tcltest")
@@ -573,9 +652,6 @@ def setup_tcltest(interp: TclInterp) -> None:
         interp.register_command(f"::tcltest::{cmd_name}", handler)
 
     # Also import into the root namespace so the commands are
-    # available without an explicit ``namespace import``.  Real tclsh
-    # relies on the test file calling ``namespace import -force
-    # ::tcltest::*``, but many test files skip this when the
-    # ``::tcltest`` namespace already exists.
+    # available without an explicit ``namespace import``.
     for cmd_name, handler in cmds.items():
         interp.root_namespace.register_command(cmd_name, handler)

@@ -78,7 +78,7 @@ PROJECTS: dict[str, Project] = {
         description="Tcl Standard Library — 200+ pure-Tcl modules",
         git_url="https://github.com/tcltk/tcllib.git",
         git_ref="tcllib-2-0",
-        sparse_paths=["modules"],
+        sparse_paths=["modules", "devtools"],
         test_glob="modules/*/*.test",
         pkgindex_dirs=["modules"],
         skip_files=[
@@ -159,7 +159,7 @@ PROJECTS: dict[str, Project] = {
         description="F5 iRules test framework — pure Tcl",
         git_url="https://github.com/landro/TesTcl.git",
         git_ref="master",
-        sparse_paths=["."],
+        sparse_paths=["src", "test", "examples"],
         test_glob="test/*.test",
     ),
 }
@@ -304,6 +304,22 @@ def _categorise_crash(error_msg: str, error_type: str) -> str:
     return f"other:{error_type}"
 
 
+def _collect_tcltest_results(interp: TclInterp) -> dict:
+    """Read tcltest results from the interpreter.
+
+    Tries Tcl variables first (real tcltest.tcl) and falls back to
+    the Python-internal ``_results`` dict (builtin reimplementation).
+    """
+    results = {"Total": 0, "Passed": 0, "Skipped": 0, "Failed": 0}
+    for key in results:
+        try:
+            val = interp.global_frame.get_var(f"::tcltest::numTests({key})")
+            results[key] = int(val)
+        except Exception:
+            results[key] = tcltest_cmds._results.get(key, 0)
+    return results
+
+
 def run_test_file(
     project: Project,
     checkout_dir: Path,
@@ -341,14 +357,9 @@ def run_test_file(
                 except Exception:
                     pass  # Best effort
 
-        # Auto-provide the tcltest package and configure
-        try:
-            interp.eval("package require tcltest 2.5")
-        except Exception:
-            pass  # Already provided internally
-
-        # Note: namespace import ::tcltest::* now works without -force
-        # because _ns_import tolerates re-importing the same handler.
+        # Set up tcltest (uses real tcltest.tcl if available)
+        from vm.commands.tcltest_cmds import setup_tcltest
+        setup_tcltest(interp)
 
         # Run any setup script
         if project.setup_script:
@@ -356,16 +367,6 @@ def run_test_file(
                 interp.eval(project.setup_script)
             except Exception:
                 pass
-
-        # Set testdir to the file's directory
-        tcltest_cmds._testdir = str(test_file.parent)
-
-        # Expose tcltest internals that some test helpers access
-        # (e.g., exercism's testHelpers.tcl reads ::tcltest::numTests)
-        interp.global_frame.set_var("::tcltest::numTests(Total)", "0")
-        interp.global_frame.set_var("::tcltest::numTests(Passed)", "0")
-        interp.global_frame.set_var("::tcltest::numTests(Skipped)", "0")
-        interp.global_frame.set_var("::tcltest::numTests(Failed)", "0")
 
         # Change to the test file's directory so relative `source`
         # commands resolve correctly
@@ -383,34 +384,46 @@ def run_test_file(
         finally:
             os.chdir(saved_cwd)
 
-        # Collect results
-        result.total = tcltest_cmds._results["Total"]
-        result.passed = tcltest_cmds._results["Passed"]
-        result.skipped = tcltest_cmds._results["Skipped"]
-        result.failed = tcltest_cmds._results["Failed"]
+        # Collect results from Tcl variables or Python fallback
+        tcl_results = _collect_tcltest_results(interp)
+        result.total = tcl_results["Total"]
+        result.passed = tcl_results["Passed"]
+        result.skipped = tcl_results["Skipped"]
+        result.failed = tcl_results["Failed"]
         result.failed_tests = list(tcltest_cmds._failed_tests)
         result.stdout = stdout_buf.getvalue()
 
     except SystemExit:
         # Catch exit calls that escape the inner handler
-        os.chdir(saved_cwd)
-        result.total = tcltest_cmds._results.get("Total", 0)
-        result.passed = tcltest_cmds._results.get("Passed", 0)
-        result.skipped = tcltest_cmds._results.get("Skipped", 0)
-        result.failed = tcltest_cmds._results.get("Failed", 0)
+        try:
+            os.chdir(saved_cwd)
+        except Exception:
+            pass
+        tcl_results = _collect_tcltest_results(interp)
+        result.total = tcl_results["Total"]
+        result.passed = tcl_results["Passed"]
+        result.skipped = tcl_results["Skipped"]
+        result.failed = tcl_results["Failed"]
         result.failed_tests = list(tcltest_cmds._failed_tests)
 
     except Exception as exc:
-        os.chdir(saved_cwd)
+        try:
+            os.chdir(saved_cwd)
+        except Exception:
+            pass
         result.crashed = True
         result.crash_error = str(exc)
         result.crash_type = type(exc).__name__
 
         # Still capture any partial results
-        result.total = tcltest_cmds._results.get("Total", 0)
-        result.passed = tcltest_cmds._results.get("Passed", 0)
-        result.skipped = tcltest_cmds._results.get("Skipped", 0)
-        result.failed = tcltest_cmds._results.get("Failed", 0)
+        try:
+            tcl_results = _collect_tcltest_results(interp)
+            result.total = tcl_results["Total"]
+            result.passed = tcl_results["Passed"]
+            result.skipped = tcl_results["Skipped"]
+            result.failed = tcl_results["Failed"]
+        except Exception:
+            pass
         result.failed_tests = list(tcltest_cmds._failed_tests)
 
         # Extract missing commands from the error
