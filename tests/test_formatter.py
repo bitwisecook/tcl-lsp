@@ -776,6 +776,38 @@ class TestBracedVarAndExpansionPreservation:
         result = format_tcl(source)
         assert "${my.var}" in result
 
+    def test_braced_var_with_parens(self):
+        """${array name (foo)} with parens and spaces preserved."""
+        source = "set ${array name (foo)} val"
+        result = format_tcl(source)
+        assert "${array name (foo)}" in result
+
+    def test_braced_var_with_dollar(self):
+        """${na$me} with dollar in name preserved."""
+        source = "puts ${na$me}"
+        result = format_tcl(source)
+        assert "${na$me}" in result
+
+    def test_braced_var_with_brackets(self):
+        """${na[cmd]me} with brackets in name preserved."""
+        source = "puts ${na[cmd]me}"
+        result = format_tcl(source)
+        assert "${na[cmd]me}" in result
+
+    def test_braced_var_with_open_brace(self):
+        """${name{} with open brace in name preserved."""
+        source = "puts ${name{}"
+        result = format_tcl(source)
+        assert "${name{}" in result
+
+    def test_expand_does_not_trigger_body_formatting(self):
+        """{*}$if must NOT be treated as an 'if' command for body formatting."""
+        source = "{*}$if {1} {puts hi}"
+        result = format_tcl(source)
+        # Body should NOT be expanded — command identity is dynamic
+        assert "    puts hi" not in result
+        assert "{puts hi}" in result or "{*}$if {1} {puts hi}" in result
+
     def test_unbraced_deep_namespace(self):
         """$a::b::c::d deep namespace without braces."""
         source = "puts $a::b::c::d"
@@ -893,6 +925,15 @@ class TestBracedVarAndExpansionPreservation:
             "puts ${space space}",
             "puts ${my-var}",
             "puts ${my.var}",
+            # Tricky braced var forms (verified against tclsh 8.6)
+            "set ${array name (foo)} val",
+            "puts ${na$me}",
+            "puts ${na[cmd]me}",
+            "puts ${name(}",
+            "puts ${name{}",
+            "puts ${}",
+            # Expansion as dynamic command (no body formatting)
+            "{*}$cmd_var {1} {puts hi}",
         ],
     )
     def test_all_forms_idempotent(self, source):

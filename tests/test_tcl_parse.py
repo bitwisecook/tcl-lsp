@@ -639,7 +639,13 @@ class TestBracedVarByteSpans:
         source = "$arr(stress.${element}_stress)"
         all_tokens = TclLexer(source).tokenise_all()
         var_toks = [t for t in all_tokens if t.type == TokenType.VAR]
-        assert len(var_toks) >= 1
+        # The outer $arr(...) is a single VAR token; the ${element} is
+        # consumed as part of the array index text.
+        assert len(var_toks) == 1
+        tok = var_toks[0]
+        assert "arr" in tok.text
+        assert "element" in tok.text
+        assert not self._is_braced(tok)
 
     def test_namespace_array(self):
         """$ns::arr(key): namespace-qualified array reference."""
@@ -730,6 +736,68 @@ class TestBracedVarByteSpans:
         tok = tokens[0]
         assert tok.type == TokenType.VAR
         assert tok.text == ""
+        assert self._is_braced(tok)
+
+    def test_braced_var_with_dollar(self):
+        """${na$me}: dollar sign inside braced var name."""
+        tokens = lex("${na$me}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "na$me"
+        assert self._is_braced(tok)
+
+    def test_braced_var_with_brackets(self):
+        """${na[cmd]me}: brackets inside braced var name (no substitution)."""
+        tokens = lex("${na[cmd]me}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "na[cmd]me"
+        assert self._is_braced(tok)
+
+    def test_braced_var_with_close_bracket(self):
+        """${name]}: close bracket inside braced var name."""
+        tokens = lex("${name]}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "name]"
+        assert self._is_braced(tok)
+
+    def test_braced_var_with_open_paren(self):
+        """${name(}: imbalanced open paren inside braced var name."""
+        tokens = lex("${name(}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "name("
+        assert self._is_braced(tok)
+
+    def test_braced_var_with_parens_and_content(self):
+        """${array name (foo)}: parens with content inside braced var name."""
+        tokens = lex("${array name (foo)}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "array name (foo)"
+        assert self._is_braced(tok)
+
+    def test_braced_var_stops_at_first_close_brace(self):
+        """${name{}name}: stops at first }, rest is ESC text.
+
+        Matches C Tcl's Tcl_ParseVarName which scans until first '}'.
+        """
+        tokens = lex("${name{}name}")
+        var_toks = [t for t in tokens if t.type == TokenType.VAR]
+        assert len(var_toks) == 1
+        assert var_toks[0].text == "name{"
+        assert self._is_braced(var_toks[0])
+        # The "name}" after the first close brace is separate ESC text
+        esc_toks = [t for t in tokens if t.type == TokenType.ESC]
+        assert any(t.text == "name}" for t in esc_toks)
+
+    def test_braced_var_with_open_brace(self):
+        """${name{}: open brace inside braced var name."""
+        tokens = lex("${name{}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "name{"
         assert self._is_braced(tok)
 
     # In quoted strings

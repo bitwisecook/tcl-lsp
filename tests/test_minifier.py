@@ -541,7 +541,7 @@ class TestExpansionPrefix:
     def test_expand_var(self):
         """{*}$var preserved through minification."""
         result = minify_tcl("lappend result {*}$names\n")
-        assert "{*}$names" in result or "{*}$" in result
+        assert "{*}$names" in result
 
     def test_expand_braced_list(self):
         """{*}{a b c} preserved through minification."""

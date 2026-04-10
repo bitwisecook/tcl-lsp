@@ -76,8 +76,11 @@ def _reconstruct_raw(tok: Token) -> str:
             return "[" + text + "]"
         case TokenType.VAR:
             # Preserve ${name} form when the original used braces.
-            # Detect via byte span: ${name} occupies 2 more bytes than
-            # $name for the same variable name length.
+            # For $name the span (end - start) equals len(name) because
+            # start is at '$' and end is at the last name character.
+            # For ${name} the span is len(name) + 1 because start is
+            # still at '$' but end lands one position further (the
+            # closing '}' is consumed but not included in end.offset).
             is_braced = (tok.end.offset - tok.start.offset) > len(tok.text)
             if is_braced:
                 return "${" + tok.text + "}"
@@ -293,6 +296,12 @@ def _identify_body_args(cmd: ParsedCommand) -> None:
     kind=ArgKind.KEYWORD for structural keywords, and kind=ArgKind.PARAM_LIST
     for parameter lists.
     """
+    # When the command word starts with {*} expansion, the command
+    # identity is dynamic (determined at runtime).  Skip body
+    # identification to avoid misformatting arguments.
+    if cmd.args and cmd.args[0].tokens and cmd.args[0].tokens[0].type == TokenType.EXPAND:
+        return
+
     name = cmd.name
     args = cmd.args[1:]  # skip command name
 
