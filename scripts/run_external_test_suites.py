@@ -352,10 +352,25 @@ def _parse_tcltest_stdout(output: str) -> dict | None:
     """Parse tcltest summary from stdout as last resort.
 
     Looks for the line: ``filename:\tTotal\tN\tPassed\tN\tSkipped\tN\tFailed\tN``
+    Also handles the case where \\t is rendered as literal 't' due to
+    a backslash substitution bug in the VM.
     """
     for line in reversed(output.split("\n")):
+        # Standard format with real tabs or whitespace
         m = re.search(
             r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)",
+            line,
+        )
+        if m:
+            return {
+                "Total": int(m.group(1)),
+                "Passed": int(m.group(2)),
+                "Skipped": int(m.group(3)),
+                "Failed": int(m.group(4)),
+            }
+        # Workaround: \t rendered as literal 't' character
+        m = re.search(
+            r"Total.?(\d+).?Passed.?(\d+).?Skipped.?(\d+).?Failed.?(\d+)",
             line,
         )
         if m:
