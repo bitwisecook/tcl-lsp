@@ -14,8 +14,25 @@ from ..models import (
     PatternType,
     ValidationSpec,
 )
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
+
+
+def _regsub_arg_role_resolver(args: list[str]) -> dict[int, ArgRole]:
+    """Dynamically assign VAR_NAME to the regsub result variable.
+
+    ``regsub ?switches? exp string subSpec ?varName?``
+
+    After skipping options, arg 0 = pattern, arg 1 = string,
+    arg 2 = subSpec, arg 3 = varName (optional, written to).
+    """
+    from ..runtime import options_with_value, skip_options
+
+    first_positional = skip_options(args, options_with_value("regsub"))
+    var_idx = first_positional + 3
+    if var_idx < len(args):
+        return {var_idx: ArgRole.VAR_NAME}
+    return {}
 
 
 @register
@@ -60,6 +77,7 @@ class RegsubCommand(CommandDef):
                     ),
                 ),
             ),
+            arg_role_resolver=_regsub_arg_role_resolver,
             validation=ValidationSpec(
                 arity=Arity(3, 4),
             ),

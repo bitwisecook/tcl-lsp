@@ -653,6 +653,36 @@ class TestDiagnostics:
         warnings = [d for d in result.diagnostics if d.code == "W210"]
         assert len(warnings) == 0
 
+    def test_regexp_capture_vars_not_read_before_set(self):
+        """regexp capture variables should not trigger W210."""
+        result = analyse("regexp {^(\\w+)@(\\w+)$} $email -> user domain\nputs $user")
+        warnings = [d for d in result.diagnostics if d.code == "W210" and "user" in d.message]
+        assert len(warnings) == 0, f"unexpected W210 for regexp capture var: {warnings}"
+
+    def test_regexp_match_var_not_read_before_set(self):
+        """The matchVar (first capture) should not trigger W210."""
+        result = analyse("regexp {\\d+} $text match\nputs $match")
+        warnings = [d for d in result.diagnostics if d.code == "W210" and "match" in d.message]
+        assert len(warnings) == 0
+
+    def test_scan_capture_vars_not_read_before_set(self):
+        """scan capture variables should not trigger W210."""
+        result = analyse('scan "42 hello" "%d %s" num word\nputs $num')
+        warnings = [d for d in result.diagnostics if d.code == "W210" and "num" in d.message]
+        assert len(warnings) == 0
+
+    def test_regsub_var_not_read_before_set(self):
+        """regsub result variable should not trigger W210."""
+        result = analyse("regsub {old} $text new result\nputs $result")
+        warnings = [d for d in result.diagnostics if d.code == "W210" and "result" in d.message]
+        assert len(warnings) == 0
+
+    def test_lassign_vars_not_read_before_set(self):
+        """lassign target variables should not trigger W210."""
+        result = analyse('lassign {a b c} x y z\nputs "$x $y $z"')
+        warnings = [d for d in result.diagnostics if d.code == "W210" and "x" in d.message]
+        assert len(warnings) == 0
+
     def test_unused_assigned_variable_hint(self):
         result = analyse("proc foo {} { set x 1 }")
         hints = [d for d in result.diagnostics if d.code == "W211"]

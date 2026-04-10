@@ -14,8 +14,28 @@ from ..models import (
     PatternType,
     ValidationSpec,
 )
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
+
+
+def _regexp_arg_role_resolver(args: list[str]) -> dict[int, ArgRole]:
+    """Dynamically assign VAR_NAME to regexp capture variables.
+
+    ``regexp ?switches? exp string ?matchVar? ?subMatchVar ...?``
+
+    After skipping options, arg 0 = pattern, arg 1 = string, and
+    args 2+ are capture variable names.  We need to map the raw
+    argument indices (including options) to the VAR_NAME role.
+    """
+    from ..runtime import options_with_value, skip_options
+
+    first_positional = skip_options(args, options_with_value("regexp"))
+    # Capture variables start 2 past the first positional arg.
+    result: dict[int, ArgRole] = {}
+    capture_start = first_positional + 2
+    for i in range(capture_start, len(args)):
+        result[i] = ArgRole.VAR_NAME
+    return result
 
 
 @register
@@ -61,6 +81,7 @@ class RegexpCommand(CommandDef):
                     ),
                 ),
             ),
+            arg_role_resolver=_regexp_arg_role_resolver,
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
