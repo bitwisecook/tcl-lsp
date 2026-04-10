@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -24,6 +25,51 @@ from pathlib import Path
 from .errors import TclPkgError
 
 log = logging.getLogger(__name__)
+
+# Maximum total uncompressed size from a single archive (256 MiB).
+# Protects against zip bombs / decompression bombs.
+_MAX_EXTRACT_BYTES = 256 * 1024 * 1024
+
+
+def _safe_extract_zip(zip_path: Path, dest: Path) -> None:
+    """Extract a zip archive safely, member-by-member.
+
+    Protections:
+    - Zip Slip: rejects members whose resolved path escapes *dest*.
+    - Absolute paths: rejected.
+    - Symlinks inside the zip: skipped (logged and ignored).
+    - Zip bomb: aborts if total extracted bytes exceed _MAX_EXTRACT_BYTES.
+    - TOCTOU: eliminated — validation and extraction happen in the same
+      loop iteration, not in separate validate-all-then-extract passes.
+    """
+    dest_resolved = dest.resolve()
+    total_bytes = 0
+    with zipfile.ZipFile(zip_path) as zf:
+        for info in zf.infolist():
+            # Reject absolute paths.
+            if Path(info.filename).is_absolute():
+                raise FetchError(f"zip member has absolute path: {info.filename}")
+            target = (dest / info.filename).resolve()
+            # Reject path traversal.
+            try:
+                target.relative_to(dest_resolved)
+            except ValueError:
+                raise FetchError(f"zip member escapes target directory: {info.filename}")
+            # Skip symlinks (external_attr encodes Unix mode; symlinks
+            # have the S_IFLNK bit set in the high 16 bits).
+            unix_mode = info.external_attr >> 16
+            if unix_mode and stat.S_ISLNK(unix_mode):
+                log.warning("Skipping symlink in zip: %s", info.filename)
+                continue
+            # Size check.
+            total_bytes += info.file_size
+            if total_bytes > _MAX_EXTRACT_BYTES:
+                raise FetchError(
+                    f"zip archive exceeds {_MAX_EXTRACT_BYTES // (1024 * 1024)} MiB "
+                    f"uncompressed limit (possible zip bomb)"
+                )
+            # Extract this single member.
+            zf.extract(info, dest)
 
 
 class FetchError(TclPkgError):
@@ -54,19 +100,7 @@ def fetch_tarball(url: str, dest: Path, *, timeout: int = 60) -> None:
 
         lower = url.lower()
         if lower.endswith(".zip"):
-            with zipfile.ZipFile(tmp_path) as zf:
-                # Zip Slip protection: reject absolute paths and members
-                # that escape the staging directory.
-                staging_resolved = staging.resolve()
-                for member in zf.namelist():
-                    if Path(member).is_absolute():
-                        raise FetchError(f"zip member has absolute path: {member}")
-                    resolved = (staging / member).resolve()
-                    try:
-                        resolved.relative_to(staging_resolved)
-                    except ValueError:
-                        raise FetchError(f"zip member escapes target directory: {member}")
-                zf.extractall(staging)
+            _safe_extract_zip(tmp_path, staging)
         else:
             with tarfile.open(tmp_path) as tf:
                 tf.extractall(staging, filter="data")

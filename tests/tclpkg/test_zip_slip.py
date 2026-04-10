@@ -1,4 +1,4 @@
-"""Tests for tclpkg.fetchers — Zip Slip protection."""
+"""Tests for tclpkg.fetchers — zip security protections."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import zipfile
 from pathlib import Path
 
 import pytest
+
+from tclpkg.fetchers import FetchError, _safe_extract_zip
 
 
 def _make_zip(path: Path, members: dict[str, str]) -> None:
@@ -15,6 +17,16 @@ def _make_zip(path: Path, members: dict[str, str]) -> None:
             zf.writestr(name, content)
 
 
+def _make_zip_with_symlink(path: Path, link_name: str, link_target: str) -> None:
+    """Create a zip file containing a symlink entry."""
+    with zipfile.ZipFile(path, "w") as zf:
+        info = zipfile.ZipInfo(link_name)
+        # Set Unix symlink mode in external_attr (high 16 bits).
+        info.external_attr = 0o120777 << 16
+        # Symlink target is stored as the file content.
+        zf.writestr(info, link_target)
+
+
 class TestZipSlipProtection:
     """Verify that malicious zip members are rejected."""
 
@@ -22,17 +34,8 @@ class TestZipSlipProtection:
         zip_path = tmp_path / "good.zip"
         _make_zip(zip_path, {"hello.txt": "hello\n", "sub/nested.txt": "nested\n"})
         dest = tmp_path / "out"
-        # Use a file:// URL to test through the fetch path.
-        # We can't easily use fetch_tarball with a file URL, so test the
-        # extraction logic directly.
-        with zipfile.ZipFile(zip_path) as zf:
-            staging = dest
-            staging.mkdir()
-            staging_resolved = staging.resolve()
-            for member in zf.namelist():
-                resolved = (staging / member).resolve()
-                resolved.relative_to(staging_resolved)  # should not raise
-            zf.extractall(staging)
+        dest.mkdir()
+        _safe_extract_zip(zip_path, dest)
         assert (dest / "hello.txt").read_text() == "hello\n"
         assert (dest / "sub" / "nested.txt").read_text() == "nested\n"
 
@@ -42,12 +45,8 @@ class TestZipSlipProtection:
         _make_zip(zip_path, {"../escape.txt": "pwned\n"})
         dest = tmp_path / "out"
         dest.mkdir()
-        staging_resolved = dest.resolve()
-        with zipfile.ZipFile(zip_path) as zf:
-            for member in zf.namelist():
-                resolved = (dest / member).resolve()
-                with pytest.raises(ValueError):
-                    resolved.relative_to(staging_resolved)
+        with pytest.raises(FetchError, match="escapes target directory"):
+            _safe_extract_zip(zip_path, dest)
 
     def test_absolute_path_rejected(self, tmp_path) -> None:
         """A zip member with an absolute path must be rejected."""
@@ -55,7 +54,8 @@ class TestZipSlipProtection:
         _make_zip(zip_path, {"/etc/passwd": "root:x:0:0\n"})
         dest = tmp_path / "out"
         dest.mkdir()
-        assert Path("/etc/passwd").is_absolute()
+        with pytest.raises(FetchError, match="absolute path"):
+            _safe_extract_zip(zip_path, dest)
 
     def test_nested_dotdot_rejected(self, tmp_path) -> None:
         """A zip member like sub/../../escape must be rejected."""
@@ -63,27 +63,71 @@ class TestZipSlipProtection:
         _make_zip(zip_path, {"sub/../../escape.txt": "pwned\n"})
         dest = tmp_path / "out"
         dest.mkdir()
-        staging_resolved = dest.resolve()
-        with zipfile.ZipFile(zip_path) as zf:
-            for member in zf.namelist():
-                resolved = (dest / member).resolve()
-                with pytest.raises(ValueError):
-                    resolved.relative_to(staging_resolved)
+        with pytest.raises(FetchError, match="escapes target directory"):
+            _safe_extract_zip(zip_path, dest)
 
     def test_sibling_directory_bypass_rejected(self, tmp_path) -> None:
         """A path like ../staging2/evil must not match a prefix check.
 
         This is the specific bypass the PR reviewer flagged: a naive
         str.startswith('/tmp/staging') would match '/tmp/staging2/evil'.
-        The is_relative_to fix handles this correctly.
+        The relative_to fix handles this correctly.
         """
-        staging = tmp_path / "staging"
-        staging.mkdir()
-        # Simulate the attack: ../staging2/evil resolves to a sibling.
-        evil_member = "../staging2/evil.txt"
-        resolved = (staging / evil_member).resolve()
-        staging_resolved = staging.resolve()
-        # The naive string check would pass (both start with /tmp/pytest-...)
-        # but is_relative_to correctly rejects it.
-        with pytest.raises(ValueError):
-            resolved.relative_to(staging_resolved)
+        zip_path = tmp_path / "sibling.zip"
+        _make_zip(zip_path, {"../staging2/evil.txt": "pwned\n"})
+        dest = tmp_path / "staging"
+        dest.mkdir()
+        with pytest.raises(FetchError, match="escapes target directory"):
+            _safe_extract_zip(zip_path, dest)
+
+
+class TestZipSymlinkProtection:
+    """Verify that symlinks inside zips are skipped."""
+
+    def test_symlink_member_skipped(self, tmp_path) -> None:
+        zip_path = tmp_path / "symlink.zip"
+        _make_zip_with_symlink(zip_path, "evil_link", "/etc/passwd")
+        dest = tmp_path / "out"
+        dest.mkdir()
+        _safe_extract_zip(zip_path, dest)
+        # The symlink should not have been created.
+        assert not (dest / "evil_link").exists()
+
+    def test_mixed_files_and_symlinks(self, tmp_path) -> None:
+        """Regular files are extracted; symlinks are skipped."""
+        zip_path = tmp_path / "mixed.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("good.txt", "hello\n")
+            info = zipfile.ZipInfo("bad_link")
+            info.external_attr = 0o120777 << 16
+            zf.writestr(info, "../../../etc/shadow")
+        dest = tmp_path / "out"
+        dest.mkdir()
+        _safe_extract_zip(zip_path, dest)
+        assert (dest / "good.txt").read_text() == "hello\n"
+        assert not (dest / "bad_link").exists()
+
+
+class TestZipBombProtection:
+    """Verify that oversized archives are rejected."""
+
+    def test_small_zip_ok(self, tmp_path) -> None:
+        zip_path = tmp_path / "small.zip"
+        _make_zip(zip_path, {"data.txt": "x" * 1000})
+        dest = tmp_path / "out"
+        dest.mkdir()
+        _safe_extract_zip(zip_path, dest)
+        assert (dest / "data.txt").is_file()
+
+    def test_oversized_zip_rejected(self, tmp_path, monkeypatch) -> None:
+        """A zip that decompresses beyond the limit is rejected."""
+        import tclpkg.fetchers as mod
+
+        # Temporarily lower the limit to make the test fast.
+        monkeypatch.setattr(mod, "_MAX_EXTRACT_BYTES", 100)
+        zip_path = tmp_path / "bomb.zip"
+        _make_zip(zip_path, {"big.txt": "x" * 200})
+        dest = tmp_path / "out"
+        dest.mkdir()
+        with pytest.raises(FetchError, match="zip bomb"):
+            _safe_extract_zip(zip_path, dest)
