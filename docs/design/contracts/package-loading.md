@@ -136,10 +136,17 @@ Three package sources are supported, plus the iRules cross-file equivalent:
 - `tests/test_package_suggestions.py` — suggestion ranking
 - `tests/test_workspace_index.py` — workspace index and entry source tracking
 
+## Cross-reference: tclpkg
+
+For project-local package management (manifests, lockfiles, CAS, virtual
+environments), see [tclpkg architecture](../tclpkg-architecture.md) and
+the [how-to guide](../../kcs/kcs-howto-manage-tcl-packages.md).
+
 ## Discoverability
 
-- [KCS index](../../../docs/design/README.md)
-- [Workspace indexing contracts](../../../docs/design/contracts/workspace-indexing.md)
-- [Command registry and event model](../../../docs/design/contracts/command-registry-event-model.md)
-- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)
-- [LSP diagnostics publication](../../../docs/design/contracts/lsp-diagnostics-publication.md)
+- [Design doc index](../README.md)
+- [Workspace indexing contracts](workspace-indexing.md)
+- [Command registry and event model](command-registry-event-model.md)
+- [LSP feature providers](lsp-feature-providers.md)
+- [LSP diagnostics publication](lsp-diagnostics-publication.md)
+- [tclpkg architecture](../tclpkg-architecture.md)

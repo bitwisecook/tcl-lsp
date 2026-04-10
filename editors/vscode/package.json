@@ -4067,8 +4067,44 @@
         }
       },
       {
+        "title": "Diagnostics — Package Manager",
+        "order": 18,
+        "properties": {
+          "tclLsp.diagnostics.W130": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W130:** tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'.",
+            "order": 0
+          },
+          "tclLsp.diagnostics.W131": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W131:** tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.W132": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W132:** tclpkg.lock integrity mismatch — CAS hash differs from lockfile.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.W133": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W133:** tclpkg.tcl directive not permitted in safe mode.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.W134": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W134:** Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime.",
+            "order": 4
+          }
+        }
+      },
+      {
         "title": "Optimiser",
-        "order": 16,
+        "order": 19,
         "properties": {
           "tclLsp.optimiser.enabled": {
             "type": "boolean",

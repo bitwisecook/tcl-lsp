@@ -71,6 +71,7 @@ SECTIONS: list[tuple[str, str]] = [
     ("irules", "Diagnostics — iRules"),
     ("irules_security", "Diagnostics — iRules"),
     ("irules_variable", "Diagnostics — iRules"),
+    ("tclpkg", "Diagnostics — Package Manager"),
 ]
 
 # Derived helpers for fast lookup.
@@ -232,6 +233,26 @@ def default_disabled_diagnostics() -> frozenset[str]:
 def optimisation_codes() -> frozenset[str]:
     """All registered optimisation codes."""
     return frozenset(c for c, info in _registry.items() if info.kind is CodeKind.OPTIMISATION)
+
+
+# tclpkg package manager diagnostics (W130–W134).
+# Registered here (rather than in tclpkg/) so the codegen script and tests
+# see them without importing the tclpkg package.
+diag(
+    "W130",
+    "tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'.",
+    section="tclpkg",
+)
+diag(
+    "W131", "tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'.", section="tclpkg"
+)
+diag("W132", "tclpkg.lock integrity mismatch — CAS hash differs from lockfile.", section="tclpkg")
+diag("W133", "tclpkg.tcl directive not permitted in safe mode.", section="tclpkg")
+diag(
+    "W134",
+    "Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime.",
+    section="tclpkg",
+)
 
 
 def internal_codes() -> frozenset[str]:

@@ -102,6 +102,11 @@ object DiagnosticCatalog {
         DiagnosticDef("IRULE4003", "irules_variable", "IRULE4003: Variable scoping concern across events", true),
         DiagnosticDef("IRULE4004", "irules_variable", "IRULE4004: Constant set in per-request event could be hoisted t...", true),
         DiagnosticDef("IRULE4005", "irules_variable", "IRULE4005: Potential race", true),
+        DiagnosticDef("W130", "tclpkg", "W130: tclpkg.tcl requires package but it is not in tclpkg....", true),
+        DiagnosticDef("W131", "tclpkg", "W131: tclpkg.lock is out of sync with tclpkg.tcl", true),
+        DiagnosticDef("W132", "tclpkg", "W132: tclpkg.lock integrity mismatch", true),
+        DiagnosticDef("W133", "tclpkg", "W133: tclpkg.tcl directive not permitted in safe mode", true),
+        DiagnosticDef("W134", "tclpkg", "W134: Package resolved but no pkgIndex.tcl found", true),
     )
 
     val optimisations: List<OptimisationDef> = listOf(
@@ -144,6 +149,7 @@ object DiagnosticCatalog {
         "shimmer" to "Diagnostics — Shimmer",
         "taint" to "Diagnostics — Taint",
         "irules" to "Diagnostics — iRules",
+        "tclpkg" to "Diagnostics — Package Manager",
     )
 
     val sectionOrder: List<String> = listOf(
@@ -155,5 +161,6 @@ object DiagnosticCatalog {
         "shimmer",
         "taint",
         "irules",
+        "tclpkg",
     )
 }

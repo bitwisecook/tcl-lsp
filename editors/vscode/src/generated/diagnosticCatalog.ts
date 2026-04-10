@@ -532,6 +532,38 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
       "Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
     defaultEnabled: true,
   },
+  {
+    code: "W130",
+    section: "tclpkg",
+    description:
+      "tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W131",
+    section: "tclpkg",
+    description: "tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W132",
+    section: "tclpkg",
+    description: "tclpkg.lock integrity mismatch — CAS hash differs from lockfile.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W133",
+    section: "tclpkg",
+    description: "tclpkg.tcl directive not permitted in safe mode.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W134",
+    section: "tclpkg",
+    description:
+      "Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime.",
+    defaultEnabled: true,
+  },
 ];
 
 export const OPTIMISATIONS: OptimisationDef[] = [
@@ -690,6 +722,7 @@ export const SECTION_TITLES: Record<string, string> = {
   shimmer: "Diagnostics \u2014 Shimmer",
   taint: "Diagnostics \u2014 Taint",
   irules: "Diagnostics \u2014 iRules",
+  tclpkg: "Diagnostics \u2014 Package Manager",
 };
 
 export const SECTION_ORDER: string[] = [
@@ -701,4 +734,5 @@ export const SECTION_ORDER: string[] = [
   "shimmer",
   "taint",
   "irules",
+  "tclpkg",
 ];

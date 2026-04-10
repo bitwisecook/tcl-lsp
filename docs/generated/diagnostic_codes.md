@@ -87,3 +87,8 @@
 | IRULE4003 | irules_variable | Variable scoping concern across events. | ✓ |
 | IRULE4004 | irules_variable | Constant `set` in per-request event could be hoisted to an earlier once-per-connection event. | ✓ |
 | IRULE4005 | irules_variable | Potential race — `static::` variable written outside `RULE_INIT` and read in another event. | ✓ |
+| W130 | tclpkg | tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'. | ✓ |
+| W131 | tclpkg | tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'. | ✓ |
+| W132 | tclpkg | tclpkg.lock integrity mismatch — CAS hash differs from lockfile. | ✓ |
+| W133 | tclpkg | tclpkg.tcl directive not permitted in safe mode. | ✓ |
+| W134 | tclpkg | Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime. | ✓ |

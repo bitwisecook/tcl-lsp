@@ -3248,7 +3248,38 @@ def on_initialized(params: types.InitializedParams) -> None:
     ws = server.workspace
     if ws.root_path:
         roots.append(ws.root_path)
-    background_scanner.configure(workspace_roots=roots)
+
+    # tclpkg project detection — look for tclpkg.tcl as a project marker
+    # and auto-add venv/project lib/ directories to library paths.
+    library_paths: list[str] = []
+    _tclpkg_root: str | None = None
+    if ws.root_path:
+        import os
+
+        candidate = os.path.join(ws.root_path, "tclpkg.tcl")
+        if os.path.isfile(candidate):
+            _tclpkg_root = ws.root_path
+            log.info("Detected tclpkg project at: %s", ws.root_path)
+            # Add project-local lib/ if present.
+            project_lib = os.path.join(ws.root_path, "lib")
+            if os.path.isdir(project_lib):
+                library_paths.append(project_lib)
+        # Detect active venv: $TCL_VENV or .venv/tclvenv.cfg next to root.
+        venv_dir = os.environ.get("TCL_VENV")
+        if not venv_dir:
+            local_venv = os.path.join(ws.root_path, ".venv", "tclvenv.cfg")
+            if os.path.isfile(local_venv):
+                venv_dir = os.path.join(ws.root_path, ".venv")
+        if venv_dir:
+            venv_lib = os.path.join(venv_dir, "lib")
+            if os.path.isdir(venv_lib):
+                library_paths.append(venv_lib)
+                log.info("Auto-detected tclpkg venv lib: %s", venv_lib)
+
+    background_scanner.configure(
+        workspace_roots=roots,
+        library_paths=library_paths if library_paths else None,
+    )
 
     # Kick off the scan with optional progress reporting.  When the client
     # advertises window/workDoneProgress we emit begin/report/end notifications

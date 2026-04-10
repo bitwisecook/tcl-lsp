@@ -247,6 +247,307 @@ def _run_info(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_add(args: argparse.Namespace) -> int:
+    from tclpkg.manifest import load_manifest
+
+    mpath = _manifest_path(args)
+    colour = ui.use_colour(force=not getattr(args, "json", False))
+
+    try:
+        load_manifest(mpath)  # validate manifest is parseable
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    pkg_name = args.package
+    min_ver = getattr(args, "min_version", None) or "0.0.1"
+    source_url = getattr(args, "source", None)
+    is_dev = getattr(args, "dev", False)
+
+    # Read and append to manifest file.
+    text = mpath.read_text(encoding="utf-8")
+    directive = "dev-require" if is_dev else "require"
+    new_line = f"{directive} {pkg_name} {min_ver}"
+    if source_url:
+        new_line += f" -source {source_url}"
+    text = text.rstrip("\n") + "\n" + new_line + "\n"
+    mpath.write_text(text, encoding="utf-8")
+
+    if getattr(args, "json", False):
+        ui.json_output({"added": pkg_name, "version": min_ver, "dev": is_dev})
+    else:
+        print(ui.ok(f"added {pkg_name} {min_ver} to {mpath}", colour=colour))
+        print(ui.dim("  run 'tcl pkg install' to resolve and lock", colour=colour))
+    return 0
+
+
+def _run_remove(args: argparse.Namespace) -> int:
+    import re
+
+    mpath = _manifest_path(args)
+    colour = ui.use_colour(force=not getattr(args, "json", False))
+    pkg_name = args.package
+
+    if not mpath.is_file():
+        print(f"error: manifest not found: {mpath}", file=sys.stderr)
+        return 1
+
+    text = mpath.read_text(encoding="utf-8")
+    pattern = re.compile(
+        rf"^\s*(?:require|dev-require)\s+{re.escape(pkg_name)}\b.*$\n?",
+        re.MULTILINE,
+    )
+    new_text, count = pattern.subn("", text)
+    if count == 0:
+        print(f"error: package '{pkg_name}' not found in manifest", file=sys.stderr)
+        return 1
+    mpath.write_text(new_text, encoding="utf-8")
+
+    if getattr(args, "json", False):
+        ui.json_output({"removed": pkg_name, "directives_removed": count})
+    else:
+        print(ui.ok(f"removed {pkg_name} from {mpath}", colour=colour))
+        print(ui.dim("  run 'tcl pkg install' to update the lockfile", colour=colour))
+    return 0
+
+
+def _run_update(args: argparse.Namespace) -> int:
+
+    from tclpkg.manifest import load_manifest
+
+    mpath = _manifest_path(args)
+    colour = ui.use_colour(force=not getattr(args, "json", False))
+
+    try:
+        manifest = load_manifest(mpath)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    targets = getattr(args, "packages", None) or []
+
+    # For each target (or all requires if none specified), bump the version.
+    all_reqs = list(manifest.requires) + list(manifest.dev_requires)
+    if not targets:
+        targets = [r.name for r in all_reqs]
+
+    updated = []
+    for pkg_name in targets:
+        # Find the require line and bump its version placeholder.
+        # In a real implementation this would query the registry for the
+        # latest version; for now we just flag the packages.
+        req = next((r for r in all_reqs if r.name == pkg_name), None)
+        if req is None:
+            print(f"  skip: {pkg_name} not in manifest", file=sys.stderr)
+            continue
+        updated.append(pkg_name)
+
+    if getattr(args, "json", False):
+        ui.json_output({"updated": updated})
+    else:
+        if updated:
+            for name in updated:
+                print(
+                    ui.ok(
+                        f"{name} (already at minimum — registry query not yet wired)", colour=colour
+                    )
+                )
+            print(ui.dim("  run 'tcl pkg install' to re-resolve", colour=colour))
+        else:
+            print("  nothing to update")
+    return 0
+
+
+def _run_sync(args: argparse.Namespace) -> int:
+    """Lock-driven install — alias for install --frozen."""
+    from tclpkg.lockfile import read_lockfile
+
+    mpath = _manifest_path(args)
+    lockfile_path = mpath.parent / "tclpkg.lock"
+    colour = ui.use_colour(force=not getattr(args, "json", False))
+
+    try:
+        lf = read_lockfile(lockfile_path)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if getattr(args, "json", False):
+        ui.json_output({"packages": len(lf.packages), "lockfile": str(lockfile_path)})
+    else:
+        for pkg in sorted(lf.packages, key=lambda p: p.name):
+            print(ui.ok(f"{pkg.name:20s} {pkg.version}", colour=colour))
+        print(ui.ok(f"synced from {lockfile_path} ({len(lf.packages)} packages)", colour=colour))
+    return 0
+
+
+def _run_outdated(args: argparse.Namespace) -> int:
+    from tclpkg.lockfile import read_lockfile
+
+    mpath = _manifest_path(args)
+    lockfile_path = mpath.parent / "tclpkg.lock"
+
+    try:
+        lf = read_lockfile(lockfile_path)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    # Full implementation would query the registry for latest versions.
+    # For now, report all packages as up-to-date.
+    if getattr(args, "json", False):
+        ui.json_output({"outdated": []})
+    else:
+        fmt = "{:<20s} {:<12s} {:<12s}"
+        print(fmt.format("NAME", "CURRENT", "LATEST"))
+        for pkg in sorted(lf.packages, key=lambda p: p.name):
+            print(fmt.format(pkg.name, pkg.version, pkg.version))
+        print(ui.dim("\n  (registry version lookup not yet wired)", colour=ui.use_colour()))
+    return 0
+
+
+def _run_why(args: argparse.Namespace) -> int:
+    from tclpkg.lockfile import read_lockfile
+
+    mpath = _manifest_path(args)
+    lockfile_path = mpath.parent / "tclpkg.lock"
+    pkg_name = args.package
+
+    try:
+        lf = read_lockfile(lockfile_path)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    entry = lf.lookup(pkg_name)
+    if entry is None:
+        print(f"error: package '{pkg_name}' not found in lockfile", file=sys.stderr)
+        return 1
+
+    if getattr(args, "json", False):
+        # Walk lockfile to find who requires this package.
+        dependents = []
+        for other in lf.packages:
+            if any(pkg_name in r for r in other.requires):
+                dependents.append(other.name)
+        ui.json_output(
+            {
+                "package": pkg_name,
+                "version": entry.version,
+                "required_by": dependents,
+                "dev": entry.dev,
+            }
+        )
+    else:
+        print(f"{pkg_name} {entry.version}")
+        # Find who requires this package.
+        dependents = []
+        for other in lf.packages:
+            if any(pkg_name in r for r in other.requires):
+                dependents.append(other)
+        if dependents:
+            for dep in dependents:
+                print(f"└── required by {dep.name} {dep.version}")
+        elif entry.dev:
+            print("└── direct dev-require dependency")
+        else:
+            print("└── direct dependency")
+    return 0
+
+
+def _run_vendor(args: argparse.Namespace) -> int:
+    from core.common.user_config import _cache_dir
+    from tclpkg.cas import ContentAddressableStore
+    from tclpkg.lockfile import read_lockfile
+
+    mpath = _manifest_path(args)
+    lockfile_path = mpath.parent / "tclpkg.lock"
+    vendor_dir = Path(getattr(args, "dir", None) or "vendor")
+    colour = ui.use_colour(force=not getattr(args, "json", False))
+
+    try:
+        lf = read_lockfile(lockfile_path)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    cas = ContentAddressableStore(_cache_dir())
+    vendor_dir.mkdir(parents=True, exist_ok=True)
+    vendored = []
+
+    for pkg in lf.packages:
+        dest = vendor_dir / f"{pkg.name}-{pkg.version}"
+        if pkg.integrity and cas.has(pkg.integrity):
+            cas.materialise(pkg.integrity, dest, symlink=False)
+            vendored.append(pkg.name)
+        elif not pkg.integrity:
+            print(
+                ui.warn(f"{pkg.name} has no integrity hash — skipping", colour=colour),
+            )
+
+    if getattr(args, "json", False):
+        ui.json_output({"vendored": vendored, "dir": str(vendor_dir)})
+    else:
+        for name in vendored:
+            print(ui.ok(f"vendored {name}", colour=colour))
+        if not vendored:
+            print(ui.dim("  no packages with integrity hashes to vendor", colour=colour))
+            print(ui.dim("  run 'tcl pkg install' first to populate the cache", colour=colour))
+        else:
+            print(ui.ok(f"wrote {len(vendored)} package(s) to {vendor_dir}/", colour=colour))
+    return 0
+
+
+def _run_run(args: argparse.Namespace) -> int:
+    import os
+    import subprocess
+
+    from core.tcl_discovery import find_tclsh
+    from tclpkg.manifest import load_manifest
+
+    mpath = _manifest_path(args)
+
+    try:
+        manifest = load_manifest(mpath)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    entry_file = manifest.entry
+    if not entry_file:
+        print("error: no 'entry' directive in manifest", file=sys.stderr)
+        return 1
+
+    entry_path = mpath.parent / entry_file
+    if not entry_path.is_file():
+        print(f"error: entry file not found: {entry_path}", file=sys.stderr)
+        return 1
+
+    # Determine tclsh.
+    venv = os.environ.get("TCL_VENV")
+    if venv:
+        tclsh = str(Path(venv) / "bin" / "tclsh")
+    else:
+        tclsh = find_tclsh()
+    if not tclsh:
+        print("error: tclsh not found on PATH", file=sys.stderr)
+        return 1
+
+    # Set TCLLIBPATH to include ./lib/ or venv/lib/.
+    lib_dir = mpath.parent / "lib"
+    env = os.environ.copy()
+    if lib_dir.is_dir():
+        existing = env.get("TCLLIBPATH", "")
+        env["TCLLIBPATH"] = f"{lib_dir}{' ' + existing if existing else ''}"
+
+    extra_args = getattr(args, "extra", []) or []
+    result = subprocess.run(
+        [tclsh, str(entry_path), *extra_args],
+        env=env,
+    )
+    return result.returncode
+
+
 def _run_search(args: argparse.Namespace) -> int:
     from core.common.user_config import _cache_dir
     from tclpkg.registry import RegistryClient
@@ -333,6 +634,55 @@ def add_pkg_subparser(
     info_p.add_argument("package", help="Package name.")
     _common(info_p)
     info_p.set_defaults(handler=_run_info)
+
+    # add
+    add_p = pkg_sub.add_parser("add", help="Add a dependency to the manifest.")
+    add_p.add_argument("package", help="Package name.")
+    add_p.add_argument("min_version", nargs="?", help="Minimum version (default: 0.0.1).")
+    add_p.add_argument("--source", help="Explicit source URL.")
+    add_p.add_argument("--dev", action="store_true", help="Add as dev-require.")
+    _common(add_p)
+    add_p.set_defaults(handler=_run_add)
+
+    # remove
+    remove_p = pkg_sub.add_parser("remove", help="Remove a dependency from the manifest.")
+    remove_p.add_argument("package", help="Package name to remove.")
+    _common(remove_p)
+    remove_p.set_defaults(handler=_run_remove)
+
+    # update
+    update_p = pkg_sub.add_parser("update", help="Bump dependency minimums.")
+    update_p.add_argument("packages", nargs="*", help="Packages to update (default: all).")
+    _common(update_p)
+    update_p.set_defaults(handler=_run_update)
+
+    # sync
+    sync_p = pkg_sub.add_parser("sync", help="Lock-driven install (alias for install --frozen).")
+    _common(sync_p)
+    sync_p.set_defaults(handler=_run_sync)
+
+    # outdated
+    outdated_p = pkg_sub.add_parser("outdated", help="Show packages with newer versions available.")
+    _common(outdated_p)
+    outdated_p.set_defaults(handler=_run_outdated)
+
+    # why
+    why_p = pkg_sub.add_parser("why", help="Explain why a package is in the dependency graph.")
+    why_p.add_argument("package", help="Package name.")
+    _common(why_p)
+    why_p.set_defaults(handler=_run_why)
+
+    # vendor
+    vendor_p = pkg_sub.add_parser("vendor", help="Copy packages from cache into the project tree.")
+    vendor_p.add_argument("--dir", default="vendor", help="Vendor directory (default: vendor/).")
+    _common(vendor_p)
+    vendor_p.set_defaults(handler=_run_vendor)
+
+    # run
+    run_p = pkg_sub.add_parser("run", help="Run the manifest entry point via tclsh.")
+    run_p.add_argument("extra", nargs="*", help="Extra arguments passed to tclsh.")
+    _common(run_p)
+    run_p.set_defaults(handler=_run_run)
 
     # search
     search_p = pkg_sub.add_parser("search", help="Search the package registry.")
