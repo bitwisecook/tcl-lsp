@@ -294,39 +294,23 @@ the items below — each one is a feature the Python lexer supports
 that the Rust lexer does not yet, causing the Python fallback to
 kick in for specific configurations.
 
-**Blocking L12 — features that still trigger the Python fallback:**
+**Remaining Python fallback triggers** (after L12):
 
-- **Warning collection.** The Python lexer appends non-fatal
-  `(position, message)` warnings for unterminated braces, quotes,
-  missing close-brackets, extra characters after close-brace/quote.
-  The Rust lexer silently best-efforts these. Needs a
-  `Vec<LexWarning>` on the `Lexer` return type or a callback
-  mechanism. The analyser/recovery layer harvests these warnings
-  and converts them to LSP diagnostics.
 - **Ghost character insertion for error recovery.** The Python
   lexer's `virtual_insertions: dict[int, str]` parameter injects
   missing delimiters (`}`, `]`, `{`) at specific offsets so
-  downstream passes see a well-formed structure. "Ghost" is our
-  term of art (chosen over "synthetic" / "virtual" to avoid
-  collisions with Rust vocabulary). The EOF-trailing ghost `EOL`
-  is already implemented; the broader recovery story requires a
-  similar mechanism in the Rust `Lexer`.
+  downstream passes see a well-formed structure. Only used by the
+  recovery path (`core/parsing/recovery.py`) and one call site in
+  `lsp/features/semantic_tokens.py`. The Rust `Lexer` has no
+  equivalent — porting it requires a `ghosts: HashMap<u32, char>`
+  mechanism matching Python's `_virtuals` dict.
 - **Strict quoting** (`strict_quoting` flag). The Python lexer
-  raises `TclParseError` in strict mode (used by the VM). The
-  Rust lexer has no strict mode — needs a `LexerConfig` field
-  and error variants on `LexError`.
-- **Sub-lexing with base offsets.** The Python lexer accepts
-  `base_offset`, `base_line`, `base_col` for lexing
-  sub-expressions within a larger source. The Rust `Lexer` does
-  not accept these yet.
-- **`irules_brace_separator`** (`LexerConfig` flag). The Python
-  lexer injects a ghost SEP token at `}{` word boundaries in
-  iRules dialect. Not ported.
-- **`expand_syntax=False` passthrough.** The Rust `LexerConfig`
-  has the `expand_syntax` flag, but the Python dispatch in
-  `TclLexer.tokenise_all()` does not pass the class-level flag
-  through to the Rust call. Needs a way to construct
-  `LexerConfig` from the Python class-level flags.
+  raises `TclParseError` in strict mode (used by the VM compiler).
+  The Rust `LexerConfig` has the field and the `Lexer` has a
+  `warn_or_error` helper + `LexWarning` type, but the warning
+  emission points in `parse_brace` / `parse_command` /
+  `parse_quoted` / `parse_var` are not yet wired. Until they are,
+  the strict-mode path falls back to Python.
 
 **Non-blocking deferred items (can be fixed independently):**
 
@@ -612,7 +596,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L9    | Backslash escapes in bare words, quoted strings, and comments — drains the last deferred character. Warning collection and ghost-character-insertion are deferred to a later pass. | landed |
 | L10   | `core/parsing/expr_lexer.py` → Rust. Rust implementation ported and tested; Python dispatch wraps Rust `PyExprToken` into Python-native `ExprToken` (via value→enum-member dict) so downstream `tok.type is ExprTokenType.X` works. | landed |
 | L11   | Flip `TclLexer.tokenise_all()` to Rust for the default config (~17× speedup). Non-default configs (virtual insertions, strict quoting, base offsets, `expand_syntax=False`) fall back to the Python lexer. | landed |
-| L12   | Remove the pure-Python lexer fallback. Blocked on warning collection, ghost insertion, strict quoting, sub-lexing, `irules_brace_separator`, and `expand_syntax=False` passthrough — see the deferred-work list above. | blocked |
+| L12   | Expand Rust lexer coverage: base offsets, `expand_syntax=False`, `irules_brace_separator` (ghost SEP injection), warning/strict infrastructure, `lexer_tokenise_with_config` PyO3 entry point. Python fallback only triggers for virtual insertions and strict quoting. | landed |
 | C*    | **Compiler migration.** `core/compiler/` (IR, CFG, SSA, lowering, codegen, optimiser passes) → `rust/tcl-compiler/`. Each pass can be its own chunk. The compiler consumes `Token` values from the lexer and produces IR; porting it to Rust eliminates the Python→Rust→Python round-trip that currently dominates the pipeline after the lexer. | planned |
 | S*    | **LSP server migration.** `lsp/` (pygls handlers, workspace orchestration, feature providers) → `rust/tcl-lsp-server/` on `tower-lsp`. This is when `ropey` enters the picture as the document store, the whole pipeline becomes async, and the server ships as a standalone Rust binary. | planned |
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), `core/analysis/` (analyser passes), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |

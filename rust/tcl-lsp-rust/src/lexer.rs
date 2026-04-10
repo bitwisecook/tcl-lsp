@@ -26,7 +26,7 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use tcl_lexer::{LexError, Lexer, SourceMap, Token};
+use tcl_lexer::{LexError, Lexer, LexerConfig, SourceMap, Token};
 
 use crate::tokens::{PySourcePosition, PyToken, PyTokenType};
 
@@ -38,16 +38,40 @@ use crate::tokens::{PySourcePosition, PyToken, PyTokenType};
 /// differential harness uses to filter inputs the L3 skeleton does
 /// not yet understand. The message includes the offending character
 /// and its position so the harness can log skipped cases.
+/// Tokenise `source` via the Rust lexer with default config.
 #[pyfunction]
 #[pyo3(text_signature = "(source, /)")]
 pub fn lexer_tokenise(source: &str) -> PyResult<Vec<PyToken>> {
-    let lexer = Lexer::new(source);
-    let source_map = lexer.source_map().clone();
+    lexer_tokenise_with_config(source, true, false, 0, 0, 0)
+}
+
+/// Tokenise `source` via the Rust lexer with explicit config.
+///
+/// This is the full-config entry point used by the Python shim
+/// when dialect flags or sub-lexing offsets are in play.
+#[pyfunction]
+#[pyo3(signature = (source, expand_syntax=true, irules_brace_separator=false, base_offset=0, base_line=0, base_col=0))]
+pub fn lexer_tokenise_with_config(
+    source: &str,
+    expand_syntax: bool,
+    irules_brace_separator: bool,
+    base_offset: u32,
+    base_line: u32,
+    base_col: u32,
+) -> PyResult<Vec<PyToken>> {
+    let config = LexerConfig {
+        expand_syntax,
+        irules_brace_separator,
+        strict_quoting: false,
+        base_offset,
+        base_line,
+        base_col,
+    };
+    let source_map = SourceMap::new(source).with_base(base_offset, base_line, base_col);
+    let lexer = Lexer::with_source_map(source_map, config);
+    let sm = lexer.source_map().clone();
     let tokens: Vec<Token> = lexer.tokenise_all().map_err(|err| to_py_err(&err))?;
-    Ok(tokens
-        .into_iter()
-        .map(|tok| lift(tok, &source_map))
-        .collect())
+    Ok(tokens.into_iter().map(|tok| lift(tok, &sm)).collect())
 }
 
 /// Lift a pure-Rust `Token` into a Python-visible `PyToken`,
