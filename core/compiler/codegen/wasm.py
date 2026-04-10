@@ -612,6 +612,145 @@ def _decode_leb128_signed(data: bytes) -> int:
 # WASM Emitter
 
 
+# Runtime function signatures imported from the Tcl runtime.
+# Each entry maps an import key to (module, export_name, param_types, result_types).
+_RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
+    "tcl_puts": ("tcl", "puts", [ValType.I64], [ValType.I64]),
+    "tcl_append": ("tcl", "append", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_list_length": ("tcl", "list_length", [ValType.I64], [ValType.I64]),
+    "tcl_lappend": ("tcl", "lappend", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_string_length": ("tcl", "string_length", [ValType.I64], [ValType.I64]),
+    "tcl_string_index": ("tcl", "string_index", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_string_range": (
+        "tcl",
+        "string_range",
+        [ValType.I64, ValType.I64, ValType.I64],
+        [ValType.I64],
+    ),
+    "tcl_string_compare": (
+        "tcl",
+        "string_compare",
+        [ValType.I64, ValType.I64],
+        [ValType.I64],
+    ),
+    "tcl_string_map": ("tcl", "string_map", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_string_match": ("tcl", "string_match", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_string_trim": ("tcl", "string_trim", [ValType.I64], [ValType.I64]),
+    "tcl_concat": ("tcl", "concat", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_list_index": ("tcl", "list_index", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_list_range": (
+        "tcl",
+        "list_range",
+        [ValType.I64, ValType.I64, ValType.I64],
+        [ValType.I64],
+    ),
+    "tcl_list_sort": ("tcl", "list_sort", [ValType.I64], [ValType.I64]),
+    "tcl_list_search": ("tcl", "list_search", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_error": ("tcl", "error", [ValType.I64], []),
+    "tcl_format": ("tcl", "format", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_regexp": ("tcl", "regexp", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_open": ("tcl", "open", [ValType.I64], [ValType.I64]),
+    "tcl_close": ("tcl", "close", [ValType.I64], [ValType.I64]),
+    "tcl_read": ("tcl", "read", [ValType.I64], [ValType.I64]),
+    "tcl_gets": ("tcl", "gets", [ValType.I64], [ValType.I64]),
+}
+
+# Commands that map to runtime imports.  The value is
+# (import_key, arg_count_or_None) where ``None`` means variadic.
+_CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
+    "puts": ("tcl_puts", 1),
+    "append": ("tcl_append", 2),
+    "llength": ("tcl_list_length", 1),
+    "lappend": ("tcl_lappend", 2),
+    "lindex": ("tcl_list_index", 2),
+    "lrange": ("tcl_list_range", 3),
+    "lsort": ("tcl_list_sort", 1),
+    "lsearch": ("tcl_list_search", 2),
+    "error": ("tcl_error", 1),
+    "format": ("tcl_format", 2),
+    "regexp": ("tcl_regexp", 2),
+    "open": ("tcl_open", 1),
+    "close": ("tcl_close", 1),
+    "read": ("tcl_read", 1),
+    "gets": ("tcl_gets", 1),
+}
+
+# String sub-command → import key
+_STRING_SUBCMD_IMPORT: dict[str, str] = {
+    "length": "tcl_string_length",
+    "index": "tcl_string_index",
+    "range": "tcl_string_range",
+    "compare": "tcl_string_compare",
+    "match": "tcl_string_match",
+    "map": "tcl_string_map",
+    "trim": "tcl_string_trim",
+    "trimleft": "tcl_string_trim",
+    "trimright": "tcl_string_trim",
+}
+
+# Commands that are scope declarations — NOPs in WASM
+_SCOPE_NOP_COMMANDS = frozenset({"global", "variable", "upvar", "namespace"})
+
+
+def _scan_needed_imports(
+    cfg_module: CFGModule,
+    ir_module: IRModule,
+) -> set[str]:
+    """Pre-scan IR to find which runtime imports the compiled module needs."""
+    needed: set[str] = set()
+
+    def _scan_script(script: IRScript) -> None:
+        for stmt in script.statements:
+            _scan_stmt(stmt)
+
+    def _scan_stmt(stmt: IRStatement) -> None:
+        match stmt:
+            case IRCall(command=command, args=args):
+                if command in _CMD_RUNTIME:
+                    needed.add(_CMD_RUNTIME[command][0])
+                elif command == "string" and args and args[0] in _STRING_SUBCMD_IMPORT:
+                    needed.add(_STRING_SUBCMD_IMPORT[args[0]])
+            case IRIf(clauses=clauses, else_body=else_body):
+                for clause in clauses:
+                    _scan_script(clause.body)
+                if else_body:
+                    _scan_script(else_body)
+            case IRFor(init=init, body=body, next=next_s):
+                _scan_script(init)
+                _scan_script(body)
+                _scan_script(next_s)
+            case IRWhile(body=body):
+                _scan_script(body)
+            case IRForeach(body=body):
+                _scan_script(body)
+            case IRSwitch(arms=arms, default_body=default_body):
+                for arm in arms:
+                    if arm.body:
+                        _scan_script(arm.body)
+                if default_body:
+                    _scan_script(default_body)
+            case IRCatch(body=body):
+                _scan_script(body)
+            case IRTry(body=body, finally_body=finally_body):
+                _scan_script(body)
+                if finally_body:
+                    _scan_script(finally_body)
+
+    # Scan top-level
+    _scan_script(ir_module.top_level)
+
+    # Scan procedures
+    for proc in ir_module.procedures.values():
+        _scan_script(proc.body)
+
+    # Scan methods
+    if ir_module.methods:
+        for method in ir_module.methods.values():
+            _scan_script(method.body)
+
+    return needed
+
+
 # Maps Tcl binary expression operators to WASM i64 opcodes
 _BINOP_WASM: dict[BinOp, int] = {
     BinOp.ADD: WasmOp.I64_ADD,
@@ -657,12 +796,19 @@ class _WasmEmitter:
         optimise: bool = False,
         is_proc: bool = False,
         func_index_base: int = 0,
+        shared_imports: dict[str, int] | None = None,
+        proc_index: dict[str, tuple[int, int]] | None = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
         self._optimise = optimise
         self._is_proc = is_proc
         self._func_index_base = func_index_base
+
+        # Shared state from module compilation
+        self._shared_imports: dict[str, int] = shared_imports or {}
+        # proc_index maps qualified name → (func_idx, n_params)
+        self._proc_index: dict[str, tuple[int, int]] = proc_index or {}
 
         # Local variable management
         self._local_names: list[str] = []
@@ -771,7 +917,7 @@ class _WasmEmitter:
     def _emit_expr(self, node: ExprNode) -> None:
         """Emit WASM instructions to evaluate an expression, leaving result on stack."""
         match node:
-            case ExprLiteral(value=value):
+            case ExprLiteral(text=value):
                 self._emit_literal(value)
             case ExprVar(name=name):
                 idx = self._intern_local(name)
@@ -780,16 +926,13 @@ class _WasmEmitter:
                 self._emit_binary(op, left, right)
             case ExprUnary(op=op, operand=operand):
                 self._emit_unary(op, operand)
-            case ExprTernary(condition=cond, true_expr=te, false_expr=fe):
+            case ExprTernary(condition=cond, true_branch=te, false_branch=fe):
                 self._emit_ternary(cond, te, fe)
-            case ExprCall(func=func, args=args):
+            case ExprCall(function=func, args=args):
                 self._emit_func_call(func, args)
-            case ExprString(parts=parts):
-                # String interpolation — emit first part as representative value
-                if parts:
-                    self._emit_expr(parts[0])
-                else:
-                    self._emit_i64_const(0)
+            case ExprString(text=text):
+                # Quoted string — store as data segment pointer
+                self._emit_literal(text)
             case _:
                 # Fallback for unsupported expression types
                 self._emit_i64_const(0)
@@ -1066,7 +1209,7 @@ class _WasmEmitter:
     def _try_const_value(self, node: ExprNode) -> int | None:
         """Try to extract a constant integer value from an expression node."""
         match node:
-            case ExprLiteral(value=value):
+            case ExprLiteral(text=value):
                 try:
                     return int(value)
                 except ValueError:
@@ -1124,8 +1267,8 @@ class _WasmEmitter:
                 self._emit_expr(expr)
                 self._emit(WasmOp.DROP)
 
-            case IRCall(command=command, args=args):
-                self._emit_call_stmt(command, args)
+            case IRCall(command=command, args=args, defs=defs):
+                self._emit_call_stmt(command, args, defs)
 
             case IRReturn(value=value):
                 if value is not None:
@@ -1161,11 +1304,308 @@ class _WasmEmitter:
             case IRTry(body=body, handlers=handlers, finally_body=finally_body):
                 self._emit_try(body, handlers, finally_body)
 
-    def _emit_call_stmt(self, command: str, args: tuple[str, ...]) -> None:
-        """Emit a command invocation as a nop (commands are runtime calls)."""
-        # In the WASM model, most Tcl commands would be imported functions.
-        # For now, emit nop placeholders.
+    def _resolve_proc(self, command: str) -> tuple[int, int] | None:
+        """Look up a user-defined proc by name, returning (func_idx, n_params) or None."""
+        qname = command if command.startswith("::") else f"::{command}"
+        return self._proc_index.get(qname) or self._proc_index.get(command)
+
+    def _emit_call_stmt(
+        self,
+        command: str,
+        args: tuple[str, ...],
+        defs: tuple[str, ...] = (),
+    ) -> None:
+        """Emit a command invocation.
+
+        Dispatches known commands to inline WASM or imported runtime
+        functions.  Unknown commands emit NOP.
+
+        Proc calls are resolved first so that a user-defined proc
+        named ``puts`` shadows the built-in runtime import, matching
+        Tcl's command resolution semantics.
+        """
+        # Scope declarations are NOPs in the WASM model
+        if command in _SCOPE_NOP_COMMANDS:
+            return
+
+        # User-defined proc call takes priority over built-ins
+        proc_info = self._resolve_proc(command)
+        if proc_info is not None:
+            self._emit_cmd_proc_call(proc_info[0], proc_info[1], args, defs)
+            return
+
+        # set/incr: only inline the canonical 1-or-2 arg forms that the
+        # lowering emits as IRCall fallbacks.  Non-canonical shapes
+        # ({*} expansion, dict set, wrong arity) fall through to NOP.
+        if command == "set" and 1 <= len(args) <= 2:
+            self._emit_cmd_set(args)
+            return
+
+        if command == "incr" and 1 <= len(args) <= 2:
+            self._emit_cmd_incr(args)
+            return
+
+        # return: emit WASM return
+        if command == "return":
+            self._emit_cmd_return(args)
+            return
+
+        # string sub-commands
+        if command == "string" and args:
+            self._emit_cmd_string(args, defs)
+            return
+
+        # Commands backed by runtime imports
+        if command in _CMD_RUNTIME:
+            self._emit_cmd_runtime(command, args, defs)
+            return
+
+        # Unknown command — NOP placeholder
         self._emit(WasmOp.NOP)
+
+    def _emit_call_stmt_tail(
+        self,
+        command: str,
+        args: tuple[str, ...],
+        defs: tuple[str, ...] = (),
+    ) -> None:
+        """Emit a command invocation in tail position, keeping its result on the stack.
+
+        Used for implicit return: the last command's result becomes the
+        proc's return value.  Dispatch order matches ``_emit_call_stmt``
+        (proc calls first, then built-ins) to ensure consistent behaviour.
+        """
+        # Scope declarations produce no value
+        if command in _SCOPE_NOP_COMMANDS:
+            self._emit_i64_const(0)
+            return
+
+        # User-defined proc call — keep result
+        proc_info = self._resolve_proc(command)
+        if proc_info is not None:
+            func_idx, n_params = proc_info
+            for arg in args:
+                self._emit_value(arg)
+            # Pad missing args to match WASM signature
+            for _ in range(n_params - len(args)):
+                self._emit_i64_const(0)
+            self._emit_call(func_idx)
+            # Result stays on the stack
+            return
+
+        # set: inline local operations (returns the value)
+        if command == "set" and 1 <= len(args) <= 2:
+            var = args[0]
+            idx = self._intern_local(var)
+            if len(args) >= 2:
+                self._emit_value(args[1])
+                self._emit_local_tee(idx)
+            else:
+                self._emit_local_get(idx)
+            return
+
+        # Runtime command — use the same dispatch logic as non-tail,
+        # but keep the return value on the stack instead of dropping it.
+        if command in _CMD_RUNTIME:
+            import_key, _ = _CMD_RUNTIME[command]
+            fidx = self._shared_imports.get(import_key)
+            if fidx is not None:
+                spec = _RUNTIME_IMPORTS[import_key]
+                param_count = len(spec[2])
+                mutates_var = command in ("append", "lappend")
+                if mutates_var and len(args) >= 2:
+                    var_name = args[0]
+                    var_idx = self._intern_local(var_name)
+                    self._emit_local_get(var_idx)
+                    self._emit_value(args[1])
+                    self._emit_call(fidx)
+                    # Tee: store back into var AND keep on stack
+                    self._emit_local_tee(var_idx)
+                elif command == "puts":
+                    if args:
+                        self._emit_value(args[-1])
+                    else:
+                        self._emit_i64_const(0)
+                    self._emit_call(fidx)
+                    if not spec[3]:
+                        self._emit_i64_const(0)
+                else:
+                    for i in range(min(param_count, len(args))):
+                        self._emit_value(args[i])
+                    for _ in range(param_count - len(args)):
+                        self._emit_i64_const(0)
+                    self._emit_call(fidx)
+                    if not spec[3]:
+                        self._emit_i64_const(0)
+                return
+
+        # Fallback — push 0
+        self._emit_i64_const(0)
+
+    # -- Individual command emitters --
+
+    def _emit_cmd_set(self, args: tuple[str, ...]) -> None:
+        """``set varName ?value?`` — read or write a local variable."""
+        if not args:
+            self._emit(WasmOp.NOP)
+            return
+        var = args[0]
+        idx = self._intern_local(var)
+        if len(args) >= 2:
+            # set x value — store
+            self._emit_value(args[1])
+            self._emit_local_set(idx)
+        else:
+            # set x — read (result unused in statement context)
+            pass
+
+    def _emit_cmd_incr(self, args: tuple[str, ...]) -> None:
+        """``incr varName ?increment?`` — inline i64 add."""
+        if not args:
+            self._emit(WasmOp.NOP)
+            return
+        var = args[0]
+        idx = self._intern_local(var)
+        self._emit_local_get(idx)
+        amt = 1
+        if len(args) >= 2:
+            try:
+                amt = int(args[1])
+            except ValueError:
+                # Variable increment — load the increment value
+                self._emit_value(args[1])
+                self._emit(WasmOp.I64_ADD)
+                self._emit_local_set(idx)
+                return
+        self._emit_i64_const(amt)
+        self._emit(WasmOp.I64_ADD)
+        self._emit_local_set(idx)
+
+    def _emit_cmd_return(self, args: tuple[str, ...]) -> None:
+        """``return ?value?`` — WASM return instruction."""
+        if args:
+            self._emit_value(args[0])
+        else:
+            self._emit_i64_const(0)
+        self._emit(WasmOp.RETURN)
+
+    def _emit_cmd_string(self, args: tuple[str, ...], defs: tuple[str, ...]) -> None:
+        """``string subcommand ...`` — dispatch to runtime import."""
+        if not args:
+            self._emit(WasmOp.NOP)
+            return
+        subcmd = args[0]
+        import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
+        if import_key is not None and import_key in self._shared_imports:
+            func_idx = self._shared_imports[import_key]
+            spec = _RUNTIME_IMPORTS[import_key]
+            param_count = len(spec[2])
+            # Push sub-command args (skip the sub-command name itself)
+            sub_args = args[1:]
+            for i in range(min(param_count, len(sub_args))):
+                self._emit_value(sub_args[i])
+            # Pad missing args with 0
+            for _ in range(param_count - len(sub_args)):
+                self._emit_i64_const(0)
+            self._emit_call(func_idx)
+            # Store result in def variable if present
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            elif spec[3]:
+                # Has return value but no def — drop it
+                self._emit(WasmOp.DROP)
+        else:
+            self._emit(WasmOp.NOP)
+
+    def _emit_cmd_runtime(
+        self,
+        command: str,
+        args: tuple[str, ...],
+        defs: tuple[str, ...],
+    ) -> None:
+        """Emit a call to an imported runtime function for a known command."""
+        import_key, expected_argc = _CMD_RUNTIME[command]
+        func_idx = self._shared_imports.get(import_key)
+        if func_idx is None:
+            # Import not registered (not needed during pre-scan) — NOP
+            self._emit(WasmOp.NOP)
+            return
+
+        spec = _RUNTIME_IMPORTS[import_key]
+        param_count = len(spec[2])
+
+        # For commands like append/lappend that mutate a variable,
+        # the first arg is the variable name and the second is the value.
+        # The runtime receives the current variable value + new value.
+        mutates_var = command in ("append", "lappend")
+        if mutates_var and len(args) >= 2:
+            var_name = args[0]
+            var_idx = self._intern_local(var_name)
+            self._emit_local_get(var_idx)  # current value
+            self._emit_value(args[1])  # value to append
+            self._emit_call(func_idx)
+            # Store result back into the variable
+            self._emit_local_set(var_idx)
+            return
+
+        # For puts, handle optional channel argument: puts ?-nonewline? ?channelId? string
+        if command == "puts":
+            # Use the last argument as the string value
+            if args:
+                self._emit_value(args[-1])
+            else:
+                self._emit_i64_const(0)
+            self._emit_call(func_idx)
+            if spec[3]:
+                # puts returns empty string — drop
+                self._emit(WasmOp.DROP)
+            return
+
+        # Generic: push args up to param_count
+        for i in range(min(param_count, len(args))):
+            self._emit_value(args[i])
+        # Pad missing args
+        for _ in range(param_count - len(args)):
+            self._emit_i64_const(0)
+
+        self._emit_call(func_idx)
+
+        # Store result in def variable if present
+        if defs and spec[3]:
+            def_idx = self._intern_local(defs[0])
+            self._emit_local_set(def_idx)
+        elif spec[3]:
+            self._emit(WasmOp.DROP)
+
+    def _emit_cmd_proc_call(
+        self,
+        func_idx: int,
+        n_params: int,
+        args: tuple[str, ...],
+        defs: tuple[str, ...],
+    ) -> None:
+        """Emit a direct call to a compiled procedure.
+
+        Enforces WASM arity: pushes exactly *n_params* values onto the
+        stack — padding with 0 for missing args and ignoring surplus ones.
+        """
+        # Push arguments up to the callee's parameter count
+        for i in range(min(n_params, len(args))):
+            self._emit_value(args[i])
+        # Pad missing args with 0 (default/optional parameters)
+        for _ in range(n_params - len(args)):
+            self._emit_i64_const(0)
+
+        self._emit_call(func_idx)
+
+        # Store result in def variable if present
+        if defs:
+            def_idx = self._intern_local(defs[0])
+            self._emit_local_set(def_idx)
+        else:
+            # Drop unused return value in statement context
+            self._emit(WasmOp.DROP)
 
     def _emit_if(
         self,
@@ -1599,13 +2039,13 @@ class _WasmEmitter:
             return
 
         # Detect implicit return pattern: last statement is IRExprEval
-        # followed by goto to an empty exit block.  In Tcl, the last
-        # expression result is the proc's return value.
+        # or IRCall followed by goto to an empty exit block.  In Tcl,
+        # the last command's result is the proc's return value.
         stmts = block.statements
         use_implicit_return = False
         if (
             stmts
-            and isinstance(stmts[-1], IRExprEval)
+            and isinstance(stmts[-1], (IRExprEval, IRCall))
             and isinstance(block.terminator, CFGGoto)
             and self._is_exit_block(block.terminator.target)
             and self._is_proc
@@ -1615,10 +2055,13 @@ class _WasmEmitter:
         if use_implicit_return:
             for stmt in stmts[:-1]:
                 self._emit_stmt(stmt)
-            # Emit the final expression without dropping — use as return value
-            last_expr = stmts[-1]
-            assert isinstance(last_expr, IRExprEval)
-            self._emit_expr(last_expr.expr)
+            last = stmts[-1]
+            if isinstance(last, IRExprEval):
+                # Emit the final expression without dropping — use as return value
+                self._emit_expr(last.expr)
+            elif isinstance(last, IRCall):
+                # Emit the call keeping its result on the stack
+                self._emit_call_stmt_tail(last.command, last.args, last.defs)
             self._emit(WasmOp.RETURN)
             return
 
@@ -1746,44 +2189,75 @@ def wasm_codegen_module(
     """
     module = WasmModule()
 
-    # Compile top-level
-    emitter = _WasmEmitter(cfg_module.top_level, optimise=optimise, is_proc=False)
+    # Phase 1: Pre-scan IR to find which runtime imports are needed
+    needed_imports = _scan_needed_imports(cfg_module, ir_module)
+
+    # Phase 2: Register needed imports (these occupy the first function indices)
+    shared_imports: dict[str, int] = {}
+    for import_key in sorted(needed_imports):
+        spec = _RUNTIME_IMPORTS.get(import_key)
+        if spec is None:
+            continue
+        mod_name, func_name, params, results = spec
+        type_idx = module._intern_type(params, results)
+        func_idx = len(module.imports)
+        module.imports.append(WasmImport(module=mod_name, name=func_name, type_idx=type_idx))
+        shared_imports[import_key] = func_idx
+
+    num_imports = len(module.imports)
+
+    # Phase 3: Build a single ordered list of callables (procs + methods)
+    # and the proc name → (func_idx, n_params) map.  This avoids
+    # double-indexing methods that appear in cfg_module.procedures but
+    # are defined in ir_module.methods rather than ir_module.procedures.
+    proc_index: dict[str, tuple[int, int]] = {}
+    callables: list[tuple[str, CFGFunction, tuple[str, ...]]] = []
+
+    for qname, cfg_func in cfg_module.procedures.items():
+        ir_proc = ir_module.procedures.get(qname)
+        if ir_proc is not None:
+            if ir_proc.namespace_scoped:
+                continue
+            callables.append((qname, cfg_func, ir_proc.params))
+        elif ir_module.methods and qname in ir_module.methods:
+            ir_method = ir_module.methods[qname]
+            callables.append((qname, cfg_func, ir_method.params))
+        else:
+            callables.append((qname, cfg_func, ()))
+
+    # Assign function indices: ::top is at num_imports, callables follow
+    func_idx = num_imports + 1  # +1 for ::top
+    for qname, _, params in callables:
+        proc_index[qname] = (func_idx, len(params))
+        func_idx += 1
+
+    # Phase 4: Compile top-level with shared state
+    emitter = _WasmEmitter(
+        cfg_module.top_level,
+        optimise=optimise,
+        is_proc=False,
+        shared_imports=shared_imports,
+        proc_index=proc_index,
+    )
     top_func = emitter.generate()
     top_func.name = "::top"
     module.functions.append(top_func)
     module.data_segments.extend(emitter.data_segments)
 
-    # Compile procedures
-    for qname, cfg_func in cfg_module.procedures.items():
-        ir_proc = ir_module.procedures.get(qname)
-        if ir_proc and ir_proc.namespace_scoped:
-            continue
-        params = ir_proc.params if ir_proc else ()
-        proc_emitter = _WasmEmitter(
+    # Phase 5: Compile callables (procedures and methods)
+    for qname, cfg_func, params in callables:
+        callable_emitter = _WasmEmitter(
             cfg_func,
             params=params,
             optimise=optimise,
             is_proc=True,
+            shared_imports=shared_imports,
+            proc_index=proc_index,
         )
-        proc_func = proc_emitter.generate()
-        module.functions.append(proc_func)
-        module.data_segments.extend(proc_emitter.data_segments)
-
-    # Compile methods (method bodies compile identically to proc bodies,
-    # matching Tcl 9.0's OO-agnostic bytecode design)
-    for key, cfg_func in cfg_module.procedures.items():
-        if key not in ir_module.procedures and key in (ir_module.methods or {}):
-            ir_method = ir_module.methods[key]
-            method_emitter = _WasmEmitter(
-                cfg_func,
-                params=ir_method.params,
-                optimise=optimise,
-                is_proc=True,
-            )
-            method_func = method_emitter.generate()
-            method_func.name = key
-            module.functions.append(method_func)
-            module.data_segments.extend(method_emitter.data_segments)
+        callable_func = callable_emitter.generate()
+        callable_func.name = qname
+        module.functions.append(callable_func)
+        module.data_segments.extend(callable_emitter.data_segments)
 
     # Ensure types are registered
     for func in module.functions:
