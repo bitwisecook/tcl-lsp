@@ -34,6 +34,7 @@ from ..expr_ast import (
     BinOp,
     ExprBinary,
     ExprCall,
+    ExprCommand,
     ExprLiteral,
     ExprNode,
     ExprRaw,
@@ -614,46 +615,65 @@ def _decode_leb128_signed(data: bytes) -> int:
 
 # Runtime function signatures imported from the Tcl runtime.
 # Each entry maps an import key to (module, export_name, param_types, result_types).
+#
+# Values are represented as i32 TclObj pointers.  The TclObj lifecycle
+# imports (obj_new_int, obj_new_string, obj_get_int) bridge between raw
+# WASM integers (i64) used in expr arithmetic and the i32 object pointers
+# passed to/from runtime functions and stored in locals.
 _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
-    "tcl_puts": ("tcl", "puts", [ValType.I64], [ValType.I64]),
-    "tcl_append": ("tcl", "append", [ValType.I64, ValType.I64], [ValType.I64]),
-    "tcl_list_length": ("tcl", "list_length", [ValType.I64], [ValType.I64]),
-    "tcl_lappend": ("tcl", "lappend", [ValType.I64, ValType.I64], [ValType.I64]),
-    "tcl_string_length": ("tcl", "string_length", [ValType.I64], [ValType.I64]),
-    "tcl_string_index": ("tcl", "string_index", [ValType.I64, ValType.I64], [ValType.I64]),
+    # TclObj lifecycle — always imported
+    "tcl_obj_new_int": ("tcl", "obj_new_int", [ValType.I64], [ValType.I32]),
+    "tcl_obj_new_string": ("tcl", "obj_new_string", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_obj_get_int": ("tcl", "obj_get_int", [ValType.I32], [ValType.I64]),
+    # Command runtime — all parameters/results are i32 TclObj pointers
+    "tcl_puts": ("tcl", "puts", [ValType.I32], [ValType.I32]),
+    "tcl_append": ("tcl", "append", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_list_length": ("tcl", "list_length", [ValType.I32], [ValType.I32]),
+    "tcl_lappend": ("tcl", "lappend", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_string_length": ("tcl", "string_length", [ValType.I32], [ValType.I32]),
+    "tcl_string_index": ("tcl", "string_index", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_string_range": (
         "tcl",
         "string_range",
-        [ValType.I64, ValType.I64, ValType.I64],
-        [ValType.I64],
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
     ),
     "tcl_string_compare": (
         "tcl",
         "string_compare",
-        [ValType.I64, ValType.I64],
-        [ValType.I64],
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
     ),
-    "tcl_string_map": ("tcl", "string_map", [ValType.I64, ValType.I64], [ValType.I64]),
-    "tcl_string_match": ("tcl", "string_match", [ValType.I64, ValType.I64], [ValType.I64]),
-    "tcl_string_trim": ("tcl", "string_trim", [ValType.I64], [ValType.I64]),
-    "tcl_concat": ("tcl", "concat", [ValType.I64, ValType.I64], [ValType.I64]),
-    "tcl_list_index": ("tcl", "list_index", [ValType.I64, ValType.I64], [ValType.I64]),
+    "tcl_string_map": ("tcl", "string_map", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_string_match": ("tcl", "string_match", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_string_trim": ("tcl", "string_trim", [ValType.I32], [ValType.I32]),
+    "tcl_concat": ("tcl", "concat", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_list_index": ("tcl", "list_index", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_list_range": (
         "tcl",
         "list_range",
-        [ValType.I64, ValType.I64, ValType.I64],
-        [ValType.I64],
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
     ),
-    "tcl_list_sort": ("tcl", "list_sort", [ValType.I64], [ValType.I64]),
-    "tcl_list_search": ("tcl", "list_search", [ValType.I64, ValType.I64], [ValType.I64]),
-    "tcl_error": ("tcl", "error", [ValType.I64], []),
-    "tcl_format": ("tcl", "format", [ValType.I64, ValType.I64], [ValType.I64]),
-    "tcl_regexp": ("tcl", "regexp", [ValType.I64, ValType.I64], [ValType.I64]),
-    "tcl_open": ("tcl", "open", [ValType.I64], [ValType.I64]),
-    "tcl_close": ("tcl", "close", [ValType.I64], [ValType.I64]),
-    "tcl_read": ("tcl", "read", [ValType.I64], [ValType.I64]),
-    "tcl_gets": ("tcl", "gets", [ValType.I64], [ValType.I64]),
+    "tcl_list_sort": ("tcl", "list_sort", [ValType.I32], [ValType.I32]),
+    "tcl_list_search": ("tcl", "list_search", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_error": ("tcl", "error", [ValType.I32], []),
+    "tcl_format": ("tcl", "format", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_regexp": ("tcl", "regexp", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_open": ("tcl", "open", [ValType.I32], [ValType.I32]),
+    "tcl_close": ("tcl", "close", [ValType.I32], [ValType.I32]),
+    "tcl_read": ("tcl", "read", [ValType.I32], [ValType.I32]),
+    "tcl_gets": ("tcl", "gets", [ValType.I32], [ValType.I32]),
 }
+
+# Import keys for the TclObj lifecycle functions — always registered
+_OBJ_LIFECYCLE_IMPORTS = frozenset(
+    {
+        "tcl_obj_new_int",
+        "tcl_obj_new_string",
+        "tcl_obj_get_int",
+    }
+)
 
 # Commands that map to runtime imports.  The value is
 # (import_key, arg_count_or_None) where ``None`` means variadic.
@@ -748,6 +768,10 @@ def _scan_needed_imports(
         for method in ir_module.methods.values():
             _scan_script(method.body)
 
+    # Always include TclObj lifecycle imports — every non-trivial module
+    # needs them for value creation, storage, and arithmetic unboxing.
+    needed.update(_OBJ_LIFECYCLE_IMPORTS)
+
     return needed
 
 
@@ -783,9 +807,12 @@ _UNARYOP_WASM: dict[UnaryOp, int | None] = {
 class _WasmEmitter:
     """Emits WASM instructions for a single CFG function.
 
-    Variables are represented as WASM locals of type i64 (Tcl values
-    are boxed integers in this simplified model).  String values are
-    stored as pointers into the data segment.
+    Tcl variables are stored as i32 TclObj pointers in WASM locals.
+    Expression evaluation (``expr``) operates on raw i64 integers
+    internally — variables are unboxed via ``tcl_obj_get_int`` before
+    arithmetic and results are boxed via ``tcl_obj_new_int`` when
+    stored back into locals.  String literals are boxed via
+    ``tcl_obj_new_string`` from data-segment pointers.
     """
 
     def __init__(
@@ -834,18 +861,27 @@ class _WasmEmitter:
         self._const_map: dict[str, int] = {}
 
     def _intern_local(self, name: str) -> int:
+        """Register a Tcl variable as an i32 local (TclObj pointer)."""
         idx = self._local_index.get(name)
         if idx is not None:
             return idx
         idx = len(self._local_names)
         self._local_names.append(name)
-        self._local_types.append(ValType.I64)
+        self._local_types.append(ValType.I32)
         self._local_index[name] = idx
         return idx
 
-    def _add_extra_local(self, prefix: str = "_tmp") -> int:
+    def _add_extra_local(self, prefix: str = "_tmp", val_type: ValType = ValType.I64) -> int:
+        """Create an internal temporary local with the given type.
+
+        Internal locals default to i64 for arithmetic scratch space.
+        """
         name = f"{prefix}_{len(self._local_names)}"
-        return self._intern_local(name)
+        idx = len(self._local_names)
+        self._local_names.append(name)
+        self._local_types.append(val_type)
+        self._local_index[name] = idx
+        return idx
 
     def _resolve_var_name(self, value: str) -> str | None:
         """Extract a variable name from a Tcl variable reference.
@@ -860,7 +896,13 @@ class _WasmEmitter:
         return None
 
     def _emit_value(self, value: str) -> None:
-        """Emit a value — resolving variable references or falling back to literal."""
+        """Emit an i32 TclObj pointer for *value*.
+
+        Resolves ``$x`` and ``${x}`` variable references to local.get
+        (already i32), detects ``[cmd ...]`` command substitution and
+        dispatches through the proc-call mechanism, or creates a new
+        TclObj for literals.
+        """
         var = self._resolve_var_name(value)
         if var is not None:
             idx = self._local_index.get(var)
@@ -872,7 +914,121 @@ class _WasmEmitter:
         if idx is not None:
             self._emit_local_get(idx)
             return
-        self._emit_literal(value)
+        # Command substitution: [cmd arg1 arg2 ...]
+        if value.startswith("[") and value.endswith("]"):
+            self._emit_command_subst_value(value)
+            return
+        self._emit_obj_literal(value)
+
+    def _emit_command_subst_value(self, text: str) -> None:
+        """Emit an i32 TclObj for a command substitution in value context.
+
+        Dispatches ``[cmd ...]`` to a known proc (keeping its i32 result)
+        or to ``[expr {...}]`` (compiling the expression and boxing).
+        Falls back to a null TclObj for unknown commands.
+        """
+        cmd_text = text[1:-1].strip()
+        if not cmd_text:
+            self._emit_i32_const(0)
+            return
+
+        parts = self._split_command_subst(cmd_text)
+        if not parts:
+            self._emit_i32_const(0)
+            return
+
+        cmd_name = parts[0]
+        cmd_args = parts[1:]
+
+        # [expr {...}] — compile expression and box to TclObj
+        if cmd_name == "expr" and len(cmd_args) == 1:
+            expr_arg = cmd_args[0]
+            if expr_arg.startswith("{") and expr_arg.endswith("}"):
+                expr_arg = expr_arg[1:-1]
+            from ...parsing.expr_parser import parse_expr
+
+            try:
+                nested_expr = parse_expr(expr_arg)
+                self._emit_expr(nested_expr)
+                self._emit_box_int()
+                return
+            except Exception:
+                pass
+
+        # Proc call — result is already i32 TclObj
+        proc_info = self._resolve_proc(cmd_name)
+        if proc_info is not None:
+            func_idx, n_params = proc_info
+            for i in range(min(n_params, len(cmd_args))):
+                self._emit_value(cmd_args[i])
+            for _ in range(n_params - len(cmd_args)):
+                self._emit_i32_const(0)
+            self._emit_call(func_idx)
+            return
+
+        # Unknown command — null TclObj
+        self._emit_i32_const(0)
+
+    def _emit_obj_literal(self, value: str) -> None:
+        """Create a TclObj for a literal value — pushes i32 pointer.
+
+        Integers are boxed via ``tcl_obj_new_int``; non-numeric strings
+        are boxed via ``tcl_obj_new_string`` from the data segment.
+
+        When lifecycle imports are unavailable (standalone function
+        compilation), falls back to raw i32 constants.
+        """
+        new_int_idx = self._shared_imports.get("tcl_obj_new_int")
+        new_str_idx = self._shared_imports.get("tcl_obj_new_string")
+
+        try:
+            int_val = int(value)
+            if new_int_idx is not None:
+                self._emit_i64_const(int_val)
+                self._emit_call(new_int_idx)
+            else:
+                # Fallback: emit raw i32 constant (for standalone compilation)
+                self._emit_i32_const(int_val)
+        except ValueError:
+            try:
+                float_val = float(value)
+                if new_int_idx is not None:
+                    self._emit_i64_const(int(float_val))
+                    self._emit_call(new_int_idx)
+                else:
+                    self._emit_i32_const(int(float_val))
+            except ValueError:
+                offset = self._intern_string(value)
+                encoded = value.encode("utf-8")
+                if new_str_idx is not None:
+                    # data_ptr = segment offset + 4 (skip length prefix)
+                    self._emit_i32_const(offset + 4)
+                    self._emit_i32_const(len(encoded))
+                    self._emit_call(new_str_idx)
+                else:
+                    self._emit_i32_const(offset)
+
+    def _emit_box_int(self) -> None:
+        """Convert i64 on stack to i32 TclObj pointer via tcl_obj_new_int.
+
+        Falls back to i32.wrap_i64 when lifecycle imports are unavailable.
+        """
+        idx = self._shared_imports.get("tcl_obj_new_int")
+        if idx is not None:
+            self._emit_call(idx)
+        else:
+            self._emit(WasmOp.I32_WRAP_I64)
+
+    def _emit_unbox_int(self) -> None:
+        """Convert i32 TclObj pointer on stack to i64 via tcl_obj_get_int.
+
+        Falls back to i64.extend_i32_s when lifecycle imports are unavailable.
+        """
+        idx = self._shared_imports.get("tcl_obj_get_int")
+        if idx is not None:
+            self._emit_call(idx)
+        else:
+            self._emit(WasmOp.I64_EXTEND_I32_S)
 
     def _intern_string(self, value: str) -> int:
         """Return the memory offset for a string constant."""
@@ -915,13 +1071,20 @@ class _WasmEmitter:
     # -- Expression emission --
 
     def _emit_expr(self, node: ExprNode) -> None:
-        """Emit WASM instructions to evaluate an expression, leaving result on stack."""
+        """Emit WASM instructions to evaluate an expression, leaving i64 on stack.
+
+        Expression evaluation operates on raw i64 integers.  Variables
+        (i32 TclObj pointers) are unboxed via ``tcl_obj_get_int`` before
+        use; the caller is responsible for boxing the result back to i32
+        when storing into a local.
+        """
         match node:
             case ExprLiteral(text=value):
                 self._emit_literal(value)
             case ExprVar(name=name):
                 idx = self._intern_local(name)
                 self._emit_local_get(idx)
+                self._emit_unbox_int()
             case ExprBinary(op=op, left=left, right=right):
                 self._emit_binary(op, left, right)
             case ExprUnary(op=op, operand=operand):
@@ -930,32 +1093,160 @@ class _WasmEmitter:
                 self._emit_ternary(cond, te, fe)
             case ExprCall(function=func, args=args):
                 self._emit_func_call(func, args)
+            case ExprCommand(text=text):
+                self._emit_command_subst(text)
             case ExprString(text=text):
-                # Quoted string — store as data segment pointer
+                # Quoted string in expr context — try numeric parse
                 self._emit_literal(text)
             case _:
-                # Fallback for unsupported expression types
+                # Fallback for unsupported expression types (ExprRaw)
                 self._emit_i64_const(0)
 
+    def _emit_command_subst(self, text: str) -> None:
+        """Emit WASM for a command substitution in expression context.
+
+        Parses ``[cmd arg1 arg2 ...]`` text.  If *cmd* is a known proc,
+        emits a direct call and unboxes the i32 result to i64.  If it's
+        ``[expr {...}]``, recursively compiles the nested expression.
+        Otherwise falls back to i64.const 0.
+
+        The result is always i64 (consistent with expression context).
+        """
+        # Strip surrounding brackets if present
+        cmd_text = text
+        if cmd_text.startswith("[") and cmd_text.endswith("]"):
+            cmd_text = cmd_text[1:-1]
+        cmd_text = cmd_text.strip()
+        if not cmd_text:
+            self._emit_i64_const(0)
+            return
+
+        # Simple split — handles most Tcl command forms.
+        # For nested brackets, we rely on the expression parser having
+        # already extracted the outermost command boundary.
+        parts = self._split_command_subst(cmd_text)
+        if not parts:
+            self._emit_i64_const(0)
+            return
+
+        cmd_name = parts[0]
+        cmd_args = parts[1:]
+
+        # Handle [expr {...}] — recursively compile the expression
+        if cmd_name == "expr" and len(cmd_args) == 1:
+            expr_arg = cmd_args[0]
+            # Strip braces if present
+            if expr_arg.startswith("{") and expr_arg.endswith("}"):
+                expr_arg = expr_arg[1:-1]
+            # Parse and emit the nested expression
+            from ...parsing.expr_parser import parse_expr
+
+            try:
+                nested_expr = parse_expr(expr_arg)
+                self._emit_expr(nested_expr)
+                return
+            except Exception:
+                self._emit_i64_const(0)
+                return
+
+        # Handle proc calls — resolve command to a known procedure
+        proc_info = self._resolve_proc(cmd_name)
+        if proc_info is not None:
+            func_idx, n_params = proc_info
+            # Push arguments as i32 TclObj pointers
+            for i in range(min(n_params, len(cmd_args))):
+                self._emit_value(cmd_args[i])
+            # Pad missing args
+            for _ in range(n_params - len(cmd_args)):
+                self._emit_i32_const(0)
+            self._emit_call(func_idx)
+            # Result is i32 TclObj — unbox to i64 for expression context
+            self._emit_unbox_int()
+            return
+
+        # Unknown command — fallback
+        self._emit_i64_const(0)
+
+    def _split_command_subst(self, text: str) -> list[str]:
+        """Split a command substitution body into command name + args.
+
+        Handles braced arguments ``{...}`` and nested brackets ``[...]``
+        as atomic units.  Simple whitespace splitting for bare words.
+        """
+        parts: list[str] = []
+        i = 0
+        n = len(text)
+        while i < n:
+            # Skip whitespace
+            while i < n and text[i] in " \t\n":
+                i += 1
+            if i >= n:
+                break
+            # Braced argument
+            if text[i] == "{":
+                depth = 1
+                start = i
+                i += 1
+                while i < n and depth > 0:
+                    if text[i] == "{":
+                        depth += 1
+                    elif text[i] == "}":
+                        depth -= 1
+                    i += 1
+                parts.append(text[start:i])
+            # Bracketed argument (nested command)
+            elif text[i] == "[":
+                depth = 1
+                start = i
+                i += 1
+                while i < n and depth > 0:
+                    if text[i] == "[":
+                        depth += 1
+                    elif text[i] == "]":
+                        depth -= 1
+                    i += 1
+                parts.append(text[start:i])
+            # Quoted argument
+            elif text[i] == '"':
+                start = i
+                i += 1
+                while i < n and text[i] != '"':
+                    if text[i] == "\\":
+                        i += 1  # skip escaped char
+                    i += 1
+                i += 1  # skip closing quote
+                parts.append(text[start:i])
+            # Bare word (delimited by whitespace)
+            else:
+                start = i
+                while i < n and text[i] not in " \t\n":
+                    # Handle nested brackets within bare words
+                    if text[i] == "[":
+                        depth = 1
+                        i += 1
+                        while i < n and depth > 0:
+                            if text[i] == "[":
+                                depth += 1
+                            elif text[i] == "]":
+                                depth -= 1
+                            i += 1
+                    else:
+                        i += 1
+                parts.append(text[start:i])
+        return parts
+
     def _emit_literal(self, value: str) -> None:
-        """Emit a literal value as an i64 constant."""
+        """Emit a literal as a raw i64 constant (for expression context)."""
         try:
             int_val = int(value)
-            if self._optimise:
-                # Optimised: use i64.const directly
-                self._emit_i64_const(int_val)
-            else:
-                # Non-optimised: explicit i64.const
-                self._emit_i64_const(int_val)
+            self._emit_i64_const(int_val)
         except ValueError:
             try:
                 float_val = float(value)
-                # Store as integer bit pattern
                 self._emit_i64_const(int(float_val))
             except ValueError:
-                # String literal — store as pointer to data segment
-                offset = self._intern_string(value)
-                self._emit_i64_const(offset)
+                # String literal in expr context — no meaningful integer value
+                self._emit_i64_const(0)
 
     # WASM comparison ops that return i32 instead of i64
     _I32_RESULT_OPS = frozenset(
@@ -1226,7 +1517,7 @@ class _WasmEmitter:
         match stmt:
             case IRAssignConst(name=name, value=value):
                 idx = self._intern_local(name)
-                self._emit_literal(value)
+                self._emit_obj_literal(value)
                 self._emit_local_set(idx)
                 if self._optimise:
                     try:
@@ -1237,6 +1528,7 @@ class _WasmEmitter:
             case IRAssignExpr(name=name, expr=expr):
                 idx = self._intern_local(name)
                 self._emit_expr(expr)
+                self._emit_box_int()
                 self._emit_local_set(idx)
                 if self._optimise:
                     self._const_map.pop(name, None)
@@ -1251,14 +1543,24 @@ class _WasmEmitter:
             case IRIncr(name=name, amount=amount):
                 idx = self._intern_local(name)
                 self._emit_local_get(idx)
+                self._emit_unbox_int()
                 amt = 1
                 if amount is not None:
                     try:
                         amt = int(amount)
                     except ValueError:
-                        amt = 1
+                        # Variable increment — unbox the amount variable
+                        self._emit_value(amount)
+                        self._emit_unbox_int()
+                        self._emit(WasmOp.I64_ADD)
+                        self._emit_box_int()
+                        self._emit_local_set(idx)
+                        if self._optimise:
+                            self._const_map.pop(name, None)
+                        return
                 self._emit_i64_const(amt)
                 self._emit(WasmOp.I64_ADD)
+                self._emit_box_int()
                 self._emit_local_set(idx)
                 if self._optimise:
                     self._const_map.pop(name, None)
@@ -1270,11 +1572,14 @@ class _WasmEmitter:
             case IRCall(command=command, args=args, defs=defs):
                 self._emit_call_stmt(command, args, defs)
 
-            case IRReturn(value=value):
-                if value is not None:
+            case IRReturn(value=value, expr=expr):
+                if expr is not None:
+                    self._emit_expr(expr)
+                    self._emit_box_int()
+                elif value is not None:
                     self._emit_value(value)
                 else:
-                    self._emit_i64_const(0)
+                    self._emit_i32_const(0)
                 self._emit(WasmOp.RETURN)
 
             case IRBarrier():
@@ -1369,18 +1674,18 @@ class _WasmEmitter:
         args: tuple[str, ...],
         defs: tuple[str, ...] = (),
     ) -> None:
-        """Emit a command invocation in tail position, keeping its result on the stack.
+        """Emit a command invocation in tail position, keeping its i32 result on the stack.
 
         Used for implicit return: the last command's result becomes the
         proc's return value.  Dispatch order matches ``_emit_call_stmt``
         (proc calls first, then built-ins) to ensure consistent behaviour.
         """
-        # Scope declarations produce no value
+        # Scope declarations produce no value — return null TclObj
         if command in _SCOPE_NOP_COMMANDS:
-            self._emit_i64_const(0)
+            self._emit_i32_const(0)
             return
 
-        # User-defined proc call — keep result
+        # User-defined proc call — keep i32 result
         proc_info = self._resolve_proc(command)
         if proc_info is not None:
             func_idx, n_params = proc_info
@@ -1388,12 +1693,12 @@ class _WasmEmitter:
                 self._emit_value(arg)
             # Pad missing args to match WASM signature
             for _ in range(n_params - len(args)):
-                self._emit_i64_const(0)
+                self._emit_i32_const(0)
             self._emit_call(func_idx)
-            # Result stays on the stack
+            # i32 result stays on the stack
             return
 
-        # set: inline local operations (returns the value)
+        # set: inline local operations (returns the i32 TclObj)
         if command == "set" and 1 <= len(args) <= 2:
             var = args[0]
             idx = self._intern_local(var)
@@ -1419,28 +1724,28 @@ class _WasmEmitter:
                     self._emit_local_get(var_idx)
                     self._emit_value(args[1])
                     self._emit_call(fidx)
-                    # Tee: store back into var AND keep on stack
+                    # Tee: store back into var AND keep on stack (i32)
                     self._emit_local_tee(var_idx)
                 elif command == "puts":
                     if args:
                         self._emit_value(args[-1])
                     else:
-                        self._emit_i64_const(0)
+                        self._emit_i32_const(0)
                     self._emit_call(fidx)
                     if not spec[3]:
-                        self._emit_i64_const(0)
+                        self._emit_i32_const(0)
                 else:
                     for i in range(min(param_count, len(args))):
                         self._emit_value(args[i])
                     for _ in range(param_count - len(args)):
-                        self._emit_i64_const(0)
+                        self._emit_i32_const(0)
                     self._emit_call(fidx)
                     if not spec[3]:
-                        self._emit_i64_const(0)
+                        self._emit_i32_const(0)
                 return
 
-        # Fallback — push 0
-        self._emit_i64_const(0)
+        # Fallback — push null TclObj
+        self._emit_i32_const(0)
 
     # -- Individual command emitters --
 
@@ -1460,37 +1765,41 @@ class _WasmEmitter:
             pass
 
     def _emit_cmd_incr(self, args: tuple[str, ...]) -> None:
-        """``incr varName ?increment?`` — inline i64 add."""
+        """``incr varName ?increment?`` — unbox, i64 add, rebox."""
         if not args:
             self._emit(WasmOp.NOP)
             return
         var = args[0]
         idx = self._intern_local(var)
         self._emit_local_get(idx)
+        self._emit_unbox_int()
         amt = 1
         if len(args) >= 2:
             try:
                 amt = int(args[1])
             except ValueError:
-                # Variable increment — load the increment value
+                # Variable increment — unbox the increment value
                 self._emit_value(args[1])
+                self._emit_unbox_int()
                 self._emit(WasmOp.I64_ADD)
+                self._emit_box_int()
                 self._emit_local_set(idx)
                 return
         self._emit_i64_const(amt)
         self._emit(WasmOp.I64_ADD)
+        self._emit_box_int()
         self._emit_local_set(idx)
 
     def _emit_cmd_return(self, args: tuple[str, ...]) -> None:
-        """``return ?value?`` — WASM return instruction."""
+        """``return ?value?`` — WASM return instruction (i32 TclObj)."""
         if args:
             self._emit_value(args[0])
         else:
-            self._emit_i64_const(0)
+            self._emit_i32_const(0)
         self._emit(WasmOp.RETURN)
 
     def _emit_cmd_string(self, args: tuple[str, ...], defs: tuple[str, ...]) -> None:
-        """``string subcommand ...`` — dispatch to runtime import."""
+        """``string subcommand ...`` — dispatch to runtime import (i32 args)."""
         if not args:
             self._emit(WasmOp.NOP)
             return
@@ -1504,9 +1813,9 @@ class _WasmEmitter:
             sub_args = args[1:]
             for i in range(min(param_count, len(sub_args))):
                 self._emit_value(sub_args[i])
-            # Pad missing args with 0
+            # Pad missing args with null TclObj
             for _ in range(param_count - len(sub_args)):
-                self._emit_i64_const(0)
+                self._emit_i32_const(0)
             self._emit_call(func_idx)
             # Store result in def variable if present
             if defs:
@@ -1555,19 +1864,19 @@ class _WasmEmitter:
             if args:
                 self._emit_value(args[-1])
             else:
-                self._emit_i64_const(0)
+                self._emit_i32_const(0)
             self._emit_call(func_idx)
             if spec[3]:
                 # puts returns empty string — drop
                 self._emit(WasmOp.DROP)
             return
 
-        # Generic: push args up to param_count
+        # Generic: push args up to param_count (all i32 TclObj pointers)
         for i in range(min(param_count, len(args))):
             self._emit_value(args[i])
-        # Pad missing args
+        # Pad missing args with null TclObj
         for _ in range(param_count - len(args)):
-            self._emit_i64_const(0)
+            self._emit_i32_const(0)
 
         self._emit_call(func_idx)
 
@@ -1587,15 +1896,16 @@ class _WasmEmitter:
     ) -> None:
         """Emit a direct call to a compiled procedure.
 
-        Enforces WASM arity: pushes exactly *n_params* values onto the
-        stack — padding with 0 for missing args and ignoring surplus ones.
+        Enforces WASM arity: pushes exactly *n_params* i32 TclObj
+        pointers onto the stack — padding with null (0) for missing
+        args and ignoring surplus ones.
         """
         # Push arguments up to the callee's parameter count
         for i in range(min(n_params, len(args))):
             self._emit_value(args[i])
-        # Pad missing args with 0 (default/optional parameters)
+        # Pad missing args with null TclObj
         for _ in range(n_params - len(args)):
-            self._emit_i64_const(0)
+            self._emit_i32_const(0)
 
         self._emit_call(func_idx)
 
@@ -1696,13 +2006,16 @@ class _WasmEmitter:
         variable receives the counter on each iteration.  This preserves
         correct execution for numeric-range patterns and avoids silently
         compiling the loop into a no-op.
+
+        Internal counter/limit are i64; the loop variable is i32 TclObj.
         """
         counter = self._add_extra_local("_foreach_i")
         limit = self._add_extra_local("_foreach_n")
 
-        # Derive limit from the first iterator's list variable.
+        # Derive limit from the first iterator's list variable (unbox to i64).
         first_vars, first_list = iterators[0]
         self._emit_value(first_list)
+        self._emit_unbox_int()
         self._emit_local_set(limit)
 
         # counter = 0
@@ -1718,11 +2031,11 @@ class _WasmEmitter:
         self._emit(WasmOp.I64_GE_S)
         self._emit_br_if(1)
 
-        # Assign counter value to the first loop variable so the body
-        # can reference it.
+        # Assign counter value to the first loop variable (box to i32 TclObj).
         if first_vars:
             var_local = self._intern_local(first_vars[0])
             self._emit_local_get(counter)
+            self._emit_box_int()
             self._emit_local_set(var_local)
 
         self._emit_script(body)
@@ -1738,16 +2051,21 @@ class _WasmEmitter:
         self._emit(WasmOp.END)
 
     def _emit_switch(self, subject: str, arms, default_body) -> None:
-        """Emit a switch statement as a chain of if/else."""
-        subject_local = self._intern_local(f"_switch_{subject}")
+        """Emit a switch statement as a chain of if/else.
+
+        The subject is unboxed to i64 once and compared against pattern
+        literals (also i64) for each arm.
+        """
+        subject_local = self._add_extra_local(f"_switch_{subject}")
         self._emit_value(subject)
+        self._emit_unbox_int()
         self._emit_local_set(subject_local)
 
         arm_count = len(arms)
         for i, arm in enumerate(arms):
             if arm.body is None:
                 continue
-            # Compare subject against pattern
+            # Compare subject (i64) against pattern (i64)
             self._emit_local_get(subject_local)
             self._emit_literal(arm.pattern)
             self._emit(WasmOp.I64_EQ)
@@ -1770,7 +2088,7 @@ class _WasmEmitter:
         self._emit_script(body)
         if result_var:
             idx = self._intern_local(result_var)
-            self._emit_i64_const(0)
+            self._emit_i32_const(0)
             self._emit_local_set(idx)
 
     def _emit_try(self, body: IRScript, handlers, finally_body) -> None:
@@ -1964,9 +2282,7 @@ class _WasmEmitter:
         ``IRCall`` contains the list variable and loop variable definitions,
         followed by a branch on the opaque ``<foreach_has_next>`` condition.
 
-        Since the WASM backend operates on integer values only, the list
-        variable's integer value is used as the loop bound and the first
-        loop variable receives the counter on each iteration.
+        Internal counter/limit are i64; the loop variable is i32 TclObj.
         """
         # Extract list variable and loop variable from the header's IRCall.
         list_var: str | None = None
@@ -1982,9 +2298,10 @@ class _WasmEmitter:
         counter = self._add_extra_local("_foreach_i")
         limit = self._add_extra_local("_foreach_n")
 
-        # Derive limit from the list variable.
+        # Derive limit from the list variable (unbox to i64).
         if list_var is not None:
             self._emit_value(list_var)
+            self._emit_unbox_int()
         else:
             self._emit_i64_const(0)
         self._emit_local_set(limit)
@@ -2002,10 +2319,11 @@ class _WasmEmitter:
         self._emit(WasmOp.I64_GE_S)
         self._emit_br_if(1)
 
-        # Assign counter to the loop variable so the body can use it.
+        # Assign counter to the loop variable (box to i32 TclObj).
         if loop_var is not None:
             var_local = self._intern_local(loop_var)
             self._emit_local_get(counter)
+            self._emit_box_int()
             self._emit_local_set(var_local)
 
         # Emit the body block's statements (but not its goto back-edge).
@@ -2057,10 +2375,11 @@ class _WasmEmitter:
                 self._emit_stmt(stmt)
             last = stmts[-1]
             if isinstance(last, IRExprEval):
-                # Emit the final expression without dropping — use as return value
+                # Emit the final expression (i64), box to i32 for return
                 self._emit_expr(last.expr)
+                self._emit_box_int()
             elif isinstance(last, IRCall):
-                # Emit the call keeping its result on the stack
+                # Emit the call keeping its i32 result on the stack
                 self._emit_call_stmt_tail(last.command, last.args, last.defs)
             self._emit(WasmOp.RETURN)
             return
@@ -2073,7 +2392,7 @@ class _WasmEmitter:
                 if value is not None:
                     self._emit_value(value)
                 else:
-                    self._emit_i64_const(0)
+                    self._emit_i32_const(0)
                 self._emit(WasmOp.RETURN)
 
             case CFGBranch(condition=condition, true_target=tt, false_target=ft):
@@ -2110,12 +2429,16 @@ class _WasmEmitter:
     # -- Entry point --
 
     def generate(self) -> WasmFunction:
-        """Generate a complete WASM function."""
+        """Generate a complete WASM function.
+
+        All functions take i32 TclObj params and return a single i32
+        TclObj result (null pointer 0 for void/empty-string returns).
+        """
         self._emit_block(self._cfg.entry)
 
-        # Ensure function has a return value on all paths
+        # Ensure function has a return value on all paths (i32 null TclObj)
         if not self._body or self._body[-1].op != WasmOp.RETURN:
-            self._emit_i64_const(0)
+            self._emit_i32_const(0)
             self._emit(WasmOp.END)
         else:
             self._emit(WasmOp.END)
@@ -2124,13 +2447,13 @@ class _WasmEmitter:
         self._run_optimisations()
 
         # Separate param types from extra locals
-        param_types = [ValType.I64] * len(self._params)
+        param_types = [ValType.I32] * len(self._params)
         extra_locals = self._local_types[len(self._params) :]
 
         return WasmFunction(
             name=self._cfg.name,
             params=param_types,
-            results=[ValType.I64],
+            results=[ValType.I32],
             locals=extra_locals,
             body=self._body,
             local_names=[f"${n}" for n in self._local_names],
@@ -2158,13 +2481,22 @@ def wasm_codegen_function(
     *,
     optimise: bool = False,
     is_proc: bool = False,
+    shared_imports: dict[str, int] | None = None,
+    proc_index: dict[str, tuple[int, int]] | None = None,
 ) -> WasmFunction:
     """Generate a WASM function from a CFG function.
 
     When *optimise* is ``True``, constant folding, peephole
     optimisation, and dead-code elimination are applied.
     """
-    emitter = _WasmEmitter(cfg, params=params, optimise=optimise, is_proc=is_proc)
+    emitter = _WasmEmitter(
+        cfg,
+        params=params,
+        optimise=optimise,
+        is_proc=is_proc,
+        shared_imports=shared_imports,
+        proc_index=proc_index,
+    )
     return emitter.generate()
 
 

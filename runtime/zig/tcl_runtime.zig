@@ -93,16 +93,18 @@ fn obj_alloc() u32 {
     return ptr;
 }
 
-// Exported: create a new integer TclObj
-export fn tcl_obj_new_int(value: i64) i32 {
+// Exported: create a new integer TclObj.
+// Export name matches wasm.py _RUNTIME_IMPORTS["tcl_obj_new_int"] → "obj_new_int".
+export fn obj_new_int(value: i64) i32 {
     const ptr = obj_alloc();
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_INT);
     write_i64(ptr + OBJ_INT_CACHE, value);
     return @as(i32, @intCast(ptr));
 }
 
-// Exported: create a new string TclObj from a data-segment pointer + length
-export fn tcl_obj_new_string(data_ptr: i32, length: i32) i32 {
+// Exported: create a new string TclObj from a data-segment pointer + length.
+// Export name matches wasm.py _RUNTIME_IMPORTS["tcl_obj_new_string"] → "obj_new_string".
+export fn obj_new_string(data_ptr: i32, length: i32) i32 {
     const ptr = obj_alloc();
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_STRING);
     write_i32(ptr + OBJ_STR_PTR, data_ptr);
@@ -110,8 +112,9 @@ export fn tcl_obj_new_string(data_ptr: i32, length: i32) i32 {
     return @as(i32, @intCast(ptr));
 }
 
-// Exported: get the integer value of a TclObj
-export fn tcl_obj_get_int(obj: i32) i64 {
+// Exported: get the integer value of a TclObj.
+// Export name matches wasm.py _RUNTIME_IMPORTS["tcl_obj_get_int"] → "obj_get_int".
+export fn obj_get_int(obj: i32) i64 {
     const addr: u32 = @intCast(obj);
     return read_i64(addr + OBJ_INT_CACHE);
 }
@@ -131,166 +134,176 @@ export fn tcl_obj_release(obj: i32) void {
     // TODO: free when rc reaches 0
 }
 
-// Exported: variable set (identity in the i64 model)
-export fn tcl_var_set(value: i64) i64 {
+// Exported: variable set (identity — pass-through TclObj pointer)
+export fn tcl_var_set(value: i32) i32 {
     return value;
 }
 
-// Exported: variable get (identity in the i64 model)
-export fn tcl_var_get(value: i64) i64 {
+// Exported: variable get (identity — pass-through TclObj pointer)
+export fn tcl_var_get(value: i32) i32 {
     return value;
 }
 
-// Exported: increment an integer value
-export fn tcl_incr(value: i64, amount: i64) i64 {
-    return value + amount;
+// Exported: increment an integer TclObj, returning a new TclObj
+export fn tcl_incr(obj: i32, amount: i32) i32 {
+    const val = obj_get_int(obj);
+    const amt = obj_get_int(amount);
+    return obj_new_int(val + amt);
 }
+
+// -- Command runtime stubs --
+// All parameters and results are i32 TclObj pointers.
+// In freestanding mode these are mostly stubs; the real logic will
+// be implemented when switching to wasm32-wasi.
 
 // Exported: puts — write value to stdout.
-// In freestanding mode this is a stub; wasm32-wasi target would use fd_write.
-export fn puts(value: i64) i64 {
+export fn puts(value: i32) i32 {
     _ = value;
-    // Stub: no I/O in freestanding mode
+    // Stub: no I/O in freestanding mode.  Return null TclObj.
     return 0;
 }
 
-// Exported: append (matches _RUNTIME_IMPORTS["tcl_append"] import name)
-export fn append(current: i64, addition: i64) i64 {
-    // In the i64 model, string append is not meaningful.
-    // Return the addition value as a placeholder.
+// Exported: append two strings
+export fn append(current: i32, addition: i32) i32 {
+    // Stub: return the addition value as placeholder.
     _ = current;
     return addition;
 }
 
-// Exported: string compare
-export fn string_compare(a: i64, b: i64) i64 {
-    if (a < b) return -1;
-    if (a > b) return 1;
-    return 0;
+// Exported: string compare (returns TclObj wrapping -1/0/1)
+export fn string_compare(a: i32, b: i32) i32 {
+    const va = obj_get_int(a);
+    const vb = obj_get_int(b);
+    if (va < vb) return obj_new_int(-1);
+    if (va > vb) return obj_new_int(1);
+    return obj_new_int(0);
 }
 
-// Exported: list length
-// In the i64 model, the "list" is just an integer count.
-export fn list_length(list: i64) i64 {
+// Exported: list length — returns TclObj wrapping integer count
+export fn list_length(list: i32) i32 {
+    // Stub: treat the integer value of the TclObj as the count
     return list;
 }
 
 // Exported: list append
-export fn lappend(current: i64, value: i64) i64 {
+export fn lappend(current: i32, value: i32) i32 {
     _ = value;
-    return current + 1;
+    // Stub: return a new TclObj with incremented count
+    const n = obj_get_int(current);
+    return obj_new_int(n + 1);
 }
 
 // Exported: string length
-// In the i64 model, returns 0 for non-string values.
-export fn string_length(value: i64) i64 {
+export fn string_length(value: i32) i32 {
     _ = value;
-    return 0;
+    return obj_new_int(0);
 }
 
 // Exported: string index
-export fn string_index(value: i64, idx: i64) i64 {
+export fn string_index(value: i32, idx: i32) i32 {
     _ = value;
     _ = idx;
-    return 0;
+    return obj_new_int(0);
 }
 
 // Exported: string range
-export fn string_range(value: i64, first: i64, last: i64) i64 {
+export fn string_range(value: i32, first: i32, last: i32) i32 {
     _ = value;
     _ = first;
     _ = last;
-    return 0;
+    return obj_new_int(0);
 }
 
 // Exported: string map
-export fn string_map(mapping: i64, value: i64) i64 {
+export fn string_map(mapping: i32, value: i32) i32 {
     _ = mapping;
     return value;
 }
 
 // Exported: string match
-export fn string_match(pattern: i64, value: i64) i64 {
-    return if (pattern == value) @as(i64, 1) else @as(i64, 0);
+export fn string_match(pattern: i32, value: i32) i32 {
+    const vp = obj_get_int(pattern);
+    const vv = obj_get_int(value);
+    return obj_new_int(if (vp == vv) @as(i64, 1) else @as(i64, 0));
 }
 
 // Exported: string trim
-export fn string_trim(value: i64) i64 {
+export fn string_trim(value: i32) i32 {
     return value;
 }
 
 // Exported: concat
-export fn concat(a: i64, b: i64) i64 {
+export fn concat(a: i32, b: i32) i32 {
     _ = a;
     return b;
 }
 
 // Exported: list index
-export fn list_index(list: i64, idx: i64) i64 {
+export fn list_index(list: i32, idx: i32) i32 {
     _ = list;
     _ = idx;
-    return 0;
+    return obj_new_int(0);
 }
 
 // Exported: list range
-export fn list_range(list: i64, first: i64, last: i64) i64 {
+export fn list_range(list: i32, first: i32, last: i32) i32 {
     _ = list;
     _ = first;
     _ = last;
-    return 0;
+    return obj_new_int(0);
 }
 
 // Exported: list sort
-export fn list_sort(list: i64) i64 {
+export fn list_sort(list: i32) i32 {
     return list;
 }
 
 // Exported: list search
-export fn list_search(list: i64, value: i64) i64 {
+export fn list_search(list: i32, value: i32) i32 {
     _ = list;
     _ = value;
-    return -1;
+    return obj_new_int(-1);
 }
 
 // Exported: error
-export fn @"error"(msg: i64) void {
+export fn @"error"(msg: i32) void {
     _ = msg;
     // In freestanding mode, errors are no-ops
 }
 
 // Exported: format
-export fn format(fmt: i64, value: i64) i64 {
+export fn format(fmt: i32, value: i32) i32 {
     _ = fmt;
     return value;
 }
 
 // Exported: regexp
-export fn regexp(pattern: i64, str: i64) i64 {
+export fn regexp(pattern: i32, str: i32) i32 {
     _ = pattern;
     _ = str;
-    return 0;
+    return obj_new_int(0);
 }
 
 // Exported: open
-export fn open(path: i64) i64 {
+export fn open(path: i32) i32 {
     _ = path;
-    return -1; // no file I/O in freestanding
+    return obj_new_int(-1); // no file I/O in freestanding
 }
 
 // Exported: close
-export fn close(fd: i64) i64 {
+export fn close(fd: i32) i32 {
     _ = fd;
-    return 0;
+    return obj_new_int(0);
 }
 
 // Exported: read
-export fn read(fd: i64) i64 {
+export fn read(fd: i32) i32 {
     _ = fd;
-    return 0;
+    return obj_new_int(0);
 }
 
 // Exported: gets
-export fn gets(fd: i64) i64 {
+export fn gets(fd: i32) i32 {
     _ = fd;
-    return 0;
+    return obj_new_int(0);
 }
