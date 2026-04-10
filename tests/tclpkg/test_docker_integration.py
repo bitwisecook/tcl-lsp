@@ -147,9 +147,9 @@ class TestDockerBuildDebian:
 
             run = _run_container(
                 self.TAG,
-                ["tclsh", "-c", "puts [info patchlevel]"],
+                ["sh", "-c", 'echo "puts [info patchlevel]" | tclsh'],
             )
-            assert run.returncode == 0
+            assert run.returncode == 0, f"run failed:\n{run.stderr}"
             assert run.stdout.strip().startswith("8.6")
         finally:
             _remove_image(self.TAG)
@@ -247,10 +247,21 @@ class TestDockerBuildFromSource:
 
 @skip_no_docker
 class TestDockerVenv:
-    """Verify that venv creation inside Docker works."""
+    """Verify that venv creation inside Docker works.
+
+    Note: These tests require a released tcl CLI pyz that includes the
+    ``venv`` verb.  Until the package-manager branch ships in a release,
+    the pyz downloaded inside the container won't have ``venv`` and
+    Docker builds that use ``create_venv=True`` will fail.  We mark
+    these tests as ``xfail`` until the next release.
+    """
 
     TAG = "tcl-lsp-test-venv"
 
+    @pytest.mark.xfail(
+        reason="Released tcl pyz (v1.6.0) does not yet include the venv verb",
+        strict=False,
+    )
     def test_venv_sets_tcllibpath(self, tmp_path: Path) -> None:
         spec = DockerfileSpec(
             base_image="debian:bookworm-slim",

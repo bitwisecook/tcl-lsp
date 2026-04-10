@@ -73,7 +73,7 @@ _RECIPES: dict[str, dict[str, str]] = {
                 rm -rf /var/lib/apt/lists/*"""),
         "9.0": textwrap.dedent("""\
             RUN apt-get update && apt-get install -y --no-install-recommends \\
-                    build-essential curl ca-certificates && \\
+                    build-essential curl ca-certificates zlib1g-dev && \\
                 curl -fSL "https://prdownloads.sourceforge.net/tcl/tcl9.0.1-src.tar.gz" \\
                     -o /tmp/tcl.tar.gz && \\
                 tar -xzf /tmp/tcl.tar.gz -C /tmp && \\
@@ -81,7 +81,7 @@ _RECIPES: dict[str, dict[str, str]] = {
                 ./configure --prefix=/usr/local && make -j"$(nproc)" && make install && \\
                 ln -sf /usr/local/bin/tclsh9.0 /usr/local/bin/tclsh && \\
                 rm -rf /tmp/tcl* && \\
-                apt-get purge -y --auto-remove build-essential && \\
+                apt-get purge -y --auto-remove build-essential zlib1g-dev && \\
                 rm -rf /var/lib/apt/lists/*"""),
     },
     # ── Alpine ─────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ _RECIPES: dict[str, dict[str, str]] = {
         "8.6": textwrap.dedent("""\
             RUN apk add --no-cache tcl"""),
         "9.0": textwrap.dedent("""\
-            RUN apk add --no-cache build-base curl && \\
+            RUN apk add --no-cache build-base curl zlib-dev && \\
                 curl -fSL "https://prdownloads.sourceforge.net/tcl/tcl9.0.1-src.tar.gz" \\
                     -o /tmp/tcl.tar.gz && \\
                 tar -xzf /tmp/tcl.tar.gz -C /tmp && \\
@@ -117,7 +117,7 @@ _RECIPES: dict[str, dict[str, str]] = {
                 ./configure --prefix=/usr/local && make -j"$(nproc)" && make install && \\
                 ln -sf /usr/local/bin/tclsh9.0 /usr/local/bin/tclsh && \\
                 rm -rf /tmp/tcl* && \\
-                apk del build-base"""),
+                apk del build-base zlib-dev"""),
     },
     # ── RHEL / Fedora / CentOS ─────────────────────────────────────────
     "redhat": {
@@ -144,7 +144,7 @@ _RECIPES: dict[str, dict[str, str]] = {
         "8.6": textwrap.dedent("""\
             RUN dnf install -y tcl && dnf clean all"""),
         "9.0": textwrap.dedent("""\
-            RUN dnf install -y gcc make curl && \\
+            RUN dnf install -y gcc make curl zlib-devel && \\
                 curl -fSL "https://prdownloads.sourceforge.net/tcl/tcl9.0.1-src.tar.gz" \\
                     -o /tmp/tcl.tar.gz && \\
                 tar -xzf /tmp/tcl.tar.gz -C /tmp && \\
@@ -152,7 +152,7 @@ _RECIPES: dict[str, dict[str, str]] = {
                 ./configure --prefix=/usr/local && make -j"$(nproc)" && make install && \\
                 ln -sf /usr/local/bin/tclsh9.0 /usr/local/bin/tclsh && \\
                 rm -rf /tmp/tcl* && \\
-                dnf remove -y gcc make && dnf clean all"""),
+                dnf remove -y gcc make zlib-devel && dnf clean all"""),
     },
 }
 
