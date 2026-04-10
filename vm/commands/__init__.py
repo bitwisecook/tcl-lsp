@@ -17,6 +17,7 @@ def register_builtins() -> None:
     """Register all built-in Tcl command handlers on the global REGISTRY."""
     from . import (
         array_cmds,
+        binary_cmds,
         clock_cmds,
         control,
         core,
@@ -36,6 +37,7 @@ def register_builtins() -> None:
         proc_cmds,
         regexp_cmds,
         string_cmds,
+        tm_cmds,
         trace_cmds,
     )
 
@@ -57,6 +59,8 @@ def register_builtins() -> None:
     file_cmds.register()
     interp_cmds.register()
     encoding_cmds.register()
+    binary_cmds.register()
+    tm_cmds.register()
     trace_cmds.register()
     clock_cmds.register()
     oo_cmds.register()
