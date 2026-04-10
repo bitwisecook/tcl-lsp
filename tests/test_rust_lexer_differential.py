@@ -1,29 +1,21 @@
 """Differential test harness for the Rust and Python Tcl lexers.
 
-The Rust lexer is grown incrementally. At L3 it only understands the
-SEP / EOL / COMMENT / plain ESC subset; inputs containing any of the
-"deferred" characters (``$``, ``[``, ``]``, ``{``, ``}``, ``"``,
-``\\``) cause the Rust lexer to raise ``ValueError``. This harness
+The harness feeds each input through both ``core.parsing.lexer.TclLexer``
+(the Python reference) and ``tcl_lsp_rust.lexer_tokenise_with_config``
+(the Rust port) and asserts the two token streams are equal field-by-field.
 
-1. hand-curates a corpus of inputs that exercise the currently
-   supported subset;
-2. also collects inputs from the broader lexer test suite that
-   happen to fall in the subset;
-3. feeds each input through both ``core.parsing.lexer.TclLexer``
-   (the Python reference) and ``tcl_lsp_rust.lexer_tokenise`` (the
-   Rust port);
-4. asserts the two token streams are equal field-by-field.
+The corpus consists of:
 
-As later chunks shrink the "deferred" character set, the corpus
-picked up in step (2) grows automatically. Nothing in this file
-needs to change when a chunk adds support for a construct — the new
-inputs simply start passing the filter.
+1. hand-curated inputs that exercise specific constructs (variables,
+   commands, braces, quotes, backslash escapes, expand prefix, expressions);
+2. inputs collected from the broader lexer test suite that exercise the
+   same constructs.
 
-The harness is restricted to ASCII inputs because the Rust lexer
-tracks column as byte-offset-within-line while the Python lexer
-tracks code-point-offset-within-line. The two agree for ASCII and
-drift for supplementary-plane characters. Multi-byte column parity
-is deferred work tracked in ``docs/rust-rewrite.md``.
+The harness is restricted to ASCII inputs because the Rust lexer tracks
+column as byte-offset-within-line while the Python lexer tracks
+code-point-offset-within-line. The two agree for ASCII and drift for
+supplementary-plane characters. Multi-byte column parity is deferred work
+tracked in ``docs/rust-rewrite.md``.
 """
 
 from __future__ import annotations

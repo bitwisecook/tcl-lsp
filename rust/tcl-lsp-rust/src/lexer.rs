@@ -30,15 +30,17 @@ use tcl_lexer::{LexError, Lexer, LexerConfig, SourceMap, Token};
 
 use crate::tokens::{PySourcePosition, PyToken, PyTokenType};
 
-/// Tokenise `source` via the Rust lexer and return the result as a
-/// list of `tcl_lsp_rust.Token` instances.
+/// Tokenise `source` via the Rust lexer using the default config and
+/// return the result as a list of `tcl_lsp_rust.Token` instances.
+///
+/// This is the convenience entry point for callers that do not need to
+/// override dialect flags or base offsets; use
+/// [`lexer_tokenise_with_config`] for explicit configuration.
 ///
 /// Raises `ValueError` if the Rust lexer trips
-/// `LexError::UnsupportedCharacter` — this is the signal the
-/// differential harness uses to filter inputs the L3 skeleton does
-/// not yet understand. The message includes the offending character
-/// and its position so the harness can log skipped cases.
-/// Tokenise `source` via the Rust lexer with default config.
+/// `LexError::UnsupportedCharacter`. The message includes the offending
+/// character and its position so callers can report or skip unsupported
+/// inputs.
 #[pyfunction]
 #[pyo3(text_signature = "(source, /)")]
 pub fn lexer_tokenise(source: &str) -> PyResult<Vec<PyToken>> {
