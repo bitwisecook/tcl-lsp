@@ -1675,11 +1675,61 @@ class BytecodeVM:
                         ) from None
 
                 case Op.OVER:
-                    # Duplicate the element below TOS (copy stack[-2])
-                    if len(stack) >= 2:
-                        stack.append(stack[-2])
+                    # Copy the element *depth* positions from the top.
+                    # ``over 0`` = dup TOS, ``over 1`` = copy stack[-2], etc.
+                    depth = instr.operands[0] if instr.operands else 1
+                    if isinstance(depth, str):
+                        depth = int(depth)
+                    idx = -(depth + 1)
+                    if len(stack) >= depth + 1:
+                        stack.append(stack[idx])
                     else:
                         stack.append("")
+
+                case Op.LSET_LIST:
+                    # lsetList: stack has [..., varName, indexList, newValue, listValue]
+                    # Replace element at indexList in listValue with newValue.
+                    # Result replaces the top 2 values (newValue, listValue → modifiedList).
+                    list_val = stack.pop() if stack else ""
+                    new_val = stack.pop() if stack else ""
+                    idx_str = stack.pop() if stack else "0"
+                    # varName is still on stack for storeStk
+                    lst = _split_list(list_val)
+                    idx = _parse_index(idx_str, len(lst))
+                    if 0 <= idx < len(lst):
+                        lst[idx] = new_val
+                    elif idx == len(lst):
+                        lst.append(new_val)
+                    else:
+                        raise TclError("list index out of range")
+                    stack.append(" ".join(_list_escape(e) for e in lst))
+
+                case Op.LSET_FLAT:
+                    # lsetFlat count: pops count values: [..., varName, idx0, idx1, ..., newValue, listValue]
+                    # For single index, count=4 (varName, index, newValue, listValue).
+                    count = instr.operands[0] if instr.operands else 4
+                    if isinstance(count, str):
+                        count = int(count)
+                    list_val = stack.pop() if stack else ""
+                    # count includes varName, indices, newValue, listValue
+                    # varName stays on stack. The remaining pops are: indices + newValue.
+                    new_val = stack.pop() if stack else ""
+                    num_indices = count - 4  # subtract varName, newValue, listValue, result
+                    indices = []
+                    for _ in range(max(1, num_indices + 1)):
+                        indices.insert(0, stack.pop() if stack else "0")
+                    # varName still on stack for storeStk
+                    lst = _split_list(list_val)
+                    # Navigate to nested element
+                    if len(indices) == 1:
+                        idx = _parse_index(indices[0], len(lst))
+                        if 0 <= idx < len(lst):
+                            lst[idx] = new_val
+                        elif idx == len(lst):
+                            lst.append(new_val)
+                        else:
+                            raise TclError("list index out of range")
+                    stack.append(" ".join(_list_escape(e) for e in lst))
 
                 case _:
                     pass  # ignore unhandled ops
