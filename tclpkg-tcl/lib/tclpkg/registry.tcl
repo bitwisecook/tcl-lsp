@@ -1,4 +1,4 @@
-# registry.tcl — tcltk-pkgs registry client with TTL cache.
+# registry.tcl -- tcltk-pkgs registry client with TTL cache.
 
 namespace eval ::tclpkg::registry {
 
@@ -37,11 +37,11 @@ namespace eval ::tclpkg::registry {
 
         # Network fetch.
         package require http
-        catch { package require tls; ::http::register https 443 ::tls::socket }
+        catch {package require tls; ::http::register https 443 ::tls::socket } _
 
         set headers {}
         if {[file isfile $etag_path]} {
-            set fd [open $etag_path r]
+            set fd [open [file join $etag_path] r]
             set old_etag [string trim [read $fd]]
             close $fd
             if {$old_etag ne ""} {
@@ -78,7 +78,7 @@ namespace eval ::tclpkg::registry {
 
         set body [::http::data $token]
         set new_etag ""
-        catch { set new_etag [dict get [::http::meta $token] ETag] }
+        catch {set new_etag [dict get [::http::meta $token] ETag] } _
         ::http::cleanup $token
 
         file mkdir $dir
@@ -92,7 +92,7 @@ namespace eval ::tclpkg::registry {
     proc _is_fresh {fetched_path} {
         variable ttl_seconds
         if {![file isfile $fetched_path]} { return 0 }
-        set fd [open $fetched_path r]
+        set fd [open [file join $fetched_path] r]
         set ts [string trim [read $fd]]
         close $fd
         if {[catch {clock scan $ts -format "%Y-%m-%dT%H:%M:%SZ" -gmt 1} epoch]} {
@@ -105,7 +105,7 @@ namespace eval ::tclpkg::registry {
         if {![file isfile $path]} {
             error "no cached registry (run with network access first)"
         }
-        set fd [open $path r]
+        set fd [open [file join $path] r]
         fconfigure $fd -encoding utf-8
         set text [read $fd]
         close $fd
@@ -118,7 +118,7 @@ namespace eval ::tclpkg::registry {
     }
 
     proc _write_file {path content} {
-        set fd [open $path w]
+        set fd [open [file join $path] w]
         fconfigure $fd -encoding utf-8 -translation lf
         puts -nonewline $fd $content
         close $fd
@@ -132,9 +132,9 @@ namespace eval ::tclpkg::registry {
         foreach entry $entries {
             set name [dict get $entry name]
             set desc ""
-            catch { set desc [dict get $entry description] }
+            catch {set desc [dict get $entry description] } _
             set tags {}
-            catch { set tags [dict get $entry tags] }
+            catch {set tags [dict get $entry tags] } _
             set match 0
             if {[string match "*$q*" [string tolower $name]]} { set match 1 }
             if {[string match "*$q*" [string tolower $desc]]} { set match 1 }

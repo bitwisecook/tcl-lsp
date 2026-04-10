@@ -25,7 +25,7 @@ test resolver-two-deps "Two independent deps" -body {
 } -result {http json}
 
 test resolver-mvs-max "MVS picks max of minimums" -body {
-    # a requires shared@1.0, b requires shared@2.0 → shared@2.0
+    # a requires shared@1.0, b requires shared@2.0 -> shared@2.0
     proc _test_provider {name version} {
         switch -- $name {
             a { return [list [dict create name shared minimum 1.0.0]] }

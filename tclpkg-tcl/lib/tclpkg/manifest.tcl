@@ -1,18 +1,18 @@
-# manifest.tcl — tclpkg.tcl manifest loader using safe interp.
+# manifest.tcl -- tclpkg.tcl manifest loader using safe interp.
 #
 # Evaluates the manifest in a Tcl safe interpreter with only the 13
 # whitelisted directives exposed as aliases. This is the pure-Tcl
 # equivalent of tclpkg/manifest.py and uses C Tcl's native safe
-# interpreter — simpler than the Python version's VM-based sandbox.
+# interpreter -- simpler than the Python version's VM-based sandbox.
 
 namespace eval ::tclpkg::manifest {
 
     # Load a manifest file and return a dict.
-    proc load {path} {
+    proc load_file {path} {
         if {![file isfile $path]} {
             error "manifest not found: $path (run 'tclpkg pkg init' to create one)"
         }
-        set fd [open $path r]
+        set fd [open [file join $path] r]
         fconfigure $fd -encoding utf-8
         set text [read $fd]
         close $fd
@@ -38,7 +38,7 @@ namespace eval ::tclpkg::manifest {
                      tcl require dev-require replace exclude provides entry} {
             interp alias $child $cmd {} [namespace current]::_directive_$cmd
         }
-        # dev-require has a hyphen — alias it via a helper name.
+        # dev-require has a hyphen -- alias it via a helper name.
         interp alias $child dev-require {} [namespace current]::_directive_dev-require
 
         # Evaluate.
@@ -67,7 +67,7 @@ namespace eval ::tclpkg::manifest {
         return $_ast
     }
 
-    # Directive handlers — each appends to the _ast variable.
+    # Directive handlers -- each appends to the _ast variable.
     proc _directive_package {name} {
         variable _ast
         if {[dict get $_ast name] ne ""} {

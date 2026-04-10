@@ -1,5 +1,5 @@
 #!/usr/bin/env tclsh
-# tclpkg — pure-Tcl package manager and virtual environment tool.
+# tclpkg -- pure-Tcl package manager and virtual environment tool.
 #
 # Usage:
 #   tclsh main.tcl pkg <subcommand> [args...]

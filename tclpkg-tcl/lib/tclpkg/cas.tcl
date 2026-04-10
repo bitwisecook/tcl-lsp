@@ -1,4 +1,4 @@
-# cas.tcl — content-addressable store and integrity hashing.
+# cas.tcl -- content-addressable store and integrity hashing.
 #
 # Bit-compatible with tclpkg/cas.py: same canonicalisation, same hash
 # format (sha256-<base64url-no-pad>), same CAS directory layout.
@@ -42,7 +42,7 @@ namespace eval ::tclpkg::cas {
     proc _load_tclpkgignore {root} {
         set path [file join $root .tclpkgignore]
         if {![file isfile $path]} { return {} }
-        set fd [open $path r]
+        set fd [open [file join $path] r]
         set text [read $fd]
         close $fd
         set patterns {}
@@ -77,7 +77,7 @@ namespace eval ::tclpkg::cas {
     }
 
     proc _read_binary {path} {
-        set fd [open $path rb]
+        set fd [open [file join $path] rb]
         set data [read $fd]
         close $fd
         return $data
@@ -94,7 +94,7 @@ namespace eval ::tclpkg::cas {
     proc _base64url_encode {binary_data} {
         package require base64
         set b64 [::base64::encode -maxlen 0 $binary_data]
-        # Convert to base64url: + → -, / → _, strip trailing =.
+        # Convert to base64url: + -> -, / -> _, strip trailing =.
         set b64url [string map {+ - / _} $b64]
         set b64url [string trimright $b64url "="]
         return $b64url
@@ -171,7 +171,7 @@ namespace eval ::tclpkg::cas {
             puts $fd "$name $version"
             close $fd
         }
-        file copy $source_dir $tree
+        file copy -- $source_dir $tree
         return $actual
     }
 
@@ -182,7 +182,7 @@ namespace eval ::tclpkg::cas {
         }
         set tree [tree_path $integrity]
         if {[file exists $dest]} {
-            file delete -force $dest
+            file delete -force -- $dest
         }
         file mkdir [file dirname $dest]
         if {$use_symlink} {
@@ -190,6 +190,6 @@ namespace eval ::tclpkg::cas {
                 return
             }
         }
-        file copy $tree $dest
+        file copy -- $tree $dest
     }
 }

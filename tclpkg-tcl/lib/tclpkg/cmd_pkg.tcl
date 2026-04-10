@@ -1,4 +1,4 @@
-# cmd_pkg.tcl — `tclpkg pkg` subcommand handlers.
+# cmd_pkg.tcl -- `tclpkg pkg` subcommand handlers.
 
 namespace eval ::tclpkg::cmd_pkg {
 
@@ -86,7 +86,7 @@ namespace eval ::tclpkg::cmd_pkg {
             exit 1
         }
         set content "package     $name\nversion     $version\nlicense     $license\ntcl         $tcl\n"
-        set fd [open $path w]
+        set fd [open [file join $path] w]
         fconfigure $fd -encoding utf-8 -translation lf
         puts -nonewline $fd $content
         close $fd
@@ -113,11 +113,11 @@ namespace eval ::tclpkg::cmd_pkg {
             puts stderr "error: manifest not found: $mpath"
             exit 1
         }
-        set fd [open $mpath a]
+        set fd [open [file join $mpath] a]
         fconfigure $fd -encoding utf-8 -translation lf
         set directive [expr {$is_dev ? "dev-require" : "require"}]
         set line "$directive $pkg_name $min_ver"
-        if {$source ne ""} { append line " -source $source" }
+        if {$source ne ""} { set line "$line -source $source" }
         puts $fd $line
         close $fd
         puts [::tclpkg::ui::ok "added $pkg_name $min_ver to $mpath"]
@@ -135,13 +135,17 @@ namespace eval ::tclpkg::cmd_pkg {
             puts stderr "error: manifest not found: $mpath"
             exit 1
         }
-        set fd [open $mpath r]
+        set fd [open [file join $mpath] r]
         set text [read $fd]
         close $fd
         set new_lines {}
         set removed 0
         foreach line [split $text "\n"] {
-            if {[regexp "^\\s*(?:require|dev-require)\\s+[string map {\\ \\\\} $pkg_name]\\b" $line]} {
+            set trimmed [string trimleft $line]
+            if {[string match "require $pkg_name *" $trimmed] ||
+                [string match "require $pkg_name" $trimmed] ||
+                [string match "dev-require $pkg_name *" $trimmed] ||
+                [string match "dev-require $pkg_name" $trimmed]} {
                 incr removed
             } else {
                 lappend new_lines $line
@@ -151,7 +155,7 @@ namespace eval ::tclpkg::cmd_pkg {
             puts stderr "error: package '$pkg_name' not found in manifest"
             exit 1
         }
-        set fd [open $mpath w]
+        set fd [open [file join $mpath] w]
         fconfigure $fd -encoding utf-8 -translation lf
         puts -nonewline $fd [join $new_lines "\n"]
         close $fd
@@ -160,7 +164,7 @@ namespace eval ::tclpkg::cmd_pkg {
 
     proc cmd_install {args_list} {
         set mpath [_find_manifest]
-        set manifest [::tclpkg::manifest::load $mpath]
+        set manifest [::tclpkg::manifest::load_file $mpath]
         set direct {}
         foreach req [dict get $manifest requires] {
             lappend direct [dict create name [dict get $req name] minimum [dict get $req minimum]]
@@ -275,7 +279,7 @@ namespace eval ::tclpkg::cmd_pkg {
         set integrity [dict get $entry integrity]
         puts "Integrity: [expr {$integrity ne "" ? $integrity : "(not computed)"}]"
         set lic ""
-        catch { set lic [dict get $entry license] }
+        catch {set lic [dict get $entry license] } _
         puts "Licence:   [expr {$lic ne "" ? $lic : "(unknown)"}]"
         puts "Dev:       [expr {[dict get $entry dev] ? "yes" : "no"}]"
     }
@@ -294,7 +298,7 @@ namespace eval ::tclpkg::cmd_pkg {
         }
         foreach entry $results {
             set desc ""
-            catch { set desc [dict get $entry description] }
+            catch {set desc [dict get $entry description] } _
             puts [format "  %-20s  %s" [dict get $entry name] $desc]
         }
     }
@@ -395,7 +399,7 @@ namespace eval ::tclpkg::cmd_pkg {
 
     proc cmd_run {args_list} {
         set mpath [_find_manifest]
-        set manifest [::tclpkg::manifest::load $mpath]
+        set manifest [::tclpkg::manifest::load_file $mpath]
         set entry_file [dict get $manifest entry]
         if {$entry_file eq ""} {
             puts stderr "error: no 'entry' directive in manifest"
@@ -411,7 +415,7 @@ namespace eval ::tclpkg::cmd_pkg {
         if {[file isdirectory $lib_dir]} {
             set ::env(TCLLIBPATH) "$lib_dir [expr {[info exists ::env(TCLLIBPATH)] ? $::env(TCLLIBPATH) : ""}]"
         }
-        exec $tclsh $entry_path {*}$args_list >@ stdout 2>@ stderr
+        exec -- $tclsh $entry_path {*}$args_list >@ stdout 2>@ stderr
     }
 
     proc _by_name {a b} {

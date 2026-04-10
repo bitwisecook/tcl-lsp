@@ -1,7 +1,7 @@
-# version.tcl — semver parsing and ordering with Tcl-friendly extensions.
+# version.tcl -- semver parsing and ordering with Tcl-friendly extensions.
 #
 # Bit-compatible with tclpkg/version.py: same parse rules, same ordering.
-# Supports: v-prefix, missing patch (1.2 → 1.2.0), Tcl-style a1/b2/rc1.
+# Supports: v-prefix, missing patch (1.2 -> 1.2.0), Tcl-style a1/b2/rc1.
 
 namespace eval ::tclpkg::version {
     # Parse a version string into a dict {major minor patch pre pre_raw build original}.
@@ -17,7 +17,7 @@ namespace eval ::tclpkg::version {
         }
         # Try full semver: MAJOR.MINOR.PATCH[-pre][+build]
         set re {^(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:\.([0-9]+))?((?:-[0-9A-Za-z.-]+)|(?:[ab][0-9]+)|(?:rc[0-9]+))?(?:\+([0-9A-Za-z.-]+))?$}
-        if {![regexp $re $stripped -> major minor patch pre build]} {
+        if {![regexp -- $re $stripped -> major minor patch pre build]} {
             error "invalid version: '$raw'"
         }
         if {$minor eq ""} { set minor 0 }
@@ -36,14 +36,14 @@ namespace eval ::tclpkg::version {
 
     # Internal: parse a prerelease tag into a comparable list.
     proc _parse_prerelease {raw} {
-        # Tcl-style short forms: a1 → {0 0 0 1}, b2 → {0 1 0 2}, rc1 → {0 2 0 1}
-        if {[regexp {^(a)([0-9]+)$} $raw -> label num]} {
+        # Tcl-style short forms: a1 -> {0 0 0 1}, b2 -> {0 1 0 2}, rc1 -> {0 2 0 1}
+        if {[regexp {^(a)([0-9]+)$} $raw -> _ num]} {
             return [list 0 0 0 $num]
         }
-        if {[regexp {^(b)([0-9]+)$} $raw -> label num]} {
+        if {[regexp {^(b)([0-9]+)$} $raw -> _ num]} {
             return [list 0 1 0 $num]
         }
-        if {[regexp {^(rc)([0-9]+)$} $raw -> label num]} {
+        if {[regexp {^(rc)([0-9]+)$} $raw -> _ num]} {
             return [list 0 2 0 $num]
         }
         # Semver-style: -alpha.1, -rc.4, etc.

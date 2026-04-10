@@ -1,4 +1,4 @@
-# fetchers.tcl — package source fetchers (HTTP, git, path).
+# fetchers.tcl -- package source fetchers (HTTP, git, path).
 #
 # Uses tcllib http for HTTPS and the host git binary via exec.
 
@@ -11,7 +11,7 @@ namespace eval ::tclpkg::fetchers {
             if {$k eq "-timeout"} { set timeout $v }
         }
         package require http
-        catch { package require tls; ::http::register https 443 ::tls::socket }
+        catch {package require tls; ::http::register https 443 ::tls::socket } _
 
         file mkdir $dest
         set tmp [file join $dest ".download.tmp"]
@@ -27,7 +27,7 @@ namespace eval ::tclpkg::fetchers {
         set body [::http::data $token]
         ::http::cleanup $token
 
-        set fd [open $tmp wb]
+        set fd [open [file join $tmp] wb]
         puts -nonewline $fd $body
         close $fd
 
@@ -38,7 +38,7 @@ namespace eval ::tclpkg::fetchers {
         } else {
             _extract_tar $tmp $dest
         }
-        file delete -force $tmp
+        file delete -force -- $tmp
 
         # Strip singular top-level directory.
         set children [glob -nocomplain -directory $dest *]
@@ -47,7 +47,7 @@ namespace eval ::tclpkg::fetchers {
             foreach item [glob -nocomplain -directory $child *] {
                 file rename $item [file join $dest [file tail $item]]
             }
-            file delete -force $child
+            file delete -force -- $child
         }
     }
 
@@ -103,10 +103,10 @@ namespace eval ::tclpkg::fetchers {
         set sha ""
         catch {
             set sha [string trim [exec git -C $dest rev-parse HEAD]]
-        }
+        } _
 
         # Strip .git.
-        file delete -force [file join $dest .git]
+        file delete -force -- [file join $dest .git]
 
         return $sha
     }
@@ -118,7 +118,7 @@ namespace eval ::tclpkg::fetchers {
         }
         file mkdir $dest
         foreach item [glob -nocomplain -directory $source *] {
-            file copy -force $item [file join $dest [file tail $item]]
+            file copy -force -- $item [file join $dest [file tail $item]]
         }
     }
 }

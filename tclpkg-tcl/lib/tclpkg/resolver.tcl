@@ -1,4 +1,4 @@
-# resolver.tcl — Go-style Minimum Version Selection (MVS).
+# resolver.tcl -- Go-style Minimum Version Selection (MVS).
 #
 # Bit-compatible with tclpkg/resolver.py: same BFS walk, same
 # max-of-minimums, same replace/exclude semantics.
@@ -7,12 +7,12 @@ namespace eval ::tclpkg::resolver {
 
     # Resolve dependencies using MVS.
     #
-    # direct      — list of dicts {name minimum}
-    # dev_direct  — list of dicts {name minimum} (dev-only)
-    # replaces    — list of dicts {name version}
-    # excludes    — list of dicts {name version}
-    # provider    — command prefix: {name version} → list of {name minimum}
-    # include_dev — boolean (default 1)
+    # direct      -- list of dicts {name minimum}
+    # dev_direct  -- list of dicts {name minimum} (dev-only)
+    # replaces    -- list of dicts {name version}
+    # excludes    -- list of dicts {name version}
+    # provider    -- command prefix: {name version} -> list of {name minimum}
+    # include_dev -- boolean (default 1)
     #
     # Returns a list of dicts {name version dev requires}.
     proc resolve {direct {dev_direct {}} args} {

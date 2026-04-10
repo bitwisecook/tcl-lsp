@@ -1,4 +1,4 @@
-# tclpkg — package loader. Sources all modules in dependency order.
+# tclpkg -- package loader. Sources all modules in dependency order.
 
 package provide tclpkg 0.1.0
 

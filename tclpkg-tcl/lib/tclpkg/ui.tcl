@@ -1,4 +1,4 @@
-# ui.tcl — ANSI colour helpers, progress, and JSON output.
+# ui.tcl -- ANSI colour helpers, progress, and JSON output.
 
 namespace eval ::tclpkg::ui {
     variable use_colour 1
@@ -88,7 +88,7 @@ namespace eval ::tclpkg::ui {
     proc json_output {data} {
         # For real JSON output we use tcllib json::write if available,
         # otherwise fall back to our minimal encoder.
-        if {![catch {package require json::write}]} {
+        if {![catch {package require json::write} _]} {
             puts [::json::write object {*}[_dict_to_json_write $data]]
         } else {
             puts [json_encode $data]

@@ -1,4 +1,4 @@
-# lockfile.tcl — canonical JSON lockfile read/write.
+# lockfile.tcl -- canonical JSON lockfile read/write.
 #
 # Uses tcllib json for parsing and a hand-rolled canonical writer for
 # deterministic output (sorted keys, 2-space indent, LF endings).
@@ -86,7 +86,7 @@ namespace eval ::tclpkg::lockfile {
 
     # Deserialise a lockfile JSON string into a dict.
     proc deserialise {text} {
-        if {[catch {package require json}]} {
+        if {[catch {package require json} _]} {
             error "tcllib json package required for lockfile parsing"
         }
         set data [::json::json2dict $text]
@@ -104,11 +104,11 @@ namespace eval ::tclpkg::lockfile {
     proc write {lf path} {
         set text [serialise $lf]
         set tmp "${path}.tmp"
-        set fd [open $tmp w]
+        set fd [open [file join $tmp] w]
         fconfigure $fd -encoding utf-8 -translation lf
         puts -nonewline $fd $text
         close $fd
-        file rename -force $tmp $path
+        file rename -force -- $tmp $path
     }
 
     # Read a lockfile from disk.
@@ -116,7 +116,7 @@ namespace eval ::tclpkg::lockfile {
         if {![file isfile $path]} {
             error "lockfile not found: $path (run 'tclpkg pkg install' to create one)"
         }
-        set fd [open $path r]
+        set fd [open [file join $path] r]
         fconfigure $fd -encoding utf-8
         set text [read $fd]
         close $fd
