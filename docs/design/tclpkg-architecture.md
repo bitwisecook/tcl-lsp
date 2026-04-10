@@ -131,6 +131,6 @@ tclpkg.tcl (manifest)
 
 ## Discoverability
 
-- [kcs-package-loading-contracts.md](kcs-package-loading-contracts.md) — pre-existing `pkgIndex.tcl` loading
-- [kcs-xdg-config.md](kcs-xdg-config.md) — XDG config paths (see also `_cache_dir`)
-- [features/kcs-feature-tcl-verb-cli.md](features/kcs-feature-tcl-verb-cli.md) — `tcl` CLI contracts
+- [kcs-package-loading-contracts.md](../kcs/kcs-package-loading-contracts.md) — pre-existing `pkgIndex.tcl` loading
+- [kcs-xdg-config.md](../kcs/kcs-xdg-config.md) — XDG config paths (see also `_cache_dir`)
+- [kcs-feature-tcl-verb-cli.md](../kcs/features/kcs-feature-tcl-verb-cli.md) — `tcl` CLI contracts

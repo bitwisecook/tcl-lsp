@@ -59,6 +59,8 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — write iRule scripts for event-flow and diagnostic tests.
 - [kcs-howto-author-screenshot-samples.md](kcs-howto-author-screenshot-samples.md)
   — write sample files and cursor marker comments for screenshots.
+- [kcs-howto-manage-tcl-packages.md](kcs-howto-manage-tcl-packages.md)
+  — add, install, and lock Tcl package dependencies with tclpkg.
 
 ## Functionality (commands, features, and tools)
 

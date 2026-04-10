@@ -28,6 +28,23 @@ rules for the KCS/documentation split live in
   strong cross-linking between KCS pages, the glossary, and the
   design docs. Tracks scope, naming, templates, and the quality bar.
 
+## tclpkg package manager
+
+- [tclpkg-architecture.md](tclpkg-architecture.md) — architecture overview,
+  contracts, file-path anchors, test anchors.
+- [contracts/tclpkg-manifest.md](contracts/tclpkg-manifest.md) — manifest
+  directives, safe-mode whitelist, validation rules.
+- [contracts/tclpkg-lockfile.md](contracts/tclpkg-lockfile.md) — canonical
+  JSON, determinism contract, schema versioning.
+- [contracts/tclpkg-resolver.md](contracts/tclpkg-resolver.md) — MVS
+  algorithm, replace/exclude semantics.
+- [contracts/tclpkg-cache.md](contracts/tclpkg-cache.md) — CAS layout,
+  hash canonicalisation, integrity verification.
+- [contracts/tclpkg-venv.md](contracts/tclpkg-venv.md) — virtual
+  environment layout, activation scripts, tclsh wrapper.
+- [contracts/tclpkg-lsp.md](contracts/tclpkg-lsp.md) — project root
+  detection, W130–W134 diagnostics, code actions.
+
 ## Compiler internals
 
 See [compiler/README.md](compiler/README.md) for the compiler design-doc
