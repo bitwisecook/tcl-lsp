@@ -410,6 +410,7 @@ def run_test_file(
         interp.global_frame.set_var("argv0", str(test_file))
         interp.global_frame.set_var("argv", "")
         interp.global_frame.set_var("argc", "0")
+        interp.script_file = str(test_file)
 
         # Register package ifneeded scripts for project packages
         for pkg_dir in project.pkgindex_dirs:

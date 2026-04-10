@@ -593,16 +593,26 @@ def _setup_real_tcltest(interp: TclInterp, tcltest_path: str) -> None:
         }
     """)
 
-    # Register package ifneeded so ``package require tcltest 2.5`` works
+    # Register package ifneeded and then eagerly load tcltest.tcl.
+    # We load eagerly (not lazily) because:
+    # 1. tcllib's testutilities.tcl checks ``[namespace children] ::tcltest``
+    #    and if the namespace exists, calls ``package present tcltest``
+    #    instead of ``package require tcltest``.
+    # 2. If we only register ifneeded, the namespace exists (from earlier
+    #    setup) but ``package present`` fails because loaded=False.
     interp.packages.setdefault("tcltest", {
         "version": "2.5.10",
         "loaded": False,
         "ifneeded": {"2.5.10": f"source {tcltest_path}"},
     })
-    # Also register via the Tcl package mechanism
     interp.eval(
         f'package ifneeded tcltest 2.5.10 [list source {{{tcltest_path}}}]'
     )
+    # Eagerly load — this sources tcltest.tcl which calls `package provide`
+    try:
+        interp.eval("package require tcltest 2.5")
+    except Exception:
+        pass  # Fall back to builtin if real tcltest fails to load
 
 
 def _setup_builtin_tcltest(interp: TclInterp) -> None:
