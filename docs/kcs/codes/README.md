@@ -70,8 +70,20 @@ in the pages; Phase 7 cross-links.
 
 ## Security (W1xx, W3xx)
 
-*13 codes — code and command injection, ReDoS, path traversal, and
-other security-related warnings. Populated in Phase 4.3.*
+- [W101 — eval string concatenation](kcs-diagnostic-w101-eval-string-concatenation.md)
+- [W102 — subst on variable](kcs-diagnostic-w102-subst-on-variable.md)
+- [W103 — open pipeline](kcs-diagnostic-w103-open-pipeline.md)
+- [W123 — unresolved command (opt-in)](kcs-diagnostic-w123-unresolved-command.md)
+- [W300 — source with variable](kcs-diagnostic-w300-source-with-variable.md)
+- [W301 — uplevel string script](kcs-diagnostic-w301-uplevel-string-script.md)
+- [W302 — catch without result](kcs-diagnostic-w302-catch-without-result.md)
+- [W303 — regexp ReDoS](kcs-diagnostic-w303-regexp-redos.md)
+- [W304 — missing option terminator](kcs-diagnostic-w304-missing-option-terminator.md)
+- [W306 — substitution in literal position](kcs-diagnostic-w306-substitution-in-literal-position.md)
+- [W307 — non-literal command](kcs-diagnostic-w307-non-literal-command.md)
+- [W308 — subst without -nocommands](kcs-diagnostic-w308-subst-without-nocommands.md)
+- [W309 — eval with subst](kcs-diagnostic-w309-eval-with-subst.md)
+- [W313 — destructive file variable path](kcs-diagnostic-w313-destructive-file-variable-path.md)
 
 ## Variables (W2xx)
 
