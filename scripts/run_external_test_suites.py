@@ -112,6 +112,7 @@ PROJECTS: dict[str, Project] = {
         sparse_paths=["tests", "library"],
         test_glob="tests/*.test",
         source_init=True,
+        setup_script="package require tcltest 2.5; namespace import ::tcltest::*",
         skip_files=[
             # These need the C test harness commands heavily
             "tests/io.test",
