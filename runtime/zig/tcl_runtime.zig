@@ -12,10 +12,11 @@
 //   offset 20: str_len  (i32)  byte length of the string representation
 //   Total: 24 bytes per TclObj
 //
-// The runtime exports functions matching the signatures declared in
-// _RUNTIME_IMPORTS in wasm.py.  Until the value representation
-// transition, the compiled Tcl code passes raw i64 values (integers
-// or data-segment offsets) and the runtime interprets them accordingly.
+// Export names must match the import names declared in _RUNTIME_IMPORTS
+// in wasm.py (the second element of each tuple).  Until the value
+// representation transition, the compiled Tcl code passes raw i64
+// values (integers or data-segment offsets) and the runtime interprets
+// them accordingly.
 
 const std = @import("std");
 
@@ -36,10 +37,12 @@ fn alloc(size: u32) callconv(.C) u32 {
     return ptr;
 }
 
-// Read an i32 from linear memory
+// Read an i32 from linear memory.
+// Assigns to a local first so @bitCast can infer the result type.
 fn read_i32(addr: u32) i32 {
     const ptr: [*]const u8 = @ptrFromInt(addr);
-    return @as(i32, @bitCast([4]u8{ ptr[0], ptr[1], ptr[2], ptr[3] }));
+    const bytes = [4]u8{ ptr[0], ptr[1], ptr[2], ptr[3] };
+    return @bitCast(bytes);
 }
 
 // Write an i32 to linear memory
@@ -52,13 +55,14 @@ fn write_i32(addr: u32, val: i32) void {
     ptr[3] = bytes[3];
 }
 
-// Read an i64 from linear memory
+// Read an i64 from linear memory.
 fn read_i64(addr: u32) i64 {
     const ptr: [*]const u8 = @ptrFromInt(addr);
-    return @as(i64, @bitCast([8]u8{
+    const bytes = [8]u8{
         ptr[0], ptr[1], ptr[2], ptr[3],
         ptr[4], ptr[5], ptr[6], ptr[7],
-    }));
+    };
+    return @bitCast(bytes);
 }
 
 // Write an i64 to linear memory
@@ -150,8 +154,8 @@ export fn puts(value: i64) i64 {
     return 0;
 }
 
-// Exported: string append
-export fn string_append(current: i64, addition: i64) i64 {
+// Exported: append (matches _RUNTIME_IMPORTS["tcl_append"] import name)
+export fn append(current: i64, addition: i64) i64 {
     // In the i64 model, string append is not meaningful.
     // Return the addition value as a placeholder.
     _ = current;

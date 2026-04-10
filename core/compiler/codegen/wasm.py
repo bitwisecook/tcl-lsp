@@ -743,6 +743,11 @@ def _scan_needed_imports(
     for proc in ir_module.procedures.values():
         _scan_script(proc.body)
 
+    # Scan methods
+    if ir_module.methods:
+        for method in ir_module.methods.values():
+            _scan_script(method.body)
+
     return needed
 
 
@@ -792,7 +797,7 @@ class _WasmEmitter:
         is_proc: bool = False,
         func_index_base: int = 0,
         shared_imports: dict[str, int] | None = None,
-        proc_index: dict[str, int] | None = None,
+        proc_index: dict[str, tuple[int, int]] | None = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
@@ -802,7 +807,8 @@ class _WasmEmitter:
 
         # Shared state from module compilation
         self._shared_imports: dict[str, int] = shared_imports or {}
-        self._proc_index: dict[str, int] = proc_index or {}
+        # proc_index maps qualified name → (func_idx, n_params)
+        self._proc_index: dict[str, tuple[int, int]] = proc_index or {}
 
         # Local variable management
         self._local_names: list[str] = []
@@ -1298,6 +1304,11 @@ class _WasmEmitter:
             case IRTry(body=body, handlers=handlers, finally_body=finally_body):
                 self._emit_try(body, handlers, finally_body)
 
+    def _resolve_proc(self, command: str) -> tuple[int, int] | None:
+        """Look up a user-defined proc by name, returning (func_idx, n_params) or None."""
+        qname = command if command.startswith("::") else f"::{command}"
+        return self._proc_index.get(qname) or self._proc_index.get(command)
+
     def _emit_call_stmt(
         self,
         command: str,
@@ -1308,18 +1319,29 @@ class _WasmEmitter:
 
         Dispatches known commands to inline WASM or imported runtime
         functions.  Unknown commands emit NOP.
+
+        Proc calls are resolved first so that a user-defined proc
+        named ``puts`` shadows the built-in runtime import, matching
+        Tcl's command resolution semantics.
         """
         # Scope declarations are NOPs in the WASM model
         if command in _SCOPE_NOP_COMMANDS:
             return
 
-        # set: inline local operations
-        if command == "set":
+        # User-defined proc call takes priority over built-ins
+        proc_info = self._resolve_proc(command)
+        if proc_info is not None:
+            self._emit_cmd_proc_call(proc_info[0], proc_info[1], args, defs)
+            return
+
+        # set/incr: only inline the canonical 1-or-2 arg forms that the
+        # lowering emits as IRCall fallbacks.  Non-canonical shapes
+        # ({*} expansion, dict set, wrong arity) fall through to NOP.
+        if command == "set" and 1 <= len(args) <= 2:
             self._emit_cmd_set(args)
             return
 
-        # incr: inline i64 add (fallback — IRIncr handles most cases)
-        if command == "incr":
+        if command == "incr" and 1 <= len(args) <= 2:
             self._emit_cmd_incr(args)
             return
 
@@ -1338,13 +1360,6 @@ class _WasmEmitter:
             self._emit_cmd_runtime(command, args, defs)
             return
 
-        # Known proc call
-        qname = command if command.startswith("::") else f"::{command}"
-        func_idx = self._proc_index.get(qname) or self._proc_index.get(command)
-        if func_idx is not None:
-            self._emit_cmd_proc_call(func_idx, args, defs)
-            return
-
         # Unknown command — NOP placeholder
         self._emit(WasmOp.NOP)
 
@@ -1357,58 +1372,71 @@ class _WasmEmitter:
         """Emit a command invocation in tail position, keeping its result on the stack.
 
         Used for implicit return: the last command's result becomes the
-        proc's return value.
+        proc's return value.  Dispatch order matches ``_emit_call_stmt``
+        (proc calls first, then built-ins) to ensure consistent behaviour.
         """
         # Scope declarations produce no value
         if command in _SCOPE_NOP_COMMANDS:
             self._emit_i64_const(0)
             return
 
-        # set: inline local operations (returns the value)
-        if command == "set":
-            if args:
-                var = args[0]
-                idx = self._intern_local(var)
-                if len(args) >= 2:
-                    self._emit_value(args[1])
-                    self._emit_local_tee(idx)
-                else:
-                    self._emit_local_get(idx)
-            else:
-                self._emit_i64_const(0)
-            return
-
-        # Known proc call — keep result
-        qname = command if command.startswith("::") else f"::{command}"
-        func_idx = self._proc_index.get(qname) or self._proc_index.get(command)
-        if func_idx is not None:
+        # User-defined proc call — keep result
+        proc_info = self._resolve_proc(command)
+        if proc_info is not None:
+            func_idx, n_params = proc_info
             for arg in args:
                 self._emit_value(arg)
+            # Pad missing args to match WASM signature
+            for _ in range(n_params - len(args)):
+                self._emit_i64_const(0)
             self._emit_call(func_idx)
             # Result stays on the stack
             return
 
-        # Runtime command — keep result
+        # set: inline local operations (returns the value)
+        if command == "set" and 1 <= len(args) <= 2:
+            var = args[0]
+            idx = self._intern_local(var)
+            if len(args) >= 2:
+                self._emit_value(args[1])
+                self._emit_local_tee(idx)
+            else:
+                self._emit_local_get(idx)
+            return
+
+        # Runtime command — use the same dispatch logic as non-tail,
+        # but keep the return value on the stack instead of dropping it.
         if command in _CMD_RUNTIME:
             import_key, _ = _CMD_RUNTIME[command]
             fidx = self._shared_imports.get(import_key)
             if fidx is not None:
                 spec = _RUNTIME_IMPORTS[import_key]
                 param_count = len(spec[2])
-                if command == "puts":
+                mutates_var = command in ("append", "lappend")
+                if mutates_var and len(args) >= 2:
+                    var_name = args[0]
+                    var_idx = self._intern_local(var_name)
+                    self._emit_local_get(var_idx)
+                    self._emit_value(args[1])
+                    self._emit_call(fidx)
+                    # Tee: store back into var AND keep on stack
+                    self._emit_local_tee(var_idx)
+                elif command == "puts":
                     if args:
                         self._emit_value(args[-1])
                     else:
+                        self._emit_i64_const(0)
+                    self._emit_call(fidx)
+                    if not spec[3]:
                         self._emit_i64_const(0)
                 else:
                     for i in range(min(param_count, len(args))):
                         self._emit_value(args[i])
                     for _ in range(param_count - len(args)):
                         self._emit_i64_const(0)
-                self._emit_call(fidx)
-                if not spec[3]:
-                    # No return value — push 0
-                    self._emit_i64_const(0)
+                    self._emit_call(fidx)
+                    if not spec[3]:
+                        self._emit_i64_const(0)
                 return
 
         # Fallback — push 0
@@ -1553,17 +1581,22 @@ class _WasmEmitter:
     def _emit_cmd_proc_call(
         self,
         func_idx: int,
+        n_params: int,
         args: tuple[str, ...],
         defs: tuple[str, ...],
     ) -> None:
-        """Emit a direct call to a compiled procedure."""
-        # Push arguments
-        for arg in args:
-            self._emit_value(arg)
-        # Pad if proc expects more params than provided
-        # (The WASM function signature has a fixed param count, so we
-        #  must push the right number.  Missing args get 0.)
-        # We don't track param counts here, so just push what we have.
+        """Emit a direct call to a compiled procedure.
+
+        Enforces WASM arity: pushes exactly *n_params* values onto the
+        stack — padding with 0 for missing args and ignoring surplus ones.
+        """
+        # Push arguments up to the callee's parameter count
+        for i in range(min(n_params, len(args))):
+            self._emit_value(args[i])
+        # Pad missing args with 0 (default/optional parameters)
+        for _ in range(n_params - len(args)):
+            self._emit_i64_const(0)
+
         self._emit_call(func_idx)
 
         # Store result in def variable if present
@@ -2173,23 +2206,30 @@ def wasm_codegen_module(
 
     num_imports = len(module.imports)
 
-    # Phase 3: Build proc name → function index map.
-    # Function indices start at num_imports; ::top is first.
-    proc_index: dict[str, int] = {}
-    func_idx = num_imports + 1  # +1 for ::top
+    # Phase 3: Build a single ordered list of callables (procs + methods)
+    # and the proc name → (func_idx, n_params) map.  This avoids
+    # double-indexing methods that appear in cfg_module.procedures but
+    # are defined in ir_module.methods rather than ir_module.procedures.
+    proc_index: dict[str, tuple[int, int]] = {}
+    callables: list[tuple[str, CFGFunction, tuple[str, ...]]] = []
 
-    for qname in cfg_module.procedures:
+    for qname, cfg_func in cfg_module.procedures.items():
         ir_proc = ir_module.procedures.get(qname)
-        if ir_proc and ir_proc.namespace_scoped:
-            continue
-        proc_index[qname] = func_idx
-        func_idx += 1
+        if ir_proc is not None:
+            if ir_proc.namespace_scoped:
+                continue
+            callables.append((qname, cfg_func, ir_proc.params))
+        elif ir_module.methods and qname in ir_module.methods:
+            ir_method = ir_module.methods[qname]
+            callables.append((qname, cfg_func, ir_method.params))
+        else:
+            callables.append((qname, cfg_func, ()))
 
-    # Methods
-    for key in cfg_module.procedures:
-        if key not in ir_module.procedures and key in (ir_module.methods or {}):
-            proc_index[key] = func_idx
-            func_idx += 1
+    # Assign function indices: ::top is at num_imports, callables follow
+    func_idx = num_imports + 1  # +1 for ::top
+    for qname, _, params in callables:
+        proc_index[qname] = (func_idx, len(params))
+        func_idx += 1
 
     # Phase 4: Compile top-level with shared state
     emitter = _WasmEmitter(
@@ -2204,13 +2244,9 @@ def wasm_codegen_module(
     module.functions.append(top_func)
     module.data_segments.extend(emitter.data_segments)
 
-    # Phase 5: Compile procedures
-    for qname, cfg_func in cfg_module.procedures.items():
-        ir_proc = ir_module.procedures.get(qname)
-        if ir_proc and ir_proc.namespace_scoped:
-            continue
-        params = ir_proc.params if ir_proc else ()
-        proc_emitter = _WasmEmitter(
+    # Phase 5: Compile callables (procedures and methods)
+    for qname, cfg_func, params in callables:
+        callable_emitter = _WasmEmitter(
             cfg_func,
             params=params,
             optimise=optimise,
@@ -2218,26 +2254,10 @@ def wasm_codegen_module(
             shared_imports=shared_imports,
             proc_index=proc_index,
         )
-        proc_func = proc_emitter.generate()
-        module.functions.append(proc_func)
-        module.data_segments.extend(proc_emitter.data_segments)
-
-    # Compile methods
-    for key, cfg_func in cfg_module.procedures.items():
-        if key not in ir_module.procedures and key in (ir_module.methods or {}):
-            ir_method = ir_module.methods[key]
-            method_emitter = _WasmEmitter(
-                cfg_func,
-                params=ir_method.params,
-                optimise=optimise,
-                is_proc=True,
-                shared_imports=shared_imports,
-                proc_index=proc_index,
-            )
-            method_func = method_emitter.generate()
-            method_func.name = key
-            module.functions.append(method_func)
-            module.data_segments.extend(method_emitter.data_segments)
+        callable_func = callable_emitter.generate()
+        callable_func.name = qname
+        module.functions.append(callable_func)
+        module.data_segments.extend(callable_emitter.data_segments)
 
     # Ensure types are registered
     for func in module.functions:
