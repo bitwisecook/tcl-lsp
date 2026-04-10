@@ -110,13 +110,26 @@ in the pages; Phase 7 cross-links.
 
 - [IRULE3001 — taint HTTP response body](kcs-diagnostic-irule3001-taint-http-response-body.md)
 - [IRULE3002 — taint HTTP header](kcs-diagnostic-irule3002-taint-http-header.md)
-
-*3 more codes (IRULE3003, IRULE3101, IRULE3102) to be added in Phase 5.2.*
+- [IRULE3003 — taint log injection](kcs-diagnostic-irule3003-taint-log-injection.md)
+- [IRULE3101 — URI/path without leading slash](kcs-diagnostic-irule3101-uri-path-without-leading-slash.md)
+- [IRULE3102 — HTTP getter without -normalized](kcs-diagnostic-irule3102-http-getter-without-normalized.md)
 
 ## iRule events and commands (IRULE1xxx, IRULE2xxx)
 
-*16 codes — iRule event-context checks, deprecated commands, and
-event-flow errors. Populated in Phase 5.1.*
+- [IRULE1001 — command invalid in event](kcs-diagnostic-irule1001-command-invalid-in-event.md)
+- [IRULE1002 — unknown event](kcs-diagnostic-irule1002-unknown-event.md)
+- [IRULE1003 — deprecated event](kcs-diagnostic-irule1003-deprecated-event.md)
+- [IRULE1004 — missing priority](kcs-diagnostic-irule1004-missing-priority.md)
+- [IRULE1005 — data event without collect](kcs-diagnostic-irule1005-data-event-without-collect.md)
+- [IRULE1006 — payload without collect](kcs-diagnostic-irule1006-payload-without-collect.md)
+- [IRULE1007 — collect without release](kcs-diagnostic-irule1007-collect-without-release.md)
+- [IRULE1008 — release without collect](kcs-diagnostic-irule1008-release-without-collect.md)
+- [IRULE1201 — HTTP command after respond](kcs-diagnostic-irule1201-http-command-after-respond.md)
+- [IRULE1202 — multiple respond/redirect](kcs-diagnostic-irule1202-multiple-respond-redirect.md)
+- [IRULE2001 — deprecated matchclass](kcs-diagnostic-irule2001-deprecated-matchclass.md)
+- [IRULE2002 — deprecated command](kcs-diagnostic-irule2002-deprecated-command.md)
+- [IRULE2003 — unsafe command](kcs-diagnostic-irule2003-unsafe-command.md)
+- [IRULE2101 — heavy regexp in hot event](kcs-diagnostic-irule2101-heavy-regexp-in-hot-event.md)
 
 ## iRule security (IRULE3xxx)
 
@@ -125,13 +138,20 @@ Populated in Phase 5.2.*
 
 ## iRule variables (IRULE4xxx)
 
-*5 codes — `static::` variable scoping and race conditions.
-Populated in Phase 5.3.*
+- [IRULE4001 — static write outside RULE_INIT](kcs-diagnostic-irule4001-static-write-outside-rule-init.md)
+- [IRULE4002 — generic static name](kcs-diagnostic-irule4002-generic-static-name.md)
+- [IRULE4003 — variable scope across events](kcs-diagnostic-irule4003-variable-scope-across-events.md)
+- [IRULE4004 — hoistable constant set](kcs-diagnostic-irule4004-hoistable-constant-set.md)
+- [IRULE4005 — static variable race](kcs-diagnostic-irule4005-static-variable-race.md)
 
 ## iRule flow (IRULE5xxx)
 
-*6 codes — top-level and nested context, `drop`/`return`, and related
-control-flow warnings. Populated in Phase 5.4.*
+- [IRULE5001 — ungated log in hot event](kcs-diagnostic-irule5001-ungated-log-in-hot-event.md)
+- [IRULE5002 — drop without event disable](kcs-diagnostic-irule5002-drop-without-event-disable.md)
+- [IRULE5004 — DNS::return without return](kcs-diagnostic-irule5004-dns-return-without-return.md)
+- [IRULE5005 — direct proc without call](kcs-diagnostic-irule5005-direct-proc-without-call.md)
+- [IRULE5006 — top-level in nested body](kcs-diagnostic-irule5006-top-level-in-nested-body.md)
+- [IRULE5007 — event command outside when](kcs-diagnostic-irule5007-event-command-outside-when.md)
 
 ## Optimisations (O-codes)
 

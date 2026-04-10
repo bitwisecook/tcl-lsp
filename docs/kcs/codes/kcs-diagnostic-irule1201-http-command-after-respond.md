@@ -26,23 +26,17 @@ HTTP state is committed once `respond` or `redirect` is called. Any further head
 ## Example that triggers it
 
 ```tcl
-when HTTP_REQUEST {
-  HTTP::respond 200
-  HTTP::header insert X-Custom val
-}
+when HTTP_REQUEST { HTTP::respond 200; HTTP::header insert X-Custom val }
 ```
 
 The analyser reports **`IRULE1201`** on the `HTTP::header` call.
 
 ## Fix
 
-Move all header work before the respond or redirect call:
+Move all header work before the respond or redirect:
 
 ```tcl
-when HTTP_REQUEST {
-  HTTP::header insert X-Custom val
-  HTTP::respond 200
-}
+when HTTP_REQUEST { HTTP::header insert X-Custom val; HTTP::respond 200 }
 ```
 
 ## How to suppress
