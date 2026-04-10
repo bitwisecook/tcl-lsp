@@ -21,6 +21,21 @@
 //!   [`SsaBlock`](ssa::SsaBlock), [`SsaFunction`](ssa::SsaFunction)),
 //!   dominator algorithms, dominance frontier, phi placement, and
 //!   variable definition extraction (chunk **C3**).
+//! - [`codegen`] — bytecode assembly types: [`Op`](codegen::Op) (150+
+//!   opcodes), [`Instruction`](codegen::Instruction),
+//!   [`LiteralTable`](codegen::LiteralTable),
+//!   [`LocalVarTable`](codegen::LocalVarTable),
+//!   [`FunctionAsm`](codegen::FunctionAsm),
+//!   [`ModuleAsm`](codegen::ModuleAsm), plus operator mapping and
+//!   index parsing (chunk **C4**).
+//! - [`types`] — Tcl intrep type lattice:
+//!   [`TclType`](types::TclType), [`TypeLattice`](types::TypeLattice),
+//!   [`type_join`](types::type_join) (chunk **C5**).
+//! - [`analyses`] — analysis result types:
+//!   [`LatticeValue`](analyses::LatticeValue),
+//!   [`FunctionAnalysis`](analyses::FunctionAnalysis),
+//!   [`ModuleAnalysis`](analyses::ModuleAnalysis),
+//!   plus diagnostic types (chunk **C5**).
 //!
 //! The crate has no `pyo3` dependency and no Python-compat concerns —
 //! those belong in the `tcl-lsp-rust` binding crate. See
@@ -29,12 +44,15 @@
 
 #![deny(missing_docs)]
 
+pub mod analyses;
 pub mod cfg;
+pub mod codegen;
 pub mod expr_ast;
 pub mod expr_parser;
 pub mod ir;
 pub mod naming;
 pub mod ssa;
+pub mod types;
 
 // Re-export key types for convenience.
 pub use expr_ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
