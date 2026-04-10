@@ -47,12 +47,12 @@ class TestSafeModeWhitelist:
             interp.eval("puts hello")
 
     def test_safe_whitelist_can_include_custom_commands(self) -> None:
+        from vm.types import TclResult
+
         calls: list[list[str]] = []
 
-        def _directive(interp: TclInterp, args: list[str]) -> object:
+        def _directive(interp: TclInterp, args: list[str]) -> TclResult:
             calls.append(args)
-            from vm.types import TclResult
-
             return TclResult(value="")
 
         interp = TclInterp(safe=True, safe_whitelist=frozenset({"package", "set"}))
