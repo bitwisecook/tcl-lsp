@@ -1,6 +1,6 @@
 # KCS: <the question, phrased as the title>
 
-> **Audience:** User | Contributor
+> **Audience:** <pick one: User, Contributor, or Maintainer>
 > **Type:** Q&A
 
 ## Applies to

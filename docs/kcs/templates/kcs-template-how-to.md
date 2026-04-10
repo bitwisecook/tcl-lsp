@@ -1,6 +1,6 @@
 # KCS: How do I <task>?
 
-> **Audience:** User | Contributor
+> **Audience:** <pick one: User, Contributor, or Maintainer — prefer one audience; use multiple only when the note is explicitly broadly applicable>
 > **Type:** How-To
 
 ## Applies to

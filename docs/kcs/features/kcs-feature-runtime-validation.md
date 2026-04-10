@@ -55,8 +55,10 @@ can't read "itmes": no such variable
 "foreach item $itmes { ... }"
 ```
 
-The static analyser would not have caught this without
-`-Wunresolved`; runtime validation confirms the failure.
+The static analyser flags this as
+[W210](../codes/kcs-diagnostic-w210-variable-read-before-set.md)
+(variable read before set), but runtime validation independently
+confirms the failure by executing the script against a real `tclsh`.
 
 ## Discoverability
 
