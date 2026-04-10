@@ -40,6 +40,14 @@
   longer fires unconditionally; use the editor's native format-on-save
   instead. The server-side handler remains as an opt-in fallback for editors
   without native format-on-save support.
+- **VS Code feature toggles now inherit from editor globals.** All
+  `tclLsp.features.*` settings in the VS Code extension default to `null`,
+  which means "inherit from the corresponding VS Code editor setting" where
+  one exists (e.g. `editor.hover.enabled`, `editor.codeLens`,
+  `editor.linkedEditing`). Features without a VS Code equivalent default to
+  enabled. Set a toggle to `true` or `false` to override the editor global.
+  Note: `linkedEditingRange` was previously enabled by default but now
+  follows `editor.linkedEditing` (which defaults to `false` in VS Code).
 
 ## Bug Fixes
 

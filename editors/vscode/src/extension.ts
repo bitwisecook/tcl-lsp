@@ -406,7 +406,12 @@ const FEATURE_EDITOR_DEFAULTS: Record<string, () => boolean> = {
   folding: () => workspace.getConfiguration("editor").get<boolean>("folding", true),
   signatureHelp: () =>
     workspace.getConfiguration("editor").get<boolean>("parameterHints.enabled", true),
-  inlayHints: () => workspace.getConfiguration("editor").get<boolean>("inlayHints.enabled", true),
+  inlayHints: () => {
+    const v = workspace
+      .getConfiguration("editor")
+      .get<string | boolean>("inlayHints.enabled", true);
+    return v !== "off" && v !== "offUnlessPressed" && v !== false;
+  },
   documentHighlight: () => {
     const v = workspace
       .getConfiguration("editor")
