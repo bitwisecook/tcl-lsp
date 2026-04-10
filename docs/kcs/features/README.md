@@ -102,6 +102,9 @@ combine them when more than one form helps:
 - [kcs-feature-debugger.md](kcs-feature-debugger.md)
 - [kcs-feature-command-info.md](kcs-feature-command-info.md)
 - [kcs-feature-event-registry.md](kcs-feature-event-registry.md)
+- [kcs-feature-semantic-graphs.md](kcs-feature-semantic-graphs.md)
+- [kcs-feature-control-flow-diagrams.md](kcs-feature-control-flow-diagrams.md)
+- [kcs-feature-irule-review.md](kcs-feature-irule-review.md)
 
 ## AI features
 
