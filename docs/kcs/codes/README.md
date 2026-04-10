@@ -43,8 +43,30 @@ in the pages; Phase 7 cross-links.
 
 ## Warnings and style (W-codes)
 
-*~20 codes — style, idiom, and correctness warnings. Populated in
-Phase 4.2.*
+- [W001 — unknown subcommand](kcs-diagnostic-w001-unknown-subcommand.md)
+- [W002 — command disabled in dialect](kcs-diagnostic-w002-command-disabled-in-dialect.md)
+- [W100 — unbraced expression](kcs-diagnostic-w100-unbraced-expression.md)
+- [W104 — string concat for lists](kcs-diagnostic-w104-string-concat-for-lists.md)
+- [W105 — unbraced code block](kcs-diagnostic-w105-unbraced-code-block.md)
+- [W106 — unbraced switch body](kcs-diagnostic-w106-unbraced-switch-body.md)
+- [W108 — non-ASCII characters](kcs-diagnostic-w108-non-ascii-characters.md)
+- [W110 — use eq/ne for strings](kcs-diagnostic-w110-use-eq-ne-for-strings.md)
+- [W111 — line too long](kcs-diagnostic-w111-line-too-long.md)
+- [W112 — trailing whitespace](kcs-diagnostic-w112-trailing-whitespace.md)
+- [W113 — proc shadows built-in](kcs-diagnostic-w113-proc-shadows-builtin.md)
+- [W114 — redundant nested expr](kcs-diagnostic-w114-redundant-nested-expr.md)
+- [W115 — backslash-newline in comment](kcs-diagnostic-w115-backslash-newline-in-comment.md)
+- [W116 — stub shadows built-in](kcs-diagnostic-w116-stub-shadows-builtin.md)
+- [W117 — stub expr shadows built-in](kcs-diagnostic-w117-stub-expr-shadows-builtin.md)
+- [W118 — inconsistent line endings](kcs-diagnostic-w118-inconsistent-line-endings.md)
+- [W120 — missing package require](kcs-diagnostic-w120-missing-package-require.md)
+- [W121 — invalid subnet mask](kcs-diagnostic-w121-invalid-subnet-mask.md)
+- [W122 — mistyped IPv4 address](kcs-diagnostic-w122-mistyped-ipv4-address.md)
+- [W124 — invalid IP literal](kcs-diagnostic-w124-invalid-ip-literal.md)
+- [W125 — orphaned control flow](kcs-diagnostic-w125-orphaned-control-flow.md)
+- [W126 — non-channel argument](kcs-diagnostic-w126-non-channel-argument.md)
+- [W200 — exec result not captured](kcs-diagnostic-w200-exec-result-not-captured.md)
+- [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)
 
 ## Security (W1xx, W3xx)
 
