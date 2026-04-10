@@ -37,6 +37,63 @@ suite("Configuration Settings", () => {
     assert.strictEqual(cfg().get<boolean>("features.pullDiagnostics"), false);
   });
 
+  // Tri-state inheritance: null feature toggles inherit from editor globals.
+  // These tests change a VS Code editor global, verify the feature toggle
+  // reflects it, then restore the original value.
+
+  const editorGlobalMappings: Array<[string, string, boolean]> = [
+    // [feature key, editor setting path, editor default value]
+    ["hover", "editor.hover.enabled", true],
+    ["codeLens", "editor.codeLens", true],
+    ["folding", "editor.folding", true],
+    ["linkedEditingRange", "editor.linkedEditing", false],
+  ];
+
+  for (const [featureKey, editorSetting, editorDefault] of editorGlobalMappings) {
+    test(`features.${featureKey} inherits from ${editorSetting}`, async () => {
+      // Verify the feature defaults to null (inherit)
+      const featureVal = cfg().get<boolean | null>(`features.${featureKey}`);
+      assert.strictEqual(featureVal, null, `features.${featureKey} should default to null`);
+
+      // Verify the editor global has the expected default
+      const [section, key] = editorSetting.split(".", 2);
+      const editorCfg = vscode.workspace.getConfiguration(section);
+      const original = editorCfg.get<boolean>(key);
+      assert.strictEqual(
+        original,
+        editorDefault,
+        `${editorSetting} should default to ${editorDefault}`,
+      );
+    });
+
+    test(`features.${featureKey}=true overrides ${editorSetting}=false`, async () => {
+      const config = vscode.workspace.getConfiguration("tclLsp.features");
+      try {
+        // Explicitly set the feature to true — it should override any editor global
+        await config.update(featureKey, true, undefined);
+        const value = vscode.workspace
+          .getConfiguration("tclLsp.features")
+          .get<boolean | null>(featureKey);
+        assert.strictEqual(value, true, `Explicit true should override editor global`);
+      } finally {
+        await config.update(featureKey, undefined, undefined);
+      }
+    });
+
+    test(`features.${featureKey}=false overrides ${editorSetting}`, async () => {
+      const config = vscode.workspace.getConfiguration("tclLsp.features");
+      try {
+        await config.update(featureKey, false, undefined);
+        const value = vscode.workspace
+          .getConfiguration("tclLsp.features")
+          .get<boolean | null>(featureKey);
+        assert.strictEqual(value, false, `Explicit false should override editor global`);
+      } finally {
+        await config.update(featureKey, undefined, undefined);
+      }
+    });
+  }
+
   // Formatting options
   const formattingIntKeys: Array<[string, number]> = [
     ["indentSize", 4],
