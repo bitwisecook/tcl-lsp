@@ -35,12 +35,10 @@ The analyser reports **`W214`** on the `greeting` parameter.
 
 ## Fix
 
-Use the parameter, or remove it from the signature:
+Use the parameter or remove it from the signature:
 
 ```tcl
-proc greet {name greeting} {
-    puts "$greeting, $name"
-}
+proc greet {name greeting} { puts "$greeting, $name" }
 ```
 
 ## How to suppress

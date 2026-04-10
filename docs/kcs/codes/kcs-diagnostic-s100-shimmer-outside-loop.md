@@ -40,8 +40,7 @@ Use separate variables for numeric and string use:
 ```tcl
 set x "42"
 set x_num [expr {$x + 0}]
-expr {$x_num + 1}
-string length $x
+expr {$x_num + 1}; string length $x
 ```
 
 ## How to suppress
@@ -52,5 +51,4 @@ Add `# noqa: S100` at the end of the offending line.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [shimmer](../../GLOSSARY.md#shimmer)
-- Related codes: `S101`, `S102`
+- [shimmer](../../GLOSSARY.md#shimmer) · `S101`, `S102`

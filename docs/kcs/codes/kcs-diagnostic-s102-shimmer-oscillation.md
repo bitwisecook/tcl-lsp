@@ -21,7 +21,7 @@ The value converts back and forth on every iteration, making the performance cos
 
 ## Symptoms
 
-- A yellow squiggle appears under the variable, with the message "variable oscillates between types across iterations".
+- Yellow squiggle under the variable, with the message "variable oscillates between types across iterations".
 
 ## Example that triggers it
 
@@ -36,12 +36,9 @@ The analyser reports **`S102`** because `x` alternates between integer and strin
 
 ## Fix
 
-Keep the variable in one type; use a separate variable for the other:
-
 ```tcl
 while {1} {
-    set x_num [expr {$x_num + 1}]
-    set x_str [string range $x_num 0 end]
+    set x_num [expr {$x_num + 1}]; set x_str [string range $x_num 0 end]
 }
 ```
 
@@ -53,5 +50,4 @@ Add `# noqa: S102` at the end of the offending line.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [shimmer](../../GLOSSARY.md#shimmer)
-- Related codes: `S100`, `S101`
+- [shimmer](../../GLOSSARY.md#shimmer) · `S100`, `S101`

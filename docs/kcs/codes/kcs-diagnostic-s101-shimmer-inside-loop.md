@@ -21,7 +21,7 @@ Each loop iteration converts the value between types, multiplying the cost by th
 
 ## Symptoms
 
-- A yellow squiggle appears under the variable use inside the loop, with the message "shimmer inside loop body".
+- Yellow squiggle under the variable use, with the message "shimmer inside loop body".
 
 ## Example that triggers it
 
@@ -36,12 +36,9 @@ The analyser reports **`S101`** because `item` shimmers on every iteration.
 
 ## Fix
 
-Extract the numeric value to a separate variable before the string use:
-
 ```tcl
 foreach item $list {
-    set item_num [expr {$item + 0}]
-    string length $item
+    set item_num [expr {$item + 0}]; string length $item
 }
 ```
 
@@ -53,5 +50,4 @@ Add `# noqa: S101` at the end of the offending line.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [shimmer](../../GLOSSARY.md#shimmer)
-- Related codes: `S100`, `S102`
+- [shimmer](../../GLOSSARY.md#shimmer) · `S100`, `S102`
