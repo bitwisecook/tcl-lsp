@@ -100,11 +100,34 @@ def _create_archive(
                     zf.writestr(arcname, data)
 
 
+#: Package names whose native `.so`/`.pyd` extensions must survive
+#: `_pip_install_pure`. Everything else falls back to pure Python inside the
+#: zipapp. Keep this set minimal — only Rust crates owned by tcl-lsp belong
+#: here. See `docs/rust-rewrite.md` for the migration story.
+_RUST_NATIVE_PACKAGES: frozenset[str] = frozenset({"tcl_lsp_rust"})
+
+
+def _is_preserved_native(path: Path) -> bool:
+    """Return True if *path* belongs to a preserved Rust-backed package.
+
+    Maturin-built extensions install as top-level files like
+    ``tcl_lsp_rust.cpython-310-x86_64-linux-gnu.so`` and their
+    dist-info as ``tcl_lsp_rust-<ver>.dist-info/``.  Match by
+    checking whether any path component *starts with* a known
+    package name (not just exact equality), so both the ``.so``
+    stem and the dist-info directory are preserved.
+    """
+    return any(part.split(".")[0].split("-")[0] in _RUST_NATIVE_PACKAGES for part in path.parts)
+
+
 def _pip_install_pure(stage: Path, *packages: str) -> None:
     """Install pure-Python packages into the staging directory.
 
     Strips C extensions (.so/.pyd), dist-info, and __pycache__ so the
-    result can be packed into a zipapp.
+    result can be packed into a zipapp. Native modules belonging to our
+    own Rust crates (see `_RUST_NATIVE_PACKAGES`) are preserved so future
+    chunks of the Python-to-Rust migration can bundle them through the
+    same code path.
     """
     subprocess.check_call(
         [
@@ -117,13 +140,20 @@ def _pip_install_pure(stage: Path, *packages: str) -> None:
             *packages,
         ]
     )
-    # Remove C extensions (markupsafe._speedups etc.) — pure-Python fallback works
-    for ext in stage.rglob("*.so"):
+    # Remove third-party C extensions (markupsafe._speedups etc.) — the
+    # pure-Python fallback works inside the zipapp. tcl-lsp's own Rust
+    # crates are exempt; their `.so` files are kept for the chunks that
+    # later bundle them.
+    for ext in list(stage.rglob("*.so")) + list(stage.rglob("*.pyd")):
+        if _is_preserved_native(ext):
+            continue
         ext.unlink()
-    for ext in stage.rglob("*.pyd"):
-        ext.unlink()
-    # Clean up metadata and bytecache
+    # Clean up metadata and bytecache, but keep dist-info for preserved
+    # Rust packages so their RECORD file stays consistent with what was
+    # installed.
     for p in stage.rglob("*.dist-info"):
+        if _is_preserved_native(p):
+            continue
         shutil.rmtree(p)
     for p in stage.rglob("__pycache__"):
         shutil.rmtree(p)

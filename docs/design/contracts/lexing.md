@@ -19,6 +19,7 @@ Lexer output is the positional source of truth for segmentation, recovery, seman
 - `core/parsing/lexer.py`
 - `core/parsing/tokens.py`
 - `core/parsing/substitution.py`
+- `rust/tcl-lexer/` — Rust port target (see [`docs/rust-rewrite.md`](../../rust-rewrite.md)); from chunk L3 onward Rust and Python implementations must stay token-stream-equivalent via the differential test harness.
 
 ## Failure modes
 
@@ -34,6 +35,7 @@ Lexer output is the positional source of truth for segmentation, recovery, seman
 
 ## Discoverability
 
-- [KCS index](../../../docs/design/README.md)
-- [parsing contracts](../../../docs/design/contracts/parsing.md)
-- [range-drift troubleshooting](../../../docs/kcs/kcs-issue-range-drift.md)
+- [Design docs index](../README.md)
+- [parsing contracts](parsing.md)
+- [range-drift troubleshooting](../../kcs/kcs-issue-range-drift.md)
+- [Rust rewrite design doc](../../rust-rewrite.md)

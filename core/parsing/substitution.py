@@ -2,9 +2,24 @@
 
 Shared by the compiler (for expr string literals inside braces) and
 the VM runtime substitution engine.
+
+The primary implementation is provided by the Rust `tcl_lsp_rust`
+extension module (see `rust/tcl-lexer/src/substitution.rs`). A
+pure-Python fallback is still kept in this file for developer
+environments that have not yet built the Rust wheel; the broader
+Python-to-Rust rewrite is described in `docs/rust-rewrite.md`.
 """
 
 from __future__ import annotations
+
+from typing import Callable
+
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        backslash_subst as _backslash_subst_rust,
+    )
+except ImportError:
+    _backslash_subst_rust = None
 
 # Backslash escape mapping
 
@@ -28,11 +43,12 @@ _BACKSLASH_MAP: dict[str, str] = {
 }
 
 
-def backslash_subst(text: str) -> str:
-    """Process Tcl backslash escapes in *text*.
+def _backslash_subst_python(text: str) -> str:
+    """Pure-Python fallback for :func:`backslash_subst`.
 
-    Handles ``\\a \\b \\f \\n \\r \\t \\v \\\\ \\xNN \\uNNNN \\UNNNNNNNN``
-    and octal escapes ``\\NNN``, plus ``\\<newline>`` (continuation lines).
+    Kept in lock-step with the Rust implementation; update both in the
+    same commit until the fallback is removed. See
+    ``rust/tcl-lexer/src/substitution.rs`` for the source of truth.
     """
     result: list[str] = []
     i = 0
@@ -100,3 +116,12 @@ def backslash_subst(text: str) -> str:
             result.append(text[i])
             i += 1
     return "".join(result)
+
+
+#: Public entry point. Dispatches to the Rust implementation when the
+#: `tcl_lsp_rust` extension is installed; otherwise falls back to the
+#: pure-Python implementation above. Module-level assignment means
+#: callers pay no per-call dispatch cost.
+backslash_subst: Callable[[str], str] = (
+    _backslash_subst_rust if _backslash_subst_rust is not None else _backslash_subst_python
+)

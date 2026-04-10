@@ -61,3 +61,7 @@ core/help/kcs_help.db
 tmp/
 editors/jetbrains/.intellijPlatform/
 perf_history.sqlite3
+
+# Rust workspace (editors/zed keeps its own local .gitignore for its target/)
+/target/
+rust/tcl-lsp-rust/.venv/
