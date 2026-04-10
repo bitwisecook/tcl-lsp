@@ -89,8 +89,21 @@ def _cmd_eof(interp: TclInterp, args: list[str]) -> TclResult:
     """eof channelId"""
     if not args:
         raise TclError('wrong # args: should be "eof channelId"')
-    # Simplified
-    return TclResult(value="0")
+    ch = interp.channels.get(args[0])
+    if ch is None:
+        raise TclError(f'can not find channel named "{args[0]}"')
+    # Check if channel is at EOF by trying to read 1 byte
+    try:
+        pos = ch.tell()
+        data = ch.read(1)
+        if data == "":
+            return TclResult(value="1")
+        # Not at EOF — seek back
+        ch.seek(pos)
+        return TclResult(value="0")
+    except (OSError, AttributeError):
+        # stdin and other non-seekable channels
+        return TclResult(value="0")
 
 
 def _cmd_close(interp: TclInterp, args: list[str]) -> TclResult:
@@ -193,6 +206,88 @@ def _cmd_fconfigure(interp: TclInterp, args: list[str]) -> TclResult:
     return TclResult()
 
 
+def _cmd_chan(interp: TclInterp, args: list[str]) -> TclResult:
+    """chan subcommand ?arg ...?
+
+    Modern channel interface — dispatches to existing I/O commands.
+    """
+    if not args:
+        raise TclError('wrong # args: should be "chan subcommand ?arg ...?"')
+    subcmd = args[0]
+    rest = args[1:]
+
+    match subcmd:
+        case "puts":
+            return _cmd_puts(interp, rest)
+        case "gets":
+            return _cmd_gets(interp, rest)
+        case "read":
+            return _cmd_read(interp, rest)
+        case "close":
+            return _cmd_close(interp, rest)
+        case "flush":
+            return _cmd_flush(interp, rest)
+        case "seek":
+            return _cmd_seek(interp, rest)
+        case "tell":
+            return _cmd_tell(interp, rest)
+        case "eof":
+            return _cmd_eof(interp, rest)
+        case "configure":
+            return _cmd_fconfigure(interp, rest)
+        case "names":
+            return TclResult(value=" ".join(sorted(interp.channels.keys())))
+        case "pending":
+            # Return 0 (no pending data) — stub
+            return TclResult(value="0")
+        case "blocked":
+            # Return 0 (not blocked) — stub
+            return TclResult(value="0")
+        case "truncate":
+            if not rest:
+                raise TclError('wrong # args: should be "chan truncate channelId ?length?"')
+            ch = interp.channels.get(rest[0])
+            if ch is None:
+                raise TclError(f'can not find channel named "{rest[0]}"')
+            length = int(rest[1]) if len(rest) > 1 else 0
+            ch.truncate(length)
+            return TclResult()
+        case "copy":
+            # Minimal chan copy — read from source, write to dest
+            if len(rest) < 2:
+                raise TclError('wrong # args: should be "chan copy inchan outchan ?-size size? ?-command callback?"')
+            src = interp.channels.get(rest[0])
+            dst = interp.channels.get(rest[1])
+            if src is None:
+                raise TclError(f'can not find channel named "{rest[0]}"')
+            if dst is None:
+                raise TclError(f'can not find channel named "{rest[1]}"')
+            # Parse optional -size
+            size = -1
+            i = 2
+            while i < len(rest):
+                if rest[i] == "-size" and i + 1 < len(rest):
+                    size = int(rest[i + 1])
+                    i += 2
+                else:
+                    i += 1
+            data = src.read(size) if size >= 0 else src.read()
+            dst.write(data)
+            return TclResult(value=str(len(data)))
+        case "event":
+            # fileevent stub — accept but ignore
+            return TclResult()
+        case "create":
+            # Stub for reflected channels
+            raise TclError(f'chan create not supported in this implementation')
+        case _:
+            raise TclError(
+                f'unknown or ambiguous subcommand "{subcmd}": must be '
+                "blocked, close, configure, copy, create, eof, event, "
+                "flush, gets, names, pending, puts, read, seek, tell, or truncate"
+            )
+
+
 def register() -> None:
     """Register I/O commands."""
     from core.commands.registry import REGISTRY
@@ -207,3 +302,4 @@ def register() -> None:
     REGISTRY.register_handler("seek", _cmd_seek)
     REGISTRY.register_handler("tell", _cmd_tell)
     REGISTRY.register_handler("fconfigure", _cmd_fconfigure)
+    REGISTRY.register_handler("chan", _cmd_chan)
