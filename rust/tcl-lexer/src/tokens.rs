@@ -71,19 +71,17 @@ impl TokenType {
 /// A position in source text.
 ///
 /// Stores 0-based line and character plus the absolute byte offset into
-/// the source string. The `character` field is currently a byte offset
-/// within the line, not a UTF-16 code-unit column; it therefore matches
-/// LSP-style columns only for ASCII text. Non-ASCII column parity is
-/// deferred work tracked in `docs/rust-rewrite.md` — changing it is a
-/// coordinated Python-and-Rust fix across the whole position
-/// infrastructure, not a lexer-local concern. All three fields are `u32`,
-/// which bounds the largest source file we care about at 4 GiB, well
-/// above any realistic Tcl/iRules input.
+/// the source string. The `character` field is currently a **byte
+/// offset within the line**, not a UTF-16 code-unit column; it
+/// therefore matches LSP-style columns only for ASCII text. All three
+/// fields are `u32`, which bounds the largest source file we care about
+/// at 4 GiB, well above any realistic Tcl/iRules input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct SourcePosition {
     /// 0-based line number.
     pub line: u32,
-    /// 0-based byte offset within the line (ASCII-parity with LSP columns only).
+    /// 0-based byte offset within the line (ASCII-parity with LSP
+    /// columns; UTF-16 parity is deferred work).
     pub character: u32,
     /// Byte offset into the source string.
     pub offset: u32,
