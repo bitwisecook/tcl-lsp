@@ -272,7 +272,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "codeLens" to featureCodeLens,
                 "workspaceFileOps" to featureWorkspaceFileOps,
                 "pullDiagnostics" to featurePullDiagnostics,
-                "willSaveWaitUntil" to featureWillSaveWaitUntil,
                 "progress" to featureProgress,
                 "implementation" to featureImplementation,
                 "typeDefinition" to featureTypeDefinition,

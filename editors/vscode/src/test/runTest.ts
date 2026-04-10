@@ -29,7 +29,7 @@ function emitProcessSnapshot(extensionDevelopmentPath: string, extensionTestsPat
     const escapedDevPath = escapeDoubleQuotes(extensionDevelopmentPath);
     const escapedTestsPath = escapeDoubleQuotes(extensionTestsPath);
     const pattern = `extensionDevelopmentPath=${escapedDevPath}|extensionTestsPath=${escapedTestsPath}|node ./out/test/runTest.js`;
-    const cmd = `ps -axo pid,ppid,etime,command | rg "${pattern}"`;
+    const cmd = `ps -axo pid,ppid,etime,command | grep -E "${pattern}"`;
     const output = execSync(cmd, { encoding: "utf8" });
     if (output.trim()) {
       console.error("Potentially stuck VS Code test processes:");

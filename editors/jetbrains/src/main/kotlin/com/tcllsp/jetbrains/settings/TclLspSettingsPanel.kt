@@ -41,7 +41,6 @@ class TclLspSettingsPanel {
     private val featureWorkspaceFileOps = JBCheckBox("Auto-rewrite source paths on rename")
     private val featurePullDiagnostics =
         JBCheckBox("Pull diagnostics (opt-in; restart required)")
-    private val featureWillSaveWaitUntil = JBCheckBox("Format on save (LSP fallback; prefer IDE on-save actions)")
     private val featureProgress = JBCheckBox("Workspace scan progress")
     private val featureImplementation = JBCheckBox("Go to implementation")
     private val featureTypeDefinition = JBCheckBox("Go to type definition")
@@ -260,7 +259,7 @@ class TclLspSettingsPanel {
                 featureWorkspaceSymbols, featureInlayHints, featureCallHierarchy,
                 featureDocumentLinks, featureSelectionRange,
                 featureDocumentHighlight, featureCodeLens, featureWorkspaceFileOps,
-                featurePullDiagnostics, featureWillSaveWaitUntil, featureProgress,
+                featurePullDiagnostics, featureProgress,
                 featureImplementation, featureTypeDefinition, featureDeclaration,
                 featureLinkedEditingRange,
             )
@@ -451,7 +450,6 @@ class TclLspSettingsPanel {
             featureCodeLens.isSelected != s.featureCodeLens ||
             featureWorkspaceFileOps.isSelected != s.featureWorkspaceFileOps ||
             featurePullDiagnostics.isSelected != s.featurePullDiagnostics ||
-            featureWillSaveWaitUntil.isSelected != s.featureWillSaveWaitUntil ||
             featureProgress.isSelected != s.featureProgress ||
             featureImplementation.isSelected != s.featureImplementation ||
             featureTypeDefinition.isSelected != s.featureTypeDefinition ||
@@ -647,7 +645,6 @@ class TclLspSettingsPanel {
         s.featureCodeLens = featureCodeLens.isSelected
         s.featureWorkspaceFileOps = featureWorkspaceFileOps.isSelected
         s.featurePullDiagnostics = featurePullDiagnostics.isSelected
-        s.featureWillSaveWaitUntil = featureWillSaveWaitUntil.isSelected
         s.featureProgress = featureProgress.isSelected
         s.featureImplementation = featureImplementation.isSelected
         s.featureTypeDefinition = featureTypeDefinition.isSelected
@@ -841,7 +838,6 @@ class TclLspSettingsPanel {
         featureCodeLens.isSelected = s.featureCodeLens
         featureWorkspaceFileOps.isSelected = s.featureWorkspaceFileOps
         featurePullDiagnostics.isSelected = s.featurePullDiagnostics
-        featureWillSaveWaitUntil.isSelected = s.featureWillSaveWaitUntil
         featureProgress.isSelected = s.featureProgress
         featureImplementation.isSelected = s.featureImplementation
         featureTypeDefinition.isSelected = s.featureTypeDefinition

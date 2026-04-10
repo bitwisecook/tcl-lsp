@@ -10,7 +10,6 @@ suite("Configuration Settings", () => {
     "hover",
     "completion",
     "diagnostics",
-    "formatting",
     "semanticTokens",
     "codeActions",
     "definition",
@@ -418,43 +417,6 @@ suite("Configuration Settings", () => {
       assert.ok(!lspPuts, "LSP 'puts' completion with detail should be suppressed when disabled");
     } finally {
       await config.update("completion", undefined, undefined);
-    }
-  });
-
-  test("disabling features.formatting suppresses format results", async () => {
-    const docUri = getDocUri("formatting.tcl");
-    await activate(docUri);
-    const editor = vscode.window.activeTextEditor!;
-    const badContent = "proc foo {} {\nset x 1\n}\n";
-
-    // Baseline: formatting produces edits
-    await setTestContent(editor, badContent);
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeFormatDocumentProvider",
-      docUri,
-      { tabSize: 4, insertSpaces: true } as vscode.FormattingOptions,
-    )) as vscode.TextEdit[];
-    assert.ok(before && before.length > 0, "Formatting should produce edits by default");
-
-    const config = vscode.workspace.getConfiguration("tclLsp.features");
-    try {
-      await config.update("formatting", false, undefined);
-      await sleep(500);
-
-      await setTestContent(editor, badContent);
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeFormatDocumentProvider",
-        docUri,
-        { tabSize: 4, insertSpaces: true } as vscode.FormattingOptions,
-      )) as vscode.TextEdit[];
-      const editCount = after ? after.length : 0;
-      assert.strictEqual(
-        editCount,
-        0,
-        `Formatting should be suppressed when disabled, got ${editCount} edits`,
-      );
-    } finally {
-      await config.update("formatting", undefined, undefined);
     }
   });
 
