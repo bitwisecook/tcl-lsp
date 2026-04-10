@@ -17,7 +17,7 @@ What does O122 rewrite, and when does it fire?
 
 ## Why
 
-An iterative loop has zero call overhead and cannot overflow the stack regardless of input size. This rewrite fires after O121 when the proc is fully tail-recursive and can be expressed as a `while` loop.
+An iterative loop has zero call overhead and cannot overflow the stack regardless of input size. This fires when a fully tail-recursive proc can be expressed as a `while` loop.
 
 ## Before
 
