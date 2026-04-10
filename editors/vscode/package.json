@@ -3124,12 +3124,6 @@
             "description": "Enable pull-model diagnostics (textDocument/diagnostic, workspace/diagnostic). Off by default: turning this on causes most clients to stop honouring push notifications.",
             "order": 20
           },
-          "tclLsp.features.willSaveWaitUntil": {
-            "type": "boolean",
-            "default": false,
-            "description": "Format Tcl files on save via the LSP willSaveWaitUntil handler. Off by default — use VS Code's built-in 'Editor: Format On Save' (editor.formatOnSave) instead. Only enable this for editors that lack a native format-on-save mechanism.",
-            "order": 21
-          },
           "tclLsp.features.progress": {
             "type": "boolean",
             "default": true,
