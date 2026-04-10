@@ -9,6 +9,10 @@
 //!   [`Procedure`], [`Module`], and supporting types. Every node
 //!   carries a [`Span`](tcl_lexer::Span) for position tracking
 //!   (chunk **C0**).
+//! - [`expr_parser`] — Pratt parser that converts expression tokens
+//!   into [`ExprNode`] trees (chunk **C1**).
+//! - [`naming`] — variable and command name normalisation utilities
+//!   (chunk **C1**).
 //!
 //! The crate has no `pyo3` dependency and no Python-compat concerns —
 //! those belong in the `tcl-lsp-rust` binding crate. See
@@ -18,10 +22,13 @@
 #![deny(missing_docs)]
 
 pub mod expr_ast;
+pub mod expr_parser;
 pub mod ir;
+pub mod naming;
 
 // Re-export key types for convenience.
 pub use expr_ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
+pub use expr_parser::parse_expr;
 pub use ir::{Module, Procedure, Script, Statement};
 
 /// Crate version string, useful for migration diagnostics.
