@@ -1644,6 +1644,39 @@ class BytecodeVM:
                                     except (ValueError, TypeError):
                                         pass  # not numeric — leave as-is
 
+                case Op.TRY_CVT_TO_BOOLEAN:
+                    # Try to convert TOS to a boolean.  Pushes two values:
+                    # the converted value (0 or 1) and a flag indicating
+                    # whether the conversion succeeded (1) or not (0).
+                    # Tcl accepts any unique prefix of the canonical words
+                    # true/false/yes/no/on/off (e.g. "t", "ye", "of"),
+                    # but rejects ambiguous prefixes like "o".
+                    val = stack.pop() if stack else ""
+                    low = val.strip().lower()
+                    converted: str | None = None
+                    if low == "1":
+                        converted = "1"
+                    elif low == "0":
+                        converted = "0"
+                    elif low:
+                        _true_words = ("true", "yes", "on")
+                        _false_words = ("false", "no", "off")
+                        matches: list[str] = []
+                        for w in _true_words:
+                            if w.startswith(low):
+                                matches.append("1")
+                        for w in _false_words:
+                            if w.startswith(low):
+                                matches.append("0")
+                        if len(matches) == 1:
+                            converted = matches[0]
+                    if converted is not None:
+                        stack.append(converted)  # converted value
+                        stack.append("1")  # success flag
+                    else:
+                        stack.append(val)  # original value (unconverted)
+                        stack.append("0")  # failure flag
+
                 case Op.NOT:
                     # Logical not — Tcl uses "cannot use non-numeric string"
                     # error instead of "expected boolean value"
@@ -1656,11 +1689,87 @@ class BytecodeVM:
                         ) from None
 
                 case Op.OVER:
-                    # Duplicate the element below TOS (copy stack[-2])
-                    if len(stack) >= 2:
-                        stack.append(stack[-2])
+                    # Copy the element *depth* positions from the top.
+                    # ``over 0`` = dup TOS, ``over 1`` = copy stack[-2], etc.
+                    depth = instr.operands[0] if instr.operands else 1
+                    if isinstance(depth, str):
+                        depth = int(depth)
+                    idx = -(depth + 1)
+                    if len(stack) >= depth + 1:
+                        stack.append(stack[idx])
                     else:
                         stack.append("")
+
+                case Op.LSET_LIST:
+                    # lsetList: stack has [..., varName, indexList, newValue, listValue]
+                    # indexList may be a Tcl list of indices for nested access.
+                    list_val = stack.pop() if stack else ""
+                    new_val = stack.pop() if stack else ""
+                    idx_str = stack.pop() if stack else "0"
+                    # varName is still on stack for storeStk
+                    indices = _split_list(idx_str)
+                    if not indices:
+                        indices = ["0"]
+                    stack.append(_lset_nested(list_val, indices, new_val))
+
+                case Op.LSET_FLAT:
+                    # lsetFlat count: stack has [..., idx0, ..., newValue, listValue]
+                    # The operand is len(indices) + 2.
+                    count = instr.operands[0] if instr.operands else 3
+                    if isinstance(count, str):
+                        count = int(count)
+                    list_val = stack.pop() if stack else ""
+                    new_val = stack.pop() if stack else ""
+                    num_indices = max(1, count - 2)
+                    indices = []
+                    for _ in range(num_indices):
+                        indices.insert(0, stack.pop() if stack else "0")
+                    stack.append(_lset_nested(list_val, indices, new_val))
+
+                case Op.STR_CLASS:
+                    # strclass classId: check whether TOS is a member of
+                    # the given character class.  Replaces TOS with "1"
+                    # or "0".  Used by bytecoded ``string is CLASS``.
+                    from core.compiler.codegen.opcodes import _STR_CLASS_NAMES
+
+                    val = stack.pop() if stack else ""
+                    class_id = instr.operands[0] if instr.operands else 0
+                    if isinstance(class_id, str):
+                        class_id = int(class_id)
+                    class_name = _STR_CLASS_NAMES.get(class_id, "alnum")
+
+                    # Character class checks
+                    _class_checks: dict[str, Callable[[str], bool]] = {
+                        "alnum": str.isalnum,
+                        "alpha": str.isalpha,
+                        "ascii": lambda s: all(ord(c) < 128 for c in s),
+                        "control": lambda s: (
+                            all(ord(c) < 32 or ord(c) == 127 for c in s) if s else False
+                        ),
+                        "digit": str.isdigit,
+                        "graph": lambda s: (
+                            all(c.isprintable() and not c.isspace() for c in s) if s else False
+                        ),
+                        "lower": str.islower,
+                        "print": lambda s: all(c.isprintable() for c in s) if s else False,
+                        "space": str.isspace,
+                        "upper": str.isupper,
+                        "wordchar": lambda s: (
+                            all(c.isalnum() or c == "_" for c in s) if s else False
+                        ),
+                        "xdigit": lambda s: (
+                            all(c in "0123456789abcdefABCDEF" for c in s) if s else False
+                        ),
+                    }
+                    checker = _class_checks.get(class_name)
+                    if checker is not None:
+                        # Non-strict: empty string is "1" (matches Tcl semantics)
+                        if not val:
+                            stack.append("1")
+                        else:
+                            stack.append("1" if checker(val) else "0")
+                    else:
+                        stack.append("0")
 
                 case _:
                     pass  # ignore unhandled ops
@@ -1715,6 +1824,24 @@ def _parse_lreplace_index(idx_str: str, length: int) -> int:
             right = int(idx_str[pos + 1 :])
             return left + right if op == "+" else left - right
     raise TclError(f'bad index "{idx_str}": must be integer?[+-]integer? or end?[+-]integer?')
+
+
+def _lset_nested(encoded_list: str, path: list[str], value: str) -> str:
+    """Recursively set a nested list element and return the modified list."""
+    lst = _split_list(encoded_list)
+    idx = _parse_index(path[0], len(lst))
+    if len(path) == 1:
+        if 0 <= idx < len(lst):
+            lst[idx] = value
+        elif idx == len(lst):
+            lst.append(value)
+        else:
+            raise TclError("list index out of range")
+    else:
+        if not (0 <= idx < len(lst)):
+            raise TclError("list index out of range")
+        lst[idx] = _lset_nested(lst[idx], path[1:], value)
+    return " ".join(_list_escape(e) for e in lst)
 
 
 def _split_list(text: str) -> list[str]:

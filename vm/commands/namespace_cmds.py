@@ -165,12 +165,16 @@ def _ns_import(interp: TclInterp, args: list[str]) -> TclResult:
             if handler is not None:
                 existing = interp.current_namespace.lookup_command(cmd_name)
                 if existing is not None and not force:
-                    raise TclError(f'can\'t import command "{cmd_name}": already exists')
+                    # Real Tcl silently overwrites if the existing command
+                    # is the same handler (re-import from same source).
+                    if existing is not handler:
+                        raise TclError(f'can\'t import command "{cmd_name}": already exists')
                 interp.current_namespace.register_command(cmd_name, handler)
             elif proc is not None:
                 existing = interp.current_namespace.lookup_proc(cmd_name)
                 if existing is not None and not force:
-                    raise TclError(f'can\'t import command "{cmd_name}": already exists')
+                    if existing is not proc:
+                        raise TclError(f'can\'t import command "{cmd_name}": already exists')
                 interp.current_namespace.register_proc(cmd_name, proc)
                 # Also register in flat procedures table for backwards compat
                 interp.procedures[cmd_name] = proc

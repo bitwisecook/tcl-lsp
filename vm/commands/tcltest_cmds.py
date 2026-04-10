@@ -13,6 +13,7 @@ import os
 import re
 import sys
 import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..machine import _list_escape, _split_list
@@ -68,6 +69,12 @@ def _reset_state() -> None:
     _failed_tests.clear()
     _tmpdir = ""
     _testdir = ""
+
+
+def _sync_num_tests(interp: TclInterp) -> None:
+    """Sync the internal ``_results`` dict to ``::tcltest::numTests``."""
+    for key in ("Total", "Passed", "Skipped", "Failed"):
+        interp.global_frame.set_var(f"::tcltest::numTests({key})", str(_results[key]))
 
 
 def _write_output(interp: TclInterp, msg: str) -> None:
@@ -171,6 +178,7 @@ def _run_test_old_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
             f"==== {name} FAILED\n",
         )
 
+    _sync_num_tests(interp)
     return TclResult()
 
 
@@ -193,11 +201,14 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
     cleanup = opts.get("cleanup", "")
     return_codes_str = opts.get("returnCodes", "ok return")
     match_mode = opts.get("match", "exact")
+    expected_output = opts.get("output")
+    expected_error_output = opts.get("errorOutput")
 
     _results["Total"] += 1
 
     if not _check_constraints(constraints):
         _results["Skipped"] += 1
+        _sync_num_tests(interp)
         return TclResult()
 
     # Run setup
@@ -206,6 +217,24 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
             interp.eval(setup)
         except TclError:
             pass
+
+    # Capture stdout/stderr if -output or -errorOutput was specified
+    import io as _io
+
+    saved_stdout = None
+    saved_stderr = None
+    stdout_capture: _io.StringIO | None = None
+    stderr_capture: _io.StringIO | None = None
+
+    if expected_output is not None:
+        saved_stdout = interp.channels.get("stdout")
+        stdout_capture = _io.StringIO()
+        interp.channels["stdout"] = stdout_capture
+
+    if expected_error_output is not None:
+        saved_stderr = interp.channels.get("stderr")
+        stderr_capture = _io.StringIO()
+        interp.channels["stderr"] = stderr_capture
 
     # Run body
     actual = ""
@@ -226,6 +255,12 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
     except TclContinue:
         actual = ""
         actual_code = 4
+    finally:
+        # Restore channels
+        if saved_stdout is not None:
+            interp.channels["stdout"] = saved_stdout
+        if saved_stderr is not None:
+            interp.channels["stderr"] = saved_stderr
 
     # Check return codes
     code_ok = _check_return_code(actual_code, return_codes_str)
@@ -233,7 +268,19 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
     # Check result match
     result_ok = _match_result(actual, expected, match_mode, interp)
 
-    if code_ok and result_ok:
+    # Check stdout output match
+    output_ok = True
+    if expected_output is not None and stdout_capture is not None:
+        actual_output = stdout_capture.getvalue()
+        output_ok = _match_result(actual_output, expected_output, match_mode, interp)
+
+    # Check stderr output match
+    error_output_ok = True
+    if expected_error_output is not None and stderr_capture is not None:
+        actual_error = stderr_capture.getvalue()
+        error_output_ok = _match_result(actual_error, expected_error_output, match_mode, interp)
+
+    if code_ok and result_ok and output_ok and error_output_ok:
         _results["Passed"] += 1
     else:
         _results["Failed"] += 1
@@ -245,6 +292,12 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
         if not result_ok:
             msg += f"---- Result was:\n{actual}\n"
             msg += f"---- Result should have been ({match_mode} matching):\n{expected}\n"
+        if not output_ok and stdout_capture is not None:
+            msg += f"---- Output was:\n{stdout_capture.getvalue()}\n"
+            msg += f"---- Output should have been ({match_mode} matching):\n{expected_output}\n"
+        if not error_output_ok and stderr_capture is not None:
+            msg += f"---- Error output was:\n{stderr_capture.getvalue()}\n"
+            msg += f"---- Error output should have been ({match_mode} matching):\n{expected_error_output}\n"
         msg += f"==== {name} FAILED\n"
         _write_output(interp, msg)
 
@@ -255,6 +308,7 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
         except TclError:
             pass
 
+    _sync_num_tests(interp)
     return TclResult()
 
 
@@ -432,6 +486,19 @@ def _cmd_interpreter(interp: TclInterp, args: list[str]) -> TclResult:
     return TclResult(value=sys.executable)
 
 
+def _cmd_skip(interp: TclInterp, args: list[str]) -> TclResult:
+    """skip ?patternList?
+
+    Return the current skip pattern list, or replace it when
+    ``patternList`` is provided.
+    """
+    if len(args) > 1:
+        raise TclError('wrong # args: should be "skip ?patternList?"')
+    if args:
+        _skip_patterns[:] = _split_list(args[0])
+    return TclResult(value=" ".join(_list_escape(p) for p in _skip_patterns))
+
+
 def _cmd_output_channel(interp: TclInterp, args: list[str]) -> TclResult:
     """outputChannel ?channelID?"""
     global _output_channel
@@ -451,21 +518,104 @@ def _cmd_error_channel(interp: TclInterp, args: list[str]) -> TclResult:
 # Registration
 
 
+def _find_tcltest_library() -> str | None:
+    """Locate the real tcltest.tcl in the Tcl library tree."""
+    candidates = [
+        Path(__file__).resolve().parent.parent.parent
+        / "tmp"
+        / "tcl9.0.3"
+        / "library"
+        / "tcltest"
+        / "tcltest.tcl",
+        Path(__file__).resolve().parent.parent.parent
+        / "tmp"
+        / "tcl8.6.16"
+        / "library"
+        / "tcltest"
+        / "tcltest.tcl",
+    ]
+    for p in candidates:
+        if p.is_file():
+            return str(p)
+    return None
+
+
 _initialised = False
 
 
-def setup_tcltest(interp: TclInterp) -> None:
+def setup_tcltest(interp: TclInterp, *, use_real_library: bool = True) -> None:
     """Register tcltest as a loadable package in the interpreter.
 
-    Called during interpreter initialisation so that
-    ``package require tcltest`` succeeds.
-    """
-    from ..scope import ensure_namespace
+    When *use_real_library* is True (the default) and the Tcl source
+    tree is available, registers the **real** ``tcltest.tcl`` from the
+    Tcl library as the package source.  This gives us the full,
+    production tcltest behaviour — ``-output``, ``-errorOutput``,
+    ``skip``, ``cleanupTests``, constraint checking, etc. — without
+    reimplementing it in Python.
 
+    Falls back to the built-in Python reimplementation if the real
+    library isn't found (e.g. offline environments without the Tcl
+    source tree).
+    """
     global _initialised
     if not _initialised:
         _reset_state()
         _initialised = True
+
+    real_tcltest = _find_tcltest_library() if use_real_library else None
+
+    if real_tcltest is not None:
+        _setup_real_tcltest(interp, real_tcltest)
+    else:
+        _setup_builtin_tcltest(interp)
+
+
+def _setup_real_tcltest(interp: TclInterp, tcltest_path: str) -> None:
+    """Set up tcltest using the real tcltest.tcl library.
+
+    Registers a package ifneeded script that, when triggered by
+    ``package require tcltest``, first defines auto_load/parray stubs
+    (needed by tcltest.tcl) and then sources the real tcltest.tcl.
+    """
+    # Build a loader script that provides stubs before sourcing tcltest.tcl.
+    # The stubs are defined lazily (only when tcltest is actually required)
+    # so they don't interfere with interpreter state during normal use.
+    loader = (
+        "proc auto_load {cmd args} { return 0 };"
+        "proc parray {a {pattern *}} {"
+        "  upvar 1 $a array;"
+        '  if {![array exists array]} { error "\\"$a\\" isn\'t an array" };'
+        "  set maxl 0;"
+        "  set names [lsort [array names array $pattern]];"
+        "  foreach name $names {"
+        "    if {[string length $name] > $maxl} { set maxl [string length $name] }"
+        "  };"
+        "  set maxl [expr {$maxl + [string length $a] + 2}];"
+        "  foreach name $names {"
+        "    set nameString [format %s(%s) $a $name];"
+        "    puts stdout [format {%-*s = %s} $maxl $nameString $array($name)]"
+        "  }"
+        "};"
+        f"source {{{tcltest_path}}}"
+    )
+
+    interp.packages.setdefault(
+        "tcltest",
+        {
+            "version": "2.5.10",
+            "loaded": False,
+            "ifneeded": {"2.5.10": loader},
+        },
+    )
+    interp.eval(f"package ifneeded tcltest 2.5.10 {{{loader}}}")
+
+
+def _setup_builtin_tcltest(interp: TclInterp) -> None:
+    """Set up tcltest using the built-in Python reimplementation.
+
+    Fallback for when the real tcltest.tcl isn't available.
+    """
+    from ..scope import ensure_namespace
 
     # Create the ::tcltest namespace
     ns = ensure_namespace(interp.root_namespace, "::tcltest")
@@ -490,6 +640,7 @@ def setup_tcltest(interp: TclInterp) -> None:
         "makeDirectory": _cmd_make_directory,
         "removeDirectory": _cmd_remove_directory,
         "interpreter": _cmd_interpreter,
+        "skip": _cmd_skip,
         "outputChannel": _cmd_output_channel,
         "errorChannel": _cmd_error_channel,
     }
@@ -506,9 +657,6 @@ def setup_tcltest(interp: TclInterp) -> None:
         interp.register_command(f"::tcltest::{cmd_name}", handler)
 
     # Also import into the root namespace so the commands are
-    # available without an explicit ``namespace import``.  Real tclsh
-    # relies on the test file calling ``namespace import -force
-    # ::tcltest::*``, but many test files skip this when the
-    # ``::tcltest`` namespace already exists.
+    # available without an explicit ``namespace import``.
     for cmd_name, handler in cmds.items():
         interp.root_namespace.register_command(cmd_name, handler)

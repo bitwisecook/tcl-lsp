@@ -601,6 +601,7 @@ class TestTcltestFramework:
 
     def test_test_constraint(self) -> None:
         interp = fresh()
+        interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval("testConstraint myConstraint 1")
         result = interp.eval("testConstraint myConstraint")
         assert result.value == "1"
@@ -611,19 +612,23 @@ class TestTcltestFramework:
 
     def test_run_passing_test(self) -> None:
         interp = fresh()
+        interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval("test mytest-1.0 {simple pass} {} {expr {1 + 1}} 2")
 
     def test_run_skipped_test(self) -> None:
         interp = fresh()
+        interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval("testConstraint myFeature 0")
         interp.eval("test mytest-2.0 {skipped test} {myFeature} {error boom} ok")
 
     def test_new_style_test(self) -> None:
         interp = fresh()
+        interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval("test mytest-3.0 {new style} -body {expr {2 + 3}} -result 5")
 
     def test_new_style_with_setup_cleanup(self) -> None:
         interp = fresh()
+        interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval(
             "test mytest-4.0 {setup and cleanup} "
             "-setup {set x 10} "
@@ -634,6 +639,7 @@ class TestTcltestFramework:
 
     def test_new_style_error_return_code(self) -> None:
         interp = fresh()
+        interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval(
             "test mytest-5.0 {error return code} "
             '-body {error "test error"} '
@@ -652,9 +658,9 @@ class TestNamespaceChildren:
 
     def test_children_empty(self) -> None:
         interp = fresh()
-        # Root always has at least ::tcl and ::tcltest
+        # Root always has at least ::oo (from TclOO init)
         result = interp.eval("namespace children")
-        assert "::tcltest" in result.value
+        assert "::oo" in result.value
 
     def test_children_with_pattern(self) -> None:
         interp = fresh()

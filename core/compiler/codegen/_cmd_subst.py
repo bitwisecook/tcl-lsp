@@ -155,11 +155,44 @@ class _CmdSubstMixin:
                             i += 1
                             break
                     i += 1
+                # Continue reading non-whitespace after ']' — the
+                # suffix is part of the same word.  This handles
+                # patterns like ``[namespace current]::foo`` which
+                # is a single argument, not two.
+                while i < len(text) and text[i] not in (" ", "\t"):
+                    if text[i] == "[":
+                        # Another command substitution in the same word
+                        inner_depth = 0
+                        while i < len(text):
+                            if text[i] == "[":
+                                inner_depth += 1
+                            elif text[i] == "]":
+                                inner_depth -= 1
+                                if inner_depth == 0:
+                                    i += 1
+                                    break
+                            i += 1
+                    else:
+                        i += 1
                 parts.append((text[start:i], False))
             else:
                 start = i
                 while i < len(text) and text[i] not in (" ", "\t"):
-                    i += 1
+                    if text[i] == "[":
+                        # Command substitution mid-word — scan to
+                        # matching ] and keep going.
+                        inner_depth = 0
+                        while i < len(text):
+                            if text[i] == "[":
+                                inner_depth += 1
+                            elif text[i] == "]":
+                                inner_depth -= 1
+                                if inner_depth == 0:
+                                    i += 1
+                                    break
+                            i += 1
+                    else:
+                        i += 1
                 parts.append((text[start:i], False))
         return parts
 
@@ -202,6 +235,12 @@ class _CmdSubstMixin:
                 self._emit_inline_cmd_subst(arg)
         elif braced and ("$" in arg or "[" in arg):
             self._push_lit("{" + arg + "}")
+        elif not braced and ("$" in arg or "[" in arg):
+            # Interpolated string with variable or command substitution
+            # mixed with literal text, e.g. "[namespace current]::foo"
+            # or "$prefix/path".  Delegate to _emit_value which handles
+            # _parse_subst_template + STR_CONCAT1.
+            self._emit_value(arg, interpolate=True)
         elif not braced and "\\" in arg:
             processed = _tcl_backslash_subst(arg)
             if "$" in processed or ("[" in processed and "]" in processed):

@@ -226,6 +226,66 @@ def _cmd_lreplace(interp: TclInterp, args: list[str]) -> TclResult:
     return TclResult(value=" ".join(_list_escape(e) for e in result))
 
 
+def _cmd_lset(interp: TclInterp, args: list[str]) -> TclResult:
+    """lset varName ?index ...? newValue
+
+    Sets an element of a list stored in a variable. Supports nested
+    indices for sub-list access.
+    """
+    if len(args) < 2:
+        raise TclError('wrong # args: should be "lset listVar ?index ...? newValue"')
+    var_name = args[0]
+    new_value = args[-1]
+    indices = args[1:-1]
+
+    if not indices:
+        # No indices: replace the entire variable value
+        interp.current_frame.set_var(var_name, new_value)
+        return TclResult(value=new_value)
+
+    # Get current list value
+    current = interp.current_frame.get_var(var_name)
+    lst = _split_list(current)
+
+    if len(indices) == 1:
+        # Single index: simple replacement
+        idx = _parse_index(indices[0], len(lst))
+        if idx < 0 or idx > len(lst):
+            raise TclError("list index out of range")
+        if idx == len(lst):
+            lst.append(new_value)
+        else:
+            lst[idx] = new_value
+    else:
+        # Multiple indices: nested list replacement
+        # Navigate to the parent of the target element
+        current_list = lst
+        parent_chain: list[tuple[list[str], int]] = []
+        for idx_str in indices[:-1]:
+            idx = _parse_index(idx_str, len(current_list))
+            if idx < 0 or idx >= len(current_list):
+                raise TclError("list index out of range")
+            parent_chain.append((current_list, idx))
+            current_list = _split_list(current_list[idx])
+        # Set the final element
+        final_idx = _parse_index(indices[-1], len(current_list))
+        if final_idx < 0 or final_idx > len(current_list):
+            raise TclError("list index out of range")
+        if final_idx == len(current_list):
+            current_list.append(new_value)
+        else:
+            current_list[final_idx] = new_value
+        # Rebuild parent lists bottom-up
+        child_value = " ".join(_list_escape(e) for e in current_list)
+        for parent_list, parent_idx in reversed(parent_chain):
+            parent_list[parent_idx] = child_value
+            child_value = " ".join(_list_escape(e) for e in parent_list)
+
+    result = " ".join(_list_escape(e) for e in lst)
+    interp.current_frame.set_var(var_name, result)
+    return TclResult(value=result)
+
+
 def _cmd_linsert(interp: TclInterp, args: list[str]) -> TclResult:
     """linsert list index ?element ...?"""
     if len(args) < 3:
@@ -389,6 +449,7 @@ def register() -> None:
     REGISTRY.register_handler("lrepeat", _cmd_lrepeat)
     REGISTRY.register_handler("lreverse", _cmd_lreverse)
     REGISTRY.register_handler("lassign", _cmd_lassign)
+    REGISTRY.register_handler("lset", _cmd_lset)
     REGISTRY.register_handler("lpop", _cmd_lpop)
     REGISTRY.register_handler("join", _cmd_join)
     REGISTRY.register_handler("split", _cmd_split)
