@@ -12,30 +12,8 @@
 
 use std::fmt;
 
-/// Known Tcl internal representation types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum TclType {
-    /// Pure string (no cached intrep).
-    String,
-    /// Integer.
-    Int,
-    /// Double-precision float.
-    Double,
-    /// Boolean.
-    Boolean,
-    /// Tcl list.
-    List,
-    /// Tcl dict.
-    Dict,
-    /// Byte array.
-    ByteArray,
-    /// Abstract join of `Int` and `Double`.
-    Numeric,
-    /// `TclOO` object instance.
-    Object,
-    /// I/O channel handle.
-    Channel,
-}
+// Re-export TclType from the registry crate (single source of truth).
+pub use tcl_registry::TclType;
 
 /// Lattice element kind, ordered bottom to top.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

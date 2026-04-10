@@ -300,7 +300,7 @@ mod tests {
     fn branch_successors() {
         let t = make_branch("$x", "then", "else");
         let mut succs = t.successors();
-        succs.sort();
+        succs.sort_unstable();
         assert_eq!(succs, vec!["else", "then"]);
     }
 
