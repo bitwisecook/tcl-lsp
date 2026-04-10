@@ -82,6 +82,21 @@ Commands in `_DYNAMIC_BARRIER_COMMANDS` (`eval`, `uplevel`, `upvar`) always
 produce `IRBarrier` — telling all downstream passes to stop reasoning about
 variable state at that point.
 
+### Fallback-to-runtime pattern
+
+Lowering hooks and codegen helpers are **intentionally conservative**: when
+a hook encounters a construct it cannot safely specialise (e.g. `{*}`
+expansion inside a structured command, or a `subst` template with
+multi-character backslash forms like `\xHH` or `\uXXXX`), it returns
+`None` or falls through to the generic `IRCall` / `IRBarrier` node. The
+runtime interpreter handles the full Tcl specification; the compiler only
+inlines what it can prove is safe.
+
+Functions that return `None` to signal "I cannot handle this" (e.g.
+`_parse_subst_template()` in `core/compiler/codegen/_helpers.py`) are not
+incomplete — they are conservative by design. Missing escape forms are an
+optimisation limitation, not a correctness bug.
+
 ## Decision rule
 
 - To add lowering for a new command: if it needs special IR, register a
