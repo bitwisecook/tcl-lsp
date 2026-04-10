@@ -29,8 +29,7 @@ DEFAULT_BASE_IMAGE = "debian:bookworm-slim"
 # GitHub release URL template for the unified tcl CLI zipapp.
 # {cli_version} is the tcl-lsp release version (e.g. "1.6.0").
 _TCL_CLI_URL = (
-    "https://github.com/bitwisecook/tcl-lsp/releases/download/"
-    "v{cli_version}/tcl-{cli_version}.pyz"
+    "https://github.com/bitwisecook/tcl-lsp/releases/download/v{cli_version}/tcl-{cli_version}.pyz"
 )
 
 # Latest known release at time of writing.
@@ -259,8 +258,7 @@ def tcl_install_recipe(image: str, tcl_version: str) -> str:
     recipe = recipes.get(tcl_version)
     if recipe is None:
         raise DockerError(
-            f"no recipe for Tcl {tcl_version} on {family} "
-            f"(available: {', '.join(sorted(recipes))})"
+            f"no recipe for Tcl {tcl_version} on {family} (available: {', '.join(sorted(recipes))})"
         )
     return recipe
 
@@ -381,8 +379,7 @@ def generate_dockerfile(spec: DockerfileSpec) -> str:
         venv_abs = f"{spec.workdir}/.venv"
         lines.append("# Create Tcl virtual environment")
         lines.append(
-            f"RUN python3 /usr/local/bin/tcl.pyz venv create .venv "
-            f"--tcl {spec.tcl_version}"
+            f"RUN python3 /usr/local/bin/tcl.pyz venv create .venv --tcl {spec.tcl_version}"
         )
         lines.append(f'ENV TCLLIBPATH="{venv_abs}/lib"')
         lines.append(f'ENV PATH="{venv_abs}/bin:$PATH"')

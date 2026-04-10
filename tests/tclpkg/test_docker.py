@@ -273,7 +273,7 @@ class TestGenerateDockerfile:
         assert "python3 /usr/local/bin/tcl.pyz venv create .venv" in result
         assert "TCLLIBPATH" in result
         assert ".venv" in result
-        assert 'TCL_VENV=' in result
+        assert "TCL_VENV=" in result
 
     def test_venv_created_before_pkg_sync(self) -> None:
         """When both venv and packages are enabled, venv must come first
@@ -412,10 +412,15 @@ class TestDockerCLI:
         from explorer.tcl_cli import main
 
         output = tmp_path / "Dockerfile"
-        exit_code = main([
-            "docker", "create", "debian:bookworm-slim",
-            "--output", str(output),
-        ])
+        exit_code = main(
+            [
+                "docker",
+                "create",
+                "debian:bookworm-slim",
+                "--output",
+                str(output),
+            ]
+        )
         assert exit_code == 0
         assert output.exists()
         content = output.read_text()
@@ -428,11 +433,17 @@ class TestDockerCLI:
         from explorer.tcl_cli import main
 
         output = tmp_path / "Dockerfile"
-        exit_code = main([
-            "docker", "create", "alpine:3.19",
-            "--tcl-version", "9.0",
-            "--output", str(output),
-        ])
+        exit_code = main(
+            [
+                "docker",
+                "create",
+                "alpine:3.19",
+                "--tcl-version",
+                "9.0",
+                "--output",
+                str(output),
+            ]
+        )
         assert exit_code == 0
         content = output.read_text()
         assert "FROM alpine:3.19" in content
@@ -442,11 +453,17 @@ class TestDockerCLI:
         from explorer.tcl_cli import main
 
         output = tmp_path / "Dockerfile"
-        exit_code = main([
-            "docker", "create", "ubuntu:22.04",
-            "--entrypoint", "main.tcl",
-            "--output", str(output),
-        ])
+        exit_code = main(
+            [
+                "docker",
+                "create",
+                "ubuntu:22.04",
+                "--entrypoint",
+                "main.tcl",
+                "--output",
+                str(output),
+            ]
+        )
         assert exit_code == 0
         content = output.read_text()
         assert 'CMD ["tclsh", "main.tcl"]' in content
@@ -455,11 +472,16 @@ class TestDockerCLI:
         from explorer.tcl_cli import main
 
         output = tmp_path / "Dockerfile"
-        exit_code = main([
-            "docker", "create", "debian:bookworm-slim",
-            "--venv",
-            "--output", str(output),
-        ])
+        exit_code = main(
+            [
+                "docker",
+                "create",
+                "debian:bookworm-slim",
+                "--venv",
+                "--output",
+                str(output),
+            ]
+        )
         assert exit_code == 0
         content = output.read_text()
         assert "TCLLIBPATH" in content
@@ -469,11 +491,16 @@ class TestDockerCLI:
         from explorer.tcl_cli import main
 
         output = tmp_path / "Dockerfile"
-        exit_code = main([
-            "docker", "create", "debian:bookworm-slim",
-            "--no-packages",
-            "--output", str(output),
-        ])
+        exit_code = main(
+            [
+                "docker",
+                "create",
+                "debian:bookworm-slim",
+                "--no-packages",
+                "--output",
+                str(output),
+            ]
+        )
         assert exit_code == 0
         content = output.read_text()
         assert "pkg sync" not in content
@@ -483,10 +510,15 @@ class TestDockerCLI:
 
         output = tmp_path / "Dockerfile"
         output.write_text("existing")
-        exit_code = main([
-            "docker", "create", "debian:bookworm-slim",
-            "--output", str(output),
-        ])
+        exit_code = main(
+            [
+                "docker",
+                "create",
+                "debian:bookworm-slim",
+                "--output",
+                str(output),
+            ]
+        )
         assert exit_code == 1
 
     def test_docker_create_force_overwrite(self, tmp_path: Path) -> None:
@@ -494,11 +526,16 @@ class TestDockerCLI:
 
         output = tmp_path / "Dockerfile"
         output.write_text("existing")
-        exit_code = main([
-            "docker", "create", "debian:bookworm-slim",
-            "--output", str(output),
-            "--force",
-        ])
+        exit_code = main(
+            [
+                "docker",
+                "create",
+                "debian:bookworm-slim",
+                "--output",
+                str(output),
+                "--force",
+            ]
+        )
         assert exit_code == 0
 
     def test_docker_create_json(self, tmp_path: Path) -> None:
@@ -513,11 +550,16 @@ class TestDockerCLI:
         old_stdout = sys.stdout
         sys.stdout = captured
         try:
-            exit_code = main([
-                "docker", "create", "debian:bookworm-slim",
-                "--output", str(output),
-                "--json",
-            ])
+            exit_code = main(
+                [
+                    "docker",
+                    "create",
+                    "debian:bookworm-slim",
+                    "--output",
+                    str(output),
+                    "--json",
+                ]
+            )
         finally:
             sys.stdout = old_stdout
 
@@ -531,11 +573,17 @@ class TestDockerCLI:
         from explorer.tcl_cli import main
 
         output = tmp_path / "Dockerfile"
-        exit_code = main([
-            "docker", "create", "debian:bookworm-slim",
-            "--cli-version", "2.0.0",
-            "--output", str(output),
-        ])
+        exit_code = main(
+            [
+                "docker",
+                "create",
+                "debian:bookworm-slim",
+                "--cli-version",
+                "2.0.0",
+                "--output",
+                str(output),
+            ]
+        )
         assert exit_code == 0
         content = output.read_text()
         assert "v2.0.0/tcl-2.0.0.pyz" in content

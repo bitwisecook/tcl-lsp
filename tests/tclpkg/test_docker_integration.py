@@ -147,7 +147,7 @@ class TestDockerBuildDebian:
 
             run = _run_container(
                 self.TAG,
-                ["tclsh", "-c", 'puts [info patchlevel]'],
+                ["tclsh", "-c", "puts [info patchlevel]"],
             )
             assert run.returncode == 0
             assert run.stdout.strip().startswith("8.6")

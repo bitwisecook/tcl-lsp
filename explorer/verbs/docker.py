@@ -68,12 +68,14 @@ def _run_create(args: argparse.Namespace) -> int:
     if getattr(args, "json", False):
         from tclpkg.docker import generate_dockerfile
 
-        ui.json_output({
-            "path": str(written),
-            "base_image": spec.base_image,
-            "tcl_version": spec.tcl_version,
-            "content": generate_dockerfile(spec),
-        })
+        ui.json_output(
+            {
+                "path": str(written),
+                "base_image": spec.base_image,
+                "tcl_version": spec.tcl_version,
+                "content": generate_dockerfile(spec),
+            }
+        )
     else:
         print(ui.ok(f"wrote {written}", colour=colour))
         print(
@@ -97,11 +99,13 @@ def _run_recipe(args: argparse.Namespace) -> int:
         return 1
 
     if getattr(args, "json", False):
-        ui.json_output({
-            "image": args.image,
-            "tcl_version": args.tcl_version,
-            "recipe": recipe,
-        })
+        ui.json_output(
+            {
+                "image": args.image,
+                "tcl_version": args.tcl_version,
+                "recipe": recipe,
+            }
+        )
     else:
         print(recipe)
     return 0
@@ -114,10 +118,12 @@ def _run_info(args: argparse.Namespace) -> int:
     recipes = available_recipes()
 
     if getattr(args, "json", False):
-        ui.json_output({
-            "supported_tcl_versions": list(SUPPORTED_TCL_VERSIONS),
-            "families": recipes,
-        })
+        ui.json_output(
+            {
+                "supported_tcl_versions": list(SUPPORTED_TCL_VERSIONS),
+                "families": recipes,
+            }
+        )
     else:
         colour = ui.use_colour()
         print(ui.bold("Supported Tcl versions:", colour=colour))
@@ -182,7 +188,8 @@ def add_docker_subparser(
         help="Tcl version to install (default: 8.6).",
     )
     create_p.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         default="Dockerfile",
         help="Output file path (default: Dockerfile).",
     )
