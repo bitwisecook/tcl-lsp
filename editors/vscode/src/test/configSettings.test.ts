@@ -46,7 +46,11 @@ suite("Configuration Settings", () => {
     ["hover", "editor.hover.enabled", true],
     ["codeLens", "editor.codeLens", true],
     ["folding", "editor.folding", true],
+    ["signatureHelp", "editor.parameterHints.enabled", true],
     ["linkedEditingRange", "editor.linkedEditing", false],
+    // semanticTokens and documentHighlight are verified in the round-trip
+    // tests below; their editor globals are non-boolean so they are not
+    // included in this boolean-assertion loop.
   ];
 
   for (const [featureKey, editorSetting, editorDefault] of editorGlobalMappings) {
@@ -100,12 +104,13 @@ suite("Configuration Settings", () => {
   // the value, push it to the server, and the server changes its LSP
   // response accordingly.
 
+  // hover — editor.hover.enabled
+
   test("editor.hover.enabled=false suppresses hover via null inheritance", async () => {
     const docUri = getDocUri("procs.tcl");
     await activate(docUri);
     const pos = new vscode.Position(1, 6);
 
-    // Baseline: hover works (feature toggle is null, editor global is true)
     const before = (await vscode.commands.executeCommand(
       "vscode.executeHoverProvider",
       docUri,
@@ -115,8 +120,6 @@ suite("Configuration Settings", () => {
 
     const editorCfg = vscode.workspace.getConfiguration("editor");
     try {
-      // Disable hover via the editor global — the null feature toggle
-      // should inherit this and the middleware pushes false to the server.
       await editorCfg.update("hover.enabled", false, undefined);
       await sleep(800);
 
@@ -134,6 +137,64 @@ suite("Configuration Settings", () => {
       await sleep(500);
     }
   });
+
+  test("explicit features.hover=true overrides editor.hover.enabled=false", async () => {
+    const docUri = getDocUri("procs.tcl");
+    await activate(docUri);
+    const pos = new vscode.Position(1, 6);
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    const featureCfg = vscode.workspace.getConfiguration("tclLsp.features");
+    try {
+      await editorCfg.update("hover.enabled", false, undefined);
+      await featureCfg.update("hover", true, undefined);
+      await sleep(800);
+
+      const result = (await vscode.commands.executeCommand(
+        "vscode.executeHoverProvider",
+        docUri,
+        pos,
+      )) as vscode.Hover[];
+      assert.ok(
+        result && result.length > 0,
+        "Explicit features.hover=true should override editor.hover.enabled=false",
+      );
+    } finally {
+      await featureCfg.update("hover", undefined, undefined);
+      await editorCfg.update("hover.enabled", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  test("hover recovers after editor.hover.enabled restored to true", async () => {
+    const docUri = getDocUri("procs.tcl");
+    await activate(docUri);
+    const pos = new vscode.Position(1, 6);
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+
+    try {
+      await editorCfg.update("hover.enabled", false, undefined);
+      await sleep(800);
+      // Suppress confirmed — now restore
+      await editorCfg.update("hover.enabled", undefined, undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.executeHoverProvider",
+        docUri,
+        pos,
+      )) as vscode.Hover[];
+      assert.ok(
+        after && after.length > 0,
+        "Hover should recover after editor.hover.enabled restored",
+      );
+    } finally {
+      await editorCfg.update("hover.enabled", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  // folding — editor.folding
 
   test("editor.folding=false suppresses folding via null inheritance", async () => {
     const docUri = getDocUri("folding.tcl");
@@ -164,31 +225,144 @@ suite("Configuration Settings", () => {
     }
   });
 
-  test("explicit features.hover=true overrides editor.hover.enabled=false", async () => {
+  // codeLens — editor.codeLens
+
+  test("editor.codeLens=false suppresses code lenses via null inheritance", async () => {
     const docUri = getDocUri("procs.tcl");
     await activate(docUri);
-    const pos = new vscode.Position(1, 6);
+    await sleep(500); // let initial code lenses populate
+
+    const before = (await vscode.commands.executeCommand(
+      "vscode.executeCodeLensProvider",
+      docUri,
+      100,
+    )) as vscode.CodeLens[] | undefined;
+    assert.ok(before && before.length > 0, "Code lenses should work with default editor globals");
 
     const editorCfg = vscode.workspace.getConfiguration("editor");
-    const featureCfg = vscode.workspace.getConfiguration("tclLsp.features");
     try {
-      // Disable the editor global but explicitly enable our feature toggle
-      await editorCfg.update("hover.enabled", false, undefined);
-      await featureCfg.update("hover", true, undefined);
+      await editorCfg.update("codeLens", false, undefined);
       await sleep(800);
 
-      const result = (await vscode.commands.executeCommand(
-        "vscode.executeHoverProvider",
+      const after = (await vscode.commands.executeCommand(
+        "vscode.executeCodeLensProvider",
         docUri,
-        pos,
-      )) as vscode.Hover[];
+        100,
+      )) as vscode.CodeLens[] | undefined;
       assert.ok(
-        result && result.length > 0,
-        "Explicit features.hover=true should override editor.hover.enabled=false",
+        !after || after.length === 0,
+        `Code lenses should be suppressed when editor.codeLens=false, got ${after?.length ?? 0}`,
       );
     } finally {
-      await featureCfg.update("hover", undefined, undefined);
-      await editorCfg.update("hover.enabled", undefined, undefined);
+      await editorCfg.update("codeLens", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  // signatureHelp — editor.parameterHints.enabled
+
+  test("editor.parameterHints.enabled=false suppresses signature help via null inheritance", async () => {
+    const docUri = getDocUri("procs.tcl");
+    await activate(docUri);
+    // Position inside the `fib` call where signature help would trigger
+    const pos = new vscode.Position(5, 38);
+
+    const before = (await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",
+      docUri,
+      pos,
+    )) as vscode.SignatureHelp | undefined;
+    const hadSignatures = before && before.signatures && before.signatures.length > 0;
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    try {
+      await editorCfg.update("parameterHints.enabled", false, undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.executeSignatureHelpProvider",
+        docUri,
+        pos,
+      )) as vscode.SignatureHelp | undefined;
+      if (hadSignatures) {
+        assert.ok(
+          !after || !after.signatures || after.signatures.length === 0,
+          "Signature help should be suppressed when editor.parameterHints.enabled=false",
+        );
+      }
+    } finally {
+      await editorCfg.update("parameterHints.enabled", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  // semanticTokens — editor.semanticHighlighting.enabled
+
+  test("editor.semanticHighlighting.enabled=false suppresses semantic tokens via null inheritance", async () => {
+    const docUri = getDocUri("simple.tcl");
+    await activate(docUri);
+
+    const before = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      docUri,
+    )) as vscode.SemanticTokens | undefined;
+    assert.ok(
+      before && before.data.length > 0,
+      "Semantic tokens should work with default editor globals",
+    );
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    try {
+      await editorCfg.update("semanticHighlighting.enabled", false, undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.provideDocumentSemanticTokens",
+        docUri,
+      )) as vscode.SemanticTokens | undefined;
+      assert.ok(
+        !after || after.data.length === 0,
+        `Semantic tokens should be suppressed when editor.semanticHighlighting.enabled=false, got ${after?.data.length ?? 0} data items`,
+      );
+    } finally {
+      await editorCfg.update("semanticHighlighting.enabled", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  // documentHighlight — editor.occurrencesHighlight
+
+  test("editor.occurrencesHighlight=off suppresses document highlights via null inheritance", async () => {
+    const docUri = getDocUri("procs.tcl");
+    await activate(docUri);
+    const pos = new vscode.Position(1, 6); // `fib` proc name
+
+    const before = (await vscode.commands.executeCommand(
+      "vscode.executeDocumentHighlights",
+      docUri,
+      pos,
+    )) as vscode.DocumentHighlight[] | undefined;
+    assert.ok(
+      before && before.length > 0,
+      "Document highlights should work with default editor globals",
+    );
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    try {
+      await editorCfg.update("occurrencesHighlight", "off", undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.executeDocumentHighlights",
+        docUri,
+        pos,
+      )) as vscode.DocumentHighlight[] | undefined;
+      assert.ok(
+        !after || after.length === 0,
+        `Document highlights should be suppressed when editor.occurrencesHighlight=off, got ${after?.length ?? 0}`,
+      );
+    } finally {
+      await editorCfg.update("occurrencesHighlight", undefined, undefined);
       await sleep(500);
     }
   });
