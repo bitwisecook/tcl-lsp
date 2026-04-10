@@ -2844,6 +2844,10 @@ def parse_args(
     add_pkg_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
     add_venv_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
 
+    from .verbs.docker import add_docker_subparser
+
+    add_docker_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
+
     return parser.parse_args(argv)
 
 
