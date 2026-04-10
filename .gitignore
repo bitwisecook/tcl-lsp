@@ -65,3 +65,4 @@ perf_history.sqlite3
 # Rust workspace (editors/zed keeps its own local .gitignore for its target/)
 /target/
 rust/tcl-lsp-rust/.venv/
+iso2022.txt
