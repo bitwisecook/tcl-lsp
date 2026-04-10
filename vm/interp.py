@@ -153,6 +153,9 @@ class TclInterp:
         # Ensemble metadata: fully-qualified command name -> EnsembleConfig
         self.ensembles: dict[str, EnsembleConfig] = {}
 
+        # Guard against infinite recursion in the unknown handler
+        self._in_unknown: set[str] = set()
+
         # I/O channels
         self.channels: dict[str, TextIO] = {
             "stdout": sys.stdout,
@@ -650,15 +653,24 @@ class TclInterp:
 
         # Try unknown handler (for auto-loading).  User-defined ``unknown``
         # procs may be stored under the qualified key ``::unknown``.
-        unknown_proc = self.procedures.get("unknown") or self.procedures.get("::unknown")
-        if unknown_proc is None:
-            unknown_proc = self.root_namespace.lookup_proc("unknown")
-        if isinstance(unknown_proc, ProcDef):
-            return self._call_proc(unknown_proc, [cmd_name] + args)
+        # Guard against infinite recursion: if we are already inside
+        # the unknown handler for this command, error immediately.
+        if cmd_name in self._in_unknown:
+            raise TclError(f'invalid command name "{cmd_name}"')
 
-        unknown = self.lookup_command("unknown")
-        if unknown is not None:
-            return unknown(self, [cmd_name] + args)
+        self._in_unknown.add(cmd_name)
+        try:
+            unknown_proc = self.procedures.get("unknown") or self.procedures.get("::unknown")
+            if unknown_proc is None:
+                unknown_proc = self.root_namespace.lookup_proc("unknown")
+            if isinstance(unknown_proc, ProcDef):
+                return self._call_proc(unknown_proc, [cmd_name] + args)
+
+            unknown = self.lookup_command("unknown")
+            if unknown is not None:
+                return unknown(self, [cmd_name] + args)
+        finally:
+            self._in_unknown.discard(cmd_name)
 
         raise TclError(f'invalid command name "{cmd_name}"')
 

@@ -304,35 +304,6 @@ def _categorise_crash(error_msg: str, error_type: str) -> str:
     return f"other:{error_type}"
 
 
-_ns_import_patched = False
-
-
-def _patch_ns_import_for_tcltest() -> None:
-    """Monkey-patch namespace import to auto-add -force for ::tcltest::*.
-
-    The VM pre-registers tcltest commands in the global namespace.
-    External test files then call ``namespace import ::tcltest::*``
-    without ``-force``, which raises 'can't import command "test":
-    already exists'.  This patch auto-adds ``-force`` when importing
-    from the tcltest namespace, matching real tclsh behaviour.
-    """
-    global _ns_import_patched
-    if _ns_import_patched:
-        return
-
-    from vm.commands import namespace_cmds
-
-    _orig = namespace_cmds._ns_import
-
-    def _patched_ns_import(interp: TclInterp, args: list[str]) -> TclResult:
-        if any("tcltest" in a for a in args) and "-force" not in args:
-            args = ["-force"] + list(args)
-        return _orig(interp, args)
-
-    namespace_cmds._ns_import = _patched_ns_import
-    _ns_import_patched = True
-
-
 def run_test_file(
     project: Project,
     checkout_dir: Path,
@@ -376,11 +347,8 @@ def run_test_file(
         except Exception:
             pass  # Already provided internally
 
-        # Patch namespace import to tolerate tcltest commands that
-        # are already registered globally.  Real tclsh uses
-        # ``namespace import -force`` internally; many test files
-        # call ``namespace import ::tcltest::*`` without -force.
-        _patch_ns_import_for_tcltest()
+        # Note: namespace import ::tcltest::* now works without -force
+        # because _ns_import tolerates re-importing the same handler.
 
         # Run any setup script
         if project.setup_script:

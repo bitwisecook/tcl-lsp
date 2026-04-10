@@ -70,6 +70,14 @@ def _reset_state() -> None:
     _testdir = ""
 
 
+def _sync_num_tests(interp: TclInterp) -> None:
+    """Sync the internal ``_results`` dict to ``::tcltest::numTests``."""
+    for key in ("Total", "Passed", "Skipped", "Failed"):
+        interp.global_frame.set_var(
+            f"::tcltest::numTests({key})", str(_results[key])
+        )
+
+
 def _write_output(interp: TclInterp, msg: str) -> None:
     """Write to the tcltest output channel."""
     ch = interp.channels.get(_output_channel, sys.stdout)
@@ -171,6 +179,7 @@ def _run_test_old_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
             f"==== {name} FAILED\n",
         )
 
+    _sync_num_tests(interp)
     return TclResult()
 
 
@@ -193,11 +202,14 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
     cleanup = opts.get("cleanup", "")
     return_codes_str = opts.get("returnCodes", "ok return")
     match_mode = opts.get("match", "exact")
+    expected_output = opts.get("output")
+    expected_error_output = opts.get("errorOutput")
 
     _results["Total"] += 1
 
     if not _check_constraints(constraints):
         _results["Skipped"] += 1
+        _sync_num_tests(interp)
         return TclResult()
 
     # Run setup
@@ -206,6 +218,24 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
             interp.eval(setup)
         except TclError:
             pass
+
+    # Capture stdout/stderr if -output or -errorOutput was specified
+    import io as _io
+
+    saved_stdout = None
+    saved_stderr = None
+    stdout_capture: _io.StringIO | None = None
+    stderr_capture: _io.StringIO | None = None
+
+    if expected_output is not None:
+        saved_stdout = interp.channels.get("stdout")
+        stdout_capture = _io.StringIO()
+        interp.channels["stdout"] = stdout_capture
+
+    if expected_error_output is not None:
+        saved_stderr = interp.channels.get("stderr")
+        stderr_capture = _io.StringIO()
+        interp.channels["stderr"] = stderr_capture
 
     # Run body
     actual = ""
@@ -226,6 +256,12 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
     except TclContinue:
         actual = ""
         actual_code = 4
+    finally:
+        # Restore channels
+        if saved_stdout is not None:
+            interp.channels["stdout"] = saved_stdout
+        if saved_stderr is not None:
+            interp.channels["stderr"] = saved_stderr
 
     # Check return codes
     code_ok = _check_return_code(actual_code, return_codes_str)
@@ -233,7 +269,19 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
     # Check result match
     result_ok = _match_result(actual, expected, match_mode, interp)
 
-    if code_ok and result_ok:
+    # Check stdout output match
+    output_ok = True
+    if expected_output is not None and stdout_capture is not None:
+        actual_output = stdout_capture.getvalue()
+        output_ok = _match_result(actual_output, expected_output, match_mode, interp)
+
+    # Check stderr output match
+    error_output_ok = True
+    if expected_error_output is not None and stderr_capture is not None:
+        actual_error = stderr_capture.getvalue()
+        error_output_ok = _match_result(actual_error, expected_error_output, match_mode, interp)
+
+    if code_ok and result_ok and output_ok and error_output_ok:
         _results["Passed"] += 1
     else:
         _results["Failed"] += 1
@@ -245,6 +293,12 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
         if not result_ok:
             msg += f"---- Result was:\n{actual}\n"
             msg += f"---- Result should have been ({match_mode} matching):\n{expected}\n"
+        if not output_ok and stdout_capture is not None:
+            msg += f"---- Output was:\n{stdout_capture.getvalue()}\n"
+            msg += f"---- Output should have been ({match_mode} matching):\n{expected_output}\n"
+        if not error_output_ok and stderr_capture is not None:
+            msg += f"---- Error output was:\n{stderr_capture.getvalue()}\n"
+            msg += f"---- Error output should have been ({match_mode} matching):\n{expected_error_output}\n"
         msg += f"==== {name} FAILED\n"
         _write_output(interp, msg)
 
@@ -255,6 +309,7 @@ def _run_test_new_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
         except TclError:
             pass
 
+    _sync_num_tests(interp)
     return TclResult()
 
 
@@ -432,6 +487,17 @@ def _cmd_interpreter(interp: TclInterp, args: list[str]) -> TclResult:
     return TclResult(value=sys.executable)
 
 
+def _cmd_skip(interp: TclInterp, args: list[str]) -> TclResult:
+    """skip ?patternList?
+
+    Add patterns to the skip list.  Tests whose names match any of
+    these patterns are skipped.
+    """
+    if args:
+        _skip_patterns.extend(_split_list(args[0]))
+    return TclResult()
+
+
 def _cmd_output_channel(interp: TclInterp, args: list[str]) -> TclResult:
     """outputChannel ?channelID?"""
     global _output_channel
@@ -490,6 +556,7 @@ def setup_tcltest(interp: TclInterp) -> None:
         "makeDirectory": _cmd_make_directory,
         "removeDirectory": _cmd_remove_directory,
         "interpreter": _cmd_interpreter,
+        "skip": _cmd_skip,
         "outputChannel": _cmd_output_channel,
         "errorChannel": _cmd_error_channel,
     }
