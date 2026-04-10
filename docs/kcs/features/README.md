@@ -105,6 +105,7 @@ combine them when more than one form helps:
 
 - [kcs-feature-tcl-verb-cli.md](kcs-feature-tcl-verb-cli.md)
 - [kcs-feature-debugger.md](kcs-feature-debugger.md)
+- [kcs-feature-compilation-tools.md](kcs-feature-compilation-tools.md)
 - [kcs-feature-command-info.md](kcs-feature-command-info.md)
 - [kcs-feature-event-registry.md](kcs-feature-event-registry.md)
 - [kcs-feature-semantic-graphs.md](kcs-feature-semantic-graphs.md)
@@ -120,5 +121,8 @@ combine them when more than one form helps:
 - [kcs-feature-ai-help.md](kcs-feature-ai-help.md)
 - [kcs-feature-documentation-generation.md](kcs-feature-documentation-generation.md)
 - [kcs-feature-diff.md](kcs-feature-diff.md)
+- [kcs-feature-code-generation.md](kcs-feature-code-generation.md)
+- [kcs-feature-fakecmp-tools.md](kcs-feature-fakecmp-tools.md)
+- [kcs-feature-modernisation-tools.md](kcs-feature-modernisation-tools.md)
 - [kcs-feature-mcp-server.md](kcs-feature-mcp-server.md)
 - [kcs-feature-claude-code-skills.md](kcs-feature-claude-code-skills.md)
