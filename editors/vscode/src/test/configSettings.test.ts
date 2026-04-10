@@ -5,12 +5,12 @@ import { getDocUri, activate, sleep, waitForDiagnostics, setTestContent } from "
 suite("Configuration Settings", () => {
   const cfg = () => vscode.workspace.getConfiguration("tclLsp");
 
-  // Feature toggles
-  const featureKeys = [
+  // Feature toggles — all default to null (inherit from editor globals or
+  // default to enabled), except pullDiagnostics which defaults to false.
+  const triStateFeatureKeys = [
     "hover",
     "completion",
     "diagnostics",
-    "formatting",
     "semanticTokens",
     "codeActions",
     "definition",
@@ -26,20 +26,275 @@ suite("Configuration Settings", () => {
     "selectionRange",
   ];
 
-  for (const key of featureKeys) {
-    test(`features.${key} has a boolean default`, () => {
-      const value = cfg().get<boolean>(`features.${key}`);
-      assert.strictEqual(typeof value, "boolean", `features.${key} should be a boolean`);
+  for (const key of triStateFeatureKeys) {
+    test(`features.${key} defaults to null (inherit from editor)`, () => {
+      const value = cfg().get<boolean | null>(`features.${key}`);
+      assert.strictEqual(value, null, `features.${key} should default to null`);
     });
   }
 
-  test("features.inlayHints defaults to false", () => {
-    assert.strictEqual(cfg().get<boolean>("features.inlayHints"), false);
+  test("features.pullDiagnostics defaults to false", () => {
+    assert.strictEqual(cfg().get<boolean>("features.pullDiagnostics"), false);
   });
 
-  test("features.hover defaults to true", () => {
-    assert.strictEqual(cfg().get<boolean>("features.hover"), true);
+  // Tri-state inheritance: null feature toggles inherit from editor globals.
+  // These tests change a VS Code editor global, verify the feature toggle
+  // reflects it, then restore the original value.
+
+  const editorGlobalMappings: Array<[string, string, boolean]> = [
+    // [feature key, editor setting path, editor default value]
+    ["hover", "editor.hover.enabled", true],
+    ["codeLens", "editor.codeLens", true],
+    ["folding", "editor.folding", true],
+    ["signatureHelp", "editor.parameterHints.enabled", true],
+    ["linkedEditingRange", "editor.linkedEditing", false],
+    // semanticTokens and documentHighlight are verified in the round-trip
+    // tests below; their editor globals are non-boolean so they are not
+    // included in this boolean-assertion loop.
+  ];
+
+  for (const [featureKey, editorSetting] of editorGlobalMappings) {
+    test(`features.${featureKey} defaults to null (inherits from ${editorSetting})`, () => {
+      const featureVal = cfg().get<boolean | null>(`features.${featureKey}`);
+      assert.strictEqual(featureVal, null, `features.${featureKey} should default to null`);
+    });
+
+    test(`features.${featureKey}=true overrides ${editorSetting}=false`, async () => {
+      const config = vscode.workspace.getConfiguration("tclLsp.features");
+      try {
+        // Explicitly set the feature to true — it should override any editor global
+        await config.update(featureKey, true, undefined);
+        const value = vscode.workspace
+          .getConfiguration("tclLsp.features")
+          .get<boolean | null>(featureKey);
+        assert.strictEqual(value, true, `Explicit true should override editor global`);
+      } finally {
+        await config.update(featureKey, undefined, undefined);
+      }
+    });
+
+    test(`features.${featureKey}=false overrides ${editorSetting}`, async () => {
+      const config = vscode.workspace.getConfiguration("tclLsp.features");
+      try {
+        await config.update(featureKey, false, undefined);
+        const value = vscode.workspace
+          .getConfiguration("tclLsp.features")
+          .get<boolean | null>(featureKey);
+        assert.strictEqual(value, false, `Explicit false should override editor global`);
+      } finally {
+        await config.update(featureKey, undefined, undefined);
+      }
+    });
+  }
+
+  // ── Full LSP round-trip tests for editor global inheritance ─────────
+  // These tests verify the complete pipeline: setting an editor global
+  // (while the feature toggle is null) causes the middleware to resolve
+  // the value, push it to the server, and the server changes its LSP
+  // response accordingly.
+
+  // hover — editor.hover.enabled
+
+  test("editor.hover.enabled=false suppresses hover via null inheritance", async () => {
+    const docUri = getDocUri("procs.tcl");
+    await activate(docUri);
+    const pos = new vscode.Position(1, 6);
+
+    const before = (await vscode.commands.executeCommand(
+      "vscode.executeHoverProvider",
+      docUri,
+      pos,
+    )) as vscode.Hover[];
+    assert.ok(before && before.length > 0, "Hover should work with default editor globals");
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    try {
+      await editorCfg.update("hover.enabled", false, undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.executeHoverProvider",
+        docUri,
+        pos,
+      )) as vscode.Hover[];
+      assert.ok(
+        !after || after.length === 0,
+        `Hover should be suppressed when editor.hover.enabled=false, got ${after?.length ?? 0}`,
+      );
+    } finally {
+      await editorCfg.update("hover.enabled", undefined, undefined);
+      await sleep(1000);
+    }
   });
+
+  test("explicit features.hover=true overrides editor.hover.enabled=false", async () => {
+    const docUri = getDocUri("procs.tcl");
+    await activate(docUri);
+    const pos = new vscode.Position(1, 6);
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    const featureCfg = vscode.workspace.getConfiguration("tclLsp.features");
+    try {
+      await editorCfg.update("hover.enabled", false, undefined);
+      await featureCfg.update("hover", true, undefined);
+      await sleep(800);
+
+      const result = (await vscode.commands.executeCommand(
+        "vscode.executeHoverProvider",
+        docUri,
+        pos,
+      )) as vscode.Hover[];
+      assert.ok(
+        result && result.length > 0,
+        "Explicit features.hover=true should override editor.hover.enabled=false",
+      );
+    } finally {
+      await featureCfg.update("hover", undefined, undefined);
+      await editorCfg.update("hover.enabled", undefined, undefined);
+      await sleep(1000);
+    }
+  });
+
+  // folding — editor.folding
+
+  test("editor.folding=false suppresses folding via null inheritance", async () => {
+    const docUri = getDocUri("folding.tcl");
+    await activate(docUri);
+
+    const before = (await vscode.commands.executeCommand(
+      "vscode.executeFoldingRangeProvider",
+      docUri,
+    )) as vscode.FoldingRange[];
+    assert.ok(before && before.length > 0, "Folding should work with default editor globals");
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    try {
+      await editorCfg.update("folding", false, undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.executeFoldingRangeProvider",
+        docUri,
+      )) as vscode.FoldingRange[];
+      assert.ok(
+        !after || after.length === 0,
+        `Folding should be suppressed when editor.folding=false, got ${after?.length ?? 0}`,
+      );
+    } finally {
+      await editorCfg.update("folding", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  // codeLens — editor.codeLens
+
+  test("editor.codeLens=false suppresses code lenses via null inheritance", async () => {
+    const docUri = getDocUri("procs.tcl");
+    await activate(docUri);
+    await sleep(500); // let initial code lenses populate
+
+    const before = (await vscode.commands.executeCommand(
+      "vscode.executeCodeLensProvider",
+      docUri,
+      100,
+    )) as vscode.CodeLens[] | undefined;
+    assert.ok(before && before.length > 0, "Code lenses should work with default editor globals");
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    try {
+      await editorCfg.update("codeLens", false, undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.executeCodeLensProvider",
+        docUri,
+        100,
+      )) as vscode.CodeLens[] | undefined;
+      assert.ok(
+        !after || after.length === 0,
+        `Code lenses should be suppressed when editor.codeLens=false, got ${after?.length ?? 0}`,
+      );
+    } finally {
+      await editorCfg.update("codeLens", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  // signatureHelp — editor.parameterHints.enabled
+
+  test("editor.parameterHints.enabled=false suppresses signature help via null inheritance", async () => {
+    const docUri = getDocUri("procs.tcl");
+    await activate(docUri);
+    // Position inside the `fib` call where signature help would trigger
+    const pos = new vscode.Position(5, 38);
+
+    const before = (await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",
+      docUri,
+      pos,
+    )) as vscode.SignatureHelp | undefined;
+    const hadSignatures = before && before.signatures && before.signatures.length > 0;
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    try {
+      await editorCfg.update("parameterHints.enabled", false, undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.executeSignatureHelpProvider",
+        docUri,
+        pos,
+      )) as vscode.SignatureHelp | undefined;
+      if (hadSignatures) {
+        assert.ok(
+          !after || !after.signatures || after.signatures.length === 0,
+          "Signature help should be suppressed when editor.parameterHints.enabled=false",
+        );
+      }
+    } finally {
+      await editorCfg.update("parameterHints.enabled", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  // semanticTokens — editor.semanticHighlighting.enabled
+
+  test("editor.semanticHighlighting.enabled=false suppresses semantic tokens via null inheritance", async () => {
+    const docUri = getDocUri("simple.tcl");
+    await activate(docUri);
+
+    const before = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      docUri,
+    )) as vscode.SemanticTokens | undefined;
+    assert.ok(
+      before && before.data.length > 0,
+      "Semantic tokens should work with default editor globals",
+    );
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    try {
+      await editorCfg.update("semanticHighlighting.enabled", false, undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.provideDocumentSemanticTokens",
+        docUri,
+      )) as vscode.SemanticTokens | undefined;
+      assert.ok(
+        !after || after.data.length === 0,
+        `Semantic tokens should be suppressed when editor.semanticHighlighting.enabled=false, got ${after?.data.length ?? 0} data items`,
+      );
+    } finally {
+      await editorCfg.update("semanticHighlighting.enabled", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  // documentHighlight — editor.occurrencesHighlight is a client-side
+  // decoration setting, not an LSP feature gate.  VS Code still sends
+  // textDocument/documentHighlight requests regardless, so there is no
+  // round-trip suppression test for it.
 
   // Formatting options
   const formattingIntKeys: Array<[string, number]> = [
@@ -421,43 +676,6 @@ suite("Configuration Settings", () => {
     }
   });
 
-  test("disabling features.formatting suppresses format results", async () => {
-    const docUri = getDocUri("formatting.tcl");
-    await activate(docUri);
-    const editor = vscode.window.activeTextEditor!;
-    const badContent = "proc foo {} {\nset x 1\n}\n";
-
-    // Baseline: formatting produces edits
-    await setTestContent(editor, badContent);
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeFormatDocumentProvider",
-      docUri,
-      { tabSize: 4, insertSpaces: true } as vscode.FormattingOptions,
-    )) as vscode.TextEdit[];
-    assert.ok(before && before.length > 0, "Formatting should produce edits by default");
-
-    const config = vscode.workspace.getConfiguration("tclLsp.features");
-    try {
-      await config.update("formatting", false, undefined);
-      await sleep(500);
-
-      await setTestContent(editor, badContent);
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeFormatDocumentProvider",
-        docUri,
-        { tabSize: 4, insertSpaces: true } as vscode.FormattingOptions,
-      )) as vscode.TextEdit[];
-      const editCount = after ? after.length : 0;
-      assert.strictEqual(
-        editCount,
-        0,
-        `Formatting should be suppressed when disabled, got ${editCount} edits`,
-      );
-    } finally {
-      await config.update("formatting", undefined, undefined);
-    }
-  });
-
   test("disabling features.documentSymbols reduces symbol detail", async () => {
     const docUri = getDocUri("procs.tcl");
     await activate(docUri);
@@ -630,21 +848,21 @@ suite("Configuration Settings", () => {
     // Document links are retrieved via the LSP protocol, not a VS Code
     // executeCommand. Verify the config toggles and the feature is wired up.
     const config = vscode.workspace.getConfiguration("tclLsp.features");
-    const original = config.get<boolean>("documentLinks", true);
-    assert.strictEqual(original, true, "documentLinks should default to true");
+    const original = config.get<boolean | null>("documentLinks", null);
+    assert.strictEqual(original, null, "documentLinks should default to null (inherit)");
     try {
       await config.update("documentLinks", false, undefined);
       const changed = vscode.workspace
         .getConfiguration("tclLsp.features")
-        .get<boolean>("documentLinks");
+        .get<boolean | null>("documentLinks");
       assert.strictEqual(changed, false);
     } finally {
       await config.update("documentLinks", undefined, undefined);
     }
     assert.strictEqual(
-      vscode.workspace.getConfiguration("tclLsp.features").get<boolean>("documentLinks"),
-      true,
-      "Should restore to default",
+      vscode.workspace.getConfiguration("tclLsp.features").get<boolean | null>("documentLinks"),
+      null,
+      "Should restore to default (null)",
     );
   });
 

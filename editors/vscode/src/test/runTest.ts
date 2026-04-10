@@ -29,7 +29,7 @@ function emitProcessSnapshot(extensionDevelopmentPath: string, extensionTestsPat
     const escapedDevPath = escapeDoubleQuotes(extensionDevelopmentPath);
     const escapedTestsPath = escapeDoubleQuotes(extensionTestsPath);
     const pattern = `extensionDevelopmentPath=${escapedDevPath}|extensionTestsPath=${escapedTestsPath}|node ./out/test/runTest.js`;
-    const cmd = `ps -axo pid,ppid,etime,command | rg "${pattern}"`;
+    const cmd = `ps -axo pid,ppid,etime,command | grep -E "${pattern}"`;
     const output = execSync(cmd, { encoding: "utf8" });
     if (output.trim()) {
       console.error("Potentially stuck VS Code test processes:");
@@ -57,6 +57,21 @@ async function main() {
   const extensionDevelopmentPath = path.resolve(__dirname, "../../");
   const extensionTestsPath = path.resolve(__dirname, "./index");
   cleanupStaleTestHosts(extensionDevelopmentPath, extensionTestsPath);
+
+  // Clear persisted user settings from prior test runs so tests start
+  // with a clean slate.  Settings modified via workspace.getConfiguration
+  // .update() persist in the user-data directory and can pollute
+  // subsequent runs.
+  const userDataDir = path.resolve(extensionDevelopmentPath, ".vscode-test", "user-data");
+  const userSettingsFile = path.resolve(userDataDir, "User", "settings.json");
+  try {
+    const { writeFileSync, mkdirSync } = require("fs");
+    mkdirSync(path.dirname(userSettingsFile), { recursive: true });
+    writeFileSync(userSettingsFile, "{}\n", "utf8");
+  } catch {
+    // Best-effort; if we can't clear it the tests may see stale config.
+  }
+
   try {
     // The workspace to open during tests
     const testWorkspace = path.resolve(extensionDevelopmentPath, "testFixture");

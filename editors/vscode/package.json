@@ -3005,123 +3005,174 @@
         "order": 1,
         "properties": {
           "tclLsp.features.hover": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable hover information (command help, proc signatures, variable info).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override hover information. When null, inherits from editor.hover.enabled.",
             "order": 0
           },
           "tclLsp.features.completion": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable auto-completion for commands, subcommands, variables, and switches.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override auto-completion. When null, enabled.",
             "order": 1
           },
           "tclLsp.features.diagnostics": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable diagnostics (errors and warnings).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override diagnostics (errors and warnings). When null, enabled.",
             "order": 2
           },
-          "tclLsp.features.formatting": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable document formatting.",
-            "order": 3
-          },
           "tclLsp.features.semanticTokens": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable semantic token highlighting.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override semantic token highlighting. When null, inherits from editor.semanticHighlighting.enabled.",
             "order": 4
           },
           "tclLsp.features.codeActions": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable code actions (quick fixes).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override code actions (quick fixes). When null, enabled.",
             "order": 5
           },
           "tclLsp.features.definition": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable go-to-definition.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override go-to-definition. When null, enabled.",
             "order": 6
           },
           "tclLsp.features.references": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable find-all-references.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override find-all-references. When null, enabled.",
             "order": 7
           },
           "tclLsp.features.documentSymbols": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable document symbols (outline view, breadcrumbs, Cmd+Shift+O).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override document symbols (outline view, breadcrumbs, Cmd+Shift+O). When null, enabled.",
             "order": 8
           },
           "tclLsp.features.folding": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable code folding for proc bodies, namespaces, comment blocks, and control structures.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override code folding. When null, inherits from editor.folding.",
             "order": 9
           },
           "tclLsp.features.rename": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable rename symbol (F2) for procs and variables.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override rename symbol (F2). When null, enabled.",
             "order": 10
           },
           "tclLsp.features.signatureHelp": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable signature help (parameter hints while typing).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override signature help (parameter hints). When null, inherits from editor.parameterHints.enabled.",
             "order": 11
           },
           "tclLsp.features.workspaceSymbols": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable workspace symbols (Cmd+T to search procs across all files).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override workspace symbols (Cmd+T). When null, enabled.",
             "order": 12
           },
           "tclLsp.features.inlayHints": {
-            "type": "boolean",
-            "default": false,
-            "description": "Enable inlay hints (inferred types shown inline next to variables).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override inlay hints (inferred types shown inline). When null, inherits from editor.inlayHints.enabled.",
             "order": 13
           },
           "tclLsp.features.callHierarchy": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable call hierarchy (incoming/outgoing calls for procs).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override call hierarchy (incoming/outgoing calls for procs). When null, enabled.",
             "order": 14
           },
           "tclLsp.features.documentLinks": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable document links (clickable source paths and package requires).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override document links (clickable source paths and package requires). When null, enabled.",
             "order": 15
           },
           "tclLsp.features.selectionRange": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable selection range (smart expand/shrink selection with ⌥⇧→ / ⌥⇧←).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override selection range (smart expand/shrink). When null, enabled.",
             "order": 16
           },
           "tclLsp.features.documentHighlight": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable document highlight (highlight all occurrences of the symbol under the cursor).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override document highlight. When null, inherits from editor.occurrencesHighlight.",
             "order": 17
           },
           "tclLsp.features.codeLens": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable code lens (inline reference counts, test runners, iRule event availability).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override code lens (inline reference counts, test runners). When null, inherits from editor.codeLens.",
             "order": 18
           },
           "tclLsp.features.workspaceFileOps": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable workspace file operations (auto-rewrite source paths when Tcl files are renamed).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override workspace file operations (auto-rewrite source paths on rename). When null, enabled.",
             "order": 19
           },
           "tclLsp.features.pullDiagnostics": {
@@ -3130,40 +3181,49 @@
             "description": "Enable pull-model diagnostics (textDocument/diagnostic, workspace/diagnostic). Off by default: turning this on causes most clients to stop honouring push notifications.",
             "order": 20
           },
-          "tclLsp.features.willSaveWaitUntil": {
-            "type": "boolean",
-            "default": true,
-            "description": "Format Tcl files on save via willSaveWaitUntil.",
-            "order": 21
-          },
           "tclLsp.features.progress": {
-            "type": "boolean",
-            "default": true,
-            "description": "Report work-done progress for long-running operations (initial workspace scan).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override work-done progress for long-running operations. When null, enabled.",
             "order": 22
           },
           "tclLsp.features.implementation": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable Go to Implementation (TclOO method overrides).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override Go to Implementation (TclOO method overrides). When null, enabled.",
             "order": 23
           },
           "tclLsp.features.typeDefinition": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable Go to Type Definition (class for a variable / method receiver).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override Go to Type Definition. When null, enabled.",
             "order": 24
           },
           "tclLsp.features.declaration": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable Go to Declaration (variable/global/upvar declarations).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override Go to Declaration. When null, enabled.",
             "order": 25
           },
           "tclLsp.features.linkedEditingRange": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable linked editing range (synchronized edits for recursive proc self-calls).",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Override linked editing range. When null, inherits from editor.linkedEditing.",
             "order": 26
           }
         }

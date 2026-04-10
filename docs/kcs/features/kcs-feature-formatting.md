@@ -10,7 +10,7 @@ all-editors, MCP, transform
 
 ## How to use
 
-- **Editor**: Format Document (Shift+Alt+F) or enable format-on-save.
+- **Editor**: Format Document (Shift+Alt+F) or enable your editor's built-in format-on-save (e.g. VS Code's `editor.formatOnSave`).
 - **MCP**: `format_source` tool — pass source and optional settings.
 - **VS Code command**: `Tcl: Format Document`.
 - **Settings**: Configure via `tclLsp.formatting.*`:

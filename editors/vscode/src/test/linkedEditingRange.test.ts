@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
-import { activate, getDocUri } from "./helper";
+import { activate, getDocUri, sleep } from "./helper";
 
 interface TclLspApi {
   getClient(): LanguageClient;
@@ -9,6 +9,19 @@ interface TclLspApi {
 
 suite("Linked Editing Range", () => {
   const docUri = getDocUri("procs.tcl");
+
+  // editor.linkedEditing defaults to false in VS Code, so the tri-state
+  // null default inherits "off".  Explicitly enable for these tests.
+  suiteSetup(async () => {
+    const cfg = vscode.workspace.getConfiguration("tclLsp.features");
+    await cfg.update("linkedEditingRange", true, undefined);
+    await sleep(500);
+  });
+
+  suiteTeardown(async () => {
+    const cfg = vscode.workspace.getConfiguration("tclLsp.features");
+    await cfg.update("linkedEditingRange", undefined, undefined);
+  });
 
   test("server advertises linkedEditingRangeProvider", async () => {
     await activate(docUri);

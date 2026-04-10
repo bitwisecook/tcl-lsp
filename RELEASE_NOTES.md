@@ -9,7 +9,8 @@
     concrete implementations
   - `textDocument/typeDefinition` and `textDocument/declaration`
   - `textDocument/codeLens` + `codeLens/resolve`
-  - `textDocument/willSaveWaitUntil` — format-on-save handler
+  - `textDocument/willSaveWaitUntil` — format-on-save fallback (off by
+    default; use the editor's native format-on-save instead)
   - `textDocument/linkedEditingRange` — synchronised renaming of matching
     identifiers
   - `workspace/willRenameFiles` + `workspace/didRenameFiles`
@@ -25,6 +26,28 @@
 - New VS Code extension tests covering all ten LSP features.
 - KCS documentation overhaul for diagnosing failed VS Code LSP startup,
   including a reusable user-issue troubleshooting template.
+
+## Breaking Changes
+
+- **Removed `tclLsp.features.formatting` setting.** Formatting is now always
+  available via the standard `textDocument/formatting` handler and controlled
+  by the editor's native mechanisms (e.g. VS Code's `editor.formatOnSave` and
+  `editor.defaultFormatter`). If you previously set `tclLsp.features.formatting`
+  to `false`, that setting is now ignored — use your editor's formatter
+  selection instead.
+- **Changed `tclLsp.features.willSaveWaitUntil` default to `false`** and
+  removed it from the VS Code and JetBrains settings UI. Format-on-save no
+  longer fires unconditionally; use the editor's native format-on-save
+  instead. The server-side handler remains as an opt-in fallback for editors
+  without native format-on-save support.
+- **VS Code feature toggles now inherit from editor globals.** All
+  `tclLsp.features.*` settings in the VS Code extension default to `null`,
+  which means "inherit from the corresponding VS Code editor setting" where
+  one exists (e.g. `editor.hover.enabled`, `editor.codeLens`,
+  `editor.linkedEditing`). Features without a VS Code equivalent default to
+  enabled. Set a toggle to `true` or `false` to override the editor global.
+  Note: `linkedEditingRange` was previously enabled by default but now
+  follows `editor.linkedEditing` (which defaults to `false` in VS Code).
 
 ## Bug Fixes
 
@@ -54,8 +77,8 @@
   offset-keyed lookup could return the wrong flag. Switched to `id(tok)`
   lookup, which is safe because `argv` and `all_tokens_buf` are populated
   from the same token objects.
-- **Fix pygls registration of `willSaveWaitUntil`** so the format-on-save
-  handler is actually advertised in server capabilities.
+- **Fix pygls registration of `willSaveWaitUntil`** so the handler is
+  actually advertised in server capabilities (now off by default).
 - **Fix a CI `test-ext` flake** by dropping premature `analysis=None`
   early returns in the extension test path.
 

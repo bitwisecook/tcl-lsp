@@ -8,10 +8,10 @@ interface TclLspApi {
 }
 
 suite("Work-Done Progress", () => {
-  test("config toggle exists and defaults to true", () => {
+  test("config toggle exists and defaults to null (inherit)", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
-    const value = config.get<boolean>("progress");
-    assert.strictEqual(value, true, "progress should default to true");
+    const value = config.get<boolean | null>("progress");
+    assert.strictEqual(value, null, "progress should default to null (inherit)");
   });
 
   test("server stays responsive during/after workspace scan", async () => {

@@ -393,6 +393,65 @@ function resolveServerDir(configuredPath: string, extensionPath: string): string
   return extensionPath;
 }
 
+// Map from feature toggle key to the VS Code editor setting it inherits from.
+// Features not listed here default to true when null.
+const FEATURE_EDITOR_DEFAULTS: Record<string, () => boolean> = {
+  hover: () => {
+    const v = workspace.getConfiguration("editor").get<string | boolean>("hover.enabled", true);
+    return v !== "off" && v !== false;
+  },
+  semanticTokens: () => {
+    const v = workspace
+      .getConfiguration("editor")
+      .get<boolean | string>("semanticHighlighting.enabled", true);
+    return v !== false; // "configuredByTheme" and true both resolve to enabled
+  },
+  folding: () => workspace.getConfiguration("editor").get<boolean>("folding", true),
+  signatureHelp: () =>
+    workspace.getConfiguration("editor").get<boolean>("parameterHints.enabled", true),
+  inlayHints: () => {
+    const v = workspace
+      .getConfiguration("editor")
+      .get<string | boolean>("inlayHints.enabled", true);
+    return v !== "off" && v !== "offUnlessPressed" && v !== false;
+  },
+  documentHighlight: () => {
+    const v = workspace
+      .getConfiguration("editor")
+      .get<string | boolean>("occurrencesHighlight", "singleFile");
+    return v !== "off" && v !== false;
+  },
+  codeLens: () => workspace.getConfiguration("editor").get<boolean>("codeLens", true),
+  linkedEditingRange: () =>
+    workspace.getConfiguration("editor").get<boolean>("linkedEditing", false),
+};
+
+/**
+ * Resolve a tri-state feature toggle (boolean | null) to a concrete boolean.
+ * When the user has not set an explicit value (null), the toggle inherits
+ * from the corresponding VS Code editor setting where applicable, or
+ * defaults to true.
+ */
+function resolveFeatureToggle(key: string, value: boolean | null): boolean {
+  if (typeof value === "boolean") return value;
+  const resolver = FEATURE_EDITOR_DEFAULTS[key];
+  return resolver ? resolver() : true;
+}
+
+/**
+ * Read all tclLsp.features.* settings and resolve null values to concrete
+ * booleans using VS Code editor globals.
+ */
+function resolveAllFeatureToggles(): Record<string, boolean> {
+  const features = workspace.getConfiguration("tclLsp.features");
+  const resolved: Record<string, boolean> = {};
+  for (const key of Object.keys(FEATURE_EDITOR_DEFAULTS)) {
+    const val = features.get<boolean | null>(key, null);
+    resolved[key] = resolveFeatureToggle(key, val);
+  }
+  return resolved;
+}
+
 export async function activate(context: ExtensionContext) {
   const activateStart = Date.now();
   const ch = getOutputChannel();
@@ -466,6 +525,75 @@ export async function activate(context: ExtensionContext) {
         "**/*.{tcl,tk,itcl,tm,irul,irule,iapp,iappimpl,impl}",
       ),
     },
+    middleware: {
+      workspace: {
+        // Pull path: server requests configuration via workspace/configuration.
+        configuration: async (params, token, next) => {
+          const result = await next(params, token);
+          if (Array.isArray(result)) {
+            for (let i = 0; i < params.items.length; i++) {
+              const section = params.items[i].section;
+              if (section === "tclLsp" && result[i] && typeof result[i] === "object") {
+                const settings = result[i] as Record<string, unknown>;
+                const features = settings.features;
+                if (features && typeof features === "object") {
+                  const feat = features as Record<string, unknown>;
+                  for (const [key, val] of Object.entries(feat)) {
+                    if (val === null || val === undefined) {
+                      feat[key] = resolveFeatureToggle(key, null);
+                    }
+                  }
+                }
+              }
+            }
+          }
+          return result;
+        },
+        // Push path: configurationSection auto-sync sends raw settings
+        // including null defaults that the server's _set_toggle ignores.
+        // We replace the default push with one where feature nulls are
+        // resolved to booleans.  We must send the COMPLETE settings (not
+        // just features) because the server's debounce replaces pending
+        // settings wholesale.
+        didChangeConfiguration: async (_sections, _next) => {
+          if (!client) {
+            return _next(_sections);
+          }
+          // Read the full tclLsp configuration and resolve feature nulls.
+          const allSettings: Record<string, unknown> = {};
+          const cfg = workspace.getConfiguration("tclLsp");
+          // Copy all top-level tclLsp keys.
+          for (const key of [
+            "dialect",
+            "pythonPath",
+            "serverPath",
+            "extraCommands",
+            "libraryPaths",
+            "formatting",
+            "diagnostics",
+            "style",
+            "optimiser",
+            "shimmer",
+            "xcDiagnostics",
+            "runtimeValidation",
+            "ai",
+          ]) {
+            const val = cfg.get(key);
+            if (val !== undefined) allSettings[key] = val;
+          }
+          // Resolve feature toggles.
+          const features = cfg.get<Record<string, unknown>>("features", {});
+          const resolved: Record<string, boolean> = {};
+          for (const [key, val] of Object.entries(features)) {
+            resolved[key] = typeof val === "boolean" ? val : resolveFeatureToggle(key, null);
+          }
+          allSettings.features = resolved;
+          void client.sendNotification("workspace/didChangeConfiguration", {
+            settings: { tclLsp: allSettings },
+          });
+        },
+      },
+    },
   };
 
   client = new LanguageClient("tcl-lsp", "Tcl Language Server", serverOptions, clientOptions);
@@ -497,7 +625,18 @@ export async function activate(context: ExtensionContext) {
   );
   onActiveEditorChanged(window.activeTextEditor);
 
-  // Update status bar label when manually changing settings.
+  // Update status bar label when manually changing settings, and re-push
+  // resolved feature toggles when the underlying editor globals change.
+  const editorSettingsAffectingFeatures = [
+    "editor.hover.enabled",
+    "editor.semanticHighlighting.enabled",
+    "editor.folding",
+    "editor.parameterHints.enabled",
+    "editor.inlayHints.enabled",
+    "editor.occurrencesHighlight",
+    "editor.codeLens",
+    "editor.linkedEditing",
+  ];
   context.subscriptions.push(
     workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("tclLsp.dialect")) {
@@ -506,6 +645,14 @@ export async function activate(context: ExtensionContext) {
           .get<string>("dialect", DEFAULT_DIALECT);
         activeDialect = configured;
         updateDialectStatusBar();
+      }
+      // When a VS Code editor setting that a feature toggle inherits from
+      // changes, re-push resolved feature values so the server stays in sync.
+      if (client && editorSettingsAffectingFeatures.some((s) => e.affectsConfiguration(s))) {
+        const resolved = resolveAllFeatureToggles();
+        void client.sendNotification("workspace/didChangeConfiguration", {
+          settings: { tclLsp: { features: resolved } },
+        });
       }
     }),
   );
