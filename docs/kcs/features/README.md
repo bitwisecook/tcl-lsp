@@ -112,5 +112,8 @@ combine them when more than one form helps:
 - [kcs-feature-ai-chat-tcl.md](kcs-feature-ai-chat-tcl.md)
 - [kcs-feature-ai-chat-tk.md](kcs-feature-ai-chat-tk.md)
 - [kcs-feature-chat-slash-commands.md](kcs-feature-chat-slash-commands.md)
+- [kcs-feature-ai-help.md](kcs-feature-ai-help.md)
+- [kcs-feature-documentation-generation.md](kcs-feature-documentation-generation.md)
+- [kcs-feature-diff.md](kcs-feature-diff.md)
 - [kcs-feature-mcp-server.md](kcs-feature-mcp-server.md)
 - [kcs-feature-claude-code-skills.md](kcs-feature-claude-code-skills.md)
