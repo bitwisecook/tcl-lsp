@@ -23,6 +23,7 @@ use std::borrow::Cow;
 use pyo3::prelude::*;
 
 mod expr_lexer;
+mod expr_parser;
 mod lexer;
 mod tokens;
 
@@ -75,5 +76,6 @@ fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(lexer::lexer_tokenise_with_config, m)?)?;
     tokens::register_with(m)?;
     expr_lexer::register_with(m)?;
+    expr_parser::register_with(m)?;
     Ok(())
 }

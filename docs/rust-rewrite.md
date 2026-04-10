@@ -568,7 +568,9 @@ rust/
     src/
       lib.rs
       expr_ast.rs                        ExprNode, BinOp, UnaryOp, render_expr (C0)
+      expr_parser.rs                     Pratt parser: ExprToken → ExprNode (C1)
       ir.rs                              Statement, Script, Procedure, Module (C0)
+      naming.rs                          normalise_var_name (C1)
   tcl-lsp-rust/                          PyO3 binding crate
     Cargo.toml
     pyproject.toml                       maturin build backend
@@ -600,6 +602,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L12   | Expand Rust lexer coverage: base offsets, `expand_syntax=False`, `irules_brace_separator` (ghost SEP injection), warning/strict infrastructure, `lexer_tokenise_with_config` PyO3 entry point. | landed |
 | L13   | Wire strict-quoting emission points: `warn_or_error` calls in `parse_var`, `parse_command`, `parse_brace`, `parse_quoted` for all 14 Python strict-mode raise sites. `ValueError` → `TclParseError` conversion in the Python shim. Python fallback now only triggers for virtual insertions. | landed |
 | C0    | **Compiler crate bootstrap + IR data structures.** `rust/tcl-compiler/` crate: expression AST (`BinOp`, `UnaryOp`, `ExprNode` enum with `vars()`, `render_expr`, `expr_text`), IR types (`Statement` enum with 15 variants, `Script`, `Procedure`, `Module`, `CommandTokens`, helper types). Every IR node carries a `Span` (not inline `SourcePosition` pairs). 41 unit tests. Wired into `tcl-lsp-rust` binding crate via `compiler_version()`. | landed |
+| C1    | **Expression parser.** Pratt parser (`core/parsing/expr_parser.py`) → `rust/tcl-compiler/src/expr_parser.rs`. Converts expression token stream (from L10 Rust lexer) into `ExprNode` AST (from C0). Includes `naming::normalise_var_name`. 53 Rust unit tests + 85-case Python differential test harness (`test_rust_expr_parser_differential.py`). PyO3 bindings: `parse_expr_render`, `parse_expr_vars`, `parse_expr_tag`. Full ExprNode bridging deferred until lowering moves to Rust. | landed |
 | C*    | **Compiler migration (continued).** `core/compiler/` (CFG, SSA, lowering, codegen, optimiser passes) → `rust/tcl-compiler/`. Each pass can be its own chunk. The compiler consumes `Token` values from the lexer and produces IR; porting it to Rust eliminates the Python→Rust→Python round-trip that currently dominates the pipeline after the lexer. | planned |
 | S*    | **LSP server migration.** `lsp/` (pygls handlers, workspace orchestration, feature providers) → `rust/tcl-lsp-server/` on `tower-lsp`. This is when `ropey` enters the picture as the document store, the whole pipeline becomes async, and the server ships as a standalone Rust binary. | planned |
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), `core/analysis/` (analyser passes), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
