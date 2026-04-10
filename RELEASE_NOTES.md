@@ -1,90 +1,28 @@
-# v1.6.0
+# v1.7.0
 
 ## New Features
-
-- **Ten new LSP capabilities**, each behind its own feature toggle:
-  - `textDocument/documentHighlight` — Read/Write-aware highlights driven by
-    shared variable-scoping analysis
-  - `textDocument/implementation` — jump from interfaces/base methods to
-    concrete implementations
-  - `textDocument/typeDefinition` and `textDocument/declaration`
-  - `textDocument/codeLens` + `codeLens/resolve`
-  - `textDocument/willSaveWaitUntil` — format-on-save fallback (off by
-    default; use the editor's native format-on-save instead)
-  - `textDocument/linkedEditingRange` — synchronised renaming of matching
-    identifiers
-  - `workspace/willRenameFiles` + `workspace/didRenameFiles`
-  - `textDocument/diagnostic` and `workspace/diagnostic` pull-model handlers
-    (opt-in; the existing push pipeline remains the default)
-- **Workspace scan progress** via `$/progress` notifications, so editors can
-  show a real progress indicator while the workspace index is being built.
+- **Conf-wrapped iRule dialect mode**: Full LSP support for `ltm rule` / `gtm rule` stanza files — diagnostics, symbols, semantic tokens, and formatting all work across embedded rule bodies with correct position mapping
+- **Tcl package manager (`tclpkg`)**: New `tcl pkg` CLI with MVS-based dependency resolution, manifest files, lock support, `freeze` verb, and a pure-Tcl 8.6+ implementation alongside the Python one
+- **Dockerfile generation**: `tcl docker` CLI verb generates production-ready Dockerfiles for Tcl projects with automatic dependency detection
+- **W130–W134 diagnostics**: New warning codes for package management issues (missing manifests, unresolvable dependencies, version conflicts, stale lock files, unused dependencies)
+- **Safe interpreter support**: `interp create -safe` now creates properly sandboxed child interpreters with empty command whitelists
+- **VM opcodes**: `lset` command, `LSET_LIST`/`OVER` opcodes, `STR_CLASS` for `string is`, `TRY_CVT_TO_BOOLEAN`, and `chan` command family
 
 ## Improvements
-
-- Shared variable-scoping detection underpins document highlights, with
-  coordinated updates to the VS Code extension and bundled test fixtures.
-- New VS Code extension tests covering all ten LSP features.
-- KCS documentation overhaul for diagnosing failed VS Code LSP startup,
-  including a reusable user-issue troubleshooting template.
-
-## Breaking Changes
-
-- **Removed `tclLsp.features.formatting` setting.** Formatting is now always
-  available via the standard `textDocument/formatting` handler and controlled
-  by the editor's native mechanisms (e.g. VS Code's `editor.formatOnSave` and
-  `editor.defaultFormatter`). If you previously set `tclLsp.features.formatting`
-  to `false`, that setting is now ignored — use your editor's formatter
-  selection instead.
-- **Changed `tclLsp.features.willSaveWaitUntil` default to `false`** and
-  removed it from the VS Code and JetBrains settings UI. Format-on-save no
-  longer fires unconditionally; use the editor's native format-on-save
-  instead. The server-side handler remains as an opt-in fallback for editors
-  without native format-on-save support.
-- **VS Code feature toggles now inherit from editor globals.** All
-  `tclLsp.features.*` settings in the VS Code extension default to `null`,
-  which means "inherit from the corresponding VS Code editor setting" where
-  one exists (e.g. `editor.hover.enabled`, `editor.codeLens`,
-  `editor.linkedEditing`). Features without a VS Code equivalent default to
-  enabled. Set a toggle to `true` or `false` to override the editor global.
-  Note: `linkedEditingRange` was previously enabled by default but now
-  follows `editor.linkedEditing` (which defaults to `false` in VS Code).
+- **VS Code formatting conventions**: Feature toggles now inherit from VS Code's `editor.*` globals by default instead of requiring custom settings, with tri-state (null/true/false) support
+- **KCS documentation**: Comprehensive diagnostic pages (E-codes, W-codes, S-codes, T-codes, IRULE-codes), all 28 O-code optimisation pages, compiler-pass glossary, feature pages, and Applies-to tag vocabulary
+- **Analyser accuracy**: Renamed `ArgRole.VAR_NAME` to `VAR_WRITE` with proper dual-shape resolver for `set`, fixing W210 false positives for `regexp`/`regsub` capture variable writes
+- **Real tcltest integration**: `package require tcltest` now sources the genuine `tcltest.tcl` library when available, giving full test framework behaviour
+- **External test suite runner** for pure-Tcl projects
 
 ## Bug Fixes
+- Fix formatter corrupting `${variable}` and `{*}$variable` syntax
+- Fix backslash substitution in interpolated strings
+- Fix command substitution concatenation in bytecode compiler
+- Fix `eof` command and `info script` in test runner
+- Fix tcltest namespace import, `numTests` sync, `-output` handling, skip, and unknown guard
+- Fix inlayHints resolver for string values
+- Skip tcltest setup for safe interpreters to prevent `package` command errors
 
-- **Fix `{*}` argument-expansion arity checks (#129).** Calls like
-  `proc rgbToLab {r g b} { ... }; rgbToLab {*}$rgb` no longer raise false
-  E002/E003 diagnostics. Expansion markers from the segmenter are now
-  threaded through every arity-check call site and each expanded word
-  contributes a `(min, max)` range resolved via the value lattice
-  (literal lists, `[list ...]`, and constant-valued variables are expanded
-  exactly; unknown expansions contribute `0..∞`). `TclLexer.expand_syntax`
-  is dialect-gated, so Tcl 8.4 and F5 iRules correctly parse `{*}$x` as a
-  braced literal rather than an expansion prefix.
-- **Guard specialised IR lowerings against `{*}` expansion.** The
-  specialised lowerings for `set`, `incr`, `expr`, `return`, `proc`,
-  `when`, `namespace eval`, `if`, `switch`, `for`, `while`, `foreach`,
-  and `foreach_in_collection` now fall back to a generic `IRCall` or
-  `IRBarrier` whenever any argument word is `{*}`-expanded, so wrong-shape
-  IR can no longer bypass the arity checks.
-- **Fix E100/E102 false positives on quoted `"}"` and `"]"` literals
-  (#130).** Quoted close-brace and close-bracket characters are no longer
-  mistaken for stray punctuation through the full pipeline — lexer,
-  analyser, formatter, minifier, optimiser, code generator, and the LSP
-  semantic-token stray-bracket recovery helper.
-- **Key the quoted-context lookup by token identity, not start offset.**
-  The zero-width synthetic `SEP` the iRules lexer injects at a `}{` word
-  boundary shares the start offset of the following `STR`, so an
-  offset-keyed lookup could return the wrong flag. Switched to `id(tok)`
-  lookup, which is safe because `argv` and `all_tokens_buf` are populated
-  from the same token objects.
-- **Fix pygls registration of `willSaveWaitUntil`** so the handler is
-  actually advertised in server capabilities (now off by default).
-- **Fix a CI `test-ext` flake** by dropping premature `analysis=None`
-  early returns in the extension test path.
-
-## Notes for Editor Integrations
-
-- All ten new LSP handlers are gated by individual feature toggles, so
-  existing editor integrations continue to work unchanged until the
-  relevant toggle is enabled.
-- Pull diagnostics are opt-in — the push pipeline remains the default.
+## Breaking Changes
+- VS Code formatting settings (`tclLsp.format.*`) now default to `null` (inherit from editor globals) instead of explicit `true`/`false` — existing explicit settings are preserved
