@@ -567,12 +567,15 @@ rust/
     Cargo.toml
     src/
       lib.rs
+      analyses.rs                        LatticeValue, FunctionAnalysis, ModuleAnalysis (C5)
+      cfg.rs                             Block, Function, CfgModule, Terminator (C2)
+      codegen.rs                         Op, Instruction, LiteralTable, FunctionAsm (C4)
       expr_ast.rs                        ExprNode, BinOp, UnaryOp, render_expr (C0)
       expr_parser.rs                     Pratt parser: ExprToken → ExprNode (C1)
       ir.rs                              Statement, Script, Procedure, Module (C0)
-      cfg.rs                             Block, Function, CfgModule, Terminator (C2)
-      ssa.rs                             Phi, SsaBlock, SsaFunction, dominators (C3)
       naming.rs                          normalise_var_name (C1)
+      ssa.rs                             Phi, SsaBlock, SsaFunction, dominators (C3)
+      types.rs                           TclType, TypeLattice, type_join (C5)
   tcl-lsp-rust/                          PyO3 binding crate
     Cargo.toml
     pyproject.toml                       maturin build backend
@@ -607,7 +610,9 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C1    | **Expression parser.** Pratt parser (`core/parsing/expr_parser.py`) → `rust/tcl-compiler/src/expr_parser.rs`. Converts expression token stream (from L10 Rust lexer) into `ExprNode` AST (from C0). Includes `naming::normalise_var_name`. 53 Rust unit tests + 85-case Python differential test harness (`test_rust_expr_parser_differential.py`). PyO3 bindings: `parse_expr_render`, `parse_expr_vars`, `parse_expr_tag`. Full ExprNode bridging deferred until lowering moves to Rust. | landed |
 | C2    | **CFG data structures + graph utilities.** Control-flow graph types: `Terminator` (Goto/Branch/Return), `Block`, `Function`, `CfgModule`, `LoopNode`. Utility methods: `predecessors()`, `reachable_blocks()`, `reverse_postorder()`, `successors()`. 18 Rust unit tests covering diamond/loop/unreachable topologies. CFG builder (with command-registry dependencies) deferred to a later chunk. | landed |
 | C3    | **SSA data structures + dominator algorithms.** SSA types: `Phi`, `SsaStatement`, `SsaBlock`, `SsaFunction`. Algorithms: `compute_dominators` (iterative dataflow), `compute_idom` (immediate dominators), `compute_dominance_frontier`, `build_dom_tree`, `compute_phi_vars` (iterated DF algorithm), `defs_of` (variable definition extraction from IR statements). 22 Rust unit tests covering linear/diamond/loop topologies. Full SSA rename pass deferred until `_uses` scanner is ported. | landed |
-| C*    | **Compiler migration (continued).** `core/compiler/` (lowering, codegen, optimiser passes) → `rust/tcl-compiler/`. Each pass can be its own chunk. The compiler consumes `Token` values from the lexer and produces IR; porting it to Rust eliminates the Python→Rust→Python round-trip that currently dominates the pipeline after the lexer. | planned |
+| C4    | **Codegen types.** `Op` enum (150+ Tcl 9.0.2 bytecode opcodes), `Instruction`, `Operand`, `LiteralTable` (dedup intern pool), `LocalVarTable` (slot interning), `FunctionAsm`, `ModuleAsm`. Operator mapping (`BinOp`/`UnaryOp` → `Op`), index parsing (`parse_tcl_index`), `string is` class tables. 15 Rust unit tests. | landed |
+| C5    | **Type lattice + analysis result types.** `TclType` (10 intrep variants), `TypeLattice` (Unknown/Known/Shimmered/Overdefined), `type_join` with numeric promotions. SCCP lattice: `LatticeValue` (Unknown/Const/ConstSet/Overdefined), `ConstValue`. Diagnostic types: `DeadStore`, `ConstantBranch`, `ReadBeforeSet`, `UnusedVariable`. Composite: `FunctionAnalysis`, `ModuleAnalysis`. 21 Rust unit tests. | landed |
+| C*    | **Compiler migration (continued).** `core/compiler/` (lowering, codegen emitter, optimiser passes) → `rust/tcl-compiler/`. Each pass can be its own chunk. | planned |
 | S*    | **LSP server migration.** `lsp/` (pygls handlers, workspace orchestration, feature providers) → `rust/tcl-lsp-server/` on `tower-lsp`. This is when `ropey` enters the picture as the document store, the whole pipeline becomes async, and the server ships as a standalone Rust binary. | planned |
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), `core/analysis/` (analyser passes), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
 
