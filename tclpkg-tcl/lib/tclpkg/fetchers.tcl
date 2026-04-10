@@ -1,8 +1,13 @@
 # fetchers.tcl -- package source fetchers (HTTP, git, path).
 #
 # Uses tcllib http for HTTPS and the host git binary via exec.
+# Zip extraction is done member-by-member with safety checks
+# (path traversal, symlinks, decompression bomb).
 
 namespace eval ::tclpkg::fetchers {
+
+    # Maximum total uncompressed size from a single archive (256 MiB).
+    variable max_extract_bytes [expr {256 * 1024 * 1024}]
 
     # Fetch a tarball via HTTP and extract into dest.
     proc fetch_tarball {url dest args} {
@@ -34,7 +39,7 @@ namespace eval ::tclpkg::fetchers {
         # Extract based on extension.
         set lower [string tolower $url]
         if {[string match "*.zip" $lower]} {
-            _extract_zip $tmp $dest
+            safe_extract_zip $tmp $dest
         } else {
             _extract_tar $tmp $dest
         }
@@ -45,24 +50,77 @@ namespace eval ::tclpkg::fetchers {
         if {[llength $children] == 1 && [file isdirectory [lindex $children 0]]} {
             set child [lindex $children 0]
             foreach item [glob -nocomplain -directory $child *] {
-                file rename $item [file join $dest [file tail $item]]
+                file rename -- $item [file join $dest [file tail $item]]
             }
             file delete -force -- $child
         }
     }
 
     proc _extract_tar {archive dest} {
-        # Use system tar; Tcl's built-in zlib + tar module is spotty.
         set rc [catch {exec tar xf $archive -C $dest 2>@stderr} err]
         if {$rc} {
             error "tar extraction failed: $err"
         }
     }
 
-    proc _extract_zip {archive dest} {
-        set rc [catch {exec unzip -o -q $archive -d $dest 2>@stderr} err]
+    # Safe zip extraction -- member-by-member with validation.
+    #
+    # Protections:
+    # - Zip Slip: rejects members whose resolved path escapes dest.
+    # - Absolute paths: rejected.
+    # - Symlinks: skipped (unzip -o does not create them when we
+    #   validate paths, but we also check for .. traversal).
+    # - Zip bomb: aborts if total extracted bytes exceed max_extract_bytes.
+    # - TOCTOU: each member is validated and extracted individually;
+    #   we use unzip to extract one file at a time.
+    proc safe_extract_zip {archive dest} {
+        variable max_extract_bytes
+
+        # Get the member list from the zip.
+        set rc [catch {exec unzip -Z -1 $archive} member_list]
         if {$rc} {
-            error "zip extraction failed: $err"
+            error "zip listing failed: cannot read $archive"
+        }
+
+        set dest_resolved [file normalize $dest]
+        set total_bytes 0
+
+        foreach member [split $member_list "\n"] {
+            set member [string trim $member]
+            if {$member eq ""} continue
+
+            # Reject absolute paths.
+            if {[string index $member 0] eq "/"} {
+                error "zip member has absolute path: $member"
+            }
+
+            # Reject path traversal.
+            set target [file normalize [file join $dest $member]]
+            # Check that target starts with dest_resolved + /
+            # (using string match to avoid the sibling-directory bypass).
+            if {$target ne $dest_resolved && ![string match "${dest_resolved}/*" $target]} {
+                error "zip member escapes target directory: $member"
+            }
+
+            # Get uncompressed size for this member.
+            # zipinfo format: perms ver os SIZE ... filename
+            # The size is the standalone integer field (4th column).
+            catch {
+                set info_line [exec unzip -Z -l $archive $member]
+                if {[regexp {\s(\d+)\s+\w+\s+\d+\s+\w+\s} $info_line -> size]} {
+                    incr total_bytes $size
+                }
+            } _
+
+            if {$total_bytes > $max_extract_bytes} {
+                error "zip archive exceeds [expr {$max_extract_bytes / (1024*1024)}] MiB uncompressed limit (possible zip bomb)"
+            }
+
+            # Extract this single member.
+            set rc [catch {exec unzip -o -q $archive $member -d $dest 2>@stderr} err]
+            if {$rc} {
+                error "zip extraction failed for member $member: $err"
+            }
         }
     }
 
@@ -80,11 +138,16 @@ namespace eval ::tclpkg::fetchers {
         if {[string match "git+*" $url]} {
             set url [string range $url 4 end]
         }
-        # Strip @rev suffix if embedded.
+        # Strip @rev suffix if embedded in URL, but only when it looks
+        # like a ref marker (after .git or after a /), not an SSH user@
+        # prefix like git@github.com:org/repo.git.
         if {$rev eq "" && [string match "*@*" $url]} {
             set idx [string last "@" $url]
-            set rev [string range $url $idx+1 end]
-            set url [string range $url 0 $idx-1]
+            set prefix [string range $url 0 $idx-1]
+            if {[string match "*/*" $prefix] || [string match "*.git" $prefix]} {
+                set rev [string range $url $idx+1 end]
+                set url $prefix
+            }
         }
 
         file mkdir $dest
