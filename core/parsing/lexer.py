@@ -8,8 +8,8 @@ import threading
 from .tokens import SourcePosition, Token, TokenType
 
 try:
-    from tcl_lsp_rust import (
-        lexer_tokenise_with_config as _rust_lexer_tokenise_cfg,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        lexer_tokenise_with_config as _rust_lexer_tokenise_cfg,
     )
 except ImportError:
     _rust_lexer_tokenise_cfg = None
@@ -1064,14 +1064,15 @@ class TclLexer:
     def tokenise_all(self) -> list[Token]:
         """Tokenise the entire source, including SEP and EOL tokens.
 
-        When the ``tcl_lsp_rust`` wheel is installed and this lexer has no
-        virtual insertions, this method dispatches to the Rust lexer for a
-        ~17× speedup on the hot path. The Rust path receives the current
-        ``expand_syntax``, ``irules_brace_separator``, strict-quoting mode,
-        and base position offsets/line/column values. The ``get_token()``
-        incremental API continues to use the Python lexer. The Python
-        fallback is used when virtual insertions are present or the Rust
-        wheel is not available.
+        When the Rust ``tcl_lsp_rust`` wheel is installed and this
+        lexer has no virtual insertions, this method dispatches to
+        the Rust implementation for a ~17× speedup. The Rust path
+        receives the current ``expand_syntax``,
+        ``irules_brace_separator``, strict-quoting mode, and base
+        position offsets. The ``get_token()`` incremental API
+        continues to use the Python lexer. The Python fallback is
+        used when virtual insertions are present or the Rust wheel
+        is not available.
         """
         if _rust_lexer_tokenise_cfg is not None and not self._has_virtuals:
             try:

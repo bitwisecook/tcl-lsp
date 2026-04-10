@@ -205,6 +205,9 @@ lint: lint-py typecheck-py lint-ts rust-lint ## Run all lint and style checks (P
 format: format-py format-ts rust-format ## Format Python, TypeScript, and Rust code
 
 test-py: $(UV_STAMP) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
+# The Rust wheel is a soft dependency: tests pass without it (the
+# Python fallback lexer kicks in). Run `make rust-build` first for
+# full coverage, or use `make prep-pr` which includes the Rust build.
 	@echo "==> Running Python tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
 
