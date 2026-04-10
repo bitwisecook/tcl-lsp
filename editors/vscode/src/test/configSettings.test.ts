@@ -589,21 +589,21 @@ suite("Configuration Settings", () => {
     // Document links are retrieved via the LSP protocol, not a VS Code
     // executeCommand. Verify the config toggles and the feature is wired up.
     const config = vscode.workspace.getConfiguration("tclLsp.features");
-    const original = config.get<boolean>("documentLinks", true);
-    assert.strictEqual(original, true, "documentLinks should default to true");
+    const original = config.get<boolean | null>("documentLinks", null);
+    assert.strictEqual(original, null, "documentLinks should default to null (inherit)");
     try {
       await config.update("documentLinks", false, undefined);
       const changed = vscode.workspace
         .getConfiguration("tclLsp.features")
-        .get<boolean>("documentLinks");
+        .get<boolean | null>("documentLinks");
       assert.strictEqual(changed, false);
     } finally {
       await config.update("documentLinks", undefined, undefined);
     }
     assert.strictEqual(
-      vscode.workspace.getConfiguration("tclLsp.features").get<boolean>("documentLinks"),
-      true,
-      "Should restore to default",
+      vscode.workspace.getConfiguration("tclLsp.features").get<boolean | null>("documentLinks"),
+      null,
+      "Should restore to default (null)",
     );
   });
 

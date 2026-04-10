@@ -3176,10 +3176,7 @@
             "order": 19
           },
           "tclLsp.features.pullDiagnostics": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": "boolean",
             "default": false,
             "description": "Enable pull-model diagnostics (textDocument/diagnostic, workspace/diagnostic). Off by default: turning this on causes most clients to stop honouring push notifications.",
             "order": 20
