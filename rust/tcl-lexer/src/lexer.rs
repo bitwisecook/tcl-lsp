@@ -141,12 +141,31 @@ use crate::tokens::{SourcePosition, Token, TokenType};
 
 /// Configuration for the Tcl lexer.
 ///
-/// Empty in L3. Every dialect flag on Python's `TclLexer`
-/// (`strict_quoting`, `expand_syntax`, `irules_brace_separator`) gates
-/// behaviour the Rust lexer does not yet implement. They become fields
-/// on this struct in chunk L8.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct LexerConfig {}
+/// Holds dialect-specific flags that the Python lexer uses as
+/// class-level attributes. In Rust these are explicit fields
+/// passed at construction time via `Lexer::with_source_map`; the
+/// `Default` values match Python's non-strict, Tcl-8.5+ defaults.
+///
+/// The binding crate translates Python's class-level / thread-local
+/// flag pattern into a fresh `LexerConfig` on each call — the
+/// pure-Rust crate has no global state.
+#[derive(Debug, Clone, Copy)]
+pub struct LexerConfig {
+    /// When true, `{*}` at a word boundary followed by a
+    /// non-separator emits an [`EXPAND`](TokenType::Expand) token
+    /// rather than being parsed as a braced string. True for
+    /// Tcl 8.5+ (the default); false for Tcl 8.4 and iRules
+    /// dialects. Mirrors Python's `TclLexer.expand_syntax`.
+    pub expand_syntax: bool,
+}
+
+impl Default for LexerConfig {
+    fn default() -> Self {
+        Self {
+            expand_syntax: true,
+        }
+    }
+}
 
 /// Errors produced by the Tcl lexer.
 ///
@@ -200,7 +219,7 @@ pub struct Lexer<'src> {
     last_kind: TokenType,
     /// Once true, [`Iterator::next`] returns `None`.
     done: bool,
-    _config: LexerConfig,
+    config: LexerConfig,
 }
 
 impl<'src> Lexer<'src> {
@@ -229,7 +248,7 @@ impl<'src> Lexer<'src> {
             // matching `TclLexer.__init__` in Python.
             last_kind: TokenType::Eol,
             done: false,
-            _config: config,
+            config,
         }
     }
 
@@ -621,6 +640,50 @@ impl<'src> Lexer<'src> {
         )
     }
 
+    /// Check for the `{*}` expansion prefix (Tcl 8.5+) at the
+    /// current `{`, and dispatch to either `parse_expand` or
+    /// `parse_brace`. Matches the Python check inside
+    /// `_parse_string`:
+    ///
+    /// ```text
+    /// if expand_syntax
+    ///     and text[pos+1] == '*'
+    ///     and text[pos+2] == '}'
+    ///     and text[pos+3] is a non-separator
+    /// ```
+    fn parse_brace_or_expand(&mut self) -> Token {
+        if self.config.expand_syntax
+            && self.peek_byte(1) == Some(b'*')
+            && self.peek_byte(2) == Some(b'}')
+        {
+            // Must be followed by at least one more character that is
+            // NOT a separator. Matching Python's `text[pos + 3] not
+            // in " \t\n\r\x0b\x0c;"` guard.
+            if let Some(after) = self.peek_byte(3) {
+                if !is_separator_byte(after) {
+                    return self.parse_expand();
+                }
+            }
+        }
+        self.parse_brace()
+    }
+
+    /// Emit an `EXPAND` token for the `{*}` prefix. The token's
+    /// span covers the three-byte `{*}` sequence with
+    /// `content_offset = 0` (Python's `Token.text` for EXPAND is
+    /// just `{`). The Python lexer sets `_start = self.pos`,
+    /// advances by 3, then sets `_end = _start` — a zero-width
+    /// marker where text = `{`. We match by setting `span = [pos,
+    /// pos+1)` so `SourceMap::text(span)` returns `{` and
+    /// `range_positions` gives start == end at the `{` position.
+    /// The lexer then advances `self.pos` past the full `{*}` so
+    /// the next dispatch starts at the word to expand.
+    fn parse_expand(&mut self) -> Token {
+        let start = self.pos;
+        self.pos += 3; // skip `{*}`
+        Token::new(TokenType::Expand, Span::new(start, start + 1))
+    }
+
     /// Parse a braced string starting at the current `{`. The caller
     /// is responsible for checking `is_newword()` before dispatching
     /// here — a `{` in the middle of a bare word is a regular
@@ -899,7 +962,7 @@ impl Iterator for Lexer<'_> {
                 '#' if self.at_command_start => self.parse_comment(),
                 '$' => Ok(self.parse_var()),
                 '[' => Ok(self.parse_command()),
-                '{' if self.is_newword() => Ok(self.parse_brace()),
+                '{' if self.is_newword() => Ok(self.parse_brace_or_expand()),
                 '"' if self.is_newword() => Ok(self.parse_quoted(true)),
                 _ if is_deferred_special(ch) => Err(LexError::UnsupportedCharacter {
                     ch,
@@ -956,6 +1019,14 @@ fn is_eol_char(ch: char) -> bool {
 #[inline]
 fn is_eol_byte(byte: u8) -> bool {
     byte == b'\n' || byte == b';'
+}
+
+/// Union of `is_horizontal_whitespace_byte` and `is_eol_byte`,
+/// matching Python's `_SEPARATOR_CHARS`. Used by the `{*}`
+/// expansion-prefix guard to test the byte after `}`.
+#[inline]
+fn is_separator_byte(byte: u8) -> bool {
+    is_horizontal_whitespace_byte(byte) || is_eol_byte(byte)
 }
 
 /// Characters whose handling the Rust lexer has not yet implemented.
@@ -2141,5 +2212,118 @@ mod tests {
         assert_eq!(rows[4], (TokenType::Esc, " ".into(), true));
         assert_eq!(rows[5], (TokenType::Var, "c".into(), true));
         assert_eq!(rows[6], (TokenType::Esc, String::new(), false));
+    }
+
+    // ------------------------------------------------------------------
+    // L8 — `{*}` expansion prefix + dialect flags
+    // ------------------------------------------------------------------
+
+    fn expand_rows(source: &str) -> Vec<(TokenType, String)> {
+        let lexer = Lexer::new(source);
+        let map = lexer.source_map().clone();
+        lexer
+            .tokenise_all()
+            .expect("L8 lexer accepts fixture")
+            .iter()
+            .map(|t| (t.kind, map.token_text(*t).to_owned()))
+            .collect()
+    }
+
+    fn expand_rows_no_expand(source: &str) -> Vec<(TokenType, String)> {
+        let config = LexerConfig {
+            expand_syntax: false,
+        };
+        let map = SourceMap::new(source);
+        let lexer = Lexer::with_source_map(map.clone(), config);
+        lexer
+            .tokenise_all()
+            .expect("L8 lexer accepts fixture")
+            .iter()
+            .map(|t| (t.kind, map.token_text(*t).to_owned()))
+            .collect()
+    }
+
+    #[test]
+    fn expand_prefix_before_bare_word() {
+        let rows = expand_rows("{*}list");
+        assert_eq!(rows[0], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[1], (TokenType::Esc, "list".into()));
+    }
+
+    #[test]
+    fn expand_prefix_before_var() {
+        let rows = expand_rows("{*}$var");
+        assert_eq!(rows[0], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[1], (TokenType::Var, "var".into()));
+    }
+
+    #[test]
+    fn expand_prefix_before_cmd() {
+        let rows = expand_rows("{*}[cmd]");
+        assert_eq!(rows[0], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[1], (TokenType::Cmd, "cmd".into()));
+    }
+
+    #[test]
+    fn expand_prefix_before_braced() {
+        let rows = expand_rows("{*}{a b}");
+        assert_eq!(rows[0], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[1], (TokenType::Str, "a b".into()));
+    }
+
+    #[test]
+    fn expand_prefix_mid_command() {
+        let rows = expand_rows("cmd {*}$args");
+        assert_eq!(rows[0], (TokenType::Esc, "cmd".into()));
+        assert_eq!(rows[2], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[3], (TokenType::Var, "args".into()));
+    }
+
+    #[test]
+    fn expand_followed_by_separator_is_braced_string() {
+        // `{*} list` — the space after `}` means it's NOT an
+        // expansion prefix; it's a braced string `{*}` = STR("*").
+        let rows = expand_rows("{*} list");
+        assert_eq!(rows[0], (TokenType::Str, "*".into()));
+    }
+
+    #[test]
+    fn expand_at_eol_is_braced_string() {
+        // `{*}` alone (at EOF) — nothing follows, so it's STR("*").
+        let rows = expand_rows("{*}");
+        assert_eq!(rows[0], (TokenType::Str, "*".into()));
+    }
+
+    #[test]
+    fn expand_syntax_disabled_always_parses_as_brace() {
+        // With `expand_syntax = false`, `{*}list` is STR("*")
+        // followed by ESC("list").
+        let rows = expand_rows_no_expand("{*}list");
+        assert_eq!(rows[0], (TokenType::Str, "*".into()));
+        assert_eq!(rows[1], (TokenType::Esc, "list".into()));
+    }
+
+    #[test]
+    fn expand_newword_is_true_after_expand() {
+        // After EXPAND, `newword` should be true (EXPAND is in the
+        // `is_newword` set), so a `{` starts a braced string.
+        let rows = expand_rows("{*}{a b}");
+        assert_eq!(rows[0], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[1], (TokenType::Str, "a b".into()));
+    }
+
+    #[test]
+    fn expand_span_is_one_byte() {
+        // The EXPAND token's span covers just the `{` (one byte),
+        // matching Python's `_end = _start` zero-width marker.
+        let lexer = Lexer::new("{*}list");
+        let map = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().unwrap();
+        let expand = tokens.iter().find(|t| t.kind == TokenType::Expand).unwrap();
+        assert_eq!(expand.span.start(), 0);
+        assert_eq!(expand.span.end(), 1);
+        let (start, end) = map.range_positions(expand.span);
+        assert_eq!(start, SourcePosition::new(0, 0, 0));
+        assert_eq!(end, SourcePosition::new(0, 0, 0));
     }
 }
