@@ -219,10 +219,12 @@ class TclInterp:
         oo_frame.set_var("patchlevel", "1.3.1")
         oo_frame.set_var("version", "1.3.1")
 
-        # Register the tcltest package so ``package require tcltest`` works
-        from .commands.tcltest_cmds import setup_tcltest
+        # Register the tcltest package so ``package require tcltest`` works.
+        # Skip for safe interpreters — they cannot use ``package``.
+        if not self._is_safe:
+            from .commands.tcltest_cmds import setup_tcltest
 
-        setup_tcltest(self)
+            setup_tcltest(self)
 
         if source_init:
             self._source_init_tcl()
