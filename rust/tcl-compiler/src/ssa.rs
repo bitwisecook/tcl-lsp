@@ -705,7 +705,7 @@ mod tests {
         let df = compute_dominance_frontier(&func, &idom);
         let phi = compute_phi_vars(&func, &df);
 
-        for (_, vars) in &phi {
+        for vars in phi.values() {
             assert!(!vars.contains("x"), "x should not need a phi anywhere");
         }
     }
@@ -753,7 +753,7 @@ mod tests {
         let df = compute_dominance_frontier(&func, &idom);
         let phi = compute_phi_vars(&func, &df);
 
-        for (_, vars) in &phi {
+        for vars in phi.values() {
             assert!(vars.is_empty(), "no defs → no phis");
         }
     }

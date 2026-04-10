@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn constset_auto_widens() {
-        let big: Vec<ConstValue> = (0..50).map(|i| ConstValue::Int(i)).collect();
+        let big: Vec<ConstValue> = (0..50).map(ConstValue::Int).collect();
         assert_eq!(LatticeValue::constset(big).kind(), LatticeKind::Overdefined);
     }
 
