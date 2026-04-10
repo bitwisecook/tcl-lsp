@@ -79,6 +79,9 @@ combine them when more than one form helps:
 - [kcs-feature-apl-language.md](kcs-feature-apl-language.md)
 - [kcs-feature-selection-range.md](kcs-feature-selection-range.md)
 - [kcs-feature-document-links.md](kcs-feature-document-links.md)
+- [kcs-feature-code-lens.md](kcs-feature-code-lens.md)
+- [kcs-feature-document-highlight.md](kcs-feature-document-highlight.md)
+- [kcs-feature-type-navigation.md](kcs-feature-type-navigation.md)
 
 ## Editor commands
 
@@ -92,6 +95,8 @@ combine them when more than one form helps:
 - [kcs-feature-irule-skeleton.md](kcs-feature-irule-skeleton.md)
 - [kcs-feature-template-snippets.md](kcs-feature-template-snippets.md)
 - [kcs-feature-package-scaffolding.md](kcs-feature-package-scaffolding.md)
+- [kcs-feature-package-management.md](kcs-feature-package-management.md)
+- [kcs-feature-extension-settings.md](kcs-feature-extension-settings.md)
 - [kcs-feature-xc-translation.md](kcs-feature-xc-translation.md)
 - [kcs-feature-minifier.md](kcs-feature-minifier.md)
 - [kcs-feature-unminify-error.md](kcs-feature-unminify-error.md)
