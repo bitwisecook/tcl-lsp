@@ -306,10 +306,11 @@ def test_runtime_imports_registered_for_puts():
     assert "puts" in import_names
 
 
-def test_no_imports_for_pure_math():
-    """Pure arithmetic code should not register any imports."""
+def test_no_cmd_imports_for_pure_math():
+    """Pure arithmetic code should only import TclObj lifecycle functions."""
     module = _compile("set x [expr {1 + 2}]\n")
-    assert len(module.imports) == 0
+    import_names = {imp.name for imp in module.imports}
+    assert import_names == {"obj_new_int", "obj_new_string", "obj_get_int"}
 
 
 def test_scope_declarations_no_imports():
