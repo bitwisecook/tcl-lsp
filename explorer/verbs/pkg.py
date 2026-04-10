@@ -548,6 +548,32 @@ def _run_run(args: argparse.Namespace) -> int:
     return result.returncode
 
 
+def _run_freeze(args: argparse.Namespace) -> int:
+    """Output locked versions in a format suitable for a manifest."""
+    from tclpkg.lockfile import read_lockfile
+
+    mpath = _manifest_path(args)
+    lockfile_path = mpath.parent / "tclpkg.lock"
+
+    try:
+        lf = read_lockfile(lockfile_path)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if getattr(args, "json", False):
+        ui.json_output({pkg.name: pkg.version for pkg in sorted(lf.packages, key=lambda p: p.name)})
+    else:
+        for pkg in sorted(lf.packages, key=lambda p: p.name):
+            source_suffix = ""
+            if pkg.source.url:
+                source_suffix = f" -source {pkg.source.url}"
+            directive = "dev-require" if pkg.dev else "require"
+            print(f"{directive} {pkg.name} {pkg.version}{source_suffix}")
+
+    return 0
+
+
 def _run_search(args: argparse.Namespace) -> int:
     from core.common.user_config import _cache_dir
     from tclpkg.registry import RegistryClient
@@ -683,6 +709,14 @@ def add_pkg_subparser(
     run_p.add_argument("extra", nargs="*", help="Extra arguments passed to tclsh.")
     _common(run_p)
     run_p.set_defaults(handler=_run_run)
+
+    # freeze
+    freeze_p = pkg_sub.add_parser(
+        "freeze",
+        help="Output locked versions as manifest directives (like pip freeze).",
+    )
+    _common(freeze_p)
+    freeze_p.set_defaults(handler=_run_freeze)
 
     # search
     search_p = pkg_sub.add_parser("search", help="Search the package registry.")
