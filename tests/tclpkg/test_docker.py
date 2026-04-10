@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from tclpkg.docker import (
     DEFAULT_BASE_IMAGE,
     DEFAULT_TCL_VERSION,
+    SUPPORTED_TCL_VERSIONS,
     DockerError,
     DockerfileSpec,
-    SUPPORTED_TCL_VERSIONS,
     available_recipes,
     detect_image_family,
     generate_dockerfile,
@@ -19,7 +20,6 @@ from tclpkg.docker import (
     tcl_install_recipe,
     write_dockerfile,
 )
-
 
 # ---------------------------------------------------------------------------
 # detect_image_family
@@ -63,6 +63,23 @@ class TestDetectImageFamily:
     def test_case_insensitive(self) -> None:
         assert detect_image_family("Alpine:3.19") == "alpine"
         assert detect_image_family("UBUNTU:22.04") == "debian"
+
+    def test_fully_qualified_docker_io(self) -> None:
+        assert detect_image_family("docker.io/library/alpine:3.19") == "alpine"
+        assert detect_image_family("docker.io/library/ubuntu:22.04") == "debian"
+        assert detect_image_family("docker.io/library/fedora:39") == "redhat"
+
+    def test_fully_qualified_quay_io(self) -> None:
+        assert detect_image_family("quay.io/fedora/fedora:39") == "redhat"
+
+    def test_fully_qualified_ghcr(self) -> None:
+        assert detect_image_family("ghcr.io/myorg/debian:bookworm") == "debian"
+
+    def test_registry_with_port(self) -> None:
+        assert detect_image_family("registry.example.com:5000/alpine:3.19") == "alpine"
+
+    def test_three_part_path(self) -> None:
+        assert detect_image_family("myregistry.io/myns/ubuntu:22.04") == "debian"
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +285,23 @@ class TestGenerateDockerfile:
         assert venv_pos < pkg_pos, "venv create must appear before pkg sync"
         assert "Install Tcl packages into the virtual environment" in result
 
+    def test_venv_paths_follow_workdir(self) -> None:
+        """Venv ENV paths must use the configured workdir, not hard-coded /app."""
+        spec = DockerfileSpec(create_venv=True, workdir="/opt/myapp")
+        result = generate_dockerfile(spec)
+        assert 'TCLLIBPATH="/opt/myapp/.venv/lib"' in result
+        assert 'PATH="/opt/myapp/.venv/bin:$PATH"' in result
+        assert 'TCL_VENV="/opt/myapp/.venv"' in result
+        # Must NOT contain /app/.venv when workdir differs.
+        assert "/app/.venv" not in result
+
+    def test_venv_paths_default_workdir(self) -> None:
+        """With default workdir (/app), venv paths should use /app."""
+        spec = DockerfileSpec(create_venv=True)
+        result = generate_dockerfile(spec)
+        assert 'TCLLIBPATH="/app/.venv/lib"' in result
+        assert 'TCL_VENV="/app/.venv"' in result
+
     def test_no_copy(self) -> None:
         spec = DockerfileSpec(copy_project=False)
         result = generate_dockerfile(spec)
@@ -469,8 +503,8 @@ class TestDockerCLI:
 
     def test_docker_create_json(self, tmp_path: Path) -> None:
         import json
-        from io import StringIO
         import sys
+        from io import StringIO
 
         from explorer.tcl_cli import main
 

@@ -198,19 +198,43 @@ _PYTHON_INSTALL: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
+def _strip_registry(image: str) -> str:
+    """Strip the registry prefix from a fully-qualified image reference.
+
+    ``docker.io/library/alpine:3.19`` → ``alpine:3.19``
+    ``quay.io/fedora/fedora:39``      → ``fedora:39``
+    ``alpine:3.19``                   → ``alpine:3.19``
+    """
+    # Remove registry prefix (anything before the last slash that contains a dot or colon).
+    parts = image.split("/")
+    if len(parts) >= 2 and ("." in parts[0] or ":" in parts[0]):
+        # Has a registry prefix — take the last path component.
+        image = parts[-1]
+    elif len(parts) == 3:
+        # registry/namespace/image — take last component.
+        image = parts[-1]
+    return image
+
+
 def detect_image_family(image: str) -> str:
     """Return the recipe family key for the given Docker image name.
 
+    Handles both short names and fully-qualified registry references:
+
     >>> detect_image_family("alpine:3.19")
+    'alpine'
+    >>> detect_image_family("docker.io/library/alpine:3.19")
     'alpine'
     >>> detect_image_family("ubuntu:22.04")
     'debian'
     >>> detect_image_family("fedora:39")
     'redhat'
+    >>> detect_image_family("quay.io/fedora/fedora:39")
+    'redhat'
     >>> detect_image_family("custom-image:latest")
     'debian'
     """
-    lower = image.lower()
+    lower = _strip_registry(image).lower()
     for prefix, family in _IMAGE_FAMILY:
         if lower.startswith(prefix):
             return family
@@ -354,14 +378,15 @@ def generate_dockerfile(spec: DockerfileSpec) -> str:
 
     # ── tcl venv create (before pkg sync so packages land in venv/lib) ──
     if spec.create_venv:
+        venv_abs = f"{spec.workdir}/.venv"
         lines.append("# Create Tcl virtual environment")
         lines.append(
             f"RUN python3 /usr/local/bin/tcl.pyz venv create .venv "
             f"--tcl {spec.tcl_version}"
         )
-        lines.append('ENV TCLLIBPATH="/app/.venv/lib"')
-        lines.append('ENV PATH="/app/.venv/bin:$PATH"')
-        lines.append('ENV TCL_VENV="/app/.venv"')
+        lines.append(f'ENV TCLLIBPATH="{venv_abs}/lib"')
+        lines.append(f'ENV PATH="{venv_abs}/bin:$PATH"')
+        lines.append(f'ENV TCL_VENV="{venv_abs}"')
         lines.append("")
 
     # ── tcl pkg sync (inside venv if one was created) ──────────────────

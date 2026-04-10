@@ -15,7 +15,6 @@ from pathlib import Path
 
 from tclpkg import ui
 
-
 # ---------------------------------------------------------------------------
 # Handlers
 # ---------------------------------------------------------------------------
@@ -83,7 +82,7 @@ def _run_create(args: argparse.Namespace) -> int:
                 colour=colour,
             )
         )
-        print(ui.dim(f"  docker build -t myapp .", colour=colour))
+        print(ui.dim("  docker build -t myapp .", colour=colour))
     return 0
 
 

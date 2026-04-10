@@ -17,13 +17,12 @@ import json
 import shutil
 import subprocess
 import textwrap
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 from tclpkg.docker import (
     DockerfileSpec,
-    SUPPORTED_TCL_VERSIONS,
     generate_dockerfile,
 )
 
