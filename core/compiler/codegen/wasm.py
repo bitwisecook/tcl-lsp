@@ -710,6 +710,7 @@ class _WasmEmitter:
         optimise: bool = False,
         is_proc: bool = False,
         func_index_base: int = 0,
+        shared_imports: dict[str, int] | None = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
@@ -740,9 +741,16 @@ class _WasmEmitter:
         # Constant propagation state (for optimised mode)
         self._const_map: dict[str, int] = {}
 
-        # Runtime import tracking: maps import key to function index
-        self._runtime_imports: dict[str, int] = {}
-        self._next_import_idx: int = func_index_base
+        # Runtime import tracking: maps import key to function index.
+        # When shared_imports is provided (module-level compilation), all
+        # emitters use the same mapping so call indices are consistent.
+        self._shared_imports = shared_imports
+        self._runtime_imports: dict[str, int] = {} if shared_imports is None else shared_imports
+        self._next_import_idx: int = (
+            max(shared_imports.values(), default=-1) + 1
+            if shared_imports is not None
+            else func_index_base
+        )
 
     def _intern_local(self, name: str) -> int:
         idx = self._local_index.get(name)
@@ -1262,7 +1270,8 @@ class _WasmEmitter:
         if not args:
             self._emit(WasmOp.NOP)
             return
-        var_name = self._resolve_var_name(args[0])
+        # args[0] is a bare variable name (not a $-reference)
+        var_name = args[0]
         idx = self._intern_local(var_name)
         if len(args) >= 2:
             # set var value — store the value
@@ -1273,7 +1282,13 @@ class _WasmEmitter:
         # this is a statement so the caller will DROP if needed)
 
     def _emit_cmd_puts(self, args: tuple[str, ...]) -> None:
-        """Emit WASM for: puts ?-nonewline? ?channelId? string"""
+        """Emit WASM for: puts ?-nonewline? ?channelId? string
+
+        NOTE: Currently passes a raw i64 (string data offset) to the
+        runtime.  Once the value representation switches to TclObj
+        pointers (i32), this should pass the TclObj directly and the
+        runtime will extract the string data from the object header.
+        """
         if not args:
             self._emit(WasmOp.NOP)
             return
@@ -1290,11 +1305,17 @@ class _WasmEmitter:
         self._emit(WasmOp.DROP)
 
     def _emit_cmd_incr(self, args: tuple[str, ...]) -> None:
-        """Emit WASM for: incr varName ?increment?"""
+        """Emit WASM for: incr varName ?increment?
+
+        NOTE: This uses inline i64 arithmetic which is correct only when
+        values are known integers.  Once the value representation switches
+        to TclObj pointers, this should call the _incr runtime import
+        instead to handle string-to-int coercion.
+        """
         if not args:
             self._emit(WasmOp.NOP)
             return
-        var_name = self._resolve_var_name(args[0])
+        var_name = args[0]
         idx = self._intern_local(var_name)
         # Get current value
         self._emit_local_get(idx)
@@ -1314,7 +1335,7 @@ class _WasmEmitter:
         if not args:
             self._emit(WasmOp.NOP)
             return
-        var_name = self._resolve_var_name(args[0])
+        var_name = args[0]
         idx = self._intern_local(var_name)
         if len(args) >= 2:
             # Get current string, append each value
@@ -1345,7 +1366,7 @@ class _WasmEmitter:
         if not args:
             self._emit(WasmOp.NOP)
             return
-        var_name = self._resolve_var_name(args[0])
+        var_name = args[0]
         idx = self._intern_local(var_name)
         la_idx = self._ensure_runtime_import("_list_append")
         self._emit_local_get(idx)
@@ -1948,15 +1969,19 @@ def wasm_codegen_module(
         or inspected as WAT text.
     """
     module = WasmModule()
-    all_emitters: list[_WasmEmitter] = []
+
+    # Shared import registry — all emitters use the same mapping so
+    # call indices are globally consistent.
+    shared_imports: dict[str, int] = {}
 
     # Compile top-level
-    emitter = _WasmEmitter(cfg_module.top_level, optimise=optimise, is_proc=False)
+    emitter = _WasmEmitter(
+        cfg_module.top_level, optimise=optimise, is_proc=False, shared_imports=shared_imports
+    )
     top_func = emitter.generate()
     top_func.name = "::top"
     module.functions.append(top_func)
     module.data_segments.extend(emitter.data_segments)
-    all_emitters.append(emitter)
 
     # Compile procedures
     for qname, cfg_func in cfg_module.procedures.items():
@@ -1969,11 +1994,11 @@ def wasm_codegen_module(
             params=params,
             optimise=optimise,
             is_proc=True,
+            shared_imports=shared_imports,
         )
         proc_func = proc_emitter.generate()
         module.functions.append(proc_func)
         module.data_segments.extend(proc_emitter.data_segments)
-        all_emitters.append(proc_emitter)
 
     # Compile methods (method bodies compile identically to proc bodies,
     # matching Tcl 9.0's OO-agnostic bytecode design)
@@ -1985,21 +2010,15 @@ def wasm_codegen_module(
                 params=ir_method.params,
                 optimise=optimise,
                 is_proc=True,
+                shared_imports=shared_imports,
             )
             method_func = method_emitter.generate()
             method_func.name = key
             module.functions.append(method_func)
             module.data_segments.extend(method_emitter.data_segments)
-            all_emitters.append(method_emitter)
 
-    # Collect runtime imports from all emitters and register on module
-    all_imports: dict[str, int] = {}
-    for em in all_emitters:
-        for key, _idx in em.needed_imports.items():
-            if key not in all_imports:
-                all_imports[key] = len(all_imports)
-
-    for key, idx in sorted(all_imports.items(), key=lambda x: x[1]):
+    # Register collected imports on the module
+    for key, idx in sorted(shared_imports.items(), key=lambda x: x[1]):
         if key in _RUNTIME_IMPORTS:
             import_name, param_types, result_types = _RUNTIME_IMPORTS[key]
             type_idx = module._intern_type(

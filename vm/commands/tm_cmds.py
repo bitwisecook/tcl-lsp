@@ -82,10 +82,7 @@ def _cmd_tm_unknown_handler(interp: TclInterp, args: list[str]) -> TclResult:
     if args:
         fallback = args[0]
         rest = args[1:]
-        try:
-            interp.invoke(fallback, rest)
-        except Exception:
-            pass
+        interp.invoke(fallback, rest)
     return TclResult()
 
 

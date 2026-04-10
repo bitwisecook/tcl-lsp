@@ -302,25 +302,14 @@ export fn tcl_var_get(name: u32) -> u32 {
     return 0; // Variable not found
 }
 
-// puts command — write string to stdout via WASI fd_write
+// puts command — stub that prepares iovecs for WASI fd_write.
+//
+// TODO: Once the WASI target is enabled (wasm32-wasi instead of
+// wasm32-freestanding), import fd_write and actually write to
+// stdout.  For now the function is a no-op that returns an empty
+// TclObj.
 export fn tcl_puts(obj: u32) -> u32 {
-    const str_len = read_u32(obj + OFF_STR_LEN);
-    const str_ptr = obj + OFF_STR_DATA;
-
-    // Use WASI fd_write to write to stdout (fd=1)
-    // Set up iovec: [ptr, len]
-    const iov_base = alloc(8);
-    write_u32(iov_base, str_ptr);
-    write_u32(iov_base + 4, str_len);
-
-    // Write newline
-    const nl_buf = alloc(1);
-    mem_ptr(nl_buf)[0] = '\n';
-    const nl_iov = alloc(8);
-    write_u32(nl_iov, nl_buf);
-    write_u32(nl_iov + 4, 1);
-
-    // For now, just return empty — actual fd_write needs WASI imports
+    _ = obj;
     return tcl_obj_new_empty();
 }
 
