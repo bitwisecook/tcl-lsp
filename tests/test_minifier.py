@@ -535,6 +535,25 @@ class TestVarBraceCompression:
         assert "${longvar}" not in result
 
 
+class TestExpansionPrefix:
+    """{*} expansion prefix preservation."""
+
+    def test_expand_var(self):
+        """{*}$var preserved through minification."""
+        result = minify_tcl("lappend result {*}$names\n")
+        assert "{*}$names" in result
+
+    def test_expand_braced_list(self):
+        """{*}{a b c} preserved through minification."""
+        result = minify_tcl("cmd {*}{a b c}\n")
+        assert "{*}" in result
+
+    def test_expand_command_sub(self):
+        """{*}[list a b] preserved through minification."""
+        result = minify_tcl("cmd {*}[list a b]\n")
+        assert "{*}[" in result
+
+
 class TestArrayMemberCompaction:
     """Array member name compaction."""
 
