@@ -16,7 +16,7 @@ the bottom up:
 - `vm/` and `explorer/` consume `core/` as downstream clients.
 - `rust/` is a two-crate workspace (`rust/tcl-lexer/` pure Rust and
   `rust/tcl-lsp-rust/` PyO3 bindings) — see
-  [`../rust-rewrite.md`](../rust-rewrite.md) for the chunked migration
+  [`docs/rust-rewrite.md`](../../rust-rewrite.md) for the chunked migration
   plan and the "binding layer owns Python compatibility" rule.
 
 ## Decision rules / contracts

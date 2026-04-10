@@ -294,7 +294,7 @@ the items below — each one is a feature the Python lexer supports
 that the Rust lexer does not yet, causing the Python fallback to
 kick in for specific configurations.
 
-**Remaining Python fallback triggers** (after L12):
+**Remaining Python fallback trigger** (after L13):
 
 - **Ghost character insertion for error recovery.** The Python
   lexer's `virtual_insertions: dict[int, str]` parameter injects
@@ -302,15 +302,10 @@ kick in for specific configurations.
   downstream passes see a well-formed structure. Only used by the
   recovery path (`core/parsing/recovery.py`) and one call site in
   `lsp/features/semantic_tokens.py`. The Rust `Lexer` has no
-  equivalent — porting it requires a `ghosts: HashMap<u32, char>`
-  mechanism matching Python's `_virtuals` dict.
-- **Strict quoting** (`strict_quoting` flag). The Python lexer
-  raises `TclParseError` in strict mode (used by the VM compiler).
-  The Rust `LexerConfig` has the field and the `Lexer` has a
-  `warn_or_error` helper + `LexWarning` type, but the warning
-  emission points in `parse_brace` / `parse_command` /
-  `parse_quoted` / `parse_var` are not yet wired. Until they are,
-  the strict-mode path falls back to Python.
+  equivalent — porting it belongs to the C* compiler phase when
+  the recovery module moves to Rust (the two callers will
+  naturally follow). Until then, the Python fallback handles this
+  single edge case.
 
 **Non-blocking deferred items (can be fixed independently):**
 
@@ -596,7 +591,8 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L9    | Backslash escapes in bare words, quoted strings, and comments — drains the last deferred character. Warning collection and ghost-character-insertion are deferred to a later pass. | landed |
 | L10   | `core/parsing/expr_lexer.py` → Rust. Rust implementation ported and tested; Python dispatch wraps Rust `PyExprToken` into Python-native `ExprToken` (via value→enum-member dict) so downstream `tok.type is ExprTokenType.X` works. | landed |
 | L11   | Flip `TclLexer.tokenise_all()` to Rust for the default config (~17× speedup). Non-default configs (virtual insertions, strict quoting, base offsets, `expand_syntax=False`) fall back to the Python lexer. | landed |
-| L12   | Expand Rust lexer coverage: base offsets, `expand_syntax=False`, `irules_brace_separator` (ghost SEP injection), warning/strict infrastructure, `lexer_tokenise_with_config` PyO3 entry point. Python fallback only triggers for virtual insertions and strict quoting. | landed |
+| L12   | Expand Rust lexer coverage: base offsets, `expand_syntax=False`, `irules_brace_separator` (ghost SEP injection), warning/strict infrastructure, `lexer_tokenise_with_config` PyO3 entry point. | landed |
+| L13   | Wire strict-quoting emission points: `warn_or_error` calls in `parse_var`, `parse_command`, `parse_brace`, `parse_quoted` for all 14 Python strict-mode raise sites. `ValueError` → `TclParseError` conversion in the Python shim. Python fallback now only triggers for virtual insertions. | landed |
 | C*    | **Compiler migration.** `core/compiler/` (IR, CFG, SSA, lowering, codegen, optimiser passes) → `rust/tcl-compiler/`. Each pass can be its own chunk. The compiler consumes `Token` values from the lexer and produces IR; porting it to Rust eliminates the Python→Rust→Python round-trip that currently dominates the pipeline after the lexer. | planned |
 | S*    | **LSP server migration.** `lsp/` (pygls handlers, workspace orchestration, feature providers) → `rust/tcl-lsp-server/` on `tower-lsp`. This is when `ropey` enters the picture as the document store, the whole pipeline becomes async, and the server ships as a standalone Rust binary. | planned |
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), `core/analysis/` (analyser passes), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
