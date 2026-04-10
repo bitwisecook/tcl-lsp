@@ -130,7 +130,7 @@ class CmdlineTypedGetoptCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(4, 4)),
-            arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.VAR_NAME, 3: ArgRole.VAR_NAME},
+            arg_roles={0: ArgRole.VAR_WRITE, 2: ArgRole.VAR_WRITE, 3: ArgRole.VAR_WRITE},
         )
 
 
@@ -156,7 +156,7 @@ class CmdlineTypedGetoptionsCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(2, 3)),
-            arg_roles={0: ArgRole.VAR_NAME},
+            arg_roles={0: ArgRole.VAR_WRITE},
         )
 
 
@@ -208,7 +208,7 @@ class CmdlineGetKnownOptCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(4, 4)),
-            arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.VAR_NAME, 3: ArgRole.VAR_NAME},
+            arg_roles={0: ArgRole.VAR_WRITE, 2: ArgRole.VAR_WRITE, 3: ArgRole.VAR_WRITE},
         )
 
 
@@ -234,7 +234,7 @@ class CmdlineGetKnownOptionsCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(2, 3)),
-            arg_roles={0: ArgRole.VAR_NAME},
+            arg_roles={0: ArgRole.VAR_WRITE},
         )
 
 

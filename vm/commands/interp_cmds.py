@@ -63,7 +63,13 @@ def _cmd_interp(interp: TclInterp, args: list[str]) -> TclResult:
 
     match args[0]:
         case "issafe":
-            return TclResult(value="0")
+            # Resolve the target interp (defaults to the current one).  This
+            # mirrors C Tcl's ``interp issafe ?path?`` and reports the
+            # interpreter's actual safe-mode state rather than a stub.
+            target = interp
+            if len(args) > 1:
+                target = _resolve_interp(interp, args[1])
+            return TclResult(value="1" if getattr(target, "_is_safe", False) else "0")
         case "create":
             return _interp_create(interp, args[1:])
         case "eval":
@@ -119,7 +125,15 @@ def _interp_create(caller: TclInterp, args: list[str]) -> TclResult:
     if name in _child_interps:
         raise TclError(f'interpreter named "{name}" already exists')
 
-    child = TclInterp(source_init=False)
+    # ``-safe`` children get an empty whitelist by default; the caller is
+    # expected to tag individual commands via ``interp expose`` / aliases.
+    # That matches C Tcl's hidden-command model closely enough for our
+    # current tests.
+    child_kwargs: dict[str, object] = {"source_init": False}
+    if _safe:
+        child_kwargs["safe"] = True
+        child_kwargs["safe_whitelist"] = frozenset()
+    child = TclInterp(**child_kwargs)  # type: ignore[arg-type]
     _set_interp_name(child, name)
     _child_interps[name] = child
     _hidden_commands[name] = {}
@@ -255,6 +269,11 @@ def _interp_expose(caller: TclInterp, args: list[str]) -> TclResult:
     elif handler is not None:
         target.register_command(cmd_name, handler)  # type: ignore[arg-type]
 
+    # If the child is safe, add the exposed command to its whitelist
+    # so the safe-mode gate in _invoke_inner permits it.
+    if getattr(target, "_is_safe", False) and target._safe_whitelist is not None:
+        target._safe_whitelist = target._safe_whitelist | frozenset({cmd_name})
+
     return TclResult()
 
 
@@ -327,6 +346,10 @@ def _interp_alias(caller: TclInterp, args: list[str]) -> TclResult:
         return _target.invoke(_target_cmd, _extra + cmd_args)
 
     source.register_command(src_token, _alias_handler)
+
+    # If the source child is safe, add the alias to its whitelist.
+    if getattr(source, "_is_safe", False) and source._safe_whitelist is not None:
+        source._safe_whitelist = source._safe_whitelist | frozenset({src_token})
 
     return TclResult(value=src_token)
 

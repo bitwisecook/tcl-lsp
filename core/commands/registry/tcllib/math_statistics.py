@@ -368,19 +368,19 @@ _ms(
     "Filter data by expression.",
     "math::statistics::filter varname data expression",
     Arity(3, 3),
-    arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.EXPR},
+    arg_roles={0: ArgRole.VAR_WRITE, 2: ArgRole.EXPR},
 )
 _ms(
     "map",
     "Map data by expression.",
     "math::statistics::map varname data expression",
     Arity(3, 3),
-    arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.EXPR},
+    arg_roles={0: ArgRole.VAR_WRITE, 2: ArgRole.EXPR},
 )
 _ms(
     "samplescount",
     "Count samples matching expression.",
     "math::statistics::samplescount varname list ?expression?",
     Arity(2, 3),
-    arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.EXPR},
+    arg_roles={0: ArgRole.VAR_WRITE, 2: ArgRole.EXPR},
 )

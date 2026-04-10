@@ -204,6 +204,14 @@ test-py: $(UV_STAMP) ## Run the Python test suite (excludes VM tcltest and fuzz 
 	@echo "==> Running Python tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
 
+test-tclpkg: $(UV_STAMP) ## Run tclpkg package manager tests only
+	@echo "==> Running tclpkg tests"
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/tclpkg/ tests/test_vm_safe_mode.py -v
+
+test-tclpkg-tcl: ## Run pure-Tcl tclpkg tests (requires tclsh8.6+)
+	@echo "==> Running pure-Tcl tclpkg tests"
+	cd $(ROOT)/tclpkg-tcl && for t in tests/*_test.tcl; do tclsh8.6 "$$t" || exit 1; done
+
 test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files through our VM)
 	@echo "==> Running VM tcltest tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_vm_*_test.py -q
@@ -218,7 +226,7 @@ lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 
 typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty
 	@echo "==> Type-checking Python code with ty"
-	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' lsp core explorer tests scripts/tcl_test_client.py
+	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' lsp core explorer tclpkg tests scripts/tcl_test_client.py
 
 typecheck-py-full: $(UV_STAMP) $(BUILD_INFO) ## Type-check all Python code with ty
 	@echo "==> Type-checking all Python code with ty"

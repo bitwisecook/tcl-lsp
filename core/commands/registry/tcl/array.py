@@ -160,7 +160,7 @@ class ArrayCommand(CommandDef):
                     detail="Sets the values of one or more elements in arrayName.",
                     synopsis="array set arrayName list",
                     return_type=TclType.STRING,
-                    arg_roles={0: ArgRole.VAR_NAME},
+                    arg_roles={0: ArgRole.VAR_WRITE},
                     mutator=True,
                 ),
                 "size": SubCommand(
@@ -193,7 +193,7 @@ class ArrayCommand(CommandDef):
                     detail="Unsets all of the elements in the array that match pattern (using the matching rules of string match).",
                     synopsis="array unset arrayName ?pattern?",
                     return_type=TclType.STRING,
-                    arg_roles={0: ArgRole.VAR_NAME},
+                    arg_roles={0: ArgRole.VAR_WRITE},
                     mutator=True,
                 ),
                 "default": SubCommand(
@@ -203,7 +203,7 @@ class ArrayCommand(CommandDef):
                     detail="Manages the default value of the array.",
                     synopsis="array default subcommand arrayName args...",
                     return_type=TclType.STRING,
-                    arg_roles={1: ArgRole.VAR_NAME},
+                    arg_roles={1: ArgRole.VAR_WRITE},
                     arg_values={
                         0: (
                             _av(

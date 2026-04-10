@@ -988,6 +988,46 @@ any MCP-compatible client (Claude Desktop, custom agents, etc.).
 }
 ```
 
+## Packaging & environments
+
+`tcl pkg` is a deterministic Tcl package manager using Go-style Minimum
+Version Selection and a content-addressable SHA-256 cache.  `tcl venv` creates
+isolated virtual environments that pin a specific tclsh version.
+
+```sh
+# Quick start
+tcl venv create .venv            # create a virtual environment
+source .venv/bin/activate        # activate it
+tcl pkg init                     # create tclpkg.tcl manifest
+tcl pkg add json 1.0             # add a dependency
+tcl pkg install                  # resolve, fetch, and lock
+tcl pkg tree                     # show dependency tree
+tcl pkg verify                   # check integrity hashes
+```
+
+The manifest is a native Tcl file (`tclpkg.tcl`) evaluated in a sandboxed
+interpreter.  The lockfile (`tclpkg.lock`) is canonical JSON — two runs against
+the same manifest produce byte-identical output (aside from the
+`generated` timestamp, which `--frozen` preserves).
+
+```tcl
+# tclpkg.tcl — example manifest
+package     myapp
+version     1.0.0
+license     MIT
+tcl         >=8.6
+
+require json    1.3.5
+require http    2.9.8
+dev-require tcltest 2.5.5
+```
+
+The LSP server auto-detects `tclpkg.tcl` projects and venv `lib/` directories,
+and offers an "Install via tclpkg" quick-fix on missing-package diagnostics.
+
+See [docs/kcs/kcs-tclpkg-overview.md](docs/kcs/kcs-tclpkg-overview.md) for the
+full architecture and contracts.
+
 ## CLI tools
 
 All CLI tools are distributed as self-contained Python zipapps (`.pyz`) — no
@@ -1017,6 +1057,8 @@ A single verb-based CLI that aggregates common local workflows:
 - `diff` — compare two sources across AST/IR/CFG compiler representations
 - `explore` — run compiler-explorer views (`ir`, `cfg`, `ssa`, `opt`, `asm`, `wasm`, ...)
 - `help` — search bundled KCS feature docs from the SQLite help index
+- `pkg` — package management: `init`, `add`, `remove`, `install`, `list`, `tree`, `verify`, `info`, `search`, `update`, `sync`, `outdated`, `why`, `vendor`, `run`
+- `venv` — virtual environments: `create`, `delete`, `info`, `activate`, `deactivate`, `list`, `update`, `run`
 
 ```sh
 # Optimise everything under src/ into one output script

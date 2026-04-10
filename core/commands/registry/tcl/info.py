@@ -290,7 +290,7 @@ class InfoCommand(CommandDef):
                 "default": SubCommand(
                     name="default",
                     arity=Arity(3, 3),
-                    arg_roles={2: ArgRole.VAR_NAME},
+                    arg_roles={2: ArgRole.VAR_WRITE},
                     return_type=TclType.BOOLEAN,
                 ),
                 "exists": SubCommand(

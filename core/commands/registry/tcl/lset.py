@@ -38,7 +38,7 @@ class LsetCommand(CommandDef):
                 arity=Arity(2),
             ),
             assigns_variable_at=0,
-            arg_roles={0: ArgRole.VAR_NAME},
+            arg_roles={0: ArgRole.VAR_WRITE},
             return_type=TclType.LIST,
             inferred_storage_type=StorageType.LIST,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},

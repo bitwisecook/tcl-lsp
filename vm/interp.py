@@ -106,9 +106,20 @@ class TclInterp:
         source_init: bool = False,
         tcl_library: str | None = None,
         debug_hook: Callable[..., object] | None = None,
+        safe: bool = False,
+        safe_whitelist: frozenset[str] | None = None,
     ) -> None:
         self.optimise = optimise
         self._debug_hook = debug_hook
+
+        # Safe-mode whitelist (tclpkg manifests, linting sandboxes, etc.).
+        # When ``safe`` is true, only commands in ``_safe_whitelist`` may be
+        # invoked.  ``None`` means "unconditionally rejected" — callers must
+        # supply a whitelist when asking for a safe interp.
+        self._is_safe: bool = bool(safe)
+        self._safe_whitelist: frozenset[str] | None = (
+            frozenset(safe_whitelist) if safe_whitelist is not None else None
+        )
 
         # Namespace tree — the root namespace is ::
         self.root_namespace = Namespace("", parent=None)
@@ -521,6 +532,16 @@ class TclInterp:
         """Dispatch a command by name (inner implementation)."""
         self.cmd_count += 1
         self._last_cmd_name = cmd_name
+
+        # Safe-mode gate: reject any command not on the whitelist.  This fires
+        # *before* any lookup so even known commands can be hidden.  The
+        # whitelist is fully qualified to the command name as seen from the
+        # caller (no automatic namespace stripping) — callers that need a
+        # larger surface supply a bigger whitelist.
+        if self._is_safe:
+            allowed = self._safe_whitelist
+            if allowed is None or cmd_name not in allowed:
+                raise TclError(f"command not permitted in safe mode: {cmd_name}")
 
         # Qualified names (foo::bar or ::foo::bar) resolve via namespace
         if "::" in cmd_name:

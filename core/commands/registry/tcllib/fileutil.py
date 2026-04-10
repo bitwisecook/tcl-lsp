@@ -161,7 +161,7 @@ _fu(
     "Iterate over each line of a file.",
     "fileutil::foreachLine var filename cmd",
     Arity(3, 3),
-    arg_roles={0: ArgRole.VAR_NAME, 2: ArgRole.BODY},
+    arg_roles={0: ArgRole.VAR_WRITE, 2: ArgRole.BODY},
     side_effect_hints=_fileutil_se(reads=True),
 )
 _fu(
@@ -197,7 +197,7 @@ _fu(
     "Test file properties.",
     "fileutil::test path codes ?msgvar? ?label?",
     Arity(2, 4),
-    arg_roles={2: ArgRole.VAR_NAME},
+    arg_roles={2: ArgRole.VAR_WRITE},
 )
 _fu(
     "updateInPlace",

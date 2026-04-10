@@ -18,7 +18,7 @@ class ArgRole(Enum):
 
     BODY = auto()  # Tcl script body -- recursively analysed
     EXPR = auto()  # Expression (expr sub-language)
-    VAR_NAME = auto()  # A variable name written by the command (set/unset/incr)
+    VAR_WRITE = auto()  # A variable name written by the command (set, regexp, scan, lassign)
     VAR_READ = auto()  # A variable name read without modification (info exists, array get)
     PARAM_LIST = auto()  # Procedure parameter list
     NAME = auto()  # A symbolic name (proc name, namespace name)

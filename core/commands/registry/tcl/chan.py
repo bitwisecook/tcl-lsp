@@ -265,7 +265,7 @@ class ChanCommand(CommandDef):
                     detail="Read a line from a channel.",
                     synopsis="chan gets channelId ?varName?",
                     return_type=TclType.STRING,
-                    arg_roles={1: ArgRole.VAR_NAME},
+                    arg_roles={1: ArgRole.VAR_WRITE},
                     side_effect_hints=(
                         SideEffect(
                             target=SideEffectTarget.FILE_IO,

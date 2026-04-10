@@ -436,6 +436,7 @@ _KNOWN_TCL_LSP_SECTIONS = frozenset(
         "xcDiagnostics",
         "runtimeValidation",
         "ai",
+        "packageManager",
     }
 )
 _KNOWN_TCL_LSP_TOPLEVEL = frozenset(
@@ -2004,6 +2005,38 @@ def on_write_rule_back(
     return True
 
 
+# tclpkg package manager commands
+
+
+@server.command("tcl-lsp.tclpkg.install")
+def on_tclpkg_install(package_name: str, uri: str = "") -> dict:
+    """Install a Tcl package via the tclpkg manifest.
+
+    This is a stub handler that the VS Code extension or other clients
+    invoke via the ``Install via tclpkg`` code action.  The full
+    implementation will call into ``tclpkg.manifest`` and
+    ``tclpkg.resolver`` in-process; for now it returns a status payload.
+    """
+    return {
+        "success": False,
+        "message": f"tclpkg install for '{package_name}' not yet wired (use the CLI: tcl pkg add {package_name})",
+    }
+
+
+@server.command("tcl-lsp.tclpkg.search")
+def on_tclpkg_search(query: str) -> dict:
+    """Search the tclpkg registry for packages matching *query*."""
+    try:
+        from core.common.user_config import _cache_dir
+        from tclpkg.registry import RegistryClient
+
+        client = RegistryClient(_cache_dir(), offline=True)
+        results = client.search(query)
+        return {"results": [{"name": e.name, "description": e.description} for e in results[:20]]}
+    except Exception as exc:
+        return {"results": [], "error": str(exc)}
+
+
 # Formatting
 
 
@@ -3215,7 +3248,47 @@ def on_initialized(params: types.InitializedParams) -> None:
     ws = server.workspace
     if ws.root_path:
         roots.append(ws.root_path)
-    background_scanner.configure(workspace_roots=roots)
+
+    # tclpkg project detection — look for tclpkg.tcl as a project marker
+    # and auto-add venv/project lib/ directories to library paths.
+    library_paths: list[str] = []
+    if ws.root_path:
+        import os
+
+        # Walk up from root_path to find tclpkg.tcl (monorepo support).
+        _tclpkg_dir = None
+        _search = ws.root_path
+        for _ in range(10):
+            if os.path.isfile(os.path.join(_search, "tclpkg.tcl")):
+                _tclpkg_dir = _search
+                break
+            _parent = os.path.dirname(_search)
+            if _parent == _search:
+                break
+            _search = _parent
+
+        if _tclpkg_dir is not None:
+            log.info("Detected tclpkg project at: %s", _tclpkg_dir)
+            # Add project-local lib/ if present.
+            project_lib = os.path.join(_tclpkg_dir, "lib")
+            if os.path.isdir(project_lib):
+                library_paths.append(project_lib)
+        # Detect active venv: $TCL_VENV or .venv/tclvenv.cfg next to project.
+        venv_dir = os.environ.get("TCL_VENV")
+        if not venv_dir:
+            local_venv = os.path.join(ws.root_path, ".venv", "tclvenv.cfg")
+            if os.path.isfile(local_venv):
+                venv_dir = os.path.join(ws.root_path, ".venv")
+        if venv_dir:
+            venv_lib = os.path.join(venv_dir, "lib")
+            if os.path.isdir(venv_lib):
+                library_paths.append(venv_lib)
+                log.info("Auto-detected tclpkg venv lib: %s", venv_lib)
+
+    background_scanner.configure(
+        workspace_roots=roots,
+        library_paths=library_paths if library_paths else None,
+    )
 
     # Kick off the scan with optional progress reporting.  When the client
     # advertises window/workDoneProgress we emit begin/report/end notifications

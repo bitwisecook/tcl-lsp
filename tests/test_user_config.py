@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.common.user_config import (
+    _cache_dir,
     _config_dir,
     _is_posix_compat_windows,
     get_all_settings,
@@ -259,6 +260,54 @@ class TestPlatformConfigDir:
         monkeypatch.setattr("core.common.user_config.sys.platform", "freebsd13")
         result = _config_dir()
         assert result == Path.home() / ".config" / "tcl-lsp"
+
+
+class TestPlatformCacheDir:
+    """Tests for platform-native _cache_dir() behaviour."""
+
+    def test_xdg_cache_home_wins_on_any_platform(self, tmp_path, monkeypatch):
+        """$XDG_CACHE_HOME always takes precedence regardless of platform."""
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        assert _cache_dir() == tmp_path / "tcl-lsp"
+
+    def test_linux_default(self, monkeypatch):
+        """Linux/BSD uses ~/.cache/tcl-lsp when $XDG_CACHE_HOME is unset."""
+        monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+        monkeypatch.setattr("core.common.user_config.sys.platform", "linux")
+        result = _cache_dir()
+        assert result == Path.home() / ".cache" / "tcl-lsp"
+
+    def test_macos_default(self, monkeypatch):
+        """macOS uses ~/Library/Caches/tcl-lsp."""
+        monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+        monkeypatch.setattr("core.common.user_config.sys.platform", "darwin")
+        result = _cache_dir()
+        assert result == Path.home() / "Library" / "Caches" / "tcl-lsp"
+
+    def test_windows_native_uses_localappdata(self, tmp_path, monkeypatch):
+        """Native Windows uses %LOCALAPPDATA%/tcl-lsp/Cache."""
+        monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+        monkeypatch.delenv("MSYSTEM", raising=False)
+        monkeypatch.setattr("core.common.user_config.sys.platform", "win32")
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+        result = _cache_dir()
+        assert result == tmp_path / "tcl-lsp" / "Cache"
+
+    def test_windows_msys2_uses_xdg(self, monkeypatch):
+        """Windows with MSYSTEM set (MSYS2 shell) uses XDG default."""
+        monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+        monkeypatch.setattr("core.common.user_config.sys.platform", "win32")
+        monkeypatch.setenv("MSYSTEM", "UCRT64")
+        result = _cache_dir()
+        assert result == Path.home() / ".cache" / "tcl-lsp"
+
+    def test_cache_and_config_are_independent(self, tmp_path, monkeypatch):
+        """Setting XDG_CONFIG_HOME does not affect _cache_dir()."""
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+        monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+        monkeypatch.setattr("core.common.user_config.sys.platform", "linux")
+        assert _cache_dir() == Path.home() / ".cache" / "tcl-lsp"
+        assert _config_dir() == tmp_path / "cfg" / "tcl-lsp"
 
 
 class TestIsPosixCompatWindows:

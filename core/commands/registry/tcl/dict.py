@@ -27,7 +27,7 @@ _SOURCE = "Tcl man page dict.n"
 def _dict_last_arg_body(args: list[str]) -> dict[int, ArgRole]:
     """Last argument is a body script (for dict update/with)."""
     if len(args) >= 2:
-        return {len(args) - 1: ArgRole.BODY, 0: ArgRole.VAR_NAME}
+        return {len(args) - 1: ArgRole.BODY, 0: ArgRole.VAR_WRITE}
     return {}
 
 
@@ -179,7 +179,7 @@ class DictCommand(CommandDef):
                     arity=Arity(2),
                     detail="This appends the given string (or strings) to the value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary value back to that variable.",
                     synopsis="dict append dictionaryVariable key ?string ...?",
-                    arg_roles={0: ArgRole.VAR_NAME},
+                    arg_roles={0: ArgRole.VAR_WRITE},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                     safe_on_uninit=frozenset(),
@@ -237,7 +237,7 @@ class DictCommand(CommandDef):
                     detail="This adds the given increment value (an integer that defaults to 1 if not specified) to the value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary valu…",
                     synopsis="dict incr dictionaryVariable key ?increment?",
                     return_type=TclType.DICT,
-                    arg_roles={0: ArgRole.VAR_NAME},
+                    arg_roles={0: ArgRole.VAR_WRITE},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                     safe_on_uninit=frozenset(),
@@ -266,7 +266,7 @@ class DictCommand(CommandDef):
                     arity=Arity(2),
                     detail="This appends the given items to the list value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary value back to that variable.",
                     synopsis="dict lappend dictionaryVariable key ?value ...?",
-                    arg_roles={0: ArgRole.VAR_NAME},
+                    arg_roles={0: ArgRole.VAR_WRITE},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                     safe_on_uninit=frozenset(),
@@ -314,7 +314,7 @@ class DictCommand(CommandDef):
                     detail="This operation takes the name of a variable containing a dictionary value and places an updated dictionary value in that variable containing a mapping from the given key to the given value.",
                     synopsis="dict set dictionaryVariable key ?key ...? value",
                     return_type=TclType.DICT,
-                    arg_roles={0: ArgRole.VAR_NAME},
+                    arg_roles={0: ArgRole.VAR_WRITE},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                     safe_on_uninit=frozenset(),
@@ -334,7 +334,7 @@ class DictCommand(CommandDef):
                     arity=Arity(2),
                     detail="This operation (the companion to dict set) takes the name of a variable containing a dictionary value and places an updated dictionary value in that variable that does not contain a mapping for the given key.",
                     synopsis="dict unset dictionaryVariable key ?key ...?",
-                    arg_roles={0: ArgRole.VAR_NAME},
+                    arg_roles={0: ArgRole.VAR_WRITE},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                 ),

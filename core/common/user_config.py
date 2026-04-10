@@ -117,6 +117,38 @@ def _config_dir() -> Path:
     return Path.home() / ".config" / "tcl-lsp"
 
 
+def _cache_dir() -> Path:
+    """Return the cache directory using platform-native conventions.
+
+    ``$XDG_CACHE_HOME`` always takes precedence when set.  Otherwise:
+
+    - **Linux / BSD / WSL2**: ``~/.cache/tcl-lsp``
+    - **macOS**: ``~/Library/Caches/tcl-lsp``
+    - **Windows** (native): ``%LOCALAPPDATA%/tcl-lsp/Cache``
+    - **MSYS2 / Cygwin**: ``~/.cache/tcl-lsp``
+
+    The cache directory is used for large, regeneratable data such as the
+    tclpkg content-addressable store and the cached package registry.  Do
+    not store configuration or user preferences here.
+    """
+    xdg = os.environ.get("XDG_CACHE_HOME")
+    if xdg:
+        return Path(xdg) / "tcl-lsp"
+
+    # Native Windows (not MSYS2/Cygwin) → %LOCALAPPDATA%\tcl-lsp\Cache
+    if sys.platform == "win32" and not _is_posix_compat_windows():
+        local = os.environ.get("LOCALAPPDATA")
+        if local:
+            return Path(local) / "tcl-lsp" / "Cache"
+
+    # macOS → ~/Library/Caches
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / "tcl-lsp"
+
+    # Linux, BSD, WSL2, MSYS2, Cygwin — XDG default
+    return Path.home() / ".cache" / "tcl-lsp"
+
+
 def _config_path() -> Path:
     """Return the path to the user config file."""
     return _config_dir() / "config.ini"

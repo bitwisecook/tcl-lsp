@@ -62,7 +62,7 @@ def _defs_from_body_script(body_text: str) -> list[str]:
     """Extract variable names defined by commands in a body script.
 
     Scans a body script (e.g. from ``catch {set x 1}``) for commands
-    that define variables via ``ArgRole.VAR_NAME`` arguments.  This lets
+    that define variables via ``ArgRole.VAR_WRITE`` arguments.  This lets
     ``_defs_from_expr`` recognise that ``[catch {set x [foo]}]`` defines
     ``x`` even though ``x`` is not a direct argument of ``catch``.
     """
@@ -76,7 +76,7 @@ def _defs_from_body_script(body_text: str) -> list[str]:
             return
         cmd_name = words[0]
         args = words[1:]
-        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_NAME)):
+        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_WRITE)):
             if idx < len(args):
                 name = _normalise_var_name(args[idx])
                 if name:
@@ -237,7 +237,7 @@ def _defs_from_expr(expr: ExprNode) -> list[str]:
     """Extract variable names defined by command substitutions in *expr*.
 
     Walks the expression tree and looks for ``[cmd ...]`` substitutions
-    where *cmd* has ``ArgRole.VAR_NAME`` arguments (e.g. ``catch``, ``set``,
+    where *cmd* has ``ArgRole.VAR_WRITE`` arguments (e.g. ``catch``, ``set``,
     ``gets``, ``regexp``, ``scan``, ``binary scan``).  Also scans
     ``ArgRole.BODY`` arguments for nested variable definitions so that
     patterns like ``[catch {set x [foo]}]`` correctly report ``x``.
@@ -271,7 +271,7 @@ def _defs_from_expr(expr: ExprNode) -> list[str]:
             continue
         cmd_name = words[0]
         args = words[1:]
-        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_NAME)):
+        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_WRITE)):
             if idx < len(args):
                 name = _normalise_var_name(args[idx])
                 if name:
@@ -310,7 +310,7 @@ def _defs_from_expr(expr: ExprNode) -> list[str]:
                     continue
                 ncmd = nested_words[0]
                 nargs = nested_words[1:]
-                for idx in sorted(arg_indices_for_role(ncmd, nargs, ArgRole.VAR_NAME)):
+                for idx in sorted(arg_indices_for_role(ncmd, nargs, ArgRole.VAR_WRITE)):
                     if idx < len(nargs):
                         name = _normalise_var_name(nargs[idx])
                         if name:
