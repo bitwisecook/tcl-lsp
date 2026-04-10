@@ -100,11 +100,14 @@ combine them when more than one form helps:
 
 - [kcs-feature-tcl-verb-cli.md](kcs-feature-tcl-verb-cli.md)
 - [kcs-feature-debugger.md](kcs-feature-debugger.md)
+- [kcs-feature-command-info.md](kcs-feature-command-info.md)
+- [kcs-feature-event-registry.md](kcs-feature-event-registry.md)
 
 ## AI features
 
 - [kcs-feature-ai-chat-irule.md](kcs-feature-ai-chat-irule.md)
 - [kcs-feature-ai-chat-tcl.md](kcs-feature-ai-chat-tcl.md)
 - [kcs-feature-ai-chat-tk.md](kcs-feature-ai-chat-tk.md)
+- [kcs-feature-chat-slash-commands.md](kcs-feature-chat-slash-commands.md)
 - [kcs-feature-mcp-server.md](kcs-feature-mcp-server.md)
 - [kcs-feature-claude-code-skills.md](kcs-feature-claude-code-skills.md)
