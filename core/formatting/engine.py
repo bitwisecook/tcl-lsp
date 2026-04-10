@@ -75,7 +75,15 @@ def _reconstruct_raw(tok: Token) -> str:
                 text = re.sub(r"[ \t]*\\\n[ \t]*", " ", text)
             return "[" + text + "]"
         case TokenType.VAR:
+            # Preserve ${name} form when the original used braces.
+            # Detect via byte span: ${name} occupies 2 more bytes than
+            # $name for the same variable name length.
+            is_braced = (tok.end.offset - tok.start.offset) > len(tok.text)
+            if is_braced:
+                return "${" + tok.text + "}"
             return "$" + tok.text
+        case TokenType.EXPAND:
+            return "{*}"
         case _:
             return tok.text
 

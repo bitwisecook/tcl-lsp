@@ -169,6 +169,25 @@ class TestReconstruction:
         tok = Token(type=TokenType.VAR, text="name", start=pos, end=pos)
         assert _reconstruct_raw(tok) == "$name"
 
+    def test_reconstruct_braced_var(self):
+        """${name} form is preserved when token byte span indicates braces."""
+        from core.parsing.tokens import SourcePosition, Token
+
+        # For ${name}: start.offset=0 (at $), end.offset=5 (at 'e' in name)
+        # Span (5 - 0) = 5 > len("name") = 4 → braced
+        start = SourcePosition(0, 0, 0)
+        end = SourcePosition(0, 5, 5)
+        tok = Token(type=TokenType.VAR, text="name", start=start, end=end)
+        assert _reconstruct_raw(tok) == "${name}"
+
+    def test_reconstruct_expand(self):
+        """{*} expansion prefix is reconstructed."""
+        from core.parsing.tokens import SourcePosition, Token
+
+        pos = SourcePosition(0, 0, 0)
+        tok = Token(type=TokenType.EXPAND, text="", start=pos, end=pos)
+        assert _reconstruct_raw(tok) == "{*}"
+
 
 class TestBodyIdentification:
     def test_proc_body(self):
@@ -604,6 +623,285 @@ class TestBracedVariables:
         assert "${name}" not in result
 
 
+class TestBracedVarAndExpansionPreservation:
+    """Regression tests for issue #137: formatter must not corrupt
+    ${variable} syntax or {*}$variable expansion."""
+
+    def test_braced_var_in_array_index(self):
+        """${element} inside array index must keep braces (#137 bug 1)."""
+        source = 'set map_result_name(stress.${element}_stress) "Spring stress"'
+        result = format_tcl(source)
+        assert "${element}" in result
+        assert "$element_stress" not in result
+
+    def test_braced_var_followed_by_text(self):
+        """${foo} followed by bareword text must keep braces."""
+        source = "set x ${foo}bar"
+        result = format_tcl(source)
+        assert "${foo}" in result
+
+    def test_braced_var_in_quoted_string(self):
+        """${name} inside double quotes must keep braces."""
+        source = 'puts "${greeting}, ${name}!"'
+        result = format_tcl(source)
+        assert "${greeting}" in result
+        assert "${name}" in result
+
+    def test_unbraced_var_stays_unbraced(self):
+        """$foo must NOT gain braces when enforce_braced_variables is off."""
+        source = "set y $foo"
+        result = format_tcl(source)
+        assert "$foo" in result
+        assert "${foo}" not in result
+
+    def test_braced_var_namespace(self):
+        """${ns::var} with namespace separator must keep braces."""
+        source = "puts ${ns::var}suffix"
+        result = format_tcl(source)
+        assert "${ns::var}" in result
+
+    def test_expand_with_variable(self):
+        """{*}$names expansion must be preserved (#137 bug 2)."""
+        source = "lappend grouped_result_names {*}$names"
+        result = format_tcl(source)
+        assert "{*}$names" in result
+
+    def test_expand_with_braced_list(self):
+        """{*}{a b c} expansion with braced list."""
+        source = "cmd {*}{a b c}"
+        result = format_tcl(source)
+        assert "{*}" in result
+        assert "a b c" in result
+
+    def test_expand_with_command_sub(self):
+        """{*}[list a b] expansion with command substitution."""
+        source = "cmd {*}[list a b]"
+        result = format_tcl(source)
+        assert "{*}[list a b]" in result
+
+    def test_expand_idempotent(self):
+        """{*}$var formatting is stable across multiple passes."""
+        source = "lappend result {*}$names"
+        r1 = format_tcl(source)
+        r2 = format_tcl(r1)
+        assert r1 == r2, f"Not idempotent:\nFirst:  {r1!r}\nSecond: {r2!r}"
+
+    def test_braced_var_idempotent(self):
+        """${variable} formatting is stable across multiple passes."""
+        source = 'set map_result_name(stress.${element}_stress) "Spring stress"'
+        r1 = format_tcl(source)
+        r2 = format_tcl(r1)
+        assert r1 == r2, f"Not idempotent:\nFirst:  {r1!r}\nSecond: {r2!r}"
+
+    # Array variables
+
+    def test_unbraced_array_preserved(self):
+        """$arr(key) preserved without spurious braces."""
+        source = 'set arr(key) "value"'
+        result = format_tcl(source)
+        assert "arr(key)" in result
+
+    def test_braced_scalar_array_like(self):
+        """${a(1)} braced form (scalar, not array) preserved."""
+        source = "puts ${a(1)}"
+        result = format_tcl(source)
+        assert "${a(1)}" in result
+
+    def test_namespace_array_preserved(self):
+        """$ns::arr(key) namespace array preserved."""
+        source = "set ns::arr(key) val"
+        result = format_tcl(source)
+        assert "ns::arr(key)" in result
+
+    # Namespace variables
+
+    def test_unbraced_namespace_stays_unbraced(self):
+        """$ns::var without braces stays unbraced."""
+        source = "puts $ns::var"
+        result = format_tcl(source)
+        assert "$ns::var" in result
+        assert "${ns::var}" not in result
+
+    def test_braced_deep_namespace(self):
+        """${a::b::c::d} deep namespace with braces preserved."""
+        source = "puts ${a::b::c::d}suffix"
+        result = format_tcl(source)
+        assert "${a::b::c::d}" in result
+
+    # Global namespace variables (leading ::)
+
+    def test_unbraced_global_var(self):
+        """$::my_global global namespace variable stays unbraced."""
+        source = "puts $::my_global"
+        result = format_tcl(source)
+        assert "$::my_global" in result
+        assert "${::my_global}" not in result
+
+    def test_braced_global_var(self):
+        """${::my_global} braced global variable preserved."""
+        source = "puts ${::my_global}suffix"
+        result = format_tcl(source)
+        assert "${::my_global}" in result
+
+    def test_unbraced_global_deep_namespace(self):
+        """$::a::b::c global deep namespace without braces."""
+        source = "puts $::a::b::c"
+        result = format_tcl(source)
+        assert "$::a::b::c" in result
+        assert "${::a::b::c}" not in result
+
+    def test_braced_global_deep_namespace(self):
+        """${::a::b::c} braced global deep namespace preserved."""
+        source = "puts ${::a::b::c}suffix"
+        result = format_tcl(source)
+        assert "${::a::b::c}" in result
+
+    # Braced variables with special characters (spaces, hyphens, dots)
+
+    def test_braced_var_with_spaces(self):
+        """${space space} variable name with spaces preserved."""
+        source = "puts ${space space}"
+        result = format_tcl(source)
+        assert "${space space}" in result
+
+    def test_braced_var_with_hyphen(self):
+        """${my-var} variable name with hyphen preserved."""
+        source = "puts ${my-var}"
+        result = format_tcl(source)
+        assert "${my-var}" in result
+
+    def test_braced_var_with_dot(self):
+        """${my.var} variable name with dot preserved."""
+        source = "puts ${my.var}"
+        result = format_tcl(source)
+        assert "${my.var}" in result
+
+    def test_unbraced_deep_namespace(self):
+        """$a::b::c::d deep namespace without braces."""
+        source = "puts $a::b::c::d"
+        result = format_tcl(source)
+        assert "$a::b::c::d" in result
+        assert "${a::b::c::d}" not in result
+
+    # Expansion with all variable forms
+
+    def test_expand_braced_var(self):
+        """{*}${var} expansion with braced variable."""
+        source = "cmd {*}${items}"
+        result = format_tcl(source)
+        assert "{*}${items}" in result
+
+    def test_expand_namespace_var(self):
+        """{*}$ns::list expansion with namespace variable."""
+        source = "cmd {*}$ns::list"
+        result = format_tcl(source)
+        assert "{*}$ns::list" in result
+
+    def test_expand_braced_namespace_var(self):
+        """{*}${ns::list} expansion with braced namespace variable."""
+        source = "cmd {*}${ns::list}"
+        result = format_tcl(source)
+        assert "{*}${ns::list}" in result
+
+    def test_expand_deep_namespace_var(self):
+        """{*}$a::b::c expansion with deep namespace."""
+        source = "cmd {*}$a::b::c"
+        result = format_tcl(source)
+        assert "{*}$a::b::c" in result
+
+    def test_expand_braced_deep_namespace_var(self):
+        """{*}${a::b::c} expansion with braced deep namespace."""
+        source = "cmd {*}${a::b::c}"
+        result = format_tcl(source)
+        assert "{*}${a::b::c}" in result
+
+    def test_expand_global_var(self):
+        """{*}$::my_global expansion with global namespace."""
+        source = "cmd {*}$::my_global"
+        result = format_tcl(source)
+        assert "{*}$::my_global" in result
+
+    def test_expand_braced_global_var(self):
+        """{*}${::my_global} expansion with braced global namespace."""
+        source = "cmd {*}${::my_global}"
+        result = format_tcl(source)
+        assert "{*}${::my_global}" in result
+
+    def test_expand_global_deep_namespace(self):
+        """{*}$::a::b::c expansion with global deep namespace."""
+        source = "cmd {*}$::a::b::c"
+        result = format_tcl(source)
+        assert "{*}$::a::b::c" in result
+
+    def test_expand_array_var(self):
+        """{*}$arr(key) expansion with array reference."""
+        source = "cmd {*}$arr(key)"
+        result = format_tcl(source)
+        assert "{*}$arr(key)" in result
+
+    def test_expand_namespace_array(self):
+        """{*}$ns::arr(key) expansion with namespace array."""
+        source = "cmd {*}$ns::arr(key)"
+        result = format_tcl(source)
+        assert "{*}$ns::arr(key)" in result
+
+    # Multiple expansions and mixed forms in one command
+
+    def test_multiple_expand_args(self):
+        """Multiple {*} arguments in one command."""
+        source = "cmd {*}$a {*}$b {*}$c"
+        result = format_tcl(source)
+        assert "{*}$a" in result
+        assert "{*}$b" in result
+        assert "{*}$c" in result
+
+    def test_mixed_braced_and_unbraced(self):
+        """Mix of ${braced} and $unbraced variables in one command."""
+        source = 'set result "${prefix}_${key}_$suffix"'
+        result = format_tcl(source)
+        assert "${prefix}" in result
+        assert "${key}" in result
+        assert "$suffix" in result
+        assert "${suffix}" not in result
+
+    # Idempotency for all expansion forms
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "cmd {*}$var",
+            "cmd {*}${var}",
+            "cmd {*}$ns::var",
+            "cmd {*}${ns::var}",
+            "cmd {*}$a::b::c",
+            "cmd {*}${a::b::c}",
+            "cmd {*}$arr(key)",
+            "cmd {*}$ns::arr(key)",
+            "cmd {*}{a b c}",
+            "cmd {*}[list a b]",
+            "set x ${foo}bar",
+            "puts ${ns::var}suffix",
+            "puts ${a::b::c::d}suffix",
+            'set m(stress.${element}_stress) "val"',
+            # Global namespace forms
+            "puts $::my_global",
+            "puts ${::my_global}suffix",
+            "cmd {*}$::my_global",
+            "cmd {*}${::my_global}",
+            "cmd {*}$::a::b::c",
+            # Special chars in braced names
+            "puts ${space space}",
+            "puts ${my-var}",
+            "puts ${my.var}",
+        ],
+    )
+    def test_all_forms_idempotent(self, source):
+        """All variable and expansion forms are idempotent."""
+        r1 = format_tcl(source)
+        r2 = format_tcl(r1)
+        assert r1 == r2, f"Not idempotent for {source!r}:\nFirst:  {r1!r}\nSecond: {r2!r}"
+
+
 class TestSwitchFormatting:
     def test_switch_braced_body(self):
         source = "switch $x {\na {puts a}\nb {puts b}\n}"
@@ -944,6 +1242,8 @@ class TestBackslashContinuation:
         result = format_tcl(source)
         for line in result.strip().split("\n"):
             assert len(line) <= 120, f"Line too long ({len(line)}): {line}"
+        # Braced variables must survive formatting (#137)
+        assert "${ttl_ceiling}" in result
         # Verify idempotency
         r2 = format_tcl(result)
         assert result == r2
@@ -1047,6 +1347,10 @@ class TestIdempotency:
             "DNS::ttl $rr [table set -subtable f5volt_31839_ns1.f5clouddns.com -- [DNS::name $rr]___[DNS::type $rr] [DNS::ttl $rr] 86400 [expr {[DNS::ttl $rr] + 1}]]",
             # Commented-out long command
             '#log local0. "INGRESS - Client: [IP::client_addr] Question:[DNS::question name] Type:[DNS::question type] Class:[DNS::question class] Origin:[DNS::origin]"',
+            # Braced variable form (#137)
+            'set map_result_name(stress.${element}_stress) "Spring stress"',
+            # Expansion prefix (#137)
+            "lappend grouped_result_names {*}$names",
         ],
     )
     def test_idempotent(self, source):

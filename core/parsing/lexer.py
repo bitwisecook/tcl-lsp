@@ -650,7 +650,7 @@ class TclLexer:
         """
         self._start = self.pos
         self._advance(3)  # skip '{*}'
-        self._end = self._start  # zero-width
+        self._end = self._start - 1  # zero-width: _end < _start → empty text
         self._type = TokenType.EXPAND
 
     def _parse_string(self) -> None:

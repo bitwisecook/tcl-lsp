@@ -477,6 +477,428 @@ class TestExpansion:
         tokens = lex(source)
         assert not any(t.type == TokenType.EXPAND for t in tokens)
 
+    def test_expand_token_text_is_empty(self):
+        """EXPAND token text must be empty (zero-width prefix marker)."""
+        tokens = lex("cmd {*}$args")
+        expand_toks = [t for t in tokens if t.type == TokenType.EXPAND]
+        assert len(expand_toks) == 1
+        assert expand_toks[0].text == ""
+
+    def test_expand_followed_by_var_tokens(self):
+        """{*}$names produces EXPAND + VAR tokens in sequence."""
+        tokens = lex("{*}$names")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "names"
+
+    def test_expand_followed_by_braced_var(self):
+        """{*}${names} produces EXPAND + VAR tokens."""
+        tokens = lex("{*}${names}")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "names"
+
+
+class TestBracedVarByteSpans:
+    """Verify that braced ${name} and unbraced $name produce detectable
+    byte spans, allowing downstream code to preserve the original form.
+
+    The formula: is_braced = (tok.end.offset - tok.start.offset) > len(tok.text)
+    """
+
+    def _is_braced(self, tok: Token) -> bool:
+        return (tok.end.offset - tok.start.offset) > len(tok.text)
+
+    # Simple scalars
+
+    def test_unbraced_scalar(self):
+        """$name: span equals len(name), not braced."""
+        tokens = lex("$abc")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "abc"
+        assert not self._is_braced(tok)
+
+    def test_braced_scalar(self):
+        """${name}: span exceeds len(name), detected as braced."""
+        tokens = lex("${abc}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "abc"
+        assert self._is_braced(tok)
+
+    def test_single_char_unbraced(self):
+        """$x: single-character unbraced variable."""
+        tokens = lex("$x")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "x"
+        assert not self._is_braced(tok)
+
+    def test_single_char_braced(self):
+        """${x}: single-character braced variable."""
+        tokens = lex("${x}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "x"
+        assert self._is_braced(tok)
+
+    # Braced vars followed by text
+
+    def test_braced_var_followed_by_text(self):
+        """${foo}bar: braced var detected, text token follows."""
+        tokens = lex("${foo}bar")
+        var_tok = tokens[0]
+        assert var_tok.type == TokenType.VAR
+        assert var_tok.text == "foo"
+        assert self._is_braced(var_tok)
+        assert any(t.type == TokenType.ESC and t.text == "bar" for t in tokens)
+
+    def test_braced_var_with_underscore_suffix(self):
+        """${element}_stress: braced var + underscore suffix are distinct tokens."""
+        tokens = lex("${element}_stress")
+        var_tok = tokens[0]
+        assert var_tok.type == TokenType.VAR
+        assert var_tok.text == "element"
+        assert self._is_braced(var_tok)
+        esc_tok = tokens[1]
+        assert esc_tok.type == TokenType.ESC
+        assert esc_tok.text == "_stress"
+
+    def test_unbraced_var_with_underscore(self):
+        """$element_stress: underscore is part of the variable name."""
+        tokens = lex("$element_stress")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "element_stress"
+        assert not self._is_braced(tok)
+
+    # Namespace variables
+
+    def test_braced_namespace_var(self):
+        """${ns::var}: namespace separator inside braces."""
+        tokens = lex("${ns::var}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "ns::var"
+        assert self._is_braced(tok)
+
+    def test_unbraced_namespace_var(self):
+        """$ns::var: namespace separator without braces."""
+        tokens = lex("$ns::var")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "ns::var"
+        assert not self._is_braced(tok)
+
+    def test_braced_deep_namespace_var(self):
+        """${a::b::c::d}: deeply nested namespace variable."""
+        tokens = lex("${a::b::c::d}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "a::b::c::d"
+        assert self._is_braced(tok)
+
+    def test_unbraced_deep_namespace_var(self):
+        """$a::b::c::d: deeply nested namespace variable without braces."""
+        tokens = lex("$a::b::c::d")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "a::b::c::d"
+        assert not self._is_braced(tok)
+
+    def test_braced_namespace_var_with_suffix(self):
+        """${ns::var}_suffix: braced namespace var with trailing text."""
+        tokens = lex("${ns::var}_suffix")
+        var_tok = tokens[0]
+        assert var_tok.type == TokenType.VAR
+        assert var_tok.text == "ns::var"
+        assert self._is_braced(var_tok)
+        assert any(t.type == TokenType.ESC and t.text == "_suffix" for t in tokens)
+
+    # Array variables
+
+    def test_unbraced_array(self):
+        """$arr(key): unbraced array reference."""
+        tokens = lex("$arr(key)")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert "arr" in tok.text and "key" in tok.text
+        assert not self._is_braced(tok)
+
+    def test_braced_scalar_array_like(self):
+        """${a(1)}: braced form treats parens as literal (scalar, not array)."""
+        tokens = lex("${a(1)}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "a(1)"
+        assert self._is_braced(tok)
+
+    def test_braced_var_in_array_index(self):
+        """$arr(stress.${element}_stress): braced var inside array index."""
+        source = "$arr(stress.${element}_stress)"
+        all_tokens = TclLexer(source).tokenise_all()
+        var_toks = [t for t in all_tokens if t.type == TokenType.VAR]
+        assert len(var_toks) >= 1
+
+    def test_namespace_array(self):
+        """$ns::arr(key): namespace-qualified array reference."""
+        tokens = lex("$ns::arr(key)")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert "ns::arr" in tok.text
+
+    # Global namespace variables (leading ::)
+
+    def test_unbraced_global_var(self):
+        """$::my_global: leading :: for global namespace."""
+        tokens = lex("$::my_global")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "::my_global"
+        assert not self._is_braced(tok)
+
+    def test_braced_global_var(self):
+        """${::my_global}: global namespace variable with braces."""
+        tokens = lex("${::my_global}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "::my_global"
+        assert self._is_braced(tok)
+
+    def test_braced_global_var_with_suffix(self):
+        """${::my_global}_suffix: braced global var + trailing text."""
+        tokens = lex("${::my_global}_suffix")
+        var_tok = tokens[0]
+        assert var_tok.type == TokenType.VAR
+        assert var_tok.text == "::my_global"
+        assert self._is_braced(var_tok)
+        assert any(t.type == TokenType.ESC and t.text == "_suffix" for t in tokens)
+
+    def test_unbraced_global_deep_namespace(self):
+        """$::a::b::c: global deep namespace variable."""
+        tokens = lex("$::a::b::c")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "::a::b::c"
+        assert not self._is_braced(tok)
+
+    def test_braced_global_deep_namespace(self):
+        """${::a::b::c}: global deep namespace variable with braces."""
+        tokens = lex("${::a::b::c}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "::a::b::c"
+        assert self._is_braced(tok)
+
+    def test_global_array(self):
+        """$::arr(key): global array reference."""
+        tokens = lex("$::arr(key)")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert "::arr" in tok.text
+
+    # Braced variables with spaces and special characters
+
+    def test_braced_var_with_spaces(self):
+        """${space space}: variable name containing spaces (only valid braced)."""
+        tokens = lex("${space space}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "space space"
+        assert self._is_braced(tok)
+
+    def test_braced_var_with_hyphen(self):
+        """${my-var}: variable name containing hyphen."""
+        tokens = lex("${my-var}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "my-var"
+        assert self._is_braced(tok)
+
+    def test_braced_var_with_dot(self):
+        """${my.var}: variable name containing dot."""
+        tokens = lex("${my.var}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "my.var"
+        assert self._is_braced(tok)
+
+    def test_braced_empty_name(self):
+        """${}: empty braced variable name (valid Tcl, produces error at runtime)."""
+        tokens = lex("${}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == ""
+        assert self._is_braced(tok)
+
+    # In quoted strings
+
+    def test_braced_var_inside_quotes(self):
+        """Braced var inside "hello ${name}" retains correct span."""
+        all_tokens = TclLexer('"hello ${name}"').tokenise_all()
+        var_toks = [t for t in all_tokens if t.type == TokenType.VAR]
+        assert len(var_toks) == 1
+        tok = var_toks[0]
+        assert tok.text == "name"
+        assert self._is_braced(tok)
+
+    def test_unbraced_var_inside_quotes(self):
+        """Unbraced var inside "hello $name" retains unbraced span."""
+        all_tokens = TclLexer('"hello $name"').tokenise_all()
+        var_toks = [t for t in all_tokens if t.type == TokenType.VAR]
+        assert len(var_toks) == 1
+        tok = var_toks[0]
+        assert tok.text == "name"
+        assert not self._is_braced(tok)
+
+    def test_braced_namespace_var_in_quotes(self):
+        """Braced namespace var "${ns::val}" in quoted string."""
+        all_tokens = TclLexer('"prefix ${ns::val} suffix"').tokenise_all()
+        var_toks = [t for t in all_tokens if t.type == TokenType.VAR]
+        assert len(var_toks) == 1
+        tok = var_toks[0]
+        assert tok.text == "ns::val"
+        assert self._is_braced(tok)
+
+    # Special characters in braced vars
+
+    def test_braced_var_with_special_chars(self):
+        """${..[]b}: braced var with characters not legal in unbraced form."""
+        tokens = lex("${..[]b}")
+        tok = tokens[0]
+        assert tok.type == TokenType.VAR
+        assert tok.text == "..[]b"
+        assert self._is_braced(tok)
+
+
+class TestExpansionWithVariableForms:
+    """Tests that {*} expansion works correctly with all variable forms.
+
+    Each test verifies that the lexer produces the correct sequence
+    of EXPAND + VAR/STR/CMD tokens for various expansion contexts.
+    """
+
+    def _is_braced(self, tok: Token) -> bool:
+        return (tok.end.offset - tok.start.offset) > len(tok.text)
+
+    # {*} with scalar variables
+
+    def test_expand_unbraced_scalar(self):
+        """{*}$var: expansion with simple unbraced variable."""
+        tokens = lex("{*}$var")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "var"
+        assert not self._is_braced(tokens[1])
+
+    def test_expand_braced_scalar(self):
+        """{*}${var}: expansion with braced variable."""
+        tokens = lex("{*}${var}")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "var"
+        assert self._is_braced(tokens[1])
+
+    # {*} with namespace variables
+
+    def test_expand_namespace_var(self):
+        """{*}$ns::list: expansion with namespace variable."""
+        tokens = lex("{*}$ns::list")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "ns::list"
+
+    def test_expand_braced_namespace_var(self):
+        """{*}${ns::list}: expansion with braced namespace variable."""
+        tokens = lex("{*}${ns::list}")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "ns::list"
+        assert self._is_braced(tokens[1])
+
+    def test_expand_deep_namespace_var(self):
+        """{*}$a::b::c: expansion with deeply nested namespace."""
+        tokens = lex("{*}$a::b::c")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "a::b::c"
+
+    def test_expand_braced_deep_namespace_var(self):
+        """{*}${a::b::c}: expansion with braced deeply nested namespace."""
+        tokens = lex("{*}${a::b::c}")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "a::b::c"
+        assert self._is_braced(tokens[1])
+
+    # {*} with global namespace variables
+
+    def test_expand_global_var(self):
+        """{*}$::my_global: expansion with global namespace variable."""
+        tokens = lex("{*}$::my_global")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "::my_global"
+
+    def test_expand_braced_global_var(self):
+        """{*}${::my_global}: expansion with braced global variable."""
+        tokens = lex("{*}${::my_global}")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "::my_global"
+        assert self._is_braced(tokens[1])
+
+    def test_expand_global_deep_namespace(self):
+        """{*}$::a::b::c: expansion with global deep namespace."""
+        tokens = lex("{*}$::a::b::c")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert tokens[1].text == "::a::b::c"
+
+    # {*} with array variables
+
+    def test_expand_array_var(self):
+        """{*}$arr(key): expansion with array reference."""
+        tokens = lex("{*}$arr(key)")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert "arr" in tokens[1].text
+
+    def test_expand_namespace_array(self):
+        """{*}$ns::arr(key): expansion with namespace array."""
+        tokens = lex("{*}$ns::arr(key)")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.VAR]
+        assert "ns::arr" in tokens[1].text
+
+    # {*} with braced lists and command substitution
+
+    def test_expand_braced_list(self):
+        """{*}{a b c}: expansion with braced list."""
+        tokens = lex("{*}{a b c}")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.STR]
+        assert tokens[1].text == "a b c"
+
+    def test_expand_command_sub(self):
+        """{*}[list a b]: expansion with command substitution."""
+        tokens = lex("{*}[list a b]")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.EXPAND, TokenType.CMD]
+        assert tokens[1].text == "list a b"
+
+    # EXPAND token properties
+
+    def test_expand_token_always_empty_text(self):
+        """All EXPAND tokens have empty text regardless of what follows."""
+        cases = ["{*}$x", "{*}${y}", "{*}{z}", "{*}[cmd]", "{*}$ns::v"]
+        for source in cases:
+            tokens = lex(source)
+            expand = [t for t in tokens if t.type == TokenType.EXPAND]
+            assert len(expand) == 1, f"Expected 1 EXPAND in {source!r}"
+            assert expand[0].text == "", f"EXPAND text should be empty in {source!r}"
+
 
 # Group 6: ParseTokens (parse-6.x)
 
