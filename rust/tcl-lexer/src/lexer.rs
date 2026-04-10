@@ -294,10 +294,6 @@ impl<'src> Lexer<'src> {
         self.source()[self.pos as usize..].chars().next()
     }
 
-    fn position_at(&self, offset: u32) -> SourcePosition {
-        self.source_map.position_at(offset)
-    }
-
     /// Build a token whose span covers `start_offset..self.pos`
     /// with `content_offset = 0` (no prefix delimiter to strip).
     /// Used for `Sep`, `Eol`, `Comment`, and plain `Esc`.
@@ -329,56 +325,101 @@ impl<'src> Lexer<'src> {
         self.make_token(TokenType::Eol, start_offset)
     }
 
-    fn parse_comment(&mut self) -> Result<Token, LexError> {
+    fn parse_comment(&mut self) -> Token {
         let start_offset = self.pos;
         self.pos += 1; // consume the leading '#'
         while let Some(ch) = self.current_char() {
             match ch {
                 '\n' => break,
                 '\\' => {
-                    return Err(LexError::UnsupportedCharacter {
-                        ch,
-                        position: self.position_at(self.pos),
-                    });
+                    // Consume backslash + next char as a pair.
+                    // `\<newline>` continues the comment to the
+                    // next line (matching Python / C Tcl behaviour).
+                    self.pos += 1;
+                    match self.current_char() {
+                        Some(esc @ ('\n' | '\r')) => {
+                            self.pos += 1;
+                            if esc == '\r' && self.current_byte() == Some(b'\n') {
+                                self.pos += 1;
+                            }
+                        }
+                        Some(esc) => {
+                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
+                        }
+                        None => {}
+                    }
                 }
                 _ => {
                     self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
                 }
             }
         }
-        Ok(self.make_token(TokenType::Comment, start_offset))
+        self.make_token(TokenType::Comment, start_offset)
     }
 
-    fn parse_esc(&mut self) -> Result<Token, LexError> {
+    fn parse_esc(&mut self) -> Token {
         let start_offset = self.pos;
         while let Some(ch) = self.current_char() {
             if is_horizontal_whitespace(ch) || is_eol_char(ch) {
                 break;
             }
-            // `$` and `[` terminate a bare word so the next iteration
-            // dispatches to `parse_var` / `parse_command`. Matches
-            // Python `_parse_string`'s `elif ch == "$" or ch == "["`
-            // branch.
             if ch == '$' || ch == '[' {
                 break;
             }
-            if is_deferred_special(ch) {
-                if self.pos == start_offset {
-                    // Did not consume anything yet; surface the error
-                    // rather than emit an empty ESC token. In practice
-                    // the top-level dispatch rejects deferred chars
-                    // before calling `parse_esc`; this branch is
-                    // defensive.
-                    return Err(LexError::UnsupportedCharacter {
-                        ch,
-                        position: self.position_at(self.pos),
-                    });
+            if ch == '\\' {
+                match self
+                    .source()
+                    .as_bytes()
+                    .get((self.pos + 1) as usize)
+                    .copied()
+                {
+                    Some(b'\n' | b'\r') => {
+                        // `\<newline>` line continuation (bare-word
+                        // context). At word start → emit the
+                        // continuation as a SEP. Mid-word → stop;
+                        // the iterator re-enters at the backslash.
+                        if self.pos == start_offset {
+                            return self.parse_backslash_newline_sep();
+                        }
+                        break;
+                    }
+                    Some(_) => {
+                        // `\<other>`: consume the pair as literal
+                        // content (both the backslash and the
+                        // escaped character stay in the token text).
+                        self.pos += 1;
+                        if let Some(esc) = self.current_char() {
+                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
+                        }
+                    }
+                    None => {
+                        // Trailing backslash at EOF: literal.
+                        self.pos += 1;
+                    }
                 }
-                break;
+                continue;
             }
             self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
         }
-        Ok(self.make_token(TokenType::Esc, start_offset))
+        self.make_token(TokenType::Esc, start_offset)
+    }
+
+    /// Consume a `\<newline>` line-continuation sequence at word
+    /// start as a SEP token. Matches Python's `_parse_string`
+    /// "backslash-newline at the very start of a token" path which
+    /// emits `TokenType.SEP` so the next token can recognise `{`
+    /// or `"` as brace/quote delimiters (a fresh word boundary).
+    fn parse_backslash_newline_sep(&mut self) -> Token {
+        let start = self.pos;
+        self.pos += 1; // skip backslash
+        let was_cr = self.current_byte() == Some(b'\r');
+        if self.current_byte().is_some() {
+            self.pos += 1; // skip the newline char
+        }
+        if was_cr && self.current_byte() == Some(b'\n') {
+            self.pos += 1; // CRLF
+        }
+        self.make_token(TokenType::Sep, start)
     }
 
     /// Parse a variable substitution starting at the current `$`.
@@ -584,7 +625,29 @@ impl<'src> Lexer<'src> {
                     closed = true;
                     break;
                 }
-                '$' | '[' | '\\' => break,
+                '$' | '[' => break,
+                '\\' => {
+                    // Inside a quoted string, `\<char>` is consumed
+                    // as a literal pair (both the backslash and
+                    // the following character stay in the token
+                    // text). `\<newline>` inside a quote is NOT a
+                    // word break — it's just another pair of
+                    // literal bytes, matching Python's
+                    // `_parse_string` insidequote path.
+                    self.pos += 1;
+                    match self.current_char() {
+                        Some(esc @ ('\n' | '\r')) => {
+                            self.pos += 1;
+                            if esc == '\r' && self.current_byte() == Some(b'\n') {
+                                self.pos += 1;
+                            }
+                        }
+                        Some(esc) => {
+                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
+                        }
+                        None => {} // trailing backslash at EOF
+                    }
+                }
                 _ => {
                     self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
                 }
@@ -949,26 +1012,18 @@ impl Iterator for Lexer<'_> {
             match ch {
                 '$' => Ok(self.parse_var()),
                 '[' => Ok(self.parse_command()),
-                '\\' => Err(LexError::UnsupportedCharacter {
-                    ch,
-                    position: self.position_at(self.pos),
-                }),
                 _ => Ok(self.parse_quoted(false)),
             }
         } else {
             match ch {
                 _ if is_horizontal_whitespace(ch) => Ok(self.parse_sep()),
                 _ if is_eol_char(ch) => Ok(self.parse_eol()),
-                '#' if self.at_command_start => self.parse_comment(),
+                '#' if self.at_command_start => Ok(self.parse_comment()),
                 '$' => Ok(self.parse_var()),
                 '[' => Ok(self.parse_command()),
                 '{' if self.is_newword() => Ok(self.parse_brace_or_expand()),
                 '"' if self.is_newword() => Ok(self.parse_quoted(true)),
-                _ if is_deferred_special(ch) => Err(LexError::UnsupportedCharacter {
-                    ch,
-                    position: self.position_at(self.pos),
-                }),
-                _ => self.parse_esc(),
+                _ => Ok(self.parse_esc()),
             }
         };
 
@@ -1029,16 +1084,10 @@ fn is_separator_byte(byte: u8) -> bool {
     is_horizontal_whitespace_byte(byte) || is_eol_byte(byte)
 }
 
-/// Characters whose handling the Rust lexer has not yet implemented.
-/// Triggers [`LexError::UnsupportedCharacter`]. Chunk L9 drains the
-/// last entry. L4 removed `$`; L5 removed `[` and `]`; L6 removed
-/// `{` and `}`; L7 removed `"` (now dispatches to `parse_quoted`
-/// when at a word boundary or when already in a quoted string,
-/// otherwise a regular word character).
-#[inline]
-fn is_deferred_special(ch: char) -> bool {
-    ch == '\\'
-}
+// L9 removed the last deferred character (`\`). The
+// `is_deferred_special` function (and the iterator's error arm
+// that referenced it) no longer exist. Every valid ASCII character
+// in a Tcl source is now handled by the Rust lexer.
 
 #[cfg(test)]
 mod tests {
@@ -1332,40 +1381,30 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_character_backslash_errors() {
-        let err = Lexer::new(r"foo \n bar").tokenise_all().unwrap_err();
-        assert!(matches!(
-            err,
-            LexError::UnsupportedCharacter { ch: '\\', .. }
-        ));
+    fn backslash_in_bare_word_is_literal_pair() {
+        // `foo\nbar` — `\n` (backslash + 'n') is a literal pair
+        // inside a bare word, matching C Tcl's tokenisation.
+        let lexed = Lexed::run(r"foo\nbar");
+        assert_eq!(lexed.texts(), vec![r"foo\nbar", ""]);
     }
 
     #[test]
-    fn unsupported_character_in_comment_errors() {
-        let err = Lexer::new("# hello\\ world").tokenise_all().unwrap_err();
-        assert!(matches!(
-            err,
-            LexError::UnsupportedCharacter { ch: '\\', .. }
-        ));
+    fn backslash_in_comment_continues_line() {
+        // `# comment\<newline>continues` — the backslash-newline
+        // continues the comment to the next line.
+        let lexed = Lexed::run("# hello\\\nworld");
+        assert_eq!(lexed.kinds(), vec![TokenType::Comment, TokenType::Eol]);
+        assert_eq!(
+            lexed.source_map.token_text(lexed.tokens[0]),
+            "# hello\\\nworld"
+        );
     }
 
     #[test]
-    fn after_error_iterator_stops() {
-        // Use `\` which is the last character in the deferred set
-        // after L7.
-        let mut lex = Lexer::new(r"foo \n bar");
-        let mut tokens = Vec::new();
-        let mut err_seen = false;
-        for result in lex.by_ref() {
-            if let Ok(tok) = result {
-                tokens.push(tok);
-            } else {
-                err_seen = true;
-                break;
-            }
-        }
-        assert!(err_seen);
-        assert!(lex.next().is_none());
+    fn backslash_in_bare_word_does_not_error() {
+        // Regression guard: L9 removed `\` from the deferred set.
+        let lexed = Lexed::run(r"foo\nbar");
+        assert_eq!(lexed.kinds(), vec![TokenType::Esc, TokenType::Eol]);
     }
 
     #[test]

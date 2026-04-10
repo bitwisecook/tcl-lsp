@@ -54,6 +54,22 @@ Two architectural constraints that every chunk is measured against.
 They override local simplicity when they conflict; if you find
 yourself working around them, stop and raise the design question.
 
+### 0. C Tcl 9.0.3 is the reference standard
+
+The Rust lexer, compiler, and eventual LSP server must produce
+behaviour identical to **C Tcl 9.0.3** (the current stable release
+of the upstream Tcl reference implementation). Every escape
+sequence, quoting rule, brace-nesting edge case, and
+backslash-continuation behavior is measured against what
+`tclsh9.0` produces. The Python lexer was already built to match
+C Tcl; the differential test harness (`tests/test_upstream_parse.py`
++ the dynamic corpus harvester) verifies the Rust lexer matches the
+Python lexer, which transitively validates against C Tcl. The
+`tests/test_upstream_parse.py` suite is ported from Tcl's official
+`tests/parse.test`; any Tcl-version-specific behaviours (e.g. `{*}`
+expansion was added in 8.5, not present in 8.4) are gated on
+`LexerConfig` dialect flags.
+
 ### 1. Performance to first semantic tokens is paramount
 
 The single user-visible latency metric that matters for the LSP
@@ -576,7 +592,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L6    | Braced strings in the Rust lexer (`{…}` at word boundaries, balanced nesting, backslash-pair escapes, Python-parity `newword` predicate) + `token_text` `Str` stripping + dynamic harness harvesting ~200 new L6-eligible inputs | landed |
 | L7    | Quoted strings in the Rust lexer (`"…"` with `$` / `[` interpolation, `in_quote` propagation, mid-word quote as bare word) + `Token::content_offset` for per-kind prefix stripping | landed |
 | L8    | `{*}` expansion prefix + `LexerConfig::expand_syntax` dialect flag | landed |
-| L9    | Warnings collection and ghost-character-insertion error recovery | planned |
+| L9    | Backslash escapes in bare words, quoted strings, and comments — drains the last deferred character. Warning collection and ghost-character-insertion are deferred to a later pass. | landed |
 | L10   | `core/parsing/expr_lexer.py` → Rust | planned |
 | L11   | Flip the Rust lexer to the default; keep Python fallback for one release | planned |
 | L12   | Remove the pure-Python lexer | planned |
