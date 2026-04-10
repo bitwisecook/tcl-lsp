@@ -27,6 +27,20 @@
 - KCS documentation overhaul for diagnosing failed VS Code LSP startup,
   including a reusable user-issue troubleshooting template.
 
+## Breaking Changes
+
+- **Removed `tclLsp.features.formatting` setting.** Formatting is now always
+  available via the standard `textDocument/formatting` handler and controlled
+  by the editor's native mechanisms (e.g. VS Code's `editor.formatOnSave` and
+  `editor.defaultFormatter`). If you previously set `tclLsp.features.formatting`
+  to `false`, that setting is now ignored — use your editor's formatter
+  selection instead.
+- **Changed `tclLsp.features.willSaveWaitUntil` default to `false`** and
+  removed it from the VS Code and JetBrains settings UI. Format-on-save no
+  longer fires unconditionally; use the editor's native format-on-save
+  instead. The server-side handler remains as an opt-in fallback for editors
+  without native format-on-save support.
+
 ## Bug Fixes
 
 - **Fix `{*}` argument-expansion arity checks (#129).** Calls like
