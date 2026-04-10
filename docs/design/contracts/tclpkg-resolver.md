@@ -1,4 +1,4 @@
-# KCS: tclpkg MVS resolver
+# tclpkg MVS resolver
 
 ## Symptom
 

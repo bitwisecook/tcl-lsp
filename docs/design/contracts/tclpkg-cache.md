@@ -1,4 +1,4 @@
-# KCS: tclpkg cache and integrity
+# tclpkg cache and integrity
 
 ## Symptom
 

@@ -1,4 +1,4 @@
-# KCS: tclpkg lockfile schema
+# tclpkg lockfile schema
 
 ## Symptom
 

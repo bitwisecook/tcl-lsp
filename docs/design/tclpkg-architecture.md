@@ -1,4 +1,4 @@
-# KCS: tclpkg — Tcl package manager overview
+# tclpkg — architecture overview
 
 ## Symptom
 

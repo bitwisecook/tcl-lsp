@@ -1,4 +1,4 @@
-# KCS: tclpkg LSP integration
+# tclpkg LSP integration
 
 ## Symptom
 

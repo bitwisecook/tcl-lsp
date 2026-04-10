@@ -1,4 +1,4 @@
-# KCS: tclpkg virtual environments
+# tclpkg virtual environments
 
 ## Symptom
 

@@ -1,4 +1,4 @@
-# KCS: tclpkg manifest contracts
+# tclpkg manifest contracts
 
 ## Symptom
 
