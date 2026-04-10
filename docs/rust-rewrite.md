@@ -593,8 +593,8 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | L7    | Quoted strings in the Rust lexer (`"…"` with `$` / `[` interpolation, `in_quote` propagation, mid-word quote as bare word) + `Token::content_offset` for per-kind prefix stripping | landed |
 | L8    | `{*}` expansion prefix + `LexerConfig::expand_syntax` dialect flag | landed |
 | L9    | Backslash escapes in bare words, quoted strings, and comments — drains the last deferred character. Warning collection and ghost-character-insertion are deferred to a later pass. | landed |
-| L10   | `core/parsing/expr_lexer.py` → Rust | planned |
-| L11   | Flip the Rust lexer to the default; keep Python fallback for one release | planned |
+| L10   | `core/parsing/expr_lexer.py` → Rust. Rust implementation exists and is tested; Python dispatch stays as the default because the Rust `PyExprTokenType` and the Python `ExprTokenType` are distinct classes (downstream code compares via `==`/`is`). A future chunk adds a wrapping layer. | landed |
+| L11   | Flip `TclLexer.tokenise_all()` to Rust for the default config (~17× speedup). Non-default configs (virtual insertions, strict quoting, base offsets, `expand_syntax=False`) fall back to the Python lexer. | landed |
 | L12   | Remove the pure-Python lexer | planned |
 | C*    | Compiler migration | planned |
 | S*    | LSP server migration | planned |

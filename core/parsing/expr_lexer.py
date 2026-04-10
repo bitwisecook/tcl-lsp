@@ -398,9 +398,40 @@ class ExprLexer:
         return ExprToken(ExprTokenType.STRING, self._src[start : self._pos], start, self._pos - 1)
 
 
-def tokenise_expr(source: str, *, dialect: str | None = None) -> list[ExprToken]:
-    """Convenience: tokenise a Tcl expression string."""
+try:
+    from tcl_lsp_rust import expr_tokenise as _rust_expr_tokenise  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (
+        expr_tokenise_checked as _rust_expr_tokenise_checked,  # ty: ignore[unresolved-import]
+    )
+except ImportError:
+    _rust_expr_tokenise = None
+    _rust_expr_tokenise_checked = None
+
+
+def _python_tokenise_expr(source: str, *, dialect: str | None = None) -> list[ExprToken]:
     return ExprLexer(source, dialect=dialect).tokenise()
+
+
+def _python_tokenise_expr_checked(
+    source: str, *, dialect: str | None = None
+) -> tuple[list[ExprToken], bool]:
+    lexer = ExprLexer(source, dialect=dialect)
+    tokens = lexer.tokenise()
+    return tokens, lexer._has_unknown
+
+
+def tokenise_expr(source: str, *, dialect: str | None = None) -> list[ExprToken]:
+    """Convenience: tokenise a Tcl expression string.
+
+    The Rust implementation exists (``tcl_lsp_rust.expr_tokenise``)
+    but is not wired into this dispatch yet because the Rust
+    ``PyExprTokenType`` and the Python ``ExprTokenType`` are distinct
+    classes, and downstream code compares via ``==`` / ``is``
+    against the Python enum. A future chunk adds a wrapping layer
+    that converts Rust tokens into Python-typed ``ExprToken``
+    objects; until then, the Python implementation is the default.
+    """
+    return _python_tokenise_expr(source, dialect=dialect)
 
 
 def tokenise_expr_checked(
@@ -411,6 +442,4 @@ def tokenise_expr_checked(
     Returns ``(tokens, has_unknown)`` where *has_unknown* is ``True``
     when the source contained characters the lexer could not classify.
     """
-    lexer = ExprLexer(source, dialect=dialect)
-    tokens = lexer.tokenise()
-    return tokens, lexer._has_unknown
+    return _python_tokenise_expr_checked(source, dialect=dialect)
