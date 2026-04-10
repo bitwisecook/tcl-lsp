@@ -14,6 +14,8 @@ from tclpkg.docker import (
     available_recipes,
     detect_image_family,
     generate_dockerfile,
+    python_install_recipe,
+    tcl_cli_download_url,
     tcl_install_recipe,
     write_dockerfile,
 )
@@ -110,6 +112,49 @@ class TestTclInstallRecipe:
 
 
 # ---------------------------------------------------------------------------
+# python_install_recipe
+# ---------------------------------------------------------------------------
+
+
+class TestPythonInstallRecipe:
+    def test_debian(self) -> None:
+        recipe = python_install_recipe("debian:bookworm")
+        assert "python3" in recipe
+        assert "apt-get" in recipe
+
+    def test_alpine(self) -> None:
+        recipe = python_install_recipe("alpine:3.19")
+        assert "python3" in recipe
+        assert "apk" in recipe
+
+    def test_redhat(self) -> None:
+        recipe = python_install_recipe("fedora:39")
+        assert "python3" in recipe
+        assert "dnf" in recipe
+
+    def test_ubuntu_uses_debian(self) -> None:
+        deb = python_install_recipe("debian:bookworm")
+        ubu = python_install_recipe("ubuntu:22.04")
+        assert deb == ubu
+
+
+# ---------------------------------------------------------------------------
+# tcl_cli_download_url
+# ---------------------------------------------------------------------------
+
+
+class TestTclCliDownloadUrl:
+    def test_default_version(self) -> None:
+        url = tcl_cli_download_url()
+        assert "tcl-lsp/releases/download/" in url
+        assert ".pyz" in url
+
+    def test_custom_version(self) -> None:
+        url = tcl_cli_download_url("2.0.0")
+        assert "v2.0.0/tcl-2.0.0.pyz" in url
+
+
+# ---------------------------------------------------------------------------
 # available_recipes
 # ---------------------------------------------------------------------------
 
@@ -147,6 +192,7 @@ class TestDockerfileSpec:
         assert spec.extra_packages == []
         assert spec.labels == {}
         assert spec.env == {}
+        assert spec.cli_version is None
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +209,29 @@ class TestGenerateDockerfile:
         assert "WORKDIR /app" in result
         assert "COPY . ." in result
         assert 'CMD ["tclsh"]' in result
+
+    def test_installs_python3_when_packages_enabled(self) -> None:
+        spec = DockerfileSpec()
+        result = generate_dockerfile(spec)
+        assert "python3" in result
+        assert "Install Python 3" in result
+
+    def test_downloads_tcl_cli_pyz(self) -> None:
+        spec = DockerfileSpec()
+        result = generate_dockerfile(spec)
+        assert "tcl.pyz" in result
+        assert "tcl-lsp/releases/download/" in result
+
+    def test_pkg_sync_uses_pyz(self) -> None:
+        spec = DockerfileSpec()
+        result = generate_dockerfile(spec)
+        assert "python3 /usr/local/bin/tcl.pyz pkg sync --frozen" in result
+
+    def test_no_python_when_no_packages_no_venv(self) -> None:
+        spec = DockerfileSpec(install_packages=False, create_venv=False)
+        result = generate_dockerfile(spec)
+        assert "Install Python 3" not in result
+        assert "tcl.pyz" not in result
 
     def test_custom_base_image(self) -> None:
         spec = DockerfileSpec(base_image="alpine:3.19")
@@ -181,9 +250,10 @@ class TestGenerateDockerfile:
         result = generate_dockerfile(spec)
         assert 'CMD ["tclsh", "main.tcl"]' in result
 
-    def test_venv_creation(self) -> None:
+    def test_venv_creation_uses_tcl_cli(self) -> None:
         spec = DockerfileSpec(create_venv=True)
         result = generate_dockerfile(spec)
+        assert "python3 /usr/local/bin/tcl.pyz venv create .venv" in result
         assert "TCLLIBPATH" in result
         assert ".venv" in result
 
@@ -195,7 +265,7 @@ class TestGenerateDockerfile:
     def test_no_packages(self) -> None:
         spec = DockerfileSpec(install_packages=False)
         result = generate_dockerfile(spec)
-        assert "tclpkg" not in result.lower() or "Install Tcl packages" not in result
+        assert "pkg sync" not in result
 
     def test_labels(self) -> None:
         spec = DockerfileSpec(labels={"maintainer": "test", "version": "1.0"})
@@ -236,6 +306,21 @@ class TestGenerateDockerfile:
         spec = DockerfileSpec(tcl_version="7.0")
         with pytest.raises(DockerError):
             generate_dockerfile(spec)
+
+    def test_custom_cli_version(self) -> None:
+        spec = DockerfileSpec(cli_version="2.0.0")
+        result = generate_dockerfile(spec)
+        assert "v2.0.0/tcl-2.0.0.pyz" in result
+
+    def test_alpine_with_packages_installs_python(self) -> None:
+        spec = DockerfileSpec(base_image="alpine:3.19")
+        result = generate_dockerfile(spec)
+        assert "apk add --no-cache python3" in result
+
+    def test_redhat_with_venv_installs_python(self) -> None:
+        spec = DockerfileSpec(base_image="fedora:39", create_venv=True, install_packages=False)
+        result = generate_dockerfile(spec)
+        assert "dnf install -y python3" in result
 
 
 # ---------------------------------------------------------------------------
@@ -290,6 +375,9 @@ class TestDockerCLI:
         assert output.exists()
         content = output.read_text()
         assert "FROM debian:bookworm-slim" in content
+        assert "python3" in content
+        assert "tcl.pyz" in content
+        assert "pkg sync" in content
 
     def test_docker_create_alpine_90(self, tmp_path: Path) -> None:
         from explorer.tcl_cli import main
@@ -330,6 +418,20 @@ class TestDockerCLI:
         assert exit_code == 0
         content = output.read_text()
         assert "TCLLIBPATH" in content
+        assert "tcl.pyz venv create" in content
+
+    def test_docker_create_no_packages(self, tmp_path: Path) -> None:
+        from explorer.tcl_cli import main
+
+        output = tmp_path / "Dockerfile"
+        exit_code = main([
+            "docker", "create", "debian:bookworm-slim",
+            "--no-packages",
+            "--output", str(output),
+        ])
+        assert exit_code == 0
+        content = output.read_text()
+        assert "pkg sync" not in content
 
     def test_docker_create_refuses_overwrite(self, tmp_path: Path) -> None:
         from explorer.tcl_cli import main
@@ -379,6 +481,19 @@ class TestDockerCLI:
         assert data["base_image"] == "debian:bookworm-slim"
         assert data["tcl_version"] == "8.6"
         assert "content" in data
+
+    def test_docker_create_cli_version(self, tmp_path: Path) -> None:
+        from explorer.tcl_cli import main
+
+        output = tmp_path / "Dockerfile"
+        exit_code = main([
+            "docker", "create", "debian:bookworm-slim",
+            "--cli-version", "2.0.0",
+            "--output", str(output),
+        ])
+        assert exit_code == 0
+        content = output.read_text()
+        assert "v2.0.0/tcl-2.0.0.pyz" in content
 
     def test_docker_recipe(self) -> None:
         import sys

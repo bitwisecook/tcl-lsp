@@ -36,6 +36,7 @@ def _run_create(args: argparse.Namespace) -> int:
         install_packages=not getattr(args, "no_packages", False),
         create_venv=getattr(args, "venv", False),
         entrypoint=getattr(args, "entrypoint", None),
+        cli_version=getattr(args, "cli_version", None),
     )
 
     # Parse --label key=value pairs.
@@ -224,6 +225,11 @@ def add_docker_subparser(
         "--env",
         action="append",
         help="Docker ENV as key=value (repeatable).",
+    )
+    create_p.add_argument(
+        "--cli-version",
+        default=None,
+        help="tcl CLI zipapp version to download (default: latest known).",
     )
     create_p.add_argument(
         "--force",

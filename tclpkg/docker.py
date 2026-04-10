@@ -1,7 +1,8 @@
 """Dockerfile generation for Tcl projects.
 
 Generates production-ready Dockerfiles that install a specific Tcl
-version, optionally bundle project packages via ``tclpkg``, and create
+version, download the ``tcl`` CLI zipapp from GitHub releases, and
+use ``tcl pkg sync`` / ``tcl venv create`` to set up packages and
 a virtual environment inside the container.
 
 The module provides both a library API (``generate_dockerfile``) for
@@ -16,12 +17,28 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Tcl install recipes per base-image family
+# Constants
 # ---------------------------------------------------------------------------
 
-# Each recipe is a mapping of base-image prefix → shell commands to install
-# a given Tcl version.  The ``{version}`` and ``{version_short}`` placeholders
-# are expanded at generation time (e.g. ``8.6`` → ``8.6.16``, ``86``).
+SUPPORTED_TCL_VERSIONS = ("8.4", "8.5", "8.6", "9.0")
+
+DEFAULT_TCL_VERSION = "8.6"
+
+DEFAULT_BASE_IMAGE = "debian:bookworm-slim"
+
+# GitHub release URL template for the unified tcl CLI zipapp.
+# {cli_version} is the tcl-lsp release version (e.g. "1.6.0").
+_TCL_CLI_URL = (
+    "https://github.com/bitwisecook/tcl-lsp/releases/download/"
+    "v{cli_version}/tcl-{cli_version}.pyz"
+)
+
+# Latest known release at time of writing.
+_DEFAULT_CLI_VERSION = "1.6.0"
+
+# ---------------------------------------------------------------------------
+# Tcl install recipes per base-image family
+# ---------------------------------------------------------------------------
 
 _RECIPES: dict[str, dict[str, str]] = {
     # ── Debian / Ubuntu ────────────────────────────────────────────────
@@ -157,15 +174,23 @@ _IMAGE_FAMILY: list[tuple[str, str]] = [
     ("redhat", "redhat"),
 ]
 
-SUPPORTED_TCL_VERSIONS = ("8.4", "8.5", "8.6", "9.0")
-
-DEFAULT_TCL_VERSION = "8.6"
-
-DEFAULT_BASE_IMAGE = "debian:bookworm-slim"
-
 
 class DockerError(ValueError):
     """Raised when Dockerfile generation fails."""
+
+
+# ---------------------------------------------------------------------------
+# Python 3 install recipes per family
+# ---------------------------------------------------------------------------
+
+_PYTHON_INSTALL: dict[str, str] = {
+    "debian": textwrap.dedent("""\
+        RUN apt-get update && apt-get install -y --no-install-recommends \\
+                python3 curl ca-certificates && \\
+            rm -rf /var/lib/apt/lists/*"""),
+    "alpine": "RUN apk add --no-cache python3 curl",
+    "redhat": "RUN dnf install -y python3 curl && dnf clean all",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +241,21 @@ def tcl_install_recipe(image: str, tcl_version: str) -> str:
     return recipe
 
 
+def python_install_recipe(image: str) -> str:
+    """Return the Dockerfile snippet that installs Python 3 on *image*."""
+    family = detect_image_family(image)
+    recipe = _PYTHON_INSTALL.get(family)
+    if recipe is None:
+        raise DockerError(f"no Python install recipe for image family: {family}")
+    return recipe
+
+
+def tcl_cli_download_url(cli_version: str | None = None) -> str:
+    """Return the GitHub release URL for the ``tcl`` CLI zipapp."""
+    version = cli_version or _DEFAULT_CLI_VERSION
+    return _TCL_CLI_URL.format(cli_version=version)
+
+
 def available_recipes() -> dict[str, list[str]]:
     """Return ``{family: [versions]}`` for all known recipe families."""
     return {family: sorted(recipes) for family, recipes in sorted(_RECIPES.items())}
@@ -240,6 +280,7 @@ class DockerfileSpec:
     extra_packages: list[str] = field(default_factory=list)
     labels: dict[str, str] = field(default_factory=dict)
     env: dict[str, str] = field(default_factory=dict)
+    cli_version: str | None = None
 
 
 def generate_dockerfile(spec: DockerfileSpec) -> str:
@@ -248,6 +289,8 @@ def generate_dockerfile(spec: DockerfileSpec) -> str:
     Returns the Dockerfile content as a string.
     """
     lines: list[str] = []
+    family = detect_image_family(spec.base_image)
+    needs_cli = spec.install_packages or spec.create_venv
 
     # ── FROM ───────────────────────────────────────────────────────────
     lines.append(f"FROM {spec.base_image}")
@@ -270,9 +313,23 @@ def generate_dockerfile(spec: DockerfileSpec) -> str:
     lines.append(tcl_install_recipe(spec.base_image, spec.tcl_version))
     lines.append("")
 
+    # ── Python 3 + tcl CLI zipapp (needed for pkg/venv) ────────────────
+    if needs_cli:
+        lines.append("# Install Python 3 (required by the tcl CLI tool)")
+        lines.append(python_install_recipe(spec.base_image))
+        lines.append("")
+
+        url = tcl_cli_download_url(spec.cli_version)
+        lines.append("# Download the tcl CLI zipapp from GitHub releases")
+        lines.append(
+            f'RUN curl -fSL "{url}" \\\n'
+            f"        -o /usr/local/bin/tcl.pyz && \\\n"
+            f"    chmod +x /usr/local/bin/tcl.pyz"
+        )
+        lines.append("")
+
     # ── Extra packages ─────────────────────────────────────────────────
     if spec.extra_packages:
-        family = detect_image_family(spec.base_image)
         pkg_list = " \\\n                    ".join(spec.extra_packages)
         if family == "alpine":
             lines.append(f"RUN apk add --no-cache {pkg_list}")
@@ -295,24 +352,22 @@ def generate_dockerfile(spec: DockerfileSpec) -> str:
         lines.append("COPY . .")
         lines.append("")
 
-    # ── tclpkg install ─────────────────────────────────────────────────
+    # ── tcl pkg sync ───────────────────────────────────────────────────
     if spec.install_packages:
-        lines.append("# Install Tcl packages (if tclpkg.tcl manifest exists)")
+        lines.append("# Install Tcl packages from lockfile")
         lines.append(
-            "RUN if [ -f tclpkg.tcl ]; then "
-            "tclsh /app/lib/tclpkg/main.tcl pkg sync --frozen 2>/dev/null || true; fi"
+            "RUN if [ -f tclpkg.lock ]; then "
+            "python3 /usr/local/bin/tcl.pyz pkg sync --frozen; fi"
         )
         lines.append("")
 
-    # ── venv ───────────────────────────────────────────────────────────
+    # ── tcl venv create ────────────────────────────────────────────────
     if spec.create_venv:
         lines.append("# Create Tcl virtual environment")
-        lines.append("RUN mkdir -p .venv/bin .venv/lib && \\")
-        tclsh_name = f"tclsh{spec.tcl_version}" if spec.tcl_version != "8.6" else "tclsh8.6"
         lines.append(
-            f'    printf \'#!/bin/sh\\nexec {tclsh_name} "$@"\\n\' > .venv/bin/tclsh && \\'
+            f"RUN python3 /usr/local/bin/tcl.pyz venv create .venv "
+            f"--tcl {spec.tcl_version}"
         )
-        lines.append("    chmod +x .venv/bin/tclsh")
         lines.append('ENV TCLLIBPATH="/app/.venv/lib"')
         lines.append('ENV PATH="/app/.venv/bin:$PATH"')
         lines.append("")
@@ -354,6 +409,8 @@ __all__ = [
     "available_recipes",
     "detect_image_family",
     "generate_dockerfile",
+    "python_install_recipe",
+    "tcl_cli_download_url",
     "tcl_install_recipe",
     "write_dockerfile",
 ]
