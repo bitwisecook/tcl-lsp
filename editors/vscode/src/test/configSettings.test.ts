@@ -94,6 +94,105 @@ suite("Configuration Settings", () => {
     });
   }
 
+  // ── Full LSP round-trip tests for editor global inheritance ─────────
+  // These tests verify the complete pipeline: setting an editor global
+  // (while the feature toggle is null) causes the middleware to resolve
+  // the value, push it to the server, and the server changes its LSP
+  // response accordingly.
+
+  test("editor.hover.enabled=false suppresses hover via null inheritance", async () => {
+    const docUri = getDocUri("procs.tcl");
+    await activate(docUri);
+    const pos = new vscode.Position(1, 6);
+
+    // Baseline: hover works (feature toggle is null, editor global is true)
+    const before = (await vscode.commands.executeCommand(
+      "vscode.executeHoverProvider",
+      docUri,
+      pos,
+    )) as vscode.Hover[];
+    assert.ok(before && before.length > 0, "Hover should work with default editor globals");
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    try {
+      // Disable hover via the editor global — the null feature toggle
+      // should inherit this and the middleware pushes false to the server.
+      await editorCfg.update("hover.enabled", false, undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.executeHoverProvider",
+        docUri,
+        pos,
+      )) as vscode.Hover[];
+      assert.ok(
+        !after || after.length === 0,
+        `Hover should be suppressed when editor.hover.enabled=false, got ${after?.length ?? 0}`,
+      );
+    } finally {
+      await editorCfg.update("hover.enabled", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  test("editor.folding=false suppresses folding via null inheritance", async () => {
+    const docUri = getDocUri("folding.tcl");
+    await activate(docUri);
+
+    const before = (await vscode.commands.executeCommand(
+      "vscode.executeFoldingRangeProvider",
+      docUri,
+    )) as vscode.FoldingRange[];
+    assert.ok(before && before.length > 0, "Folding should work with default editor globals");
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    try {
+      await editorCfg.update("folding", false, undefined);
+      await sleep(800);
+
+      const after = (await vscode.commands.executeCommand(
+        "vscode.executeFoldingRangeProvider",
+        docUri,
+      )) as vscode.FoldingRange[];
+      assert.ok(
+        !after || after.length === 0,
+        `Folding should be suppressed when editor.folding=false, got ${after?.length ?? 0}`,
+      );
+    } finally {
+      await editorCfg.update("folding", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
+  test("explicit features.hover=true overrides editor.hover.enabled=false", async () => {
+    const docUri = getDocUri("procs.tcl");
+    await activate(docUri);
+    const pos = new vscode.Position(1, 6);
+
+    const editorCfg = vscode.workspace.getConfiguration("editor");
+    const featureCfg = vscode.workspace.getConfiguration("tclLsp.features");
+    try {
+      // Disable the editor global but explicitly enable our feature toggle
+      await editorCfg.update("hover.enabled", false, undefined);
+      await featureCfg.update("hover", true, undefined);
+      await sleep(800);
+
+      const result = (await vscode.commands.executeCommand(
+        "vscode.executeHoverProvider",
+        docUri,
+        pos,
+      )) as vscode.Hover[];
+      assert.ok(
+        result && result.length > 0,
+        "Explicit features.hover=true should override editor.hover.enabled=false",
+      );
+    } finally {
+      await featureCfg.update("hover", undefined, undefined);
+      await editorCfg.update("hover.enabled", undefined, undefined);
+      await sleep(500);
+    }
+  });
+
   // Formatting options
   const formattingIntKeys: Array<[string, number]> = [
     ["indentSize", 4],
