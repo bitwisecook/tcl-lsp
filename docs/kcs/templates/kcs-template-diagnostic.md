@@ -38,6 +38,13 @@ sentence on why it is off by default.>
 <The question a user asks when they see this code in their editor,
 written exactly as they would ask it. One sentence, no jargon.>
 
+## Why
+
+<Simple, plain-English explanation of why this check exists. Write it
+as if explaining the real-world consequence to a colleague: "A missing
+variable will cause a runtime error, stopping the Tcl script with an
+error." One or two sentences. No jargon without a glossary link.>
+
 ## Symptoms
 
 - <What the user sees first: the squiggle colour, the Problems panel
@@ -53,12 +60,6 @@ written exactly as they would ask it. One sentence, no jargon.>
 
 The analyser reports **`<CODE>`** on <the specific token, range, or
 line — say exactly what the reader sees>.
-
-## Why it matters
-
-<Plain-English explanation of what can go wrong if this is ignored.
-The risk, the bug, or the style concern in one paragraph. No jargon
-without a glossary link on first use.>
 
 ## Fix
 

@@ -28,8 +28,18 @@ in the pages; Phase 7 cross-links.
 
 ## Errors (E-codes)
 
-*12 codes — parser, arity, and lexer errors. The analyser marks these
-as red squiggles. Populated in Phase 4.1.*
+- [E001 — missing subcommand](kcs-diagnostic-e001-missing-subcommand.md)
+- [E002 — too few arguments](kcs-diagnostic-e002-too-few-arguments.md)
+- [E003 — too many arguments](kcs-diagnostic-e003-too-many-arguments.md)
+- [E004 — invalid argument count](kcs-diagnostic-e004-invalid-argument-count.md)
+- [E100 — unmatched close bracket](kcs-diagnostic-e100-unmatched-close-bracket.md)
+- [E101 — missing open brace](kcs-diagnostic-e101-missing-open-brace.md)
+- [E102 — unmatched close brace](kcs-diagnostic-e102-unmatched-close-brace.md)
+- [E103 — stolen close brace](kcs-diagnostic-e103-stolen-close-brace.md)
+- [E200 — parse error](kcs-diagnostic-e200-parse-error.md)
+- [E201 — unclosed bracket](kcs-diagnostic-e201-unclosed-bracket.md)
+- [E202 — unclosed quote](kcs-diagnostic-e202-unclosed-quote.md)
+- [E203 — unclosed brace](kcs-diagnostic-e203-unclosed-brace.md)
 
 ## Warnings and style (W-codes)
 

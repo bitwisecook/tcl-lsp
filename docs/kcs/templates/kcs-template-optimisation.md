@@ -29,6 +29,14 @@ here, not in the body.>
 
 What does `<CODE>` rewrite, and when does it fire?
 
+## Why
+
+<Simple, plain-English explanation of why this rewrite exists. Write
+it as if explaining the benefit to a colleague: "Braced expressions
+compile to bytecode; unbraced ones are re-parsed on every call,
+which is slower and risks double substitution." One or two sentences.
+No jargon without a glossary link.>
+
 ## Before
 
 ```tcl
@@ -41,11 +49,6 @@ What does `<CODE>` rewrite, and when does it fire?
 ```tcl
 # The rewritten output the optimiser produces.
 ```
-
-## Why
-
-<Plain-English reason the rewrite is a win: correctness,
-performance, readability, or a combination. One short paragraph.>
 
 ## Safety conditions
 
