@@ -30,16 +30,21 @@ namespace eval ::tclpkg::manifest {
             requires {} dev_requires {} replaces {} excludes {} \
             provides {} entry "" path $path]
 
-        # Create a safe child interp.
+        # Create a safe child interp and hide all commands so only our
+        # 13 directives are available.  A Tcl safe interp already blocks
+        # exec/open/socket/load/source, but still permits control flow,
+        # set, proc, etc.  We hide every remaining command to enforce a
+        # pure-data manifest.
         set child [interp create -safe]
+        foreach cmd [interp eval $child {info commands}] {
+            catch {interp hide $child $cmd} _
+        }
 
-        # Hide everything, then expose only our directives.
+        # Expose only our directives as aliases into the parent.
         foreach cmd {package version description license author homepage
                      tcl require dev-require replace exclude provides entry} {
             interp alias $child $cmd {} [namespace current]::_directive_$cmd
         }
-        # dev-require has a hyphen -- alias it via a helper name.
-        interp alias $child dev-require {} [namespace current]::_directive_dev-require
 
         # Evaluate.
         set code [catch {interp eval $child $text} result opts]

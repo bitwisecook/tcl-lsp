@@ -55,10 +55,16 @@ def fetch_tarball(url: str, dest: Path, *, timeout: int = 60) -> None:
         lower = url.lower()
         if lower.endswith(".zip"):
             with zipfile.ZipFile(tmp_path) as zf:
-                # Zip Slip protection: reject members that escape the staging dir.
+                # Zip Slip protection: reject absolute paths and members
+                # that escape the staging directory.
+                staging_resolved = staging.resolve()
                 for member in zf.namelist():
+                    if Path(member).is_absolute():
+                        raise FetchError(f"zip member has absolute path: {member}")
                     resolved = (staging / member).resolve()
-                    if not str(resolved).startswith(str(staging.resolve())):
+                    try:
+                        resolved.relative_to(staging_resolved)
+                    except ValueError:
                         raise FetchError(f"zip member escapes target directory: {member}")
                 zf.extractall(staging)
         else:

@@ -3252,13 +3252,11 @@ def on_initialized(params: types.InitializedParams) -> None:
     # tclpkg project detection — look for tclpkg.tcl as a project marker
     # and auto-add venv/project lib/ directories to library paths.
     library_paths: list[str] = []
-    _tclpkg_root: str | None = None
     if ws.root_path:
         import os
 
         candidate = os.path.join(ws.root_path, "tclpkg.tcl")
         if os.path.isfile(candidate):
-            _tclpkg_root = ws.root_path
             log.info("Detected tclpkg project at: %s", ws.root_path)
             # Add project-local lib/ if present.
             project_lib = os.path.join(ws.root_path, "lib")

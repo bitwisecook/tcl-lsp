@@ -131,7 +131,13 @@ class ContentAddressableStore:
         b64 = integrity[len("sha256-") :]
         # Re-pad for base64 decoding.
         padded = b64 + "=" * (-len(b64) % 4)
-        raw = base64.urlsafe_b64decode(padded)
+        try:
+            raw = base64.urlsafe_b64decode(padded)
+        except Exception as exc:
+            raise IntegrityError(
+                f"malformed integrity hash: {integrity}",
+                hint="the lockfile may be corrupted; delete tclpkg.lock and re-run 'tcl pkg install'",
+            ) from exc
         hex_digest = raw.hex()
         shard = hex_digest[:2]
         return self._base / shard / hex_digest
