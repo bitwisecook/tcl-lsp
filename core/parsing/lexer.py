@@ -9,8 +9,12 @@ from .tokens import SourcePosition, Token, TokenType
 
 try:
     from tcl_lsp_rust import lexer_tokenise as _rust_lexer_tokenise  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (
+        lexer_tokenise_with_config as _rust_lexer_tokenise_cfg,  # ty: ignore[unresolved-import]
+    )
 except ImportError:
     _rust_lexer_tokenise = None
+    _rust_lexer_tokenise_cfg = None
 
 _bisect_right = bisect.bisect_right
 
@@ -1072,15 +1076,18 @@ class TclLexer:
         the wheel is not available.
         """
         if (
-            _rust_lexer_tokenise is not None
+            _rust_lexer_tokenise_cfg is not None
             and not self._has_virtuals
-            and self._base_offset == 0
-            and self._base_line == 0
-            and self._base_col == 0
             and not _strict_quoting()
-            and TclLexer.expand_syntax
         ):
-            return _rust_lexer_tokenise(self.text)
+            return _rust_lexer_tokenise_cfg(
+                self.text,
+                TclLexer.expand_syntax,
+                TclLexer.irules_brace_separator,
+                self._base_offset,
+                self._base_line,
+                self._base_col,
+            )
         tokens: list[Token] = []
         while True:
             tok = self.get_token()

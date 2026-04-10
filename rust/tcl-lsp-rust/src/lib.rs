@@ -65,6 +65,7 @@ fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(lexer_version, m)?)?;
     m.add_function(wrap_pyfunction!(backslash_subst, m)?)?;
     m.add_function(wrap_pyfunction!(lexer::lexer_tokenise, m)?)?;
+    m.add_function(wrap_pyfunction!(lexer::lexer_tokenise_with_config, m)?)?;
     tokens::register_with(m)?;
     expr_lexer::register_with(m)?;
     Ok(())
