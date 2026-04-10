@@ -4,9 +4,9 @@
 
 Parameter hints for commands and procs as you type arguments.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 
@@ -38,4 +38,4 @@ The provider looks up the command or proc under the cursor and shows the expecte
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

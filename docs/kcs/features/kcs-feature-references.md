@@ -4,9 +4,9 @@
 
 Find all references to a proc or variable across the file.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, analyser
 
 ## How to use
 
@@ -40,4 +40,4 @@ Locates all usages of the symbol under the cursor, including definitions, calls,
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

@@ -2,7 +2,9 @@
 """Build the KCS help database from docs/kcs/features/ markdown files.
 
 Parses every ``kcs-feature-*.md`` file, extracts structured sections, and
-writes a SQLite database with FTS5 full-text search and screenshot BLOBs.
+writes a SQLite database with FTS5 full-text search, a normalised tag
+table derived from each note's ``## Applies to`` line, and screenshot
+BLOBs.
 
 Output: ``core/help/kcs_help.db``
 
@@ -26,10 +28,17 @@ _FEATURES_DIR = _REPO_ROOT / "docs" / "kcs" / "features"
 _SCREENSHOTS_DIR = _REPO_ROOT / "docs" / "screenshots"
 _DEFAULT_OUT = _REPO_ROOT / "core" / "help" / "kcs_help.db"
 
+# Make the repo root importable so we can reuse the canonical Applies to
+# vocabulary and helpers from core.help.kcs_db.
+sys.path.insert(0, str(_REPO_ROOT))
+from core.help.kcs_db import applies_to_category, parse_applies_to  # noqa: E402
+
 # Regex for KCS feature title line
 _TITLE_RE = re.compile(r"^#\s+KCS:\s+feature\s+—\s+(.+)$", re.MULTILINE)
 # Regex for screenshot references: - `ref-id` — caption text
 _SCREENSHOT_RE = re.compile(r"^-\s+`([^`]+)`\s+—\s+(.+)$", re.MULTILINE)
+# Regex to pull the KCS type tag out of a filename (kcs-<type>-...).
+_FILENAME_TYPE_RE = re.compile(r"^kcs-(issue|qa|howto|feature)-")
 
 
 def _parse_kcs_feature(path: Path) -> dict | None:
@@ -77,24 +86,6 @@ def _read_screenshot(ref_id: str) -> tuple[bytes, str] | None:
     return None
 
 
-def _surface_category(surfaces: list[str]) -> str:
-    """Map surface tags to human-readable category names."""
-    surface_set = set(surfaces)
-    if "all-editors" in surface_set or "lsp" in surface_set:
-        if "mcp" in surface_set or "claude-code" in surface_set:
-            return "LSP + AI Features"
-        return "LSP Features (all editors)"
-    if "vscode-chat" in surface_set:
-        return "VS Code AI Chat"
-    if "claude-code" in surface_set:
-        return "Claude Code Skills"
-    if "mcp" in surface_set:
-        return "MCP Tools"
-    if "vscode-command" in surface_set:
-        return "VS Code Commands"
-    return "Other"
-
-
 def build_database(out_path: Path, *, verbose: bool = False) -> None:
     """Build the KCS help SQLite database."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -104,13 +95,13 @@ def build_database(out_path: Path, *, verbose: bool = False) -> None:
     conn = sqlite3.connect(str(out_path))
     conn.execute("PRAGMA journal_mode=DELETE")
 
-    # Features table with FTS5
+    # Features table with FTS5. Tags are stored separately in feature_tags;
+    # the FTS index only carries the searchable prose fields.
     conn.execute(
         """
         CREATE VIRTUAL TABLE kcs_features USING fts5(
             name,
             summary,
-            surface,
             category,
             how_to_use,
             content,
@@ -119,6 +110,21 @@ def build_database(out_path: Path, *, verbose: bool = False) -> None:
         )
         """
     )
+
+    # Normalised tag table derived from each note's "## Applies to" line.
+    # One row per (file, tag). The shorthand "all editors" is expanded by
+    # parse_applies_to() into the full LSP editor set, so it never appears
+    # as a tag here.
+    conn.execute(
+        """
+        CREATE TABLE feature_tags (
+            file TEXT NOT NULL,
+            tag  TEXT NOT NULL,
+            PRIMARY KEY (file, tag)
+        )
+        """
+    )
+    conn.execute("CREATE INDEX idx_feature_tags_tag ON feature_tags (tag)")
 
     # Screenshots table
     conn.execute(
@@ -139,6 +145,7 @@ def build_database(out_path: Path, *, verbose: bool = False) -> None:
         print(f"WARN: no KCS feature files found in {_FEATURES_DIR}", file=sys.stderr)
 
     n_features = 0
+    n_tags = 0
     n_screenshots = 0
 
     for path in feature_paths:
@@ -148,24 +155,30 @@ def build_database(out_path: Path, *, verbose: bool = False) -> None:
                 print(f"  SKIP {path.name} (no title match)", file=sys.stderr)
             continue
 
-        surfaces = [s.strip() for s in feature.get("surface", "").split(",")]
-        category = _surface_category(surfaces)
+        applies_to_text = feature.get("applies_to", "")
+        tags = parse_applies_to(applies_to_text)
+        # Add the KCS type tag derived from the filename prefix
+        # (kcs-feature-..., kcs-issue-..., etc.). The type tag lets callers
+        # filter by note kind alongside the editor and tool tags.
+        type_match = _FILENAME_TYPE_RE.match(path.name)
+        if type_match:
+            tags.add(type_match.group(1))
+        category = applies_to_category(tags)
 
-        # Build full content blob for deep FTS matching
+        # Build full content blob for deep FTS matching.
         content_parts = []
-        for key in ("how_to_use", "operational_context", "failure_modes", "file_path_anchors"):
+        for key in ("how_to_use", "example", "examples"):
             val = feature.get(key, "")
             if val:
                 content_parts.append(val)
         content = "\n\n".join(content_parts)
 
         conn.execute(
-            "INSERT INTO kcs_features (name, summary, surface, category, how_to_use, content, file) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO kcs_features (name, summary, category, how_to_use, content, file) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (
                 feature.get("name", ""),
                 feature.get("summary", ""),
-                feature.get("surface", ""),
                 category,
                 feature.get("how_to_use", ""),
                 content,
@@ -173,6 +186,13 @@ def build_database(out_path: Path, *, verbose: bool = False) -> None:
             ),
         )
         n_features += 1
+
+        for tag in sorted(tags):
+            conn.execute(
+                "INSERT OR IGNORE INTO feature_tags (file, tag) VALUES (?, ?)",
+                (feature.get("file", ""), tag),
+            )
+            n_tags += 1
 
         # Insert screenshots
         for ref_id, caption in _extract_screenshots(feature):
@@ -205,8 +225,8 @@ def build_database(out_path: Path, *, verbose: bool = False) -> None:
 
     size_kb = out_path.stat().st_size / 1024
     print(
-        f"kcs_help.db: {n_features} features, {n_screenshots} screenshots, "
-        f"{size_kb:.0f} KB → {out_path}"
+        f"kcs_help.db: {n_features} features, {n_tags} tags, "
+        f"{n_screenshots} screenshots, {size_kb:.0f} KB → {out_path}"
     )
 
 

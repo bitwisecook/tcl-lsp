@@ -4,9 +4,9 @@
 
 Outline of procs, namespaces, event handlers, and variables in the current file.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, analyser
 
 ## How to use
 
@@ -39,4 +39,4 @@ Produces a hierarchical symbol tree with procs nested inside namespaces, variabl
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

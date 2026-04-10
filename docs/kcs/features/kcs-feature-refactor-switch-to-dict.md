@@ -4,9 +4,9 @@
 
 Convert a `switch -exact` where every arm sets the same variable (or returns a value) into a `dict create` + `dict get`.
 
-## Surface
+## Applies to
 
-lsp, mcp, claude-code, all-editors
+all-editors, MCP, Claude skill, refactoring
 
 ## How to use
 

@@ -4,9 +4,9 @@
 
 Clickable links for URLs and file paths in comments and strings.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 
@@ -29,7 +29,20 @@ The provider scans comments and string literals for URLs and file paths, making 
 
 - `tests/test_document_links.py`
 
+## Example
+
+In this Tcl file:
+
+```tcl
+# See https://www.tcl-lang.org/man/tcl/TclCmd/string.htm for reference.
+source lib/helpers.tcl
+```
+
+The URL in the comment becomes an underlined link that opens in
+the browser on Ctrl+Click, and `lib/helpers.tcl` becomes a link
+that opens the file in a new editor tab.
+
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

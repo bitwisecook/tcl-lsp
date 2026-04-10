@@ -4,9 +4,9 @@
 
 Translate F5 BIG-IP iRules to F5 Distributed Cloud (XC) routes and service policies.
 
-## Surface
+## Applies to
 
-vscode-command, vscode-chat, mcp, claude-code
+VS Code, Copilot Chat, MCP, Claude skill
 
 ## Availability
 
@@ -41,6 +41,34 @@ The translator maps iRule event handlers and commands to XC route and service po
 ## Test anchors
 
 - `tests/test_xc_translate.py`
+
+## Example
+
+### Before (iRule)
+
+```tcl
+when HTTP_REQUEST {
+    if { [HTTP::uri] starts_with "/api" } {
+        pool api_pool
+    }
+}
+```
+
+### After (XC route policy)
+
+```yaml
+routes:
+  - match:
+      path:
+        prefix: /api
+    route_destination:
+      pool:
+        name: api_pool
+```
+
+Patterns without a direct equivalent — for example, a `HTTP::header
+insert` that mutates response headers — are emitted as a comment in
+the YAML output flagged as a manual migration item.
 
 ## Discoverability
 

@@ -4,9 +4,9 @@
 
 Jump to proc or variable definitions within and across files.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, analyser
 
 ## How to use
 
@@ -40,4 +40,4 @@ Resolves proc calls, variable references, namespace-qualified names, and BIG-IP 
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

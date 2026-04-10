@@ -5,9 +5,9 @@
 Interactive CLI debugger for Tcl scripts with single-stepping, breakpoints,
 variable inspection, and call stack visualisation.
 
-## Surface
+## Applies to
 
-cli
+tcl-lsp CLI
 
 ## Availability
 

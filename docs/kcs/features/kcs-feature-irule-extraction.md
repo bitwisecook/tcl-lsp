@@ -4,9 +4,9 @@
 
 Extract iRules from BIG-IP configuration files into individual editor tabs or files.
 
-## Surface
+## Applies to
 
-vscode-command
+VS Code
 
 ## Availability
 
@@ -40,7 +40,26 @@ BIG-IP configuration files embed iRules as `ltm rule` blocks. These commands par
 
 - `tests/test_bigip_extraction.py`
 
+## Example
+
+Given a BIG-IP `bigip.conf` with:
+
+```
+ltm rule /Common/redirect_http {
+    when HTTP_REQUEST {
+        if { [TCP::local_port] == 80 } {
+            HTTP::redirect "https://[HTTP::host][HTTP::uri]"
+        }
+    }
+}
+```
+
+Placing the cursor anywhere inside the `ltm rule` block and
+running **Tcl: Open iRule in Editor** opens a new editor tab with
+just the iRule body as an `.irul` file — full LSP features apply
+and the file is ready to edit or save.
+
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [VS Code extension contracts](../kcs-vscode-extension-contracts.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)

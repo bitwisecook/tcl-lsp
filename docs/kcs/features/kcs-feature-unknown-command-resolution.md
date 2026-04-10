@@ -6,9 +6,9 @@ Detects unresolved commands and offers "did you mean?" suggestions. Static
 analysis of user-defined `unknown` procs extracts dispatch targets to reduce
 false positives.
 
-## Surface
+## Applies to
 
-lsp, vscode, jetbrains (other editors via XDG config)
+all-editors, jetbrains (other editors via XDG config), warning
 
 ## How to use
 
@@ -37,9 +37,9 @@ W123 behaviour accordingly:
 
 - **Dynamic providers**: If `load`, `set auto_path`, `lappend auto_path`, `rename`, or `namespace import` is detected, W123 is suppressed for the entire file.
 - **Package require**: If any `package require` is present, W123 is suppressed (external packages may define commands).
-- **Dialect stubs**: Commands declared via `# tcl-lsp: stub` are treated as known. See [Dialect Stubs](../kcs-dialect-stubs.md).
+- **Dialect stubs**: Commands declared via `# tcl-lsp: stub` are treated as known. See [Dialect Stubs](../../../docs/design/contracts/dialect-stubs.md).
 - **User-defined procs**: Any `proc` defined in the file (or sourced via packages) is a known command.
-- **Command aliases**: Commands defined via `interp alias` are treated as known. See [Command Alias Resolution](../kcs-command-alias-resolution.md).
+- **Command aliases**: Commands defined via `interp alias` are treated as known. See [Command Alias Resolution](../../../docs/design/contracts/command-alias-resolution.md).
 - **Namespace-qualified names**: Commands containing `::` are skipped (may come from `namespace import`).
 
 ## Operational context
@@ -69,8 +69,25 @@ against the union of: registry commands, user-defined procs, stub commands,
 - `tests/test_analyser.py` — W123 test cases
 - `tests/test_text_utils.py` — edit distance and suggestion tests
 
+## Example
+
+With `tclLsp.diagnostics.W123` enabled:
+
+```tcl
+proc greet {name} {
+    puts "Hello, $name"
+}
+
+gret "Alice"
+```
+
+Line 5 shows a hint-level squiggle under `gret` with the message
+`W123 unresolved command 'gret' — did you mean 'greet'?`. A
+lightbulb code action offers **Replace with `greet`** which
+rewrites the call in one click.
+
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [Diagnostics calculation](../compiler/kcs-diagnostics-calculation.md)
-- [Dialect stubs](../kcs-dialect-stubs.md)
+- [Diagnostics calculation](../../../docs/design/compiler/diagnostics-calculation.md)
+- [Dialect stubs](../../../docs/design/contracts/dialect-stubs.md)

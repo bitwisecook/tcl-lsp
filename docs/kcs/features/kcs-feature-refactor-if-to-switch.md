@@ -4,9 +4,9 @@
 
 Convert an if/elseif equality chain on a single variable into a `switch -exact` statement.
 
-## Surface
+## Applies to
 
-lsp, mcp, claude-code, all-editors
+all-editors, MCP, Claude skill, refactoring
 
 ## How to use
 

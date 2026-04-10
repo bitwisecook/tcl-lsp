@@ -4,9 +4,9 @@
 
 Detects variables that are set but never read, unused procedure parameters, and dead stores where a value is overwritten before use. Offers quick-fix code actions to remove unused assignments.
 
-## Surface
+## Applies to
 
-lsp, mcp, claude-code, all-editors
+all-editors, MCP, Claude skill, warning
 
 ## Availability
 

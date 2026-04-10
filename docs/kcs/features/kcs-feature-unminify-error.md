@@ -4,9 +4,9 @@
 
 Translate Tcl or iRule error messages produced by minified code back to the original variable, proc, and command names using a saved symbol map.  Optionally remaps line-number references from minified single-line output to approximate original source lines.
 
-## Surface
+## Applies to
 
-lsp, vscode-command, sublime-command, cli, mcp, all-editors
+all-editors, tcl-lsp CLI, MCP, transform
 
 ## Availability
 

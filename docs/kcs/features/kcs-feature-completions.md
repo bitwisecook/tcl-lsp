@@ -4,9 +4,9 @@
 
 Context-aware completions for commands, subcommands, variables, switches, and procs.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, analyser
 
 ## How to use
 
@@ -40,4 +40,4 @@ The completion provider offers context-sensitive suggestions based on the cursor
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

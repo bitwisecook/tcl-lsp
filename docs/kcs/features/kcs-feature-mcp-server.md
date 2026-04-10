@@ -4,9 +4,9 @@
 
 Model Context Protocol server exposing analysis/refactoring tools for AI agent integration.
 
-## Surface
+## Applies to
 
-mcp
+MCP
 
 ## Availability
 
@@ -65,6 +65,30 @@ Pure Python implementation — no heavy SDK, no pydantic, no C extensions. Runs 
 ## Test anchors
 
 - `tests/test_mcp_server.py`
+
+## Example
+
+An AI agent calls the `analyze` tool over stdio using JSON-RPC 2.0:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "analyze",
+    "arguments": {
+      "source": "when HTTP_REQUEST {\n  log local0. $unset_var\n}\n",
+      "dialect": "f5-irules"
+    }
+  }
+}
+```
+
+The server responds with a structured report listing the unresolved
+variable diagnostic (`W211`), the single `HTTP_REQUEST` event, and
+the full symbol table for the script. The agent can then follow up
+with `code_actions` or `optimize` on the same source.
 
 ## Discoverability
 

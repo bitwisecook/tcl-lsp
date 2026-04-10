@@ -4,9 +4,9 @@
 
 Search symbols across all open files in the workspace.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 
@@ -29,8 +29,21 @@ Searches the workspace index for procs, namespaces, and variables matching the q
 
 - `tests/test_workspace_symbols.py`
 
+## Example
+
+In a workspace containing `lib/http.tcl` with:
+
+```tcl
+proc http_get {url} { ... }
+proc http_post {url body} { ... }
+```
+
+Pressing Ctrl+T and typing `http_` lists `http_get` and
+`http_post` — each entry shows the containing file and line
+number, and selecting one jumps straight to its definition.
+
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
-- [Workspace indexing contracts](../kcs-workspace-indexing-contracts.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)
+- [Workspace indexing contracts](../../../docs/design/contracts/workspace-indexing.md)

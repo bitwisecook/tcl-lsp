@@ -4,9 +4,9 @@
 
 16 built-in Tcl and iRules code templates insertable from the command palette.
 
-## Surface
+## Applies to
 
-vscode-command, all-editors
+all-editors
 
 ## Availability
 

@@ -4,9 +4,9 @@
 
 Inline type and value information displayed alongside code.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 
@@ -38,4 +38,4 @@ Inlay hints show additional information such as parameter names and inferred typ
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

@@ -4,9 +4,9 @@
 
 VS Code Copilot Chat participant for creating, explaining, fixing, reviewing, and transforming F5 BIG-IP iRules.
 
-## Surface
+## Applies to
 
-vscode-chat
+Copilot Chat
 
 ## Availability
 
@@ -77,4 +77,4 @@ The chat participant uses the LSP server for diagnostics, symbols, and optimisat
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [VS Code extension contracts](../kcs-vscode-extension-contracts.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)

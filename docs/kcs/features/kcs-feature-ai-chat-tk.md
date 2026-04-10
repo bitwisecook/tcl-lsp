@@ -4,9 +4,9 @@
 
 VS Code Copilot Chat participant for creating, explaining, and previewing Tk GUI applications.
 
-## Surface
+## Applies to
 
-vscode-chat
+Copilot Chat
 
 ## Availability
 
@@ -43,6 +43,24 @@ Uses the Tcl analysis engine with Tk-specific system prompts. Created code is va
 ## Test anchors
 
 - `editors/vscode/src/test/chatUtilities.test.ts`
+
+## Example
+
+A prompt in the Copilot Chat panel:
+
+> `@tk /create a window with a label and a button that changes the label text`
+
+The participant generates a short Tk script:
+
+```tcl
+package require Tk
+label .lbl -text "Hello"
+button .btn -text "Change" -command {.lbl configure -text "Clicked"}
+pack .lbl .btn
+```
+
+Running `@tk /preview` then opens the live Tk Preview pane with the
+rendered window.
 
 ## Discoverability
 

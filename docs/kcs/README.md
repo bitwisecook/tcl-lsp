@@ -1,115 +1,94 @@
 # KCS index
 
-This folder contains small, searchable Knowledge-Centered Service (KCS) notes.
+This folder holds Knowledge-Centered Service (KCS) notes. A KCS note is a
+small, searchable answer to one question, written in plain English for a
+named audience.
 
-## Pipeline and analysis
+Every KCS note belongs to one of six categories:
 
-- [kcs-lsp-feature-providers.md](kcs-lsp-feature-providers.md) — non-diagnostics LSP provider contracts and failure modes.
-- [kcs-formatter-engine-contracts.md](kcs-formatter-engine-contracts.md) — formatter idempotency and rewrite contracts.
-- [kcs-command-registry-event-model.md](kcs-command-registry-event-model.md) — command/event registry ownership and consumer rules.
-- [kcs-workspace-indexing-contracts.md](kcs-workspace-indexing-contracts.md) — workspace cache/index/scanner contracts.
-- [kcs-package-loading-contracts.md](kcs-package-loading-contracts.md) — package loading system: stdlib, tcllib, Tk, iRules cross-file procs.
-- [kcs-lexing-contracts.md](kcs-lexing-contracts.md) — token/range fidelity rules for lexer changes.
-- [kcs-parsing-contracts.md](kcs-parsing-contracts.md) — segmentation and recovery contracts.
-- [kcs-core-lsp-shared-utility-contracts.md](kcs-core-lsp-shared-utility-contracts.md) — shared helper ownership and cross-feature consistency contracts.
-- [kcs-lsp-diagnostics-publication.md](kcs-lsp-diagnostics-publication.md) — LSP diagnostics publication and suppression model.
-- [kcs-vm-bytecode-test-boundary.md](kcs-vm-bytecode-test-boundary.md) — VM/bytecode identity and fixture boundary guidance.
-- [kcs-vscode-extension-contracts.md](kcs-vscode-extension-contracts.md) — VS Code extension integration contracts.
-- [kcs-vscode-lsp-startup-logs.md](kcs-vscode-lsp-startup-logs.md) — user guide: viewing the VS Code `Tcl Language Server` output channel to confirm the LSP started.
-- [kcs-pipeline-lsp-first.md](kcs-pipeline-lsp-first.md) — how to think about pipeline layering for LSP use.
-- [kcs-shimmer-reference-behaviour.md](kcs-shimmer-reference-behaviour.md) — practical shimmer expectations and current validation strategy.
-- [kcs-project-layout-contracts.md](kcs-project-layout-contracts.md) — repository layout ownership and dependency direction contracts.
+- **Issue** — "Why is X not working, and how do I fix it?"
+- **Q&A** — "What is X?" / "When should I use Y?"
+- **How-To** — "How do I do X?"
+- **Functionality** — "What does command/feature/tool X do, and how do I
+  use it?"
+- **Diagnostic** — per-code page for an E/W/S/T/IRULE diagnostic.
+- **Optimisation** — per-code page for an O-code optimiser rewrite.
 
-- [kcs-proc-arg-traits.md](kcs-proc-arg-traits.md) — proc argument trait inference: EVAL, BODY, VAR_WRITE, LOOP_LIST detection.
-- [kcs-docstring-handling.md](kcs-docstring-handling.md) — proc docstring extraction, parsing, formatting, and AI tool integration.
-- [kcs-dialect-stubs.md](kcs-dialect-stubs.md) — dialect command stubs: `.tcl.stubs` files and inline stubs-begin/end blocks.
-- [kcs-command-alias-resolution.md](kcs-command-alias-resolution.md) — `interp alias` resolution: argument role inheritance for EXPR, BODY, VAR_NAME, PATTERN.
+If your content does not fit one of these six categories, you are writing
+a design doc. Put it under [`../design/`](../design/README.md) instead.
 
-## TclOO
+## How to write a KCS note
 
-- [kcs-tcloo-implementation.md](kcs-tcloo-implementation.md) — TclOO class hierarchy analysis, VM runtime, MRO algorithm, and test conformance.
+1. Pick a category and copy the matching template from
+   [`templates/`](templates/README.md).
+2. Follow the style guide in [`STYLE.md`](STYLE.md). The short-form rules
+   are also listed in [`AGENTS.md`](../../AGENTS.md) under "Knowledge base
+   and documentation".
+3. Link the new note from the appropriate section below.
+4. Add a cross-link to [`docs/GLOSSARY.md`](../GLOSSARY.md) for any
+   complex term you use.
 
-## Diagnostics
+## Issues
 
-- [kcs-irule4005-racy-static-cross-event.md](kcs-irule4005-racy-static-cross-event.md) — IRULE4005: racy `static::` cross-event flow from non-RULE_INIT events.
-- [kcs-variable-case-mismatch-suggestions.md](kcs-variable-case-mismatch-suggestions.md) — W210/W211/W220: "did you mean?" suggestions for case-only variable typos.
+- [kcs-issue-lsp-features-are-missing.md](kcs-issue-lsp-features-are-missing.md)
+  — squiggles, hovers, and completions do not appear in VS Code and
+  you want to know whether the Tcl Language Server started at all.
+- [kcs-issue-stale-compiler-cache.md](kcs-issue-stale-compiler-cache.md)
+  — stale incremental cache produces wrong diagnostics.
+- [kcs-issue-range-drift.md](kcs-issue-range-drift.md) — diagnostic or
+  hover ranges point at the wrong span.
+- [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
+  — the same finding is reported twice.
 
-## Fuzzing and test generation
+## Q&A
 
-- [kcs-differential-fuzzing-contracts.md](kcs-differential-fuzzing-contracts.md) — differential fuzzing oracle, bad-input corruption, and coverage-guided mutation contracts.
-- [kcs-fuzz-finding-workflow.md](kcs-fuzz-finding-workflow.md) — how to triage, fix, test, and close fuzz findings.
+- [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md) —
+  when (and when not) to restart the Tcl Language Server.
 
-## Scripts and test authoring
+## How-Tos
 
-- [kcs-tcl-script-authoring-for-tests.md](kcs-tcl-script-authoring-for-tests.md) — patterns for writing Tcl examples for parser/analysis/bytecode tests.
-- [kcs-irule-script-authoring-for-tests.md](kcs-irule-script-authoring-for-tests.md) — patterns for iRule examples focused on event flow and diagnostics.
-- [kcs-screenshot-sample-authoring.md](kcs-screenshot-sample-authoring.md) — conventions for screenshot sample files and cursor marker comments.
-- [kcs-irule-test-framework.md](kcs-irule-test-framework.md) — iRule Event Orchestrator: TMM simulation, command mocks, assertion DSL, Python bridge.
+- [kcs-howto-add-compiler-pass.md](kcs-howto-add-compiler-pass.md) — add
+  a new pass to the compiler pipeline.
+- [kcs-howto-ir-cfg-ssa-diagnostics.md](kcs-howto-ir-cfg-ssa-diagnostics.md)
+  — debug an IR, CFG, or SSA diagnostic end-to-end.
+- [kcs-howto-work-on-fuzz-findings.md](kcs-howto-work-on-fuzz-findings.md)
+  — triage, fix, test, and close a differential-fuzzer finding.
+- [kcs-howto-author-tcl-test-scripts.md](kcs-howto-author-tcl-test-scripts.md)
+  — write small Tcl scripts for parser, analysis, and bytecode tests.
+- [kcs-howto-author-irule-test-scripts.md](kcs-howto-author-irule-test-scripts.md)
+  — write iRule scripts for event-flow and diagnostic tests.
+- [kcs-howto-author-screenshot-samples.md](kcs-howto-author-screenshot-samples.md)
+  — write sample files and cursor marker comments for screenshots.
 
-## Configuration
+## Functionality (commands, features, and tools)
 
-- [kcs-dialect-detection.md](kcs-dialect-detection.md) — Dialect detection priority chain: editor selection, file extension, comment directive, shebang, and user setting.
-- [kcs-xdg-config.md](kcs-xdg-config.md) — Configuration file reference: platform-native paths, sections, keys, precedence, editor interaction, and export command.
+65 per-feature KCS notes live under [`features/`](features/README.md).
+The `help` subcommand, the MCP `help` tool, and the VS Code `/help`
+chat command all read these files at runtime to build their feature
+catalogues.
 
-## Compiler architecture decomposition
+## Diagnostics and optimisations (per-code pages)
 
-- [compiler/README.md](compiler/README.md) — compiler-specific KCS landing page.
+120 per-code KCS notes live under [`codes/`](codes/README.md) — 92
+diagnostic pages (E, W, S, T, and IRULE families) and 28 optimisation
+pages (O family). Each page follows the diagnostic or optimisation
+template, tags the compiler pass that produces it, explains in plain
+English why the check exists, shows a triggering example and the fix,
+and links to the [glossary](../GLOSSARY.md) and the relevant
+[compiler design doc](../design/compiler/README.md).
 
-- [compiler/kcs-compiler-pipeline-overview.md](compiler/kcs-compiler-pipeline-overview.md) — stage map and hand-off boundaries.
-- [compiler/kcs-compiler-systems-overview.md](compiler/kcs-compiler-systems-overview.md) — subsystem contract map for compiler ownership triage.
-- [compiler/kcs-lowering-contracts.md](compiler/kcs-lowering-contracts.md) — lowering guarantees consumed by CFG/SSA.
-- [compiler/kcs-cfg-ssa-fact-model.md](compiler/kcs-cfg-ssa-fact-model.md) — SSA/core fact production and consumption.
-- [compiler/kcs-execution-intent-model.md](compiler/kcs-execution-intent-model.md) — execution-intent facts and command-substitution classification model.
-- [compiler/kcs-side-effects-system.md](compiler/kcs-side-effects-system.md) — structured side-effect hints and effect classification flow.
-- [compiler/kcs-codegen-module-map.md](compiler/kcs-codegen-module-map.md) — codegen package module map and ownership boundaries.
-- [compiler/kcs-phase4-lsp-consumers.md](compiler/kcs-phase4-lsp-consumers.md) — how LSP features consume shared compilation-unit facts.
-- [compiler/kcs-compilation-unit-contracts.md](compiler/kcs-compilation-unit-contracts.md) — CU orchestration and incremental cache contracts.
-- [compiler/kcs-downstream-pass-contracts.md](compiler/kcs-downstream-pass-contracts.md) — pass ownership and typed finding contracts.
-- [compiler/kcs-pass-fact-ownership-matrix.md](compiler/kcs-pass-fact-ownership-matrix.md) — pass -> fact -> consumer ownership matrix.
-- [compiler/kcs-diagnostics-integration.md](compiler/kcs-diagnostics-integration.md) — aggregation, suppression, and policy boundary.
-- [compiler/kcs-async-diagnostics-tiering.md](compiler/kcs-async-diagnostics-tiering.md) — tiered diagnostics scheduling and cancellation.
-- [compiler/kcs-bytecode-boundary.md](compiler/kcs-bytecode-boundary.md) — what should stay in codegen vs move earlier.
-- [compiler/kcs-pass-authoring-checklist.md](compiler/kcs-pass-authoring-checklist.md) — checklist for pass additions and updates.
-- [compiler/kcs-optimiser-o124-unused-irule-procs.md](compiler/kcs-optimiser-o124-unused-irule-procs.md) — O124: comment out unused procs in iRules.
-- [compiler/kcs-tail-call-recursion-optimisation.md](compiler/kcs-tail-call-recursion-optimisation.md) — O121–O123: tail-call and recursion optimisation passes.
-- [compiler/kcs-troubleshooting-stale-cache.md](compiler/kcs-troubleshooting-stale-cache.md) — stale cache regression triage.
-- [compiler/kcs-troubleshooting-range-drift.md](compiler/kcs-troubleshooting-range-drift.md) — range drift regression triage.
-- [compiler/kcs-troubleshooting-duplicate-diagnostics.md](compiler/kcs-troubleshooting-duplicate-diagnostics.md) — duplicate diagnostics triage.
-- [compiler/kcs-contributor-ir-cfg-ssa-diagnostics-runbook.md](compiler/kcs-contributor-ir-cfg-ssa-diagnostics-runbook.md) — IR->CFG->SSA->diagnostics runbook.
-- [compiler/kcs-o125-code-sinking.md](compiler/kcs-o125-code-sinking.md) — O125 code sinking into decision blocks.
+## Templates
 
-- [compiler/kcs-lexing-segmentation.md](compiler/kcs-lexing-segmentation.md) — token and command segmentation.
-- [compiler/kcs-expression-parsing.md](compiler/kcs-expression-parsing.md) — Pratt parser, braced vs unbraced expressions.
-- [compiler/kcs-cfg-construction.md](compiler/kcs-cfg-construction.md) — basic block decomposition patterns.
-- [compiler/kcs-ssa-construction.md](compiler/kcs-ssa-construction.md) — version numbering and phi placement.
-- [compiler/kcs-event-priority-model.md](compiler/kcs-event-priority-model.md) — base priority + offset model for event handlers.
-- [compiler/kcs-ir-types-lowering.md](compiler/kcs-ir-types-lowering.md) — IR node selection rules.
-- [compiler/kcs-lowering-dispatch.md](compiler/kcs-lowering-dispatch.md) — arg_roles and command classification.
-- [compiler/kcs-full-pipeline-walkthrough.md](compiler/kcs-full-pipeline-walkthrough.md) — end-to-end source to bytecode walkthrough.
-- [compiler/kcs-control-flow-patterns.md](compiler/kcs-control-flow-patterns.md) — if/while/for/foreach/proc compilation.
-- [compiler/kcs-error-recovery.md](compiler/kcs-error-recovery.md) — virtual token injection for malformed input.
-- [compiler/kcs-sccp-core-analyses.md](compiler/kcs-sccp-core-analyses.md) — constant propagation and liveness.
-- [compiler/kcs-constant-folding-type-inference.md](compiler/kcs-constant-folding-type-inference.md) — SCCP and type lattice.
-- [compiler/kcs-def-use-chains.md](compiler/kcs-def-use-chains.md) — def-use chain construction and consumer contracts.
-- [compiler/kcs-memory-ssa.md](compiler/kcs-memory-ssa.md) — memory-SSA, alias detection, and versioned memory operations.
-- [compiler/kcs-dataflow-graph.md](compiler/kcs-dataflow-graph.md) — data-flow graph extraction, serialisation, and consumer contracts.
-- [compiler/kcs-rendered-value-properties.md](compiler/kcs-rendered-value-properties.md) — string content analysis over SSA (may/must lattice).
-- [compiler/kcs-taint-analysis.md](compiler/kcs-taint-analysis.md) — sources, sinks, colours, and propagation.
-- [compiler/kcs-interprocedural-analysis.md](compiler/kcs-interprocedural-analysis.md) — ProcSummary construction.
-- [compiler/kcs-optimisation-passes.md](compiler/kcs-optimisation-passes.md) — O100–O126 pass table and priorities.
-- [compiler/kcs-command-registry.md](compiler/kcs-command-registry.md) — command metadata, specs, arity, and taint hints.
-- [compiler/kcs-data-structure-reference.md](compiler/kcs-data-structure-reference.md) — pipeline types at each stage.
-- [compiler/kcs-connection-scope.md](compiler/kcs-connection-scope.md) — cross-event variable flow in iRules.
-- [compiler/kcs-dialects-events.md](compiler/kcs-dialects-events.md) — dialect filtering and event requirements.
-- [compiler/kcs-namespace-resolution.md](compiler/kcs-namespace-resolution.md) — qualified name handling.
-- [compiler/kcs-diagnostics-calculation.md](compiler/kcs-diagnostics-calculation.md) — two-phase diagnostic architecture.
-- [compiler/kcs-codegen-internals.md](compiler/kcs-codegen-internals.md) — LVT, linearisation, labels, and peephole optimisation.
+- [templates/README.md](templates/README.md) — index of the six KCS
+  templates.
 
-## User-facing features
+## Style guide
 
-- [features/README.md](features/README.md) — per-feature KCS docs used by the `help` command, MCP tool, and chat `/help`.
-- [features/kcs-feature-tcl-verb-cli.md](features/kcs-feature-tcl-verb-cli.md) — unified verb-based Tcl zipapp contracts.
+- [STYLE.md](STYLE.md) — the full KCS style guide with worked examples.
 
-## KCS templates
+## Where technical documentation lives
 
-- [templates/README.md](templates/README.md) — reusable templates for contract, troubleshooting, runbook, matrix, and reference KCS notes.
+Design docs, contracts, interfaces, data-structure references, and
+architecture narratives live under [`../design/`](../design/README.md).
+The [glossary](../GLOSSARY.md) is the single source of truth for complex
+terms.

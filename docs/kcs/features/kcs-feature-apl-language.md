@@ -5,9 +5,9 @@
 Semantic highlighting, cross-file diagnostics, and embedded Tcl support for
 F5 iApp APL (Application Presentation Language) files.
 
-## Surface
+## Applies to
 
-lsp, vscode, zed, jetbrains, neovim, helix, emacs, sublime-text
+all-editors
 
 ## How to use
 
@@ -107,6 +107,33 @@ validation.
 - `tests/test_apl_model.py` — structured model, #include resolution,
   variable mapping, cross-file diagnostic tests
 - `tests/test_semantic_tokens.py::TestAplSemanticTokens` — semantic token tests
+
+## Example
+
+A small APL presentation file:
+
+```
+section "Basic"
+string web_server_ip {
+    default ""
+    required "true"
+    validator "IpAddress"
+}
+choice protocol {
+    display "medium"
+    default "HTTPS"
+    value "HTTP" { display "HTTP" }
+    value "HTTPS" { display "HTTPS" }
+}
+```
+
+Opened in the editor, `section` is coloured as an `aplSection`,
+`string` and `choice` as `aplFieldType`, `validator` as
+`aplAttribute`, `IpAddress` as `aplValidator`, and the field names
+`web_server_ip` and `protocol` as `aplFieldName`. If a sibling
+implementation file references `$::Basic__web_server_ip_typo`, the
+implementation file shows an **IAPP7001** warning squiggle on the
+typo.
 
 ## Discoverability
 

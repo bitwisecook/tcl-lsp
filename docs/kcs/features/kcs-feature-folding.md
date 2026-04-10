@@ -4,9 +4,9 @@
 
 Code folding for procs, namespaces, event handlers, and braced blocks.
 
-## Surface
+## Applies to
 
-lsp, all-editors
+all-editors, analyser
 
 ## How to use
 
@@ -38,4 +38,4 @@ Folding ranges are computed from the parsed AST, identifying proc bodies, namesp
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

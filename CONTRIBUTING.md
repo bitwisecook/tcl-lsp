@@ -81,37 +81,51 @@ loop, or the semantic-token emitter) already covers your use case before adding
 another copy.
 
 
-## Documentation style (KCS-first)
+## Documentation style
 
-Project documentation should prefer small, searchable KCS notes over large monolithic narrative sections when the content is operational or high-churn.
+The project has two kinds of written content, with different rules:
 
-When documenting compiler behaviour or diagnostics contracts:
+- **KCS notes** (`docs/kcs/`) — small, user-facing answers to one question
+  each, written in plain British English. They are for people trying to
+  get something done. There are four categories: Issue, Q&A, How-To, and
+  Functionality.
+- **Design docs** (`docs/design/`) — technical material describing how the
+  system is built: architecture, contracts, interfaces, data-structure
+  references. Technical jargon is allowed.
 
-- Add/update a focused note under `docs/kcs/compiler/` and link it from `docs/kcs/compiler/README.md`.
-- Keep `docs/compiler-architecture.md` as orientation + diagrams + links, not deep implementation policy text.
-- Use the templates in `docs/kcs/templates/` for consistent structure.
+The authoritative split, the four KCS categories, and the nine-rule style
+guide all live in [`AGENTS.md`](AGENTS.md) under "Knowledge base and
+documentation". The full style guide with worked examples lives in
+[`docs/kcs/STYLE.md`](docs/kcs/STYLE.md).
 
-Each KCS note should include:
+KCS templates are at [`docs/kcs/templates/`](docs/kcs/templates/README.md).
+Design-doc templates are at
+[`docs/design/templates/`](docs/design/templates/README.md).
 
-1. symptom,
-2. operational context,
-3. decision rules/contracts,
-4. file-path anchors,
-5. failure modes,
-6. test anchors,
-7. discoverability links.
+When you document compiler behaviour or diagnostics contracts:
 
-If a PR changes compiler fact contracts, update at least one relevant KCS note and mention that update in the PR description.
+- Put the contract, data-structure reference, or pipeline narrative under
+  `docs/design/compiler/` and link it from
+  [`docs/design/compiler/README.md`](docs/design/compiler/README.md).
+- If a contributor workflow or troubleshooting story needs documenting,
+  write it as a KCS how-to or issue note under `docs/kcs/` and link it
+  from [`docs/kcs/README.md`](docs/kcs/README.md).
+- Keep [`docs/design/compiler-architecture.md`](docs/design/compiler-architecture.md)
+  as orientation, diagrams, and links — not deep implementation policy.
 
-
+If a PR changes compiler fact contracts, update at least one relevant
+design doc and mention the update in the PR description.
 
 ### Review checklist for compiler fact-contract changes
 
-When a PR changes compiler behaviour, diagnostics contracts, or pass-produced facts, reviewers should explicitly ask:
+When a PR changes compiler behaviour, diagnostics contracts, or
+pass-produced facts, reviewers should explicitly ask:
 
 - Did this change alter a compiler fact contract?
-- If yes, which `docs/kcs/compiler/` note was updated?
-- If a new compiler KCS note was added, is it linked from both compiler and top-level KCS indexes?
+- If yes, which `docs/design/compiler/` doc was updated?
+- If a new compiler design doc was added, is it linked from both
+  [`docs/design/compiler/README.md`](docs/design/compiler/README.md) and
+  the top-level [`docs/design/README.md`](docs/design/README.md)?
 
 ## Compiler pipeline
 

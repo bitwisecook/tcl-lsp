@@ -4,9 +4,9 @@
 
 Escape, unescape, and base64 encode/decode selected text.
 
-## Surface
+## Applies to
 
-vscode-command
+VS Code
 
 ## Availability
 
@@ -35,7 +35,21 @@ These commands help work with Tcl-escaped strings and base64-encoded payloads co
 
 - `editors/vscode/src/test/selectionTransforms.test.ts`
 
+## Example
+
+Selecting `Hello, "World"!` in the editor and running **Tcl:
+Escape Selection** replaces the selection with the Tcl-escaped
+form:
+
+```
+Hello, \"World\"!
+```
+
+Selecting the literal `hello` and running **Tcl: Base64 Encode
+Selection** replaces it with `aGVsbG8=`. Running **Tcl: Base64
+Decode Selection** on that string brings `hello` back.
+
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [VS Code extension contracts](../kcs-vscode-extension-contracts.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)

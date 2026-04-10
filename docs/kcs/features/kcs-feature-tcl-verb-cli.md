@@ -4,9 +4,9 @@
 
 `tcl.pyz` provides a single verb-based CLI for optimisation, diagnostics/linting, validation, formatting, symbol/graph extraction, iRules event metadata lookups, legacy-pattern conversion guidance, disassembly, syntax highlighting, WASM compilation, compiler exploration, and KCS help search.
 
-## Surface
+## Applies to
 
-claude-code, mcp
+Claude skill, MCP
 
 ## How to use
 

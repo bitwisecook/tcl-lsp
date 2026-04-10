@@ -86,25 +86,150 @@ Use `make test-slow` for VS Code extension tests and smoke tests
 All checks must pass before a PR is submitted. Do not skip individual steps.
 Commit any formatting changes that `make prep-pr` applies before creating the PR.
 
-## Documentation requirements
+## Knowledge base and documentation
 
-Any new or changed feature **must** include documentation updates in the same
-change:
+The project has two kinds of written content with different purposes, tones,
+and locations.
 
-1. **README.md** — Update the relevant section of `README.md` to reflect the
-   new or changed behaviour. Add new entries to feature lists, update usage
-   examples, and revise any affected descriptions.
-2. **KCS documents** — Create a new KCS note or update an existing one in
-   `docs/kcs/` to cover the operational detail of the feature. Follow the
-   existing KCS format and register new notes in the KCS index
-   (`docs/kcs/README.md`).
-3. **Screenshots** — Capture screenshots demonstrating the feature in action
-   and add them to the repository. Reference them from `README.md` and/or the
-   relevant KCS document. Screenshots should show realistic usage and clearly
-   illustrate the feature's behaviour.
+- **KCS notes** (`docs/kcs/`) are small, searchable answers to one question
+  each, written in plain English for a named audience (user, contributor, or
+  maintainer). They are for people who are trying to get something done.
+- **Documentation** (`docs/design/`, `docs/GLOSSARY.md`) is technical
+  material — design docs, contracts, interfaces, data-structure references,
+  architecture narratives. It describes how the system is built and why.
+  Technical jargon is allowed.
 
-A PR that adds or modifies a feature without these documentation updates is
-incomplete and must not be merged.
+If you are not sure where something belongs: if it answers one question a
+person would ask out loud, it is a KCS note; if it describes how a module is
+structured, what its contract is, or what data flows through it, it is a
+design doc.
+
+### KCS — the four categories
+
+Every KCS note is exactly one of these four types. Pick the category first,
+then copy the matching template from [`docs/kcs/templates/`](docs/kcs/templates/README.md).
+
+| Type | The question it answers | Template |
+|---|---|---|
+| **Issue** | Why is X not working, and how do I fix it? | [`kcs-template-issue.md`](docs/kcs/templates/kcs-template-issue.md) |
+| **Q&A** | What is X? / When should I use Y? | [`kcs-template-qa.md`](docs/kcs/templates/kcs-template-qa.md) |
+| **How-To** | How do I do X? | [`kcs-template-how-to.md`](docs/kcs/templates/kcs-template-how-to.md) |
+| **Functionality** | What does command/feature/tool X do, and how do I use it? | [`kcs-template-functionality.md`](docs/kcs/templates/kcs-template-functionality.md) |
+
+Every KCS note starts with a blockquote header naming its audience and
+type:
+
+```markdown
+# KCS: <short title>
+
+> **Audience:** User | Contributor | Maintainer
+> **Type:** Issue | Q&A | How-To | Functionality
+```
+
+### KCS style rules
+
+1. One KCS note answers **one** core question. If a note answers two
+   questions, split it.
+2. Name the audience explicitly at the top: **User**, **Contributor**, or
+   **Maintainer**.
+3. Write in **British English** (`colour`, `optimiser`, `analyse`).
+4. Use the **Oxford comma**: "tokens, ranges, and diagnostics" — not
+   "tokens, ranges and diagnostics".
+5. Prefer short, plain sentences. Avoid long subordinate clauses.
+6. **Do not use acronyms or specialist terms** without linking to the
+   glossary. On first use within a note, use the plain name and link the
+   glossary term: `[control-flow graph](docs/GLOSSARY.md#cfg)`.
+7. Use **exact UI labels** when referring to buttons, menus, or commands.
+8. Do not inline contract tables, data-structure references, or API
+   signatures. Link to the relevant design doc instead.
+9. Keep notes **short** — aim for one screen. If longer is required,
+   consider whether it should be a design doc.
+10. **Name the file after the question, not the implementation.** Use
+    `kcs-issue-lsp-features-are-missing.md`, not
+    `kcs-issue-vscode-lsp-startup-logs.md`. Functionality, diagnostic,
+    and optimisation notes are named around their stable identifier:
+    `kcs-feature-rename.md`, `kcs-diagnostic-w210-variable-read-before-set.md`,
+    `kcs-optimisation-o105-constant-var-ref-propagation.md`.
+11. **Functionality notes must include at least one concrete example**
+    — a before/after code block for a transform, a code pointer
+    showing where a diagnostic or hover appears, or a screenshot of a
+    visual panel.
+12. **Every note lists the editors and tools it applies to**, in an
+    `## Applies to` section immediately after the audience/type
+    header, as a comma-separated plain-text list (not bullets):
+    `VS Code, Zed, JetBrains, Neovim, tcl-lsp CLI`. Use `all-editors`
+    when the note runs everywhere; the build script expands it to
+    the full LSP editor set. The canonical tag vocabulary covers
+    editors (`vs-code`, `zed`, `jetbrains`, `neovim`, `helix`,
+    `emacs`, `sublime-text`), tools (`tcl-lsp-cli`, `mcp`,
+    `claude-skill`, `copilot-chat`), content kinds (`diagnostic`,
+    `optimisation`, `warning`, `refactoring`, `analyser`,
+    `transform`), and compiler passes (`lexing`, `lowering`, `cfg`,
+    `ssa`, `sccp`, `liveness`, `type-infer`, `gvn`, `cse`, `dce`,
+    `licm`, `instcombine`, `ipa`, `memssa`, `dataflow`, `taint`,
+    `shimmer`, `tail-call`, `code-sinking`, `unused-procs`,
+    `side-effects`, `exec-intent`, `rendered-props`, `const-fold`,
+    `strength-reduce`, `codegen`). The vocabulary lives in
+    [`core/help/kcs_db.py`](core/help/kcs_db.py) and is documented
+    in [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11). Per-code
+    pages and compiler-internals feature pages must carry the
+    compiler-pass tag of the pass that produces the code or the
+    facts they consume.
+13. **If the answer differs per editor or tool, split it into
+    sub-headings** under the answer section, in the same order as
+    `## Applies to`. Do not bury per-editor differences in inline
+    asides.
+
+For the full style guide with worked examples, see
+[`docs/kcs/STYLE.md`](docs/kcs/STYLE.md).
+
+### Documentation (non-KCS)
+
+Design docs, contracts, and interface references live under
+[`docs/design/`](docs/design/README.md). A design doc may be long, may use
+technical jargon freely, and may include type signatures, contract tables,
+ownership matrices, and file-path anchors. One contract per file is the
+rule of thumb.
+
+Complex terms go in [`docs/GLOSSARY.md`](docs/GLOSSARY.md). KCS notes link
+to the glossary instead of defining terms inline; design docs may either
+link or define locally.
+
+### Where things live
+
+| Content kind | Folder | Example |
+|---|---|---|
+| User/contributor answer to one question | `docs/kcs/` | `kcs-issue-lsp-features-are-missing.md` |
+| Feature, command, or tool description | `docs/kcs/features/` | `kcs-feature-rename.md` |
+| KCS style guide and templates | `docs/kcs/STYLE.md`, `docs/kcs/templates/` | — |
+| Architecture and pipeline walkthroughs | `docs/design/` | `compiler-architecture.md` |
+| Compiler pass, stage, or analysis internals | `docs/design/compiler/` | `cfg-construction.md` |
+| Module ownership or API contract | `docs/design/contracts/` | `core-lsp-shared-utility.md` |
+| Design-doc templates | `docs/design/templates/` | `template-contract.md` |
+| Definitions of complex terms | `docs/GLOSSARY.md` | `CFG`, `SSA`, `lattice`, `shimmer` |
+
+### Documentation required for a PR
+
+Any new or changed feature **must** include documentation updates in the
+same change:
+
+1. **README.md** — update the relevant section to reflect the new or
+   changed behaviour.
+2. **KCS note** — create or update a note in `docs/kcs/` using the
+   matching template, and add it to the relevant section of
+   [`docs/kcs/README.md`](docs/kcs/README.md). For feature changes, update
+   the file under [`docs/kcs/features/`](docs/kcs/features/README.md).
+3. **Design doc** — if the change introduces or modifies a contract,
+   interface, or data-structure, update the relevant file under
+   [`docs/design/`](docs/design/README.md) and link it from
+   [`docs/design/README.md`](docs/design/README.md).
+4. **Glossary** — if the change introduces a new technical term, add it to
+   [`docs/GLOSSARY.md`](docs/GLOSSARY.md) with a stable anchor.
+5. **Screenshots** — capture screenshots for user-visible changes and
+   reference them from the relevant KCS note and `README.md`.
+
+A PR that adds or modifies a feature without these documentation updates
+is incomplete and must not be merged.
 
 ## Code style
 
@@ -118,13 +243,6 @@ incomplete and must not be merged.
   (`# -----------`, `# --- Text ---`, `# -- [section] ------`). Use a plain
   `# Text` comment instead. Never add standalone dash-separator lines.
 - See `CONTRIBUTING.md` for the full style guide.
-
-## KCS documentation
-
-- KCS is the default documentation style for this project: prefer small, searchable KCS notes over large monolithic docs for operational guidance and contracts.
-- Start with the KCS index: `docs/kcs/README.md`.
-- For compiler internals and pass/fact contracts, use: `docs/kcs/compiler/README.md`.
-- When changing behaviour in covered areas, update the relevant KCS note in the same change.
 
 ## Editor settings codegen
 

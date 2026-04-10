@@ -4,9 +4,9 @@
 
 Code minification: strips comments, collapses whitespace, joins commands with semicolons, recursively minifies body arguments.  Optional name compaction shortens variable and proc names with a symbol map for debugging.
 
-## Surface
+## Applies to
 
-lsp, vscode-command, sublime-command, cli, all-editors
+all-editors, tcl-lsp CLI, transform
 
 ## How to use
 

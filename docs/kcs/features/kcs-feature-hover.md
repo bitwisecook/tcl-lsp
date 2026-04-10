@@ -4,9 +4,9 @@
 
 Command documentation, proc signatures, variable info, and taint status on hover.
 
-## Surface
+## Applies to
 
-lsp, mcp, all-editors
+all-editors, MCP, analyser
 
 ## How to use
 
@@ -40,4 +40,4 @@ The hover provider resolves the symbol under the cursor and returns documentatio
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

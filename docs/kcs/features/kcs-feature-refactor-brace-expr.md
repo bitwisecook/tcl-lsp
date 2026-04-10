@@ -4,9 +4,9 @@
 
 Convert an unbraced `expr "..."` argument to braced `expr {...}` for safety and performance.
 
-## Surface
+## Applies to
 
-lsp, mcp, claude-code, all-editors
+all-editors, MCP, Claude skill, refactoring
 
 ## How to use
 

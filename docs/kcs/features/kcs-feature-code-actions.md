@@ -6,9 +6,9 @@ Quick fixes for diagnostics and refactoring actions: brace expressions, add
 option terminators, modernise patterns, extract selection into proc, inline
 proc, De Morgan's law, invert expression, IP conversion.
 
-## Surface
+## Applies to
 
-lsp, mcp, vscode-command, all-editors
+all-editors, MCP
 
 ## How to use
 
@@ -56,4 +56,4 @@ ignore the command and the user can rename manually.
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [LSP feature providers](../kcs-lsp-feature-providers.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)

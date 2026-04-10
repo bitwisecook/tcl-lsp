@@ -4,9 +4,9 @@
 
 VS Code Copilot Chat participant for creating, explaining, fixing, validating, and optimising general Tcl code.
 
-## Surface
+## Applies to
 
-vscode-chat
+Copilot Chat
 
 ## Availability
 
@@ -47,7 +47,31 @@ Uses the same analysis engine as `@irule` but with general Tcl system prompts an
 
 - `editors/vscode/src/test/chatUtilities.test.ts`
 
+## Example
+
+Typing the following into the Copilot Chat panel asks `@tcl` to
+create a short proc and then iterate until the LSP reports no
+diagnostics:
+
+> `@tcl /create a proc that returns the sum of a list of integers`
+
+The participant replies with code similar to:
+
+```tcl
+proc sum_list {numbers} {
+    set total 0
+    foreach n $numbers {
+        incr total $n
+    }
+    return $total
+}
+```
+
+along with a short explanation and the list of LSP checks that
+passed. Follow-up messages such as `@tcl /explain` or `@tcl /fix`
+operate on the code already in the chat context.
+
 ## Discoverability
 
 - [KCS feature index](README.md)
-- [VS Code extension contracts](../kcs-vscode-extension-contracts.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)
