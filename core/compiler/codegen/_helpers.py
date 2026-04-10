@@ -157,7 +157,14 @@ def _parse_subst_template(
             continue
         if ch == "\\":
             if i + 1 < n:
-                buf.append(template[i + 1])
+                next_ch = template[i + 1]
+                # Apply Tcl backslash substitution for known escapes
+                _bs_map = {
+                    "a": "\a", "b": "\b", "f": "\f",
+                    "n": "\n", "r": "\r", "t": "\t",
+                    "v": "\v", "\\": "\\",
+                }
+                buf.append(_bs_map.get(next_ch, next_ch))
                 i += 2
             else:
                 buf.append(ch)
