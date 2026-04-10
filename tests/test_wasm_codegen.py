@@ -296,3 +296,104 @@ def test_codegen_package_exports_wasm():
     assert WasmFunction is not None
     assert callable(wasm_codegen_function)
     assert callable(wasm_codegen_module)
+
+
+# Runtime imports
+
+
+def test_runtime_imports_registered_for_puts():
+    """puts should cause a runtime import to be registered."""
+    module = _compile("puts hello\n")
+    assert len(module.imports) >= 1
+    import_names = [imp.name for imp in module.imports]
+    assert "puts" in import_names
+
+
+def test_no_imports_for_pure_math():
+    """Pure arithmetic code should not register any imports."""
+    module = _compile("set x [expr {1 + 2}]\n")
+    assert len(module.imports) == 0
+
+
+def test_scope_declarations_no_imports():
+    """global/variable/upvar should not register imports."""
+    module = _compile("proc f {} { global x; return 1 }\n")
+    import_names = [imp.name for imp in module.imports]
+    assert "global" not in import_names
+    assert "variable" not in import_names
+
+
+def test_wat_shows_import_declarations():
+    """WAT output should contain import declarations for runtime commands."""
+    module = _compile("puts 42\n")
+    wat = module.to_wat()
+    assert '(import "tcl" "puts"' in wat
+
+
+def test_shared_imports_deduplication():
+    """Multiple puts calls should share a single import."""
+    module = _compile("puts 1\nputs 2\nputs 3\n")
+    puts_imports = [imp for imp in module.imports if imp.name == "puts"]
+    assert len(puts_imports) == 1
+
+
+# Command dispatch
+
+
+def test_puts_no_nop():
+    """puts should emit a call instruction, not a NOP."""
+    from core.compiler.codegen.wasm import WasmOp
+
+    module = _compile("puts 42\n")
+    top = module.functions[0]
+    nop_count = sum(1 for instr in top.body if instr.op == WasmOp.NOP)
+    call_count = sum(1 for instr in top.body if instr.op == WasmOp.CALL)
+    assert nop_count == 0
+    assert call_count >= 1
+
+
+def test_global_emits_nothing():
+    """global should emit no instructions (not even a NOP)."""
+    from core.compiler.codegen.wasm import WasmOp
+
+    module = _compile("proc f {} { global x; return 1 }\n")
+    proc_funcs = [f for f in module.functions if f.name != "::top"]
+    if proc_funcs:
+        nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
+        assert nop_count == 0
+
+
+# Proc call codegen
+
+
+def test_proc_call_emits_call():
+    """Calling a known proc should emit a WASM call instruction."""
+    from core.compiler.codegen.wasm import WasmOp
+
+    source = "proc add {a b} { expr {$a + $b} }\nproc caller {x y} { add $x $y }\n"
+    module = _compile(source)
+    caller_funcs = [f for f in module.functions if "caller" in f.name]
+    assert len(caller_funcs) == 1
+    call_instrs = [i for i in caller_funcs[0].body if i.op == WasmOp.CALL]
+    assert len(call_instrs) >= 1
+
+
+def test_proc_index_consistent():
+    """Proc function indices should be stable across compilation."""
+    source = "proc foo {x} { expr {$x + 1} }\nproc bar {x} { expr {$x * 2} }\n"
+    module = _compile(source)
+    names = [f.name for f in module.functions]
+    assert "::top" in names
+    assert any("foo" in n for n in names)
+    assert any("bar" in n for n in names)
+
+
+# Binary size with imports
+
+
+def test_binary_valid_with_imports():
+    """WASM binary with imports should still be valid."""
+    module = _compile("puts 42\n")
+    wasm = module.to_bytes()
+    assert wasm[:4] == b"\x00asm"
+    assert len(module.imports) >= 1

@@ -527,7 +527,61 @@ def run_test_file(
     return result
 
 
-def run_project(project: Project, checkout_dir: Path, *, max_files: int = 0) -> ProjectReport:
+def run_test_file_wasm(
+    project: Project,
+    checkout_dir: Path,
+    test_file: Path,
+) -> TestFileResult:
+    """Compile a single .test file to WASM and validate the output.
+
+    This does not *execute* the WASM — it validates that the Tcl source
+    compiles to a valid WASM module.  Full execution requires a WASM
+    runtime linked against the Zig Tcl runtime.
+    """
+    from core.compiler.cfg import build_cfg
+    from core.compiler.codegen.wasm import WasmOp, wasm_codegen_module
+    from core.compiler.lowering import lower_to_ir
+
+    result = TestFileResult(
+        file=str(test_file.relative_to(checkout_dir)),
+    )
+    start = time.monotonic()
+
+    try:
+        script = test_file.read_text(errors="replace")
+        ir_module = lower_to_ir(script)
+        cfg_module = build_cfg(ir_module)
+        wasm_module = wasm_codegen_module(cfg_module, ir_module)
+        wasm_bytes = wasm_module.to_bytes()
+
+        # Validate WASM binary header
+        assert wasm_bytes[:4] == b"\x00asm"
+
+        # Collect stats
+        total_instrs = sum(len(f.body) for f in wasm_module.functions)
+        nop_count = sum(1 for f in wasm_module.functions for i in f.body if i.op == WasmOp.NOP)
+        nop_pct = 100 * nop_count // max(total_instrs, 1)
+
+        result.total = 1  # 1 "test" = successful compilation
+        result.passed = 1
+        result.stdout = (
+            f"WASM: {len(wasm_bytes)} bytes, {len(wasm_module.functions)} funcs, "
+            f"{total_instrs} instrs, {nop_count} NOPs ({nop_pct}%), "
+            f"{len(wasm_module.imports)} imports"
+        )
+
+    except Exception as e:
+        result.crashed = True
+        result.crash_error = str(e)
+        result.crash_type = type(e).__name__
+
+    result.duration_ms = (time.monotonic() - start) * 1000
+    return result
+
+
+def run_project(
+    project: Project, checkout_dir: Path, *, max_files: int = 0, mode: str = "vm"
+) -> ProjectReport:
     """Run all test files for a project and build a report."""
     report = ProjectReport(
         name=project.name,
@@ -557,7 +611,10 @@ def run_project(project: Project, checkout_dir: Path, *, max_files: int = 0) -> 
         sys.stdout.write(f"\r  [{i}/{len(test_files)}] {rel}".ljust(80))
         sys.stdout.flush()
 
-        file_result = run_test_file(project, checkout_dir, test_file)
+        if mode == "wasm":
+            file_result = run_test_file_wasm(project, checkout_dir, test_file)
+        else:
+            file_result = run_test_file(project, checkout_dir, test_file)
         report.file_results.append(file_result)
         report.files_tested += 1
 
@@ -799,6 +856,12 @@ def main() -> int:
         default=0,
         help="Limit number of test files per project (0 = unlimited)",
     )
+    parser.add_argument(
+        "--mode",
+        choices=["vm", "wasm"],
+        default="vm",
+        help="Execution mode: 'vm' runs in bytecode VM (default), 'wasm' compiles to WASM and validates",
+    )
 
     args = parser.parse_args()
 
@@ -838,7 +901,7 @@ def main() -> int:
             continue
 
         # Run tests
-        report = run_project(project, checkout_dir, max_files=args.max_files)
+        report = run_project(project, checkout_dir, max_files=args.max_files, mode=args.mode)
         reports.append(report)
 
         # Print per-project report
