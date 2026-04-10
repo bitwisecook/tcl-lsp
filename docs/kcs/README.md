@@ -62,30 +62,24 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 ## Functionality (commands, features, and tools)
 
-Per-feature KCS notes live under [`features/`](features/README.md). The
-`help` subcommand, the MCP `help` tool, and the VS Code `/help` chat
-command all read these files at runtime to build their feature catalogues,
-so the filename and top-level heading format of each file is fixed.
+65 per-feature KCS notes live under [`features/`](features/README.md).
+The `help` subcommand, the MCP `help` tool, and the VS Code `/help`
+chat command all read these files at runtime to build their feature
+catalogues.
 
 ## Diagnostics and optimisations (per-code pages)
 
-Per-code KCS notes live under [`codes/`](codes/README.md). Every
-diagnostic (E, W, S, T, IRULE families) and every optimisation
-(O family) has its own page written against
-[`templates/kcs-template-diagnostic.md`](templates/kcs-template-diagnostic.md)
-or
-[`templates/kcs-template-optimisation.md`](templates/kcs-template-optimisation.md),
-and tags the compiler pass that produces it so readers can follow
-the link to the [glossary](../GLOSSARY.md) and from there to the
-relevant [compiler design doc](../design/compiler/README.md). Per-code
-pages are filled in as the KCS completeness plan
-([`../design/kcs-completeness-plan.md`](../design/kcs-completeness-plan.md))
-progresses; today the section is scaffolded and the pages are
-being added family by family.
+120 per-code KCS notes live under [`codes/`](codes/README.md) — 92
+diagnostic pages (E, W, S, T, and IRULE families) and 28 optimisation
+pages (O family). Each page follows the diagnostic or optimisation
+template, tags the compiler pass that produces it, explains in plain
+English why the check exists, shows a triggering example and the fix,
+and links to the [glossary](../GLOSSARY.md) and the relevant
+[compiler design doc](../design/compiler/README.md).
 
 ## Templates
 
-- [templates/README.md](templates/README.md) — index of the four KCS
+- [templates/README.md](templates/README.md) — index of the six KCS
   templates.
 
 ## Style guide
