@@ -42,7 +42,7 @@ use crate::tokens::{PySourcePosition, PyToken, PyTokenType};
 #[pyfunction]
 #[pyo3(text_signature = "(source, /)")]
 pub fn lexer_tokenise(source: &str) -> PyResult<Vec<PyToken>> {
-    lexer_tokenise_with_config(source, true, false, 0, 0, 0)
+    lexer_tokenise_with_config(source, true, false, false, 0, 0, 0)
 }
 
 /// Tokenise `source` via the Rust lexer with explicit config.
@@ -50,11 +50,12 @@ pub fn lexer_tokenise(source: &str) -> PyResult<Vec<PyToken>> {
 /// This is the full-config entry point used by the Python shim
 /// when dialect flags or sub-lexing offsets are in play.
 #[pyfunction]
-#[pyo3(signature = (source, expand_syntax=true, irules_brace_separator=false, base_offset=0, base_line=0, base_col=0))]
+#[pyo3(signature = (source, expand_syntax=true, irules_brace_separator=false, strict_quoting=false, base_offset=0, base_line=0, base_col=0))]
 pub fn lexer_tokenise_with_config(
     source: &str,
     expand_syntax: bool,
     irules_brace_separator: bool,
+    strict_quoting: bool,
     base_offset: u32,
     base_line: u32,
     base_col: u32,
@@ -62,7 +63,7 @@ pub fn lexer_tokenise_with_config(
     let config = LexerConfig {
         expand_syntax,
         irules_brace_separator,
-        strict_quoting: false,
+        strict_quoting,
         base_offset,
         base_line,
         base_col,

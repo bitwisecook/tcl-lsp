@@ -503,12 +503,11 @@ impl<'src> Lexer<'src> {
     /// best-effort; the Python lexer emits non-fatal warnings for
     /// those cases, which the Rust lexer will start reproducing in
     /// L9 when warning collection lands.
-    fn parse_var(&mut self) -> Token {
+    fn parse_var(&mut self) -> Result<Token, LexError> {
         let dollar_pos = self.pos;
         self.pos += 1; // skip '$'
 
-        // `${name}` braced form — content starts after `${`, so
-        // `content_offset = 2`.
+        // `${name}` braced form
         if self.current_byte() == Some(b'{') {
             self.pos += 1; // skip '{'
             let content_start = self.pos;
@@ -521,18 +520,23 @@ impl<'src> Lexer<'src> {
             let content_empty = self.pos == content_start;
             let has_close_brace = self.current_byte() == Some(b'}');
             let span_end = if content_empty && has_close_brace {
-                self.pos + 1 // include the `}` so the end position lands on it
+                self.pos + 1
             } else {
                 self.pos
             };
             if has_close_brace {
                 self.pos += 1;
+            } else {
+                self.warn_or_error("missing close-brace for variable name")?;
             }
-            return Token::with_content_offset(TokenType::Var, Span::new(dollar_pos, span_end), 2);
+            return Ok(Token::with_content_offset(
+                TokenType::Var,
+                Span::new(dollar_pos, span_end),
+                2,
+            ));
         }
 
-        // `$name` or `$ns::var` identifier form — `content_offset = 1`
-        // (just the `$`).
+        // `$name` or `$ns::var` identifier form
         let name_start = self.pos;
         while let Some(ch) = self.current_char() {
             if ch.is_alphanumeric() || ch == '_' {
@@ -546,35 +550,43 @@ impl<'src> Lexer<'src> {
             break;
         }
 
-        // `$arr(idx)` array-index form.
+        // `$arr(idx)` array-index form
         if self.current_byte() == Some(b'(') {
-            self.scan_array_index_body();
-            return Token::with_content_offset(TokenType::Var, Span::new(dollar_pos, self.pos), 1);
+            self.scan_array_index_body()?;
+            return Ok(Token::with_content_offset(
+                TokenType::Var,
+                Span::new(dollar_pos, self.pos),
+                1,
+            ));
         }
 
-        // Bare `$` — no identifier chars were consumed. Python emits
-        // this as an `STR` token whose text is just `$` (the whole
-        // span IS the content, so `content_offset = 0`).
+        // Bare `$`
         if self.pos == name_start {
-            return Token::new(TokenType::Str, Span::new(dollar_pos, dollar_pos + 1));
+            return Ok(Token::new(
+                TokenType::Str,
+                Span::new(dollar_pos, dollar_pos + 1),
+            ));
         }
 
-        Token::with_content_offset(TokenType::Var, Span::new(dollar_pos, self.pos), 1)
+        Ok(Token::with_content_offset(
+            TokenType::Var,
+            Span::new(dollar_pos, self.pos),
+            1,
+        ))
     }
 
     /// Consume a `(…)` array-index body starting at the `(`,
     /// including balanced nested `(` / `)` and any embedded
     /// `${…}`. Advances `self.pos` past the closing `)` (or to
     /// EOF for unterminated input).
-    fn scan_array_index_body(&mut self) {
+    fn scan_array_index_body(&mut self) -> Result<(), LexError> {
         debug_assert_eq!(self.current_byte(), Some(b'('));
         self.pos += 1; // skip '('
         let mut depth: u32 = 1;
         while depth > 0 {
             let Some(ch) = self.current_char() else {
-                // Unterminated — leave `self.pos` at EOF. L9 adds
-                // the warning.
-                return;
+                self.warn_or_error("missing )")?;
+                return Ok(());
             };
             match ch {
                 '(' => {
@@ -604,6 +616,7 @@ impl<'src> Lexer<'src> {
                 }
             }
         }
+        Ok(())
     }
 
     /// Return the byte at `self.pos + offset`, if any.
@@ -663,7 +676,7 @@ impl<'src> Lexer<'src> {
     /// and returns an `ESC` with `in_quote = true` still set, so
     /// the trailing synthetic EOL inherits the `true` flag too.
     /// The "missing close-quote" warning is deferred to L9.
-    fn parse_quoted(&mut self, opening: bool) -> Token {
+    fn parse_quoted(&mut self, opening: bool) -> Result<Token, LexError> {
         let start_offset = self.pos;
         if opening {
             self.pos += 1; // skip opening `"`
@@ -724,21 +737,30 @@ impl<'src> Lexer<'src> {
         if closed {
             self.pos += 1; // advance past closing `"`
             self.in_quote = false;
+            // Check for extra characters after close-quote.
+            if let Some(after) = self.current_byte() {
+                let ok = is_separator_byte(after)
+                    || after == b']'
+                    || (after == b'\\'
+                        && matches!(
+                            self.source().as_bytes().get(self.pos as usize + 1),
+                            Some(b'\n' | b'\r')
+                        ));
+                if !ok {
+                    self.warn_or_error("extra characters after close-quote")?;
+                }
+            }
+        } else if self.current_char().is_none() {
+            // EOF without closing quote.
+            self.warn_or_error("missing \"")?;
         }
 
-        // `content_offset` is 1 for the opening ESC (the first
-        // character of the span is the opening `"`, which is not
-        // content) and 0 for all subsequent ESCs in the run (their
-        // span starts at a content byte). The empty-closing ESC
-        // has `content_offset = 0` and its single-byte `"` is
-        // handled by the "1-char terminator" check in
-        // `token_text`.
         let content_offset: u8 = opening.into();
-        Token::with_content_offset(
+        Ok(Token::with_content_offset(
             TokenType::Esc,
             Span::new(start_offset, span_end),
             content_offset,
-        )
+        ))
     }
 
     /// Mirror of Python's `_parse_string` `newword` predicate: the
@@ -767,17 +789,14 @@ impl<'src> Lexer<'src> {
     ///     and text[pos+2] == '}'
     ///     and text[pos+3] is a non-separator
     /// ```
-    fn parse_brace_or_expand(&mut self) -> Token {
+    fn parse_brace_or_expand(&mut self) -> Result<Token, LexError> {
         if self.config.expand_syntax
             && self.peek_byte(1) == Some(b'*')
             && self.peek_byte(2) == Some(b'}')
         {
-            // Must be followed by at least one more character that is
-            // NOT a separator. Matching Python's `text[pos + 3] not
-            // in " \t\n\r\x0b\x0c;"` guard.
             if let Some(after) = self.peek_byte(3) {
                 if !is_separator_byte(after) {
-                    return self.parse_expand();
+                    return Ok(self.parse_expand());
                 }
             }
         }
@@ -797,7 +816,10 @@ impl<'src> Lexer<'src> {
     fn parse_expand(&mut self) -> Token {
         let start = self.pos;
         self.pos += 3; // skip `{*}`
-        Token::new(TokenType::Expand, Span::new(start, start + 1))
+                       // Emit an empty span anchored at the `{` position —
+                       // matching Python's `_end = _start` (zero-width marker)
+                       // where `Token.text` is empty.
+        Token::new(TokenType::Expand, Span::empty(start))
     }
 
     /// Parse a braced string starting at the current `{`. The caller
@@ -826,7 +848,7 @@ impl<'src> Lexer<'src> {
     /// Never fails. Unterminated `{` tokenizes best-effort; the
     /// "extra characters after close-brace" warning and the
     /// iRules `}{` word-boundary injection are deferred to L8/L9.
-    fn parse_brace(&mut self) -> Token {
+    fn parse_brace(&mut self) -> Result<Token, LexError> {
         let brace_pos = self.pos;
         self.pos += 1; // skip opening '{'
         let content_start = self.pos;
@@ -894,16 +916,34 @@ impl<'src> Lexer<'src> {
         };
         if has_close_brace {
             self.pos += 1;
-            // iRules `}{` word-boundary injection: if the character
-            // immediately after the closing `}` is `{`, inject a
-            // zero-width ghost SEP so the segmenter sees two words.
-            if self.config.irules_brace_separator && self.current_byte() == Some(b'{') {
-                let sep_span = Span::empty(self.pos);
-                self.pending_sep = Some(Token::new(TokenType::Sep, sep_span));
+            // Check for extra characters after close-brace.
+            if let Some(after) = self.current_byte() {
+                if !is_separator_byte(after) {
+                    // Backslash-newline after close-brace is fine
+                    let is_bs_nl = after == b'\\'
+                        && matches!(
+                            self.source().as_bytes().get(self.pos as usize + 1),
+                            Some(b'\n' | b'\r')
+                        );
+                    if !is_bs_nl {
+                        if self.config.irules_brace_separator && after == b'{' {
+                            let sep_span = Span::empty(self.pos);
+                            self.pending_sep = Some(Token::new(TokenType::Sep, sep_span));
+                        } else {
+                            self.warn_or_error("extra characters after close-brace")?;
+                        }
+                    }
+                }
             }
+        } else {
+            self.warn_or_error("missing close-brace")?;
         }
 
-        Token::with_content_offset(TokenType::Str, Span::new(brace_pos, final_span_end), 1)
+        Ok(Token::with_content_offset(
+            TokenType::Str,
+            Span::new(brace_pos, final_span_end),
+            1,
+        ))
     }
 
     /// Parse a command substitution starting at the current `[`.
@@ -938,7 +978,7 @@ impl<'src> Lexer<'src> {
     /// Python lexer emits a `missing close-bracket` warning, which
     /// L9's warning-collection infrastructure will start
     /// reproducing.
-    fn parse_command(&mut self) -> Token {
+    fn parse_command(&mut self) -> Result<Token, LexError> {
         let bracket_pos = self.pos;
         self.pos += 1; // skip '['
         let content_start = self.pos;
@@ -1029,9 +1069,15 @@ impl<'src> Lexer<'src> {
         };
         if has_close_bracket {
             self.pos += 1;
+        } else {
+            self.warn_or_error("missing close-bracket")?;
         }
 
-        Token::with_content_offset(TokenType::Cmd, Span::new(bracket_pos, span_end), 1)
+        Ok(Token::with_content_offset(
+            TokenType::Cmd,
+            Span::new(bracket_pos, span_end),
+            1,
+        ))
     }
 }
 
@@ -1076,19 +1122,19 @@ impl Iterator for Lexer<'_> {
             // content and consumes the closing `"` when it
             // encounters one.
             match ch {
-                '$' => Ok(self.parse_var()),
-                '[' => Ok(self.parse_command()),
-                _ => Ok(self.parse_quoted(false)),
+                '$' => self.parse_var(),
+                '[' => self.parse_command(),
+                _ => self.parse_quoted(false),
             }
         } else {
             match ch {
                 _ if is_horizontal_whitespace(ch) => Ok(self.parse_sep()),
                 _ if is_eol_char(ch) => Ok(self.parse_eol()),
                 '#' if self.at_command_start => Ok(self.parse_comment()),
-                '$' => Ok(self.parse_var()),
-                '[' => Ok(self.parse_command()),
-                '{' if self.is_newword() => Ok(self.parse_brace_or_expand()),
-                '"' if self.is_newword() => Ok(self.parse_quoted(true)),
+                '$' => self.parse_var(),
+                '[' => self.parse_command(),
+                '{' if self.is_newword() => self.parse_brace_or_expand(),
+                '"' if self.is_newword() => self.parse_quoted(true),
                 _ => Ok(self.parse_esc()),
             }
         };
@@ -2353,28 +2399,28 @@ mod tests {
     #[test]
     fn expand_prefix_before_bare_word() {
         let rows = expand_rows("{*}list");
-        assert_eq!(rows[0], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[0], (TokenType::Expand, String::new()));
         assert_eq!(rows[1], (TokenType::Esc, "list".into()));
     }
 
     #[test]
     fn expand_prefix_before_var() {
         let rows = expand_rows("{*}$var");
-        assert_eq!(rows[0], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[0], (TokenType::Expand, String::new()));
         assert_eq!(rows[1], (TokenType::Var, "var".into()));
     }
 
     #[test]
     fn expand_prefix_before_cmd() {
         let rows = expand_rows("{*}[cmd]");
-        assert_eq!(rows[0], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[0], (TokenType::Expand, String::new()));
         assert_eq!(rows[1], (TokenType::Cmd, "cmd".into()));
     }
 
     #[test]
     fn expand_prefix_before_braced() {
         let rows = expand_rows("{*}{a b}");
-        assert_eq!(rows[0], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[0], (TokenType::Expand, String::new()));
         assert_eq!(rows[1], (TokenType::Str, "a b".into()));
     }
 
@@ -2382,7 +2428,7 @@ mod tests {
     fn expand_prefix_mid_command() {
         let rows = expand_rows("cmd {*}$args");
         assert_eq!(rows[0], (TokenType::Esc, "cmd".into()));
-        assert_eq!(rows[2], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[2], (TokenType::Expand, String::new()));
         assert_eq!(rows[3], (TokenType::Var, "args".into()));
     }
 
@@ -2415,12 +2461,12 @@ mod tests {
         // After EXPAND, `newword` should be true (EXPAND is in the
         // `is_newword` set), so a `{` starts a braced string.
         let rows = expand_rows("{*}{a b}");
-        assert_eq!(rows[0], (TokenType::Expand, "{".into()));
+        assert_eq!(rows[0], (TokenType::Expand, String::new()));
         assert_eq!(rows[1], (TokenType::Str, "a b".into()));
     }
 
     #[test]
-    fn expand_span_is_one_byte() {
+    fn expand_span_is_empty() {
         // The EXPAND token's span covers just the `{` (one byte),
         // matching Python's `_end = _start` zero-width marker.
         let lexer = Lexer::new("{*}list");
@@ -2428,7 +2474,7 @@ mod tests {
         let tokens = lexer.tokenise_all().unwrap();
         let expand = tokens.iter().find(|t| t.kind == TokenType::Expand).unwrap();
         assert_eq!(expand.span.start(), 0);
-        assert_eq!(expand.span.end(), 1);
+        assert_eq!(expand.span.end(), 0);
         let (start, end) = map.range_positions(expand.span);
         assert_eq!(start, SourcePosition::new(0, 0, 0));
         assert_eq!(end, SourcePosition::new(0, 0, 0));

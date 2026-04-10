@@ -1075,19 +1075,22 @@ class TclLexer:
         kicks in automatically for non-default configurations or if
         the wheel is not available.
         """
-        if (
-            _rust_lexer_tokenise_cfg is not None
-            and not self._has_virtuals
-            and not _strict_quoting()
-        ):
-            return _rust_lexer_tokenise_cfg(
-                self.text,
-                TclLexer.expand_syntax,
-                TclLexer.irules_brace_separator,
-                self._base_offset,
-                self._base_line,
-                self._base_col,
-            )
+        if _rust_lexer_tokenise_cfg is not None and not self._has_virtuals:
+            try:
+                return _rust_lexer_tokenise_cfg(
+                    self.text,
+                    TclLexer.expand_syntax,
+                    TclLexer.irules_brace_separator,
+                    _strict_quoting(),
+                    self._base_offset,
+                    self._base_line,
+                    self._base_col,
+                )
+            except ValueError as exc:
+                # The Rust lexer raises ValueError for strict-mode
+                # syntax errors. Re-raise as TclParseError so
+                # callers that catch TclParseError still work.
+                raise TclParseError(str(exc)) from exc
         tokens: list[Token] = []
         while True:
             tok = self.get_token()
