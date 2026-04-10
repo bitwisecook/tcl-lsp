@@ -278,6 +278,17 @@ CORPUS: list[tuple[str, str]] = [
     ("puts_quoted", 'puts "hello, world"'),
     # L7 unterminated — best-effort tokenisation
     ("unterminated_quoted", '"abc'),
+    # L8 — {*} expansion prefix
+    ("expand_before_word", "{*}list"),
+    ("expand_before_var", "{*}$var"),
+    ("expand_before_cmd", "{*}[cmd]"),
+    ("expand_before_braced", "{*}{a b}"),
+    ("expand_mid_command", "cmd {*}$args"),
+    ("expand_followed_by_sep_is_brace", "{*} list"),
+    ("expand_at_eol_is_brace", "{*}"),
+    ("expand_after_eol", "\n{*}list"),
+    ("expand_after_semicolon", "foo; {*}list"),
+    ("expand_multiple", "cmd {*}$a {*}[b]"),
 ]
 
 
@@ -432,14 +443,8 @@ def _is_known_drift(source: str) -> bool:
     # panic on slicing).
     if source.endswith(("{", "[", "${", '"')):
         return True
-    # Category B: `{*}` anywhere in the input is a safe proxy for
-    # "contains the expansion prefix" because the only way `{*}`
-    # can legitimately appear in a correct Tcl source buffer is
-    # via the expansion prefix — literal `{*}` inside a braced
-    # string is inert but still triggers this drift at the outer
-    # dispatch when the braced string ends.
-    if "{*}" in source:
-        return True
+    # Category B was `{*}` expansion prefix — removed in L8 now
+    # that the Rust lexer handles EXPAND.
     return False
 
 
