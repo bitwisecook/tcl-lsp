@@ -145,18 +145,21 @@ class TestVariableInspection:
         vm_thread = threading.Thread(target=run_vm, daemon=True)
         vm_thread.start()
 
-        # Stop at first line
-        stopped = ctrl.wait_for_stop(timeout=5.0)
-        assert stopped
-        ctrl.resume(StepMode.STEP_IN)
-
-        # Stop at second line — "name" should be visible
-        stopped = ctrl.wait_for_stop(timeout=5.0)
-        assert stopped
-
-        variables = ctrl.get_variables()
-        var_names = [v.name for v in variables]
-        assert "name" in var_names
+        # Step through until we see the "name" variable.
+        # The number of steps to reach it depends on interpreter
+        # initialisation (which may vary with tcltest setup).
+        found_name = False
+        for _ in range(5):
+            stopped = ctrl.wait_for_stop(timeout=5.0)
+            if not stopped:
+                break
+            variables = ctrl.get_variables()
+            var_names = [v.name for v in variables]
+            if "name" in var_names:
+                found_name = True
+                break
+            ctrl.resume(StepMode.STEP_IN)
+        assert found_name, "Expected 'name' in variables after stepping"
 
         name_var = next(v for v in variables if v.name == "name")
         assert name_var.value == "Alice"

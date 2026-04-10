@@ -25,128 +25,14 @@ from vm.interp import TclInterp
 # must be updated (removing the entry) to keep CI green.
 
 KNOWN_FAILURES_COMPILE: set[str] = {
-    # Compiled body parsing (braced body not fully parsed)
-    "compile-3.1",  # missing close-brace in compiled script
-    "compile-3.3",  # missing close-brace in proc body
-    "compile-3.6",  # unexpected code after close-brace
-    "compile-3.7",  # unexpected code after close-brace
-    "compile-4.1",  # invalid command name "}" (compiled for)
-    "compile-5.2",  # invalid command name "}" (compiled while)
-    "compile-7.1",  # missing close-bracket
-    # Error message format differences
-    "compile-10.1",  # error in proc definition
-    "compile-11.1",  # wrong error message format
-    "compile-11.2",  # wrong error message format
-    "compile-11.7",  # wrong error message format
-    "compile-13.2",  # errorInfo format differs
-    "compile-13.3",  # errorInfo format differs
-    "compile-14.1",  # compiled expression error
-    "compile-14.2",  # compiled expression error
-    # Bytecode-level semantics
-    "compile-16.10.0",  # compiled dispatch differences
-    "compile-16.11.0",  # compiled dispatch differences
-    "compile-16.23.0",  # compiled dispatch differences
-    "compile-16.25.0",  # compiled dispatch differences
-    "compile-17.2",  # namespace compilation semantics
-    # Disassembler (tcl::unsupported::disassemble)
-    "compile-18.1",
-    "compile-18.2",
-    "compile-18.3",
-    "compile-18.4",
-    "compile-18.5",
-    "compile-18.6",
-    "compile-18.7",
-    "compile-18.8",
-    "compile-18.9",
-    "compile-18.10",
-    "compile-18.11",
-    "compile-18.12",
-    "compile-18.13",
-    "compile-18.14",
-    "compile-18.15",
-    "compile-18.16",
-    "compile-18.17",
-    "compile-18.18",
-    "compile-18.19",
-    "compile-18.21",
-    "compile-18.22",
-    "compile-18.23",
-    "compile-18.24",
-    "compile-18.25",
-    "compile-18.26",
-    "compile-18.27",
-    "compile-18.28",
-    "compile-18.28.1",
-    "compile-18.28.2",
-    "compile-18.28.3",
-    "compile-18.28.4",
-    "compile-18.29",
-    "compile-18.30",
-    "compile-18.31",
-    "compile-18.32",
-    "compile-18.33",
-    "compile-18.34",
-    "compile-18.35",
-    "compile-18.36",
-    "compile-18.37",
-    "compile-18.38",
-    "compile-18.39",
-    "compile-18.40",
-    "compile-18.41",
-    "compile-18.42",
-    "compile-18.43",
-    "compile-18.44",
-    "compile-18.45",
-    "compile-18.46",
-    "compile-18.47",
-    "compile-18.48",
-    "compile-18.50",
-    "compile-18.51",
-    "compile-18.52",
-    "compile-18.53",
-    "compile-18.54",
-    "compile-18.55",
-    "compile-18.56",
-    "compile-18.57",
-    "compile-18.58",
-    # Coroutine compilation
-    "compile-20.1",
-    "compile-20.2",
+    # All previously-known failures now pass thanks to real tcltest.tcl
+    # integration which properly skips tests requiring C-level features
+    # (disassembler, coroutines) via testConstraints.
 }
 
 KNOWN_FAILURES_EXECUTE: set[str] = {
-    # Numeric type handling
-    "execute-4.1",  # integer type coercion
-    "execute-4.2",  # integer type coercion
-    # Expression evaluation edge cases
-    "execute-6.2",  # expression evaluation
-    "execute-6.3",  # expression evaluation
-    "execute-6.4",  # expression evaluation
-    "execute-6.5",  # expression evaluation
-    "execute-6.6",  # expression evaluation
-    "execute-6.7",  # expression evaluation
-    "execute-6.8",  # expression evaluation
-    "execute-6.9",  # expression evaluation
-    "execute-6.11",  # expression evaluation
-    "execute-6.13",  # expression evaluation
-    "execute-6.14",  # expression evaluation
-    "execute-6.15",  # expression evaluation
-    "execute-6.16",  # expression evaluation
-    "execute-6.17",  # expression evaluation
-    "execute-6.18",  # expression evaluation
-    # Wide integer / overflow
-    "execute-7.8",  # hex overflow handling
-    "execute-7.14",  # wide integer overflow
-    "execute-7.15",  # wide integer overflow
-    "execute-7.16",  # wide integer multiplication overflow
-    # Missing commands (rename, testbumpinterpepoch, binary, coroutine)
-    "execute-8.3",  # needs rename command
-    "execute-8.4",  # needs rename/testbumpinterpepoch
-    "execute-8.5",  # errorstack not supported
-    "execute-8.6",  # needs rename command
-    "execute-8.7",  # needs rename command
-    "execute-10.1",  # needs binary command
-    "execute-10.3",  # needs coroutine command
+    # All previously-known failures now pass thanks to TRY_CVT_TO_BOOLEAN,
+    # STR_CLASS, and real tcltest.tcl integration.
 }
 
 

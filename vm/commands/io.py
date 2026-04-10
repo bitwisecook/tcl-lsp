@@ -255,7 +255,9 @@ def _cmd_chan(interp: TclInterp, args: list[str]) -> TclResult:
         case "copy":
             # Minimal chan copy — read from source, write to dest
             if len(rest) < 2:
-                raise TclError('wrong # args: should be "chan copy inchan outchan ?-size size? ?-command callback?"')
+                raise TclError(
+                    'wrong # args: should be "chan copy inchan outchan ?-size size? ?-command callback?"'
+                )
             src = interp.channels.get(rest[0])
             dst = interp.channels.get(rest[1])
             if src is None:
@@ -279,7 +281,7 @@ def _cmd_chan(interp: TclInterp, args: list[str]) -> TclResult:
             return TclResult()
         case "create":
             # Stub for reflected channels
-            raise TclError(f'chan create not supported in this implementation')
+            raise TclError("chan create not supported in this implementation")
         case _:
             raise TclError(
                 f'unknown or ambiguous subcommand "{subcmd}": must be '

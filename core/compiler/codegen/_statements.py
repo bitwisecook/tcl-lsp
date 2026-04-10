@@ -421,7 +421,7 @@ class _StatementsMixin:
             return
         self._push_lit(cmd)
         for a in args:
-            self._emit_value(a, interpolate=True)
+            self._emit_value(a)
         argc = 1 + len(args)
         op = Op.INVOKE_STK1 if argc < 256 else Op.INVOKE_STK4
         self._emit(op, argc, comment=cmd)

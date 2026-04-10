@@ -1660,8 +1660,8 @@ class BytecodeVM:
                         stack.append("0")  # converted value
                         stack.append("1")  # success flag
                     else:
-                        stack.append(val)   # original value (unconverted)
-                        stack.append("0")   # failure flag
+                        stack.append(val)  # original value (unconverted)
+                        stack.append("0")  # failure flag
 
                 case Op.NOT:
                     # Logical not — Tcl uses "cannot use non-numeric string"
@@ -1736,6 +1736,7 @@ class BytecodeVM:
                     # the given character class.  Replaces TOS with "1"
                     # or "0".  Used by bytecoded ``string is CLASS``.
                     from core.compiler.codegen.opcodes import _STR_CLASS_NAMES
+
                     val = stack.pop() if stack else ""
                     class_id = instr.operands[0] if instr.operands else 0
                     if isinstance(class_id, str):
@@ -1747,23 +1748,23 @@ class BytecodeVM:
                         "alnum": str.isalnum,
                         "alpha": str.isalpha,
                         "ascii": lambda s: all(ord(c) < 128 for c in s),
-                        "control": lambda s: all(
-                            ord(c) < 32 or ord(c) == 127 for c in s
-                        ) if s else False,
+                        "control": lambda s: (
+                            all(ord(c) < 32 or ord(c) == 127 for c in s) if s else False
+                        ),
                         "digit": str.isdigit,
-                        "graph": lambda s: all(
-                            c.isprintable() and not c.isspace() for c in s
-                        ) if s else False,
+                        "graph": lambda s: (
+                            all(c.isprintable() and not c.isspace() for c in s) if s else False
+                        ),
                         "lower": str.islower,
                         "print": lambda s: all(c.isprintable() for c in s) if s else False,
                         "space": str.isspace,
                         "upper": str.isupper,
-                        "wordchar": lambda s: all(
-                            c.isalnum() or c == "_" for c in s
-                        ) if s else False,
-                        "xdigit": lambda s: all(
-                            c in "0123456789abcdefABCDEF" for c in s
-                        ) if s else False,
+                        "wordchar": lambda s: (
+                            all(c.isalnum() or c == "_" for c in s) if s else False
+                        ),
+                        "xdigit": lambda s: (
+                            all(c in "0123456789abcdefABCDEF" for c in s) if s else False
+                        ),
                     }
                     checker = _class_checks.get(class_name)
                     if checker is not None:

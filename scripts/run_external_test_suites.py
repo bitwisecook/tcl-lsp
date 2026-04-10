@@ -33,9 +33,7 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
-import traceback
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -44,10 +42,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
-from vm.types import TclError
+from vm.commands import tcltest_cmds  # noqa: E402
+from vm.commands.test_support_cmds import setup_test_support  # noqa: E402
+from vm.interp import TclInterp  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Project definitions
@@ -194,11 +191,14 @@ def download_project(project: Project) -> Path:
         try:
             subprocess.run(
                 [
-                    "git", "clone",
-                    "--depth", "1",
+                    "git",
+                    "clone",
+                    "--depth",
+                    "1",
                     "--filter=blob:none",
                     "--sparse",
-                    "--branch", project.git_ref,
+                    "--branch",
+                    project.git_ref,
                     project.git_url,
                     str(target),
                 ],
@@ -209,7 +209,7 @@ def download_project(project: Project) -> Path:
             break
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
             if attempt < 4:
-                wait = 2 ** attempt
+                wait = 2**attempt
                 print(f"    Retry {attempt} (waiting {wait}s): {exc}")
                 shutil.rmtree(target, ignore_errors=True)
                 time.sleep(wait)
@@ -424,6 +424,7 @@ def run_test_file(
 
         # Set up tcltest (uses real tcltest.tcl if available)
         from vm.commands.tcltest_cmds import setup_tcltest
+
         setup_tcltest(interp)
 
         # Run any setup script
@@ -594,13 +595,13 @@ def print_report(report: ProjectReport, *, failures_only: bool = False) -> None:
 
     # Missing commands (top 20)
     if report.missing_commands:
-        print(f"\n  Missing commands (caused crashes):")
+        print("\n  Missing commands (caused crashes):")
         for cmd, count in report.missing_commands.most_common(20):
             print(f"    {cmd:40s}  {count:3d} file(s)")
 
     # Crash categories
     if report.crash_categories:
-        print(f"\n  Crash categories:")
+        print("\n  Crash categories:")
         for cat, count in report.crash_categories.most_common(20):
             print(f"    {cat:40s}  {count:3d} file(s)")
 
@@ -608,8 +609,7 @@ def print_report(report: ProjectReport, *, failures_only: bool = False) -> None:
     if not failures_only:
         # Show files that ran successfully
         ok_files = [
-            r for r in report.file_results
-            if not r.crashed and r.failed == 0 and r.total > 0
+            r for r in report.file_results if not r.crashed and r.failed == 0 and r.total > 0
         ]
         if ok_files:
             print(f"\n  Clean files ({len(ok_files)}):")
@@ -623,10 +623,7 @@ def print_report(report: ProjectReport, *, failures_only: bool = False) -> None:
     if fail_files:
         print(f"\n  Files with test failures ({len(fail_files)}):")
         for r in sorted(fail_files, key=lambda r: r.failed, reverse=True)[:30]:
-            print(
-                f"    {r.file:50s}  {r.total:4d} tests, "
-                f"{r.passed} passed, {r.failed} FAILED"
-            )
+            print(f"    {r.file:50s}  {r.total:4d} tests, {r.passed} passed, {r.failed} FAILED")
             for t in r.failed_tests[:5]:
                 print(f"      - {t}")
             if len(r.failed_tests) > 5:
@@ -666,9 +663,7 @@ def build_json_report(reports: list[ProjectReport]) -> dict:
                     "failed": r.total_failed,
                     "skipped": r.total_skipped,
                     "pass_rate": (
-                        round(r.total_passed / r.total_tests * 100, 1)
-                        if r.total_tests > 0
-                        else 0
+                        round(r.total_passed / r.total_tests * 100, 1) if r.total_tests > 0 else 0
                     ),
                     "duration_ms": round(r.total_duration_ms, 1),
                 },
@@ -738,12 +733,12 @@ def print_summary_table(reports: list[ProjectReport]) -> None:
         all_crashes.update(r.crash_categories)
 
     if all_missing:
-        print(f"\n  Top missing commands (across all projects):")
+        print("\n  Top missing commands (across all projects):")
         for cmd, count in all_missing.most_common(25):
             print(f"    {cmd:45s}  {count:3d} file(s)")
 
     if all_crashes:
-        print(f"\n  Top crash categories:")
+        print("\n  Top crash categories:")
         for cat, count in all_crashes.most_common(15):
             print(f"    {cat:45s}  {count:3d} file(s)")
 
@@ -776,7 +771,8 @@ def main() -> int:
         help="Output JSON report",
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         help="Output file for JSON report",
     )
     parser.add_argument(
@@ -825,7 +821,7 @@ def main() -> int:
         # Download
         checkout_dir = download_project(project)
         if not checkout_dir.exists():
-            print(f"  SKIP: download failed")
+            print("  SKIP: download failed")
             continue
 
         # Run tests

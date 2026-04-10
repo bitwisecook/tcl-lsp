@@ -160,9 +160,14 @@ def _parse_subst_template(
                 next_ch = template[i + 1]
                 # Apply Tcl backslash substitution for known escapes
                 _bs_map = {
-                    "a": "\a", "b": "\b", "f": "\f",
-                    "n": "\n", "r": "\r", "t": "\t",
-                    "v": "\v", "\\": "\\",
+                    "a": "\a",
+                    "b": "\b",
+                    "f": "\f",
+                    "n": "\n",
+                    "r": "\r",
+                    "t": "\t",
+                    "v": "\v",
+                    "\\": "\\",
                 }
                 buf.append(_bs_map.get(next_ch, next_ch))
                 i += 2

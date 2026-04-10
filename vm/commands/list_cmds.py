@@ -251,7 +251,7 @@ def _cmd_lset(interp: TclInterp, args: list[str]) -> TclResult:
         # Single index: simple replacement
         idx = _parse_index(indices[0], len(lst))
         if idx < 0 or idx > len(lst):
-            raise TclError(f'list index out of range')
+            raise TclError("list index out of range")
         if idx == len(lst):
             lst.append(new_value)
         else:
@@ -264,13 +264,13 @@ def _cmd_lset(interp: TclInterp, args: list[str]) -> TclResult:
         for idx_str in indices[:-1]:
             idx = _parse_index(idx_str, len(current_list))
             if idx < 0 or idx >= len(current_list):
-                raise TclError(f'list index out of range')
+                raise TclError("list index out of range")
             parent_chain.append((current_list, idx))
             current_list = _split_list(current_list[idx])
         # Set the final element
         final_idx = _parse_index(indices[-1], len(current_list))
         if final_idx < 0 or final_idx > len(current_list):
-            raise TclError(f'list index out of range')
+            raise TclError("list index out of range")
         if final_idx == len(current_list):
             current_list.append(new_value)
         else:

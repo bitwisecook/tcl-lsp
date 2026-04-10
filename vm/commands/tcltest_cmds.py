@@ -74,9 +74,7 @@ def _reset_state() -> None:
 def _sync_num_tests(interp: TclInterp) -> None:
     """Sync the internal ``_results`` dict to ``::tcltest::numTests``."""
     for key in ("Total", "Passed", "Skipped", "Failed"):
-        interp.global_frame.set_var(
-            f"::tcltest::numTests({key})", str(_results[key])
-        )
+        interp.global_frame.set_var(f"::tcltest::numTests({key})", str(_results[key]))
 
 
 def _write_output(interp: TclInterp, msg: str) -> None:
@@ -521,8 +519,18 @@ def _cmd_error_channel(interp: TclInterp, args: list[str]) -> TclResult:
 def _find_tcltest_library() -> str | None:
     """Locate the real tcltest.tcl in the Tcl library tree."""
     candidates = [
-        Path(__file__).resolve().parent.parent.parent / "tmp" / "tcl9.0.3" / "library" / "tcltest" / "tcltest.tcl",
-        Path(__file__).resolve().parent.parent.parent / "tmp" / "tcl8.6.16" / "library" / "tcltest" / "tcltest.tcl",
+        Path(__file__).resolve().parent.parent.parent
+        / "tmp"
+        / "tcl9.0.3"
+        / "library"
+        / "tcltest"
+        / "tcltest.tcl",
+        Path(__file__).resolve().parent.parent.parent
+        / "tmp"
+        / "tcl8.6.16"
+        / "library"
+        / "tcltest"
+        / "tcltest.tcl",
     ]
     for p in candidates:
         if p.is_file():
@@ -563,56 +571,41 @@ def setup_tcltest(interp: TclInterp, *, use_real_library: bool = True) -> None:
 def _setup_real_tcltest(interp: TclInterp, tcltest_path: str) -> None:
     """Set up tcltest using the real tcltest.tcl library.
 
-    Only registers the package ifneeded script — the actual loading
-    happens when the test file calls ``package require tcltest``.
-    Also provides stubs for Tcl library procs that tcltest.tcl
-    depends on (auto_load, parray) that normally come from init.tcl.
+    Registers a package ifneeded script that, when triggered by
+    ``package require tcltest``, first defines auto_load/parray stubs
+    (needed by tcltest.tcl) and then sources the real tcltest.tcl.
     """
-    # Provide auto_load stub — tcltest.tcl calls `auto_load ::parray`
-    # to ensure parray is available.  We define parray directly and
-    # make auto_load a no-op.
-    interp.eval("""
-        proc auto_load {cmd args} { return 0 }
-        proc parray {a {pattern *}} {
-            upvar 1 $a array
-            if {![array exists array]} {
-                error "\"$a\" isn't an array"
-            }
-            set maxl 0
-            set names [lsort [array names array $pattern]]
-            foreach name $names {
-                if {[string length $name] > $maxl} {
-                    set maxl [string length $name]
-                }
-            }
-            set maxl [expr {$maxl + [string length $a] + 2}]
-            foreach name $names {
-                set nameString [format %s(%s) $a $name]
-                puts stdout [format "%-*s = %s" $maxl $nameString $array($name)]
-            }
-        }
-    """)
-
-    # Register package ifneeded and then eagerly load tcltest.tcl.
-    # We load eagerly (not lazily) because:
-    # 1. tcllib's testutilities.tcl checks ``[namespace children] ::tcltest``
-    #    and if the namespace exists, calls ``package present tcltest``
-    #    instead of ``package require tcltest``.
-    # 2. If we only register ifneeded, the namespace exists (from earlier
-    #    setup) but ``package present`` fails because loaded=False.
-    interp.packages.setdefault("tcltest", {
-        "version": "2.5.10",
-        "loaded": False,
-        "ifneeded": {"2.5.10": f"source {tcltest_path}"},
-    })
-    interp.eval(
-        f'package ifneeded tcltest 2.5.10 [list source {{{tcltest_path}}}]'
+    # Build a loader script that provides stubs before sourcing tcltest.tcl.
+    # The stubs are defined lazily (only when tcltest is actually required)
+    # so they don't interfere with interpreter state during normal use.
+    loader = (
+        "proc auto_load {cmd args} { return 0 };"
+        "proc parray {a {pattern *}} {"
+        "  upvar 1 $a array;"
+        '  if {![array exists array]} { error "\\"$a\\" isn\'t an array" };'
+        "  set maxl 0;"
+        "  set names [lsort [array names array $pattern]];"
+        "  foreach name $names {"
+        "    if {[string length $name] > $maxl} { set maxl [string length $name] }"
+        "  };"
+        "  set maxl [expr {$maxl + [string length $a] + 2}];"
+        "  foreach name $names {"
+        "    set nameString [format %s(%s) $a $name];"
+        "    puts stdout [format {%-*s = %s} $maxl $nameString $array($name)]"
+        "  }"
+        "};"
+        f"source {{{tcltest_path}}}"
     )
-    # Eagerly load — this sources tcltest.tcl which calls `package provide`
-    try:
-        interp.eval("package require tcltest 2.5")
-    except Exception:
-        pass  # Fall back to builtin if real tcltest fails to load
+
+    interp.packages.setdefault(
+        "tcltest",
+        {
+            "version": "2.5.10",
+            "loaded": False,
+            "ifneeded": {"2.5.10": loader},
+        },
+    )
+    interp.eval(f"package ifneeded tcltest 2.5.10 {{{loader}}}")
 
 
 def _setup_builtin_tcltest(interp: TclInterp) -> None:
