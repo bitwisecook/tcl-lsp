@@ -24,6 +24,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureHover: Boolean = true
     var featureCompletion: Boolean = true
     var featureDiagnostics: Boolean = true
+    // Kept for XML deserialization of old settings; no longer sent to server.
     var featureFormatting: Boolean = true
     var featureSemanticTokens: Boolean = true
     var featureCodeActions: Boolean = true
@@ -45,7 +46,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     // Pull diagnostics are opt-in: advertising diagnosticProvider flips
     // most LSP clients into pull mode and disables the push pipeline.
     var featurePullDiagnostics: Boolean = false
-    var featureWillSaveWaitUntil: Boolean = true
+    var featureWillSaveWaitUntil: Boolean = false
     var featureProgress: Boolean = true
     var featureImplementation: Boolean = true
     var featureTypeDefinition: Boolean = true
@@ -254,7 +255,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "hover" to featureHover,
                 "completion" to featureCompletion,
                 "diagnostics" to featureDiagnostics,
-                "formatting" to featureFormatting,
                 "semanticTokens" to featureSemanticTokens,
                 "codeActions" to featureCodeActions,
                 "definition" to featureDefinition,

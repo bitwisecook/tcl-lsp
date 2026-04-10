@@ -13,8 +13,9 @@ Tcl, iRules, and iApps language support powered by
   **go-to-type-definition**, and **find references**
 - **Document symbols**, **workspace symbols**, and **document highlight**
   (with Read/Write kinds)
-- **Formatting** — configurable indent, brace style, line length; **format
-  on save** via `willSaveWaitUntil`
+- **Formatting** — configurable indent, brace style, line length; format on
+  save via Zed's built-in formatter setting or the LSP `willSaveWaitUntil`
+  fallback
 - **Code actions** — quick fixes for diagnostics
 - **Code lens** — inline reference counts on proc definitions
 - **Signature help**, **rename**, **folding**, **inlay hints**
@@ -110,7 +111,6 @@ Add to your Zed `settings.json` to configure the language server:
             "hover": true,
             "completion": true,
             "diagnostics": true,
-            "formatting": true,
             "semanticTokens": true,
             "codeActions": true,
             "definition": true,
@@ -128,7 +128,7 @@ Add to your Zed `settings.json` to configure the language server:
             "codeLens": true,
             "workspaceFileOps": true,
             "pullDiagnostics": false,
-            "willSaveWaitUntil": true,
+            "willSaveWaitUntil": false,
             "progress": true,
             "implementation": true,
             "typeDefinition": true,

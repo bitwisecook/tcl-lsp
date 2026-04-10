@@ -112,7 +112,6 @@ class FeatureConfig:
     hover_enabled: bool = True
     completion_enabled: bool = True
     diagnostics_enabled: bool = True
-    formatting_enabled: bool = True
     semantic_tokens_enabled: bool = True
     code_actions_enabled: bool = True
     definition_enabled: bool = True
@@ -135,7 +134,12 @@ class FeatureConfig:
     # test suite and most clients rely on.  Users who explicitly want the
     # pull model can opt in via ``tclLsp.features.pullDiagnostics``.
     pull_diagnostics_enabled: bool = False
-    will_save_wait_until_enabled: bool = True
+    # willSaveWaitUntil is off by default.  Editors that support a native
+    # "format on save" mechanism (VS Code's editor.formatOnSave, JetBrains'
+    # on-save actions, etc.) should use that instead — it routes through the
+    # standard textDocument/formatting handler.  This toggle exists as a
+    # fallback for editors without a native format-on-save mechanism.
+    will_save_wait_until_enabled: bool = False
     progress_enabled: bool = True
     implementation_enabled: bool = True
     type_definition_enabled: bool = True
@@ -2012,8 +2016,6 @@ def on_write_rule_back(
 def on_formatting(
     params: types.DocumentFormattingParams,
 ) -> list[types.TextEdit] | None:
-    if not feature_config.formatting_enabled:
-        return None
     uri = params.text_document.uri
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
@@ -2032,8 +2034,6 @@ def on_formatting(
 def on_range_formatting(
     params: types.DocumentRangeFormattingParams,
 ) -> list[types.TextEdit] | None:
-    if not feature_config.formatting_enabled:
-        return None
     uri = params.text_document.uri
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
@@ -2047,7 +2047,7 @@ def on_range_formatting(
     return edits or None
 
 
-# Format on save
+# Format on save (fallback for editors without native format-on-save)
 
 
 @server.feature(types.TEXT_DOCUMENT_WILL_SAVE_WAIT_UNTIL)
@@ -2056,13 +2056,9 @@ def on_will_save_wait_until(
 ) -> list[types.TextEdit] | None:
     if not feature_config.will_save_wait_until_enabled:
         return None
-    if not feature_config.formatting_enabled:
-        return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
     source = _get_doc_source(uri)
-    # Build a FormattingOptions from the active FormatterConfig so the format
-    # matches what on_formatting would produce.
     from core.formatting.config import IndentStyle
 
     options = types.FormattingOptions(
@@ -3511,7 +3507,6 @@ _FEATURE_TOGGLE_KEYS = {
     "hover": "hover_enabled",
     "completion": "completion_enabled",
     "diagnostics": "diagnostics_enabled",
-    "formatting": "formatting_enabled",
     "semanticTokens": "semantic_tokens_enabled",
     "codeActions": "code_actions_enabled",
     "definition": "definition_enabled",

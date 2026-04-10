@@ -3022,12 +3022,6 @@
             "description": "Enable diagnostics (errors and warnings).",
             "order": 2
           },
-          "tclLsp.features.formatting": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable document formatting.",
-            "order": 3
-          },
           "tclLsp.features.semanticTokens": {
             "type": "boolean",
             "default": true,
@@ -3132,8 +3126,8 @@
           },
           "tclLsp.features.willSaveWaitUntil": {
             "type": "boolean",
-            "default": true,
-            "description": "Format Tcl files on save via willSaveWaitUntil.",
+            "default": false,
+            "description": "Format Tcl files on save via the LSP willSaveWaitUntil handler. Off by default — use VS Code's built-in 'Editor: Format On Save' (editor.formatOnSave) instead. Only enable this for editors that lack a native format-on-save mechanism.",
             "order": 21
           },
           "tclLsp.features.progress": {

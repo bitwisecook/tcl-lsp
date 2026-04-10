@@ -63,7 +63,6 @@
                                                 "hover": { "type": "boolean", "default": true },
                                                 "completion": { "type": "boolean", "default": true },
                                                 "diagnostics": { "type": "boolean", "default": true },
-                                                "formatting": { "type": "boolean", "default": true },
                                                 "semanticTokens": { "type": "boolean", "default": true },
                                                 "codeActions": { "type": "boolean", "default": true },
                                                 "definition": { "type": "boolean", "default": true },

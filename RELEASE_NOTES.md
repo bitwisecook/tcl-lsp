@@ -9,7 +9,8 @@
     concrete implementations
   - `textDocument/typeDefinition` and `textDocument/declaration`
   - `textDocument/codeLens` + `codeLens/resolve`
-  - `textDocument/willSaveWaitUntil` — format-on-save handler
+  - `textDocument/willSaveWaitUntil` — format-on-save fallback (off by
+    default; use the editor's native format-on-save instead)
   - `textDocument/linkedEditingRange` — synchronised renaming of matching
     identifiers
   - `workspace/willRenameFiles` + `workspace/didRenameFiles`
@@ -54,8 +55,8 @@
   offset-keyed lookup could return the wrong flag. Switched to `id(tok)`
   lookup, which is safe because `argv` and `all_tokens_buf` are populated
   from the same token objects.
-- **Fix pygls registration of `willSaveWaitUntil`** so the format-on-save
-  handler is actually advertised in server capabilities.
+- **Fix pygls registration of `willSaveWaitUntil`** so the handler is
+  actually advertised in server capabilities (now off by default).
 - **Fix a CI `test-ext` flake** by dropping premature `analysis=None`
   early returns in the extension test path.
 
