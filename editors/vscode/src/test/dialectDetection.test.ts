@@ -43,7 +43,11 @@ suite("Dialect Detection", () => {
     const uri = getDocUri("dialect-default.tcl");
     await activate(uri);
 
-    const labels = await completionLabels(uri, new vscode.Position(1, 2));
+    // Use waitForCompletions because the server may still be processing
+    // a dialect change from a previous test suite.
+    const labels = await waitForCompletions(uri, new vscode.Position(1, 2), (l) =>
+      l.includes("try"),
+    );
     assert.ok(labels.includes("try"), 'Expected "try" completion for default tcl8.6 dialect');
   });
 

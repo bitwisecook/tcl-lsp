@@ -396,7 +396,10 @@ function resolveServerDir(configuredPath: string, extensionPath: string): string
 // Map from feature toggle key to the VS Code editor setting it inherits from.
 // Features not listed here default to true when null.
 const FEATURE_EDITOR_DEFAULTS: Record<string, () => boolean> = {
-  hover: () => workspace.getConfiguration("editor").get<boolean>("hover.enabled", true),
+  hover: () => {
+    const v = workspace.getConfiguration("editor").get<string | boolean>("hover.enabled", true);
+    return v !== "off" && v !== false;
+  },
   semanticTokens: () => {
     const v = workspace
       .getConfiguration("editor")
@@ -524,10 +527,9 @@ export async function activate(context: ExtensionContext) {
     },
     middleware: {
       workspace: {
+        // Pull path: server requests configuration via workspace/configuration.
         configuration: async (params, token, next) => {
           const result = await next(params, token);
-          // Resolve null feature toggles to concrete booleans using VS Code
-          // editor globals before the server sees them.
           if (Array.isArray(result)) {
             for (let i = 0; i < params.items.length; i++) {
               const section = params.items[i].section;
@@ -546,6 +548,49 @@ export async function activate(context: ExtensionContext) {
             }
           }
           return result;
+        },
+        // Push path: configurationSection auto-sync sends raw settings
+        // including null defaults that the server's _set_toggle ignores.
+        // We replace the default push with one where feature nulls are
+        // resolved to booleans.  We must send the COMPLETE settings (not
+        // just features) because the server's debounce replaces pending
+        // settings wholesale.
+        didChangeConfiguration: async (_sections, _next) => {
+          if (!client) {
+            return _next(_sections);
+          }
+          // Read the full tclLsp configuration and resolve feature nulls.
+          const allSettings: Record<string, unknown> = {};
+          const cfg = workspace.getConfiguration("tclLsp");
+          // Copy all top-level tclLsp keys.
+          for (const key of [
+            "dialect",
+            "pythonPath",
+            "serverPath",
+            "extraCommands",
+            "libraryPaths",
+            "formatting",
+            "diagnostics",
+            "style",
+            "optimiser",
+            "shimmer",
+            "xcDiagnostics",
+            "runtimeValidation",
+            "ai",
+          ]) {
+            const val = cfg.get(key);
+            if (val !== undefined) allSettings[key] = val;
+          }
+          // Resolve feature toggles.
+          const features = cfg.get<Record<string, unknown>>("features", {});
+          const resolved: Record<string, boolean> = {};
+          for (const [key, val] of Object.entries(features)) {
+            resolved[key] = typeof val === "boolean" ? val : resolveFeatureToggle(key, null);
+          }
+          allSettings.features = resolved;
+          void client.sendNotification("workspace/didChangeConfiguration", {
+            settings: { tclLsp: allSettings },
+          });
         },
       },
     },
