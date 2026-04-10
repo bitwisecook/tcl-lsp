@@ -3255,14 +3255,25 @@ def on_initialized(params: types.InitializedParams) -> None:
     if ws.root_path:
         import os
 
-        candidate = os.path.join(ws.root_path, "tclpkg.tcl")
-        if os.path.isfile(candidate):
-            log.info("Detected tclpkg project at: %s", ws.root_path)
+        # Walk up from root_path to find tclpkg.tcl (monorepo support).
+        _tclpkg_dir = None
+        _search = ws.root_path
+        for _ in range(10):
+            if os.path.isfile(os.path.join(_search, "tclpkg.tcl")):
+                _tclpkg_dir = _search
+                break
+            _parent = os.path.dirname(_search)
+            if _parent == _search:
+                break
+            _search = _parent
+
+        if _tclpkg_dir is not None:
+            log.info("Detected tclpkg project at: %s", _tclpkg_dir)
             # Add project-local lib/ if present.
-            project_lib = os.path.join(ws.root_path, "lib")
+            project_lib = os.path.join(_tclpkg_dir, "lib")
             if os.path.isdir(project_lib):
                 library_paths.append(project_lib)
-        # Detect active venv: $TCL_VENV or .venv/tclvenv.cfg next to root.
+        # Detect active venv: $TCL_VENV or .venv/tclvenv.cfg next to project.
         venv_dir = os.environ.get("TCL_VENV")
         if not venv_dir:
             local_venv = os.path.join(ws.root_path, ".venv", "tclvenv.cfg")

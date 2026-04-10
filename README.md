@@ -1007,7 +1007,8 @@ tcl pkg verify                   # check integrity hashes
 
 The manifest is a native Tcl file (`tclpkg.tcl`) evaluated in a sandboxed
 interpreter.  The lockfile (`tclpkg.lock`) is canonical JSON — two runs against
-the same manifest produce byte-identical output.
+the same manifest produce byte-identical output (aside from the
+`generated` timestamp, which `--frozen` preserves).
 
 ```tcl
 # tclpkg.tcl — example manifest

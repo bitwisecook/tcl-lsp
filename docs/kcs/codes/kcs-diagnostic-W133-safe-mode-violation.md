@@ -42,8 +42,12 @@ declarative directives — see `tcl pkg init` for the full list.
 
 ## How to suppress
 
-This diagnostic cannot be suppressed. The safe-mode whitelist is a
-security boundary.
+`tclLsp.diagnostics.W133: false`
+
+This is not recommended — W133 fires only when a manifest tries to run
+a command the safe-mode sandbox blocks. The diagnostic is the
+user-visible side of a security boundary; the command is already refused
+at runtime regardless of whether the diagnostic is shown.
 
 ## Related
 

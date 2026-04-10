@@ -78,6 +78,33 @@ class FetchError(TclPkgError):
     category = "fetch"
 
 
+def _safe_extract_tar(tar_path: Path, dest: Path) -> None:
+    """Extract a tarball safely.
+
+    Uses ``filter="data"`` when supported (Python >= 3.11.4) to strip
+    absolute paths, ``..`` traversal, and device files.  Falls back to
+    member-by-member extraction with manual path checks on older Python.
+    """
+    dest_resolved = dest.resolve()
+    with tarfile.open(tar_path) as tf:
+        try:
+            tf.extractall(dest, filter="data")
+        except TypeError:
+            # Python 3.10 or early 3.11 — filter kwarg not supported.
+            # Extract member-by-member with manual safety checks.
+            for member in tf.getmembers():
+                if member.name.startswith("/") or ".." in member.name.split("/"):
+                    raise FetchError(f"tar member has unsafe path: {member.name}")
+                target = (dest / member.name).resolve()
+                try:
+                    target.relative_to(dest_resolved)
+                except ValueError:
+                    raise FetchError(f"tar member escapes target directory: {member.name}")
+                if member.issym() or member.islnk():
+                    continue  # skip symlinks/hardlinks
+                tf.extract(member, dest)
+
+
 def fetch_tarball(url: str, dest: Path, *, timeout: int = 60) -> None:
     """Download and extract a tarball (or zip) from *url* into *dest*.
 
@@ -102,8 +129,7 @@ def fetch_tarball(url: str, dest: Path, *, timeout: int = 60) -> None:
         if lower.endswith(".zip"):
             _safe_extract_zip(tmp_path, staging)
         else:
-            with tarfile.open(tmp_path) as tf:
-                tf.extractall(staging, filter="data")
+            _safe_extract_tar(tmp_path, staging)
 
         # Strip singular top-level directory (common convention).
         children = list(staging.iterdir())
@@ -125,8 +151,8 @@ def fetch_tarball(url: str, dest: Path, *, timeout: int = 60) -> None:
 def fetch_git(url: str, dest: Path, *, rev: str | None = None, timeout: int = 120) -> str:
     """Clone a git repository into *dest* and return the resolved commit SHA.
 
-    If *rev* is a tag or branch name, clones at that ref.  If it looks
-    like a full SHA, does a shallow clone then checks out the commit.
+    *rev* must be a branch or tag name (passed to ``git clone --branch``).
+    Full commit SHAs are not supported — ``--branch`` rejects them.
     The ``.git/`` directory is removed after cloning to keep the
     worktree clean for integrity hashing.
     """

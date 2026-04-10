@@ -16,7 +16,9 @@ namespace eval ::tclpkg::version {
             set stripped [string range $stripped 1 end]
         }
         # Try full semver: MAJOR.MINOR.PATCH[-pre][+build]
-        set re {^(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:\.([0-9]+))?((?:-[0-9A-Za-z.-]+)|(?:[ab][0-9]+)|(?:rc[0-9]+))?(?:\+([0-9A-Za-z.-]+))?$}
+        # Match Python's regex: no leading zeros in minor/patch; prerelease
+        # identifiers separated by single dots (no empty segments).
+        set re {^(0|[1-9][0-9]*)(?:\.(0|[1-9][0-9]*))?(?:\.(0|[1-9][0-9]*))?((?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)|(?:[ab][0-9]+)|(?:rc[0-9]+))?(?:\+([0-9A-Za-z.-]+))?$}
         if {![regexp -- $re $stripped -> major minor patch pre build]} {
             error "invalid version: '$raw'"
         }
@@ -35,16 +37,18 @@ namespace eval ::tclpkg::version {
     }
 
     # Internal: parse a prerelease tag into a comparable list.
+    # Each element is a pair {type value} where type 0 = numeric, type 1 = string.
+    # Numeric identifiers sort before string identifiers (semver rule 11).
     proc _parse_prerelease {raw} {
-        # Tcl-style short forms: a1 -> {0 0 0 1}, b2 -> {0 1 0 2}, rc1 -> {0 2 0 1}
+        # Tcl-style short forms: a1 -> {1 alpha 0 1}, b2 -> {1 beta 0 2}
         if {[regexp {^(a)([0-9]+)$} $raw -> _ num]} {
-            return [list 0 0 0 $num]
+            return [list 1 alpha 0 $num]
         }
         if {[regexp {^(b)([0-9]+)$} $raw -> _ num]} {
-            return [list 0 1 0 $num]
+            return [list 1 beta 0 $num]
         }
         if {[regexp {^(rc)([0-9]+)$} $raw -> _ num]} {
-            return [list 0 2 0 $num]
+            return [list 1 rc 0 $num]
         }
         # Semver-style: -alpha.1, -rc.4, etc.
         set tag [string trimleft $raw "-"]
@@ -54,13 +58,7 @@ namespace eval ::tclpkg::version {
             if {[string is integer -strict $piece]} {
                 lappend result 0 $piece
             } else {
-                # Map known labels to numeric order.
-                switch -- $piece {
-                    alpha   { lappend result 0 0 }
-                    beta    { lappend result 0 1 }
-                    rc - pre { lappend result 0 2 }
-                    default { lappend result 1 $piece }
-                }
+                lappend result 1 $piece
             }
         }
         return $result

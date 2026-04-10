@@ -112,7 +112,13 @@ class RegistryClient:
             ts = datetime.fromisoformat(fetched.read_text().strip())
         except (ValueError, OSError):
             return False
-        return datetime.now(timezone.utc) - ts < _TTL
+        # Normalise naive timestamps (old cache files) to UTC.
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        try:
+            return datetime.now(timezone.utc) - ts < _TTL
+        except TypeError:
+            return False
 
     def _load_cached(self) -> list[RegistryEntry]:
         cached = self._cached_path()
