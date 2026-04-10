@@ -575,6 +575,22 @@ rust/
       ir.rs                              Statement, Script, Procedure, Module (C0)
       naming.rs                          normalise_var_name (C1)
       ssa.rs                             Phi, SsaBlock, SsaFunction, dominators (C3)
+      types.rs                           TypeLattice, type_join (C5, re-exports TclType from registry)
+  tcl-registry/                          command registry — single source of truth (R0)
+    Cargo.toml
+    src/
+      lib.rs                             crate root, prelude
+      arg_role.rs                        ArgRole enum (12 variants)
+      arity.rs                           Arity { min, max }
+      traits.rs                          Traits bitflags (u64, 38 flags)
+      dialects.rs                        DialectSet bitflags
+      types.rs                           TclType (canonical home)
+      spec.rs                            CommandSpec, SubCommand
+      registry.rs                        CommandRegistry facade
+      hover.rs                           HoverSnippet, OptionSpec, FormSpec
+      side_effects.rs                    SideEffect, StorageType
+      hooks.rs                           LoweringHookId, CodegenHookId, ArgTypeHint
+      commands/tcl/*.rs                  one file per Tcl command (11 ported so far)
       types.rs                           TclType, TypeLattice, type_join (C5)
   tcl-lsp-rust/                          PyO3 binding crate
     Cargo.toml
@@ -612,6 +628,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C3    | **SSA data structures + dominator algorithms.** SSA types: `Phi`, `SsaStatement`, `SsaBlock`, `SsaFunction`. Algorithms: `compute_dominators` (iterative dataflow), `compute_idom` (immediate dominators), `compute_dominance_frontier`, `build_dom_tree`, `compute_phi_vars` (iterated DF algorithm), `defs_of` (variable definition extraction from IR statements). 22 Rust unit tests covering linear/diamond/loop topologies. Full SSA rename pass deferred until `_uses` scanner is ported. | landed |
 | C4    | **Codegen types.** `Op` enum (150+ Tcl 9.0.2 bytecode opcodes), `Instruction`, `Operand`, `LiteralTable` (dedup intern pool), `LocalVarTable` (slot interning), `FunctionAsm`, `ModuleAsm`. Operator mapping (`BinOp`/`UnaryOp` → `Op`), index parsing (`parse_tcl_index`), `string is` class tables. 15 Rust unit tests. | landed |
 | C5    | **Type lattice + analysis result types.** `TclType` (10 intrep variants), `TypeLattice` (Unknown/Known/Shimmered/Overdefined), `type_join` with numeric promotions. SCCP lattice: `LatticeValue` (Unknown/Const/ConstSet/Overdefined), `ConstValue`. Diagnostic types: `DeadStore`, `ConstantBranch`, `ReadBeforeSet`, `UnusedVariable`. Composite: `FunctionAnalysis`, `ModuleAnalysis`. 21 Rust unit tests. | landed |
+| R0    | **Command registry crate.** `rust/tcl-registry/` — single source of truth for all command metadata. `CommandSpec` with `Traits` bitflags (u64, 38 bits replacing ~35 booleans), `SubCommand`, `ArgRole` (12 variants), `Arity`, `DialectSet` bitflags, `HoverSnippet`, `SideEffect`, hook IDs, `CommandRegistry` facade with trait-indexed queries and `arg_indices_for_role`. `TclType` moved here from `tcl-compiler` (canonical home). 11 command specs ported (for, if, while, foreach, set, incr, puts, proc, eval, expr, dict with 19 subcommands). 15 registry tests. Compiler re-exports `TclType`. | landed |
 | C*    | **Compiler migration (continued).** `core/compiler/` (lowering, codegen emitter, optimiser passes) → `rust/tcl-compiler/`. Each pass can be its own chunk. | planned |
 | S*    | **LSP server migration.** `lsp/` (pygls handlers, workspace orchestration, feature providers) → `rust/tcl-lsp-server/` on `tower-lsp`. This is when `ropey` enters the picture as the document store, the whole pipeline becomes async, and the server ships as a standalone Rust binary. | planned |
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), `core/analysis/` (analyser passes), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
