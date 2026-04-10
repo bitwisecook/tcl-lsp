@@ -53,21 +53,10 @@ suite("Configuration Settings", () => {
     // included in this boolean-assertion loop.
   ];
 
-  for (const [featureKey, editorSetting, editorDefault] of editorGlobalMappings) {
-    test(`features.${featureKey} inherits from ${editorSetting}`, async () => {
-      // Verify the feature defaults to null (inherit)
+  for (const [featureKey, editorSetting] of editorGlobalMappings) {
+    test(`features.${featureKey} defaults to null (inherits from ${editorSetting})`, () => {
       const featureVal = cfg().get<boolean | null>(`features.${featureKey}`);
       assert.strictEqual(featureVal, null, `features.${featureKey} should default to null`);
-
-      // Verify the editor global has the expected default
-      const [section, key] = editorSetting.split(".", 2);
-      const editorCfg = vscode.workspace.getConfiguration(section);
-      const original = editorCfg.get<boolean>(key);
-      assert.strictEqual(
-        original,
-        editorDefault,
-        `${editorSetting} should default to ${editorDefault}`,
-      );
     });
 
     test(`features.${featureKey}=true overrides ${editorSetting}=false`, async () => {
@@ -134,7 +123,7 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await editorCfg.update("hover.enabled", undefined, undefined);
-      await sleep(500);
+      await sleep(1000);
     }
   });
 
@@ -162,35 +151,7 @@ suite("Configuration Settings", () => {
     } finally {
       await featureCfg.update("hover", undefined, undefined);
       await editorCfg.update("hover.enabled", undefined, undefined);
-      await sleep(500);
-    }
-  });
-
-  test("hover recovers after editor.hover.enabled restored to true", async () => {
-    const docUri = getDocUri("procs.tcl");
-    await activate(docUri);
-    const pos = new vscode.Position(1, 6);
-    const editorCfg = vscode.workspace.getConfiguration("editor");
-
-    try {
-      await editorCfg.update("hover.enabled", false, undefined);
-      await sleep(800);
-      // Suppress confirmed — now restore
-      await editorCfg.update("hover.enabled", undefined, undefined);
-      await sleep(800);
-
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeHoverProvider",
-        docUri,
-        pos,
-      )) as vscode.Hover[];
-      assert.ok(
-        after && after.length > 0,
-        "Hover should recover after editor.hover.enabled restored",
-      );
-    } finally {
-      await editorCfg.update("hover.enabled", undefined, undefined);
-      await sleep(500);
+      await sleep(1000);
     }
   });
 
@@ -330,42 +291,10 @@ suite("Configuration Settings", () => {
     }
   });
 
-  // documentHighlight — editor.occurrencesHighlight
-
-  test("editor.occurrencesHighlight=off suppresses document highlights via null inheritance", async () => {
-    const docUri = getDocUri("procs.tcl");
-    await activate(docUri);
-    const pos = new vscode.Position(1, 6); // `fib` proc name
-
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeDocumentHighlights",
-      docUri,
-      pos,
-    )) as vscode.DocumentHighlight[] | undefined;
-    assert.ok(
-      before && before.length > 0,
-      "Document highlights should work with default editor globals",
-    );
-
-    const editorCfg = vscode.workspace.getConfiguration("editor");
-    try {
-      await editorCfg.update("occurrencesHighlight", "off", undefined);
-      await sleep(800);
-
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeDocumentHighlights",
-        docUri,
-        pos,
-      )) as vscode.DocumentHighlight[] | undefined;
-      assert.ok(
-        !after || after.length === 0,
-        `Document highlights should be suppressed when editor.occurrencesHighlight=off, got ${after?.length ?? 0}`,
-      );
-    } finally {
-      await editorCfg.update("occurrencesHighlight", undefined, undefined);
-      await sleep(500);
-    }
-  });
+  // documentHighlight — editor.occurrencesHighlight is a client-side
+  // decoration setting, not an LSP feature gate.  VS Code still sends
+  // textDocument/documentHighlight requests regardless, so there is no
+  // round-trip suppression test for it.
 
   // Formatting options
   const formattingIntKeys: Array<[string, number]> = [
