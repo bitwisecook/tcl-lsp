@@ -2837,6 +2837,13 @@ def parse_args(
     )
     help_p.set_defaults(handler=_run_help)
 
+    # Package manager and virtual environment verb groups (tclpkg).
+    from .verbs.pkg import add_pkg_subparser
+    from .verbs.venv import add_venv_subparser
+
+    add_pkg_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
+    add_venv_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
+
     return parser.parse_args(argv)
 
 
