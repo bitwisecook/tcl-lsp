@@ -252,8 +252,45 @@ invocation falls outside bounds.  Each `SubCommand` has its own arity.
 | `CHANNEL` | Channel identifier |
 | `INDEX` | List/string index expression |
 
-For variable-layout commands (`if`, `try`, `switch`), an `ArgRoleResolver`
-callback dynamically maps argument values to roles.
+### Resolution priority
+
+Three mechanisms assign roles to command arguments. They are evaluated in
+priority order — the first that provides a mapping wins:
+
+1. **`arg_role_resolver`** (dynamic callback) — inspects the actual argument
+   list at analysis time and returns a `dict[int, ArgRole]`. Used for
+   variable-arity commands where roles depend on argument count or content.
+   Examples: `set` returns `VAR_WRITE` for arg 0 when two arguments are
+   present but `VAR_READ` when only one is present; `if` maps body and
+   expression positions by scanning for `elseif`/`else` keywords.
+2. **`arg_roles`** (static dict) — a fixed mapping on the spec. Sufficient
+   when every invocation has the same layout.
+3. **`assigns_variable_at`** (legacy shorthand) — marks a single argument
+   index as a variable write. Overridden when a dynamic resolver exists.
+
+When a spec carries both `assigns_variable_at` and `arg_role_resolver`, the
+resolver is authoritative. The static field remains as a fallback for
+consumers that do not invoke the resolver (e.g. simple liveness queries).
+
+### Compound commands and subcommand dispatch
+
+Tcl compound commands (`namespace upvar`, `dict for`, `string map`, etc.)
+are tokenised as a base command with a subcommand argument. Different
+analysis layers handle these at different levels:
+
+- The **registry** uses `SubCommand` entries on the parent `CommandSpec`.
+  The parent's `arg_role_resolver` inspects the subcommand word to assign
+  roles to the remaining arguments.
+- **Variable scoping** (`core/analysis/var_scoping.py`) has explicit
+  handlers for compound forms like `namespace upvar`, `dict set`,
+  `dict update`, and `dict with`.
+- **Lowering hooks** (`core/compiler/lowering_hooks/`) have per-command
+  hooks that understand subcommand structure.
+
+When verifying whether a compound command is handled, search all three
+layers — the feature module closest to the symptom (e.g.
+`lsp/features/declaration.py`) may intentionally delegate to a deeper
+module.
 
 ### OptionSpec and option terminators
 

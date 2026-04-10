@@ -48,6 +48,14 @@ Token(ESC, "set")  Token(SEP, " ")  Token(ESC, "y")  Token(SEP, " ")  Token(VAR,
 Note: the `$` prefix is consumed by the lexer; `Token.text` contains the bare
 variable name.
 
+**Stray punctuation convention** — a standalone `}` or `]` that appears
+outside its structural role (i.e. not closing a brace-group or command
+substitution) receives `TokenType.ESC`, not a special type. Downstream
+consumers that check for stray punctuation must test
+`tok.type is TokenType.ESC` in addition to `tok.text` to distinguish stray
+characters from structural delimiters (which are part of `STR` or `CMD`
+tokens).
+
 ### Stage 2 — Segmentation
 
 The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:

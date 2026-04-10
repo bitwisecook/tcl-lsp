@@ -230,6 +230,13 @@ reader searches for them by that identifier: "what does O105 do?",
 "why am I seeing W210?", "what is the rename feature?". The code or
 feature name is the subject; the tail describes it in plain English.
 
+**Filename casing** — diagnostic and optimisation code prefixes are
+always **lowercase** in filenames: `kcs-diagnostic-w210-...`, not
+`kcs-diagnostic-W210-...`. The code itself uses uppercase in prose
+and headings (`W210`, `O105`) but the filename is all-lowercase for
+consistency with the rest of the KCS tree and to avoid case-sensitivity
+issues across platforms.
+
 ### 11. List the editors and tools the note applies to
 
 Every KCS note must include an `## Applies to` section immediately

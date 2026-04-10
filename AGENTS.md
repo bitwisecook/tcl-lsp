@@ -258,6 +258,65 @@ This updates the generated diagnostic tables in VS Code, Neovim, Zed, Emacs,
 Helix, Sublime, and JetBrains editor integrations. Commit the regenerated files
 alongside the diagnostic/optimisation change — CI will fail if they are stale.
 
+## LSP feature toggles
+
+Most LSP features use a simple runtime guard pattern: the handler is always
+registered with `@server.feature(...)`, and the handler body checks
+`feature_config.<feature>_enabled` before doing work (returning `None` when
+disabled). This allows features to be toggled via `didChangeConfiguration`
+without restarting.
+
+A small set of features cannot follow this pattern because their handler
+registration changes the `ServerCapabilities` advertised during `initialize`,
+which alters client behaviour irreversibly for the session. These are listed
+in `_RESTART_REQUIRED_TOGGLES` in `lsp/server.py` and are registered
+conditionally at import time. Currently this set includes:
+
+- **`pull_diagnostics_enabled`** — registers `textDocument/diagnostic` and
+  `workspace/diagnostic` handlers, which flips `vscode-languageclient` into
+  pull mode and disables the push pipeline.
+
+Changing a restart-required toggle at runtime logs a warning but has no
+effect until the server process is restarted.
+
+## Lexer token types
+
+The Tcl lexer (`core/parsing/lexer.py`) produces tokens with a `TokenType`
+enum. Key conventions that affect downstream consumers:
+
+- **`ESC`** — plain word fragment, possibly containing backslash escapes.
+  This is the default type for unbraced, unsubstituted text. Standalone
+  punctuation like `}` or `]` appearing outside of their structural role
+  (i.e. as stray characters) also receives `TokenType.ESC`.
+- **`STR`** — braced string `{...}`.
+- **`CMD`** — command substitution `[...]`.
+- **`VAR`** — variable substitution `$name` or `${name}`.
+- **`SEP`** / **`EOL`** — whitespace separator / end-of-line.
+
+When checking for stray punctuation (`}`, `]`), always check
+`tok.type is TokenType.ESC` — not just `tok.text`. A `}` with type `STR`
+is a structural brace, not a stray character.
+
+See `docs/design/compiler/lexing-segmentation.md` for the full token type
+table and lexer contracts.
+
+## Codegen and lowering fallback
+
+Lowering hooks in `core/compiler/lowering_hooks/` convert high-level Tcl
+commands into IR nodes. When a hook encounters a construct it cannot
+safely specialise (e.g. `{*}` expansion in a structured command, or a
+`subst` template with unsupported backslash forms), it **falls through to
+the generic `IRCall`** rather than producing incorrect specialised IR.
+
+This fallback-to-runtime pattern is intentional and preserves correctness.
+Functions that return `None` to signal "I cannot handle this" (e.g.
+`_parse_subst_template()` in `core/compiler/codegen/_helpers.py`) are not
+incomplete — they are conservative by design. The runtime interpreter
+handles the full Tcl specification; the compiler only inlines what it can
+prove is safe.
+
+See `docs/design/compiler/lowering-dispatch.md` for the dispatch hierarchy.
+
 ## Position infrastructure
 
 `DocumentBuffer` (`core/common/document_buffer.py`) is the per-document
@@ -287,6 +346,49 @@ When a consumer needs to know something about a command (e.g. "is this an
 action?", "does this mutate state?"), add a boolean field to `CommandSpec`, a
 query method to `CommandRegistry`, and set the flag on the relevant command
 specs. Do **not** create a `frozenset` of command names in the consumer module.
+
+### Argument role resolution order
+
+Three mechanisms assign argument roles (BODY, EXPR, VAR_READ, VAR_WRITE, etc.)
+to command arguments. They are evaluated in **priority order**:
+
+1. **`arg_role_resolver`** (dynamic) — a callback that inspects the actual
+   argument list and returns a role map. Used for variable-arity commands
+   where roles depend on argument count or values (e.g. `set` distinguishes
+   read vs write by whether a value argument is present; `if` maps bodies
+   and expressions by keyword position).
+2. **`arg_roles`** (static) — a fixed `dict[int, ArgRole]` on the spec.
+   Sufficient when every call has the same argument layout.
+3. **`assigns_variable_at`** (legacy shorthand) — marks a single argument
+   index as a variable write. Overridden by the dynamic resolver when one
+   exists.
+
+The dynamic resolver takes priority over static fields. When reviewing a
+command spec that has both `assigns_variable_at` and `arg_role_resolver`,
+the resolver is the authority — the static field is a fallback for consumers
+that do not call the resolver.
+
+See `docs/design/compiler/command-registry.md` for the full field reference.
+
+### Compound commands and multi-module handling
+
+Tcl compound commands like `namespace upvar`, `namespace eval`,
+`dict for`, `string map`, etc. are tokenised as a base command
+(`namespace`, `dict`, `string`) with a subcommand argument. Different
+analysis passes handle these at different levels:
+
+- **Subcommand dispatch** in the registry uses `SubCommand` entries on the
+  parent spec. The `arg_role_resolver` on the parent inspects the
+  subcommand word to assign roles.
+- **Variable scoping** (`core/analysis/var_scoping.py`) has explicit
+  handling for compound forms like `namespace upvar`, `dict set`,
+  `dict update`, etc. — these are not in `lsp/features/declaration.py`
+  which only handles single-word commands (`global`, `variable`, `upvar`).
+- **Lowering** (`core/compiler/lowering_hooks/`) has per-command hooks
+  that understand subcommand structure.
+
+When checking whether a compound command is handled, search all three
+layers — not just the feature module closest to the symptom.
 
 ## Testing
 
