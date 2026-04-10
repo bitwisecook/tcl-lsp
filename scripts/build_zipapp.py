@@ -110,20 +110,14 @@ _RUST_NATIVE_PACKAGES: frozenset[str] = frozenset({"tcl_lsp_rust"})
 def _is_preserved_native(path: Path) -> bool:
     """Return True if *path* belongs to a preserved Rust-backed package.
 
-    Maturin installs the extension as a top-level file whose name begins
-    with the package name followed by a ``.`` (e.g.
-    ``tcl_lsp_rust.cpython-311-x86_64-linux-gnu.so``) and creates a
-    dist-info directory whose name begins with the package name followed
-    by a ``-`` (e.g. ``tcl_lsp_rust-0.1.0.dist-info``). An exact path-part
-    match covers the case where the package installs a sub-directory.
+    Maturin-built extensions install as top-level files like
+    ``tcl_lsp_rust.cpython-310-x86_64-linux-gnu.so`` and their
+    dist-info as ``tcl_lsp_rust-<ver>.dist-info/``.  Match by
+    checking whether any path component *starts with* a known
+    package name (not just exact equality), so both the ``.so``
+    stem and the dist-info directory are preserved.
     """
-    return any(
-        any(
-            part == pkg or part.startswith(f"{pkg}.") or part.startswith(f"{pkg}-")
-            for pkg in _RUST_NATIVE_PACKAGES
-        )
-        for part in path.parts
-    )
+    return any(part.split(".")[0].split("-")[0] in _RUST_NATIVE_PACKAGES for part in path.parts)
 
 
 def _pip_install_pure(stage: Path, *packages: str) -> None:

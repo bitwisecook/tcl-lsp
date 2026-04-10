@@ -1,21 +1,21 @@
 """Differential test harness for the Rust and Python Tcl lexers.
 
-The harness feeds each input through both ``core.parsing.lexer.TclLexer``
-(the Python reference) and ``tcl_lsp_rust.lexer_tokenise_with_config``
-(the Rust port) and asserts the two token streams are equal field-by-field.
+The Rust lexer (L0–L13) now handles every token kind, dialect flag,
+and strict-quoting mode. This harness:
 
-The corpus consists of:
+1. hand-curates a corpus of inputs covering every construct;
+2. dynamically harvests ASCII string literals from the broader
+   lexer test suite;
+3. feeds each input through both ``core.parsing.lexer.TclLexer``
+   (the Python reference) and ``tcl_lsp_rust.lexer_tokenise`` (the
+   Rust port);
+4. asserts the two token streams are equal field-by-field.
 
-1. hand-curated inputs that exercise specific constructs (variables,
-   commands, braces, quotes, backslash escapes, expand prefix, expressions);
-2. inputs collected from the broader lexer test suite that exercise the
-   same constructs.
-
-The harness is restricted to ASCII inputs because the Rust lexer tracks
-column as byte-offset-within-line while the Python lexer tracks
-code-point-offset-within-line. The two agree for ASCII and drift for
-supplementary-plane characters. Multi-byte column parity is deferred work
-tracked in ``docs/rust-rewrite.md``.
+The harness is restricted to ASCII inputs because the Rust lexer
+tracks column as byte-offset-within-line while the Python lexer
+tracks code-point-offset-within-line. The two agree for ASCII and
+drift for supplementary-plane characters. Multi-byte column parity
+is deferred work tracked in ``docs/rust-rewrite.md``.
 """
 
 from __future__ import annotations

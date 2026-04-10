@@ -3,11 +3,11 @@
 Shared by the compiler (for expr string literals inside braces) and
 the VM runtime substitution engine.
 
-The implementation is provided by the Rust `tcl_lsp_rust` extension
-module (see `rust/tcl-lexer/src/substitution.rs`). A pure-Python
-fallback is kept in this file for developer environments and platforms
-that have not yet built the Rust wheel; it will remain until a later
-stage of the Python-to-Rust rewrite described in `docs/rust-rewrite.md`.
+The primary implementation is provided by the Rust `tcl_lsp_rust`
+extension module (see `rust/tcl-lexer/src/substitution.rs`). A
+pure-Python fallback is still kept in this file for developer
+environments that have not yet built the Rust wheel; the broader
+Python-to-Rust rewrite is described in `docs/rust-rewrite.md`.
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ from __future__ import annotations
 from typing import Callable
 
 try:
-    from tcl_lsp_rust import (
-        backslash_subst as _backslash_subst_rust,  # type: ignore[import-not-found]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        backslash_subst as _backslash_subst_rust,
     )
 except ImportError:
     _backslash_subst_rust = None
