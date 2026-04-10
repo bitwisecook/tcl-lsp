@@ -1731,6 +1731,50 @@ class BytecodeVM:
                             raise TclError("list index out of range")
                     stack.append(" ".join(_list_escape(e) for e in lst))
 
+                case Op.STR_CLASS:
+                    # strclass classId: check whether TOS is a member of
+                    # the given character class.  Replaces TOS with "1"
+                    # or "0".  Used by bytecoded ``string is CLASS``.
+                    from core.compiler.codegen.opcodes import _STR_CLASS_NAMES
+                    val = stack.pop() if stack else ""
+                    class_id = instr.operands[0] if instr.operands else 0
+                    if isinstance(class_id, str):
+                        class_id = int(class_id)
+                    class_name = _STR_CLASS_NAMES.get(class_id, "alnum")
+
+                    # Character class checks
+                    _class_checks: dict[str, Callable[[str], bool]] = {
+                        "alnum": str.isalnum,
+                        "alpha": str.isalpha,
+                        "ascii": lambda s: all(ord(c) < 128 for c in s),
+                        "control": lambda s: all(
+                            ord(c) < 32 or ord(c) == 127 for c in s
+                        ) if s else False,
+                        "digit": str.isdigit,
+                        "graph": lambda s: all(
+                            c.isprintable() and not c.isspace() for c in s
+                        ) if s else False,
+                        "lower": str.islower,
+                        "print": lambda s: all(c.isprintable() for c in s) if s else False,
+                        "space": str.isspace,
+                        "upper": str.isupper,
+                        "wordchar": lambda s: all(
+                            c.isalnum() or c == "_" for c in s
+                        ) if s else False,
+                        "xdigit": lambda s: all(
+                            c in "0123456789abcdefABCDEF" for c in s
+                        ) if s else False,
+                    }
+                    checker = _class_checks.get(class_name)
+                    if checker is not None:
+                        # Non-strict: empty string is "1" (matches Tcl semantics)
+                        if not val:
+                            stack.append("1")
+                        else:
+                            stack.append("1" if checker(val) else "0")
+                    else:
+                        stack.append("0")
+
                 case _:
                     pass  # ignore unhandled ops
 
