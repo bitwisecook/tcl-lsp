@@ -2384,9 +2384,11 @@ class _WasmEmitter:
     def _emit_loop_body(self, start: str, header: str) -> None:
         """Emit all blocks reachable from *start* until reaching *header*.
 
-        Follows goto chains linearly.  On a branch, emits if/else and
-        continues after the merge point.  Stops when a goto target is
-        the loop *header* (the back-edge).
+        Follows goto chains linearly.  When a CFGBranch is encountered,
+        checks whether it is a nested loop (back-edge from the true
+        branch) and emits ``block{loop{...}}`` for it.  Plain branches
+        (if/else) are emitted with ``if/else/end``.  Stops when a goto
+        target is the outer loop's *header* (the back-edge).
         """
         current = start
         while current and current != header:
@@ -2406,25 +2408,47 @@ class _WasmEmitter:
                 case CFGGoto(target=target):
                     current = target
                 case CFGBranch(condition=cond, true_target=tt, false_target=ft):
-                    # Nested branch inside loop body (e.g., if inside for)
-                    merge = self._find_merge_block(tt, ft)
-                    if merge is not None:
-                        self._visited.add(merge)
+                    # Check for nested loop: the true-target body
+                    # eventually loops back to this block.
+                    if self._is_loop_header(current, tt):
+                        # Emit a nested WASM loop for this inner header.
+                        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
+                        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
 
-                    self._emit_expr(cond)
-                    self._emit_i64_const(0)
-                    self._emit(WasmOp.I64_NE)
-                    self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
-                    self._emit_loop_body(tt, header)
-                    self._emit(WasmOp.ELSE)
-                    self._emit_loop_body(ft, header)
-                    self._emit(WasmOp.END)
+                        self._emit_expr(cond)
+                        self._emit_i64_const(0)
+                        self._emit(WasmOp.I64_EQ)
+                        self._emit_br_if(1)  # break if false
 
-                    if merge is not None:
-                        self._visited.discard(merge)
-                        current = merge
+                        # Emit inner loop body — stops at current (inner back-edge)
+                        self._emit_loop_body(tt, current)
+
+                        self._emit_br(0)  # loop back
+                        self._emit(WasmOp.END)  # end loop
+                        self._emit(WasmOp.END)  # end block
+
+                        # Continue with the false-target (loop exit)
+                        current = ft
                     else:
-                        return
+                        # Plain branch (if/else inside loop body)
+                        merge = self._find_merge_block(tt, ft)
+                        if merge is not None:
+                            self._visited.add(merge)
+
+                        self._emit_expr(cond)
+                        self._emit_i64_const(0)
+                        self._emit(WasmOp.I64_NE)
+                        self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                        self._emit_loop_body(tt, header)
+                        self._emit(WasmOp.ELSE)
+                        self._emit_loop_body(ft, header)
+                        self._emit(WasmOp.END)
+
+                        if merge is not None:
+                            self._visited.discard(merge)
+                            current = merge
+                        else:
+                            return
                 case CFGReturn(value=value):
                     if value is not None:
                         self._emit_value(value)
