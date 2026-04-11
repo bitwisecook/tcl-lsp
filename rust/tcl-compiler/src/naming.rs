@@ -33,6 +33,31 @@ pub fn normalise_var_name(name: &str) -> &str {
     }
 }
 
+/// Normalise a possibly-qualified Tcl command or procedure name.
+///
+/// Ensures the name starts with `::` and removes empty parts from
+/// consecutive `::` separators.
+///
+/// ```
+/// use tcl_compiler::naming::normalise_qualified_name;
+/// assert_eq!(normalise_qualified_name("foo"), "::foo");
+/// assert_eq!(normalise_qualified_name("ns::bar"), "::ns::bar");
+/// assert_eq!(normalise_qualified_name("::baz"), "::baz");
+/// assert_eq!(normalise_qualified_name(""), "");
+/// assert_eq!(normalise_qualified_name("::::x"), "::x");
+/// ```
+#[must_use]
+pub fn normalise_qualified_name(name: &str) -> String {
+    if name.is_empty() {
+        return String::new();
+    }
+    let parts: Vec<&str> = name.split("::").filter(|p| !p.is_empty()).collect();
+    if parts.is_empty() {
+        return "::".to_owned();
+    }
+    format!("::{}", parts.join("::"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,5 +100,37 @@ mod tests {
     #[test]
     fn bare_dollar() {
         assert_eq!(normalise_var_name("$"), "");
+    }
+
+    // normalise_qualified_name tests
+
+    #[test]
+    fn qualified_bare() {
+        assert_eq!(normalise_qualified_name("foo"), "::foo");
+    }
+
+    #[test]
+    fn qualified_already() {
+        assert_eq!(normalise_qualified_name("::bar"), "::bar");
+    }
+
+    #[test]
+    fn qualified_nested() {
+        assert_eq!(normalise_qualified_name("ns::sub"), "::ns::sub");
+    }
+
+    #[test]
+    fn qualified_empty() {
+        assert_eq!(normalise_qualified_name(""), "");
+    }
+
+    #[test]
+    fn qualified_just_colons() {
+        assert_eq!(normalise_qualified_name("::"), "::");
+    }
+
+    #[test]
+    fn qualified_extra_colons() {
+        assert_eq!(normalise_qualified_name("::::x"), "::x");
     }
 }
