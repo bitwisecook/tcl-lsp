@@ -27,7 +27,16 @@
 //!   [`LocalVarTable`](codegen::LocalVarTable),
 //!   [`FunctionAsm`](codegen::FunctionAsm),
 //!   [`ModuleAsm`](codegen::ModuleAsm), plus operator mapping and
-//!   index parsing (chunk **C4**).
+//!   index parsing (chunk **C4**).  The emission context
+//!   [`CodegenCtx`](codegen::CodegenCtx) and submodules
+//!   [`helpers`](codegen::helpers), [`values`](codegen::values),
+//!   [`expressions`](codegen::expressions) provide the codegen emitter
+//!   foundation (chunk **C11**).  Statement emission
+//!   ([`statements`](codegen::statements)), peephole optimisations
+//!   ([`peephole`](codegen::peephole)), layout resolution
+//!   ([`layout`](codegen::layout)), and disassembly formatting
+//!   ([`format`](codegen::format)) complete the codegen pipeline
+//!   (chunks **C12–C15**).
 //! - [`types`] — Tcl intrep type lattice:
 //!   [`TclType`](types::TclType), [`TypeLattice`](types::TypeLattice),
 //!   [`type_join`](types::type_join) (chunk **C5**).
