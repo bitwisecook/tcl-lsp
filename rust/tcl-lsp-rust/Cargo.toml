@@ -15,6 +15,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 tcl-lexer = { path = "../tcl-lexer" }
+tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
 
