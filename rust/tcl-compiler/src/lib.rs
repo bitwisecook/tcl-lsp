@@ -58,6 +58,7 @@
 
 #![deny(missing_docs)]
 
+pub mod alias;
 pub mod analyses;
 pub mod cfg;
 pub mod cfg_builder;
@@ -66,6 +67,7 @@ pub mod expr_ast;
 pub mod expr_parser;
 pub mod ir;
 pub mod ir_helpers;
+pub mod lowering_hooks;
 pub mod naming;
 pub mod ssa;
 pub mod types;
