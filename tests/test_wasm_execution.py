@@ -943,3 +943,214 @@ proc caller {x y} {
 """
         result = _compile_and_run_proc(source, "caller", (10, 20))
         assert result == 30
+
+
+# Tail-position incr
+
+
+class TestIncrTailPosition:
+    """Test that incr in tail position returns the new value."""
+
+    def test_incr_implicit_return(self):
+        """Last command incr should return the incremented value."""
+        result = _compile_and_run_proc(
+            "proc f {x} { incr x }\n",
+            "f",
+            (5,),
+        )
+        assert result == 6
+
+    def test_incr_by_n_implicit_return(self):
+        """incr x 3 in tail position should return x+3."""
+        result = _compile_and_run_proc(
+            "proc f {x} { incr x 3 }\n",
+            "f",
+            (10,),
+        )
+        assert result == 13
+
+    def test_incr_negative_implicit_return(self):
+        """incr x -2 in tail position should return x-2."""
+        result = _compile_and_run_proc(
+            "proc f {x} { incr x -2 }\n",
+            "f",
+            (10,),
+        )
+        assert result == 8
+
+
+# WASM vs bytecode VM cross-verification
+
+
+class TestWasmVsBytecodeVm:
+    """Verify WASM compiled results match the bytecode VM for the same source.
+
+    These tests execute identical Tcl programs through both the WASM
+    backend (via wasmtime) and the bytecode VM (TclInterp.eval), then
+    compare results.
+    """
+
+    @staticmethod
+    def _vm_eval_proc(source: str, proc_name: str, args: tuple[int, ...]) -> int:
+        """Run a proc through the bytecode VM, returning its integer result."""
+        from vm.interp import TclInterp
+
+        interp = TclInterp()
+        # Define the proc
+        interp.eval(source)
+        # Call the proc with args
+        call = f"{proc_name} {' '.join(str(a) for a in args)}"
+        result = interp.eval(call)
+        return int(result.value)
+
+    @pytest.mark.parametrize(
+        "source,proc,args",
+        [
+            ("proc add {a b} { expr {$a + $b} }\n", "add", (3, 4)),
+            ("proc sub {a b} { expr {$a - $b} }\n", "sub", (10, 3)),
+            ("proc mul {a b} { expr {$a * $b} }\n", "mul", (6, 7)),
+            ("proc divide {a b} { expr {$a / $b} }\n", "divide", (42, 6)),
+            ("proc modulo {a b} { expr {$a % $b} }\n", "modulo", (17, 5)),
+            ("proc neg {a b} { expr {$a + $b} }\n", "neg", (5, -3)),
+        ],
+    )
+    def test_arithmetic_matches_vm(self, source, proc, args):
+        """Arithmetic ops must match bytecode VM exactly."""
+        wasm_result = _compile_and_run_proc(source, proc, args)
+        vm_result = self._vm_eval_proc(source, proc, args)
+        assert wasm_result == vm_result
+
+    @pytest.mark.parametrize(
+        "source,proc,args",
+        [
+            ("proc f {a b} { expr {$a == $b} }\n", "f", (5, 5)),
+            ("proc f {a b} { expr {$a == $b} }\n", "f", (5, 6)),
+            ("proc f {a b} { expr {$a != $b} }\n", "f", (5, 6)),
+            ("proc f {a b} { expr {$a < $b} }\n", "f", (3, 5)),
+            ("proc f {a b} { expr {$a > $b} }\n", "f", (5, 3)),
+            ("proc f {a b} { expr {$a <= $b} }\n", "f", (5, 5)),
+            ("proc f {a b} { expr {$a >= $b} }\n", "f", (5, 5)),
+        ],
+    )
+    def test_comparisons_match_vm(self, source, proc, args):
+        """Comparison ops must match bytecode VM exactly."""
+        wasm_result = _compile_and_run_proc(source, proc, args)
+        vm_result = self._vm_eval_proc(source, proc, args)
+        assert wasm_result == vm_result
+
+    @pytest.mark.parametrize(
+        "source,proc,args",
+        [
+            ("proc f {a b} { expr {$a & $b} }\n", "f", (0xFF, 0x0F)),
+            ("proc f {a b} { expr {$a | $b} }\n", "f", (0xF0, 0x0F)),
+            ("proc f {a b} { expr {$a ^ $b} }\n", "f", (0xFF, 0x0F)),
+            ("proc f {a b} { expr {$a << $b} }\n", "f", (1, 4)),
+            ("proc f {a b} { expr {$a >> $b} }\n", "f", (16, 2)),
+        ],
+    )
+    def test_bitwise_matches_vm(self, source, proc, args):
+        """Bitwise ops must match bytecode VM exactly."""
+        wasm_result = _compile_and_run_proc(source, proc, args)
+        vm_result = self._vm_eval_proc(source, proc, args)
+        assert wasm_result == vm_result
+
+    def test_if_else_matches_vm(self):
+        """if/else branching must produce same results as VM."""
+        source = "proc f {x} { if {$x > 0} { return 1 } else { return 0 } }\n"
+        for x in (5, -1, 0):
+            wasm_r = _compile_and_run_proc(source, "f", (x,))
+            vm_r = self._vm_eval_proc(source, "f", (x,))
+            assert wasm_r == vm_r, f"Mismatch for x={x}: WASM={wasm_r}, VM={vm_r}"
+
+    def test_incr_matches_vm(self):
+        """incr must produce same results as VM."""
+        source = "proc f {x} { incr x 3; return $x }\n"
+        for x in (0, 5, -10):
+            wasm_r = _compile_and_run_proc(source, "f", (x,))
+            vm_r = self._vm_eval_proc(source, "f", (x,))
+            assert wasm_r == vm_r
+
+    def test_for_loop_matches_vm(self):
+        """for loop summation must match VM."""
+        source = """\
+proc sum_to {n} {
+    set s 0
+    for {set i 0} {$i < $n} {incr i} {
+        set s [expr {$s + $i}]
+    }
+    return $s
+}
+"""
+        for n in (0, 1, 5, 10):
+            wasm_r = _compile_and_run_proc(source, "sum_to", (n,))
+            vm_r = self._vm_eval_proc(source, "sum_to", (n,))
+            assert wasm_r == vm_r, f"Mismatch for n={n}: WASM={wasm_r}, VM={vm_r}"
+
+    def test_while_loop_matches_vm(self):
+        """while loop must match VM."""
+        source = """\
+proc countdown {n} {
+    set count 0
+    while {$n > 0} {
+        incr count
+        incr n -1
+    }
+    return $count
+}
+"""
+        for n in (0, 1, 5):
+            wasm_r = _compile_and_run_proc(source, "countdown", (n,))
+            vm_r = self._vm_eval_proc(source, "countdown", (n,))
+            assert wasm_r == vm_r
+
+    def test_power_matches_vm(self):
+        """Exponentiation must match VM."""
+        source = "proc pow {a b} { expr {$a ** $b} }\n"
+        for a, b in ((2, 0), (2, 1), (2, 10), (3, 3)):
+            wasm_r = _compile_and_run_proc(source, "pow", (a, b))
+            vm_r = self._vm_eval_proc(source, "pow", (a, b))
+            assert wasm_r == vm_r, f"Mismatch for {a}**{b}: WASM={wasm_r}, VM={vm_r}"
+
+    def test_logical_ops_match_vm(self):
+        """Logical AND/OR must produce boolean 0/1 matching VM."""
+        source_and = "proc f {a b} { expr {$a && $b} }\n"
+        source_or = "proc f {a b} { expr {$a || $b} }\n"
+        for a, b in ((0, 0), (0, 1), (1, 0), (2, 5), (7, 0)):
+            wasm_r = _compile_and_run_proc(source_and, "f", (a, b))
+            vm_r = self._vm_eval_proc(source_and, "f", (a, b))
+            assert wasm_r == vm_r, f"AND mismatch for ({a},{b})"
+            wasm_r = _compile_and_run_proc(source_or, "f", (a, b))
+            vm_r = self._vm_eval_proc(source_or, "f", (a, b))
+            assert wasm_r == vm_r, f"OR mismatch for ({a},{b})"
+
+    def test_ternary_matches_vm(self):
+        """Ternary ?: must match VM."""
+        source = "proc f {x} { expr {$x > 0 ? $x : -$x} }\n"
+        for x in (5, -3, 0):
+            wasm_r = _compile_and_run_proc(source, "f", (x,))
+            vm_r = self._vm_eval_proc(source, "f", (x,))
+            assert wasm_r == vm_r, f"Mismatch for x={x}"
+
+    def test_recursive_fib_matches_vm(self):
+        """Recursive fibonacci via command substitution must match VM."""
+        source = """\
+proc fib {n} {
+    if {$n <= 1} { return $n }
+    expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}
+}
+"""
+        for n in (0, 1, 2, 3, 6):
+            wasm_r = _compile_and_run_proc(source, "fib", (n,))
+            vm_r = self._vm_eval_proc(source, "fib", (n,))
+            assert wasm_r == vm_r, f"fib({n}): WASM={wasm_r}, VM={vm_r}"
+
+    def test_proc_calls_match_vm(self):
+        """Proc-to-proc calls must match VM."""
+        source = """\
+proc double {x} { expr {$x * 2} }
+proc caller {n} { double $n }
+"""
+        for n in (0, 1, 7, -3):
+            wasm_r = _compile_and_run_proc(source, "caller", (n,))
+            vm_r = self._vm_eval_proc(source, "caller", (n,))
+            assert wasm_r == vm_r
