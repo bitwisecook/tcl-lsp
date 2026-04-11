@@ -133,8 +133,12 @@ fn lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Stateme
         match cmd.arg_kinds[0] {
             ArgTokenKind::Str => braced = true,
             ArgTokenKind::Cmd => {
+                let inner = cmd.args[0]
+                    .strip_prefix('[')
+                    .and_then(|s| s.strip_suffix(']'))
+                    .unwrap_or(&cmd.args[0]);
                 let alias_names = expr_alias_names(aliases);
-                if let Some(expr_arg) = extract_single_expr_arg(&cmd.args[0], &alias_names) {
+                if let Some(expr_arg) = extract_single_expr_arg(inner, &alias_names) {
                     expr = Some(parse_expr(&expr_arg, None));
                 }
             }
@@ -188,8 +192,14 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                 };
             }
             ArgTokenKind::Cmd => {
+                // The segmenter wraps CMD tokens as [text]; strip the
+                // brackets so extract_single_expr_arg sees "expr {arg}".
+                let inner = value
+                    .strip_prefix('[')
+                    .and_then(|s| s.strip_suffix(']'))
+                    .unwrap_or(value);
                 let alias_names = expr_alias_names(aliases);
-                if let Some(expr_arg) = extract_single_expr_arg(value, &alias_names) {
+                if let Some(expr_arg) = extract_single_expr_arg(inner, &alias_names) {
                     let expr = parse_expr(&expr_arg, None);
                     return Statement::AssignExpr {
                         span: cmd.span,
@@ -418,19 +428,25 @@ fn extract_single_expr_arg(text: &str, expr_aliases: &HashSet<String>) -> Option
     Some(words[1].clone())
 }
 
-/// Parse text as a decimal integer, returning its canonical string form.
+/// Validate text as a decimal integer, returning the source text if valid.
+///
+/// Rejects non-digit content, hex/octal prefixes, and leading zeros
+/// (except for `0` itself). Returns the trimmed source text unchanged
+/// to preserve the original representation for `AssignConst`.
 fn parse_decimal_int(text: &str) -> Option<String> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return None;
     }
-    // Must match the pattern: optional sign + digits (no leading zeros
-    // unless the value is exactly 0).
     let digits = trimmed.strip_prefix(['+', '-']).unwrap_or(trimmed);
     if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
-    trimmed.parse::<i64>().ok().map(|v| v.to_string())
+    // Reject leading zeros (007 is not a plain decimal integer in Tcl).
+    if digits.len() > 1 && digits.starts_with('0') {
+        return None;
+    }
+    Some(trimmed.to_owned())
 }
 
 #[cfg(test)]
@@ -441,7 +457,7 @@ mod tests {
     fn parse_decimal_int_simple() {
         assert_eq!(parse_decimal_int("42"), Some("42".into()));
         assert_eq!(parse_decimal_int("-7"), Some("-7".into()));
-        assert_eq!(parse_decimal_int("+3"), Some("3".into()));
+        assert_eq!(parse_decimal_int("+3"), Some("+3".into())); // preserves source
         assert_eq!(parse_decimal_int("0"), Some("0".into()));
     }
 
@@ -451,6 +467,7 @@ mod tests {
         assert_eq!(parse_decimal_int("3.14"), None);
         assert_eq!(parse_decimal_int(""), None);
         assert_eq!(parse_decimal_int("0x1f"), None);
+        assert_eq!(parse_decimal_int("007"), None); // leading zeros rejected
     }
 
     #[test]

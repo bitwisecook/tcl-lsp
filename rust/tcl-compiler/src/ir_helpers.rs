@@ -251,7 +251,7 @@ fn tokenise_to_words(source: &str) -> Vec<String> {
     let mut prev_is_sep = true;
     for tok in &tokens {
         match tok.kind {
-            TokenType::Sep | TokenType::Eol | TokenType::Eof => {
+            TokenType::Sep | TokenType::Eol | TokenType::Eof | TokenType::Comment => {
                 prev_is_sep = true;
             }
             _ => {
@@ -290,7 +290,7 @@ fn tokenise_to_command_words(source: &str) -> Vec<Vec<String>> {
                 }
                 prev_is_sep = true;
             }
-            TokenType::Sep => {
+            TokenType::Sep | TokenType::Comment => {
                 prev_is_sep = true;
             }
             _ => {

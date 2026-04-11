@@ -351,18 +351,28 @@ pub fn compute_phi_vars(
 /// Return `true` when argument at `arg_index` is a braced literal
 /// (single-token STR word).
 ///
-/// When token info is unavailable, conservatively returns `true` so
-/// that the body is still excluded (the common case is braced scripts).
+/// When token info is unavailable, returns `false` so unknown
+/// arguments are still scanned as ordinary inputs. We only exclude
+/// bodies when we can positively identify them as single-token
+/// braced literals.
 fn is_braced_arg(tokens: Option<&CommandTokens>, arg_index: usize) -> bool {
     let Some(tokens) = tokens else {
-        return true;
+        return false;
     };
     // tokens.argv includes the command name at index 0; args are 1-based.
     let tok_index = arg_index + 1;
     if tok_index >= tokens.single_token_word.len() {
-        return true;
+        return false;
     }
-    tokens.single_token_word[tok_index]
+    if !tokens.single_token_word[tok_index] {
+        return false;
+    }
+    // A single-token word from a VAR or CMD token is not braced.
+    if let Some(text) = tokens.argv_texts.get(tok_index) {
+        !text.starts_with("${") && !text.starts_with('[')
+    } else {
+        true
+    }
 }
 
 /// Return BODY arg indices that should be excluded from local statement uses.

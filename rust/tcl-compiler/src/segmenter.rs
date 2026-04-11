@@ -69,7 +69,8 @@ impl SegmentedCommand {
 ///
 /// Variables are prefixed with `$` and command substitutions are
 /// wrapped in `[...]` so that the result mirrors what the user wrote.
-fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
+#[must_use]
+pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
     let text = sm.token_text(tok);
     match tok.kind {
         TokenType::Var => {
@@ -107,12 +108,14 @@ pub fn segment_commands(source: &str) -> Vec<SegmentedCommand> {
 /// Segment with a base byte offset (for body scripts inside braces).
 #[must_use]
 pub fn segment_commands_with_offset(source: &str, base_offset: u32) -> Vec<SegmentedCommand> {
+    // word_piece only needs token_text (source indexing), no base offset.
     let sm = SourceMap::new(source);
     let config = LexerConfig {
         base_offset,
         ..LexerConfig::default()
     };
-    let lexer = Lexer::with_source_map(SourceMap::new(source), config);
+    let lexer_sm = SourceMap::new(source).with_base(base_offset, 0, 0);
+    let lexer = Lexer::with_source_map(lexer_sm, config);
     let Ok(tokens) = lexer.tokenise_all() else {
         return Vec::new();
     };
