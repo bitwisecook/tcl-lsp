@@ -12,7 +12,11 @@
 //! - [`expressions`] — expression AST compilation
 
 pub mod expressions;
+pub mod format;
 pub mod helpers;
+pub mod layout;
+pub mod peephole;
+pub mod statements;
 pub mod values;
 
 use std::collections::HashMap;
@@ -443,6 +447,175 @@ impl Op {
         )
     }
 
+    /// Instruction size in bytes (opcode + operands).
+    #[must_use]
+    #[allow(clippy::too_many_lines)]
+    pub const fn size(self) -> u8 {
+        match self {
+            // 1-byte: opcode only
+            Self::POP
+            | Self::DUP
+            | Self::EVAL_STK
+            | Self::EXPR_STK
+            | Self::ADD
+            | Self::SUB
+            | Self::MULT
+            | Self::DIV
+            | Self::MOD
+            | Self::EXPON
+            | Self::LSHIFT
+            | Self::RSHIFT
+            | Self::BITOR
+            | Self::BITXOR
+            | Self::BITAND
+            | Self::EQ
+            | Self::NEQ
+            | Self::LT
+            | Self::GT
+            | Self::LE
+            | Self::GE
+            | Self::STR_EQ
+            | Self::STR_NEQ
+            | Self::STR_CMP
+            | Self::STR_LT
+            | Self::STR_GT
+            | Self::STR_LE
+            | Self::STR_GE
+            | Self::STR_LEN
+            | Self::STR_INDEX
+            | Self::LIST_LENGTH
+            | Self::LIST_INDEX
+            | Self::DONE
+            | Self::BREAK
+            | Self::CONTINUE
+            | Self::END_CATCH
+            | Self::PUSH_RESULT
+            | Self::PUSH_RETURN_CODE
+            | Self::FOREACH_STEP
+            | Self::FOREACH_END
+            | Self::NOP
+            | Self::UMINUS
+            | Self::UPLUS
+            | Self::BITNOT
+            | Self::LNOT
+            | Self::NOT
+            | Self::LAND
+            | Self::LOR
+            | Self::LIST_IN
+            | Self::LIST_NOT_IN
+            | Self::STR_MAP
+            | Self::STR_FIND
+            | Self::STR_RFIND
+            | Self::STR_REPLACE
+            | Self::STR_TRIM
+            | Self::STR_TRIM_LEFT
+            | Self::STR_TRIM_RIGHT
+            | Self::STR_UPPER
+            | Self::STR_LOWER
+            | Self::STR_TITLE
+            | Self::STR_RANGE
+            | Self::STR_REVERSE
+            | Self::STR_REPEAT
+            | Self::STORE_STK
+            | Self::LOAD_STK
+            | Self::STORE_ARRAY_STK
+            | Self::LOAD_ARRAY_STK
+            | Self::INCR_STK
+            | Self::APPEND_STK
+            | Self::LAPPEND_STK
+            | Self::LAPPEND_LIST_STK
+            | Self::LAPPEND_LIST_ARRAY_STK
+            | Self::TRY_CVT_TO_NUMERIC
+            | Self::VERIFY_DICT
+            | Self::EXIST_STK
+            | Self::LSET_LIST
+            | Self::LIST_CONCAT
+            | Self::PUSH_RETURN_OPTS
+            | Self::RETURN_STK
+            | Self::NUMERIC_TYPE
+            | Self::TRY_CVT_TO_BOOLEAN
+            | Self::IRULE_CONTAINS
+            | Self::IRULE_STARTS_WITH
+            | Self::IRULE_ENDS_WITH
+            | Self::IRULE_EQUALS
+            | Self::IRULE_MATCHES_GLOB
+            | Self::IRULE_MATCHES_REGEX
+            | Self::IRULE_WORD_AND
+            | Self::IRULE_WORD_OR
+            | Self::IRULE_WORD_NOT
+            | Self::EXPAND_START
+            | Self::INVOKE_EXPANDED => 1,
+
+            // 2-byte: opcode + 1-byte operand
+            Self::PUSH1
+            | Self::LOAD_SCALAR1
+            | Self::STORE_SCALAR1
+            | Self::INCR_SCALAR1
+            | Self::INVOKE_STK1
+            | Self::JUMP1
+            | Self::JUMP_TRUE1
+            | Self::JUMP_FALSE1
+            | Self::STR_CONCAT1
+            | Self::APPEND_SCALAR1
+            | Self::LAPPEND_SCALAR1
+            | Self::STORE_ARRAY1
+            | Self::LOAD_ARRAY1
+            | Self::INCR_STK_IMM
+            | Self::INCR_ARRAY_STK_IMM
+            | Self::UNSET_STK
+            | Self::TAILCALL
+            | Self::STR_MATCH
+            | Self::REGEXP
+            | Self::STR_CLASS => 2,
+
+            // 3-byte: opcode + 2 1-byte operands
+            Self::INCR_SCALAR1_IMM => 3,
+
+            // 5-byte: opcode + 4-byte operand
+            Self::PUSH4
+            | Self::LOAD_SCALAR4
+            | Self::STORE_SCALAR4
+            | Self::INVOKE_STK4
+            | Self::JUMP4
+            | Self::JUMP_TRUE4
+            | Self::JUMP_FALSE4
+            | Self::LIST
+            | Self::LIST_INDEX_IMM
+            | Self::LINDEX_MULTI
+            | Self::BEGIN_CATCH4
+            | Self::FOREACH_START
+            | Self::JUMP_TABLE
+            | Self::LAPPEND_LIST
+            | Self::LAPPEND_LIST_ARRAY
+            | Self::ARRAY_EXISTS_IMM
+            | Self::CONCAT_STK
+            | Self::DICT_GET
+            | Self::DICT_EXISTS
+            | Self::EXIST_SCALAR
+            | Self::DICT_APPEND
+            | Self::DICT_LAPPEND
+            | Self::UPVAR
+            | Self::NSUPVAR
+            | Self::LSET_FLAT
+            | Self::REVERSE
+            | Self::OVER
+            | Self::EXPAND_STKTOP => 5,
+
+            // 6-byte
+            Self::INVOKE_REPLACE | Self::LREPLACE4 => 6,
+
+            // 9-byte: opcode + 2× 4-byte operands
+            Self::LIST_RANGE_IMM
+            | Self::STR_RANGE_IMM
+            | Self::RETURN_IMM
+            | Self::START_CMD
+            | Self::SYNTAX
+            | Self::DICT_SET
+            | Self::DICT_UNSET
+            | Self::DICT_INCR_IMM => 9,
+        }
+    }
+
     /// Map a [`BinOp`] to its bytecode opcode.
     #[must_use]
     pub fn from_binop(op: BinOp) -> Option<Self> {
@@ -697,7 +870,7 @@ pub struct CodegenCtx {
     /// Instruction stream (append-only during emission).
     pub instructions: Vec<Instruction>,
     /// Label name → instruction index (populated by [`place_label`]).
-    label_positions: HashMap<String, usize>,
+    pub(crate) label_positions: HashMap<String, usize>,
     /// Monotonic counter for generating unique label names.
     label_counter: u32,
     /// Whether we are compiling a proc body (affects LVT vs stack ops).
@@ -706,6 +879,10 @@ pub struct CodegenCtx {
     pub cmd_index: u32,
     /// End label for the current `startCommand` (paired by `end_command`).
     pub start_cmd_end_label: Option<String>,
+    /// Loop break target label (set by the emitter loop).
+    pub break_target: Option<String>,
+    /// Loop continue target label (set by the emitter loop).
+    pub continue_target: Option<String>,
 }
 
 impl CodegenCtx {
@@ -725,6 +902,8 @@ impl CodegenCtx {
             is_proc,
             cmd_index: 0,
             start_cmd_end_label: None,
+            break_target: None,
+            continue_target: None,
         }
     }
 
