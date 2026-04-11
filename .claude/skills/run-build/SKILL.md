@@ -69,24 +69,34 @@ report ONLY the following:
 
 1. **Result**: SUCCESS or FAILURE (one word)
 2. **Artefacts** (if any were produced): list file paths and sizes
-3. **Errors** (if any): for each error list:
-   - File path and line number
-   - Error message
-   - Brief context (1-2 lines)
+3. **Errors** (if any): reproduce each error **verbatim** — do not
+   paraphrase or shorten error messages, compiler diagnostics, or
+   tracebacks. Include:
+   - File path and line number exactly as printed
+   - The full error message exactly as printed
+   - The full traceback or compiler diagnostic chain (trim only
+     build-system boilerplate frames, keep everything from the
+     first project frame onward)
 4. **Warnings** (if any): list only actionable warnings, not standard
-   informational messages or deprecation noise
-5. **Key output**: any version numbers, package sizes, or notable
+   informational messages or deprecation noise. Reproduce warning
+   text verbatim.
+5. **Key output**: any version numbers, artefact sizes, or notable
    messages the user would want to know
 
+CRITICAL: All error messages, compiler diagnostics, and tracebacks
+must be copied character-for-character from the command output. Do
+not summarise, paraphrase, or truncate them — the caller needs exact
+text to locate and fix the issue.
+
 Do NOT include:
-- The raw command output
+- Successful compilation progress for individual files
 - Dependency resolution / download progress
-- Compilation progress for individual files
 - npm/pip install chatter
 - Successful step confirmations (only note the overall result)
 
-Keep your entire response under 200 words for a passing build, or under
-500 words for a failing build. Use markdown formatting.
+Keep your entire response under 200 words for a passing build. For a
+failing build there is no word limit — completeness of error context
+is more important than brevity. Use markdown formatting.
 ~~~
 
 $ARGUMENTS
