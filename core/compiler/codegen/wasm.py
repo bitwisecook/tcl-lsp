@@ -905,10 +905,12 @@ class _WasmEmitter:
         """
         var = self._resolve_var_name(value)
         if var is not None:
-            idx = self._local_index.get(var)
-            if idx is not None:
-                self._emit_local_get(idx)
-                return
+            # Intern on first reference so reads before assignment
+            # get a proper local (default-initialised to 0) instead
+            # of falling through and boxing "$var" as a string literal.
+            idx = self._intern_local(var)
+            self._emit_local_get(idx)
+            return
         # Try direct local lookup (for bare names like in IRAssignValue)
         idx = self._local_index.get(value)
         if idx is not None:
@@ -940,11 +942,10 @@ class _WasmEmitter:
         cmd_name = parts[0]
         cmd_args = parts[1:]
 
-        # [expr {...}] — compile expression and box to TclObj
+        # [expr {...}] — compile expression and box to TclObj.
+        # The splitter already strips braces.
         if cmd_name == "expr" and len(cmd_args) == 1:
             expr_arg = cmd_args[0]
-            if expr_arg.startswith("{") and expr_arg.endswith("}"):
-                expr_arg = expr_arg[1:-1]
             from ...parsing.expr_parser import parse_expr
 
             try:
@@ -962,7 +963,7 @@ class _WasmEmitter:
             for i in range(min(n_params, len(cmd_args))):
                 self._emit_value(cmd_args[i])
             for _ in range(n_params - len(cmd_args)):
-                self._emit_i32_const(0)
+                self._emit_default_arg()
             self._emit_call(func_idx)
             return
 
@@ -975,60 +976,53 @@ class _WasmEmitter:
         Integers are boxed via ``tcl_obj_new_int``; non-numeric strings
         are boxed via ``tcl_obj_new_string`` from the data segment.
 
-        When lifecycle imports are unavailable (standalone function
-        compilation), falls back to raw i32 constants.
+        Requires TclObj lifecycle imports; raises if they are missing
+        to avoid silently emitting raw i32 values that would be
+        misinterpreted as TclObj pointers.
         """
         new_int_idx = self._shared_imports.get("tcl_obj_new_int")
         new_str_idx = self._shared_imports.get("tcl_obj_new_string")
+        if new_int_idx is None or new_str_idx is None:
+            msg = (
+                "WASM TclObj literal emission requires shared imports "
+                "'tcl_obj_new_int' and 'tcl_obj_new_string'"
+            )
+            raise RuntimeError(msg)
 
         try:
             int_val = int(value)
-            if new_int_idx is not None:
-                self._emit_i64_const(int_val)
-                self._emit_call(new_int_idx)
-            else:
-                # Fallback: emit raw i32 constant (for standalone compilation)
-                self._emit_i32_const(int_val)
+            self._emit_i64_const(int_val)
+            self._emit_call(new_int_idx)
         except ValueError:
             try:
                 float_val = float(value)
-                if new_int_idx is not None:
-                    self._emit_i64_const(int(float_val))
-                    self._emit_call(new_int_idx)
-                else:
-                    self._emit_i32_const(int(float_val))
+                self._emit_i64_const(int(float_val))
+                self._emit_call(new_int_idx)
             except ValueError:
                 offset = self._intern_string(value)
                 encoded = value.encode("utf-8")
-                if new_str_idx is not None:
-                    # data_ptr = segment offset + 4 (skip length prefix)
-                    self._emit_i32_const(offset + 4)
-                    self._emit_i32_const(len(encoded))
-                    self._emit_call(new_str_idx)
-                else:
-                    self._emit_i32_const(offset)
+                # data_ptr = segment offset + 4 (skip length prefix)
+                self._emit_i32_const(offset + 4)
+                self._emit_i32_const(len(encoded))
+                self._emit_call(new_str_idx)
 
     def _emit_box_int(self) -> None:
-        """Convert i64 on stack to i32 TclObj pointer via tcl_obj_new_int.
-
-        Falls back to i32.wrap_i64 when lifecycle imports are unavailable.
-        """
-        idx = self._shared_imports.get("tcl_obj_new_int")
-        if idx is not None:
-            self._emit_call(idx)
-        else:
-            self._emit(WasmOp.I32_WRAP_I64)
+        """Convert i64 on stack to i32 TclObj pointer via tcl_obj_new_int."""
+        self._emit_call(self._shared_imports["tcl_obj_new_int"])
 
     def _emit_unbox_int(self) -> None:
-        """Convert i32 TclObj pointer on stack to i64 via tcl_obj_get_int.
+        """Convert i32 TclObj pointer on stack to i64 via tcl_obj_get_int."""
+        self._emit_call(self._shared_imports["tcl_obj_get_int"])
 
-        Falls back to i64.extend_i32_s when lifecycle imports are unavailable.
+    def _emit_default_arg(self) -> None:
+        """Emit a boxed integer zero as a default/missing argument.
+
+        Unlike ``i32.const 0`` (null pointer), this creates a real
+        TclObj so that ``tcl_obj_get_int`` in the callee reads 0
+        instead of arbitrary memory.
         """
-        idx = self._shared_imports.get("tcl_obj_get_int")
-        if idx is not None:
-            self._emit_call(idx)
-        else:
-            self._emit(WasmOp.I64_EXTEND_I32_S)
+        self._emit_i64_const(0)
+        self._emit_box_int()
 
     def _intern_string(self, value: str) -> int:
         """Return the memory offset for a string constant."""
@@ -1132,12 +1126,11 @@ class _WasmEmitter:
         cmd_name = parts[0]
         cmd_args = parts[1:]
 
-        # Handle [expr {...}] — recursively compile the expression
+        # Handle [expr {...}] — recursively compile the expression.
+        # The splitter already strips braces, so cmd_args[0] is the
+        # raw expression text.
         if cmd_name == "expr" and len(cmd_args) == 1:
             expr_arg = cmd_args[0]
-            # Strip braces if present
-            if expr_arg.startswith("{") and expr_arg.endswith("}"):
-                expr_arg = expr_arg[1:-1]
             # Parse and emit the nested expression
             from ...parsing.expr_parser import parse_expr
 
@@ -1158,7 +1151,7 @@ class _WasmEmitter:
                 self._emit_value(cmd_args[i])
             # Pad missing args
             for _ in range(n_params - len(cmd_args)):
-                self._emit_i32_const(0)
+                self._emit_default_arg()
             self._emit_call(func_idx)
             # Result is i32 TclObj — unbox to i64 for expression context
             self._emit_unbox_int()
@@ -1171,7 +1164,9 @@ class _WasmEmitter:
         """Split a command substitution body into command name + args.
 
         Handles braced arguments ``{...}`` and nested brackets ``[...]``
-        as atomic units.  Simple whitespace splitting for bare words.
+        as atomic units.  Braces and quotes are stripped from the
+        resulting word so downstream emission sees the raw content
+        (e.g. ``{5}`` becomes ``5``).
         """
         parts: list[str] = []
         i = 0
@@ -1182,7 +1177,7 @@ class _WasmEmitter:
                 i += 1
             if i >= n:
                 break
-            # Braced argument
+            # Braced argument — strip outer braces
             if text[i] == "{":
                 depth = 1
                 start = i
@@ -1193,8 +1188,9 @@ class _WasmEmitter:
                     elif text[i] == "}":
                         depth -= 1
                     i += 1
-                parts.append(text[start:i])
-            # Bracketed argument (nested command)
+                # Strip outer { }
+                parts.append(text[start + 1 : i - 1])
+            # Bracketed argument (nested command) — keep brackets
             elif text[i] == "[":
                 depth = 1
                 start = i
@@ -1206,7 +1202,7 @@ class _WasmEmitter:
                         depth -= 1
                     i += 1
                 parts.append(text[start:i])
-            # Quoted argument
+            # Quoted argument — strip outer quotes
             elif text[i] == '"':
                 start = i
                 i += 1
@@ -1215,7 +1211,8 @@ class _WasmEmitter:
                         i += 1  # skip escaped char
                     i += 1
                 i += 1  # skip closing quote
-                parts.append(text[start:i])
+                # Strip outer " "
+                parts.append(text[start + 1 : i - 1])
             # Bare word (delimited by whitespace)
             else:
                 start = i
@@ -1689,9 +1686,9 @@ class _WasmEmitter:
         proc_info = self._resolve_proc(command)
         if proc_info is not None:
             func_idx, n_params = proc_info
-            for arg in args:
-                self._emit_value(arg)
-            # Pad missing args to match WASM signature
+            # Push exactly n_params args (truncate surplus, pad missing)
+            for i in range(min(n_params, len(args))):
+                self._emit_value(args[i])
             for _ in range(n_params - len(args)):
                 self._emit_i32_const(0)
             self._emit_call(func_idx)
@@ -1954,9 +1951,9 @@ class _WasmEmitter:
         # Push arguments up to the callee's parameter count
         for i in range(min(n_params, len(args))):
             self._emit_value(args[i])
-        # Pad missing args with null TclObj
+        # Pad missing args with boxed zero
         for _ in range(n_params - len(args)):
-            self._emit_i32_const(0)
+            self._emit_default_arg()
 
         self._emit_call(func_idx)
 

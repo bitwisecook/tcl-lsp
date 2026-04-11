@@ -209,11 +209,11 @@ test-py: $(UV_STAMP) ## Run the Python test suite (excludes VM tcltest and fuzz 
 # Python fallback lexer kicks in). Run `make rust-build` first for
 # full coverage, or use `make prep-pr` which includes the Rust build.
 	@echo "==> Running Python tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 -m 'not slow' --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
 
 test-py-rust: $(UV_STAMP) $(RUST_STAMP) ## Run the Python test suite with the Rust wheel pre-built
 	@echo "==> Running Python tests (with Rust wheel)"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 -m 'not slow' --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
 
 test-tclpkg: $(UV_STAMP) ## Run tclpkg package manager tests only
 	@echo "==> Running tclpkg tests"

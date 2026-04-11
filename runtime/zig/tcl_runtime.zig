@@ -240,7 +240,8 @@ export fn string_compare(a: i32, b: i32) i32 {
 // Exported: list length — returns TclObj wrapping integer count
 export fn list_length(list: i32) i32 {
     // Stub: treat the integer value of the TclObj as the count
-    return list;
+    const n = obj_get_int(list);
+    return obj_new_int(n);
 }
 
 // Exported: list append

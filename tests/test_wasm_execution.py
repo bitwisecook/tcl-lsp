@@ -956,21 +956,34 @@ class TestIncrTailPosition:
 # WASM vs bytecode VM cross-verification
 
 
+@pytest.mark.slow
 class TestWasmVsBytecodeVm:
     """Verify WASM compiled results match the bytecode VM for the same source.
 
     These tests execute identical Tcl programs through both the WASM
     backend (via wasmtime) and the bytecode VM (TclInterp.eval), then
-    compare results.
+    compare results.  A single TclInterp is reused across all tests
+    to avoid the overhead of loading init.tcl for each case.
+
+    Marked ``slow`` — excluded from ``prep-pr`` by default; run with
+    ``pytest -m slow`` or ``make test-slow``.
     """
 
-    @staticmethod
-    def _vm_eval_proc(source: str, proc_name: str, args: tuple[int, ...]) -> int:
-        """Run a proc through the bytecode VM, returning its integer result."""
-        from vm.interp import TclInterp
+    _interp = None
 
-        interp = TclInterp()
-        # Define the proc
+    @classmethod
+    def _get_interp(cls):
+        if cls._interp is None:
+            from vm.interp import TclInterp
+
+            cls._interp = TclInterp()
+        return cls._interp
+
+    @classmethod
+    def _vm_eval_proc(cls, source: str, proc_name: str, args: tuple[int, ...]) -> int:
+        """Run a proc through the bytecode VM, returning its integer result."""
+        interp = cls._get_interp()
+        # Define the proc (re-defining is idempotent in Tcl)
         interp.eval(source)
         # Call the proc with args
         call = f"{proc_name} {' '.join(str(a) for a in args)}"
