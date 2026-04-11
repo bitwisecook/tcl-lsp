@@ -45,7 +45,6 @@ sys.path.insert(0, str(REPO_ROOT))
 from vm.commands import tcltest_cmds  # noqa: E402
 from vm.commands.test_support_cmds import setup_test_support  # noqa: E402
 from vm.interp import TclInterp  # noqa: E402
-from vm.types import TclReturn  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Project definitions
@@ -76,11 +75,10 @@ PROJECTS: dict[str, Project] = {
         description="Tcl Standard Library — 200+ pure-Tcl modules",
         git_url="https://github.com/tcltk/tcllib.git",
         git_ref="tcllib-2-0",
-        sparse_paths=["modules"],
+        sparse_paths=["modules", "devtools"],
         test_glob="modules/*/*.test",
         source_init=True,
         pkgindex_dirs=["modules"],
-        setup_script="package require tcltest 2.5; namespace import -force ::tcltest::*",
         skip_files=[
             # These need network access
             "modules/ftp/ftp.test",
@@ -455,10 +453,8 @@ def run_test_file(
 
         try:
             interp.eval(script)
-        except (SystemExit, TclReturn):
-            # SystemExit: test helpers may call `exit 1` on failure.
-            # TclReturn: top-level `return` ends the script normally
-            #   (e.g. cleanupTests followed by `return`).
+        except SystemExit:
+            # Some test helpers call `exit 1` on failure — catch it
             pass
         finally:
             os.chdir(saved_cwd)
@@ -477,8 +473,8 @@ def run_test_file(
         result.failed = tcl_results["Failed"]
         result.failed_tests = list(tcltest_cmds._failed_tests)
 
-    except (SystemExit, TclReturn):
-        # Catch exit/return calls that escape the inner handler
+    except SystemExit:
+        # Catch exit calls that escape the inner handler
         try:
             os.chdir(saved_cwd)
         except Exception:
@@ -531,73 +527,60 @@ def run_test_file(
     return result
 
 
-def wasm_compile_file(
+def run_test_file_wasm(
+    project: Project,
+    checkout_dir: Path,
     test_file: Path,
 ) -> TestFileResult:
-    """Compile a single .tcl/.test file to WASM and validate the binary.
+    """Compile a single .test file to WASM and validate the output.
 
-    This does not execute the WASM — it verifies that the compiler can
-    produce a valid ``.wasm`` binary from the Tcl source, and reports
-    statistics about the generated module (functions, imports, NOP count).
+    This does not *execute* the WASM — it validates that the Tcl source
+    compiles to a valid WASM module.  Full execution requires a WASM
+    runtime linked against the Zig Tcl runtime.
     """
-    result = TestFileResult(file=str(test_file.name))
+    from core.compiler.cfg import build_cfg
+    from core.compiler.codegen.wasm import WasmOp, wasm_codegen_module
+    from core.compiler.lowering import lower_to_ir
+
+    result = TestFileResult(
+        file=str(test_file.relative_to(checkout_dir)),
+    )
     start = time.monotonic()
 
     try:
-        from core.compiler.cfg import build_cfg
-        from core.compiler.codegen.wasm import WasmOp, wasm_codegen_module
-        from core.compiler.lowering import lower_to_ir
-
-        source = test_file.read_text(errors="replace")
-        ir = lower_to_ir(source)
-        cfg = build_cfg(ir)
-        wasm_module = wasm_codegen_module(cfg, ir)
-
-        # Validate: serialise to binary
+        script = test_file.read_text(errors="replace")
+        ir_module = lower_to_ir(script)
+        cfg_module = build_cfg(ir_module)
+        wasm_module = wasm_codegen_module(cfg_module, ir_module)
         wasm_bytes = wasm_module.to_bytes()
 
-        # Collect statistics
-        total_instrs = 0
-        nop_count = 0
-        call_count = 0
-        for func in wasm_module.functions:
-            total_instrs += len(func.body)
-            for instr in func.body:
-                if instr.op == WasmOp.NOP:
-                    nop_count += 1
-                elif instr.op == WasmOp.CALL:
-                    call_count += 1
+        # Validate WASM binary header
+        assert wasm_bytes[:4] == b"\x00asm"
 
-        result.total = 1  # 1 "test": compilation
+        # Collect stats
+        total_instrs = sum(len(f.body) for f in wasm_module.functions)
+        nop_count = sum(1 for f in wasm_module.functions for i in f.body if i.op == WasmOp.NOP)
+        nop_pct = 100 * nop_count // max(total_instrs, 1)
+
+        result.total = 1  # 1 "test" = successful compilation
         result.passed = 1
         result.stdout = (
-            f"WASM: {len(wasm_bytes)} bytes, "
-            f"{len(wasm_module.functions)} funcs, "
-            f"{len(wasm_module.imports)} imports, "
-            f"{total_instrs} instrs, "
-            f"{nop_count} NOPs, "
-            f"{call_count} calls"
+            f"WASM: {len(wasm_bytes)} bytes, {len(wasm_module.functions)} funcs, "
+            f"{total_instrs} instrs, {nop_count} NOPs ({nop_pct}%), "
+            f"{len(wasm_module.imports)} imports"
         )
 
-    except Exception as exc:
+    except Exception as e:
         result.crashed = True
-        result.crash_error = str(exc)
-        result.crash_type = type(exc).__name__
-        result.total = 1
-        result.failed = 1
+        result.crash_error = str(e)
+        result.crash_type = type(e).__name__
 
-    finally:
-        result.duration_ms = (time.monotonic() - start) * 1000
-
+    result.duration_ms = (time.monotonic() - start) * 1000
     return result
 
 
 def run_project(
-    project: Project,
-    checkout_dir: Path,
-    *,
-    max_files: int = 0,
-    mode: str = "vm",
+    project: Project, checkout_dir: Path, *, max_files: int = 0, mode: str = "vm"
 ) -> ProjectReport:
     """Run all test files for a project and build a report."""
     report = ProjectReport(
@@ -629,7 +612,7 @@ def run_project(
         sys.stdout.flush()
 
         if mode == "wasm":
-            file_result = wasm_compile_file(test_file)
+            file_result = run_test_file_wasm(project, checkout_dir, test_file)
         else:
             file_result = run_test_file(project, checkout_dir, test_file)
         report.file_results.append(file_result)
@@ -877,7 +860,7 @@ def main() -> int:
         "--mode",
         choices=["vm", "wasm"],
         default="vm",
-        help="Execution mode: 'vm' runs bytecode VM (default), 'wasm' compiles to WASM and validates",
+        help="Execution mode: 'vm' runs in bytecode VM (default), 'wasm' compiles to WASM and validates",
     )
 
     args = parser.parse_args()
