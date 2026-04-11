@@ -711,6 +711,26 @@ _STRING_SUBCMD_IMPORT: dict[str, str] = {
 # Commands that are scope declarations — NOPs in WASM
 _SCOPE_NOP_COMMANDS = frozenset({"global", "variable", "upvar", "namespace"})
 
+# Commands that require capabilities unavailable in the WASM sandbox.
+# The codegen emits a call to the runtime ``error`` function with a
+# descriptive message so the module traps with a clear diagnostic
+# rather than silently emitting a NOP.
+_UNSUPPORTED_COMMANDS = frozenset(
+    {
+        "exec",
+        "coroutine",
+        "yield",
+        "yieldto",
+        "vwait",
+        "after",
+        "fileevent",
+        "socket",
+        "interp",
+        "load",
+        "unload",
+    }
+)
+
 
 def _scan_needed_imports(
     cfg_module: CFGModule,
@@ -1662,8 +1682,27 @@ class _WasmEmitter:
             self._emit_cmd_runtime(command, args, defs)
             return
 
+        # Unsupported commands — emit runtime error trap
+        if command in _UNSUPPORTED_COMMANDS:
+            self._emit_unsupported_trap(command)
+            return
+
         # Unknown command — NOP placeholder
         self._emit(WasmOp.NOP)
+
+    def _emit_unsupported_trap(self, command: str) -> None:
+        """Emit a call to ``error`` with a descriptive message.
+
+        Produces a WASM trap at runtime so the user sees a clear
+        diagnostic rather than a silent no-op.
+        """
+        fidx = self._shared_imports.get("tcl_error")
+        if fidx is not None:
+            msg = f"unsupported in WASM: {command}"
+            self._emit_obj_literal(msg)
+            self._emit_call(fidx)
+        else:
+            self._emit(WasmOp.UNREACHABLE)
 
     def _emit_call_stmt_tail(
         self,
