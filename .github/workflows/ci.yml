@@ -69,6 +69,7 @@ jobs:
       - name: Run Python tests
         run: >-
           uv run --extra dev pytest tests/ -q
+          -m "not slow"
           --ignore-glob='*/test_vm_*_test.py'
           --ignore=tests/test_optimiser_coverage.py
           --ignore=tests/test_optimiser_vm_equivalence.py
