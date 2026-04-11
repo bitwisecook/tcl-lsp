@@ -64,7 +64,7 @@ perf_history.sqlite3
 
 # Zig build cache (the built tcl_runtime.wasm is checked in)
 runtime/zig/.zig-cache/
-runtime/zig/zig-out/bin/.gitkeep
+runtime/zig/zig-out/lib/
 
 # Rust workspace (editors/zed keeps its own local .gitignore for its target/)
 /target/
