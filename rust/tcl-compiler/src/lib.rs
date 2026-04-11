@@ -36,6 +36,20 @@
 //!   [`FunctionAnalysis`](analyses::FunctionAnalysis),
 //!   [`ModuleAnalysis`](analyses::ModuleAnalysis),
 //!   plus diagnostic types (chunk **C5**).
+//! - [`ir_helpers`] — recursive IR/expression helpers:
+//!   [`defs_from_ir_script`](ir_helpers::defs_from_ir_script),
+//!   [`defs_from_expr`](ir_helpers::defs_from_expr) for extracting
+//!   variable definitions from structured IR trees and expression
+//!   command substitutions (chunk **C7**).
+//! - [`var_refs`] — variable-reference scanning:
+//!   [`VarReferenceScanner`](var_refs::VarReferenceScanner) for
+//!   extracting variable reads from Tcl words/scripts, with LRU
+//!   caching (chunk **C6**).
+//! - [`cfg_builder`] — CFG construction from structured IR:
+//!   [`build_cfg`](cfg_builder::build_cfg),
+//!   [`build_cfg_function`](cfg_builder::build_cfg_function) for
+//!   flattening `if`/`for`/`while`/`switch`/`catch`/`try` into
+//!   basic blocks (chunk **C7**).
 //!
 //! The crate has no `pyo3` dependency and no Python-compat concerns —
 //! those belong in the `tcl-lsp-rust` binding crate. See
@@ -46,13 +60,16 @@
 
 pub mod analyses;
 pub mod cfg;
+pub mod cfg_builder;
 pub mod codegen;
 pub mod expr_ast;
 pub mod expr_parser;
 pub mod ir;
+pub mod ir_helpers;
 pub mod naming;
 pub mod ssa;
 pub mod types;
+pub mod var_refs;
 
 // Re-export key types for convenience.
 pub use expr_ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
