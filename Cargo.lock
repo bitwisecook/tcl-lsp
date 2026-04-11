@@ -9,6 +9,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "bitflags"
+version = "2.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
+
+[[package]]
 name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -161,6 +167,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
 
 [[package]]
+name = "tcl-compiler"
+version = "0.1.0"
+dependencies = [
+ "tcl-lexer",
+ "tcl-registry",
+ "thiserror",
+]
+
+[[package]]
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
@@ -172,7 +187,16 @@ name = "tcl-lsp-rust"
 version = "0.1.0"
 dependencies = [
  "pyo3",
+ "tcl-compiler",
  "tcl-lexer",
+ "tcl-registry",
+]
+
+[[package]]
+name = "tcl-registry"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
 ]
 
 [[package]]
