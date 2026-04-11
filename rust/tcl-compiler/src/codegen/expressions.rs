@@ -199,7 +199,6 @@ impl CodegenCtx {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::codegen::{CodegenCtx, Op, Operand};
     use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
