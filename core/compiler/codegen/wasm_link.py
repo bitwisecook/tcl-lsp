@@ -21,7 +21,19 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..cfg import build_cfg
-from ..ir import IRCall, IRModule, IRScript, IRStatement
+from ..ir import (
+    IRCall,
+    IRCatch,
+    IRFor,
+    IRForeach,
+    IRIf,
+    IRModule,
+    IRScript,
+    IRStatement,
+    IRSwitch,
+    IRTry,
+    IRWhile,
+)
 from ..lowering import lower_to_ir
 from .wasm import WasmModule, wasm_codegen_module
 
@@ -53,19 +65,57 @@ def _extract_source_targets(ir_module: IRModule) -> list[str]:
     """Scan IR for ``source`` commands, returning the file path arguments."""
     targets: list[str] = []
 
+    def _source_file_arg(args: tuple[str, ...]) -> str | None:
+        """Extract the filename from ``source ?-encoding enc? filename``."""
+        remaining = list(args)
+        while remaining and remaining[0].startswith("-"):
+            flag = remaining.pop(0)
+            if flag == "-encoding" and remaining:
+                remaining.pop(0)  # skip the encoding value
+        if not remaining:
+            return None
+        target = remaining[0]
+        if target.startswith("$") or target.startswith("["):
+            return None
+        return target
+
     def _scan_stmt(stmt: IRStatement) -> None:
         if isinstance(stmt, IRCall) and stmt.command == "source" and stmt.args:
-            target = stmt.args[0]
-            # Skip variable references and command substitutions
-            if not target.startswith("$") and not target.startswith("["):
+            target = _source_file_arg(stmt.args)
+            if target is not None:
                 targets.append(target)
 
     def _scan_script(script: IRScript) -> None:
         for stmt in script.statements:
             _scan_stmt(stmt)
+            # Recurse into nested control-flow bodies
+            if isinstance(stmt, IRIf):
+                for clause in stmt.clauses:
+                    _scan_script(clause.body)
+                if stmt.else_body:
+                    _scan_script(stmt.else_body)
+            elif isinstance(stmt, IRFor):
+                _scan_script(stmt.init)
+                _scan_script(stmt.body)
+                _scan_script(stmt.next)
+            elif isinstance(stmt, IRWhile):
+                _scan_script(stmt.body)
+            elif isinstance(stmt, IRForeach):
+                _scan_script(stmt.body)
+            elif isinstance(stmt, IRCatch):
+                _scan_script(stmt.body)
+            elif isinstance(stmt, IRTry):
+                _scan_script(stmt.body)
+                if stmt.finally_body:
+                    _scan_script(stmt.finally_body)
+            elif isinstance(stmt, IRSwitch):
+                for arm in stmt.arms:
+                    if arm.body:
+                        _scan_script(arm.body)
+                if stmt.default_body:
+                    _scan_script(stmt.default_body)
 
     _scan_script(ir_module.top_level)
-    # Also scan procedure bodies for source commands
     for proc in ir_module.procedures.values():
         _scan_script(proc.body)
     return targets
@@ -90,6 +140,25 @@ def _extract_package_requires(ir_module: IRModule) -> list[str]:
     def _scan_script(script: IRScript) -> None:
         for stmt in script.statements:
             _scan_stmt(stmt)
+            if isinstance(stmt, IRIf):
+                for clause in stmt.clauses:
+                    _scan_script(clause.body)
+                if stmt.else_body:
+                    _scan_script(stmt.else_body)
+            elif isinstance(stmt, IRFor):
+                _scan_script(stmt.init)
+                _scan_script(stmt.body)
+                _scan_script(stmt.next)
+            elif isinstance(stmt, IRWhile):
+                _scan_script(stmt.body)
+            elif isinstance(stmt, IRForeach):
+                _scan_script(stmt.body)
+            elif isinstance(stmt, IRCatch):
+                _scan_script(stmt.body)
+            elif isinstance(stmt, IRTry):
+                _scan_script(stmt.body)
+                if stmt.finally_body:
+                    _scan_script(stmt.finally_body)
 
     _scan_script(ir_module.top_level)
     return packages
