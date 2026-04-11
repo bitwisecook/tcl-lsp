@@ -4,6 +4,7 @@
 //! and storing variables, emitting increments, and parsing variable
 //! reference markers.  Ported from `core/compiler/codegen/_values.py`.
 
+use super::format::esc;
 use super::{CodegenCtx, Op, Operand};
 
 // -- Literal emission --
@@ -16,7 +17,11 @@ impl CodegenCtx {
     pub fn push_lit(&mut self, value: &str) {
         let idx = self.literals.intern(value);
         let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
-        self.emit_comment(op, vec![Operand::Imm(idx as i32)], &format!("\"{value}\""));
+        self.emit_comment(
+            op,
+            vec![Operand::Imm(idx as i32)],
+            &format!("\"{}\"", esc(value, 40)),
+        );
     }
 
     /// Push a literal using a fresh slot (no deduplication).
@@ -26,7 +31,7 @@ impl CodegenCtx {
         self.emit_comment(
             op,
             vec![Operand::Imm(idx as i32)],
-            &format!("\"{value}\" #nodedup"),
+            &format!("\"{}\" #nodedup", esc(value, 40)),
         );
     }
 
@@ -206,14 +211,23 @@ impl CodegenCtx {
                     );
                 }
                 Some(amt) if is_integer_literal(amt) => {
-                    let imm: i64 = amt.parse().unwrap_or(0);
-                    if (-128..=127).contains(&imm) {
-                        self.emit_comment(
-                            Op::INCR_SCALAR1_IMM,
-                            vec![Operand::Imm(slot as i32), Operand::Imm(imm as i32)],
-                            &format!("var \"{name}\""),
-                        );
+                    if let Ok(imm) = amt.parse::<i64>() {
+                        if (-128..=127).contains(&imm) {
+                            self.emit_comment(
+                                Op::INCR_SCALAR1_IMM,
+                                vec![Operand::Imm(slot as i32), Operand::Imm(imm as i32)],
+                                &format!("var \"{name}\""),
+                            );
+                        } else {
+                            self.push_lit(amt);
+                            self.emit_comment(
+                                Op::INCR_SCALAR1,
+                                vec![Operand::Imm(slot as i32)],
+                                &format!("var \"{name}\""),
+                            );
+                        }
                     } else {
+                        // Overflow — fall back to push + incr
                         self.push_lit(amt);
                         self.emit_comment(
                             Op::INCR_SCALAR1,
@@ -247,18 +261,25 @@ impl CodegenCtx {
                     }
                 }
                 Some(amt) if is_integer_literal(amt) => {
-                    let imm: i64 = amt.parse().unwrap_or(0);
-                    if (-128..=127).contains(&imm) {
-                        if let Some((base, elem)) = arr {
-                            self.push_lit(base);
-                            self.push_lit(elem);
-                            self.emit(Op::INCR_ARRAY_STK_IMM, vec![Operand::Imm(imm as i32)]);
+                    if let Ok(imm) = amt.parse::<i64>() {
+                        if (-128..=127).contains(&imm) {
+                            if let Some((base, elem)) = arr {
+                                self.push_lit(base);
+                                self.push_lit(elem);
+                                self.emit(Op::INCR_ARRAY_STK_IMM, vec![Operand::Imm(imm as i32)]);
+                            } else {
+                                self.push_lit(name);
+                                self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(imm as i32)]);
+                            }
                         } else {
+                            // Large increment — fall back to invokeStk
+                            self.push_lit("incr");
                             self.push_lit(name);
-                            self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(imm as i32)]);
+                            self.push_lit(amt);
+                            self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(3)], "incr");
                         }
                     } else {
-                        // Large increment — fall back to invokeStk
+                        // Overflow — fall back to invokeStk
                         self.push_lit("incr");
                         self.push_lit(name);
                         self.push_lit(amt);
