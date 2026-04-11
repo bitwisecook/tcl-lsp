@@ -170,7 +170,7 @@ fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
         itoa_buf[i] = '0';
     } else {
         while (v > 0) {
-            itoa_buf[i] = @as(u8, @intCast(v % 10)) + '0';
+            itoa_buf[i] = @as(u8, @intCast(@rem(v, 10))) + '0';
             v = @divTrunc(v, 10);
             if (v > 0) i -= 1;
         }
