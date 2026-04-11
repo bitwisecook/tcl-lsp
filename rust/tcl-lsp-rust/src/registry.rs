@@ -3,20 +3,27 @@
 //! Exposes registry queries to Python so the transition period can
 //! use the Rust registry from Python consumer code.
 
+use std::sync::OnceLock;
+
 use pyo3::prelude::*;
 
 use tcl_registry::registry::CommandRegistry;
 use tcl_registry::traits::Traits;
 use tcl_registry::ArgRole;
 
+/// Cached default registry — built once, reused across all `PyO3` calls.
+fn default_registry() -> &'static CommandRegistry {
+    static REGISTRY: OnceLock<CommandRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(CommandRegistry::build_default)
+}
+
 /// Query the Rust registry for a command's traits.
 ///
-/// Returns a dict of trait name → bool for the given command.
+/// Returns a list of `(trait_name, bool)` pairs for the given command.
 #[pyfunction]
 #[pyo3(signature = (name, /))]
 pub fn registry_command_traits(name: &str) -> Option<Vec<(&'static str, bool)>> {
-    let reg = CommandRegistry::build_default();
-    let spec = reg.get(name)?;
+    let spec = default_registry().get(name)?;
     let t = spec.traits;
     Some(vec![
         ("control_flow", t.contains(Traits::CONTROL_FLOW)),
@@ -45,8 +52,7 @@ pub fn registry_command_traits(name: &str) -> Option<Vec<(&'static str, bool)>> 
 #[pyfunction]
 #[pyo3(signature = (name, /))]
 pub fn registry_command_arity(name: &str) -> Option<(u16, u16)> {
-    let reg = CommandRegistry::build_default();
-    let spec = reg.get(name)?;
+    let spec = default_registry().get(name)?;
     Some((spec.arity.min, spec.arity.max))
 }
 
@@ -58,7 +64,6 @@ pub fn registry_command_arity(name: &str) -> Option<(u16, u16)> {
 #[pyo3(signature = (name, args, role, /))]
 #[allow(clippy::needless_pass_by_value)] // PyO3 requires owned Vec
 pub fn registry_arg_indices_for_role(name: &str, args: Vec<String>, role: &str) -> Vec<usize> {
-    let reg = CommandRegistry::build_default();
     let role = match role {
         "body" => ArgRole::Body,
         "expr" => ArgRole::Expr,
@@ -72,7 +77,7 @@ pub fn registry_arg_indices_for_role(name: &str, args: Vec<String>, role: &str) 
         _ => return Vec::new(),
     };
     let args_ref: Vec<&str> = args.iter().map(String::as_str).collect();
-    reg.arg_indices_for_role(name, &args_ref, role)
+    default_registry().arg_indices_for_role(name, &args_ref, role)
 }
 
 /// Return the version of the registry crate.

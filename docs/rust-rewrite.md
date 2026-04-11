@@ -590,8 +590,8 @@ rust/
       hover.rs                           HoverSnippet, OptionSpec, FormSpec
       side_effects.rs                    SideEffect, StorageType
       hooks.rs                           LoweringHookId, CodegenHookId, ArgTypeHint
-      commands/tcl/*.rs                  one file per Tcl command (11 ported so far)
-      types.rs                           TclType, TypeLattice, type_join (C5)
+      commands/tcl/*.rs                  one file per Tcl command (114 ported)
+      commands/irules/*.rs               one file per iRules command (1015 ported)
   tcl-lsp-rust/                          PyO3 binding crate
     Cargo.toml
     pyproject.toml                       maturin build backend

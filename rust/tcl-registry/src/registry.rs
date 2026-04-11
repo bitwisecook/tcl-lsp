@@ -140,6 +140,7 @@ impl CommandRegistry {
         let Some(spec) = self.get(name) else {
             return Vec::new();
         };
+        let n = args.len();
 
         // Check subcommand
         if !spec.subcommands.is_empty() && !args.is_empty() {
@@ -150,6 +151,7 @@ impl CommandRegistry {
                         .into_iter()
                         .filter(|(_, r)| *r == role)
                         .map(|(i, _)| i as usize + 1) // +1 for subcommand word
+                        .filter(|&idx| idx < n)
                         .collect();
                 }
                 // Static roles (offset by +1 for subcommand word)
@@ -158,6 +160,7 @@ impl CommandRegistry {
                     .iter()
                     .filter(|(_, r)| *r == role)
                     .map(|(i, _)| *i as usize + 1)
+                    .filter(|&idx| idx < n)
                     .collect();
             }
         }
@@ -168,14 +171,16 @@ impl CommandRegistry {
                 .into_iter()
                 .filter(|(_, r)| *r == role)
                 .map(|(i, _)| i as usize)
+                .filter(|&idx| idx < n)
                 .collect();
         }
 
-        // Static roles
+        // Static roles — filter by args length to avoid out-of-range indices
         spec.arg_roles
             .iter()
             .filter(|(_, r)| *r == role)
             .map(|(i, _)| *i as usize)
+            .filter(|&idx| idx < n)
             .collect()
     }
 
