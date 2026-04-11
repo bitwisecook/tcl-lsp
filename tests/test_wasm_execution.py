@@ -1154,3 +1154,92 @@ proc caller {n} { double $n }
             wasm_r = _compile_and_run_proc(source, "caller", (n,))
             vm_r = self._vm_eval_proc(source, "caller", (n,))
             assert wasm_r == vm_r
+
+    def test_nested_if_in_loop_matches_vm(self):
+        """if inside a for loop must match VM."""
+        source = """\
+proc count_pos {n} {
+    set count 0
+    for {set i 1} {$i <= $n} {incr i} {
+        if {$i > 0} {
+            incr count
+        }
+    }
+    return $count
+}
+"""
+        for n in (0, 1, 5, 10):
+            wasm_r = _compile_and_run_proc(source, "count_pos", (n,))
+            vm_r = self._vm_eval_proc(source, "count_pos", (n,))
+            assert wasm_r == vm_r, f"count_pos({n}): WASM={wasm_r}, VM={vm_r}"
+
+    def test_gcd_matches_vm(self):
+        """Euclidean GCD via while loop and modulo must match VM."""
+        source = """\
+proc gcd {a b} {
+    while {$b != 0} {
+        set t [expr {$a % $b}]
+        set a $b
+        set b $t
+    }
+    return $a
+}
+"""
+        for a, b in ((12, 8), (100, 75), (17, 13), (0, 5), (7, 0)):
+            wasm_r = _compile_and_run_proc(source, "gcd", (a, b))
+            vm_r = self._vm_eval_proc(source, "gcd", (a, b))
+            assert wasm_r == vm_r, f"gcd({a},{b}): WASM={wasm_r}, VM={vm_r}"
+
+    def test_multi_proc_pipeline_matches_vm(self):
+        """Chain of proc calls must match VM."""
+        source = """\
+proc square {x} { expr {$x * $x} }
+proc inc {x} { expr {$x + 1} }
+proc pipeline {n} { inc [square $n] }
+"""
+        for n in (0, 1, 3, 5, -2):
+            wasm_r = _compile_and_run_proc(source, "pipeline", (n,))
+            vm_r = self._vm_eval_proc(source, "pipeline", (n,))
+            assert wasm_r == vm_r, f"pipeline({n}): WASM={wasm_r}, VM={vm_r}"
+
+    def test_nested_loops_matches_vm(self):
+        """Nested for loops must match VM."""
+        source = """\
+proc sum_products {n} {
+    set s 0
+    for {set i 1} {$i <= $n} {incr i} {
+        for {set j 1} {$j <= $i} {incr j} {
+            set s [expr {$s + $i * $j}]
+        }
+    }
+    return $s
+}
+"""
+        for n in (0, 1, 3, 4):
+            wasm_r = _compile_and_run_proc(source, "sum_products", (n,))
+            vm_r = self._vm_eval_proc(source, "sum_products", (n,))
+            assert wasm_r == vm_r, f"sum_products({n}): WASM={wasm_r}, VM={vm_r}"
+
+    def test_abs_function_matches_vm(self):
+        """expr abs() must match VM."""
+        source = "proc f {x} { expr {abs($x)} }\n"
+        for x in (-5, 0, 3):
+            wasm_r = _compile_and_run_proc(source, "f", (x,))
+            vm_r = self._vm_eval_proc(source, "f", (x,))
+            assert wasm_r == vm_r, f"abs({x}): WASM={wasm_r}, VM={vm_r}"
+
+    def test_unary_ops_match_vm(self):
+        """Unary operators must match VM."""
+        source_neg = "proc f {x} { expr {-$x} }\n"
+        source_not = "proc f {x} { expr {!$x} }\n"
+        source_bitnot = "proc f {x} { expr {~$x} }\n"
+        for x in (0, 1, -3, 42):
+            wasm_r = _compile_and_run_proc(source_neg, "f", (x,))
+            vm_r = self._vm_eval_proc(source_neg, "f", (x,))
+            assert wasm_r == vm_r, f"neg({x}): WASM={wasm_r}, VM={vm_r}"
+            wasm_r = _compile_and_run_proc(source_not, "f", (x,))
+            vm_r = self._vm_eval_proc(source_not, "f", (x,))
+            assert wasm_r == vm_r, f"not({x}): WASM={wasm_r}, VM={vm_r}"
+            wasm_r = _compile_and_run_proc(source_bitnot, "f", (x,))
+            vm_r = self._vm_eval_proc(source_bitnot, "f", (x,))
+            assert wasm_r == vm_r, f"bitnot({x}): WASM={wasm_r}, VM={vm_r}"
