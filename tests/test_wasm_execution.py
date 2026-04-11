@@ -915,6 +915,7 @@ class TestIncrTailPosition:
 # WASM vs bytecode VM cross-verification
 
 
+@pytest.mark.slow
 class TestWasmVsBytecodeVm:
     """Verify WASM compiled results match the bytecode VM for the same source.
 
