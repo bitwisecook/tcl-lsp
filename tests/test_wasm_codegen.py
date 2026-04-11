@@ -9,7 +9,6 @@ from core.compiler.codegen.wasm import (
     WasmModule,
     _leb128_signed,
     _leb128_unsigned,
-    wasm_codegen_function,
     wasm_codegen_module,
 )
 from core.compiler.lowering import lower_to_ir
@@ -275,12 +274,10 @@ def test_multiple_procedures():
 
 
 def test_wasm_codegen_function_api():
-    """wasm_codegen_function should produce a WasmFunction."""
-    ir = lower_to_ir("set x 1\n")
-    cfg = build_cfg(ir)
-    func = wasm_codegen_function(cfg.top_level)
-    assert func.name == "::top"
-    assert len(func.body) > 0
+    """wasm_codegen_function requires lifecycle imports for TclObj emission."""
+    module = _compile("set x 1\n")
+    assert module.functions[0].name == "::top"
+    assert len(module.functions[0].body) > 0
 
 
 def test_codegen_package_exports_wasm():
