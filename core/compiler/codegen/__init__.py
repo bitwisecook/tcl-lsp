@@ -27,6 +27,11 @@ from .wasm import (  # noqa: F401
     wasm_codegen_function,
     wasm_codegen_module,
 )
+from .wasm_link import (  # noqa: F401
+    merge_ir_modules,
+    wasm_link,
+    wasm_link_sources,
+)
 
 __all__ = [
     "Op",
