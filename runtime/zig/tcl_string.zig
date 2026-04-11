@@ -377,6 +377,176 @@ pub export fn string_is_space(value: i32) i32 {
     return obj_new_int(1);
 }
 
+// Exported: split — split a string by a separator into a Tcl list.
+// If splitChars is empty, splits into individual characters.
+pub export fn split(value: i32, split_chars: i32) i32 {
+    const sv = obj_ensure_string(value);
+    const sd = obj_ensure_string(split_chars);
+    if (sv.len == 0) return obj_new_string(0, 0);
+    const src: [*]const u8 = @ptrFromInt(sv.ptr);
+
+    // Empty splitChars: split into individual characters
+    if (sd.len == 0) {
+        // Each char becomes a list element, separated by spaces
+        const buf = alloc(sv.len * 2);
+        var out: u32 = 0;
+        for (0..sv.len) |i| {
+            if (i > 0) {
+                const d: [*]u8 = @ptrFromInt(buf + out);
+                d[0] = ' ';
+                out += 1;
+            }
+            const d: [*]u8 = @ptrFromInt(buf + out);
+            d[0] = src[i];
+            out += 1;
+        }
+        return obj_new_string(@intCast(buf), @intCast(out));
+    }
+
+    // Single-char separator (common case)
+    const sep: [*]const u8 = @ptrFromInt(sd.ptr);
+    if (sd.len == 1) {
+        const sc = sep[0];
+        // Estimate output size
+        const buf = alloc(sv.len * 3 + 2);
+        var out: u32 = 0;
+        var start: u32 = 0;
+        var i: u32 = 0;
+        var first = true;
+        while (i <= sv.len) : (i += 1) {
+            if (i == sv.len or src[i] == sc) {
+                if (!first) {
+                    const d: [*]u8 = @ptrFromInt(buf + out);
+                    d[0] = ' ';
+                    out += 1;
+                }
+                first = false;
+                const elem_len = i - start;
+                if (elem_len > 0) {
+                    // Check if element needs braces
+                    var needs_braces = false;
+                    for (start..i) |k| {
+                        if (is_space(src[k]) or src[k] == '{' or src[k] == '}') {
+                            needs_braces = true;
+                            break;
+                        }
+                    }
+                    if (needs_braces) {
+                        const d: [*]u8 = @ptrFromInt(buf + out);
+                        d[0] = '{';
+                        out += 1;
+                        memcpy(buf + out, sv.ptr + start, elem_len);
+                        out += elem_len;
+                        const d2: [*]u8 = @ptrFromInt(buf + out);
+                        d2[0] = '}';
+                        out += 1;
+                    } else {
+                        memcpy(buf + out, sv.ptr + start, elem_len);
+                        out += elem_len;
+                    }
+                } else {
+                    // Empty element: {}
+                    const d: [*]u8 = @ptrFromInt(buf + out);
+                    d[0] = '{';
+                    out += 1;
+                    const d2: [*]u8 = @ptrFromInt(buf + out);
+                    d2[0] = '}';
+                    out += 1;
+                }
+                start = i + 1;
+            }
+        }
+        return obj_new_string(@intCast(buf), @intCast(out));
+    }
+
+    // Multi-char separator: split on any char in splitChars
+    const buf = alloc(sv.len * 3 + 2);
+    var out: u32 = 0;
+    var start: u32 = 0;
+    var i: u32 = 0;
+    var first = true;
+    while (i <= sv.len) : (i += 1) {
+        var is_sep = (i == sv.len);
+        if (!is_sep) {
+            for (0..sd.len) |k| {
+                if (src[i] == sep[k]) {
+                    is_sep = true;
+                    break;
+                }
+            }
+        }
+        if (is_sep) {
+            if (!first) {
+                const d: [*]u8 = @ptrFromInt(buf + out);
+                d[0] = ' ';
+                out += 1;
+            }
+            first = false;
+            const elem_len = i - start;
+            if (elem_len > 0) {
+                var needs_braces = false;
+                for (start..i) |k| {
+                    if (is_space(src[k]) or src[k] == '{' or src[k] == '}') {
+                        needs_braces = true;
+                        break;
+                    }
+                }
+                if (needs_braces) {
+                    const d: [*]u8 = @ptrFromInt(buf + out);
+                    d[0] = '{';
+                    out += 1;
+                    memcpy(buf + out, sv.ptr + start, elem_len);
+                    out += elem_len;
+                    const d2: [*]u8 = @ptrFromInt(buf + out);
+                    d2[0] = '}';
+                    out += 1;
+                } else {
+                    memcpy(buf + out, sv.ptr + start, elem_len);
+                    out += elem_len;
+                }
+            } else {
+                const d: [*]u8 = @ptrFromInt(buf + out);
+                d[0] = '{';
+                out += 1;
+                const d2: [*]u8 = @ptrFromInt(buf + out);
+                d2[0] = '}';
+                out += 1;
+            }
+            start = i + 1;
+        }
+    }
+    return obj_new_string(@intCast(buf), @intCast(out));
+}
+
+// Exported: join — join a Tcl list with a separator string.
+pub export fn join(list: i32, separator: i32) i32 {
+    const sl = obj_ensure_string(list);
+    const ss = obj_ensure_string(separator);
+    if (sl.len == 0) return obj_new_string(0, 0);
+    const n = list_count_elements(sl.ptr, sl.len);
+    if (n <= 0) return obj_new_string(0, 0);
+    if (n == 1) {
+        const elem = list_element_at(sl.ptr, sl.len, 0);
+        return obj_new_string_copy(sl.ptr + elem.start, elem.len);
+    }
+    // Estimate output: sum of element lengths + (n-1) * sep_len
+    const buf = alloc(sl.len + @as(u32, @intCast(n)) * ss.len + 1);
+    var out: u32 = 0;
+    var idx: i64 = 0;
+    while (idx < n) : (idx += 1) {
+        if (idx > 0 and ss.len > 0) {
+            memcpy(buf + out, ss.ptr, ss.len);
+            out += ss.len;
+        }
+        const elem = list_element_at(sl.ptr, sl.len, idx);
+        if (elem.len > 0) {
+            memcpy(buf + out, sl.ptr + elem.start, elem.len);
+            out += elem.len;
+        }
+    }
+    return obj_new_string(@intCast(buf), @intCast(out));
+}
+
 // Exported: concat — concatenate two TclObj string representations with space.
 pub export fn concat(a: i32, b: i32) i32 {
     const sa = obj_ensure_string(a);
