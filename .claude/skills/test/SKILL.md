@@ -65,27 +65,38 @@ report ONLY the following:
 1. **Result**: PASS or FAIL (one word)
 2. **Stats**: total tests, passed, failed, skipped, errors, warnings
    (omit categories that are zero)
-3. **Failures** (if any): for each failure list:
+3. **Failures** (if any): for each failure, reproduce the error
+   context **verbatim** — do not paraphrase or shorten error messages,
+   assertion text, or tracebacks. Include:
    - Test name / identifier
    - File path and line number
-   - One-line cause (assertion message or exception)
-   - The key 3-5 lines of the traceback (not the full trace)
-4. **Errors** (if any): for each error list:
-   - Error type and message
+   - The assertion message or exception **exactly as printed**
+   - The full traceback from the first relevant frame to the error
+     line (trim only pytest/unittest framework frames at the top of
+     the stack, keep everything from the first project frame onward)
+4. **Errors** (if any): for each error, reproduce **verbatim**:
+   - The full error type and message exactly as printed
    - File path and line number
-   - Brief context
-5. **Warnings** (if any): list only novel or actionable warnings, not
+   - The full traceback (same trimming rule as above)
+5. **Lint / type-check diagnostics** (if any): reproduce each
+   diagnostic line verbatim (path:line:col: message)
+6. **Warnings** (if any): list only novel or actionable warnings, not
    standard deprecation noise
 
+CRITICAL: All error messages, assertion text, diagnostic lines, and
+tracebacks must be copied character-for-character from the command
+output. Do not summarise, paraphrase, or truncate them — the caller
+needs exact text to locate and fix the issue.
+
 Do NOT include:
-- The raw command output
-- Passing test names
+- Passing test names or passing test output
 - Timing information for individual tests
 - Import/collection output
 - Progress dots or percentage bars
 
-Keep your entire response under 300 words for a passing run, or under
-800 words for a failing run. Use markdown formatting.
+Keep your entire response under 200 words for a passing run. For a
+failing run there is no word limit — completeness of error context
+is more important than brevity. Use markdown formatting.
 ~~~
 
 $ARGUMENTS
