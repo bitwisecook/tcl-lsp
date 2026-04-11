@@ -4,14 +4,75 @@
 //! structured IR statement (`If`, `For`, `While`, `Foreach`, `Catch`,
 //! `Try`, `Switch`, `dict` subcommands).
 
-use tcl_lexer::Span;
+use tcl_lexer::{Lexer, SourceMap, Span, TokenType};
 
 use crate::expr_parser::parse_expr;
 use crate::ir::{ForeachIterator, IfClause, Script, Statement, SwitchArm, SwitchMode, TryHandler};
 use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
 
+use crate::segmenter::word_piece;
+
 use super::{parse_param_names, Lowerer};
+
+/// Parse a braced switch body into a flat list of word elements.
+///
+/// Tokenises the body text and collects words separated by whitespace/EOL,
+/// merging multi-token words. Returns the element texts in order.
+fn switch_body_elements(body_text: &str) -> Vec<String> {
+    let sm = SourceMap::new(body_text);
+    let lexer = Lexer::new(body_text);
+    let Ok(tokens) = lexer.tokenise_all() else {
+        return Vec::new();
+    };
+
+    let mut elements = Vec::new();
+    let mut prev_is_sep = true;
+
+    for &tok in &tokens {
+        match tok.kind {
+            TokenType::Sep | TokenType::Eol | TokenType::Comment => {
+                prev_is_sep = true;
+                continue;
+            }
+            TokenType::Eof => continue,
+            _ => {}
+        }
+
+        let piece = word_piece(&sm, tok);
+        if prev_is_sep {
+            elements.push(piece);
+        } else if let Some(last) = elements.last_mut() {
+            last.push_str(&piece);
+        } else {
+            elements.push(piece);
+        }
+        prev_is_sep = false;
+    }
+
+    elements
+}
+
+/// Parse switch options, returning `(first_non_option_index, mode, nocase)`.
+fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool) {
+    let mut i = 0;
+    let mut mode = SwitchMode::Exact;
+    let mut nocase = false;
+    while i < args.len() && args[i].starts_with('-') {
+        match args[i].as_str() {
+            "--" => {
+                i += 1;
+                break;
+            }
+            "-glob" => mode = SwitchMode::Glob,
+            "-regexp" => mode = SwitchMode::Regexp,
+            "-nocase" => nocase = true,
+            _ => {}
+        }
+        i += 1;
+    }
+    (i, mode, nocase)
+}
 
 impl Lowerer<'_> {
     // ── if ────────────────────────────────────────────────────────
@@ -297,24 +358,7 @@ impl Lowerer<'_> {
             return Self::barrier(seg, "malformed switch");
         }
 
-        let mut i = 0;
-        let mut mode = SwitchMode::Exact;
-        let mut nocase = false;
-
-        // Parse options.
-        while i < args.len() && args[i].starts_with('-') {
-            match args[i].as_str() {
-                "--" => {
-                    i += 1;
-                    break;
-                }
-                "-glob" => mode = SwitchMode::Glob,
-                "-regexp" => mode = SwitchMode::Regexp,
-                "-nocase" => nocase = true,
-                _ => {}
-            }
-            i += 1;
-        }
+        let (mut i, mode, nocase) = parse_switch_options(args);
 
         if i >= args.len() {
             return Self::barrier(seg, "malformed switch options");
@@ -331,26 +375,35 @@ impl Lowerer<'_> {
 
         // Single braced body form: switch subject { pat1 body1 pat2 body2 ... }
         if i == args.len() - 1 && i < arg_single.len() && arg_single[i] {
-            // Parse the braced body into elements — simplified: use the
-            // args directly since the segmenter already extracted them.
-            // For the single-body form, we'd need to re-lex the body.
-            // For now, fall through to the multi-arg form below.
-            // This is a simplification; the full braced-body parsing
-            // can be added in a follow-up chunk.
-        }
-
-        // Multi-arg form: remaining args are pattern body pairs.
-        let remaining = args.len() - i;
-        if remaining % 2 != 0 {
-            return Self::barrier(seg, "switch odd pattern count");
-        }
-        while i + 1 < args.len() {
-            let pattern = args[i].clone();
-            let pattern_span = arg_tokens.get(i).map_or(seg.span, |t| t.span);
-            let body_text = args[i + 1].clone();
-            let body_tok_idx = i + 1;
-            pairs.push((pattern, pattern_span, body_text, Some(body_tok_idx)));
-            i += 2;
+            let body_text = &args[i];
+            let elements = switch_body_elements(body_text);
+            if elements.len() % 2 != 0 {
+                return Self::barrier(seg, "switch odd pattern count");
+            }
+            let mut j = 0;
+            while j + 1 < elements.len() {
+                pairs.push((
+                    elements[j].clone(),
+                    seg.span,
+                    elements[j + 1].clone(),
+                    None, // no per-element arg token index
+                ));
+                j += 2;
+            }
+        } else {
+            // Multi-arg form: remaining args are pattern body pairs.
+            let remaining = args.len() - i;
+            if remaining % 2 != 0 {
+                return Self::barrier(seg, "switch odd pattern count");
+            }
+            while i + 1 < args.len() {
+                let pattern = args[i].clone();
+                let pattern_span = arg_tokens.get(i).map_or(seg.span, |t| t.span);
+                let body_text = args[i + 1].clone();
+                let body_tok_idx = i + 1;
+                pairs.push((pattern, pattern_span, body_text, Some(body_tok_idx)));
+                i += 2;
+            }
         }
 
         let mut arms = Vec::new();

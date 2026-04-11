@@ -198,7 +198,7 @@ fn scan_var_read_role_names(source: &str, registry: &CommandRegistry) -> BTreeSe
                 words.clear();
                 prev_is_sep = true;
             }
-            TokenType::Sep => {
+            TokenType::Sep | TokenType::Comment => {
                 prev_is_sep = true;
             }
             _ => {
