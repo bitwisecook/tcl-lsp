@@ -189,6 +189,7 @@ dependencies = [
  "pyo3",
  "tcl-compiler",
  "tcl-lexer",
+ "tcl-registry",
 ]
 
 [[package]]
