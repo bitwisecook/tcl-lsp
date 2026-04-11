@@ -1119,7 +1119,6 @@ proc pipeline {n} { inc [square $n] }
             vm_r = self._vm_eval_proc(source, "pipeline", (n,))
             assert wasm_r == vm_r, f"pipeline({n}): WASM={wasm_r}, VM={vm_r}"
 
-    @pytest.mark.xfail(reason="Nested CFG loop codegen: inner back-edge detection")
     def test_nested_loops_matches_vm(self):
         """Nested for loops must match VM."""
         source = """\
@@ -1137,6 +1136,26 @@ proc sum_products {n} {
             wasm_r = _compile_and_run_proc(source, "sum_products", (n,))
             vm_r = self._vm_eval_proc(source, "sum_products", (n,))
             assert wasm_r == vm_r, f"sum_products({n}): WASM={wasm_r}, VM={vm_r}"
+
+    def test_triple_nested_loops_matches_vm(self):
+        """Triple-nested for loops must match VM."""
+        source = """\
+proc f {n} {
+    set s 0
+    for {set i 1} {$i <= $n} {incr i} {
+        for {set j 1} {$j <= $i} {incr j} {
+            for {set k 1} {$k <= $j} {incr k} {
+                incr s
+            }
+        }
+    }
+    return $s
+}
+"""
+        for n in (0, 1, 3, 4):
+            wasm_r = _compile_and_run_proc(source, "f", (n,))
+            vm_r = self._vm_eval_proc(source, "f", (n,))
+            assert wasm_r == vm_r, f"triple({n}): WASM={wasm_r}, VM={vm_r}"
 
     def test_abs_function_matches_vm(self):
         """expr abs() must match VM."""
