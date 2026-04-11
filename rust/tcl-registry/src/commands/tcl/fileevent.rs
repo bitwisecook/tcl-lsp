@@ -1,14 +1,26 @@
-//! `fileevent` — set up channel event handlers.
+//! `fileevent` — execute a script when a channel becomes readable or writable.
+
 use crate::prelude::*;
+
+/// Command spec for `fileevent`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileevent",
-
         arity: Arity::new(2, 3),
+        arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],
         return_type: Some(TclType::String),
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::None,
+        }],
         hover: Some(HoverSnippet::brief(
-            "Set up channel event handlers.",
-            &["fileevent channelId event ?script?"],
+            "Execute a script when a channel becomes readable or writable.",
+            &[
+                "fileevent channel readable ?script?",
+                "fileevent channel writable ?script?",
+            ],
             "Tcl fileevent(1)",
         )),
         ..CommandSpec::DEFAULT
