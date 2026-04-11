@@ -1,0 +1,14 @@
+ByteCode 0xb6d162410, refCt 1, epoch 21, interp 0xb6d01c010 (epoch 21)
+  Source "namespace eval myns {\n    variable count 0\n    variab..."
+  Cmds 1, src 136, inst 17, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-15, src 0-134
+  Command 1: "namespace eval myns {\n    variable count 0\n    variab..."
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "eval"
+    (4) push1 2 	# "myns"
+    (6) push1 3 	# "\n    variable count 0\n    variable nam..."
+    (8) push1 4 	# "::tcl::namespace::eval"
+    (10) invokeReplace 4 2 
+    (16) done 
+

@@ -1,0 +1,32 @@
+{
+  "seed": 1772845753,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"expr {(double(71) >> (8 == (34 ^ $a)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach item {qdtyxgw 30.53 47.59 48.33} {\n                    expr {(double(71) >> (8 == (34 ^ $a)))}\n                    expr {(!($n >> 25))}\n      ...\"\n    (\"for\" body line 87)\n    invoked from within\n\"for {set item 0} {$item < 3} {incr item} {\n    switch -- 83.90 {\n        \"lc9vep;8x\" {\n            set item -174\n            expr {((wide(81) >= (-"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"expr {(double(71) >> (8 == (34 ^ $a)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach item {qdtyxgw 30.53 47.59 48.33} {\n                    expr {(double(71) >> (8 == (34 ^ $a)))}\n                    expr {(!($n >> 25))}\n      ...\"\n    (\"for\" body line 87)\n    invoked from within\n\"for {set item 0} {$item < 3} {incr item} {\n    switch -- 83.90 {\n        \"lc9vep;8x\" {\n            set item -174\n            expr {((wide(81) >= (-"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

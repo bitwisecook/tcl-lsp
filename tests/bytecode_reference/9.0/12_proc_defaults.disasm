@@ -1,0 +1,29 @@
+ByteCode 0x801448010, refCt 1, epoch 21, interp 0x80101c010 (epoch 21)
+  Source "proc greet {{name World}} {\n    return \"Hello, $name!..."
+  Cmds 1, src 57, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-55
+  Command 1: "proc greet {{name World}} {\n    return \"Hello, $name!..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "greet"
+    (4) push1 2 	# "{name World}"
+    (6) push1 3 	# "\n    return \"Hello, $name!..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x801448010, refCt 1, epoch 95, interp 0x801114010 (epoch 95)
+  Source "\n    return \"Hello, $name!..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 1, src 28, inst 9, litObjs 2, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x801443410, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-8, src 5-26
+  Command 1: "return \"Hello, $name!..."
+    (0) push1 0 	# "Hello, "
+    (2) loadScalar1 %v0 	# var "name"
+    (4) push1 1 	# "!"
+    (6) strcat 3 
+    (8) done 
+

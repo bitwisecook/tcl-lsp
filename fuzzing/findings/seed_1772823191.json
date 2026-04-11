@@ -1,0 +1,32 @@
+{
+  "seed": 1772823191,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "CRASH: ValueError: negative shift count"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {max(((-94 >> -72) | (27.64 ? -21 : 75)), round(-61.49))}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach val {kmd -247} {\n            set val \"q\"\n            expr {max(((-94 >> -72) | (27.64 ? -21 : 75)), round(-61.49))}\n            if {$tmp == 12...\"\n    (\"for\" body line 24)\n    invoked from within\n\"for {set x 0} {$x < 4} {incr x} {\n    append b false\n    set b 0\n    while {$b < 1} {\n        set x 78\n        incr x 10\n        "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {max(((-94 >> -72) | (27.64 ? -21 : 75)), round(-61.49))}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach val {kmd -247} {\n            set val \"q\"\n            expr {max(((-94 >> -72) | (27.64 ? -21 : 75)), round(-61.49))}\n            if {$tmp == 12...\"\n    (\"for\" body line 24)\n    invoked from within\n\"for {set x 0} {$x < 4} {incr x} {\n    append b false\n    set b 0\n    while {$b < 1} {\n        set x 78\n        incr x 10\n        "
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

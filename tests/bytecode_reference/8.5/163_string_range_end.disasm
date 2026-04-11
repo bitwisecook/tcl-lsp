@@ -1,0 +1,53 @@
+ByteCode 0x0x82c89e210, refCt 1, epoch 3, interp 0x0x82cc20010 (epoch 3)
+  Source "set s \"hello world\"\nset a [string range $s 0 4]\nset b ["
+  Cmds 7, src 112, inst 84, litObjs 12, aux 0, stkDepth 6, code/src 0.00
+  Commands 7:
+      1: pc 0-5, src 0-18   	   2: pc 6-31, src 20-46
+      3: pc 17-29, src 27-45   	   4: pc 32-57, src 48-80
+      5: pc 43-55, src 55-79   	   6: pc 58-82, src 82-110
+      7: pc 69-81, src 89-109
+  Command 1: "set s \"hello world\""
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "hello world"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set a [string range $s 0 4]"
+    (6) startCommand +25 1 	# next cmd at pc 31
+    (15) push1 2 	# "a"
+  Command 3: "string range $s 0 4"
+    (17) push1 3 	# "string"
+    (19) push1 4 	# "range"
+    (21) push1 0 	# "s"
+    (23) loadScalarStk 
+    (24) push1 5 	# "0"
+    (26) push1 6 	# "4"
+    (28) invokeStk1 5 
+    (30) storeScalarStk 
+    (31) pop 
+  Command 4: "set b [string range $s end-4 end]"
+    (32) startCommand +25 1 	# next cmd at pc 57
+    (41) push1 7 	# "b"
+  Command 5: "string range $s end-4 end"
+    (43) push1 3 	# "string"
+    (45) push1 4 	# "range"
+    (47) push1 0 	# "s"
+    (49) loadScalarStk 
+    (50) push1 8 	# "end-4"
+    (52) push1 9 	# "end"
+    (54) invokeStk1 5 
+    (56) storeScalarStk 
+    (57) pop 
+  Command 6: "set c [string range $s 6 end]"
+    (58) startCommand +25 1 	# next cmd at pc 83
+    (67) push1 10 	# "c"
+  Command 7: "string range $s 6 end"
+    (69) push1 3 	# "string"
+    (71) push1 4 	# "range"
+    (73) push1 0 	# "s"
+    (75) loadScalarStk 
+    (76) push1 11 	# "6"
+    (78) push1 9 	# "end"
+    (80) invokeStk1 5 
+    (82) storeScalarStk 
+    (83) done 
+

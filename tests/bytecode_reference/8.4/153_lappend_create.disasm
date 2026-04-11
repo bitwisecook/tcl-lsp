@@ -1,0 +1,16 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x50cb8600, refCt 1, epoch 0, interp 0x547ee20 (epoch 0)
+  Source "proc test {} {\n    lappend x a b c\n    lappend x d\n    "
+  Cmds 1, src 67, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 3.16
+  Code 212 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 4
+  Proc 0x510bd0c0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-65
+  Command 1: "proc test {} {\n    lappend x a b c\n    lappend x d\n    "
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "test"
+    (4) push1 2  	# ""
+    (6) push1 3  	# "\n    lappend x a b c\n    lappend x d\n   "
+    (8) invokeStk1 4 
+    (10) done 

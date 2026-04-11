@@ -1,0 +1,62 @@
+TCLSH    /opt/homebrew/bin/tclsh9.0
+VERSION  9.0.3
+FILE     append.test
+DATE     2026-03-03T12:53:59Z
+---
+PASS append-1.1
+PASS append-1.2
+PASS append-1.3
+PASS append-10.1
+PASS append-10.2
+PASS append-10.3
+PASS append-10.4
+PASS append-2.1
+PASS append-3.1
+PASS append-3.10
+PASS append-3.2
+PASS append-3.3
+PASS append-3.4
+PASS append-3.5
+PASS append-3.6
+PASS append-4.1
+PASS append-4.10
+PASS append-4.11
+PASS append-4.12
+PASS append-4.13
+PASS append-4.14
+PASS append-4.15
+PASS append-4.16
+PASS append-4.17
+PASS append-4.18
+PASS append-4.19
+PASS append-4.2
+PASS append-4.20
+PASS append-4.21
+PASS append-4.22
+PASS append-4.3
+PASS append-4.4
+PASS append-4.5
+PASS append-4.6
+PASS append-4.7
+PASS append-4.8
+PASS append-4.9
+PASS append-5.1
+PASS append-6.1
+PASS append-6.2
+PASS append-7.1
+PASS append-7.2
+PASS append-7.3
+PASS append-7.4
+PASS append-7.5
+PASS append-9.0
+PASS append-9.1
+PASS append-9.2
+PASS append-9.3
+SKIP append-3.7 testbytestring
+SKIP append-3.8 testbytestring
+SKIP append-3.9 testbytestring
+---
+TOTAL   52
+PASSED  49
+SKIPPED 3
+FAILED  0

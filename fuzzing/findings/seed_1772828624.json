@@ -1,0 +1,24 @@
+{
+  "seed": 1772828624,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-91.45\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-91.45\" as left operand of \"<<\"\n    invoked from within\n\"if {((50 ? -91.45 : -90) << (-7))} {\n        catch {\n            string repeat \"ot=uq\" 1\n            append z 526\n            set a sie\n            if...\"\n    (\"for\" body line 5)\n    invoked from within\n\"for {set msg 0} {$msg < 4} {incr msg} {\n    set tmp -479\n    set msg 52\n    incr msg 0\n    if {((50 ? -91.45 : -90) << (-7))} {\n        catch {\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj0"
+    }
+  ],
+  "fixed": true,
+  "fix": "bitwise float rejection prevents infinite loop",
+  "category": "bitwise-float"
+}

@@ -1,0 +1,13 @@
+ByteCode 0x7cb162610, refCt 1, epoch 21, interp 0x7cb01c010 (epoch 21)
+  Source "foreach {a b} {1 2 3 4 5 6} {\n    set sum [expr {$a + ..."
+  Cmds 1, src 61, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-59
+  Command 1: "foreach {a b} {1 2 3 4 5 6} {\n    set sum [expr {$a + ..."
+    (0) push1 0 	# "foreach"
+    (2) push1 1 	# "a b"
+    (4) push1 2 	# "1 2 3 4 5 6"
+    (6) push1 3 	# "\n    set sum [expr {$a + $b}]..."
+    (8) invokeStk1 4 
+    (10) done 
+

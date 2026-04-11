@@ -1,0 +1,18 @@
+ByteCode 0x0x94c84e210, refCt 1, epoch 3, interp 0x0x94c80c010 (epoch 3)
+  Source "set done 0\ntry {\n    error \"fail\"\n} finally {\n    set d"
+  Cmds 2, src 63, inst 17, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-9   	   2: pc 6-15, src 11-61
+  Command 1: "set done 0"
+    (0) push1 0 	# "done"
+    (2) push1 1 	# "0"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "try {\n    error \"fail\"\n} finally {\n    set done 1\n}"
+    (6) push1 2 	# "try"
+    (8) push1 3 	# "\n    error \"fail\"\n"
+    (10) push1 4 	# "finally"
+    (12) push1 5 	# "\n    set done 1\n"
+    (14) invokeStk1 4 
+    (16) done 
+

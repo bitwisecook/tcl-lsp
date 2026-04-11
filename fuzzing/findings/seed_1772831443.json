@@ -1,0 +1,16 @@
+{
+  "seed": 1772831443,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\""
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on invalid command",
+  "category": "vm-timeout-resolved"
+}

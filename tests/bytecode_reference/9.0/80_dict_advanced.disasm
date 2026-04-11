@@ -1,0 +1,51 @@
+ByteCode 0x971160810, refCt 1, epoch 21, interp 0x97101c010 (epoch 21)
+  Source "set d [dict create name Alice age 30 city London]\ndict..."
+  Cmds 7, src 133, inst 98, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Commands 7:
+      1: pc 0-16, src 0-48        2: pc 2-14, src 7-47
+      3: pc 17-33, src 50-61        4: pc 34-50, src 63-76
+      5: pc 51-67, src 78-89        6: pc 68-96, src 91-131
+      7: pc 82-94, src 106-130
+  Command 1: "set d [dict create name Alice age 30 city London]..."
+    (0) push1 0 	# "d"
+  Command 2: "dict create name Alice age 30 city London..."
+    (2) startCommand +13 1 	# next cmd at pc 15, 1 cmds start here
+    (11) push1 1 	# "name Alice age 30 city London"
+    (13) dup 
+    (14) verifyDict 
+    (15) storeStk 
+    (16) pop 
+  Command 3: "dict keys $d..."
+    (17) startCommand +16 1 	# next cmd at pc 33, 1 cmds start here
+    (26) push1 2 	# "::tcl::dict::keys"
+    (28) push1 0 	# "d"
+    (30) loadStk 
+    (31) invokeStk1 2 
+    (33) pop 
+  Command 4: "dict values $d..."
+    (34) startCommand +16 1 	# next cmd at pc 50, 1 cmds start here
+    (43) push1 3 	# "::tcl::dict::values"
+    (45) push1 0 	# "d"
+    (47) loadStk 
+    (48) invokeStk1 2 
+    (50) pop 
+  Command 5: "dict size $d..."
+    (51) startCommand +16 1 	# next cmd at pc 67, 1 cmds start here
+    (60) push1 4 	# "::tcl::dict::size"
+    (62) push1 0 	# "d"
+    (64) loadStk 
+    (65) invokeStk1 2 
+    (67) pop 
+  Command 6: "dict merge $d [dict create hobby reading]..."
+    (68) startCommand +29 1 	# next cmd at pc 97, 1 cmds start here
+    (77) push1 5 	# "::tcl::dict::merge"
+    (79) push1 0 	# "d"
+    (81) loadStk 
+  Command 7: "dict create hobby reading..."
+    (82) startCommand +13 1 	# next cmd at pc 95, 1 cmds start here
+    (91) push1 6 	# "hobby reading"
+    (93) dup 
+    (94) verifyDict 
+    (95) invokeStk1 3 
+    (97) done 
+

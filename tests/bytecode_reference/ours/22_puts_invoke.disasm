@@ -1,0 +1,11 @@
+ByteCode ::top, 4 instructions, 7 bytes, 2 literals, 0 variables
+  Literals:
+    0: "puts"
+    1: "hello world"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "puts"
+    (2) push1 1	# "hello world"
+    (4) invokeStk1 2	# puts
+  # exit_2:
+    (6) done

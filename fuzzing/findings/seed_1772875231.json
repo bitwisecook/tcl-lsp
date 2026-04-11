@@ -1,0 +1,24 @@
+{
+  "seed": 1772875231,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"acc\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"acc\": no such variable\n    while executing\n\"if {(($acc | 73) >> (18.60 >= 58.80))} {\n                join {rglozmf 497 -493 -609 85 1} \"\"\n                set x 48\n                incr x 3\n      ...\"\n    (\"while\" body line 54)\n    invoked from within\n\"while {$key < 2} {\n    switch -- 9 {\n        true {\n            set msg rqby\n            append msg \"@tj_,z 8nxux9\"\n            for {set msg 0} {$msg ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp95dreesf.tcl\" line "
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

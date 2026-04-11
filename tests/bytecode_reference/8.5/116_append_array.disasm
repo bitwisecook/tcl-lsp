@@ -1,0 +1,28 @@
+ByteCode 0x0x86acfa410, refCt 1, epoch 3, interp 0x0x86ac20010 (epoch 3)
+  Source "set arr(msg) \"hello\"\nappend arr(msg) \" \" \"world\"\nlappen"
+  Cmds 3, src 72, inst 32, litObjs 12, aux 0, stkDepth 5, code/src 0.00
+  Commands 3:
+      1: pc 0-7, src 0-19   	   2: pc 8-18, src 21-47
+      3: pc 19-30, src 49-70
+  Command 1: "set arr(msg) \"hello\""
+    (0) push1 0 	# "arr"
+    (2) push1 1 	# "msg"
+    (4) push1 2 	# "hello"
+    (6) storeArrayStk 
+    (7) pop 
+  Command 2: "append arr(msg) \" \" \"world\""
+    (8) push1 3 	# "append"
+    (10) push1 4 	# "arr(msg)"
+    (12) push1 5 	# " "
+    (14) push1 6 	# "world"
+    (16) invokeStk1 4 
+    (18) pop 
+  Command 3: "lappend arr(lst) a b c"
+    (19) push1 7 	# "lappend"
+    (21) push1 8 	# "arr(lst)"
+    (23) push1 9 	# "a"
+    (25) push1 10 	# "b"
+    (27) push1 11 	# "c"
+    (29) invokeStk1 5 
+    (31) done 
+

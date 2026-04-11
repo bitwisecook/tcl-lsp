@@ -1,0 +1,12 @@
+ByteCode 0xaf8d46010, refCt 1, epoch 21, interp 0xaf8c28010 (epoch 21)
+  Source "catch {expr {1/0}} result\n"
+  Cmds 1, src 26, inst 9, litObjs 3, aux 0, stkDepth 3, code/src 0.00
+  Commands 1:
+      1: pc 0-7, src 0-24
+  Command 1: "catch {expr {1/0}} result..."
+    (0) push1 0 	# "catch"
+    (2) push1 1 	# "expr {1/0}"
+    (4) push1 2 	# "result"
+    (6) invokeStk1 3 
+    (8) done 
+

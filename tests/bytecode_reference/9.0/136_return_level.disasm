@@ -1,0 +1,70 @@
+ByteCode 0x7c3159210, refCt 1, epoch 21, interp 0x7c301c010 (epoch 21)
+  Source "proc inner {} {\n    return -code error -level 0 \"loca..."
+  Cmds 2, src 135, inst 22, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-10, src 0-62        2: pc 11-20, src 64-133
+  Command 1: "proc inner {} {\n    return -code error -level 0 \"loca..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "inner"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    return -code error -level 0 \"loca..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc outer {} {\n    set code [catch {inner} msg]\n    ..."
+    (11) push1 0 	# "proc"
+    (13) push1 4 	# "outer"
+    (15) push1 2 	# ""
+    (17) push1 5 	# "\n    set code [catch {inner} msg]\n    ..."
+    (19) invokeStk1 4 
+    (21) done 
+
+
+ByteCode 0x7c3159210, refCt 1, epoch 95, interp 0x7c310c010 (epoch 95)
+  Source "\n    return -code error -level 0 \"local error..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 1, src 47, inst 14, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x7c3171a90, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-12, src 5-45
+  Command 1: "return -code error -level 0 \"local error..."
+    (0) push1 0 	# "local error"
+    (2) push1 1 	# ""
+    (4) returnImm +1 0 
+    (13) done 
+
+
+ByteCode 0x7c313dc10, refCt 1, epoch 95, interp 0x7c310c010 (epoch 95)
+  Source "\n    set code [catch {inner} msg]\n    list $code $ms..."
+  File "scripts/reference_disasm.tcl" Line 33
+  Cmds 4, src 54, inst 46, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x7c3127c10, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "code"
+      slot 1, scalar, "msg"
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-8, catch 13
+  Commands 4:
+      1: pc 0-26, src 5-32        2: pc 0-23, src 15-31
+      3: pc 5-8, src 22-26        4: pc 27-44, src 38-52
+  Command 1: "set code [catch {inner} msg]..."
+  Command 2: "catch {inner} msg..."
+    (0) beginCatch4 0 
+  Command 3: "inner..."
+    (5) push1 0 	# "inner"
+    (7) invokeStk1 1 
+    (9) push1 1 	# "0"
+    (11) jump1 +4 	# pc 15
+    (13) pushResult 
+    (14) pushReturnCode 
+    (15) endCatch 
+    (16) reverse 2 
+    (21) storeScalar1 %v1 	# var "msg"
+    (23) pop 
+    (24) storeScalar1 %v0 	# var "code"
+    (26) pop 
+  Command 4: "list $code $msg..."
+    (27) startCommand +18 1 	# next cmd at pc 45, 1 cmds start here
+    (36) loadScalar1 %v0 	# var "code"
+    (38) loadScalar1 %v1 	# var "msg"
+    (40) list 2 
+    (45) done 
+

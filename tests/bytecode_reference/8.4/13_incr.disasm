@@ -1,0 +1,21 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x670d81c0, refCt 1, epoch 0, interp 0x2ceac60 (epoch 0)
+  Source "set x 0\nincr x\nincr x 5\n"
+  Cmds 3, src 24, inst 13, litObjs 1, aux 0, stkDepth 1, code/src 8.17
+  Code 196 = header 160+inst 13+litObj 8+exc 0+aux 0+cmdMap 12
+  Proc 0x670d4c40, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 3:
+      1: pc 0-4, src 0-6   	   2: pc 5-8, src 8-13
+      3: pc 9-11, src 15-22
+  Command 1: "set x 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "incr x"
+    (5) incrScalar1Imm 0 1
+    (8) pop 
+  Command 3: "incr x 5"
+    (9) incrScalar1Imm 0 5
+    (12) done 

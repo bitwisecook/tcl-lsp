@@ -1,0 +1,13 @@
+{
+  "seed": 1774198200,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "cannot use non-numeric string \"-112 129\" as operand of \"-\"",
+      "detail_b": "TIMEOUT"
+    }
+  ]
+}

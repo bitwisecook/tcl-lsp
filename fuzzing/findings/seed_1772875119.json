@@ -1,0 +1,24 @@
+{
+  "seed": 1772875119,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr a\"\n    (\"while\" body line 11)\n    invoked from within\n\"while {$a < 4} {\n    string index \"#gru6ded_rro;v+\" 3\n    if {$tmp != -8} {\n        append j \"i?j-mc8yfitm\"\n        set val [expr {95}]\n        set a ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_rdt2383.tcl\" line 75)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr a\"\n    (\"while\" body line 11)\n    invoked from within\n\"while {$a < 4} {\n    string index \"#gru6ded_rro;v+\" 3\n    if {$tmp != -8} {\n        append j \"i?j-mc8yfitm\"\n        set val [expr {95}]\n        set a ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp_rdt2383.tcl\" line 75)"
+    }
+  ],
+  "fixed": true,
+  "fix": "list detection in integer parsing",
+  "category": "expected-integer-list"
+}

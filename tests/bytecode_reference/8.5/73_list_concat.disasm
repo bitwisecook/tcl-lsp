@@ -1,0 +1,51 @@
+ByteCode 0x0x78ad16610, refCt 1, epoch 3, interp 0x0x78ac20010 (epoch 3)
+  Source "set a [list 1 2 3]\nset b [list 4 5 6]\nset c [list {*}$a"
+  Cmds 7, src 74, inst 84, litObjs 10, aux 0, stkDepth 5, code/src 0.00
+  Commands 7:
+      1: pc 0-13, src 0-17   	   2: pc 2-11, src 7-16
+      3: pc 14-36, src 19-36   	   4: pc 25-34, src 26-35
+      5: pc 37-69, src 38-61   	   6: pc 48-67, src 45-60
+      7: pc 70-82, src 63-72
+  Command 1: "set a [list 1 2 3]"
+    (0) push1 0 	# "a"
+  Command 2: "list 1 2 3"
+    (2) push1 1 	# "list"
+    (4) push1 2 	# "1"
+    (6) push1 3 	# "2"
+    (8) push1 4 	# "3"
+    (10) invokeStk1 4 
+    (12) storeScalarStk 
+    (13) pop 
+  Command 3: "set b [list 4 5 6]"
+    (14) startCommand +22 1 	# next cmd at pc 36
+    (23) push1 5 	# "b"
+  Command 4: "list 4 5 6"
+    (25) push1 1 	# "list"
+    (27) push1 6 	# "4"
+    (29) push1 7 	# "5"
+    (31) push1 8 	# "6"
+    (33) invokeStk1 4 
+    (35) storeScalarStk 
+    (36) pop 
+  Command 5: "set c [list {*}$a {*}$b]"
+    (37) startCommand +32 1 	# next cmd at pc 69
+    (46) push1 9 	# "c"
+  Command 6: "list {*}$a {*}$b"
+    (48) expandStart 
+    (49) push1 1 	# "list"
+    (51) push1 0 	# "a"
+    (53) loadScalarStk 
+    (54) expandStkTop 3 
+    (59) push1 5 	# "b"
+    (61) loadScalarStk 
+    (62) expandStkTop 4 
+    (67) invokeExpanded 
+    (68) storeScalarStk 
+    (69) pop 
+  Command 7: "llength $c"
+    (70) startCommand +13 1 	# next cmd at pc 83
+    (79) push1 9 	# "c"
+    (81) loadScalarStk 
+    (82) listLength 
+    (83) done 
+

@@ -1,0 +1,24 @@
+{
+  "seed": 1772828656,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {round(((45 >> -65) ^ ($z ? -66 : -70)))}\"\n    (\"for\" body line 97)\n    invoked from within\n\"for {set idx 0} {$idx < 4} {incr idx} {\n    if {$idx >= 16} {\n        switch -- -824 {\n            813 {\n                string trimright \"prm@kkac#\"\n...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp7dzj2918.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary prevents infinite loop",
+  "category": "negative-shift"
+}

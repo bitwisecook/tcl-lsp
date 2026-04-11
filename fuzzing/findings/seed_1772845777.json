@@ -1,0 +1,24 @@
+{
+  "seed": 1772845777,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"msg\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"msg\": no such variable\n    while executing\n\"expr {((!(-19 / max(1, abs($msg)))) & int((24 ? -21 : -14)))}\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- 43 {\n    583 {\n        append acc \"b71:1l6=+o8qcj\"\n        set val {}\n        expr {((-(-63 != -2)) << ((-14.36 << 50) ? ($i ^ $tmp) : 7))}\n...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpu4gkkomy.tcl\" line 49)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

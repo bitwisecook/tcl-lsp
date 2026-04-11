@@ -1,0 +1,31 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x810c0640, refCt 1, epoch 0, interp 0x80c0d000 (epoch 0)
+  Source "set x 42\nset y 99\nunset x\nunset -nocomplain z\n"
+  Cmds 4, src 46, inst 26, litObjs 6, aux 0, stkDepth 3, code/src 5.57
+  Code 256 = header 160+inst 26+litObj 48+exc 0+aux 0+cmdMap 16
+  Proc 0x810c9b80, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "x"
+      slot 1, scalar, "y"
+  Commands 4:
+      1: pc 0-4, src 0-7   	   2: pc 5-9, src 9-16
+      3: pc 10-16, src 18-24   	   4: pc 17-24, src 26-44
+  Command 1: "set x 42"
+    (0) push1 0  	# "42"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "set y 99"
+    (5) push1 1  	# "99"
+    (7) storeScalar1 1	# var "y"
+    (9) pop 
+  Command 3: "unset x"
+    (10) push1 2  	# "unset"
+    (12) push1 3  	# "x"
+    (14) invokeStk1 2 
+    (16) pop 
+  Command 4: "unset -nocomplain z"
+    (17) push1 2  	# "unset"
+    (19) push1 4  	# "-nocomplain"
+    (21) push1 5  	# "z"
+    (23) invokeStk1 3 
+    (25) done 

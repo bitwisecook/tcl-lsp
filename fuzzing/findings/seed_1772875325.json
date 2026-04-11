@@ -1,0 +1,24 @@
+{
+  "seed": 1772875325,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 5)\n    invoked from within\n\"foreach key {sp -810 kaasz} {\n        expr {(~(-($j >= $key)))}\n        string last \"a\" \"is7g5yup1\"\n        expr {(-92 >> (-15 & (69 > $key)))}\n      ...\"\n    invoked from within\n\"if {(74.39 && (70 ? -5 : 19))} {\n    append j \"4c:ulbl+iyk0gkp\"\n    expr {(48 % max(1, abs((!-13))))}\n    foreach key {sp -810 kaasz} {\n        expr {...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T"
+    }
+  ],
+  "fixed": true,
+  "fix": "command resolution errors now propagate correctly",
+  "category": "invalid-command"
+}

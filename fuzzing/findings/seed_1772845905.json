@@ -1,0 +1,24 @@
+{
+  "seed": 1772845905,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"n\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"expr {$n}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach key {-62.30 no} {\n        expr {$n}\n        string tolower \"1\"\n        string toupper \"80v=o23m#:h,n1;+zi9\"\n        set idx 75\n        incr id...\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach tmp {675 800 977 yes -188 false} {\n    catch {helper }\n    catch {helper }\n    foreach key {-62.30 no} {\n        expr {$n}\n        string tolo...\"\n    (file \"/var/fol"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

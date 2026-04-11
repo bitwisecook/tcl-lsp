@@ -1,0 +1,32 @@
+{
+  "seed": 1772846000,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"expr {(-76 * ((18 != 47) & ($n & -82.03)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach val {yes -789 90.01 620 -473 -703} {\n        expr {(-76 * ((18 != 47) & ($n & -82.03)))}\n        if {((-34.03 ? $flag : 53) ? (~14) : $flag)} ...\"\n    invoked from within\n\"if {37} {\n    if {(22 ** -65)} {\n        set n -727\n        lassign {602 0 -832} n n n\n        append flag -97.55\n    }\n    foreach val {yes -789 90.0...\"\n    (file \"/v"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"expr {(-76 * ((18 != 47) & ($n & -82.03)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach val {yes -789 90.01 620 -473 -703} {\n        expr {(-76 * ((18 != 47) & ($n & -82.03)))}\n        if {((-34.03 ? $flag : 53) ? (~14) : $flag)} ...\"\n    invoked from within\n\"if {37} {\n    if {(22 ** -65)} {\n        set n -727\n        lassign {602 0 -832} n n n\n        append flag -97.55\n    }\n    foreach val {yes -789 90.0...\"\n    (file \"/v"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

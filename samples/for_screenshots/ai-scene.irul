@@ -1,0 +1,8 @@
+when HTTP_REQUEST {
+    if {[HTTP::uri] eq "/admin"} {
+        HTTP::respond 403 content "blocked"
+        return
+    }
+    HTTP::header insert X-App "demo"
+}
+#         ^--- cursor

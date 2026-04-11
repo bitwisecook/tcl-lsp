@@ -1,0 +1,36 @@
+TCLSH    /opt/homebrew/bin/tclsh9.0
+VERSION  9.0.3
+FILE     result.test
+DATE     2026-03-03T12:54:13Z
+---
+PASS result-6.2
+PASS result-6.3
+PASS result-6.4
+PASS result-6.5
+SKIP result-1.1 testsaveresult
+SKIP result-1.2 testsaveresult
+SKIP result-1.3 testsaveresult
+SKIP result-1.4 testsaveresult
+SKIP result-1.5 testsaveresult
+SKIP result-1.6 testsaveresult
+SKIP result-1.7 testsaveresult
+SKIP result-1.8 testsaveresult
+SKIP result-2.1 testsaveresult
+SKIP result-3.1 testsaveresult
+SKIP result-3.2 testsaveresult
+SKIP result-4.1 testsetobjerrorcode
+SKIP result-4.2 testsetobjerrorcode
+SKIP result-4.3 testsetobjerrorcode
+SKIP result-4.4 testsetobjerrorcode
+SKIP result-4.5 testsetobjerrorcode
+SKIP result-5.1 testseterrorcode
+SKIP result-5.2 testseterrorcode
+SKIP result-5.3 testseterrorcode
+SKIP result-5.4 testseterrorcode
+SKIP result-6.0 testreturn
+SKIP result-6.1 testreturn
+---
+TOTAL   26
+PASSED  4
+SKIPPED 22
+FAILED  0

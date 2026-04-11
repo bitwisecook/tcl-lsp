@@ -1,0 +1,55 @@
+ByteCode 0x0x84ccfca10, refCt 1, epoch 17, interp 0x0x84cc28010 (epoch 17)
+  Source "proc test {} {\n    set d [dict create items {}]\n    d..."
+  Cmds 1, src 159, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-157
+  Command 1: "proc test {} {\n    set d [dict create items {}]\n    d..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set d [dict create items {}]\n    ..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x84cd19210, refCt 1, epoch 72, interp 0x0x84ccee010 (epoch 72)
+  Source "\n    set d [dict create items {}]\n    dict lappend d ..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 6, src 143, inst 77, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x84c423410, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "d"
+  Commands 6:
+      1: pc 0-6, src 5-32        2: pc 0-3, src 12-31
+      3: pc 7-25, src 38-63        4: pc 26-44, src 69-94
+      5: pc 45-63, src 100-127        6: pc 64-75, src 133-141
+  Command 1: "set d [dict create items {}]..."
+  Command 2: "dict create items {}..."
+    (0) push1 0 	# "items {}"
+    (2) dup 
+    (3) verifyDict 
+    (4) storeScalar1 %v0 	# var "d"
+    (6) pop 
+  Command 3: "dict lappend d items \"one..."
+    (7) startCommand +18 1 	# next cmd at pc 25, 1 cmds start here
+    (16) push1 1 	# "items"
+    (18) push1 2 	# "one"
+    (20) dictLappend %v0 	# var "d"
+    (25) pop 
+  Command 4: "dict lappend d items \"two..."
+    (26) startCommand +18 1 	# next cmd at pc 44, 1 cmds start here
+    (35) push1 1 	# "items"
+    (37) push1 3 	# "two"
+    (39) dictLappend %v0 	# var "d"
+    (44) pop 
+  Command 5: "dict lappend d items \"three..."
+    (45) startCommand +18 1 	# next cmd at pc 63, 1 cmds start here
+    (54) push1 1 	# "items"
+    (56) push1 4 	# "three"
+    (58) dictLappend %v0 	# var "d"
+    (63) pop 
+  Command 6: "return $d..."
+    (64) startCommand +12 1 	# next cmd at pc 76, 1 cmds start here
+    (73) loadScalar1 %v0 	# var "d"
+    (75) done 
+    (76) done 
+
