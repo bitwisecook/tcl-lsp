@@ -36,6 +36,17 @@ impl CommandRegistry {
         registry
     }
 
+    /// Load iRules dialect commands into the registry.
+    pub fn load_irules(&mut self) {
+        if self.loaded_dialects.contains(DialectSet::IRULES) {
+            return;
+        }
+        for spec in crate::commands::irules::irules_command_specs() {
+            self.insert(spec);
+        }
+        self.loaded_dialects |= DialectSet::IRULES;
+    }
+
     /// Insert a command spec into the registry.
     pub fn insert(&mut self, spec: CommandSpec) {
         self.by_name
@@ -241,5 +252,31 @@ mod tests {
         assert!(roles.contains(&2));
         assert!(roles.contains(&5));
         assert!(roles.contains(&7));
+    }
+
+    #[test]
+    fn load_irules_dialect() {
+        let mut reg = CommandRegistry::build_default();
+        assert!(reg.get("HTTP::header").is_none()); // not loaded yet
+        reg.load_irules();
+        assert!(reg.get("HTTP::header").is_some());
+        assert!(reg.len() > 200); // should have 1000+ commands now
+    }
+
+    #[test]
+    fn irules_command_has_irules_dialect() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+        let spec = reg.get("HTTP::header").unwrap();
+        assert_eq!(spec.dialects, Some(DialectSet::IRULES));
+    }
+
+    #[test]
+    fn irules_idempotent_load() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+        let count1 = reg.len();
+        reg.load_irules(); // second load should be no-op
+        assert_eq!(reg.len(), count1);
     }
 }
