@@ -25,6 +25,7 @@ use pyo3::prelude::*;
 mod expr_lexer;
 mod expr_parser;
 mod lexer;
+mod registry;
 mod tokens;
 
 /// Return the Rust-side greeting used by the smoke test.
@@ -77,5 +78,6 @@ fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     tokens::register_with(m)?;
     expr_lexer::register_with(m)?;
     expr_parser::register_with(m)?;
+    registry::register_with(m)?;
     Ok(())
 }
