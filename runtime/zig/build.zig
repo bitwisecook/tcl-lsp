@@ -1,11 +1,10 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    // Target wasm32-freestanding for embedding in compiled Tcl modules.
-    // Switch to wasm32-wasi when WASI I/O support is added.
+    // Target wasm32-wasi for WASI I/O support (fd_write for puts).
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .wasm32,
-        .os_tag = .freestanding,
+        .os_tag = .wasi,
     });
     const optimize = b.standardOptimizeOption(.{});
 

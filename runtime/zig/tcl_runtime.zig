@@ -2,7 +2,7 @@
 //
 // Provides reference-counted TclObj values in linear memory, with
 // exports that the compiled Tcl WASM modules import.  Built as
-// wasm32-freestanding (no OS, no libc).
+// wasm32-wasi for WASI I/O support (fd_write for puts).
 //
 // Memory layout of a TclObj:
 //   offset 0: refcount  (i32)
@@ -12,11 +12,10 @@
 //   offset 20: str_len  (i32)  byte length of the string representation
 //   Total: 24 bytes per TclObj
 //
-// Export names must match the import names declared in _RUNTIME_IMPORTS
-// in wasm.py (the second element of each tuple).  Until the value
-// representation transition, the compiled Tcl code passes raw i64
-// values (integers or data-segment offsets) and the runtime interprets
-// them accordingly.
+// All command runtime parameters and results are i32 TclObj pointers.
+// The TclObj lifecycle exports (obj_new_int, obj_new_string, obj_get_int)
+// bridge between raw i64 integers used in expr arithmetic and i32 object
+// pointers.
 
 const std = @import("std");
 
@@ -151,15 +150,74 @@ export fn tcl_incr(obj: i32, amount: i32) i32 {
     return obj_new_int(val + amt);
 }
 
-// -- Command runtime stubs --
-// All parameters and results are i32 TclObj pointers.
-// In freestanding mode these are mostly stubs; the real logic will
-// be implemented when switching to wasm32-wasi.
+// -- WASI I/O helpers --
 
-// Exported: puts — write value to stdout.
+// Scratch buffer for integer-to-string conversion (max 20 digits + sign + newline)
+var itoa_buf: [22]u8 = undefined;
+
+fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
+    var v = value;
+    var negative = false;
+    if (v < 0) {
+        negative = true;
+        v = -v;
+    }
+    var i: u32 = itoa_buf.len - 1;
+    // Add trailing newline (puts appends newline in Tcl)
+    itoa_buf[i] = '\n';
+    i -= 1;
+    if (v == 0) {
+        itoa_buf[i] = '0';
+    } else {
+        while (v > 0) {
+            itoa_buf[i] = @as(u8, @intCast(v % 10)) + '0';
+            v = @divTrunc(v, 10);
+            if (v > 0) i -= 1;
+        }
+    }
+    if (negative) {
+        i -= 1;
+        itoa_buf[i] = '-';
+    }
+    return .{ .ptr = @as([*]u8, &itoa_buf) + i, .len = itoa_buf.len - i };
+}
+
+fn fd_write_all(fd: i32, data: [*]const u8, len: u32) void {
+    const iov = [_]std.os.wasi.ciovec_t{.{
+        .base = data,
+        .len = len,
+    }};
+    var written: usize = 0;
+    _ = std.os.wasi.fd_write(@intCast(fd), &iov, 1, &written);
+}
+
+// -- Command runtime --
+// All parameters and results are i32 TclObj pointers.
+
+// Exported: puts — write value to stdout via WASI fd_write.
+// For integer TclObj: renders the integer as decimal string + newline.
+// For string TclObj: writes the string data + newline.
 export fn puts(value: i32) i32 {
-    _ = value;
-    // Stub: no I/O in freestanding mode.  Return null TclObj.
+    if (value == 0) {
+        // Null TclObj — write empty line
+        fd_write_all(1, "\n", 1);
+        return 0;
+    }
+    const addr: u32 = @intCast(value);
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    if (tag == TYPE_STRING) {
+        const sptr = read_i32(addr + OBJ_STR_PTR);
+        const slen = read_i32(addr + OBJ_STR_LEN);
+        if (slen > 0) {
+            fd_write_all(1, @ptrFromInt(@as(u32, @intCast(sptr))), @intCast(slen));
+        }
+        fd_write_all(1, "\n", 1);
+    } else {
+        // Integer — render as decimal
+        const int_val = read_i64(addr + OBJ_INT_CACHE);
+        const result = itoa(int_val);
+        fd_write_all(1, result.ptr, result.len);
+    }
     return 0;
 }
 
