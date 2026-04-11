@@ -1,12 +1,19 @@
-//! Bytecode assembly types and opcode definitions.
+//! Bytecode assembly types, opcode definitions, and emission context.
 //!
 //! This module defines the bytecode instruction set (matching Tcl
 //! 9.0.2), assembly output types (`Instruction`, `FunctionAsm`,
-//! `ModuleAsm`), and interning tables (`LiteralTable`,
-//! `LocalVarTable`).
+//! `ModuleAsm`), interning tables (`LiteralTable`, `LocalVarTable`),
+//! and the [`CodegenCtx`] emission context used by the emitter
+//! submodules.
 //!
-//! The codegen *emitter* (the algorithm that walks CFG blocks and
-//! produces instructions) is deferred to a later chunk.
+//! Submodules:
+//! - [`helpers`] — pure utility functions for compile-time folding
+//! - [`values`] — variable load/store and value emission
+//! - [`expressions`] — expression AST compilation
+
+pub mod expressions;
+pub mod helpers;
+pub mod values;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -671,6 +678,100 @@ pub struct ModuleAsm {
     pub top_level: FunctionAsm,
     /// Procedure assemblies keyed by qualified name.
     pub procedures: HashMap<String, FunctionAsm>,
+}
+
+// -- Emission context --
+
+/// Mutable context for bytecode emission.
+///
+/// Replaces the Python `_Emitter` class-level state (`self.asm`,
+/// `self.current_block`, `self.local_vars`).  Each [`CodegenCtx`]
+/// produces one [`FunctionAsm`] — create a separate context for each
+/// procedure or top-level script.
+#[derive(Debug)]
+pub struct CodegenCtx {
+    /// Literal constant pool.
+    pub literals: LiteralTable,
+    /// Local variable table.
+    pub lvt: LocalVarTable,
+    /// Instruction stream (append-only during emission).
+    pub instructions: Vec<Instruction>,
+    /// Label name → instruction index (populated by [`place_label`]).
+    label_positions: HashMap<String, usize>,
+    /// Monotonic counter for generating unique label names.
+    label_counter: u32,
+    /// Whether we are compiling a proc body (affects LVT vs stack ops).
+    pub is_proc: bool,
+    /// Command index for `startCommand` numbering.
+    pub cmd_index: u32,
+    /// End label for the current `startCommand` (paired by `end_command`).
+    pub start_cmd_end_label: Option<String>,
+}
+
+impl CodegenCtx {
+    /// Create a new emission context.
+    ///
+    /// When `is_proc` is true, variable references use LVT-based
+    /// instructions; when false, stack-based instructions are used.
+    /// `params` pre-populates the LVT with procedure parameter names.
+    #[must_use]
+    pub fn new(is_proc: bool, params: &[&str]) -> Self {
+        Self {
+            literals: LiteralTable::new(),
+            lvt: LocalVarTable::new(params),
+            instructions: Vec::new(),
+            label_positions: HashMap::new(),
+            label_counter: 0,
+            is_proc,
+            cmd_index: 0,
+            start_cmd_end_label: None,
+        }
+    }
+
+    /// Append an instruction, returning its index in the stream.
+    pub fn emit(&mut self, op: Op, operands: Vec<Operand>) -> usize {
+        let idx = self.instructions.len();
+        self.instructions.push(Instruction::new(op, operands));
+        idx
+    }
+
+    /// Append an instruction with a comment, returning its index.
+    pub fn emit_comment(&mut self, op: Op, operands: Vec<Operand>, comment: &str) -> usize {
+        let idx = self.instructions.len();
+        let mut instr = Instruction::new(op, operands);
+        comment.clone_into(&mut instr.comment);
+        self.instructions.push(instr);
+        idx
+    }
+
+    /// Generate a unique label name with the given prefix.
+    #[must_use]
+    pub fn fresh_label(&mut self, prefix: &str) -> String {
+        let n = self.label_counter;
+        self.label_counter += 1;
+        format!("{prefix}_{n}")
+    }
+
+    /// Record that a label points to the *next* instruction to be emitted.
+    pub fn place_label(&mut self, label: &str) {
+        self.label_positions
+            .insert(label.to_owned(), self.instructions.len());
+    }
+
+    /// Consume the context and produce a [`FunctionAsm`].
+    #[must_use]
+    pub fn into_function_asm(self, name: String) -> FunctionAsm {
+        // Convert label_positions (instruction indices) to byte offsets.
+        // Before layout, labels map to instruction indices.
+        let labels = self.label_positions.into_iter().collect();
+        FunctionAsm {
+            name,
+            literals: self.literals,
+            lvt: self.lvt,
+            instructions: self.instructions,
+            labels,
+        }
+    }
 }
 
 #[cfg(test)]
