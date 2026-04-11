@@ -22,29 +22,71 @@ pub struct CommandRegistry {
 }
 
 impl CommandRegistry {
-    /// Build the default registry with core Tcl commands.
+    /// Build the default registry with core Tcl + stdlib + tcllib commands.
     #[must_use]
     pub fn build_default() -> Self {
-        let specs = crate::commands::tcl::tcl_command_specs();
         let mut registry = Self {
             by_name: HashMap::new(),
             loaded_dialects: DialectSet::empty(),
         };
-        for spec in specs {
+        for spec in crate::commands::tcl::tcl_command_specs() {
+            registry.insert(spec);
+        }
+        for spec in crate::commands::stdlib::stdlib_command_specs() {
+            registry.insert(spec);
+        }
+        for spec in crate::commands::tcllib::tcllib_command_specs() {
             registry.insert(spec);
         }
         registry
     }
 
-    /// Load iRules dialect commands into the registry.
-    pub fn load_irules(&mut self) {
-        if self.loaded_dialects.contains(DialectSet::IRULES) {
+    /// Load a dialect's commands into the registry (idempotent).
+    pub fn load_dialect(&mut self, dialect: DialectSet) {
+        if self.loaded_dialects.contains(dialect) {
             return;
         }
-        for spec in crate::commands::irules::irules_command_specs() {
+        let specs: Vec<CommandSpec> = match dialect {
+            d if d == DialectSet::IRULES => crate::commands::irules::irules_command_specs(),
+            d if d == DialectSet::IAPPS => crate::commands::iapps::iapps_command_specs(),
+            d if d == DialectSet::TK => crate::commands::tk::tk_command_specs(),
+            d if d == DialectSet::EXPECT => crate::commands::expect::expect_command_specs(),
+            d if d == DialectSet::SYNOPSYS => {
+                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
+                v.extend(crate::commands::eda_synopsys::eda_synopsys_command_specs());
+                v
+            }
+            d if d == DialectSet::CADENCE => {
+                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
+                v.extend(crate::commands::eda_cadence::eda_cadence_command_specs());
+                v
+            }
+            d if d == DialectSet::XILINX => {
+                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
+                v.extend(crate::commands::eda_xilinx::eda_xilinx_command_specs());
+                v
+            }
+            d if d == DialectSet::QUARTUS => {
+                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
+                v.extend(crate::commands::eda_quartus::eda_quartus_command_specs());
+                v
+            }
+            d if d == DialectSet::MENTOR => {
+                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
+                v.extend(crate::commands::eda_mentor::eda_mentor_command_specs());
+                v
+            }
+            _ => Vec::new(),
+        };
+        for spec in specs {
             self.insert(spec);
         }
-        self.loaded_dialects |= DialectSet::IRULES;
+        self.loaded_dialects |= dialect;
+    }
+
+    /// Load iRules dialect commands (convenience wrapper).
+    pub fn load_irules(&mut self) {
+        self.load_dialect(DialectSet::IRULES);
     }
 
     /// Insert a command spec into the registry.
@@ -278,5 +320,42 @@ mod tests {
         let count1 = reg.len();
         reg.load_irules(); // second load should be no-op
         assert_eq!(reg.len(), count1);
+    }
+
+    #[test]
+    fn default_includes_stdlib_and_tcllib() {
+        let reg = CommandRegistry::build_default();
+        // stdlib and tcllib are loaded by default
+        assert!(reg.len() > 200);
+    }
+
+    #[test]
+    fn load_tk_dialect() {
+        let base = CommandRegistry::build_default();
+        let base_count = base.len();
+        let mut reg = CommandRegistry::build_default();
+        reg.load_dialect(DialectSet::TK);
+        assert!(reg.len() > base_count, "Tk should add commands");
+    }
+
+    #[test]
+    fn load_iapps_dialect() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_dialect(DialectSet::IAPPS);
+        assert!(reg.len() > 100);
+    }
+
+    #[test]
+    fn load_expect_dialect() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_dialect(DialectSet::EXPECT);
+        assert!(reg.get("expect").is_some() || reg.get("spawn").is_some());
+    }
+
+    #[test]
+    fn load_eda_synopsys() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_dialect(DialectSet::SYNOPSYS);
+        assert!(reg.len() > 100);
     }
 }
