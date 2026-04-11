@@ -484,7 +484,7 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         }
 
         result = eval_command(word_objs[0..cmd.count]);
-        if (rt.error_flag != 0) return result;
+        if (rt.error_flag.* != 0) return result;
     }
     return result;
 }
