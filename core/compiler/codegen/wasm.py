@@ -1709,6 +1709,57 @@ class _WasmEmitter:
                 self._emit_local_get(idx)
             return
 
+        # incr: returns the new value as i32 TclObj (Tcl semantics)
+        if command == "incr" and 1 <= len(args) <= 2:
+            var = args[0]
+            idx = self._intern_local(var)
+            self._emit_local_get(idx)
+            self._emit_unbox_int()
+            amt = 1
+            if len(args) >= 2:
+                try:
+                    amt = int(args[1])
+                except ValueError:
+                    self._emit_value(args[1])
+                    self._emit_unbox_int()
+                    self._emit(WasmOp.I64_ADD)
+                    self._emit_box_int()
+                    self._emit_local_tee(idx)
+                    return
+            self._emit_i64_const(amt)
+            self._emit(WasmOp.I64_ADD)
+            self._emit_box_int()
+            self._emit_local_tee(idx)
+            return
+
+        # return: emit WASM return (handled at call site, but can appear in tail)
+        if command == "return":
+            if args:
+                self._emit_value(args[0])
+            else:
+                self._emit_i32_const(0)
+            return
+
+        # string sub-commands — keep result on stack
+        if command == "string" and args:
+            subcmd = args[0]
+            import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
+            if import_key is not None and import_key in self._shared_imports:
+                func_idx = self._shared_imports[import_key]
+                spec = _RUNTIME_IMPORTS[import_key]
+                param_count = len(spec[2])
+                sub_args = args[1:]
+                for i in range(min(param_count, len(sub_args))):
+                    self._emit_value(sub_args[i])
+                for _ in range(param_count - len(sub_args)):
+                    self._emit_i32_const(0)
+                self._emit_call(func_idx)
+                if not spec[3]:
+                    self._emit_i32_const(0)
+                return
+            self._emit_i32_const(0)
+            return
+
         # Runtime command — use the same dispatch logic as non-tail,
         # but keep the return value on the stack instead of dropping it.
         if command in _CMD_RUNTIME:
@@ -2270,6 +2321,123 @@ class _WasmEmitter:
                     frontier.append(ft)
         return None
 
+    def _is_loop_header(self, header: str, body_start: str) -> bool:
+        """Check if *header* is a loop header with a back-edge from the body.
+
+        Returns ``True`` when following goto/branch edges from *body_start*
+        reaches *header* again, indicating a loop back-edge.
+        """
+        visited: set[str] = set()
+        worklist = [body_start]
+        while worklist:
+            name = worklist.pop()
+            if name == header:
+                return True
+            if name in visited:
+                continue
+            visited.add(name)
+            blk = self._cfg.blocks.get(name)
+            if blk is None:
+                continue
+            match blk.terminator:
+                case CFGGoto(target=t):
+                    worklist.append(t)
+                case CFGBranch(true_target=tt, false_target=ft):
+                    worklist.append(tt)
+                    worklist.append(ft)
+        return False
+
+    def _emit_cfg_loop(
+        self,
+        header: str,
+        condition: ExprNode,
+        body_start: str,
+        exit_block: str,
+    ) -> None:
+        """Emit a WASM block/loop for a CFG for/while loop pattern.
+
+        Structure: ``block { loop { br_if(exit) ; body ; br(loop) } }``
+        The header block is the loop test; the body is everything
+        reachable from *body_start* that eventually loops back to *header*.
+        """
+        # Mark the header as visited to prevent re-entry from the back-edge
+        self._visited.add(header)
+
+        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
+        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
+
+        # Evaluate loop condition — break if false
+        self._emit_expr(condition)
+        self._emit_i64_const(0)
+        self._emit(WasmOp.I64_EQ)
+        self._emit_br_if(1)  # break out of block
+
+        # Emit body blocks — follow the goto chain from body_start
+        # back to the header (but don't re-emit the header).
+        self._emit_loop_body(body_start, header)
+
+        # Loop back
+        self._emit_br(0)
+        self._emit(WasmOp.END)  # end loop
+        self._emit(WasmOp.END)  # end block
+
+        # Continue with the exit block
+        self._emit_block(exit_block)
+
+    def _emit_loop_body(self, start: str, header: str) -> None:
+        """Emit all blocks reachable from *start* until reaching *header*.
+
+        Follows goto chains linearly.  On a branch, emits if/else and
+        continues after the merge point.  Stops when a goto target is
+        the loop *header* (the back-edge).
+        """
+        current = start
+        while current and current != header:
+            if current in self._visited:
+                return
+            self._visited.add(current)
+
+            blk = self._cfg.blocks.get(current)
+            if blk is None:
+                return
+
+            # Emit statements
+            for stmt in blk.statements:
+                self._emit_stmt(stmt)
+
+            match blk.terminator:
+                case CFGGoto(target=target):
+                    current = target
+                case CFGBranch(condition=cond, true_target=tt, false_target=ft):
+                    # Nested branch inside loop body (e.g., if inside for)
+                    merge = self._find_merge_block(tt, ft)
+                    if merge is not None:
+                        self._visited.add(merge)
+
+                    self._emit_expr(cond)
+                    self._emit_i64_const(0)
+                    self._emit(WasmOp.I64_NE)
+                    self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                    self._emit_loop_body(tt, header)
+                    self._emit(WasmOp.ELSE)
+                    self._emit_loop_body(ft, header)
+                    self._emit(WasmOp.END)
+
+                    if merge is not None:
+                        self._visited.discard(merge)
+                        current = merge
+                    else:
+                        return
+                case CFGReturn(value=value):
+                    if value is not None:
+                        self._emit_value(value)
+                    else:
+                        self._emit_i32_const(0)
+                    self._emit(WasmOp.RETURN)
+                    return
+                case _:
+                    return
+
     def _emit_foreach_loop(
         self,
         header_stmts: tuple,
@@ -2356,14 +2524,14 @@ class _WasmEmitter:
         if block is None:
             return
 
-        # Detect implicit return pattern: last statement is IRExprEval
-        # or IRCall followed by goto to an empty exit block.  In Tcl,
-        # the last command's result is the proc's return value.
+        # Detect implicit return pattern: last statement is IRExprEval,
+        # IRCall, or IRIncr followed by goto to an empty exit block.
+        # In Tcl, the last command's result is the proc's return value.
         stmts = block.statements
         use_implicit_return = False
         if (
             stmts
-            and isinstance(stmts[-1], (IRExprEval, IRCall))
+            and isinstance(stmts[-1], (IRExprEval, IRCall, IRIncr))
             and isinstance(block.terminator, CFGGoto)
             and self._is_exit_block(block.terminator.target)
             and self._is_proc
@@ -2381,6 +2549,27 @@ class _WasmEmitter:
             elif isinstance(last, IRCall):
                 # Emit the call keeping its i32 result on the stack
                 self._emit_call_stmt_tail(last.command, last.args, last.defs)
+            elif isinstance(last, IRIncr):
+                # Emit incr keeping the new value (i32 TclObj) on stack
+                idx = self._intern_local(last.name)
+                self._emit_local_get(idx)
+                self._emit_unbox_int()
+                amt = 1
+                if last.amount is not None:
+                    try:
+                        amt = int(last.amount)
+                    except ValueError:
+                        self._emit_value(last.amount)
+                        self._emit_unbox_int()
+                        self._emit(WasmOp.I64_ADD)
+                        self._emit_box_int()
+                        self._emit_local_tee(idx)
+                        self._emit(WasmOp.RETURN)
+                        return
+                self._emit_i64_const(amt)
+                self._emit(WasmOp.I64_ADD)
+                self._emit_box_int()
+                self._emit_local_tee(idx)
             self._emit(WasmOp.RETURN)
             return
 
@@ -2401,6 +2590,14 @@ class _WasmEmitter:
                 # Detect this and emit a counter-based WASM loop instead.
                 if isinstance(condition, ExprRaw) and condition.text == "<foreach_has_next>":
                     self._emit_foreach_loop(stmts, tt, ft)
+                    return
+
+                # For/while loop pattern: the header block branches on a
+                # condition; the true-target body eventually loops back
+                # to this header via a goto chain.  Detect back-edges
+                # and emit block{loop{...}} instead of if/else.
+                if self._is_loop_header(block_name, tt):
+                    self._emit_cfg_loop(block_name, condition, tt, ft)
                     return
 
                 # Find the merge block where both branches reconverge
