@@ -64,7 +64,7 @@ impl DialectSet {
             "synopsys-eda-tcl" => Self::SYNOPSYS,
             "cadence-eda-tcl" => Self::CADENCE,
             "xilinx-eda-tcl" => Self::XILINX,
-            "intel-quartus-tcl" => Self::QUARTUS,
+            "intel-quartus-eda-tcl" => Self::QUARTUS,
             "mentor-eda-tcl" => Self::MENTOR,
             _ => return None,
         })
