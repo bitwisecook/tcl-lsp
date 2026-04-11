@@ -150,6 +150,57 @@ export fn tcl_incr(obj: i32, amount: i32) i32 {
     return obj_new_int(val + amt);
 }
 
+// -- TclObj string helpers --
+
+fn obj_str_ptr(obj: i32) u32 {
+    const addr: u32 = @intCast(obj);
+    return @intCast(read_i32(addr + OBJ_STR_PTR));
+}
+
+fn obj_str_len(obj: i32) u32 {
+    const addr: u32 = @intCast(obj);
+    return @intCast(read_i32(addr + OBJ_STR_LEN));
+}
+
+fn obj_type(obj: i32) i32 {
+    const addr: u32 = @intCast(obj);
+    return read_i32(addr + OBJ_TYPE_TAG);
+}
+
+/// Copy *len* bytes from src to dst in linear memory.
+fn memcpy(dst: u32, src: u32, len: u32) void {
+    const d: [*]u8 = @ptrFromInt(dst);
+    const s: [*]const u8 = @ptrFromInt(src);
+    for (0..len) |i| {
+        d[i] = s[i];
+    }
+}
+
+/// Create a new string TclObj by copying *len* bytes from *src*.
+fn obj_new_string_copy(src: u32, len: u32) i32 {
+    const buf = alloc(len);
+    memcpy(buf, src, len);
+    return obj_new_string(@intCast(buf), @intCast(len));
+}
+
+/// Render an integer TclObj to its string representation.
+/// Returns (ptr, len) for the rendered decimal string.
+fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
+    if (obj == 0) return .{ .ptr = 0, .len = 0 };
+    const addr: u32 = @intCast(obj);
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    if (tag == TYPE_STRING) {
+        return .{
+            .ptr = @intCast(read_i32(addr + OBJ_STR_PTR)),
+            .len = @intCast(read_i32(addr + OBJ_STR_LEN)),
+        };
+    }
+    // Integer → render to string (without newline)
+    const val = read_i64(addr + OBJ_INT_CACHE);
+    const result = itoa_no_nl(val);
+    return .{ .ptr = @intFromPtr(result.ptr), .len = result.len };
+}
+
 // -- WASI I/O helpers --
 
 // Scratch buffer for integer-to-string conversion (max 20 digits + sign + newline)
@@ -180,6 +231,33 @@ fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
         itoa_buf[i] = '-';
     }
     return .{ .ptr = @as([*]u8, &itoa_buf) + i, .len = itoa_buf.len - i };
+}
+
+// Second scratch buffer for itoa_no_nl (avoids clobbering itoa_buf)
+var itoa_buf2: [21]u8 = undefined;
+
+fn itoa_no_nl(value: i64) struct { ptr: [*]u8, len: u32 } {
+    var v = value;
+    var negative = false;
+    if (v < 0) {
+        negative = true;
+        v = -v;
+    }
+    var i: u32 = itoa_buf2.len - 1;
+    if (v == 0) {
+        itoa_buf2[i] = '0';
+    } else {
+        while (v > 0) {
+            itoa_buf2[i] = @as(u8, @intCast(@rem(v, 10))) + '0';
+            v = @divTrunc(v, 10);
+            if (v > 0) i -= 1;
+        }
+    }
+    if (negative) {
+        i -= 1;
+        itoa_buf2[i] = '-';
+    }
+    return .{ .ptr = @as([*]u8, &itoa_buf2) + i, .len = itoa_buf2.len - i };
 }
 
 fn fd_write_all(fd: i32, data: [*]const u8, len: u32) void {
@@ -221,19 +299,31 @@ export fn puts(value: i32) i32 {
     return 0;
 }
 
-// Exported: append two strings
+// Exported: append — concatenate two TclObj string representations.
 export fn append(current: i32, addition: i32) i32 {
-    // Stub: return the addition value as placeholder.
-    _ = current;
-    return addition;
+    const a = obj_ensure_string(current);
+    const b = obj_ensure_string(addition);
+    const total = a.len + b.len;
+    if (total == 0) return obj_new_string(0, 0);
+    const buf = alloc(total);
+    if (a.len > 0) memcpy(buf, a.ptr, a.len);
+    if (b.len > 0) memcpy(buf + a.len, b.ptr, b.len);
+    return obj_new_string(@intCast(buf), @intCast(total));
 }
 
-// Exported: string compare (returns TclObj wrapping -1/0/1)
+// Exported: string compare — lexicographic comparison of string representations.
 export fn string_compare(a: i32, b: i32) i32 {
-    const va = obj_get_int(a);
-    const vb = obj_get_int(b);
-    if (va < vb) return obj_new_int(-1);
-    if (va > vb) return obj_new_int(1);
+    const sa = obj_ensure_string(a);
+    const sb = obj_ensure_string(b);
+    const min_len = if (sa.len < sb.len) sa.len else sb.len;
+    const pa: [*]const u8 = @ptrFromInt(sa.ptr);
+    const pb: [*]const u8 = @ptrFromInt(sb.ptr);
+    for (0..min_len) |i| {
+        if (pa[i] < pb[i]) return obj_new_int(-1);
+        if (pa[i] > pb[i]) return obj_new_int(1);
+    }
+    if (sa.len < sb.len) return obj_new_int(-1);
+    if (sa.len > sb.len) return obj_new_int(1);
     return obj_new_int(0);
 }
 
@@ -252,25 +342,38 @@ export fn lappend(current: i32, value: i32) i32 {
     return obj_new_int(n + 1);
 }
 
-// Exported: string length
+// Exported: string length — byte length of the string representation.
 export fn string_length(value: i32) i32 {
-    _ = value;
-    return obj_new_int(0);
+    const s = obj_ensure_string(value);
+    return obj_new_int(@intCast(s.len));
 }
 
-// Exported: string index
+// Exported: string index — extract the character at a byte index.
 export fn string_index(value: i32, idx: i32) i32 {
-    _ = value;
-    _ = idx;
-    return obj_new_int(0);
+    const s = obj_ensure_string(value);
+    const i_val = obj_get_int(idx);
+    if (i_val < 0 or i_val >= @as(i64, s.len)) return obj_new_string(0, 0);
+    const pos: u32 = @intCast(i_val);
+    const src: [*]const u8 = @ptrFromInt(s.ptr);
+    const buf = alloc(1);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    dst[0] = src[pos];
+    return obj_new_string(@intCast(buf), 1);
 }
 
-// Exported: string range
+// Exported: string range — extract a substring [first..last] (inclusive).
 export fn string_range(value: i32, first: i32, last: i32) i32 {
-    _ = value;
-    _ = first;
-    _ = last;
-    return obj_new_int(0);
+    const s = obj_ensure_string(value);
+    var f = obj_get_int(first);
+    var l = obj_get_int(last);
+    const slen: i64 = @intCast(s.len);
+    // Clamp to valid range
+    if (f < 0) f = 0;
+    if (l >= slen) l = slen - 1;
+    if (f > l or f >= slen) return obj_new_string(0, 0);
+    const start: u32 = @intCast(f);
+    const count: u32 = @intCast(l - f + 1);
+    return obj_new_string_copy(s.ptr + start, count);
 }
 
 // Exported: string map
@@ -279,22 +382,70 @@ export fn string_map(mapping: i32, value: i32) i32 {
     return value;
 }
 
-// Exported: string match
+// Exported: string match — glob pattern matching (* and ? wildcards).
 export fn string_match(pattern: i32, value: i32) i32 {
-    const vp = obj_get_int(pattern);
-    const vv = obj_get_int(value);
-    return obj_new_int(if (vp == vv) @as(i64, 1) else @as(i64, 0));
+    const sp = obj_ensure_string(pattern);
+    const sv = obj_ensure_string(value);
+    const matched = glob_match(sp.ptr, sp.len, sv.ptr, sv.len);
+    return obj_new_int(if (matched) @as(i64, 1) else @as(i64, 0));
 }
 
-// Exported: string trim
+fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
+    const pat: [*]const u8 = @ptrFromInt(pp);
+    const val: [*]const u8 = @ptrFromInt(vp);
+    var pi: u32 = 0;
+    var vi: u32 = 0;
+    var star_pi: u32 = plen;
+    var star_vi: u32 = 0;
+    while (vi < vlen or pi < plen) {
+        if (pi < plen and pat[pi] == '*') {
+            star_pi = pi;
+            star_vi = vi;
+            pi += 1;
+        } else if (pi < plen and vi < vlen and (pat[pi] == '?' or pat[pi] == val[vi])) {
+            pi += 1;
+            vi += 1;
+        } else if (star_pi < plen) {
+            pi = star_pi + 1;
+            star_vi += 1;
+            vi = star_vi;
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Exported: string trim — strip leading/trailing whitespace.
 export fn string_trim(value: i32) i32 {
-    return value;
+    const s = obj_ensure_string(value);
+    if (s.len == 0) return value;
+    const src: [*]const u8 = @ptrFromInt(s.ptr);
+    var start: u32 = 0;
+    while (start < s.len and is_space(src[start])) start += 1;
+    var end: u32 = s.len;
+    while (end > start and is_space(src[end - 1])) end -= 1;
+    if (start == 0 and end == s.len) return value;
+    return obj_new_string_copy(s.ptr + start, end - start);
 }
 
-// Exported: concat
+fn is_space(c: u8) bool {
+    return c == ' ' or c == '\t' or c == '\n' or c == '\r';
+}
+
+// Exported: concat — concatenate two TclObj string representations with space.
 export fn concat(a: i32, b: i32) i32 {
-    _ = a;
-    return b;
+    const sa = obj_ensure_string(a);
+    const sb = obj_ensure_string(b);
+    if (sa.len == 0) return b;
+    if (sb.len == 0) return a;
+    const total = sa.len + 1 + sb.len; // space separator
+    const buf = alloc(total);
+    memcpy(buf, sa.ptr, sa.len);
+    const dst: [*]u8 = @ptrFromInt(buf + sa.len);
+    dst[0] = ' ';
+    memcpy(buf + sa.len + 1, sb.ptr, sb.len);
+    return obj_new_string(@intCast(buf), @intCast(total));
 }
 
 // Exported: list index
@@ -324,10 +475,14 @@ export fn list_search(list: i32, value: i32) i32 {
     return obj_new_int(-1);
 }
 
-// Exported: error
+// Exported: error — write message to stderr and trap.
 export fn @"error"(msg: i32) void {
-    _ = msg;
-    // In freestanding mode, errors are no-ops
+    const s = obj_ensure_string(msg);
+    if (s.len > 0) {
+        fd_write_all(2, @ptrFromInt(s.ptr), s.len);
+        fd_write_all(2, "\n", 1);
+    }
+    @trap();
 }
 
 // Exported: format
