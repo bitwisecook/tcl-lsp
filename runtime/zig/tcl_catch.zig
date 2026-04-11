@@ -6,10 +6,16 @@ const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
 const fd_write_all = io.fd_write_all;
 
-// When catch_depth > 0, error() sets a flag instead of trapping.
+// Control flow signals — picol-style return codes as mutable flags.
+// Each flag is checked by eval_script after every command.
+// Loops catch break/continue; proc dispatch catches return; catch catches error.
 pub var catch_depth: u32 = 0;
 pub var error_flag: u32 = 0; // 0 = no error, 1 = error pending
 pub var error_msg: i32 = 0; // TclObj with error message
+pub var return_flag: u32 = 0; // 1 = return pending (absorbed by proc dispatch)
+pub var return_val: i32 = 0; // TclObj return value
+pub var break_flag: u32 = 0; // 1 = break pending (absorbed by loops)
+pub var continue_flag: u32 = 0; // 1 = continue pending (absorbed by loops)
 
 // Exported: enter a catch scope.
 pub export fn catch_enter() void {

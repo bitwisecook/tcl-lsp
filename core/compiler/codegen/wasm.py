@@ -723,6 +723,26 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_catch_has_error": ("tcl", "catch_has_error", [], [ValType.I32]),
     # Interpreter fallback
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
+    # Frame stack (local variable scoping)
+    "tcl_frame_push": ("tcl", "frame_push", [], [ValType.I32]),
+    "tcl_frame_pop": ("tcl", "frame_pop", [], []),
+    "tcl_var_resolve": ("tcl", "var_resolve", [ValType.I32], [ValType.I32]),
+    "tcl_var_set": ("tcl", "var_set", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_var_exists": ("tcl", "var_exists", [ValType.I32], [ValType.I32]),
+    "tcl_local_set": ("tcl", "local_set", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Proc registry
+    "tcl_proc_register": (
+        "tcl",
+        "proc_register",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    # Info command
+    "tcl_info_exists": ("tcl", "info_exists", [ValType.I32], [ValType.I32]),
+    "tcl_info_dispatch": ("tcl", "info_dispatch", [ValType.I32, ValType.I32], [ValType.I32]),
+    # String split/join
+    "tcl_split": ("tcl", "split", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_join": ("tcl", "join", [ValType.I32, ValType.I32], [ValType.I32]),
 }
 
 # Import keys for the TclObj lifecycle functions — always registered
@@ -753,6 +773,8 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "close": ("tcl_close", 1),
     "read": ("tcl_read", 1),
     "gets": ("tcl_gets", 1),
+    "split": ("tcl_split", 2),
+    "join": ("tcl_join", 2),
 }
 
 # String sub-command → import key
