@@ -15,6 +15,9 @@
 //! - [`spec`] — [`CommandSpec`] and [`SubCommand`] definitions.
 //! - [`registry`] — [`CommandRegistry`] lookup facade.
 //! - [`commands`] — one file per command, one directory per dialect.
+//! - [`events`] — iRules event metadata (247 events, firing order, flow chains).
+//! - [`profiles`] — F5 profile types (57 profiles), protocol namespaces (87),
+//!   and stack modification commands.
 //!
 //! ## One file per command
 //!
@@ -31,8 +34,10 @@ pub mod arg_role;
 pub mod arity;
 pub mod commands;
 pub mod dialects;
+pub mod events;
 pub mod hooks;
 pub mod hover;
+pub mod profiles;
 pub mod registry;
 pub mod side_effects;
 pub mod spec;
