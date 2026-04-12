@@ -423,6 +423,36 @@ pub fn evaluate_def(
                 None => LatticeValue::Overdefined,
             }
         }
+        Statement::Call {
+            command,
+            args,
+            defs,
+            ..
+        } if matches!(command.as_str(), "foreach" | "lmap")
+            && defs.len() == 1
+            && args.len() == 1 =>
+        {
+            // C25e2: `foreach v LIST` / `lmap v LIST` folds the
+            // iteration variable to the CONSTSET of elements when
+            // LIST is a literal or resolves to a Const(String)
+            // through the lattice. Multi-variable and multi-list
+            // foreaches are left as Overdefined.
+            let elements = extract_foreach_elements(&args[0])
+                .or_else(|| resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values));
+            match elements {
+                Some(items) if items.is_empty() => LatticeValue::Overdefined,
+                Some(items) => {
+                    let consts: Vec<ConstValue> =
+                        items.iter().map(|s| parse_literal_value(s)).collect();
+                    if consts.len() == 1 {
+                        LatticeValue::Const(consts.into_iter().next().unwrap())
+                    } else {
+                        LatticeValue::constset(consts)
+                    }
+                }
+                None => LatticeValue::Overdefined,
+            }
+        }
         Statement::Incr { name, amount, .. } => {
             // C25e1: track `incr NAME ?AMOUNT?` through the lattice
             // when the current value of NAME is a single Const(Int)
@@ -538,6 +568,65 @@ fn tcl_value_to_const(v: TclValue) -> ConstValue {
     match v {
         TclValue::Int(i) => ConstValue::Int(i),
         TclValue::Float(f) => ConstValue::Float(f),
+    }
+}
+
+/// Extract iteration-variable elements from a foreach list arg
+/// that is a literal (no `$` / `[` substitution).
+///
+/// Ported from `core_analyses.py::_extract_foreach_elements`:
+/// - Strip whitespace, one level of `{…}` or `"…"` wrapping.
+/// - Split on ASCII whitespace.
+/// - Returns `None` for anything that starts with `$` or `[` so
+///   callers fall through to
+///   [`resolve_foreach_list_via_lattice`].
+#[must_use]
+pub fn extract_foreach_elements(list_text: &str) -> Option<Vec<String>> {
+    let stripped = list_text.trim();
+    if stripped.is_empty() {
+        return Some(Vec::new());
+    }
+    if stripped.starts_with('[') || stripped.starts_with('$') {
+        return None;
+    }
+    let inner = if (stripped.starts_with('{') && stripped.ends_with('}'))
+        || (stripped.starts_with('"') && stripped.ends_with('"'))
+    {
+        &stripped[1..stripped.len() - 1]
+    } else {
+        stripped
+    };
+    Some(inner.split_ascii_whitespace().map(str::to_owned).collect())
+}
+
+/// Resolve `$var` / `${var}` to a `Vec<String>` of list elements
+/// via the SCCP lattice. Returns `None` when the operand is not a
+/// simple var reference or its lattice value is not a
+/// Const(String).
+#[must_use]
+pub fn resolve_foreach_list_via_lattice(
+    list_text: &str,
+    uses: &HashMap<String, crate::ssa::Version>,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> Option<Vec<String>> {
+    let stripped = list_text.trim();
+    let name = if let Some(name) = stripped.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+        name
+    } else if let Some(name) = stripped.strip_prefix('$') {
+        if name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':') {
+            name
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+    let ver = uses.get(name).copied()?;
+    match values.get(&(name.to_owned(), ver))? {
+        LatticeValue::Const(ConstValue::String(s)) => {
+            Some(s.split_ascii_whitespace().map(str::to_owned).collect())
+        }
+        _ => None,
     }
 }
 
@@ -1075,6 +1164,115 @@ mod tests {
         );
         assert_eq!(resolve_simple_var_ref("$y", &uses, &values), None);
         assert_eq!(resolve_simple_var_ref("plain", &uses, &values), None);
+    }
+
+    // -- C25e2: foreach constset extraction --
+
+    fn foreach_stmt(var: &str, list: &str, new_ver: u32) -> SsaStatement {
+        let mut defs = HashMap::new();
+        defs.insert(var.to_string(), new_ver);
+        SsaStatement {
+            statement: Statement::Call {
+                span: Span::new(0, 0),
+                command: "foreach".into(),
+                args: vec![list.into()],
+                defs: vec![var.into()],
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+            },
+            uses: HashMap::new(),
+            defs,
+        }
+    }
+
+    #[test]
+    fn extract_foreach_elements_literal_list() {
+        assert_eq!(
+            extract_foreach_elements("{a b c}"),
+            Some(vec!["a".into(), "b".into(), "c".into()])
+        );
+        assert_eq!(
+            extract_foreach_elements("\"a b c\""),
+            Some(vec!["a".into(), "b".into(), "c".into()])
+        );
+        assert_eq!(
+            extract_foreach_elements("a b c"),
+            Some(vec!["a".into(), "b".into(), "c".into()])
+        );
+    }
+
+    #[test]
+    fn extract_foreach_elements_rejects_substitutions() {
+        assert_eq!(extract_foreach_elements("$lst"), None);
+        assert_eq!(extract_foreach_elements("[list a b c]"), None);
+    }
+
+    #[test]
+    fn extract_foreach_elements_empty_list_returns_empty() {
+        assert_eq!(extract_foreach_elements(""), Some(Vec::new()));
+        assert_eq!(extract_foreach_elements("{}"), Some(Vec::new()));
+    }
+
+    #[test]
+    fn evaluate_def_foreach_literal_list_folds_constset() {
+        let stmt = foreach_stmt("v", "{1 2 3}", 1);
+        let result = evaluate_def(&stmt, &HashMap::new());
+        match result {
+            LatticeValue::ConstSet(ref vs) => {
+                assert_eq!(vs.len(), 3);
+                assert!(vs.contains(&ConstValue::Int(1)));
+                assert!(vs.contains(&ConstValue::Int(3)));
+            }
+            other => panic!("expected ConstSet, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn evaluate_def_foreach_single_element_folds_const() {
+        let stmt = foreach_stmt("v", "{only}", 1);
+        assert_eq!(
+            evaluate_def(&stmt, &HashMap::new()),
+            LatticeValue::Const(ConstValue::String("only".into()))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_foreach_via_lattice_var() {
+        let mut stmt = foreach_stmt("v", "$lst", 1);
+        stmt.uses.insert("lst".to_string(), 1);
+        let mut values = HashMap::new();
+        values.insert(
+            ("lst".to_string(), 1),
+            LatticeValue::Const(ConstValue::String("a b c".into())),
+        );
+        let result = evaluate_def(&stmt, &values);
+        match result {
+            LatticeValue::ConstSet(ref vs) => assert_eq!(vs.len(), 3),
+            other => panic!("expected ConstSet, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn evaluate_def_foreach_unbound_var_widens() {
+        let mut stmt = foreach_stmt("v", "$lst", 1);
+        stmt.uses.insert("lst".to_string(), 1);
+        // Empty lattice — var not bound.
+        let result = evaluate_def(&stmt, &HashMap::new());
+        assert_eq!(result, LatticeValue::Overdefined);
+    }
+
+    #[test]
+    fn evaluate_def_foreach_multi_var_widens() {
+        // 2-element defs → no constset extraction.
+        let mut stmt = foreach_stmt("v", "{a b}", 1);
+        let Statement::Call { defs, .. } = &mut stmt.statement else {
+            panic!();
+        };
+        defs.push("w".into());
+        let result = evaluate_def(&stmt, &HashMap::new());
+        assert_eq!(result, LatticeValue::Overdefined);
     }
 
     #[test]
