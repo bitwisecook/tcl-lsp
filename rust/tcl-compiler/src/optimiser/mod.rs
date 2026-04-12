@@ -16,10 +16,14 @@
 
 pub mod branch_folding;
 
+use std::collections::{HashMap, HashSet};
+
 use tcl_lexer::Span;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::interprocedural::InterproceduralAnalysis;
+use crate::ir::Module as IrModule;
+use crate::ssa::ValueKey;
 
 // ---------------------------------------------------------------------------
 // Optimisation diagnostic
@@ -90,7 +94,54 @@ pub fn opt_priority(code: &str) -> u8 {
 // Pass context
 // ---------------------------------------------------------------------------
 
+/// Qualified proc name → `(cfg_function_name, parameter names)`.
+///
+/// Mirrors the Python `proc_cfgs` mapping — the optimiser reaches
+/// for this when it needs to fold a call across procedure
+/// boundaries (`_propagation` → `_substitute_expr_proc_calls`).
+/// The value is the pair `(qualified_cfg_key, params)`; callers
+/// look the CFG up in a [`CompilationUnit`] by name.
+pub type ProcCfgs = HashMap<String, ProcCfgEntry>;
+
+/// Value of a [`ProcCfgs`] entry — the qualified CFG key plus the
+/// declared parameter names, in order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcCfgEntry {
+    /// Qualified CFG key (same string used to look the procedure
+    /// up in [`CompilationUnit::procedures`](crate::compilation_unit::CompilationUnit::procedures)).
+    pub cfg_key: String,
+    /// Declared parameter names in positional order.
+    pub params: Vec<String>,
+}
+
 /// Shared mutable state threaded through all optimisation passes.
+///
+/// The state mirrors the Python `PassContext` field-for-field so
+/// passes ported straight from `core/compiler/optimiser/` can
+/// consult the same bookkeeping:
+///
+/// - [`optimisations`](Self::optimisations) — accumulated rewrites.
+/// - [`interproc`](Self::interproc) — procedure + method summaries.
+/// - [`proc_cfgs`](Self::proc_cfgs) — per-proc CFG + params map used
+///   by propagation to fold calls.
+/// - [`propagated_branch_uses`](Self::propagated_branch_uses) —
+///   `(var, ssa_version)` pairs whose branch use has been
+///   propagated, so `_elimination` can drop dead stores feeding
+///   those uses.
+/// - [`propagated_use_groups`](Self::propagated_use_groups) —
+///   group-id assignment for propagated uses, enabling
+///   all-or-nothing application of the associated rewrite group.
+/// - [`propagated_expr_stmts`](Self::propagated_expr_stmts) —
+///   `(block_name, stmt_index)` of propagated expression
+///   statements, again to coordinate with `_elimination`.
+/// - [`cross_event_vars`](Self::cross_event_vars) — names whose
+///   values must be preserved across `when <event>` boundaries
+///   (iRules-specific; empty for plain Tcl).
+/// - [`next_group`](Self::next_group) — group-id allocator backing
+///   [`alloc_group`](Self::alloc_group).
+/// - [`ir_module`](Self::ir_module) — structured IR, kept so
+///   passes can walk the pre-CFG tree when they need original
+///   source positions.
 #[derive(Debug, Default)]
 pub struct PassContext<'a> {
     /// Full source text (UTF-8).
@@ -100,22 +151,67 @@ pub struct PassContext<'a> {
     /// Interprocedural analysis result. Passes consult it to
     /// resolve pure-proc targets, return-value facts, etc.
     pub interproc: InterproceduralAnalysis,
+    /// Per-proc CFG + parameter map, for proc-call folding.
+    pub proc_cfgs: ProcCfgs,
+    /// `(var, ssa_version)` whose branch use has been propagated.
+    pub propagated_branch_uses: HashSet<ValueKey>,
+    /// Group-id assignment for propagated uses (all-or-nothing
+    /// application of the containing rewrite group).
+    pub propagated_use_groups: HashMap<ValueKey, u32>,
+    /// `(block_name, stmt_index)` of propagated expression
+    /// statements.
+    pub propagated_expr_stmts: HashSet<(String, usize)>,
+    /// Names whose values must be preserved across `when <event>`
+    /// boundaries (iRules-specific).
+    pub cross_event_vars: HashSet<String>,
+    /// Group-id allocator.
+    pub next_group: u32,
+    /// Optional structured IR — some passes walk the pre-CFG
+    /// tree to recover original source positions.
+    pub ir_module: Option<&'a IrModule>,
 }
 
 impl<'a> PassContext<'a> {
-    /// Construct a context bound to `source` and `interproc`.
+    /// Construct a context bound to `source` and `interproc`. All
+    /// other fields start empty / zero; callers populate
+    /// [`proc_cfgs`](Self::proc_cfgs),
+    /// [`cross_event_vars`](Self::cross_event_vars), and
+    /// [`ir_module`](Self::ir_module) before running passes that
+    /// consult them.
     #[must_use]
     pub fn new(source: &'a str, interproc: InterproceduralAnalysis) -> Self {
         Self {
             source,
-            optimisations: Vec::new(),
             interproc,
+            ..Self::default()
         }
     }
 
     /// Record an optimisation diagnostic.
     pub fn report(&mut self, opt: Optimisation) {
         self.optimisations.push(opt);
+    }
+
+    /// Allocate and return the next group identifier.
+    ///
+    /// Group IDs are assigned to the `group` field of related
+    /// [`Optimisation`]s so downstream consumers apply them
+    /// as an all-or-nothing unit (e.g. a branch-use propagation
+    /// + its dead-store elimination).
+    pub fn alloc_group(&mut self) -> u32 {
+        let g = self.next_group;
+        self.next_group += 1;
+        g
+    }
+
+    /// Reset the per-function scratch state (`propagated_*`) so
+    /// the same context can drive multiple functions in sequence.
+    /// Python's manager does this at the top of
+    /// `_process_function`.
+    pub fn reset_function_state(&mut self) {
+        self.propagated_branch_uses.clear();
+        self.propagated_use_groups.clear();
+        self.propagated_expr_stmts.clear();
     }
 }
 
@@ -238,6 +334,60 @@ mod tests {
         let mut ctx = PassContext::new("set x 1", interproc);
         ctx.report(Optimisation::new("O105", "m", Span::new(0, 1), "x"));
         assert_eq!(ctx.optimisations.len(), 1);
+    }
+
+    #[test]
+    fn pass_context_default_fields_are_empty() {
+        let ctx = PassContext::default();
+        assert!(ctx.proc_cfgs.is_empty());
+        assert!(ctx.propagated_branch_uses.is_empty());
+        assert!(ctx.propagated_use_groups.is_empty());
+        assert!(ctx.propagated_expr_stmts.is_empty());
+        assert!(ctx.cross_event_vars.is_empty());
+        assert_eq!(ctx.next_group, 0);
+        assert!(ctx.ir_module.is_none());
+    }
+
+    #[test]
+    fn alloc_group_produces_monotonic_ids() {
+        let mut ctx = PassContext::default();
+        assert_eq!(ctx.alloc_group(), 0);
+        assert_eq!(ctx.alloc_group(), 1);
+        assert_eq!(ctx.alloc_group(), 2);
+        assert_eq!(ctx.next_group, 3);
+    }
+
+    #[test]
+    fn reset_function_state_clears_propagation_scratch() {
+        let mut ctx = PassContext::default();
+        ctx.propagated_branch_uses.insert(("x".into(), 1));
+        ctx.propagated_use_groups.insert(("x".into(), 1), 0);
+        ctx.propagated_expr_stmts.insert(("b".into(), 3));
+        // cross_event_vars and next_group are intentionally
+        // preserved across functions.
+        ctx.cross_event_vars.insert("static::foo".into());
+        ctx.next_group = 7;
+
+        ctx.reset_function_state();
+        assert!(ctx.propagated_branch_uses.is_empty());
+        assert!(ctx.propagated_use_groups.is_empty());
+        assert!(ctx.propagated_expr_stmts.is_empty());
+        assert_eq!(ctx.cross_event_vars.len(), 1);
+        assert_eq!(ctx.next_group, 7);
+    }
+
+    #[test]
+    fn proc_cfg_entry_roundtrip() {
+        let mut ctx = PassContext::default();
+        ctx.proc_cfgs.insert(
+            "::foo".into(),
+            ProcCfgEntry {
+                cfg_key: "::foo".into(),
+                params: vec!["a".into(), "b".into()],
+            },
+        );
+        let entry = ctx.proc_cfgs.get("::foo").unwrap();
+        assert_eq!(entry.params, vec!["a".to_string(), "b".to_string()]);
     }
 
     #[test]
