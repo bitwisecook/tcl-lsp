@@ -35,6 +35,9 @@
 
 use bitflags::bitflags;
 
+use tcl_registry::prelude::StorageType as RegistryStorageType;
+use tcl_registry::CommandRegistry;
+
 // ---------------------------------------------------------------------------
 // StorageType — data shape of a target
 // ---------------------------------------------------------------------------
@@ -289,6 +292,98 @@ pub fn target_to_region(target: SideEffectTarget, scope: StorageScope) -> Effect
         }
         _ => EffectRegion::UNKNOWN_STATE,
     }
+}
+
+// ---------------------------------------------------------------------------
+// Scope / storage-type inference helpers (C23c)
+// ---------------------------------------------------------------------------
+
+/// Infer storage scope and namespace from a variable-name prefix.
+///
+/// Returns `(scope, namespace)` where `namespace` is `Some("::…")`
+/// for qualified names (populated only for [`StorageScope::Namespace`]
+/// and [`StorageScope::Global`]) or `None` otherwise.
+///
+/// Conventions:
+/// - `static::NAME` → iRules [`StorageScope::Static`] (namespace
+///   left as `None` — the `static::` prefix is the scope marker,
+///   not a Tcl namespace).
+/// - `::NAME` with no further `::` → [`StorageScope::Global`] with
+///   `Some("::")`.
+/// - `::NS::…::VAR` → [`StorageScope::Namespace`] with
+///   `Some("::NS::…")` (the last `::` segment is the variable
+///   name itself and is stripped).
+/// - Everything else → [`StorageScope::ProcLocal`] with `None`.
+#[must_use]
+pub fn scope_from_varname(name: &str) -> (StorageScope, Option<String>) {
+    if let Some(rest) = name.strip_prefix("static::") {
+        // Only treat as iRules static if the rest doesn't itself
+        // contain further qualification — but the Python port
+        // doesn't distinguish here, so we match behaviour.
+        let _ = rest;
+        return (StorageScope::Static, None);
+    }
+    if let Some(rest) = name.strip_prefix("::") {
+        // Peel all "::"-separated segments except the last (the
+        // variable name itself). Empty leading segments from "::"
+        // are ignored in the rebuild, matching Python's behaviour.
+        let parts: Vec<&str> = rest.split("::").collect();
+        if parts.len() <= 1 {
+            // Pure "::VAR" — global scope, namespace is root.
+            return (StorageScope::Global, Some("::".into()));
+        }
+        let ns_parts: Vec<&str> = parts[..parts.len() - 1]
+            .iter()
+            .copied()
+            .filter(|p| !p.is_empty())
+            .collect();
+        let ns = if ns_parts.is_empty() {
+            "::".to_string()
+        } else {
+            format!("::{}", ns_parts.join("::"))
+        };
+        let scope = if ns == "::" {
+            StorageScope::Global
+        } else {
+            StorageScope::Namespace
+        };
+        return (scope, Some(ns));
+    }
+    (StorageScope::ProcLocal, None)
+}
+
+/// Lift a registry `StorageType` value into the richer
+/// compiler-side [`StorageType`].
+fn lift_registry_storage_type(rt: RegistryStorageType) -> StorageType {
+    match rt {
+        RegistryStorageType::Dict => StorageType::Dict,
+        RegistryStorageType::List => StorageType::List,
+        RegistryStorageType::Array => StorageType::Array,
+    }
+}
+
+/// Infer the storage type for a command invocation by querying the
+/// registry's `inferred_storage_type` metadata. Falls back to
+/// [`StorageType::Scalar`] for commands without a declared shape —
+/// matching the Python `_storage_type_for_command` behaviour where
+/// `set`, `incr`, `append`, and similar scalar commands default to
+/// the scalar shape.
+///
+/// `args` is accepted for API symmetry with the Python port but
+/// currently ignored; argument-dependent shape inference is left
+/// for a follow-up strip if needed.
+#[must_use]
+pub fn storage_type_for_command(
+    registry: &CommandRegistry,
+    command: &str,
+    _args: &[String],
+) -> StorageType {
+    if let Some(spec) = registry.get(command) {
+        if let Some(rt) = spec.inferred_storage_type {
+            return lift_registry_storage_type(rt);
+        }
+    }
+    StorageType::Scalar
 }
 
 // ---------------------------------------------------------------------------
@@ -642,6 +737,73 @@ mod tests {
         assert!(r.contains(EffectRegion::HTTP_STATE));
         assert!(w.contains(EffectRegion::GLOBAL_STATE));
         assert!(!w.contains(EffectRegion::HTTP_STATE));
+    }
+
+    // -- C23c: scope + storage-type inference --
+
+    #[test]
+    fn scope_proc_local_for_bare_names() {
+        let (s, ns) = scope_from_varname("x");
+        assert_eq!(s, StorageScope::ProcLocal);
+        assert!(ns.is_none());
+    }
+
+    #[test]
+    fn scope_static_for_irules_prefix() {
+        let (s, ns) = scope_from_varname("static::counter");
+        assert_eq!(s, StorageScope::Static);
+        assert!(ns.is_none());
+    }
+
+    #[test]
+    fn scope_global_for_root_qualified() {
+        let (s, ns) = scope_from_varname("::var");
+        assert_eq!(s, StorageScope::Global);
+        assert_eq!(ns.as_deref(), Some("::"));
+    }
+
+    #[test]
+    fn scope_namespace_for_qualified_with_segments() {
+        let (s, ns) = scope_from_varname("::foo::bar::var");
+        assert_eq!(s, StorageScope::Namespace);
+        assert_eq!(ns.as_deref(), Some("::foo::bar"));
+    }
+
+    #[test]
+    fn scope_namespace_single_segment() {
+        let (s, ns) = scope_from_varname("::foo::var");
+        assert_eq!(s, StorageScope::Namespace);
+        assert_eq!(ns.as_deref(), Some("::foo"));
+    }
+
+    #[test]
+    fn storage_type_default_scalar_for_unknown_command() {
+        let registry = CommandRegistry::build_default();
+        let args = vec![];
+        assert_eq!(
+            storage_type_for_command(&registry, "nonexistentcmd", &args),
+            StorageType::Scalar
+        );
+    }
+
+    #[test]
+    fn storage_type_registry_backed_list_dict_array() {
+        let registry = CommandRegistry::build_default();
+        let args = vec![];
+        // lappend / dict / array are declared with inferred storage
+        // types in the registry and should be mapped through.
+        assert_eq!(
+            storage_type_for_command(&registry, "lappend", &args),
+            StorageType::List
+        );
+        assert_eq!(
+            storage_type_for_command(&registry, "dict", &args),
+            StorageType::Dict
+        );
+        assert_eq!(
+            storage_type_for_command(&registry, "array", &args),
+            StorageType::Array
+        );
     }
 
     #[test]
