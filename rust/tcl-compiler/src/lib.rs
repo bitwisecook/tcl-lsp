@@ -81,6 +81,7 @@ pub mod lowering;
 pub mod lowering_hooks;
 pub mod naming;
 pub mod segmenter;
+pub mod side_effects;
 pub mod ssa;
 pub mod tcl_expr_eval;
 pub mod types;
