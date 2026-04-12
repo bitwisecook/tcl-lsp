@@ -690,6 +690,7 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    "tcl_list_tail": ("tcl", "list_tail", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_list_sort": ("tcl", "list_sort", [ValType.I32], [ValType.I32]),
     "tcl_list_search": ("tcl", "list_search", [ValType.I32, ValType.I32], [ValType.I32]),
     # Dict commands
@@ -740,6 +741,43 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     # Info command
     "tcl_info_exists": ("tcl", "info_exists", [ValType.I32], [ValType.I32]),
     "tcl_info_dispatch": ("tcl", "info_dispatch", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Clock command — WASI clock_time_get wrappers, integer results.
+    "tcl_clock_seconds": ("tcl", "clock_seconds", [], [ValType.I32]),
+    "tcl_clock_clicks": ("tcl", "clock_clicks", [], [ValType.I32]),
+    "tcl_clock_milliseconds": ("tcl", "clock_milliseconds", [], [ValType.I32]),
+    # Frame-depth helpers for uplevel — temporarily shift frame_depth
+    # so a called ``tcl_eval`` runs at a caller's scope.
+    "tcl_frame_depth_stash": (
+        "tcl",
+        "frame_depth_stash",
+        [ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_frame_depth_restore": ("tcl", "frame_depth_restore", [ValType.I32], []),
+    # Arrays — dedicated per-array hash tables.
+    "tcl_array_set": (
+        "tcl",
+        "array_set",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_array_get": ("tcl", "array_get", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_array_exists": ("tcl", "array_exists", [ValType.I32], [ValType.I32]),
+    "tcl_array_element_exists": (
+        "tcl",
+        "array_element_exists",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_array_size": ("tcl", "array_size", [ValType.I32], [ValType.I32]),
+    "tcl_array_unset": ("tcl", "array_unset", [ValType.I32], [ValType.I32]),
+    "tcl_array_unset_element": (
+        "tcl",
+        "array_unset_element",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_array_names": ("tcl", "array_names", [ValType.I32], [ValType.I32]),
     # String split/join
     "tcl_split": ("tcl", "split", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_join": ("tcl", "join", [ValType.I32, ValType.I32], [ValType.I32]),
@@ -817,12 +855,19 @@ _DICT_SUBCMD_IMPORT: dict[str, str] = {
     "create": "tcl_dict_create",
 }
 
+# ``clock <subcmd>`` → import key.  Only subcommands that map to a
+# WASI-backed runtime hook are listed; ``format``/``scan`` fall through
+# to the interpreter which itself traps in the sandbox.
+_CLOCK_SUBCMD_IMPORT: dict[str, str] = {
+    "seconds": "tcl_clock_seconds",
+    "clicks": "tcl_clock_clicks",
+    "milliseconds": "tcl_clock_milliseconds",
+}
+
 # Commands that are scope declarations, compile-time-only, or CFG
 # placeholders — NOPs in WASM.
 _SCOPE_NOP_COMMANDS = frozenset(
     {
-        "variable",
-        "upvar",
         "namespace",
         "proc",
         "package",
@@ -852,6 +897,62 @@ _UNSUPPORTED_COMMANDS = frozenset(
         "unload",
     }
 )
+
+
+def _parse_array_ref(name: str) -> tuple[str, str] | None:
+    """Return ``(array_name, key_text)`` if *name* looks like ``arr(key)``.
+
+    Returns ``None`` for scalar names.  The key may be a literal, a
+    variable reference (``$i``), an interpolated string
+    (``counter-$tag``), or a command substitution — the caller is
+    responsible for emitting it as a TclObj value via ``_emit_value``.
+
+    Array names can themselves contain ``::`` (``::ns::arr(key)``) and
+    the key may contain ``)``-balanced nested parens — we require
+    properly nested parens with the final ``)`` matching the first
+    unescaped ``(``.
+    """
+    # Strip Tcl's ``$=`` scalar-disambiguator prefix that the lowerer
+    # sometimes applies to braced ``${x(1)}`` scalars so we don't
+    # misidentify those as array refs.
+    if not name or "(" not in name or not name.endswith(")"):
+        return None
+    if name.startswith("$={"):
+        return None
+    # Find the first '(' that isn't escaped.
+    i = 0
+    n = len(name)
+    while i < n:
+        if name[i] == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if name[i] == "(":
+            break
+        i += 1
+    else:
+        return None
+    arr = name[:i]
+    if not arr:
+        return None
+    # The key runs from i+1 to the matching ')', which is the last char.
+    key = name[i + 1 : -1]
+    return (arr, key)
+
+
+def _derive_proc_namespace(qname: str) -> str:
+    """Return the namespace containing *qname*.
+
+    ``::counter::init`` → ``::counter``; ``::main`` → ``::``. Used to
+    resolve ``variable x`` inside a proc to ``::counter::x``.
+    """
+    if not qname:
+        return "::"
+    # Strip leading ``::`` for the search, then re-add.
+    bare = qname[2:] if qname.startswith("::") else qname
+    idx = bare.rfind("::")
+    if idx < 0:
+        return "::"
+    return "::" + bare[:idx]
 
 
 def _has_embedded_subst_scan(value: str) -> bool:
@@ -937,6 +1038,48 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         class_parts = rest.split(None, 1)
                         if class_parts and class_parts[0] in _STRING_IS_IMPORT:
                             needed.add(_STRING_IS_IMPORT[class_parts[0]])
+                elif cmd == "info" and len(parts) > 1:
+                    subcmd = parts[1]
+                    if subcmd == "exists":
+                        needed.add("tcl_global_exists")
+                        needed.add("tcl_obj_new_int")
+                        # ``info exists arr(key)`` inside a substitution —
+                        # parts[2] (if present) is the var text.
+                        if len(parts) > 2:
+                            raw = parts[2]
+                            if raw.startswith("${") and raw.endswith("}"):
+                                raw = raw[2:-1]
+                            elif raw.startswith("$"):
+                                raw = raw[1:]
+                            if _parse_array_ref(raw) is not None:
+                                needed.add("tcl_array_element_exists")
+                    if subcmd in ("body", "args", "exists"):
+                        needed.add("tcl_info_dispatch")
+                elif cmd == "lassign":
+                    needed.add("tcl_list_index")
+                    needed.add("tcl_list_tail")
+                elif cmd == "clock" and len(parts) > 1:
+                    key = _CLOCK_SUBCMD_IMPORT.get(parts[1])
+                    if key is not None:
+                        needed.add(key)
+                elif cmd == "uplevel":
+                    needed.add("tcl_eval")
+                    needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_restore")
+                elif cmd == "array" and len(parts) > 1:
+                    sub = parts[1]
+                    if sub == "exists":
+                        needed.add("tcl_array_exists")
+                    elif sub == "size":
+                        needed.add("tcl_array_size")
+                    elif sub == "unset":
+                        needed.add("tcl_array_unset")
+                    elif sub == "names":
+                        needed.add("tcl_array_names")
+                    elif sub == "set":
+                        needed.add("tcl_array_set")
+                    elif sub == "get":
+                        needed.add("tcl_array_get")
                 elif cmd == "expr":
                     pass  # expr doesn't need imports itself
                 # Recurse into the command text for nested substitutions
@@ -976,6 +1119,21 @@ def _scan_needed_imports(
         # at codegen time to concatenate the parts.
         if _has_embedded_subst_scan(value):
             needed.add("tcl_append")
+        # ``$arr(key)`` references need tcl_array_get at codegen time.
+        _scan_value_for_array_refs(value)
+        # Pure ``$::ns::var`` / ``${::ns::var}`` references read through
+        # the global table.
+        if "::" in value and ("$" in value or value.startswith("::")):
+            # Conservative: request global_get whenever the value might
+            # resolve to a ``::``-qualified name.  False positives just
+            # over-import; they don't break correctness.
+            inner = value
+            if inner.startswith("${") and inner.endswith("}"):
+                inner = inner[2:-1]
+            elif inner.startswith("$"):
+                inner = inner[1:]
+            if inner.startswith("::"):
+                needed.add("tcl_global_get")
 
     def _scan_expr(expr: object) -> None:
         """Walk an expression AST and scan ExprCommand nodes."""
@@ -985,11 +1143,19 @@ def _scan_needed_imports(
             ExprCommand,
             ExprTernary,
             ExprUnary,
+            ExprVar,
         )
 
         match expr:
             case ExprCommand(text=text):
                 _scan_text_for_cmd_subst(text, needed)
+            case ExprVar(name=name, text=text):
+                # ``$::ns::var`` in an expression reads from the global
+                # table; ``$arr(key)`` reads via tcl_array_get.
+                if name.startswith("::"):
+                    needed.add("tcl_global_get")
+                if "(" in text and text.endswith(")"):
+                    needed.add("tcl_array_get")
             case ExprBinary(op=op, left=left, right=right):
                 if op in (BinOp.STR_EQ, BinOp.STR_EQUALS, BinOp.STR_NE):
                     needed.add("tcl_string_equal")
@@ -1004,6 +1170,71 @@ def _scan_needed_imports(
             case ExprCall(args=args):
                 for arg in args:
                     _scan_expr(arg)
+
+    def _scan_qualified_name(name: str | None) -> None:
+        """``::``-prefixed variable names route reads/writes through the
+        global table.  Pull in the matching runtime hooks eagerly so the
+        code emission paths can rely on them being registered.
+
+        Also handles array-element writes: ``set arr(key) val`` lowers
+        with ``name='arr(key)'``, which needs ``tcl_array_set``.
+        """
+        if not name:
+            return
+        if _parse_array_ref(name) is not None:
+            needed.add("tcl_array_set")
+            needed.add("tcl_array_get")
+            return
+        if name.startswith("::"):
+            needed.add("tcl_global_get")
+            needed.add("tcl_global_set")
+
+    def _scan_value_for_array_refs(value: str | None) -> None:
+        """Pull in array-get for ``$arr(key)`` references inside a value
+        string.  The read path routes through tcl_array_get whenever the
+        name parses as an array reference.
+        """
+        if not value or "(" not in value:
+            return
+        # Conservative: scan for ``$name(`` or ``${name(`` substrings.
+        i = 0
+        n = len(value)
+        while i < n:
+            if value[i] == "$" and i + 1 < n:
+                # Advance over bare name or ${...} with parens.
+                j = i + 1
+                if value[j] == "{":
+                    j += 1
+                    while j < n and value[j] != "}":
+                        j += 1
+                else:
+                    while j < n and (
+                        value[j].isalnum()
+                        or value[j] == "_"
+                        or (value[j] == ":" and j + 1 < n and value[j + 1] == ":")
+                    ):
+                        j += 1
+                if j < n and value[j] == "(":
+                    needed.add("tcl_array_get")
+                    break
+                i = j
+            else:
+                i += 1
+
+    def _scan_array_subcmd(args: tuple[str, ...]) -> None:
+        if not args:
+            return
+        sub = args[0]
+        if sub == "exists":
+            needed.add("tcl_array_exists")
+        elif sub == "size":
+            needed.add("tcl_array_size")
+        elif sub == "unset":
+            needed.add("tcl_array_unset")
+        elif sub == "names":
+            needed.add("tcl_array_names")
+        elif sub == "set":
+            needed.add("tcl_array_set")
 
     def _scan_stmt(stmt: IRStatement) -> None:
         match stmt:
@@ -1021,6 +1252,66 @@ def _scan_needed_imports(
                 elif command == "global":
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")
+                elif command == "upvar":
+                    # upvar #0 resolves to a global alias — reads/writes go
+                    # through the global table. The target name is computed
+                    # at runtime (may be an interpolated string).
+                    needed.add("tcl_global_get")
+                    needed.add("tcl_global_set")
+                elif command == "variable":
+                    # variable inside a proc aliases local → ::ns::local in
+                    # the enclosing namespace. Same runtime path as upvar #0.
+                    needed.add("tcl_global_get")
+                    needed.add("tcl_global_set")
+                elif command == "info" and args:
+                    # info exists — resolves via tcl_global_exists for
+                    # aliased / ``::`` names; plain locals are boxed to
+                    # TclObj via tcl_obj_new_int.  Other subcommands go
+                    # through tcl_info_dispatch.
+                    if args[0] == "exists":
+                        needed.add("tcl_global_exists")
+                        needed.add("tcl_obj_new_int")
+                        # ``info exists arr(key)`` — probe the array table.
+                        if len(args) >= 2:
+                            raw = args[1]
+                            # Strip a ``$`` / ``${...}`` sigil if present.
+                            if raw.startswith("${") and raw.endswith("}"):
+                                raw = raw[2:-1]
+                            elif raw.startswith("$"):
+                                raw = raw[1:]
+                            if _parse_array_ref(raw) is not None:
+                                needed.add("tcl_array_element_exists")
+                    if args[0] in ("body", "args", "exists"):
+                        needed.add("tcl_info_dispatch")
+                elif command == "lassign":
+                    needed.add("tcl_list_index")
+                    needed.add("tcl_list_tail")
+                elif command == "clock" and args:
+                    key = _CLOCK_SUBCMD_IMPORT.get(args[0])
+                    if key is not None:
+                        needed.add(key)
+                elif command == "array" and args:
+                    _scan_array_subcmd(args)
+                elif command == "uplevel":
+                    needed.add("tcl_eval")
+                    needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_restore")
+                    # Multi-word bodies concat with spaces; also each body
+                    # part is run through _emit_value which may need
+                    # tcl_append for interpolated strings.
+                    for arg in args:
+                        _scan_value(arg)
+                    if len(args) > 2 or (
+                        len(args) > 1
+                        and not args[0].startswith(("#", "-"))
+                        and not args[0].lstrip("-").isdigit()
+                    ):
+                        needed.add("tcl_append")
+                elif command == "unset":
+                    for a in args:
+                        if _parse_array_ref(a) is not None:
+                            needed.add("tcl_array_unset_element")
+                            break
                 elif command == "catch":
                     needed.add("tcl_catch_enter")
                     needed.add("tcl_catch_leave")
@@ -1034,12 +1325,38 @@ def _scan_needed_imports(
                 is_body = command in _SCOPE_NOP_COMMANDS or command == "catch"
                 for arg in args:
                     _scan_value(arg, is_body_text=is_body)
-            case IRAssignValue(value=value):
+            case IRAssignValue(name=name, value=value):
+                _scan_qualified_name(name)
                 _scan_value(value)
+                _scan_value_for_array_refs(value)
+            case IRAssignConst(name=name):
+                _scan_qualified_name(name)
+            case IRIncr(name=name, amount=amount):
+                _scan_qualified_name(name)
+                if isinstance(amount, str):
+                    _scan_value(amount)
+                    _scan_value_for_array_refs(amount)
             case IRExprEval(expr=expr):
                 _scan_expr(expr)
-            case IRAssignExpr(expr=expr):
+            case IRAssignExpr(name=name, expr=expr):
+                _scan_qualified_name(name)
                 _scan_expr(expr)
+            case IRReturn(value=value, expr=expr):
+                if value is not None:
+                    _scan_value(value)
+                if expr is not None:
+                    _scan_expr(expr)
+            case IRBarrier(command=barrier_cmd, args=barrier_args):
+                # Eval-fallback path always needs tcl_eval.
+                needed.add("tcl_eval")
+                if barrier_cmd == "uplevel":
+                    needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_restore")
+                    # The body may contain ``$var``/``[cmd]`` references
+                    # that have to be resolved BEFORE eval — scan for
+                    # interpolation helpers.
+                    for arg in barrier_args:
+                        _scan_value(arg)
             case IRIf(clauses=clauses, else_body=else_body):
                 for clause in clauses:
                     _scan_expr(clause.condition)
@@ -1156,12 +1473,18 @@ class _WasmEmitter:
         shared_strings: list[tuple[str, int]] | None = None,
         shared_string_index: dict[str, int] | None = None,
         shared_string_offset: list[int] | None = None,
+        proc_qname: str | None = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
         self._optimise = optimise
         self._is_proc = is_proc
         self._func_index_base = func_index_base
+        # Fully qualified proc name (e.g. ``::counter::init``) so the
+        # ``variable`` command can resolve ``name`` → ``::counter::name``.
+        # None for ``::top`` and other non-proc emitters.
+        self._proc_qname = proc_qname
+        self._proc_namespace = _derive_proc_namespace(proc_qname) if proc_qname else "::"
 
         # Shared state from module compilation
         self._shared_imports: dict[str, int] = shared_imports or {}
@@ -1194,6 +1517,16 @@ class _WasmEmitter:
 
         # Global variable tracking
         self._globals: set[str] = set()
+
+        # Variable aliases — populated by ``upvar`` and ``variable``.
+        # Maps a local Tcl variable name to an (kind, target_local_idx)
+        # tuple where target_local_idx is a hidden WASM local holding the
+        # resolved target name as an i32 TclObj pointer.
+        #   kind == "global": reads/writes go through tcl_global_get/set
+        #     using the TclObj name stashed at the alias site.
+        # Caller-frame (``upvar 1 var local``) is not yet supported —
+        # _emit_cmd_upvar traps at compile time for non-``#0`` levels.
+        self._aliases: dict[str, tuple[str, int]] = {}
 
         # Catch depth — when > 0, unsupported commands call error()
         # without unreachable (error returns normally in catch context).
@@ -1274,10 +1607,15 @@ class _WasmEmitter:
             # Intern on first reference so reads before assignment
             # get a proper local (default-initialised to 0) instead
             # of falling through and boxing "$var" as a string literal.
-            idx = self._intern_local(var)
-            self._emit_local_get(idx)
+            # Aliased variables (upvar/variable) route through the
+            # runtime global table via _emit_var_read_obj.
+            self._emit_var_read_obj(var)
             return
-        # Try direct local lookup (for bare names like in IRAssignValue)
+        # Try direct local lookup (for bare names like in IRAssignValue).
+        # Alias-aware: checks _aliases before local_index.
+        if value in self._aliases:
+            self._emit_var_read_obj(value)
+            return
         idx = self._local_index.get(value)
         if idx is not None:
             self._emit_local_get(idx)
@@ -1506,6 +1844,31 @@ class _WasmEmitter:
                     self._emit_i32_const(0)
                 return
 
+        # info sub-command in value context — leaves i32 TclObj on stack.
+        if cmd_name == "info" and cmd_args:
+            self._emit_info_value(tuple(cmd_args))
+            return
+
+        # lassign in value context — return leftover list.
+        if cmd_name == "lassign" and cmd_args:
+            self._emit_cmd_lassign(tuple(cmd_args), defs=(), keep_on_stack=True)
+            return
+
+        # clock in value context — i32 TclObj of the timer value.
+        if cmd_name == "clock" and cmd_args:
+            self._emit_clock_value(tuple(cmd_args))
+            return
+
+        # array subcommand in value context.
+        if cmd_name == "array" and cmd_args:
+            self._emit_array_subcmd_value(tuple(cmd_args))
+            return
+
+        # uplevel in value context.
+        if cmd_name == "uplevel" and cmd_args:
+            self._emit_cmd_uplevel(tuple(cmd_args))
+            return
+
         # Runtime command in value context (llength, lindex, etc.)
         if cmd_name in _CMD_RUNTIME:
             import_key, _ = _CMD_RUNTIME[cmd_name]
@@ -1634,9 +1997,22 @@ class _WasmEmitter:
         match node:
             case ExprLiteral(text=value):
                 self._emit_literal(value)
-            case ExprVar(name=name):
-                idx = self._intern_local(name)
-                self._emit_local_get(idx)
+            case ExprVar(name=name, text=text):
+                # Alias-aware: reads through _emit_var_read_obj so upvar'd
+                # and variable-declared vars resolve via the global table.
+                # For array refs (``$a(key)``) the parser reports only the
+                # base name; the ``text`` field carries the full token
+                # including the ``(key)`` suffix, which _emit_var_read_obj
+                # re-parses via _parse_array_ref.
+                resolved = name
+                if "(" in text and text.endswith(")"):
+                    # Drop the leading ``$``/``${`` so _parse_array_ref
+                    # sees ``name(key)``.
+                    bare = text[1:] if text.startswith("$") else text
+                    if bare.startswith("{") and bare.endswith("}"):
+                        bare = bare[1:-1]
+                    resolved = bare
+                self._emit_var_read_obj(resolved)
                 self._emit_unbox_int()
             case ExprBinary(op=op, left=left, right=right):
                 self._emit_binary(op, left, right)
@@ -1755,6 +2131,36 @@ class _WasmEmitter:
                 else:
                     self._emit_i64_const(0)
                 return
+
+        # info sub-command — returns i32 TclObj, unbox to i64 for exprs.
+        if cmd_name == "info" and cmd_args:
+            self._emit_info_value(tuple(cmd_args))
+            self._emit_unbox_int()
+            return
+
+        # lassign in expression context — returns leftover list (i32 TclObj).
+        if cmd_name == "lassign" and cmd_args:
+            self._emit_cmd_lassign(tuple(cmd_args), defs=(), keep_on_stack=True)
+            self._emit_unbox_int()
+            return
+
+        # clock in expression context — integer timer value.
+        if cmd_name == "clock" and cmd_args:
+            self._emit_clock_value(tuple(cmd_args))
+            self._emit_unbox_int()
+            return
+
+        # array subcommand in expression context.
+        if cmd_name == "array" and cmd_args:
+            self._emit_array_subcmd_value(tuple(cmd_args))
+            self._emit_unbox_int()
+            return
+
+        # uplevel in expression context.
+        if cmd_name == "uplevel" and cmd_args:
+            self._emit_cmd_uplevel(tuple(cmd_args))
+            self._emit_unbox_int()
+            return
 
         # Runtime command — returns i32 TclObj, unbox to i64
         if cmd_name in _CMD_RUNTIME:
@@ -1945,16 +2351,23 @@ class _WasmEmitter:
 
         match node:
             case ExprVar(text=text):
+                # Array ref in value context: ``$a(key)`` — strip the
+                # leading ``$`` / ``${`` / trailing ``}`` and route
+                # through the array-aware _emit_var_read_obj path.
+                if "(" in text and text.endswith(")"):
+                    bare = text[1:] if text.startswith("$") else text
+                    if bare.startswith("{") and bare.endswith("}"):
+                        bare = bare[1:-1]
+                    self._emit_var_read_obj(bare)
+                    return
                 var = self._resolve_var_name(text)
                 if var is not None:
-                    idx = self._intern_local(var)
-                    self._emit_local_get(idx)
+                    self._emit_var_read_obj(var)
                     return
             case ExprRaw(text=text):
                 var = self._resolve_var_name(text)
                 if var is not None:
-                    idx = self._intern_local(var)
-                    self._emit_local_get(idx)
+                    self._emit_var_read_obj(var)
                     return
                 self._emit_obj_literal(text)
                 return
@@ -2181,7 +2594,14 @@ class _WasmEmitter:
                     return int(value)
                 except ValueError:
                     return None
-            case ExprVar(name=name):
+            case ExprVar(name=name, text=text):
+                # Array refs and aliased vars have time-varying values — don't
+                # treat them as constants even if _const_map was populated
+                # before the alias was established.
+                if "(" in text:
+                    return None
+                if name in self._aliases:
+                    return None
                 return self._const_map.get(name)
             case _:
                 return None
@@ -2192,36 +2612,33 @@ class _WasmEmitter:
         """Emit WASM for a single IR statement."""
         match stmt:
             case IRAssignConst(name=name, value=value):
-                idx = self._intern_local(name)
                 self._emit_obj_literal(value)
-                self._emit_local_set(idx)
-                self._emit_global_writeback(name, idx)
-                if self._optimise:
+                self._emit_var_write_obj(name)
+                if self._optimise and name not in self._aliases:
+                    # Aliased writes go to a global under a possibly-dynamic
+                    # name — constant-tracking the local Tcl name would
+                    # short-circuit reads that ought to see cross-proc
+                    # updates to the global.
                     try:
                         self._const_map[name] = int(value)
                     except ValueError:
                         self._const_map.pop(name, None)
 
             case IRAssignExpr(name=name, expr=expr):
-                idx = self._intern_local(name)
                 self._emit_expr(expr)
                 self._emit_box_int()
-                self._emit_local_set(idx)
-                self._emit_global_writeback(name, idx)
+                self._emit_var_write_obj(name)
                 if self._optimise:
                     self._const_map.pop(name, None)
 
             case IRAssignValue(name=name, value=value):
-                idx = self._intern_local(name)
                 self._emit_value(value)
-                self._emit_local_set(idx)
-                self._emit_global_writeback(name, idx)
+                self._emit_var_write_obj(name)
                 if self._optimise:
                     self._const_map.pop(name, None)
 
             case IRIncr(name=name, amount=amount):
-                idx = self._intern_local(name)
-                self._emit_local_get(idx)
+                self._emit_var_read_obj(name)
                 self._emit_unbox_int()
                 amt = 1
                 if amount is not None:
@@ -2233,14 +2650,14 @@ class _WasmEmitter:
                         self._emit_unbox_int()
                         self._emit(WasmOp.I64_ADD)
                         self._emit_box_int()
-                        self._emit_local_set(idx)
+                        self._emit_var_write_obj(name)
                         if self._optimise:
                             self._const_map.pop(name, None)
                         return
                 self._emit_i64_const(amt)
                 self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
-                self._emit_local_set(idx)
+                self._emit_var_write_obj(name)
                 if self._optimise:
                     self._const_map.pop(name, None)
 
@@ -2263,8 +2680,14 @@ class _WasmEmitter:
 
             case IRBarrier(command=barrier_cmd, args=barrier_args, reason=reason):
                 # Barriers are dynamic commands (eval, uplevel, etc.)
-                # that defeat static analysis — fall back to interpreter.
-                if barrier_cmd:
+                # that defeat static analysis.  ``uplevel`` has a dedicated
+                # emitter that runs at a caller's scope via the runtime
+                # frame-depth shift helpers; other barriers fall back to
+                # the plain interpreter eval.
+                if barrier_cmd == "uplevel" and barrier_args:
+                    self._emit_cmd_uplevel(barrier_args)
+                    self._emit(WasmOp.DROP)
+                elif barrier_cmd:
                     self._emit_eval_fallback(barrier_cmd, barrier_args)
                     self._emit(WasmOp.DROP)
                 else:
@@ -2314,6 +2737,12 @@ class _WasmEmitter:
         named ``puts`` shadows the built-in runtime import, matching
         Tcl's command resolution semantics.
         """
+        # <upvar-invalidate> — synthetic IRCall emitted by the CFG builder
+        # to invalidate caller-side SSA defs around a call that modifies
+        # variables via upvar.  No code to emit at the WASM level.
+        if command == "<upvar-invalidate>":
+            return
+
         # global varName — register variable as global-scoped
         if command == "global":
             for var_name in args:
@@ -2325,6 +2754,20 @@ class _WasmEmitter:
                     self._emit_obj_literal(var_name)
                     self._emit_call(gget_idx)
                     self._emit_local_set(local_idx)
+            return
+
+        # upvar ?level? otherVar myVar ?otherVar myVar ...? — register
+        # a local alias so subsequent reads/writes route through the
+        # target scope.  Only ``#0`` (global alias) is currently supported.
+        if command == "upvar":
+            self._emit_cmd_upvar(args)
+            return
+
+        # variable name ?value? ?name value ...? — in a namespace proc,
+        # aliases local ``name`` to ``::ns::name`` in the enclosing
+        # namespace and optionally initialises it.
+        if command == "variable":
+            self._emit_cmd_variable(args)
             return
 
         # Scope declarations are NOPs in the WASM model
@@ -2386,6 +2829,55 @@ class _WasmEmitter:
         if command == "dict" and args:
             self._emit_cmd_dict(args, defs)
             return
+
+        # info sub-commands
+        if command == "info" and args:
+            self._emit_cmd_info(args, defs)
+            return
+
+        # lassign list ?varName ...? — destructure a list.
+        if command == "lassign" and args:
+            self._emit_cmd_lassign(args, defs, keep_on_stack=False)
+            return
+
+        # clock seconds / clicks / milliseconds — WASI-backed timer.
+        if command == "clock" and args:
+            self._emit_clock_value(args)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
+
+        # uplevel ?level? body — run script in a caller's scope.
+        if command == "uplevel" and args:
+            self._emit_cmd_uplevel(args)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
+
+        # array subcommand dispatch — reads/writes route through the
+        # dedicated array hash tables.
+        if command == "array" and args:
+            self._emit_array_subcmd_value(args)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
+
+        # unset — handle array elements specially so ``unset arr(key)``
+        # actually removes the element from the array storage.  Plain
+        # scalar unset is fine to fall through for now (compiled procs
+        # don't need to clear WASM locals).
+        if command == "unset" and args:
+            if self._emit_unset_array_elems(args):
+                return
 
         # Commands backed by runtime imports
         if command in _CMD_RUNTIME:
@@ -2465,6 +2957,24 @@ class _WasmEmitter:
             self._emit_i32_const(0)
             return
 
+        # <upvar-invalidate> — synthetic CFG-builder invalidation node.
+        # In tail position (rare, but possible if placed last by optimisation)
+        # we still need to push a null TclObj.
+        if command == "<upvar-invalidate>":
+            self._emit_i32_const(0)
+            return
+
+        # upvar/variable in tail position — run the alias-setup side effects,
+        # then push null (upvar returns empty string).
+        if command == "upvar":
+            self._emit_cmd_upvar(args)
+            self._emit_i32_const(0)
+            return
+        if command == "variable":
+            self._emit_cmd_variable(args)
+            self._emit_i32_const(0)
+            return
+
         # catch in tail position — emit body with error handling,
         # leave the catch return code (0 or 1) on the stack.
         if command == "catch" and args:
@@ -2487,6 +2997,15 @@ class _WasmEmitter:
         # set: inline local operations (returns the i32 TclObj)
         if command == "set" and 1 <= len(args) <= 2:
             var = args[0]
+            if var in self._aliases and len(args) >= 2:
+                # Aliased write: route through global set, which returns the value.
+                self._emit_value(args[1])
+                self._emit_var_write_obj_keep(var)
+                return
+            if var in self._aliases:
+                # Aliased read: tcl_global_get leaves value on stack.
+                self._emit_var_read_obj(var)
+                return
             idx = self._intern_local(var)
             if len(args) >= 2:
                 self._emit_value(args[1])
@@ -2498,6 +3017,26 @@ class _WasmEmitter:
         # incr: returns the new value as i32 TclObj (Tcl semantics)
         if command == "incr" and 1 <= len(args) <= 2:
             var = args[0]
+            if var in self._aliases:
+                # Aliased incr: load via alias, add, store via alias (keep on stack).
+                self._emit_var_read_obj(var)
+                self._emit_unbox_int()
+                amt = 1
+                if len(args) >= 2:
+                    try:
+                        amt = int(args[1])
+                    except ValueError:
+                        self._emit_value(args[1])
+                        self._emit_unbox_int()
+                        self._emit(WasmOp.I64_ADD)
+                        self._emit_box_int()
+                        self._emit_var_write_obj_keep(var)
+                        return
+                self._emit_i64_const(amt)
+                self._emit(WasmOp.I64_ADD)
+                self._emit_box_int()
+                self._emit_var_write_obj_keep(var)
+                return
             idx = self._intern_local(var)
             self._emit_local_get(idx)
             self._emit_unbox_int()
@@ -2524,6 +3063,31 @@ class _WasmEmitter:
                 self._emit_value(args[0])
             else:
                 self._emit_i32_const(0)
+            return
+
+        # info sub-commands — keep result on stack
+        if command == "info" and args:
+            self._emit_info_value(args)
+            return
+
+        # lassign — keep leftover-list result on stack
+        if command == "lassign" and args:
+            self._emit_cmd_lassign(args, defs, keep_on_stack=True)
+            return
+
+        # clock — keep timer result on stack
+        if command == "clock" and args:
+            self._emit_clock_value(args)
+            return
+
+        # array subcommand in tail position — keep result on stack
+        if command == "array" and args:
+            self._emit_array_subcmd_value(args)
+            return
+
+        # uplevel in tail position — keep eval result on stack.
+        if command == "uplevel" and args:
+            self._emit_cmd_uplevel(args)
             return
 
         # string sub-commands — keep result on stack
@@ -2624,6 +3188,162 @@ class _WasmEmitter:
 
     # -- Global variable write-through --
 
+    def _emit_var_read_obj(self, name: str) -> None:
+        """Push the current TclObj value of local Tcl variable *name* on the stack.
+
+        For aliased variables (``upvar``/``variable``), this reads through
+        ``tcl_global_get`` using the target name stashed at alias-setup time.
+        For ``::``-qualified names (e.g. ``::ns::var``), this reads the
+        global directly.  Array references (``arr(key)``) dispatch to
+        ``tcl_array_get`` with the element's stored value.  Otherwise
+        this is a plain WASM ``local.get`` of the interned local.
+        """
+        array_ref = _parse_array_ref(name)
+        if array_ref is not None:
+            self._emit_array_element_read(*array_ref)
+            return
+        binding = self._aliases.get(name)
+        if binding is not None:
+            kind, target_idx = binding
+            if kind == "global":
+                gget_idx = self._shared_imports.get("tcl_global_get")
+                if gget_idx is not None:
+                    self._emit_local_get(target_idx)
+                    self._emit_call(gget_idx)
+                    return
+        if name.startswith("::"):
+            gget_idx = self._shared_imports.get("tcl_global_get")
+            if gget_idx is not None:
+                self._emit_obj_literal(name)
+                self._emit_call(gget_idx)
+                return
+        idx = self._intern_local(name)
+        self._emit_local_get(idx)
+
+    def _emit_var_write_obj(self, name: str) -> None:
+        """Consume a TclObj value on the stack and write it to local Tcl variable *name*.
+
+        For aliased variables, the value is routed to ``tcl_global_set``
+        using the stashed target name.  For plain variables, the value is
+        stored in the interned WASM local; if the name was declared
+        ``global`` it's also written back to the global table.
+        """
+        self._emit_var_write_obj_impl(name, keep_on_stack=False)
+
+    def _emit_var_write_obj_keep(self, name: str) -> None:
+        """Like _emit_var_write_obj but leaves the written value on the stack.
+
+        Used in tail-position ``set``/``incr`` emissions where the command's
+        return value is the proc's return value.
+        """
+        self._emit_var_write_obj_impl(name, keep_on_stack=True)
+
+    def _emit_var_write_obj_impl(self, name: str, *, keep_on_stack: bool) -> None:
+        array_ref = _parse_array_ref(name)
+        if array_ref is not None:
+            self._emit_array_element_write(array_ref[0], array_ref[1], keep_on_stack=keep_on_stack)
+            return
+        binding = self._aliases.get(name)
+        if binding is not None:
+            kind, target_idx = binding
+            if kind == "global":
+                self._emit_global_set_via_local(target_idx, keep_on_stack=keep_on_stack)
+                return
+        if name.startswith("::"):
+            # ``::``-qualified names always refer to globals.  Route the
+            # write directly without creating an unused WASM local.
+            self._emit_global_set_via_literal(name, keep_on_stack=keep_on_stack)
+            return
+        idx = self._intern_local(name)
+        if keep_on_stack:
+            self._emit_local_tee(idx)
+        else:
+            self._emit_local_set(idx)
+        self._emit_global_writeback(name, idx)
+
+    def _emit_array_name_obj(self, arr: str) -> None:
+        """Push the TclObj containing the runtime name of array *arr*.
+
+        Honours ``upvar`` / ``variable`` aliases so ``upvar #0
+        counter::T-$tag counter; set counter(N) 0`` hits the correct
+        per-tag array.  ``::``-qualified and plain names pass through
+        as literals.
+        """
+        binding = self._aliases.get(arr)
+        if binding is not None and binding[0] == "global":
+            self._emit_local_get(binding[1])
+            return
+        self._emit_obj_literal(arr)
+
+    def _emit_array_element_read(self, arr: str, key: str) -> None:
+        """``$arr(key)`` — emit tcl_array_get(arr_name, key) and leave the
+        i32 TclObj result on the stack.
+        """
+        func_idx = self._shared_imports.get("tcl_array_get")
+        if func_idx is None:
+            self._emit_i32_const(0)
+            return
+        self._emit_array_name_obj(arr)
+        self._emit_value(key)
+        self._emit_call(func_idx)
+
+    def _emit_array_element_write(self, arr: str, key: str, *, keep_on_stack: bool) -> None:
+        """``set arr(key) value`` — value is already on the stack.
+
+        Stashes the value, pushes (arr_name, key, value) and calls
+        tcl_array_set.
+        """
+        func_idx = self._shared_imports.get("tcl_array_set")
+        if func_idx is None:
+            if not keep_on_stack:
+                self._emit(WasmOp.DROP)
+            return
+        tmp = self._add_extra_local(prefix="_arr_val", val_type=ValType.I32)
+        self._emit_local_set(tmp)
+        self._emit_array_name_obj(arr)
+        self._emit_value(key)
+        self._emit_local_get(tmp)
+        self._emit_call(func_idx)
+        if not keep_on_stack:
+            self._emit(WasmOp.DROP)
+
+    def _emit_global_set_via_local(self, target_local_idx: int, *, keep_on_stack: bool) -> None:
+        """Consume a value on the stack, write it to the global whose name
+        is held in WASM local *target_local_idx*.  Leaves the value on the
+        stack if *keep_on_stack*.
+        """
+        gset_idx = self._shared_imports.get("tcl_global_set")
+        if gset_idx is None:
+            if not keep_on_stack:
+                self._emit(WasmOp.DROP)
+            return
+        # Stack: [value].  We need [target_name, value] for tcl_global_set.
+        tmp = self._add_extra_local(prefix="_gset_val", val_type=ValType.I32)
+        self._emit_local_set(tmp)
+        self._emit_local_get(target_local_idx)
+        self._emit_local_get(tmp)
+        self._emit_call(gset_idx)
+        if not keep_on_stack:
+            self._emit(WasmOp.DROP)
+
+    def _emit_global_set_via_literal(self, target_name: str, *, keep_on_stack: bool) -> None:
+        """Consume a value on the stack, write it to the global named *target_name*.
+
+        Leaves the value on the stack if *keep_on_stack*.
+        """
+        gset_idx = self._shared_imports.get("tcl_global_set")
+        if gset_idx is None:
+            if not keep_on_stack:
+                self._emit(WasmOp.DROP)
+            return
+        tmp = self._add_extra_local(prefix="_gset_val", val_type=ValType.I32)
+        self._emit_local_set(tmp)
+        self._emit_obj_literal(target_name)
+        self._emit_local_get(tmp)
+        self._emit_call(gset_idx)
+        if not keep_on_stack:
+            self._emit(WasmOp.DROP)
+
     def _emit_global_writeback(self, name: str, local_idx: int) -> None:
         """If *name* is a declared global, write the local value to the global table."""
         if name not in self._globals:
@@ -2636,26 +3356,134 @@ class _WasmEmitter:
         self._emit_call(gset_idx)
         self._emit(WasmOp.DROP)
 
+    def _register_global_alias(self, local_name: str, target_value: str) -> None:
+        """Register *local_name* as a global alias and stash the target name.
+
+        Emits code that evaluates *target_value* (which may be an
+        interpolated string like ``counter::T-$tag``) to a TclObj, stores
+        it in a hidden WASM local, and records the binding so subsequent
+        reads/writes of *local_name* route through tcl_global_{get,set}.
+        """
+        target_idx = self._add_extra_local(prefix=f"_alias_{local_name}_tgt", val_type=ValType.I32)
+        self._emit_value(target_value)
+        self._emit_local_set(target_idx)
+        self._aliases[local_name] = ("global", target_idx)
+
+    def _emit_cmd_upvar(self, args: tuple[str, ...]) -> None:
+        """``upvar ?level? otherVar myVar ?otherVar myVar ...?``
+
+        Only the ``#0`` (global alias) form is currently compiled.  For
+        any other level the module traps at runtime with a descriptive
+        message — a future enhancement will add caller-frame alias
+        support via a new runtime hook.
+        """
+        if len(args) < 2:
+            self._emit_unsupported_trap("upvar (too few args)")
+            return
+
+        # Determine whether args[0] is a level specifier.  A leading '#'
+        # always marks one; a bare digit sequence does too.  Anything
+        # else means the level defaults to 1 and args[0] is otherVar.
+        first = args[0]
+        if first.startswith("#"):
+            level_spec = first
+            pairs_start = 1
+        elif first.lstrip("-").isdigit():
+            level_spec = first
+            pairs_start = 1
+        else:
+            level_spec = "1"
+            pairs_start = 0
+
+        pair_args = args[pairs_start:]
+        if len(pair_args) % 2 != 0:
+            self._emit_unsupported_trap("upvar (uneven var pairs)")
+            return
+
+        if level_spec != "#0":
+            # Caller-frame aliasing not yet implemented — trap with a
+            # clear message rather than silently mis-compiling.
+            self._emit_unsupported_trap(
+                f"upvar level {level_spec} — compiled procs only support #0 "
+                "(global alias).  Caller-frame aliasing (upvar N) needs "
+                "the frame-pushing variant of compiled procs; use uplevel "
+                "to run code in the caller instead."
+            )
+            return
+
+        for i in range(0, len(pair_args), 2):
+            target = pair_args[i]
+            local_name = pair_args[i + 1]
+            self._register_global_alias(local_name, target)
+
+    def _emit_cmd_variable(self, args: tuple[str, ...]) -> None:
+        """``variable name ?value? ?name value ...?``
+
+        Inside a namespace proc, aliases ``name`` to ``::ns::name`` in
+        the enclosing namespace.  If a value is provided and the
+        namespace variable does not already exist, it is initialised.
+        Outside a proc (namespace-eval top-level) this is a no-op in
+        the compiled model: the namespace-eval body itself runs at
+        global scope, so assignments already land in globals.
+        """
+        if not args:
+            return
+        if not self._is_proc:
+            # At namespace-eval top-level the body runs at global scope
+            # in our compiled model.  Tcl's real ``variable`` at
+            # namespace scope would initialise but not create a local;
+            # our compiler has no namespace-local storage distinct from
+            # globals yet, so assignments in the body already hit
+            # globals.  Nothing to do here.
+            return
+
+        ns = self._proc_namespace or "::"
+        i = 0
+        while i < len(args):
+            name = args[i]
+            has_value = i + 1 < len(args)
+            # Resolve the target name: ``::ns::name`` for unqualified
+            # names, or the literal name if already qualified with ``::``.
+            if name.startswith("::"):
+                target = name
+                # The local alias uses the final segment as its Tcl name.
+                local_name = name.rsplit("::", 1)[-1]
+            else:
+                if ns == "::":
+                    target = f"::{name}"
+                else:
+                    target = f"{ns}::{name}"
+                local_name = name
+
+            # Stash the target literal in a hidden local and register.
+            target_idx = self._add_extra_local(
+                prefix=f"_var_{local_name}_tgt", val_type=ValType.I32
+            )
+            self._emit_obj_literal(target)
+            self._emit_local_set(target_idx)
+            self._aliases[local_name] = ("global", target_idx)
+
+            if has_value:
+                # ``variable name value`` — initialise the namespace var
+                # unconditionally (matches Tcl 8.x behaviour in practice
+                # for scripted modules; upstream tcltest uses it idempotently).
+                self._emit_value(args[i + 1])
+                self._emit_var_write_obj(local_name)
+                i += 2
+            else:
+                i += 1
+
     # -- Individual command emitters --
 
     def _emit_cmd_set(self, args: tuple[str, ...]) -> None:
-        """``set varName ?value?`` — read or write a local/global variable."""
+        """``set varName ?value?`` — read or write a local/global/aliased variable."""
         if not args:
             self._emit_unsupported_trap("set (no args)")
             return
         var = args[0]
-        idx = self._intern_local(var)
         if len(args) >= 2:
             self._emit_value(args[1])
-            self._emit_local_set(idx)
-            # Write through to global table if this var is declared global
-            if var in self._globals:
-                gset_idx = self._shared_imports.get("tcl_global_set")
-                if gset_idx is not None:
-                    self._emit_obj_literal(var)
-                    self._emit_local_get(idx)
-                    self._emit_call(gset_idx)
-                    self._emit(WasmOp.DROP)
+            self._emit_var_write_obj(var)
         else:
             pass  # set x — read (result unused in statement context)
 
@@ -2665,8 +3493,7 @@ class _WasmEmitter:
             self._emit_unsupported_trap("incr (no args)")
             return
         var = args[0]
-        idx = self._intern_local(var)
-        self._emit_local_get(idx)
+        self._emit_var_read_obj(var)
         self._emit_unbox_int()
         amt = 1
         if len(args) >= 2:
@@ -2678,12 +3505,12 @@ class _WasmEmitter:
                 self._emit_unbox_int()
                 self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
-                self._emit_local_set(idx)
+                self._emit_var_write_obj(var)
                 return
         self._emit_i64_const(amt)
         self._emit(WasmOp.I64_ADD)
         self._emit_box_int()
-        self._emit_local_set(idx)
+        self._emit_var_write_obj(var)
 
     def _emit_cmd_return(self, args: tuple[str, ...]) -> None:
         """``return ?value?`` — WASM return instruction (i32 TclObj)."""
@@ -2773,6 +3600,431 @@ class _WasmEmitter:
                 self._emit(WasmOp.DROP)
         else:
             self._emit_unsupported_trap(f"dict {subcmd}")
+
+    def _emit_array_subcmd_value(self, args: tuple[str, ...]) -> None:
+        """``array <subcmd> <arr> ?args?`` — leaves i32 TclObj on the stack.
+
+        Supported subcommands:
+          exists, size, unset, names, set, get.  Others fall back to
+          the interpreter, which will see the compile-time snapshot
+          of the array's state (via globals — interpreter doesn't
+          touch per-array tables yet).
+        """
+        if not args:
+            self._emit_i32_const(0)
+            return
+        subcmd = args[0]
+        if subcmd == "exists" and len(args) >= 2:
+            fidx = self._shared_imports.get("tcl_array_exists")
+            if fidx is not None:
+                self._emit_array_name_obj(args[1])
+                self._emit_call(fidx)
+                return
+        elif subcmd == "size" and len(args) >= 2:
+            fidx = self._shared_imports.get("tcl_array_size")
+            if fidx is not None:
+                self._emit_array_name_obj(args[1])
+                self._emit_call(fidx)
+                return
+        elif subcmd == "unset" and len(args) >= 2:
+            fidx = self._shared_imports.get("tcl_array_unset")
+            if fidx is not None:
+                self._emit_array_name_obj(args[1])
+                self._emit_call(fidx)
+                return
+        elif subcmd == "names" and len(args) >= 2:
+            fidx = self._shared_imports.get("tcl_array_names")
+            if fidx is not None:
+                self._emit_array_name_obj(args[1])
+                self._emit_call(fidx)
+                return
+        elif subcmd == "set" and len(args) >= 3:
+            # ``array set arr {key val key val ...}`` — iterate the list
+            # literal at compile time when possible, otherwise fall back
+            # to the interpreter.  Most real-world usage is literal.
+            self._emit_array_set_list(args[1], args[2])
+            return
+        elif subcmd == "get" and len(args) >= 2:
+            # ``array get arr`` — return a flat {key val key val ...}
+            # list.  Not implemented in the compiled runtime yet; fall
+            # back to tcl_eval so the interpreter handles it (returns
+            # empty for now, which degrades rather than mis-computes).
+            pass
+        self._emit_eval_fallback("array", args)
+
+    def _emit_array_set_list(self, arr: str, kv_text: str) -> None:
+        """``array set arr {k v k v ...}`` — compile-time list literal.
+
+        Parses the inline list and emits one ``array_set`` call per
+        pair.  Falls back to the interpreter for non-literal inputs.
+        Leaves an empty string TclObj on the stack as the command's
+        return value.
+        """
+        from ._helpers import _split_list_simple
+
+        fidx = self._shared_imports.get("tcl_array_set")
+        if fidx is None:
+            self._emit_eval_fallback("array", ("set", arr, kv_text))
+            return
+        # Strip an optional outer braces around the literal list.
+        text = kv_text
+        if text.startswith("{") and text.endswith("}"):
+            text = text[1:-1]
+        try:
+            words = _split_list_simple(text)
+        except Exception:
+            self._emit_eval_fallback("array", ("set", arr, kv_text))
+            return
+        if len(words) % 2 != 0:
+            self._emit_eval_fallback("array", ("set", arr, kv_text))
+            return
+        for i in range(0, len(words), 2):
+            self._emit_array_name_obj(arr)
+            self._emit_value(words[i])
+            self._emit_value(words[i + 1])
+            self._emit_call(fidx)
+            self._emit(WasmOp.DROP)
+        # ``array set`` returns empty string.
+        self._emit_obj_literal("")
+
+    def _emit_unset_array_elems(self, args: tuple[str, ...]) -> bool:
+        """Handle ``unset arr(key)`` forms.  Returns True if at least one
+        array-element unset was emitted (and scalar unsets, if mixed in,
+        were emitted as NOPs) — caller should ``return`` from the
+        dispatch.  Returns False if *args* contains no array-element
+        references at all.
+        """
+        had_array = False
+        fidx = self._shared_imports.get("tcl_array_unset_element")
+        # Skip ``-nocomplain`` / ``--`` option prefix.
+        i = 0
+        while i < len(args) and args[i].startswith("-"):
+            if args[i] == "--":
+                i += 1
+                break
+            i += 1
+        for name in args[i:]:
+            ref = _parse_array_ref(name)
+            if ref is None:
+                continue
+            had_array = True
+            arr, key = ref
+            if fidx is None:
+                continue
+            self._emit_array_name_obj(arr)
+            self._emit_value(key)
+            self._emit_call(fidx)
+            self._emit(WasmOp.DROP)
+        return had_array
+
+    def _emit_cmd_uplevel(self, args: tuple[str, ...]) -> None:
+        """``uplevel ?level? body`` — evaluate script in a caller's frame.
+
+        ``level`` defaults to ``1``.  ``#0`` means absolute global
+        scope; ``#N`` means N frames above global (Tcl only really
+        uses ``#0``); a bare integer N means N frames up relative to
+        the current frame.
+
+        We emit:
+            saved = frame_depth_stash(up)
+            result = tcl_eval(body)
+            frame_depth_restore(saved)
+
+        ``frame_depth_stash`` clamps the shift at frame 0 so invalid
+        levels degrade to global-scope eval rather than trapping.  If
+        the caller chain is entirely compiled (no frames pushed), this
+        is effectively a no-op and the eval runs at global scope — the
+        ``#0`` behaviour Tcl scripts most commonly use.
+
+        Multiple bodies concatenated as separate words (``uplevel 1 a b c``)
+        are joined with spaces to form the script, matching Tcl's
+        semantics of "concat all remaining arguments into a single
+        script".
+        """
+        if not args:
+            self._emit_i32_const(0)
+            return
+        # Parse the level specifier.  ``#0`` → absolute 0 which clamps
+        # to global; a bare integer N → relative N; anything else means
+        # no level, default 1, and args[0] is the first body word.
+        level_spec = args[0]
+        up: int
+        body_start = 1
+        if level_spec.startswith("#"):
+            try:
+                abs_level = int(level_spec[1:])
+                # "#N means N frames above global".  We approximate by
+                # stashing all the way to that absolute depth; frame_depth_stash
+                # subtracts, so ``up`` is (current_depth - abs_level), which
+                # we can't know at compile time.  For the common #0 case
+                # we stash "all the way" by passing a large relative shift.
+                up = 0 if abs_level == 0 else 1
+            except ValueError:
+                up = 1
+        else:
+            try:
+                up = int(level_spec)
+                # Numeric → relative.
+            except ValueError:
+                # Not a level — arg0 is part of the body.
+                up = 1
+                body_start = 0
+        if body_start >= len(args):
+            self._emit_i32_const(0)
+            return
+
+        body_parts = list(args[body_start:])
+
+        eval_idx = self._shared_imports.get("tcl_eval")
+        stash_idx = self._shared_imports.get("tcl_frame_depth_stash")
+        restore_idx = self._shared_imports.get("tcl_frame_depth_restore")
+        if eval_idx is None or stash_idx is None or restore_idx is None:
+            # Missing runtime helpers — fall back to plain eval, which
+            # still works for compiled-to-compiled chains where
+            # frame_depth is 0 throughout.
+            self._emit_uplevel_body(body_parts)
+            if eval_idx is not None:
+                self._emit_call(eval_idx)
+            else:
+                self._emit_i32_const(0)
+            return
+
+        # For ``#0`` we pass a large shift (INT32_MAX / 2) so
+        # frame_depth_stash clamps to zero regardless of the actual depth.
+        shift = 0x3FFF_FFFF if level_spec == "#0" else up
+        saved_local = self._add_extra_local(prefix="_uplevel_saved", val_type=ValType.I32)
+
+        self._emit_i32_const(shift)
+        self._emit_call(stash_idx)
+        self._emit_local_set(saved_local)
+
+        self._emit_uplevel_body(body_parts)
+        self._emit_call(eval_idx)
+        # Result TclObj is on stack; stash temporarily so we can restore.
+        result_local = self._add_extra_local(prefix="_uplevel_result", val_type=ValType.I32)
+        self._emit_local_set(result_local)
+
+        self._emit_local_get(saved_local)
+        self._emit_call(restore_idx)
+
+        self._emit_local_get(result_local)
+
+    def _emit_uplevel_body(self, parts: list[str]) -> None:
+        """Push the uplevel body as a single TclObj, resolving any
+        ``$var``/``[cmd]`` substitutions the parts contain before
+        handing the final string to ``tcl_eval``.
+
+        Typical cases:
+          - ``uplevel #0 {set ::g 42}``  — parts = ["set ::g 42"], a
+            literal script.  Emitted as an obj_literal.
+          - ``uplevel "set ::$name $val"`` — parts = ["set ::$name $val"],
+            an interpolated string.  Emitted via ``_emit_value`` so the
+            concat chain resolves ``$name``/``$val`` before eval.
+          - ``uplevel 1 a b c`` — parts = ["a","b","c"], Tcl concat-join
+            with spaces.  Each part is resolved and joined.
+        """
+        if not parts:
+            self._emit_obj_literal("")
+            return
+        if len(parts) == 1:
+            self._emit_value(parts[0])
+            return
+        # Multi-part: emit each value obj and concat with spaces.
+        # Simplest: use _emit_value for each and chain tcl_append.
+        append_idx = self._shared_imports.get("tcl_append")
+        if append_idx is None:
+            # No concat helper — best-effort: fall back to the first part
+            # (typical callers supply a single braced script).
+            self._emit_value(parts[0])
+            return
+        self._emit_value(parts[0])
+        for part in parts[1:]:
+            self._emit_obj_literal(" ")
+            self._emit_call(append_idx)
+            self._emit_value(part)
+            self._emit_call(append_idx)
+
+    def _emit_clock_value(self, args: tuple[str, ...]) -> None:
+        """Emit a ``clock <subcmd>`` expression; leaves i32 TclObj on stack.
+
+        ``seconds``/``clicks``/``milliseconds`` call the WASI-backed
+        runtime helpers directly.  Anything else falls through to the
+        interpreter (which will likely trap for ``format``/``scan`` in
+        the sandbox — that's fine as a clear diagnostic until we ship a
+        timezone-aware formatter).
+        """
+        if not args:
+            self._emit_i32_const(0)
+            return
+        subcmd = args[0]
+        import_key = _CLOCK_SUBCMD_IMPORT.get(subcmd)
+        if import_key is not None:
+            func_idx = self._shared_imports.get(import_key)
+            if func_idx is not None:
+                self._emit_call(func_idx)
+                return
+        # Fall back to the interpreter for unsupported subcommands.
+        self._emit_eval_fallback("clock", args)
+
+    def _emit_cmd_lassign(
+        self,
+        args: tuple[str, ...],
+        defs: tuple[str, ...],
+        *,
+        keep_on_stack: bool,
+    ) -> None:
+        """``lassign list ?varName ...?`` — destructure a list into vars.
+
+        For each ``varName`` at position *i*, assigns ``list_index(list, i)``
+        to that variable (empty string if out of range).  Returns the
+        leftover list (elements beyond the supplied variables) — computed
+        at runtime via ``tcl_list_tail``.
+
+        If *keep_on_stack* is True (value/expression context), the
+        leftover-list i32 TclObj is left on the stack; otherwise the
+        result is stored in ``defs[0]`` if given, or dropped.
+        """
+        if not args:
+            self._emit_unsupported_trap("lassign (no list arg)")
+            return
+        list_arg = args[0]
+        var_names = args[1:]
+
+        # Stash the list value once so we can index into it repeatedly
+        # without re-evaluating its expression (which may have side effects
+        # via command substitution).
+        list_local = self._add_extra_local(prefix="_lassign_list", val_type=ValType.I32)
+        self._emit_value(list_arg)
+        self._emit_local_set(list_local)
+
+        # Per-variable: write list_index(list, i) into the named variable.
+        lindex_idx = self._shared_imports.get("tcl_list_index")
+        if lindex_idx is None:
+            # Can't emit without the runtime helper — fall back to trap.
+            self._emit_unsupported_trap("lassign (missing tcl_list_index)")
+            return
+
+        for i, var_name in enumerate(var_names):
+            self._emit_local_get(list_local)
+            # Index argument is a TclObj holding the integer i.
+            self._emit_obj_literal(str(i))
+            self._emit_call(lindex_idx)
+            self._emit_var_write_obj(var_name)
+
+        # Produce the leftover list (elements from index len(var_names) on).
+        ltail_idx = self._shared_imports.get("tcl_list_tail")
+        if ltail_idx is None:
+            # No tail helper — emit empty list.
+            self._emit_i32_const(0)
+        else:
+            self._emit_local_get(list_local)
+            self._emit_obj_literal(str(len(var_names)))
+            self._emit_call(ltail_idx)
+
+        if keep_on_stack:
+            return
+        # Statement context: the leftover list is discarded.  ``defs`` for
+        # lassign lists the VAR_WRITE targets (var_names), NOT a place to
+        # store the command's return value — ignore it here to avoid
+        # overwriting one of the just-assigned locals.
+        self._emit(WasmOp.DROP)
+
+    def _emit_cmd_info(self, args: tuple[str, ...], defs: tuple[str, ...]) -> None:
+        """``info subcommand ?arg?`` in statement context.
+
+        Emits the subcommand's value, then stores to ``defs[0]`` if given
+        or drops.
+        """
+        if not args:
+            self._emit_unsupported_trap("info (no subcommand)")
+            return
+        self._emit_info_value(args)
+        if defs:
+            def_idx = self._intern_local(defs[0])
+            self._emit_local_set(def_idx)
+        else:
+            self._emit(WasmOp.DROP)
+
+    def _emit_info_value(self, args: tuple[str, ...]) -> None:
+        """Leave the i32 TclObj result of ``info <args>`` on the stack.
+
+        ``info exists varName`` is inlined so that compile-time scope
+        information (alias bindings, ``::``-qualified globals) informs the
+        lookup; everything else falls through to the runtime
+        ``info_dispatch`` helper for subcommands it understands.
+        """
+        if not args:
+            self._emit_i32_const(0)
+            return
+        subcmd = args[0]
+
+        if subcmd == "exists" and len(args) >= 2:
+            # ``info exists var`` — resolve the variable reference with
+            # compile-time alias info so upvar'd / variable'd / ``::``-
+            # qualified names hit the global table rather than searching
+            # for an unrelated local.
+            var = args[1]
+            # Normalise ``$name`` / ``${name}`` just in case the lowerer
+            # hasn't stripped the sigil.
+            resolved = self._resolve_var_name(var) or var
+            # ``info exists arr(key)`` — array element lookup.  The array
+            # name itself may be alias-bound (upvar/variable) so resolve
+            # it through _emit_array_name_obj, then probe the element
+            # table via tcl_array_element_exists.
+            array_ref = _parse_array_ref(resolved)
+            if array_ref is not None:
+                elem_idx = self._shared_imports.get("tcl_array_element_exists")
+                if elem_idx is not None:
+                    arr, key = array_ref
+                    self._emit_array_name_obj(arr)
+                    self._emit_value(key)
+                    self._emit_call(elem_idx)
+                    return
+                # Runtime helper missing — conservative false.
+                self._emit_i64_const(0)
+                self._emit_box_int()
+                return
+            gexist_idx = self._shared_imports.get("tcl_global_exists")
+            binding = self._aliases.get(resolved)
+            if binding is not None and binding[0] == "global" and gexist_idx is not None:
+                _, target_idx = binding
+                self._emit_local_get(target_idx)
+                self._emit_call(gexist_idx)
+                return
+            if resolved.startswith("::") and gexist_idx is not None:
+                self._emit_obj_literal(resolved)
+                self._emit_call(gexist_idx)
+                return
+            # Plain proc-local: the compiled proc uses WASM locals
+            # that are zero-initialised, so "exists" is approximated
+            # as "value pointer is non-null" — matches writes that
+            # land through _emit_var_write_obj.
+            idx = self._local_index.get(resolved)
+            if idx is None:
+                # Never referenced — always non-existent.  Emit boxed 0.
+                self._emit_i64_const(0)
+                self._emit_box_int()
+                return
+            self._emit_local_get(idx)
+            self._emit_i32_const(0)
+            self._emit(WasmOp.I32_NE)
+            self._emit(WasmOp.I64_EXTEND_I32_S)
+            self._emit_box_int()
+            return
+
+        # Subcommands dispatched via the runtime's info_dispatch helper.
+        info_dispatch_idx = self._shared_imports.get("tcl_info_dispatch")
+        if info_dispatch_idx is not None and subcmd in ("body", "args", "exists"):
+            self._emit_obj_literal(subcmd)
+            if len(args) >= 2:
+                self._emit_value(args[1])
+            else:
+                self._emit_i32_const(0)
+            self._emit_call(info_dispatch_idx)
+            return
+
+        # Unknown subcommand — fall back to the interpreter.
+        self._emit_eval_fallback("info", args)
 
     def _emit_cmd_runtime(
         self,
@@ -3685,9 +4937,10 @@ class _WasmEmitter:
                 # Emit the call keeping its i32 result on the stack
                 self._emit_call_stmt_tail(last.command, last.args, last.defs)
             elif isinstance(last, IRIncr):
-                # Emit incr keeping the new value (i32 TclObj) on stack
-                idx = self._intern_local(last.name)
-                self._emit_local_get(idx)
+                # Emit incr keeping the new value (i32 TclObj) on stack.
+                # Alias-aware: reads/writes route through globals for
+                # upvar/variable-bound locals.
+                self._emit_var_read_obj(last.name)
                 self._emit_unbox_int()
                 amt = 1
                 if last.amount is not None:
@@ -3698,13 +4951,21 @@ class _WasmEmitter:
                         self._emit_unbox_int()
                         self._emit(WasmOp.I64_ADD)
                         self._emit_box_int()
-                        self._emit_local_tee(idx)
+                        if last.name in self._aliases:
+                            self._emit_var_write_obj_keep(last.name)
+                        else:
+                            idx = self._intern_local(last.name)
+                            self._emit_local_tee(idx)
                         self._emit(WasmOp.RETURN)
                         return
                 self._emit_i64_const(amt)
                 self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
-                self._emit_local_tee(idx)
+                if last.name in self._aliases:
+                    self._emit_var_write_obj_keep(last.name)
+                else:
+                    idx = self._intern_local(last.name)
+                    self._emit_local_tee(idx)
             self._emit(WasmOp.RETURN)
             return
 
@@ -3927,6 +5188,7 @@ def wasm_codegen_module(
             shared_strings=shared_strings,
             shared_string_index=shared_string_index,
             shared_string_offset=shared_string_offset,
+            proc_qname=qname,
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname

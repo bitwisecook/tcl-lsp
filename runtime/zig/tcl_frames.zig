@@ -80,6 +80,34 @@ pub export fn frame_get_depth() i32 {
     return @intCast(frame_depth);
 }
 
+/// Save the current frame depth and decrement it by *relative_up*
+/// (clamped to 0).  Returns the saved depth so the caller can
+/// restore it via ``frame_depth_restore``.  Used by ``uplevel`` to
+/// temporarily act as if we're running *relative_up* frames above
+/// the current one.
+pub export fn frame_depth_stash(relative_up: i32) i32 {
+    const saved: i32 = @intCast(frame_depth);
+    var up = relative_up;
+    if (up < 0) up = 0;
+    const u: u32 = @intCast(up);
+    if (u >= frame_depth) {
+        frame_depth = 0;
+    } else {
+        frame_depth -= u;
+    }
+    return saved;
+}
+
+/// Restore frame_depth to the value returned by an earlier
+/// ``frame_depth_stash``.
+pub export fn frame_depth_restore(saved: i32) void {
+    if (saved < 0) {
+        frame_depth = 0;
+    } else {
+        frame_depth = @intCast(saved);
+    }
+}
+
 // -- Local variable operations on current frame --
 
 fn current_frame() ?u32 {
