@@ -147,8 +147,9 @@ class TestTcltestTopRuns:
             # ``tcl_stderr`` so we can surface the ``tcl trap:
             # site=<id> …`` prefix and resolve it via the diag map.
             pytest.fail(_resolve_trap(trap, getattr(trap, "tcl_stderr", ""), diag))
+        # capture_stderr=True → (val, stdout, stderr) 3-tuple.
         val = result[0]
-        stderr_text = result[2] if len(result) == 3 else ""
+        stderr_text = result[2] if len(result) >= 3 else ""
         assert val == 0, f"::top returned {val}; stderr:\n{stderr_text}"
 
 

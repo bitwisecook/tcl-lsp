@@ -92,14 +92,16 @@ def _run_wasm(
     func_name: str = "::top",
     args: tuple[int, ...] = (),
     capture_stderr: bool = False,
-) -> tuple[int, str] | tuple[int, str, str]:
+) -> tuple:
     """Link and run a compiled Tcl WASM module.
 
     Returns ``(return_value, stdout_text)`` by default.  When
     ``capture_stderr`` is true, returns ``(return_value, stdout_text,
     stderr_text)`` — used by the external tcllib runner to surface
     ``tcl trap: site=<id> …`` messages alongside the wasmtime
-    backtrace.
+    backtrace.  The loose ``tuple`` return type keeps existing 2-tuple
+    callers happy under static analysis — they unpack the first two
+    slots; the stderr slot is only present when asked for explicitly.
     """
     engine = _get_engine()
     store = wasmtime.Store(engine)
@@ -212,9 +214,7 @@ def _define_call_compiled_proc(
         if inst is None or mem is None:
             return 0
         try:
-            raw = bytes(
-                mem.data_ptr(store)[name_ptr : name_ptr + name_len]  # type: ignore[index]
-            )
+            raw = bytes(mem.data_ptr(store)[name_ptr : name_ptr + name_len])
         except Exception:
             return 0
         pname = raw.decode("utf-8", errors="replace")
@@ -225,9 +225,7 @@ def _define_call_compiled_proc(
         for i in range(argc):
             off = argv_ptr + i * 4
             try:
-                b = bytes(
-                    mem.data_ptr(store)[off : off + 4]  # type: ignore[index]
-                )
+                b = bytes(mem.data_ptr(store)[off : off + 4])
             except Exception:
                 return 0
             args.append(int.from_bytes(b, "little", signed=True))
