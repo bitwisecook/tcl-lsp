@@ -1,32 +1,28 @@
 //! Constant / copy propagation optimiser pass (C30f, partial).
 //!
 //! Ported from `core/compiler/optimiser/_propagation.py`. The
-//! Python module exposes seven distinct entry points:
+//! Python module exposes seven distinct entry points; this
+//! Rust port currently lands three:
 //!
-//! - `optimise_expression_args` — propagate constants into
-//!   `expr {…}` arguments of non-`expr` commands.
+//! - **`optimise_constant_var_refs`** (`O100`) — replace a
+//!   single-token `$var` call argument with its SCCP-proved
+//!   literal, when the value is safe to inline as a bare word.
+//! - **`optimise_static_proc_calls`** (`O103`) — fold calls to
+//!   pure procs whose return is a proven constant
+//!   (`can_fold_static_calls` from C28x-return).
+//! - **`optimise_return_terminator`** (`O104`) — rewrite
+//!   `return $v` as `return K` when `v` is SCCP-constant.
+//!
+//! Still deferred (each needs token-level source machinery not
+//! yet exposed by the pipeline):
+//!
+//! - `optimise_expression_args` — constants into `expr {…}`
+//!   command arguments outside branch contexts.
 //! - `optimise_expr_substitutions` — transform inside `expr`
-//!   bodies beyond the branch/conditional contexts.
-//! - `optimise_static_proc_calls` — fold calls to pure procs
-//!   with proven-constant returns.
-//! - `optimise_constant_var_refs` — replace `$var` with its
-//!   SCCP-proved literal in command arguments (**landed**).
+//!   bodies of non-branch commands.
 //! - `optimise_string_interpolation_var_refs` — inline
-//!   constants into `"…"` string interpolations.
-//! - `optimise_return_terminator` — simplify `return $v` when
-//!   `v` is constant.
-//! - `optimise_load_forwarding` — forward the value of the most
-//!   recent definition across contiguous reads.
-//!
-//! This strip lands the simplest of those — **`optimise_constant_var_refs`**
-//! — producing **`O100`** ("Propagate constant into command
-//! argument") for every `$var` reference at a call site that
-//! SCCP proved to be a literal. The remaining six entry points
-//! need either the deeper `expr_simplify` rewrites (deferred to
-//! `C30e4`–`C30e7`) or the `C28` return-value inference
-//! (deferred to the `C28` follow-up) — each will plug into
-//! `run(ctx, cu)` without an API change when their prerequisites
-//! land.
+//!   constants into `"…"` interpolations.
+//! - `optimise_load_forwarding` — most-recent-def forwarding.
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -45,71 +41,89 @@ use super::{Optimisation, PassContext};
 /// …) are skipped because substituting them as a bare word
 /// would change the command's interpretation.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    run_function(ctx, &cu.top_level, &cu.ir_module.top_level);
+    run_function(ctx, cu, &cu.top_level, &cu.ir_module.top_level);
     for (qname, fu) in &cu.procedures {
         let Some(proc) = cu.ir_module.procedures.get(qname) else {
             continue;
         };
-        run_function(ctx, fu, &proc.body);
+        run_function(ctx, cu, fu, &proc.body);
     }
 }
 
-fn run_function(ctx: &mut PassContext<'_>, fu: &FunctionUnit, script: &Script) {
+fn run_function(
+    ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
+    fu: &FunctionUnit,
+    script: &Script,
+) {
     // Project the per-function SCCP lattice into a name → literal
     // map that survives only when every tracked version of the
     // variable collapses to the same single constant value.
     let constants = sccp_constants_for(fu);
-    if constants.is_empty() {
-        return;
-    }
-    walk_script(ctx, script, &constants);
+    walk_script(ctx, cu, script, &constants);
 }
 
 fn walk_script(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     script: &Script,
     constants: &std::collections::HashMap<String, String>,
 ) {
     for stmt in &script.statements {
-        walk_statement(ctx, stmt, constants);
+        walk_statement(ctx, cu, stmt, constants);
     }
 }
 
 fn walk_statement(
     ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
     stmt: &Statement,
     constants: &std::collections::HashMap<String, String>,
 ) {
     match stmt {
-        Statement::Call { tokens: Some(t), .. } => visit_call_tokens(ctx, t, constants),
+        Statement::Call {
+            span,
+            command,
+            args,
+            tokens,
+            ..
+        } => {
+            if let Some(t) = tokens {
+                visit_call_tokens(ctx, t, constants);
+            }
+            try_fold_static_proc_call(ctx, cu, *span, command, args);
+        }
+        Statement::Return { span, value, expr, braced, .. } => {
+            try_fold_return_terminator(ctx, *span, value.as_deref(), expr.as_ref(), *braced, constants);
+        }
         Statement::If { clauses, else_body, .. } => {
             for c in clauses {
-                walk_script(ctx, &c.body, constants);
+                walk_script(ctx, cu, &c.body, constants);
             }
             if let Some(b) = else_body {
-                walk_script(ctx, b, constants);
+                walk_script(ctx, cu, b, constants);
             }
         }
         Statement::For { init, next, body, .. } => {
-            walk_script(ctx, init, constants);
-            walk_script(ctx, next, constants);
-            walk_script(ctx, body, constants);
+            walk_script(ctx, cu, init, constants);
+            walk_script(ctx, cu, next, constants);
+            walk_script(ctx, cu, body, constants);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => walk_script(ctx, body, constants),
+        | Statement::Foreach { body, .. } => walk_script(ctx, cu, body, constants),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, body, constants);
+            walk_script(ctx, cu, body, constants);
             for h in handlers {
-                walk_script(ctx, &h.body, constants);
+                walk_script(ctx, cu, &h.body, constants);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, fb, constants);
+                walk_script(ctx, cu, fb, constants);
             }
         }
         Statement::Switch {
@@ -117,15 +131,115 @@ fn walk_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, b, constants);
+                    walk_script(ctx, cu, b, constants);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(ctx, b, constants);
+                walk_script(ctx, cu, b, constants);
             }
         }
         _ => {}
     }
+}
+
+/// O103: if `command` resolves to a proc with `can_fold_static_calls`
+/// and a `constant_return`, emit a rewrite replacing the call
+/// with the literal return value.
+fn try_fold_static_proc_call(
+    ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
+    span: tcl_lexer::Span,
+    command: &str,
+    _args: &[String],
+) {
+    use crate::interprocedural::ConstantReturn;
+
+    let Some(ia) = cu.interproc.as_ref() else {
+        return;
+    };
+    // Naive resolution: treat `command` as a qualified name when
+    // it starts with `::`, else try `::command`. The Python side
+    // does full namespace walking via `_resolve_summary_proc_name`;
+    // this scaled-down version catches the common case of calls
+    // written with their absolute names or at namespace root.
+    let qname = if command.starts_with("::") {
+        command.to_owned()
+    } else {
+        format!("::{command}")
+    };
+    let Some(summary) = ia.procedures.get(&qname) else {
+        return;
+    };
+    if !summary.can_fold_static_calls {
+        return;
+    }
+    let Some(cr) = &summary.constant_return else {
+        return;
+    };
+    let replacement = match cr {
+        ConstantReturn::Int(i) => i.to_string(),
+        ConstantReturn::Float(f) => f.to_string(),
+        ConstantReturn::Bool(true) => "1".to_owned(),
+        ConstantReturn::Bool(false) => "0".to_owned(),
+        ConstantReturn::Str(s) => {
+            if is_value_safe_bare_word(s) {
+                s.clone()
+            } else {
+                return;
+            }
+        }
+    };
+    ctx.report(Optimisation::new(
+        "O103",
+        format!("Fold pure-proc call to '{}' to its constant return", summary.qualified_name),
+        span,
+        replacement,
+    ));
+}
+
+/// O104: rewrite `return $v` to `return K` when the SCCP
+/// environment proves `v` is a constant. Works on the `value`
+/// text since `Statement::Return::expr` is populated only when
+/// the original source was `return [expr …]`.
+fn try_fold_return_terminator(
+    ctx: &mut PassContext<'_>,
+    span: tcl_lexer::Span,
+    value: Option<&str>,
+    expr: Option<&crate::expr_ast::ExprNode>,
+    _braced: bool,
+    constants: &std::collections::HashMap<String, String>,
+) {
+    use crate::naming::normalise_var_name;
+
+    // Only fold `return $v` — numeric/bare literals and complex
+    // values are left to richer passes.
+    if expr.is_some() {
+        return;
+    }
+    let Some(raw) = value else {
+        return;
+    };
+    let v = raw.trim();
+    let name = if let Some(n) = v.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+        n.to_owned()
+    } else if let Some(n) = v.strip_prefix('$') {
+        n.to_owned()
+    } else {
+        return;
+    };
+    let normalised = normalise_var_name(&format!("${name}")).to_owned();
+    let Some(resolved) = constants.get(&name).or_else(|| constants.get(&normalised)) else {
+        return;
+    };
+    if !is_value_safe_bare_word(resolved) {
+        return;
+    }
+    ctx.report(Optimisation::new(
+        "O104",
+        "Fold return of constant variable",
+        span,
+        format!("return {resolved}"),
+    ));
 }
 
 fn visit_call_tokens(
@@ -293,6 +407,37 @@ mod tests {
         assert!(
             opts.iter().any(|o| o.code == "O100" && o.replacement == "7"),
             "expected O100 for braced var ref, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn return_terminator_folds_constant_variable() {
+        let opts = run_pass("proc ::f {} { set x 42; return $x }");
+        assert!(
+            opts.iter()
+                .any(|o| o.code == "O104" && o.replacement.contains("42")),
+            "expected O104 folding return $x to return 42, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn static_proc_call_folds_to_constant_return() {
+        // ::answer returns 42 unconditionally and is pure — a
+        // call to ::answer can be folded.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc ::answer {} { return 42 }\n::answer",
+            &registry,
+            false,
+        )
+        .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().any(|o| o.code == "O103"),
+            "expected O103 static-proc fold, got {:?}",
+            ctx.optimisations,
         );
     }
 
