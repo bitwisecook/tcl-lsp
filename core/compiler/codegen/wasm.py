@@ -951,6 +951,13 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         class_parts = rest.split(None, 1)
                         if class_parts and class_parts[0] in _STRING_IS_IMPORT:
                             needed.add(_STRING_IS_IMPORT[class_parts[0]])
+                elif cmd == "info" and len(parts) > 1:
+                    subcmd = parts[1]
+                    if subcmd == "exists":
+                        needed.add("tcl_global_exists")
+                        needed.add("tcl_obj_new_int")
+                    if subcmd in ("body", "args", "exists"):
+                        needed.add("tcl_info_dispatch")
                 elif cmd == "expr":
                     pass  # expr doesn't need imports itself
                 # Recurse into the command text for nested substitutions
@@ -1019,6 +1026,16 @@ def _scan_needed_imports(
                 for arg in args:
                     _scan_expr(arg)
 
+    def _scan_qualified_name(name: str | None) -> None:
+        """``::``-prefixed variable names route reads/writes through the
+        global table.  Pull in the matching runtime hooks eagerly so the
+        code emission paths can rely on them being registered.
+        """
+        if not name or not name.startswith("::"):
+            return
+        needed.add("tcl_global_get")
+        needed.add("tcl_global_set")
+
     def _scan_stmt(stmt: IRStatement) -> None:
         match stmt:
             case IRCall(command=command, args=args):
@@ -1046,6 +1063,16 @@ def _scan_needed_imports(
                     # the enclosing namespace. Same runtime path as upvar #0.
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")
+                elif command == "info" and args:
+                    # info exists — resolves via tcl_global_exists for
+                    # aliased / ``::`` names; plain locals are boxed to
+                    # TclObj via tcl_obj_new_int.  Other subcommands go
+                    # through tcl_info_dispatch.
+                    if args[0] == "exists":
+                        needed.add("tcl_global_exists")
+                        needed.add("tcl_obj_new_int")
+                    if args[0] in ("body", "args", "exists"):
+                        needed.add("tcl_info_dispatch")
                 elif command == "catch":
                     needed.add("tcl_catch_enter")
                     needed.add("tcl_catch_leave")
@@ -1059,11 +1086,19 @@ def _scan_needed_imports(
                 is_body = command in _SCOPE_NOP_COMMANDS or command == "catch"
                 for arg in args:
                     _scan_value(arg, is_body_text=is_body)
-            case IRAssignValue(value=value):
+            case IRAssignValue(name=name, value=value):
+                _scan_qualified_name(name)
                 _scan_value(value)
+            case IRAssignConst(name=name):
+                _scan_qualified_name(name)
+            case IRIncr(name=name, amount=amount):
+                _scan_qualified_name(name)
+                if isinstance(amount, str):
+                    _scan_value(amount)
             case IRExprEval(expr=expr):
                 _scan_expr(expr)
-            case IRAssignExpr(expr=expr):
+            case IRAssignExpr(name=name, expr=expr):
+                _scan_qualified_name(name)
                 _scan_expr(expr)
             case IRIf(clauses=clauses, else_body=else_body):
                 for clause in clauses:
@@ -1552,6 +1587,11 @@ class _WasmEmitter:
                     self._emit_i32_const(0)
                 return
 
+        # info sub-command in value context — leaves i32 TclObj on stack.
+        if cmd_name == "info" and cmd_args:
+            self._emit_info_value(tuple(cmd_args))
+            return
+
         # Runtime command in value context (llength, lindex, etc.)
         if cmd_name in _CMD_RUNTIME:
             import_key, _ = _CMD_RUNTIME[cmd_name]
@@ -1802,6 +1842,12 @@ class _WasmEmitter:
                 else:
                     self._emit_i64_const(0)
                 return
+
+        # info sub-command — returns i32 TclObj, unbox to i64 for exprs.
+        if cmd_name == "info" and cmd_args:
+            self._emit_info_value(tuple(cmd_args))
+            self._emit_unbox_int()
+            return
 
         # Runtime command — returns i32 TclObj, unbox to i64
         if cmd_name in _CMD_RUNTIME:
@@ -2454,6 +2500,11 @@ class _WasmEmitter:
             self._emit_cmd_dict(args, defs)
             return
 
+        # info sub-commands
+        if command == "info" and args:
+            self._emit_cmd_info(args, defs)
+            return
+
         # Commands backed by runtime imports
         if command in _CMD_RUNTIME:
             self._emit_cmd_runtime(command, args, defs)
@@ -3092,6 +3143,86 @@ class _WasmEmitter:
                 self._emit(WasmOp.DROP)
         else:
             self._emit_unsupported_trap(f"dict {subcmd}")
+
+    def _emit_cmd_info(self, args: tuple[str, ...], defs: tuple[str, ...]) -> None:
+        """``info subcommand ?arg?`` in statement context.
+
+        Emits the subcommand's value, then stores to ``defs[0]`` if given
+        or drops.
+        """
+        if not args:
+            self._emit_unsupported_trap("info (no subcommand)")
+            return
+        self._emit_info_value(args)
+        if defs:
+            def_idx = self._intern_local(defs[0])
+            self._emit_local_set(def_idx)
+        else:
+            self._emit(WasmOp.DROP)
+
+    def _emit_info_value(self, args: tuple[str, ...]) -> None:
+        """Leave the i32 TclObj result of ``info <args>`` on the stack.
+
+        ``info exists varName`` is inlined so that compile-time scope
+        information (alias bindings, ``::``-qualified globals) informs the
+        lookup; everything else falls through to the runtime
+        ``info_dispatch`` helper for subcommands it understands.
+        """
+        if not args:
+            self._emit_i32_const(0)
+            return
+        subcmd = args[0]
+
+        if subcmd == "exists" and len(args) >= 2:
+            # ``info exists var`` — resolve the variable reference with
+            # compile-time alias info so upvar'd / variable'd / ``::``-
+            # qualified names hit the global table rather than searching
+            # for an unrelated local.
+            var = args[1]
+            # Normalise ``$name`` / ``${name}`` just in case the lowerer
+            # hasn't stripped the sigil.
+            resolved = self._resolve_var_name(var) or var
+            gexist_idx = self._shared_imports.get("tcl_global_exists")
+            binding = self._aliases.get(resolved)
+            if binding is not None and binding[0] == "global" and gexist_idx is not None:
+                _, target_idx = binding
+                self._emit_local_get(target_idx)
+                self._emit_call(gexist_idx)
+                return
+            if resolved.startswith("::") and gexist_idx is not None:
+                self._emit_obj_literal(resolved)
+                self._emit_call(gexist_idx)
+                return
+            # Plain proc-local: the compiled proc uses WASM locals
+            # that are zero-initialised, so "exists" is approximated
+            # as "value pointer is non-null" — matches writes that
+            # land through _emit_var_write_obj.
+            idx = self._local_index.get(resolved)
+            if idx is None:
+                # Never referenced — always non-existent.  Emit boxed 0.
+                self._emit_i64_const(0)
+                self._emit_box_int()
+                return
+            self._emit_local_get(idx)
+            self._emit_i32_const(0)
+            self._emit(WasmOp.I32_NE)
+            self._emit(WasmOp.I64_EXTEND_I32_S)
+            self._emit_box_int()
+            return
+
+        # Subcommands dispatched via the runtime's info_dispatch helper.
+        info_dispatch_idx = self._shared_imports.get("tcl_info_dispatch")
+        if info_dispatch_idx is not None and subcmd in ("body", "args", "exists"):
+            self._emit_obj_literal(subcmd)
+            if len(args) >= 2:
+                self._emit_value(args[1])
+            else:
+                self._emit_i32_const(0)
+            self._emit_call(info_dispatch_idx)
+            return
+
+        # Unknown subcommand — fall back to the interpreter.
+        self._emit_eval_fallback("info", args)
 
     def _emit_cmd_runtime(
         self,

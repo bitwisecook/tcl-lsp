@@ -635,6 +635,85 @@ return [main]
         assert val == 100
 
 
+class TestInfoExists:
+    """``info exists`` wired into WASM codegen.
+
+    The test harness wraps each source in ``proc __main__``, so the
+    ``main`` proc here is a nested proc and variables declared inside
+    ``main`` are its locals.  ``::``-qualified names and upvar aliases
+    route through the global table.
+    """
+
+    def test_info_exists_plain_local_after_set(self):
+        source = """\
+proc checker {} {
+    set x 7
+    if {[info exists x]} { return 1 }
+    return 0
+}
+return [checker]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_info_exists_global_qualified(self):
+        source = """\
+proc checker {} {
+    if {[info exists ::myglob]} { return 1 }
+    return 0
+}
+proc setter {} {
+    set ::myglob 99
+}
+proc main {} {
+    setter
+    return [checker]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_info_exists_missing_global(self):
+        source = """\
+proc checker {} {
+    if {[info exists ::nope]} { return 1 }
+    return 0
+}
+return [checker]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 0
+
+    def test_info_exists_via_upvar_alias(self):
+        """info exists on an upvar'd local checks the aliased global."""
+        source = """\
+proc probe {tag} {
+    upvar #0 store::slot-$tag v
+    if {[info exists v]} { return 1 }
+    return 0
+}
+proc writer {tag} {
+    upvar #0 store::slot-$tag v
+    set v 1
+}
+proc main {} {
+    set a [probe 1]
+    writer 1
+    set b [probe 1]
+    return [expr {$a * 10 + $b}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        # Before write: 0; after write: 1 → 0*10 + 1 = 1
+        assert val == 1
+
+
 class TestUpvarCompilation:
     """Upvar/variable compilation tests — validate without execution."""
 
