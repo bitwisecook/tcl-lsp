@@ -13,6 +13,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::ir::Statement;
 use crate::ir::Procedure as IrProcedure;
 
 use super::super::layout::{optimise_jumps, resolve_layout};
@@ -377,6 +378,18 @@ pub fn generate(
                     }
                 }
             }
+            // C18 case 5: synthetic `<cond>` placeholders get a
+            // startCommand whose end label is deferred until the
+            // ExprCommand in the branch condition has been emitted.
+            // The label is placed by `emit_expr` in expressions.rs.
+            if let Statement::Call { command, .. } = stmt {
+                if command == "<cond>" {
+                    let cond_label = ctx.fresh_label("cmd_end");
+                    ctx.pending_cond_end_label = Some(cond_label.clone());
+                    ctx.emit_stmt_with_start_cmd(stmt, None, Some(&cond_label));
+                    continue;
+                }
+            }
             ctx.emit_stmt_with_start_cmd(stmt, None, None);
         }
 
@@ -448,6 +461,43 @@ pub fn generate(
             continue;
         }
         if let Some(term) = &blk.terminator {
+            // C18 case 4: constant-folded `if {1}` startCommand in
+            // non-proc scripts. tclsh preserves a command boundary for
+            // the `if` even when the condition is dead — the
+            // startCommand's end label is placed before the join pop.
+            if !ctx.is_proc {
+                if let Terminator::Branch {
+                    condition,
+                    true_target,
+                    ..
+                } = term
+                {
+                    if super::ordering::fold_const_branch(condition) == Some(true) {
+                        if let Some(tt_blk) = cfg.blocks.get(true_target) {
+                            if let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
+                            {
+                                if join.starts_with("if_end_") {
+                                    let end_label = ctx.fresh_label("cmd_end");
+                                    ctx.emit_comment(
+                                        Op::START_CMD,
+                                        vec![
+                                            Operand::Label(end_label.clone()),
+                                            Operand::Imm(1),
+                                        ],
+                                        "",
+                                    );
+                                    ctx.cmd_index += 1;
+                                    ctx.seen_generic_invoke = true;
+                                    state
+                                        .pending_join_labels
+                                        .insert(join.clone(), end_label);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Try switch-dispatch jump-table emission first.
             if ctx.try_emit_jump_table(cfg, blk, next_block, &mut state.skip_blocks) {
                 // Switch dispatch counts as a command so the first arm

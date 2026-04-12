@@ -191,6 +191,12 @@ impl CodegenCtx {
                 // this with inline compilation in a later chunk.
                 self.push_lit(text);
                 self.emit(Op::EXPR_STK, vec![]);
+                // C18 case 5: place the deferred `<cond>` startCommand
+                // end label after the command-substitution instructions
+                // so the startCommand covers the ExprCommand body.
+                if let Some(label) = self.pending_cond_end_label.take() {
+                    self.place_label(&label);
+                }
                 false
             }
         }

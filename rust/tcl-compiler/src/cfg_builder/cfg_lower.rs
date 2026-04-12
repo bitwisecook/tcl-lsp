@@ -8,6 +8,7 @@
 use crate::cfg::{LoopNode, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::{Statement, SwitchMode};
+use crate::ir_helpers::expr_has_command;
 
 use super::CfgBuilder;
 
@@ -31,6 +32,23 @@ impl CfgBuilder {
         let mut dispatch = block_name.to_owned();
 
         for clause in clauses {
+            // C18 case 5: when the branch condition contains a
+            // command substitution, append a synthetic `<cond>` IRCall
+            // statement so the emitter can wrap the ExprCommand with
+            // its own startCommand boundary.
+            if expr_has_command(&clause.condition) {
+                self.block_mut(&dispatch).statements.push(Statement::Call {
+                    span: *span,
+                    command: "<cond>".into(),
+                    args: Vec::new(),
+                    defs: Vec::new(),
+                    reads: Vec::new(),
+                    reads_own_defs: false,
+                    safe_on_uninit: false,
+                    tokens: None,
+                });
+            }
+
             let then_block = self.new_block("if_then");
             let next_dispatch = self.new_block("if_next");
 
