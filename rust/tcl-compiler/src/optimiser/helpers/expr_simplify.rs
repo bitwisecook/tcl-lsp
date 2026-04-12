@@ -387,6 +387,7 @@ pub fn try_eq_ne_string_compare_simplify_expr(expr: &str) -> (String, bool) {
 /// One pass of strength reduction. Returns `None` when no
 /// rewrite applies. Conservative — only obviously-safe rewrites
 /// (no overflow / divide-by-zero concerns).
+#[allow(clippy::too_many_lines, clippy::match_same_arms)]
 fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
     let ExprNode::Binary { op, left, right } = node else {
         return None;
@@ -436,8 +437,14 @@ fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
             }
             None
         }
-        // x ** 2 → x * x (integer literal 2 only).
+        // x ** 0 → 1, x ** 1 → x, x ** 2 → x * x (integer literal only).
         BinOp::Pow => {
+            if lit_right == Some(0) {
+                return Some(make_int_literal(1));
+            }
+            if lit_right == Some(1) {
+                return Some((**left).clone());
+            }
             if lit_right == Some(2) {
                 return Some(ExprNode::Binary {
                     op: BinOp::Mul,
@@ -447,15 +454,71 @@ fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
             }
             None
         }
-        // x % pow2 → x & (pow2 - 1) for pow2 > 1.
+        // x % 1 → 0 (absorbing); x % pow2 → x & (pow2 - 1).
         BinOp::Mod => {
             let n = lit_right?;
+            if n == 1 {
+                return Some(make_int_literal(0));
+            }
             if n > 1 && (n & (n - 1)) == 0 {
                 return Some(ExprNode::Binary {
                     op: BinOp::BitAnd,
                     left: left.clone(),
                     right: Box::new(make_int_literal(n - 1)),
                 });
+            }
+            None
+        }
+        // Shift identities: x << 0 → x, x >> 0 → x.
+        BinOp::LShift | BinOp::RShift => {
+            if lit_right == Some(0) {
+                return Some((**left).clone());
+            }
+            None
+        }
+        // Bitwise identities / absorbing:
+        //   x & 0 → 0, 0 & x → 0 (absorbing);
+        //   x | 0 → x, 0 | x → x (identity);
+        //   x ^ 0 → x, 0 ^ x → x (identity).
+        BinOp::BitAnd => {
+            if lit_right == Some(0) || lit_left == Some(0) {
+                return Some(make_int_literal(0));
+            }
+            None
+        }
+        BinOp::BitOr | BinOp::BitXor => {
+            if lit_right == Some(0) {
+                return Some((**left).clone());
+            }
+            if lit_left == Some(0) {
+                return Some((**right).clone());
+            }
+            None
+        }
+        // Logical identities / absorbing:
+        //   x && 0 → 0 (absorbing); x && 1 → x (identity);
+        //   x || 1 → 1 (absorbing); x || 0 → x (identity).
+        BinOp::And => {
+            if lit_right == Some(0) || lit_left == Some(0) {
+                return Some(make_int_literal(0));
+            }
+            if lit_right == Some(1) {
+                return Some((**left).clone());
+            }
+            if lit_left == Some(1) {
+                return Some((**right).clone());
+            }
+            None
+        }
+        BinOp::Or => {
+            if lit_right == Some(1) || lit_left == Some(1) {
+                return Some(make_int_literal(1));
+            }
+            if lit_right == Some(0) {
+                return Some((**left).clone());
+            }
+            if lit_left == Some(0) {
+                return Some((**right).clone());
             }
             None
         }

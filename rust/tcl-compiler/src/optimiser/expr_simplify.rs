@@ -162,20 +162,17 @@ fn try_rewrite_assign_expr(
         }
     }
 
-    // 2. + 3. Partial simplification via strength reduction /
-    // instcombine. The helpers operate on text form, so render
-    // first, then re-wrap in `expr { … }`.
+    // 2. + 3. Partial simplification via instcombine / strength
+    // reduction. The helpers operate on text form, so render
+    // first, then re-wrap in ``expr { … }``.
+    //
+    // Match the Python priority: InstCombine (identities and
+    // reassociation) fires before strength-reduction, because the
+    // identities collapse to simpler forms (`$x + 0` → `$x`)
+    // while strength-reduction produces same-complexity rewrites
+    // (`$x ** 2` → `$x * $x`). Running instcombine first keeps
+    // the categorisation in line with the Python tests.
     let rendered_expr = crate::expr_ast::render_expr(expr);
-    let (reduced, sred_changed) = try_strength_reduce_expr(&rendered_expr);
-    if sred_changed {
-        ctx.report(Optimisation::new(
-            "O113",
-            "Strength-reduce expression",
-            full_rewrite_span(ctx.source, span),
-            format!("set {name} [expr {{{reduced}}}]"),
-        ));
-        return;
-    }
     let (simplified, inst_changed) = instcombine_expr(&rendered_expr, false);
     if inst_changed {
         ctx.report(Optimisation::new(
@@ -183,6 +180,16 @@ fn try_rewrite_assign_expr(
             "Simplify expression (instcombine)",
             full_rewrite_span(ctx.source, span),
             format!("set {name} [expr {{{simplified}}}]"),
+        ));
+        return;
+    }
+    let (reduced, sred_changed) = try_strength_reduce_expr(&rendered_expr);
+    if sred_changed {
+        ctx.report(Optimisation::new(
+            "O113",
+            "Strength-reduce expression",
+            full_rewrite_span(ctx.source, span),
+            format!("set {name} [expr {{{reduced}}}]"),
         ));
     }
 }
