@@ -27,7 +27,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use crate::ir::Statement;
-use crate::ssa::Version;
+use crate::ssa::{SsaFunction, Version};
 
 // ---------------------------------------------------------------------------
 // MemoryLocationKind / MemoryLocation (C24b1)
@@ -467,6 +467,258 @@ pub fn is_clobber(stmt: &Statement) -> bool {
     }
 }
 
+// ---------------------------------------------------------------------------
+// compute_aliases + build_memory_ssa (C24b3)
+// ---------------------------------------------------------------------------
+
+/// Union-find over [`MemoryLocation`] values with per-root reason
+/// aggregation. Used by [`compute_aliases`] to merge aliases
+/// discovered by multiple detection paths.
+#[derive(Default)]
+struct AliasUnionFind {
+    parent: HashMap<MemoryLocation, MemoryLocation>,
+    reasons: HashMap<MemoryLocation, BTreeSet<String>>,
+}
+
+impl AliasUnionFind {
+    fn find(&mut self, loc: &MemoryLocation) -> MemoryLocation {
+        if !self.parent.contains_key(loc) {
+            self.parent.insert(loc.clone(), loc.clone());
+            self.reasons.insert(loc.clone(), BTreeSet::new());
+            return loc.clone();
+        }
+        // Path compression via iterative walk.
+        let mut node = loc.clone();
+        loop {
+            let parent = self.parent.get(&node).expect("node registered").clone();
+            if parent == node {
+                break;
+            }
+            node = parent;
+        }
+        // Compress.
+        let root = node.clone();
+        let mut curr = loc.clone();
+        while curr != root {
+            let next = self.parent.get(&curr).expect("node registered").clone();
+            self.parent.insert(curr, root.clone());
+            curr = next;
+        }
+        root
+    }
+
+    fn union(&mut self, a: &MemoryLocation, b: &MemoryLocation, reason: &str) {
+        let ra = self.find(a);
+        let rb = self.find(b);
+        if ra == rb {
+            self.reasons
+                .entry(ra)
+                .or_default()
+                .insert(reason.to_owned());
+            return;
+        }
+        // Merge rb into ra.
+        let rb_reasons = self.reasons.remove(&rb).unwrap_or_default();
+        self.parent.insert(rb, ra.clone());
+        let entry = self.reasons.entry(ra).or_default();
+        for r in rb_reasons {
+            entry.insert(r);
+        }
+        entry.insert(reason.to_owned());
+    }
+}
+
+/// Scan the SSA function for aliasing commands and build alias
+/// sets.
+///
+/// Uses union-find to merge transitive/overlapping aliases into
+/// connected components — for example, `upvar 1 x a; upvar 1 x b`
+/// correctly merges `a` and `b` into the same alias set because
+/// they share the caller-side variable `x`.
+///
+/// Detects:
+/// - `upvar` / `namespace upvar` → [`MemoryLocationKind::Upvar`]
+///   locations linking caller and local names.
+/// - `global` → [`MemoryLocationKind::Global`] / [`MemoryLocationKind::Local`]
+///   pair per name.
+/// - `variable` → [`MemoryLocationKind::NamespaceVar`] /
+///   [`MemoryLocationKind::Local`] pair per name.
+#[must_use]
+pub fn compute_aliases(ssa: &SsaFunction) -> Vec<AliasSet> {
+    let mut uf = AliasUnionFind::default();
+
+    // Walk blocks in deterministic name order so alias sets are
+    // reproducible across runs.
+    let mut block_names: Vec<&String> = ssa.blocks.keys().collect();
+    block_names.sort();
+    for bn in &block_names {
+        let block = &ssa.blocks[*bn];
+        for stmt_ssa in &block.statements {
+            let stmt = &stmt_ssa.statement;
+
+            for (caller, local) in detect_upvar(stmt) {
+                let upvar_loc =
+                    MemoryLocation::with_qualifier(MemoryLocationKind::Upvar, &local, &caller);
+                let caller_loc =
+                    MemoryLocation::with_qualifier(MemoryLocationKind::Upvar, &caller, &local);
+                uf.union(&upvar_loc, &caller_loc, "upvar");
+            }
+            for gname in detect_global(stmt) {
+                let global_loc = MemoryLocation::new(MemoryLocationKind::Global, &gname);
+                let local_loc = MemoryLocation::new(MemoryLocationKind::Local, &gname);
+                uf.union(&global_loc, &local_loc, "global");
+            }
+            for vname in detect_namespace_variable(stmt) {
+                let ns_loc = MemoryLocation::new(MemoryLocationKind::NamespaceVar, &vname);
+                let local_loc = MemoryLocation::new(MemoryLocationKind::Local, &vname);
+                uf.union(&ns_loc, &local_loc, "variable");
+            }
+        }
+    }
+
+    // Build connected components.
+    let mut components: HashMap<MemoryLocation, BTreeSet<MemoryLocation>> = HashMap::new();
+    let all_locs: Vec<MemoryLocation> = uf.parent.keys().cloned().collect();
+    for loc in all_locs {
+        let root = uf.find(&loc);
+        components.entry(root).or_default().insert(loc);
+    }
+
+    let mut alias_sets: Vec<AliasSet> = Vec::new();
+    // Sort roots by their display form for deterministic output.
+    let mut roots: Vec<MemoryLocation> = components.keys().cloned().collect();
+    roots.sort_by_key(MemoryLocation::display);
+    for root in roots {
+        let reasons = uf.reasons.get(&root).cloned().unwrap_or_default();
+        let reason = if reasons.is_empty() {
+            "alias".to_string()
+        } else {
+            reasons.into_iter().collect::<Vec<_>>().join(",")
+        };
+        let locs = components.remove(&root).unwrap_or_default();
+        alias_sets.push(AliasSet::new(locs, reason));
+    }
+    alias_sets
+}
+
+/// Build memory-SSA annotations for an SSA function.
+///
+/// Produces versioned memory operations (defs, uses, phis,
+/// clobbers) and alias sets. Memory versions increment at each
+/// store to an aliased location and at clobber points (barriers /
+/// eval / uplevel).
+///
+/// Walks blocks in dominator-tree order (reverse iteration for
+/// stack emulation) for consistent versioning, mirroring the
+/// Python port.
+#[must_use]
+pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySSAFunction {
+    let alias_sets = compute_aliases(ssa);
+    let aliased_names: BTreeSet<String> = alias_sets.iter().flat_map(AliasSet::names).collect();
+
+    let mut memory_ops: Vec<MemoryOp> = Vec::new();
+    let mut memory_phis: HashMap<String, Vec<MemoryOp>> = HashMap::new();
+    let mut version_counter: Version = 0;
+
+    let mut visited: BTreeSet<String> = BTreeSet::new();
+    let mut stack: Vec<String> = vec![ssa.entry.clone()];
+
+    while let Some(bn) = stack.pop() {
+        if visited.contains(&bn) || !ssa.blocks.contains_key(&bn) {
+            continue;
+        }
+        visited.insert(bn.clone());
+
+        let block = &ssa.blocks[&bn];
+
+        // Memory phis at merge points: one phi per aliased variable
+        // that has a scalar phi here.
+        let mut block_phis: Vec<MemoryOp> = Vec::new();
+        for phi in &block.phis {
+            if aliased_names.contains(&phi.name) {
+                version_counter += 1;
+                let op = MemoryOp::new_phi(
+                    MemoryLocation::new(MemoryLocationKind::Local, &phi.name),
+                    version_counter,
+                    &bn,
+                );
+                block_phis.push(op.clone());
+                memory_ops.push(op);
+            }
+        }
+        if !block_phis.is_empty() {
+            memory_phis.insert(bn.clone(), block_phis);
+        }
+
+        // Statements: clobbers, then defs, then uses.
+        for (idx, stmt_ssa) in block.statements.iter().enumerate() {
+            let stmt = &stmt_ssa.statement;
+            let idx_i32 = i32::try_from(idx).unwrap_or(i32::MAX);
+
+            if is_clobber(stmt) {
+                version_counter += 1;
+                memory_ops.push(MemoryOp::new_clobber(version_counter, &bn, idx_i32));
+                // Fall through — a barrier that also defines
+                // aliased vars still emits its defs.
+            }
+
+            for name in stmt_ssa.defs.keys() {
+                if aliased_names.contains(name) {
+                    version_counter += 1;
+                    memory_ops.push(MemoryOp::new_def(
+                        MemoryLocation::new(MemoryLocationKind::Local, name),
+                        version_counter,
+                        &bn,
+                        idx_i32,
+                    ));
+                }
+            }
+
+            for name in stmt_ssa.uses.keys() {
+                if aliased_names.contains(name) {
+                    memory_ops.push(MemoryOp::new_use(
+                        MemoryLocation::new(MemoryLocationKind::Local, name),
+                        version_counter,
+                        &bn,
+                        idx_i32,
+                    ));
+                }
+            }
+        }
+
+        // Push dominator-tree children in reverse so the iterative
+        // stack visits them left-to-right, matching the Python
+        // recursion order.
+        if let Some(children) = ssa.dominator_tree.get(&bn) {
+            for child in children.iter().rev() {
+                stack.push(child.clone());
+            }
+        }
+    }
+
+    let count_defs = memory_ops
+        .iter()
+        .filter(|o| o.kind == MemoryOpKind::Def)
+        .count();
+    let count_uses = memory_ops
+        .iter()
+        .filter(|o| o.kind == MemoryOpKind::Use)
+        .count();
+    let count_clobbers = memory_ops
+        .iter()
+        .filter(|o| o.kind == MemoryOpKind::Clobber)
+        .count();
+
+    MemorySSAFunction {
+        alias_sets,
+        memory_ops,
+        memory_phis,
+        count_defs,
+        count_uses,
+        count_clobbers,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -643,6 +895,183 @@ mod tests {
         assert!(is_clobber(&call("eval", &["script"])));
         assert!(is_clobber(&call("uplevel", &["1", "script"])));
         assert!(!is_clobber(&call("set", &["x", "1"])));
+    }
+
+    // -- C24b3: compute_aliases + build_memory_ssa --
+
+    use crate::ssa::{SsaBlock, SsaStatement};
+
+    fn make_ssa_with_entry_stmts(stmts: Vec<Statement>) -> SsaFunction {
+        let mut ssa_stmts: Vec<SsaStatement> = Vec::new();
+        for s in stmts {
+            ssa_stmts.push(SsaStatement {
+                statement: s,
+                uses: HashMap::new(),
+                defs: HashMap::new(),
+            });
+        }
+        let mut blocks = HashMap::new();
+        blocks.insert(
+            "entry".into(),
+            SsaBlock {
+                name: "entry".into(),
+                phis: Vec::new(),
+                statements: ssa_stmts,
+                entry_versions: HashMap::new(),
+                exit_versions: HashMap::new(),
+            },
+        );
+        let mut dom = HashMap::new();
+        dom.insert("entry".to_string(), Vec::new());
+        SsaFunction {
+            name: "::test".into(),
+            entry: "entry".into(),
+            blocks,
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: dom,
+        }
+    }
+
+    #[test]
+    fn compute_aliases_finds_upvar_set() {
+        let ssa = make_ssa_with_entry_stmts(vec![call("upvar", &["1", "caller_x", "local_x"])]);
+        let sets = compute_aliases(&ssa);
+        assert_eq!(sets.len(), 1);
+        let set = &sets[0];
+        assert!(set.contains_name("caller_x"));
+        assert!(set.contains_name("local_x"));
+        assert!(set.reason.contains("upvar"));
+    }
+
+    #[test]
+    fn compute_aliases_tracks_each_upvar_declaration() {
+        // `upvar 1 x a` and `upvar 1 x b` — two independent pair
+        // declarations. The pairs are keyed on the specific
+        // (caller, local) qualifier combinations so each upvar
+        // produces its own alias set even when they share the
+        // caller-side variable name.
+        let ssa = make_ssa_with_entry_stmts(vec![
+            call("upvar", &["1", "x", "a"]),
+            call("upvar", &["1", "x", "b"]),
+        ]);
+        let sets = compute_aliases(&ssa);
+        assert_eq!(sets.len(), 2);
+        // Both x↔a and x↔b show up somewhere in the returned
+        // alias sets.
+        let mut has_a = false;
+        let mut has_b = false;
+        for set in &sets {
+            if set.contains_name("a") && set.contains_name("x") {
+                has_a = true;
+            }
+            if set.contains_name("b") && set.contains_name("x") {
+                has_b = true;
+            }
+        }
+        assert!(has_a, "missing x↔a alias set");
+        assert!(has_b, "missing x↔b alias set");
+    }
+
+    #[test]
+    fn compute_aliases_global_variable_pair() {
+        let ssa = make_ssa_with_entry_stmts(vec![call("global", &["shared"])]);
+        let sets = compute_aliases(&ssa);
+        assert_eq!(sets.len(), 1);
+        let set = &sets[0];
+        // Global and Local kinds for the same name merge.
+        assert!(set.locations.iter().any(|l| l.kind == MemoryLocationKind::Global));
+        assert!(set.locations.iter().any(|l| l.kind == MemoryLocationKind::Local));
+        assert!(set.reason.contains("global"));
+    }
+
+    #[test]
+    fn compute_aliases_empty_when_no_aliasing_commands() {
+        let ssa = make_ssa_with_entry_stmts(vec![call("set", &["x", "1"])]);
+        assert!(compute_aliases(&ssa).is_empty());
+    }
+
+    #[test]
+    fn build_memory_ssa_empty_function() {
+        let ssa = make_ssa_with_entry_stmts(Vec::new());
+        let m = build_memory_ssa(&ssa);
+        assert!(m.alias_sets.is_empty());
+        assert!(m.memory_ops.is_empty());
+        assert_eq!(m.count_defs, 0);
+        assert_eq!(m.count_uses, 0);
+        assert_eq!(m.count_clobbers, 0);
+    }
+
+    #[test]
+    fn build_memory_ssa_emits_clobber_for_eval() {
+        let ssa = make_ssa_with_entry_stmts(vec![call("eval", &["foo"])]);
+        let m = build_memory_ssa(&ssa);
+        assert_eq!(m.count_clobbers, 1);
+        assert_eq!(m.memory_ops[0].kind, MemoryOpKind::Clobber);
+        assert_eq!(m.memory_ops[0].location.name, "*");
+    }
+
+    #[test]
+    fn build_memory_ssa_tracks_aliased_def_and_use() {
+        // global shared; then a statement that uses+defs shared.
+        let mut stmts: Vec<SsaStatement> = Vec::new();
+        stmts.push(SsaStatement {
+            statement: call("global", &["shared"]),
+            uses: HashMap::new(),
+            defs: HashMap::new(),
+        });
+        let mut defs = HashMap::new();
+        defs.insert("shared".to_string(), 1);
+        stmts.push(SsaStatement {
+            statement: call("set", &["shared", "1"]),
+            uses: HashMap::new(),
+            defs,
+        });
+        let mut uses = HashMap::new();
+        uses.insert("shared".to_string(), 1);
+        stmts.push(SsaStatement {
+            statement: call("puts", &["$shared"]),
+            uses,
+            defs: HashMap::new(),
+        });
+
+        let mut blocks = HashMap::new();
+        blocks.insert(
+            "entry".into(),
+            SsaBlock {
+                name: "entry".into(),
+                phis: Vec::new(),
+                statements: stmts,
+                entry_versions: HashMap::new(),
+                exit_versions: HashMap::new(),
+            },
+        );
+        let mut dom = HashMap::new();
+        dom.insert("entry".to_string(), Vec::new());
+        let ssa = SsaFunction {
+            name: "::test".into(),
+            entry: "entry".into(),
+            blocks,
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: dom,
+        };
+        let m = build_memory_ssa(&ssa);
+        assert_eq!(m.count_defs, 1);
+        assert_eq!(m.count_uses, 1);
+        // Version for def must be > version visible at preceding
+        // `global` statement (which emitted no memory op).
+        let def_op = m
+            .memory_ops
+            .iter()
+            .find(|o| o.kind == MemoryOpKind::Def)
+            .expect("def present");
+        let load_op = m
+            .memory_ops
+            .iter()
+            .find(|o| o.kind == MemoryOpKind::Use)
+            .expect("use present");
+        assert_eq!(load_op.reaching_version, def_op.version);
     }
 
     #[test]
