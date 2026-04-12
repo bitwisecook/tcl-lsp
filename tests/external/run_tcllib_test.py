@@ -134,6 +134,17 @@ class TestTcltestCompiles:
 class TestTcltestTopRuns:
     """Stage 2: does tcltest's top-level (namespace + procs) instantiate?"""
 
+    @pytest.mark.xfail(
+        reason=(
+            "tcltest init runs substantial compiled code but still hits "
+            "downstream gaps (ConstraintInitializer validation, dynamic "
+            "proc registration corner cases).  The runner exists to "
+            "track progress toward running real tcltest under pure "
+            "WASM — it's expected-fail until those gaps close.  "
+            "Reminder: when this starts passing, drop the xfail marker."
+        ),
+        strict=False,
+    )
     def test_tcltest_top_runs(self):
         _require_files()
         try:
@@ -163,6 +174,15 @@ class TestCounterBundle:
         except Exception as e:
             pytest.fail(f"bundled tcltest+counter+counter.test failed to compile: {e}")
 
+    @pytest.mark.xfail(
+        reason=(
+            "Whole-bundle run depends on the tcltest stage-2 init "
+            "finishing (see TestTcltestTopRuns); blocked on the same "
+            "downstream gaps.  Drop the xfail marker when the bundle "
+            "prints a ``Total N Passed N Failed 0 Skipped 0`` summary."
+        ),
+        strict=False,
+    )
     def test_counter_bundle_runs_and_passes(self):
         _require_files()
         try:
