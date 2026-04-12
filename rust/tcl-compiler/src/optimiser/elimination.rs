@@ -353,27 +353,37 @@ fn is_side_effect_free_assignment(stmt: &Statement) -> bool {
 }
 
 /// Scan every statement's source slice for `$var` / `${var}`
-/// references and collect the names seen. Conservative — any
-/// occurrence in the textual source keeps the name live, even
-/// when the def-use builder does not track that particular use
-/// site (notably: Return-value reads, embedded `"$x"`
-/// interpolation).
-fn collect_textual_var_references(source: &str, _cfg: &CfgFunction) -> HashSet<String> {
-    // Conservative over-approximation: scan the entire source
-    // text for `$name` / `${name}` references and record every
-    // identifier seen. Any name mentioned anywhere keeps the
-    // corresponding def live — a safe over-approximation that
-    // is too coarse (it suppresses legitimate O109 across proc
-    // boundaries) but never emits a false positive.
-    //
-    // We deliberately do **not** use [`VarReferenceScanner`]: it
-    // parses Tcl commands and would need explicit recursion into
-    // `proc` bodies / braced scripts. The optimiser does not
-    // yet expose a body-aware alternative, so we lean on the
-    // lexical grammar of variable substitution — `$` followed
-    // by an identifier or `${…}` — which is robust against all
-    // surrounding syntax.
-    let bytes = source.as_bytes();
+/// references and collect the names seen. Narrow to the
+/// function's own CFG extent now that the segmenter emits
+/// absolute spans for proc bodies — so false-positive
+/// suppression across proc boundaries no longer applies.
+fn collect_textual_var_references(source: &str, cfg: &CfgFunction) -> HashSet<String> {
+    // Absolute spans now cover the function's own source range.
+    // Union every statement span plus every terminator span
+    // (which includes Return-value reads) and scan the enclosing
+    // slice. Proc boundaries no longer bleed into one another.
+    let span_iter = cfg.blocks.values().flat_map(|b| {
+        let stmts = b.statements.iter().map(crate::ir::Statement::span);
+        let term = b.terminator.as_ref().and_then(crate::cfg::Terminator::span);
+        stmts.chain(term)
+    });
+    let Some((lo, hi)) = span_iter.fold(None, |acc: Option<(u32, u32)>, span| {
+        let s = span.start();
+        let e = span.end();
+        match acc {
+            None => Some((s, e)),
+            Some((l, h)) => Some((l.min(s), h.max(e))),
+        }
+    }) else {
+        return HashSet::new();
+    };
+    let start = usize::try_from(lo).unwrap_or(0);
+    let end = usize::try_from(hi).unwrap_or(source.len()).min(source.len());
+    if start >= end {
+        return HashSet::new();
+    }
+    let slice = &source[start..end];
+    let bytes = slice.as_bytes();
     let mut out: HashSet<String> = HashSet::new();
     let mut i = 0;
     while i < bytes.len() {
