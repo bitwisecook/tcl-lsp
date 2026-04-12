@@ -1699,6 +1699,74 @@ class TestSwitchWithCommandSubst:
         assert stdout.strip() == "greet"
 
 
+class TestVariadicArgs:
+    """Tcl ``proc … args {…}`` variadic-tail support.
+
+    When a proc's last parameter is named ``args`` Tcl treats it
+    specially: all extra call arguments get packed into a list and
+    bound to ``args``.  Our compiled functions have fixed-arity
+    signatures, so the runtime's host-bridge dispatcher
+    (``tcl_dispatch.zig``) does the packing — checks
+    ``proc_get_args_tail`` and builds a list TclObj for the tail
+    before invoking ``call_compiled_proc``.
+
+    Before this support, ``proc foo {args} {}`` compiled to a
+    single-i32-param WASM function, and calling ``foo a b`` from
+    the interpreter (via eval fallback) trapped with ``too many
+    parameters provided: given 2, expected 1`` — the blocker for
+    tcltest's bundle runner whose ``useLocal counter.tcl
+    counter`` stub passes 2 args to a one-param variadic proc.
+    """
+
+    def test_args_with_zero_extras(self):
+        source = (
+            'proc f {args} { return "args-len=[llength $args]" }\n'
+            "# Call via eval so the host-bridge dispatcher runs.\n"
+            "puts [eval {f}]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "args-len=0"
+
+    def test_args_with_multiple_extras(self):
+        source = 'proc f {args} { return "args-len=[llength $args]" }\nputs [eval {f a b c d}]\n'
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "args-len=4"
+
+    def test_positional_then_args_tail(self):
+        source = (
+            "proc f {a b args} {\n"
+            '    return "a=$a b=$b args=[llength $args]"\n'
+            "}\n"
+            "puts [eval {f one two three four five}]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "a=one b=two args=3"
+
+    def test_args_element_with_whitespace(self):
+        # Element with embedded spaces must stay a single list
+        # element — verifies list-element quoting in
+        # ``build_args_list``.  Without the ``{`` / ``}`` wrap,
+        # ``llength $args`` would report 4 (the dispatcher would
+        # have space-joined everything into ``hello world a b c``
+        # which splits back into four words).
+        source = (
+            "proc f {args} { return [llength $args] }\n"
+            "# ``set x [list …]; eval $x`` is the direct route\n"
+            "# to the host-bridge dispatcher with multi-word\n"
+            "# arguments.  The ``eval [list …]`` one-liner goes\n"
+            "# through a different codegen path we can pin once\n"
+            "# that's fixed (separate investigation).\n"
+            'set x [list f "hello world" "a b c"]\n'
+            "puts [eval $x]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "2"
+
+
 class TestRegexp:
     """Tcl regex engine (Henry Spencer) linked via ``tcl_regex.zig``.
 

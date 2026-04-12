@@ -158,7 +158,17 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
 }
 
 /// Register a compiled proc (AOT). func_idx is the WASM function table index.
-pub export fn proc_register_compiled(name: i32, n_params: i32, func_idx: i32) i32 {
+/// ``args_tail`` is 1 when the last declared parameter is named ``args``
+/// (Tcl's variadic-tail marker) and 0 otherwise — the host-bridge
+/// dispatcher consults it to pack excess call arguments into a list
+/// TclObj so the compiled function's fixed-arity signature still sees
+/// the right number of parameters.
+pub export fn proc_register_compiled(
+    name: i32,
+    n_params: i32,
+    func_idx: i32,
+    args_tail: i32,
+) i32 {
     const sn = obj_ensure_string(name);
     proc_init();
     const hash = fnv1a(sn.ptr, sn.len);
@@ -169,6 +179,7 @@ pub export fn proc_register_compiled(name: i32, n_params: i32, func_idx: i32) i3
         write_i32(base + 16, 0); // no body_obj for compiled
         write_i32(base + 20, n_params);
         write_i32(base + 24, func_idx);
+        write_i32(base + 28, args_tail);
         return obj_new_int(0);
     }
 
@@ -190,7 +201,7 @@ pub export fn proc_register_compiled(name: i32, n_params: i32, func_idx: i32) i3
             write_i32(base + 16, 0); // no body
             write_i32(base + 20, n_params);
             write_i32(base + 24, func_idx);
-            write_i32(base + 28, 0);
+            write_i32(base + 28, args_tail);
             proc_count += 1;
             return obj_new_int(0);
         }
@@ -280,6 +291,17 @@ pub export fn proc_get_n_params(bucket: i32) i32 {
     if (bucket == 0) return 0;
     const base: u32 = @intCast(bucket);
     return read_i32(base + 20);
+}
+
+/// Non-zero when the last declared parameter of the proc is ``args`` —
+/// the variadic-tail marker Tcl treats specially by binding all extra
+/// call arguments as a list.  Used by the host-bridge dispatcher to
+/// pack excess arguments into a single list TclObj before handing
+/// them to the compiled function's fixed-arity signature.
+pub export fn proc_get_args_tail(bucket: i32) i32 {
+    if (bucket == 0) return 0;
+    const base: u32 = @intCast(bucket);
+    return read_i32(base + 28);
 }
 
 /// Get the params_obj field from a proc bucket pointer.

@@ -872,7 +872,7 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_proc_register_compiled": (
         "tcl",
         "proc_register_compiled",
-        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
     # Info command
@@ -3048,6 +3048,17 @@ class _WasmEmitter:
         ``func_idx`` is used as a marker here, not an actual index
         — the host looks procs up by *name*.  Any non-zero value
         works; we pick 1 for clarity.
+
+        ``has_args_tail`` — 1 when the last declared parameter is
+        named ``args`` (Tcl's variadic marker).  The runtime's
+        host-bridge dispatcher reads this flag to pack excess
+        call arguments into a list TclObj so the compiled
+        function's fixed-arity signature always sees the right
+        number of parameters.  Without this bit, a
+        ``proc foo {args} {}`` compiled to a single-i32-param
+        function traps with ``too many parameters provided: given
+        N, expected 1`` on any N ≥ 2 invocation (e.g. tcltest's
+        ``useLocal counter.tcl counter`` bundle-runner stub).
         """
         self._compiled_proc_queue = []
         reg_idx = self._shared_imports.get("tcl_proc_register_compiled")
@@ -3056,7 +3067,8 @@ class _WasmEmitter:
         for qname, proc in ir_module.procedures.items():
             if proc.body_source is None:
                 continue
-            self._compiled_proc_queue.append((qname, len(proc.params)))
+            has_args_tail = bool(proc.params and proc.params[-1] == "args")
+            self._compiled_proc_queue.append((qname, len(proc.params), has_args_tail))
 
     def _record_stmt_context(self, stmt: IRStatement) -> None:
         """Update the 'current statement' tracking the diag machinery reads.
@@ -5906,10 +5918,11 @@ class _WasmEmitter:
         if queue:
             reg_idx = self._shared_imports.get("tcl_proc_register_compiled")
             if reg_idx is not None:
-                for qname, n_params in queue:
+                for qname, n_params, has_args_tail in queue:
                     self._emit_obj_literal(qname)
                     self._emit_i32_const(n_params)
                     self._emit_i32_const(1)  # func_idx marker (any non-zero)
+                    self._emit_i32_const(1 if has_args_tail else 0)
                     self._emit_call(reg_idx)
                     self._emit(WasmOp.DROP)
 

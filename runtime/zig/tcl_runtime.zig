@@ -284,6 +284,7 @@ comptime {
     _ = &tcl_procs.proc_lookup;
     _ = &tcl_procs.proc_get_func_idx;
     _ = &tcl_procs.proc_get_n_params;
+    _ = &tcl_procs.proc_get_args_tail;
     _ = &tcl_procs.proc_get_params;
     _ = &tcl_procs.proc_get_body;
     _ = &tcl_procs.proc_exists;
