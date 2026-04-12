@@ -11,6 +11,9 @@
 //! - [`values`] — variable load/store and value emission
 //! - [`expressions`] — expression AST compilation
 
+pub mod cmd_subst;
+pub mod control_flow;
+pub mod emitter;
 pub mod expressions;
 pub mod format;
 pub mod helpers;
@@ -862,6 +865,7 @@ pub struct ModuleAsm {
 /// produces one [`FunctionAsm`] — create a separate context for each
 /// procedure or top-level script.
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct CodegenCtx {
     /// Literal constant pool.
     pub literals: LiteralTable,
@@ -883,6 +887,24 @@ pub struct CodegenCtx {
     pub break_target: Option<String>,
     /// Loop continue target label (set by the emitter loop).
     pub continue_target: Option<String>,
+    /// Catch nesting depth for `beginCatch4` operand.
+    pub catch_depth: u32,
+    /// Whether a generic invoke (`invokeStk1`) has been seen.
+    pub seen_generic_invoke: bool,
+    /// Whether a generic invoke was actually used (for peephole).
+    pub used_generic_invoke: bool,
+    /// Whether an inline command substitution was used.
+    pub used_inline_cmd_subst: bool,
+    /// Depth counter for nested math-function calls in expressions.
+    pub expr_func_depth: u32,
+    /// Deferred `startCommand` end label for `<cond>` synthetic statements.
+    pub pending_cond_end_label: Option<String>,
+    /// Label targeting the trailing proc `done` (dead-code jumps after return).
+    pub proc_exit_label: Option<String>,
+    /// Pending `startCommand` end labels for constant-folded branches.
+    pub pending_join_labels: HashMap<String, String>,
+    /// 1-based source line of the current statement (for `errorInfo`).
+    pub current_source_line: u32,
 }
 
 impl CodegenCtx {
@@ -904,6 +926,15 @@ impl CodegenCtx {
             start_cmd_end_label: None,
             break_target: None,
             continue_target: None,
+            catch_depth: 0,
+            seen_generic_invoke: false,
+            used_generic_invoke: false,
+            used_inline_cmd_subst: false,
+            expr_func_depth: 0,
+            pending_cond_end_label: None,
+            proc_exit_label: None,
+            pending_join_labels: HashMap::new(),
+            current_source_line: 0,
         }
     }
 
