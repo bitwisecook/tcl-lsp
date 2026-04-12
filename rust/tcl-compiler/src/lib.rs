@@ -72,6 +72,7 @@ pub mod analyses;
 pub mod cfg;
 pub mod cfg_builder;
 pub mod codegen;
+pub mod def_use;
 pub mod expr_ast;
 pub mod expr_parser;
 pub mod ir;
