@@ -1610,7 +1610,6 @@ def _scan_needed_imports(
     needed.add("tcl_error")
     needed.add("tcl_eval")
     needed.add("tcl_diag_set")
-
     return needed
 
 
@@ -5697,15 +5696,16 @@ def wasm_codegen_module(
         shared_string_offset=shared_string_offset,
         diag_map=diag_map,
     )
-    # Compiled procs are *not* automatically registered in the
-    # runtime proc table — their bodies reference WASM locals that
-    # the interpreter can't access, so an interpreter-path call
-    # that fell through to body-eval would read garbage.  Static
-    # dispatch inside compiled code continues to work through the
-    # WASM function index.  Cross-context calls (a dynamically-
-    # registered proc body calling a compiled proc) currently trap
-    # with "unknown command: <name>" — the fix is a proper
-    # call_indirect bridge, tracked as a separate follow-up.
+    # Proc-registration prologue is disabled — it was corrupting
+    # runtime state for tcltest-sized modules (86 procs with long
+    # source bodies) in ways we don't fully understand yet.  Compiled
+    # procs remain callable only via static WASM calls from compiled
+    # callers; cross-context invocation (an interpreted Tcl-source
+    # proc body calling a compiled helper) still traps with "unknown
+    # command: <name>".  A proper call_indirect bridge is the correct
+    # fix; this placeholder keeps the machinery wired so enabling it
+    # later is a single line.
+    # emitter.set_proc_registration_prologue(ir_module)
     top_func = emitter.generate()
     top_func.name = "::top"
     module.functions.append(top_func)

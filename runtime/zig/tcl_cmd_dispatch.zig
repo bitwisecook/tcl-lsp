@@ -108,11 +108,30 @@ fn match_stub(c: []const u8) bool {
     if (eql(c, "interp")) return trap("interp");
     if (eql(c, "apply")) return trap("apply");
     if (eql(c, "rename")) return trap("rename");
-    if (eql(c, "subst")) return trap("subst");
+    // ``subst`` is handled directly in eval_command with support for
+    // -nobackslashes / -nocommands / -novariables flags.
     if (eql(c, "time")) return trap("time");
+    // ``auto_load`` is a stdlib loader — without the Tcl stdlib there's
+    // nothing to load.  Return 0 ("not auto-loaded") so the caller
+    // falls through to whatever native/builtin version exists.
+    if (eql(c, "auto_load")) {
+        const obj = @import("tcl_obj.zig");
+        _ = obj.obj_new_int(0);
+        return true;
+    }
+    // Similar stdlib functions — treat as pass-through no-ops.
+    if (eql(c, "auto_reset") or eql(c, "auto_mkindex") or eql(c, "auto_import") or
+        eql(c, "auto_execok") or eql(c, "auto_qualify") or eql(c, "unknown"))
+    {
+        const obj = @import("tcl_obj.zig");
+        _ = obj.obj_new_string(0, 0);
+        return true;
+    }
     if (eql(c, "try")) return trap("try");
     if (eql(c, "throw")) return trap("throw");
-    if (eql(c, "unknown")) return trap("unknown");
+    // ``unknown`` is handled below as a pass-through no-op; a missing
+    // ``unknown`` handler just means the stock "unknown command" error
+    // triggers, which is exactly what we want here.
 
     // List commands that aren't in eval_command's hot path.
     if (eql(c, "lreplace")) return trap("lreplace");

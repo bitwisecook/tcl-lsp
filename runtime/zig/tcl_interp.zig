@@ -114,6 +114,7 @@ fn parse_command(
     len: u32,
     word_ptrs: *[MAX_WORDS]u32,
     word_lens: *[MAX_WORDS]u32,
+    word_braced: *[MAX_WORDS]bool,
 ) struct { count: u32, next: u32 } {
     var p = pos;
     var count: u32 = 0;
@@ -142,18 +143,21 @@ fn parse_command(
             const r = parse_braced(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
             word_lens[count] = r.wlen;
+            word_braced[count] = true;
             count += 1;
             p = r.end;
         } else if (src[p] == '"') {
             const r = parse_quoted(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
             word_lens[count] = r.wlen;
+            word_braced[count] = false;
             count += 1;
             p = r.end;
         } else {
             const r = parse_bare(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
             word_lens[count] = r.wlen;
+            word_braced[count] = false;
             count += 1;
             p = r.end;
         }
@@ -163,7 +167,26 @@ fn parse_command(
 
 // -- Variable substitution --
 
+/// Expand ``$var`` / ``[cmd]`` / ``\x`` in a word.  Always performs
+/// all three substitutions — this is the tokenizer's word-expansion
+/// path called after parse_command.  Braced words skip this entirely
+/// (see eval_script); the ``subst`` command uses :func:`subst_flagged`
+/// for its flag-controlled variant.
 fn subst_word(wptr: u32, wlen: u32) i32 {
+    return subst_flagged(wptr, wlen, true, true, true);
+}
+
+/// Same as :func:`subst_word` but each substitution kind is
+/// individually enabled.  Called from the ``subst`` command
+/// handler with ``-novariables`` / ``-nocommands`` /
+/// ``-nobackslashes`` toggling the flags.
+fn subst_flagged(
+    wptr: u32,
+    wlen: u32,
+    do_vars: bool,
+    do_cmds: bool,
+    do_bs: bool,
+) i32 {
     if (wlen == 0) return obj_new_string(0, 0);
     const src: [*]const u8 = @ptrFromInt(wptr);
     var has_dollar = false;
@@ -172,14 +195,14 @@ fn subst_word(wptr: u32, wlen: u32) i32 {
         if (src[i] == '$') has_dollar = true;
         if (src[i] == '[') has_bracket = true;
     }
-    if (!has_dollar and !has_bracket) {
+    if (!has_dollar and !has_bracket and !do_bs) {
         return obj_new_string(@intCast(wptr), @intCast(wlen));
     }
     const buf = alloc(wlen * 4 + 64);
     var out: u32 = 0;
     var i: u32 = 0;
     while (i < wlen) {
-        if (src[i] == '$' and i + 1 < wlen) {
+        if (do_vars and src[i] == '$' and i + 1 < wlen) {
             i += 1;
             const vstart = i;
             if (src[i] == '{') {
@@ -206,7 +229,7 @@ fn subst_word(wptr: u32, wlen: u32) i32 {
                     if (sv.len > 0) { memcpy(buf + out, sv.ptr, sv.len); out += sv.len; }
                 }
             }
-        } else if (src[i] == '[') {
+        } else if (do_cmds and src[i] == '[') {
             i += 1;
             const cs = i;
             var depth: u32 = 1;
@@ -220,7 +243,7 @@ fn subst_word(wptr: u32, wlen: u32) i32 {
                 const sv = obj_ensure_string(result);
                 if (sv.len > 0) { memcpy(buf + out, sv.ptr, sv.len); out += sv.len; }
             }
-        } else if (src[i] == '\\' and i + 1 < wlen) {
+        } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
             i += 1;
             const esc: u8 = switch (src[i]) { 'n' => '\n', 't' => '\t', 'r' => '\r', else => src[i] };
             const d: [*]u8 = @ptrFromInt(buf + out);
@@ -405,6 +428,32 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "string")) return eval_string_cmd(words);
     if (str_eq(cmd, cmd_s.len, "dict")) return eval_dict_cmd(words);
     if (str_eq(cmd, cmd_s.len, "array")) return eval_array_cmd(words);
+    if (str_eq(cmd, cmd_s.len, "subst")) {
+        // ``subst ?-nobackslashes? ?-nocommands? ?-novariables? string``
+        // — walk the switches, then subst the final arg with the
+        // appropriate flags.
+        var do_vars = true;
+        var do_cmds = true;
+        var do_bs = true;
+        var wi: u32 = 1;
+        while (wi < words.len) : (wi += 1) {
+            const a = obj_ensure_string(words[wi]);
+            const ap: [*]const u8 = @ptrFromInt(a.ptr);
+            if (str_eq(ap, a.len, "-nobackslashes")) {
+                do_bs = false;
+            } else if (str_eq(ap, a.len, "-nocommands")) {
+                do_cmds = false;
+            } else if (str_eq(ap, a.len, "-novariables")) {
+                do_vars = false;
+            } else {
+                // First non-switch arg is the string to subst.
+                break;
+            }
+        }
+        if (wi >= words.len) return obj_new_string(0, 0);
+        const s = obj_ensure_string(words[wi]);
+        return subst_flagged(s.ptr, s.len, do_vars, do_cmds, do_bs);
+    }
     if (str_eq(cmd, cmd_s.len, "pwd")) {
         const fs_mod = @import("tcl_fs.zig");
         return fs_mod.pwd();
@@ -782,6 +831,14 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     var result: i32 = 0;
     var wp: [MAX_WORDS]u32 = undefined;
     var wl: [MAX_WORDS]u32 = undefined;
+    // ``wb[i] == true`` means word i was parsed as ``{braced}``
+    // — subst_word must skip ``$var`` / ``[cmd]`` substitution
+    // because braces protect their contents in Tcl.  Without this
+    // flag a braced word's ``$option`` would be resolved at
+    // command-dispatch time rather than preserved literally, which
+    // is wrong for e.g. ``proc foo args {body-with-$var}`` where
+    // the body must stay unsubstituted until the proc runs.
+    var wb: [MAX_WORDS]bool = undefined;
 
     // Save any outer eval context so nested eval_script invocations
     // (e.g. a command-substitution inside a word) can restore it
@@ -805,14 +862,19 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         diag.current_eval_len = script_len;
         diag.current_eval_pos = pos;
 
-        const cmd = parse_command(src, pos, script_len, &wp, &wl);
+        const cmd = parse_command(src, pos, script_len, &wp, &wl, &wb);
         pos = cmd.next;
         if (cmd.count == 0) continue;
 
         var word_objs: [MAX_WORDS]i32 = undefined;
         var i: u32 = 0;
         while (i < cmd.count) : (i += 1) {
-            word_objs[i] = subst_word(wp[i], wl[i]);
+            if (wb[i]) {
+                // Braced word — preserve the content literally.
+                word_objs[i] = obj_new_string(@intCast(wp[i]), @intCast(wl[i]));
+            } else {
+                word_objs[i] = subst_word(wp[i], wl[i]);
+            }
         }
 
         result = eval_command(word_objs[0..cmd.count]);
