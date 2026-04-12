@@ -172,6 +172,10 @@ fn cv_eq(a: &ConstValue, b: &ConstValue) -> bool {
 pub struct ConstantBranch {
     /// CFG block containing the branch.
     pub block: String,
+    /// Source span of the branch terminator (its condition
+    /// expression when known). Used by diagnostic aggregators to
+    /// point editors and CLIs at the triggering site.
+    pub span: Option<tcl_lexer::Span>,
     /// Condition text for diagnostic reporting.
     pub condition: String,
     /// Evaluated boolean value.
@@ -364,6 +368,7 @@ pub fn sccp(
             condition,
             true_target,
             false_target,
+            span: term_span,
             ..
         }) = &block.terminator
         else {
@@ -377,6 +382,7 @@ pub fn sccp(
         match decision {
             Some(true) => constant_branches.push(ConstantBranch {
                 block: bn.clone(),
+                span: *term_span,
                 condition: cond_text,
                 value: true,
                 taken_target: true_target.clone(),
@@ -384,6 +390,7 @@ pub fn sccp(
             }),
             Some(false) => constant_branches.push(ConstantBranch {
                 block: bn.clone(),
+                span: *term_span,
                 condition: cond_text,
                 value: false,
                 taken_target: false_target.clone(),
