@@ -958,10 +958,20 @@ def _scan_needed_imports(
         for stmt in script.statements:
             _scan_stmt(stmt)
 
-    def _scan_value(value: str) -> None:
-        """Scan a value string for embedded command substitutions."""
+    def _scan_value(value: str, *, is_body_text: bool = False) -> None:
+        """Scan a value string for embedded command substitutions.
+
+        ``is_body_text=True`` means the string is source text that the
+        lowerer will re-parse (e.g. a proc body) rather than a value
+        that the codegen will emit at runtime.  In that case we skip
+        the interpolated-string scan — otherwise a proc body containing
+        ``$a`` / ``$b`` would spuriously pull in ``tcl_append``, since
+        the body is never emitted via the concat-chain path.
+        """
         if "[" in value:
             _scan_text_for_cmd_subst(value, needed)
+        if is_body_text:
+            return
         # Interpolated strings ("hello $x" / "$x[foo]" etc.) need tcl_append
         # at codegen time to concatenate the parts.
         if _has_embedded_subst_scan(value):
@@ -1016,9 +1026,14 @@ def _scan_needed_imports(
                     needed.add("tcl_catch_leave")
                     needed.add("tcl_catch_result")
                     needed.add("tcl_catch_has_error")
-                # Scan all arguments for command substitutions
+                # Scan all arguments for command substitutions.  For
+                # body-taking commands (``proc``, ``namespace eval``,
+                # ``catch``, etc.) the args are source text re-parsed
+                # by the lowerer, not values emitted at runtime — mark
+                # them so the scan doesn't over-import tcl_append.
+                is_body = command in _SCOPE_NOP_COMMANDS or command == "catch"
                 for arg in args:
-                    _scan_value(arg)
+                    _scan_value(arg, is_body_text=is_body)
             case IRAssignValue(value=value):
                 _scan_value(value)
             case IRExprEval(expr=expr):
