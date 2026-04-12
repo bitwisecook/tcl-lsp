@@ -209,30 +209,36 @@ def _define_call_compiled_proc(
     memory_box: list = [None]
 
     def _call_compiled_proc(name_ptr: int, name_len: int, argv_ptr: int, argc: int) -> int:
+        # Silent 0-returns would mask genuine dispatch failures
+        # (the runtime treats 0 as a successful empty-string
+        # result).  For unrecoverable failures — unmapped memory,
+        # missing proc, compiled proc trapping — raise so wasmtime
+        # propagates a trap to the caller instead of returning a
+        # phantom empty value.
         inst = tcl_instance_box[0]
         mem = memory_box[0]
         if inst is None or mem is None:
-            return 0
-        try:
-            raw = bytes(mem.data_ptr(store)[name_ptr : name_ptr + name_len])
-        except Exception:
-            return 0
+            raise RuntimeError("call_compiled_proc: tcl_instance or memory not yet wired")
+        raw = bytes(mem.data_ptr(store)[name_ptr : name_ptr + name_len])
         pname = raw.decode("utf-8", errors="replace")
         func = inst.exports(store).get(pname)
         if func is None:
-            return 0
+            raise RuntimeError(f"call_compiled_proc: compiled module does not export {pname!r}")
+        # argv is a contiguous array of ``argc`` i32 TclObj pointers;
+        # these are unsigned 32-bit values (WASM memory addresses /
+        # TclObj pointers).  Decoding with ``signed=False`` preserves
+        # the high bit; passing a negative int to ``obj_ensure_string``
+        # in the runtime would trip on ``@ptrFromInt`` bounds checks.
         args: list[int] = []
         for i in range(argc):
             off = argv_ptr + i * 4
-            try:
-                b = bytes(mem.data_ptr(store)[off : off + 4])
-            except Exception:
-                return 0
-            args.append(int.from_bytes(b, "little", signed=True))
-        try:
-            result = func(store, *args)
-        except Exception:
-            return 0
+            b = bytes(mem.data_ptr(store)[off : off + 4])
+            args.append(int.from_bytes(b, "little", signed=False))
+        # A compiled proc that traps raises a wasmtime.Trap — let it
+        # propagate so the trap carries its full backtrace + the
+        # runtime's stderr diag output.  Wrapping in ``try: … except:
+        # return 0`` would hide real failures.
+        result = func(store, *args)
         return int(result) if result is not None else 0
 
     linker.define_func(

@@ -21,11 +21,20 @@
 // TclObj pointers — the arguments to pass to the compiled proc,
 // *not* including the command name (argv[0] is the first real arg).
 // ``argc``: number of args.  Returns an i32 TclObj (the proc's
-// result) or 0 if the embedder couldn't dispatch.
+// result).
+//
+// Error handling: ``0`` is a valid TclObj sentinel meaning "empty
+// string" / "null result" — it is NOT an error signal.  Embedders
+// that can't dispatch (unknown name, memory unmapped, compiled
+// proc traps) MUST raise a wasmtime trap rather than return 0,
+// otherwise real failures look like successful empty returns.  The
+// Python harness in tests/test_wasm_real_tcl.py does this by
+// letting ``func(store, *args)`` propagate its trap and by raising
+// ``RuntimeError`` for the other failure modes.
 //
 // Must be declared by the embedder before the runtime module is
-// instantiated.  Tests that don't exercise cross-context calls can
-// provide a stub that returns 0.
+// instantiated.  Tests that don't exercise cross-context calls
+// should still provide it — raising from the callback is fine.
 
 const obj = @import("tcl_obj.zig");
 

@@ -15,14 +15,20 @@
 //   %c        character from int (0..127)
 //   %x %X     hex integer (lower/upper case)
 //   %o        octal integer
-//   %f %e %g  float (pass-through via Zig's std.fmt)
+//   %f %e %g  float — STRING-PASSTHROUGH ONLY.  The runtime has no
+//             float TclObj type, so the arg's original text is
+//             copied verbatim with width padding; precision and
+//             conversion variant are IGNORED.  Sufficient for
+//             ``format %3.1f 5.1`` where the input is already in
+//             the desired form, but NOT for real rounding / %g
+//             trailing-zero trimming / scientific conversion.
 //   %%        literal percent
 //
 // Supports ``-`` (left-align), ``0`` (zero-pad), ``+`` (sign),
-// width and precision for numeric formats.  The implementation
-// takes ``(fmt, arg1_obj, arg2_obj, arg3_obj)`` — up to three args
-// — matching the codegen's dispatch.  Extra conversions than we
-// have args for pull empty strings.
+// width and precision for integer + string formats.  The
+// implementation takes ``(fmt, arg1_obj, arg2_obj, arg3_obj)`` —
+// up to three args — matching the codegen's dispatch.  Extra
+// conversions than we have args for pull empty strings.
 
 const std = @import("std");
 const obj = @import("tcl_obj.zig");
@@ -296,22 +302,22 @@ fn emit_float(
     precision: i32,
     conv: u8,
 ) u32 {
-    // We don't have floating-point TclObj support in the runtime
-    // yet — all numeric TclObjs store integers.  Best-effort:
-    // treat the arg as an integer value and emit it as "%<prec>f"
-    // using Zig's std.fmt.  Good enough for tcltest's
-    // ``format %3.1f 5.1`` — the input value 5.1 is stored as
-    // the string "5.1" in the source, and obj_ensure_string gives
-    // us the original text; we just re-emit it.
+    // Limitations — the runtime has no float TclObj type yet, so
+    // we can only pass floats through as their string
+    // representation.  The conversion spec (``%f`` / ``%e`` /
+    // ``%g``) and precision are IGNORED: we copy the arg's
+    // original string verbatim with width-padding.  This is
+    // sufficient for tcltest's uses (``format %3.1f 5.1`` —
+    // input is already ``5.1``) and for any ``string equal``
+    // check, but real rounding / scientific-notation / %g
+    // trailing-zero trimming are NOT supported.  Callers that
+    // need them should fall back to the interpreter's ``expr``
+    // with explicit rounding.
     var off = off_in;
     if (arg == 0) return off;
     const s = obj_ensure_string(arg);
     if (s.len == 0) return off;
     const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    // Very simple path: just copy the string.  Width and precision
-    // are honoured for width-padding only (no rounding).  ``%g``
-    // strips trailing zeros — we don't, but tcltest's usage
-    // checks equality via ``string equal`` so this is acceptable.
     _ = precision;
     _ = conv;
     const slen: u32 = s.len;

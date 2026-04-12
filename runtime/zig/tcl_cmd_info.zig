@@ -104,6 +104,11 @@ pub fn info_complete(script: i32) i32 {
             '"' => in_quote = true,
             else => {},
         }
+        // A stray ``}`` or ``]`` (depth going negative) is a
+        // structural error that can't be rebalanced — scripts
+        // like ``}{`` or ``][`` would zero-sum at end-of-string
+        // but are malformed.  Bail early with incomplete=0.
+        if (brace < 0 or bracket < 0) return obj_new_int(0);
     }
     if (brace == 0 and bracket == 0 and !in_quote) return obj_new_int(1);
     return obj_new_int(0);

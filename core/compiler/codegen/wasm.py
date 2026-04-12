@@ -3425,20 +3425,20 @@ class _WasmEmitter:
             # include the dollar sign so the interpreter can resolve them.
             parts = [command]
             for a in args:
-                if a == "":
-                    # Empty word — must be serialised as ``{}`` or
-                    # it disappears when the script is space-joined
-                    # and re-parsed.  This matters for e.g.
-                    # ``proc myproc {} body`` where the empty param
-                    # list would otherwise collapse to "proc myproc
-                    # body" (3 words instead of 4).
-                    parts.append("{}")
-                elif a.startswith("$") or a.startswith("["):
+                if a.startswith("$") or a.startswith("["):
+                    # Substitution words pass through unquoted so
+                    # the interpreter can resolve them at eval
+                    # time.
                     parts.append(a)
-                elif " " in a or "{" in a or '"' in a or "\n" in a or "\t" in a:
-                    parts.append("{" + a + "}")
                 else:
-                    parts.append(a)
+                    # Everything else goes through Tcl list-element
+                    # encoding so unbalanced-brace payloads (e.g.
+                    # ``}{``) round-trip correctly.  Empty strings
+                    # become ``{}``; words with whitespace / braces /
+                    # brackets / ``"`` / ``\\`` / ``$`` / ``;`` get
+                    # either brace-wrapped or backslash-escaped (the
+                    # latter when braces don't balance).
+                    parts.append(_tcl_list_quote(a))
             script = " ".join(parts)
             self._emit_obj_literal(script)
             self._emit_call(eval_idx)
@@ -5882,26 +5882,34 @@ def wasm_codegen_module(
         optimise: When ``True``, enable optimisation passes
             (constant folding, peephole, dead-code elimination).
             When ``False``, emit straightforward unoptimised code.
-        filename: Source filename recorded on every diag site.  Stored
-            on :class:`DiagMap` and used when *diag_map* is not
-            supplied (the default — a fresh map is allocated).
-            Defaults to ``"<unknown>"``.
+        filename: Source filename recorded on every diag site.
+            Passing this without a ``diag_map`` allocates a fresh
+            map; passing neither disables diag instrumentation
+            entirely (no ``tcl_diag_set`` calls, no ``site=<id>``
+            prefix on traps).
         diag_map: Optional pre-allocated :class:`DiagMap` to populate.
-            Pass one when the caller wants to keep a reference (e.g.
-            to serialise alongside the WASM bytes).  When ``None`` a
-            map is allocated internally but the codegen still emits
-            ``tcl_diag_set`` calls so the runtime trap prefixes work.
+            Pass one when the caller wants to serialise the sidecar
+            alongside the WASM bytes.  Leave as ``None`` (and omit
+            *filename*) when diagnostics aren't needed — callers
+            that can't resolve ``site=<id>`` prefixes shouldn't see
+            them at all.
 
     Returns:
         A ``WasmModule`` that can be serialised to ``.wasm`` binary
-        or inspected as WAT text.  The populated :class:`DiagMap` is
-        available on the supplied *diag_map* (or a fresh one if
-        ``None`` was passed — see :func:`wasm_codegen_module_with_map`
-        when you need the map returned directly).
+        or inspected as WAT text.  Diag data (when enabled) is
+        recorded on the supplied *diag_map* (or on the fresh one
+        allocated when a *filename* was passed).
     """
-    if diag_map is None:
-        diag_map = DiagMap(filename=filename or "<unknown>")
-    elif filename is not None:
+    # Only instrument with diag sites when the caller explicitly
+    # asks for them — either by passing a ``DiagMap`` to populate,
+    # or by providing a ``filename`` (which is useless without a
+    # map to record it in, so we interpret it as an implicit
+    # request).  Without a map the emitter skips ``tcl_diag_set``
+    # calls entirely — avoids emitting ``site=<id>`` prefixes the
+    # caller has no way to resolve.
+    if diag_map is None and filename is not None:
+        diag_map = DiagMap(filename=filename)
+    elif diag_map is not None and filename is not None:
         diag_map.filename = filename
 
     module = WasmModule()
@@ -5990,7 +5998,8 @@ def wasm_codegen_module(
     top_func.name = "::top"
     module.functions.append(top_func)
     # ::top occupies the first function index after imports.
-    diag_map.procs.append((num_imports, "::top"))
+    if diag_map is not None:
+        diag_map.procs.append((num_imports, "::top"))
 
     # Phase 5: Compile callables (procedures and methods)
     for qname, cfg_func, params in callables:
@@ -6013,8 +6022,9 @@ def wasm_codegen_module(
         module.functions.append(callable_func)
         # Record the proc's WASM function index so the sidecar can
         # resolve ``<wasm function N>`` backtraces to proc names.
-        f_idx, _ = proc_index[qname]
-        diag_map.procs.append((f_idx, qname))
+        if diag_map is not None:
+            f_idx, _ = proc_index[qname]
+            diag_map.procs.append((f_idx, qname))
 
     # Emit a single set of data segments from the shared string table.
     for value, offset in shared_strings:

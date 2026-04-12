@@ -536,6 +536,35 @@ fn eval_command(words: []const i32) i32 {
         const s = obj_ensure_string(words[wi]);
         return subst_flagged(s.ptr, s.len, do_vars, do_cmds, do_bs);
     }
+    if (str_eq(cmd, cmd_s.len, "auto_load")) {
+        // Without the Tcl stdlib there's nothing to auto-load;
+        // return 0 ("not auto-loaded") so callers that check
+        // the return value see the expected "proc not in index"
+        // signal rather than a trap.  ``auto_reset`` /
+        // ``auto_mkindex`` / ``auto_import`` / ``auto_execok`` /
+        // ``auto_qualify`` similarly return empty strings.
+        return obj_new_int(0);
+    }
+    if (str_eq(cmd, cmd_s.len, "auto_reset") or
+        str_eq(cmd, cmd_s.len, "auto_mkindex") or
+        str_eq(cmd, cmd_s.len, "auto_import") or
+        str_eq(cmd, cmd_s.len, "auto_execok") or
+        str_eq(cmd, cmd_s.len, "auto_qualify"))
+    {
+        return obj_new_string(0, 0);
+    }
+    if (str_eq(cmd, cmd_s.len, "format")) {
+        // ``format fmt ?arg1? ?arg2? ?arg3?`` — dispatch to the
+        // real UTF-8 impl in tcl_format.zig so interpreter-path
+        // callers (Tcl-source proc bodies walked by eval_script)
+        // produce the same result as compiled dispatch.
+        const fmt_mod = @import("tcl_format.zig");
+        const fmt = if (words.len >= 2) words[1] else 0;
+        const a1 = if (words.len >= 3) words[2] else 0;
+        const a2 = if (words.len >= 4) words[3] else 0;
+        const a3 = if (words.len >= 5) words[4] else 0;
+        return fmt_mod.format(fmt, a1, a2, a3);
+    }
     if (str_eq(cmd, cmd_s.len, "pwd")) {
         const fs_mod = @import("tcl_fs.zig");
         return fs_mod.pwd();

@@ -76,7 +76,12 @@ fn match_stub(c: []const u8) bool {
 
     // Format / pattern matching.  ``encoding`` lives in
     // ``eval_command`` (real impl) and isn't listed here.
-    if (eql(c, "format")) return trap("format");
+    // ``format`` has a real runtime impl in tcl_format.zig.  It's
+    // dispatched through eval_command for interpreter-path calls,
+    // so we decline here — returning false lets the normal
+    // proc-lookup / error path run (but eval_command should have
+    // caught it before getting here).
+    if (eql(c, "format")) return false;
     if (eql(c, "scan")) return trap("scan");
     if (eql(c, "binary")) return trap("binary");
     if (eql(c, "regexp")) return trap("regexp");
@@ -111,21 +116,21 @@ fn match_stub(c: []const u8) bool {
     // ``subst`` is handled directly in eval_command with support for
     // -nobackslashes / -nocommands / -novariables flags.
     if (eql(c, "time")) return trap("time");
-    // ``auto_load`` is a stdlib loader — without the Tcl stdlib there's
-    // nothing to load.  Return 0 ("not auto-loaded") so the caller
-    // falls through to whatever native/builtin version exists.
-    if (eql(c, "auto_load")) {
-        const obj = @import("tcl_obj.zig");
-        _ = obj.obj_new_int(0);
-        return true;
-    }
-    // Similar stdlib functions — treat as pass-through no-ops.
-    if (eql(c, "auto_reset") or eql(c, "auto_mkindex") or eql(c, "auto_import") or
-        eql(c, "auto_execok") or eql(c, "auto_qualify") or eql(c, "unknown"))
+    // ``auto_load`` and friends are stdlib loaders — without the Tcl
+    // stdlib there's nothing to load.  The correct Tcl return is 0
+    // ("not auto-loaded") / empty string, but this bool-only
+    // dispatcher can't communicate a TclObj result — returning true
+    // here would drop the intended value and eval_proc_call would
+    // emit null.  Return false instead so eval_proc_call falls
+    // through to the unknown-command error, which in turn surfaces
+    // as a clean ``unknown command: auto_load`` trap.  A future
+    // refactor could have ``try_stub`` return ``(handled: bool,
+    // result: i32)`` so stdlib stubs can supply their proper value.
+    if (eql(c, "auto_load") or eql(c, "auto_reset") or eql(c, "auto_mkindex") or
+        eql(c, "auto_import") or eql(c, "auto_execok") or eql(c, "auto_qualify") or
+        eql(c, "unknown"))
     {
-        const obj = @import("tcl_obj.zig");
-        _ = obj.obj_new_string(0, 0);
-        return true;
+        return false;
     }
     if (eql(c, "try")) return trap("try");
     if (eql(c, "throw")) return trap("throw");
