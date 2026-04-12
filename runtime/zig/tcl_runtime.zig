@@ -14,6 +14,7 @@ const tcl_catch = @import("tcl_catch.zig");
 const tcl_frames = @import("tcl_frames.zig");
 const tcl_procs = @import("tcl_procs.zig");
 const tcl_cmd_info = @import("tcl_cmd_info.zig");
+const tcl_clock = @import("tcl_clock.zig");
 const interp = @import("tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -103,6 +104,11 @@ pub const proc_get_body = tcl_procs.proc_get_body;
 // Info
 pub const info_exists = tcl_cmd_info.info_exists;
 pub const info_dispatch = tcl_cmd_info.info_dispatch;
+
+// Clock
+pub const clock_seconds = tcl_clock.clock_seconds;
+pub const clock_clicks = tcl_clock.clock_clicks;
+pub const clock_milliseconds = tcl_clock.clock_milliseconds;
 
 // Ensure linker keeps all exported functions from each module.
 comptime {
@@ -199,6 +205,10 @@ comptime {
     _ = &tcl_cmd_info.info_body;
     _ = &tcl_cmd_info.info_args;
     _ = &tcl_cmd_info.info_dispatch;
+    // tcl_clock exports
+    _ = &tcl_clock.clock_seconds;
+    _ = &tcl_clock.clock_clicks;
+    _ = &tcl_clock.clock_milliseconds;
     // tcl_interp exports
     _ = &interp.tcl_eval;
 }

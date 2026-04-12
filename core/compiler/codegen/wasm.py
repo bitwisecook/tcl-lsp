@@ -741,6 +741,10 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     # Info command
     "tcl_info_exists": ("tcl", "info_exists", [ValType.I32], [ValType.I32]),
     "tcl_info_dispatch": ("tcl", "info_dispatch", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Clock command — WASI clock_time_get wrappers, integer results.
+    "tcl_clock_seconds": ("tcl", "clock_seconds", [], [ValType.I32]),
+    "tcl_clock_clicks": ("tcl", "clock_clicks", [], [ValType.I32]),
+    "tcl_clock_milliseconds": ("tcl", "clock_milliseconds", [], [ValType.I32]),
     # String split/join
     "tcl_split": ("tcl", "split", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_join": ("tcl", "join", [ValType.I32, ValType.I32], [ValType.I32]),
@@ -816,6 +820,15 @@ _DICT_SUBCMD_IMPORT: dict[str, str] = {
     "values": "tcl_dict_values",
     "size": "tcl_dict_size",
     "create": "tcl_dict_create",
+}
+
+# ``clock <subcmd>`` → import key.  Only subcommands that map to a
+# WASI-backed runtime hook are listed; ``format``/``scan`` fall through
+# to the interpreter which itself traps in the sandbox.
+_CLOCK_SUBCMD_IMPORT: dict[str, str] = {
+    "seconds": "tcl_clock_seconds",
+    "clicks": "tcl_clock_clicks",
+    "milliseconds": "tcl_clock_milliseconds",
 }
 
 # Commands that are scope declarations, compile-time-only, or CFG
@@ -962,6 +975,10 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                 elif cmd == "lassign":
                     needed.add("tcl_list_index")
                     needed.add("tcl_list_tail")
+                elif cmd == "clock" and len(parts) > 1:
+                    key = _CLOCK_SUBCMD_IMPORT.get(parts[1])
+                    if key is not None:
+                        needed.add(key)
                 elif cmd == "expr":
                     pass  # expr doesn't need imports itself
                 # Recurse into the command text for nested substitutions
@@ -1080,6 +1097,10 @@ def _scan_needed_imports(
                 elif command == "lassign":
                     needed.add("tcl_list_index")
                     needed.add("tcl_list_tail")
+                elif command == "clock" and args:
+                    key = _CLOCK_SUBCMD_IMPORT.get(args[0])
+                    if key is not None:
+                        needed.add(key)
                 elif command == "catch":
                     needed.add("tcl_catch_enter")
                     needed.add("tcl_catch_leave")
@@ -1604,6 +1625,11 @@ class _WasmEmitter:
             self._emit_cmd_lassign(tuple(cmd_args), defs=(), keep_on_stack=True)
             return
 
+        # clock in value context — i32 TclObj of the timer value.
+        if cmd_name == "clock" and cmd_args:
+            self._emit_clock_value(tuple(cmd_args))
+            return
+
         # Runtime command in value context (llength, lindex, etc.)
         if cmd_name in _CMD_RUNTIME:
             import_key, _ = _CMD_RUNTIME[cmd_name]
@@ -1864,6 +1890,12 @@ class _WasmEmitter:
         # lassign in expression context — returns leftover list (i32 TclObj).
         if cmd_name == "lassign" and cmd_args:
             self._emit_cmd_lassign(tuple(cmd_args), defs=(), keep_on_stack=True)
+            self._emit_unbox_int()
+            return
+
+        # clock in expression context — integer timer value.
+        if cmd_name == "clock" and cmd_args:
+            self._emit_clock_value(tuple(cmd_args))
             self._emit_unbox_int()
             return
 
@@ -2528,6 +2560,16 @@ class _WasmEmitter:
             self._emit_cmd_lassign(args, defs, keep_on_stack=False)
             return
 
+        # clock seconds / clicks / milliseconds — WASI-backed timer.
+        if command == "clock" and args:
+            self._emit_clock_value(args)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
+
         # Commands backed by runtime imports
         if command in _CMD_RUNTIME:
             self._emit_cmd_runtime(command, args, defs)
@@ -2722,6 +2764,11 @@ class _WasmEmitter:
         # lassign — keep leftover-list result on stack
         if command == "lassign" and args:
             self._emit_cmd_lassign(args, defs, keep_on_stack=True)
+            return
+
+        # clock — keep timer result on stack
+        if command == "clock" and args:
+            self._emit_clock_value(args)
             return
 
         # string sub-commands — keep result on stack
@@ -3176,6 +3223,28 @@ class _WasmEmitter:
                 self._emit(WasmOp.DROP)
         else:
             self._emit_unsupported_trap(f"dict {subcmd}")
+
+    def _emit_clock_value(self, args: tuple[str, ...]) -> None:
+        """Emit a ``clock <subcmd>`` expression; leaves i32 TclObj on stack.
+
+        ``seconds``/``clicks``/``milliseconds`` call the WASI-backed
+        runtime helpers directly.  Anything else falls through to the
+        interpreter (which will likely trap for ``format``/``scan`` in
+        the sandbox — that's fine as a clear diagnostic until we ship a
+        timezone-aware formatter).
+        """
+        if not args:
+            self._emit_i32_const(0)
+            return
+        subcmd = args[0]
+        import_key = _CLOCK_SUBCMD_IMPORT.get(subcmd)
+        if import_key is not None:
+            func_idx = self._shared_imports.get(import_key)
+            if func_idx is not None:
+                self._emit_call(func_idx)
+                return
+        # Fall back to the interpreter for unsupported subcommands.
+        self._emit_eval_fallback("clock", args)
 
     def _emit_cmd_lassign(
         self,

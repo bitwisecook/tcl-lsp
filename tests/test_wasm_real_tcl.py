@@ -777,6 +777,64 @@ return [main]
         assert val == 42
 
 
+class TestClock:
+    """``clock seconds`` / ``clock clicks`` / ``clock milliseconds`` via WASI."""
+
+    def test_clock_seconds_is_positive(self):
+        source = """\
+proc main {} {
+    set t [clock seconds]
+    if {$t > 0} { return 1 }
+    return 0
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_clock_clicks_is_positive(self):
+        source = """\
+proc main {} {
+    set t [clock clicks]
+    if {$t > 0} { return 1 }
+    return 0
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_clock_clicks_monotonic(self):
+        """Two consecutive clicks: the second is >= the first."""
+        source = """\
+proc main {} {
+    set a [clock clicks]
+    set b [clock clicks]
+    if {$b >= $a} { return 1 }
+    return 0
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_clock_milliseconds_present(self):
+        source = """\
+proc main {} {
+    set t [clock milliseconds]
+    if {$t > 0} { return 1 }
+    return 0
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+
 class TestUpvarCompilation:
     """Upvar/variable compilation tests — validate without execution."""
 
