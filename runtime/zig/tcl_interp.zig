@@ -821,12 +821,14 @@ fn eval_proc_call(words: []const i32) i32 {
     // Compiled proc (func_idx != 0 is a marker set by
     // ``proc_register_compiled``) — dispatch via the host bridge
     // because pure WASM can't call across modules.  The bridge
-    // looks up the proc's compiled WASM function by name and
-    // invokes it with the unpacked argv.
+    // looks up the proc's compiled WASM function by its
+    // *registered* (fully-qualified) name — taken from the
+    // bucket, not ``words[0]`` — and invokes it with the
+    // unpacked argv.
     const func_idx = procs.proc_get_func_idx(bucket);
     if (func_idx != 0) {
-        const dispatch = @import("tcl_dispatch.zig");
-        return dispatch.dispatch(words);
+        const dispatch_mod = @import("tcl_dispatch.zig");
+        return dispatch_mod.dispatch(bucket, words);
     }
     const body_obj = procs.proc_get_body(bucket);
     const params_obj = procs.proc_get_params(bucket);

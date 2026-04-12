@@ -45,17 +45,26 @@ extern "env" fn call_compiled_proc(
     argc: i32,
 ) i32;
 
-/// Dispatch ``words[0]``'s associated compiled proc via the host
-/// bridge.  Packs ``words[1..]`` into a contiguous i32 buffer and
-/// hands the pointer + length to ``call_compiled_proc``.  Returns
-/// the TclObj result the embedder handed back.
-pub fn dispatch(words: []const i32) i32 {
-    if (words.len == 0) return 0;
-    const name = obj.obj_ensure_string(words[0]);
+/// Dispatch a proc's associated compiled proc via the host bridge.
+///
+/// ``bucket`` is the ``proc_lookup`` result for the resolved name
+/// — using the bucket's stored name (fully qualified) rather than
+/// ``words[0]`` ensures the embedder looks up the right WASM
+/// export when the caller invoked the proc via an unqualified
+/// name resolved through namespace-path search (e.g. calling
+/// ``AcceptAll`` from inside ``::tcltest`` resolves the bucket
+/// for ``::tcltest::AcceptAll`` — the compiled module exports it
+/// by that qualified name).  Packs ``words[1..]`` into a
+/// contiguous i32 buffer and hands (name_ptr, name_len, argv_ptr,
+/// argc) to ``call_compiled_proc``.
+pub fn dispatch(bucket: i32, words: []const i32) i32 {
+    const procs = @import("tcl_procs.zig");
+    const name_ptr = procs.proc_get_name_ptr(bucket);
+    const name_len = procs.proc_get_name_len(bucket);
     // Pack argv[1..] (the "real" args, not the command name) into
     // a fresh i32 array.  Each TclObj pointer is 4 bytes; write
     // them little-endian to match the WASM memory layout.
-    const argc: u32 = @intCast(words.len - 1);
+    const argc: u32 = if (words.len == 0) 0 else @intCast(words.len - 1);
     var argv_buf: u32 = 0;
     if (argc > 0) {
         argv_buf = obj.alloc(argc * 4);
@@ -65,8 +74,8 @@ pub fn dispatch(words: []const i32) i32 {
         }
     }
     return call_compiled_proc(
-        @intCast(name.ptr),
-        @intCast(name.len),
+        name_ptr,
+        name_len,
         @intCast(argv_buf),
         @intCast(argc),
     );
