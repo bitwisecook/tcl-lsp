@@ -22,6 +22,11 @@
 use std::collections::HashMap;
 
 use tcl_lexer::Span;
+use tcl_registry::{CommandRegistry, Traits};
+
+use crate::ir::Statement;
+use crate::side_effects::{classify_side_effects, EffectRegion};
+use crate::ssa::SsaStatement;
 
 // ---------------------------------------------------------------------------
 // Expression-key alias (C26a)
@@ -353,6 +358,111 @@ pub fn loop_invariant_message(expression_text: &str) -> String {
     )
 }
 
+// ---------------------------------------------------------------------------
+// Statement-level helpers (C26c)
+// ---------------------------------------------------------------------------
+
+/// Return `true` if the command invocation is pure for GVN
+/// purposes — i.e. has no observable side effects.
+///
+/// Bridges to [`classify_side_effects`] from C23d. An optional
+/// dialect (`Some("irules")` / `Some("tcl")`) threads through to
+/// the classifier.
+#[must_use]
+pub fn is_pure_command(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+    dialect: Option<&str>,
+) -> bool {
+    let effect = classify_side_effects(registry, command, args, dialect, None);
+    effect.pure
+}
+
+/// Return `true` if a redundant use of `command` is worth
+/// flagging. Built-ins marked `CSE_CANDIDATE` qualify; user-proc
+/// redundancy (interprocedural) is deferred.
+#[must_use]
+pub fn is_worth_reporting(registry: &CommandRegistry, command: &str) -> bool {
+    if let Some(spec) = registry.get(command) {
+        return spec.traits.contains(Traits::CSE_CANDIDATE);
+    }
+    false
+}
+
+/// Return `true` when the statement's effects must invalidate
+/// value numbering.
+///
+/// [`Statement::Barrier`] always invalidates. [`Statement::Call`]
+/// invalidates when its side-effect profile writes any
+/// [`EffectRegion`] other than `NONE`. Other statements (pure
+/// assigns, returns) do not invalidate.
+#[must_use]
+pub fn statement_writes_state(
+    registry: &CommandRegistry,
+    stmt: &Statement,
+    dialect: Option<&str>,
+) -> bool {
+    match stmt {
+        Statement::Barrier { .. } => true,
+        Statement::Call { command, args, .. } => {
+            let effect = classify_side_effects(registry, command, args, dialect, None);
+            let (_reads, writes) = effect.to_effect_regions();
+            writes != EffectRegion::NONE
+        }
+        _ => false,
+    }
+}
+
+/// Collect pure-expression occurrences produced by a single SSA
+/// statement.
+///
+/// This is the focused Rust port of `gvn.py::_statement_occurrences`.
+/// It currently covers the top-level `Call` case only — embedded
+/// command-substitution scanning inside argument text is deferred
+/// to a follow-up strip that wires the Rust lexer in for CMD-token
+/// enumeration.
+///
+/// Returns a `Vec<ExprOccurrence>`: at most one entry today, but
+/// the type matches the Python interface so later strips can add
+/// nested occurrences without changing callers.
+#[must_use]
+pub fn statement_occurrences(
+    registry: &CommandRegistry,
+    stmt_ssa: &SsaStatement,
+    block_name: &str,
+    statement_index: usize,
+    dialect: Option<&str>,
+) -> Vec<ExprOccurrence> {
+    let mut out: Vec<ExprOccurrence> = Vec::new();
+    if let Statement::Call {
+        command,
+        args,
+        span,
+        ..
+    } = &stmt_ssa.statement
+    {
+        if !is_pure_command(registry, command, args, dialect) {
+            return out;
+        }
+        if !is_worth_reporting(registry, command) {
+            return out;
+        }
+        let key = build_call_key(command, args, &stmt_ssa.uses);
+        let expression_text = format_expression_text(command, args);
+        let variable_uses: Vec<String> = stmt_ssa.uses.keys().cloned().collect();
+        out.push(ExprOccurrence {
+            key,
+            span: *span,
+            expression_text,
+            block: block_name.to_owned(),
+            statement_index,
+            variable_uses,
+        });
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -515,6 +625,110 @@ mod tests {
         assert!(full_redundancy_message("llength $x").contains("local variable"));
         assert!(partial_redundancy_message("dict get $d k").contains("partially redundant"));
         assert!(loop_invariant_message("expr {$x + 1}").contains("loop-invariant"));
+    }
+
+    // -- C26c: statement-level helpers --
+
+    fn call_stmt(cmd: &str, args: &[&str]) -> Statement {
+        Statement::Call {
+            span: Span::new(0, 0),
+            command: cmd.into(),
+            args: args.iter().map(|s| (*s).into()).collect(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        }
+    }
+
+    #[test]
+    fn is_pure_command_picks_up_registry_pure_trait() {
+        let registry = CommandRegistry::build_default();
+        // `expr` is marked PURE / PURE_EVALUATION in the registry.
+        assert!(is_pure_command(
+            &registry,
+            "expr",
+            &["{1 + 2}".into()],
+            None
+        ));
+        // `set` is variable-assigning — not pure.
+        assert!(!is_pure_command(
+            &registry,
+            "set",
+            &["x".into(), "1".into()],
+            None
+        ));
+    }
+
+    #[test]
+    fn statement_writes_state_true_for_barrier() {
+        let registry = CommandRegistry::build_default();
+        let barrier = Statement::Barrier {
+            span: Span::new(0, 0),
+            reason: "eval".into(),
+            command: "eval".into(),
+            args: vec!["script".into()],
+            tokens: None,
+        };
+        assert!(statement_writes_state(&registry, &barrier, None));
+    }
+
+    #[test]
+    fn statement_writes_state_true_for_global_write() {
+        let registry = CommandRegistry::build_default();
+        // Global-scope `set` writes GLOBAL_STATE — must invalidate.
+        let set_global = call_stmt("set", &["::foo::bar", "1"]);
+        assert!(statement_writes_state(&registry, &set_global, None));
+    }
+
+    #[test]
+    fn statement_writes_state_false_for_proc_local_set() {
+        let registry = CommandRegistry::build_default();
+        // Proc-local `set x 1` only writes the local — no region.
+        let set_local = call_stmt("set", &["x", "1"]);
+        assert!(!statement_writes_state(&registry, &set_local, None));
+    }
+
+    #[test]
+    fn statement_writes_state_false_for_pure_expr() {
+        let registry = CommandRegistry::build_default();
+        let expr_stmt = call_stmt("expr", &["{1 + 2}"]);
+        assert!(!statement_writes_state(&registry, &expr_stmt, None));
+    }
+
+    #[test]
+    fn statement_occurrences_skips_impure_commands() {
+        let registry = CommandRegistry::build_default();
+        // `set` is impure — statement_occurrences emits nothing.
+        let stmt_ssa = SsaStatement {
+            statement: call_stmt("set", &["x", "1"]),
+            uses: HashMap::new(),
+            defs: HashMap::new(),
+        };
+        let occurrences = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None);
+        assert!(occurrences.is_empty());
+    }
+
+    #[test]
+    fn statement_occurrences_emits_nothing_for_non_call_stmts() {
+        let registry = CommandRegistry::build_default();
+        let stmt_ssa = SsaStatement {
+            statement: Statement::AssignConst {
+                span: Span::new(0, 0),
+                name: "x".into(),
+                value: "1".into(),
+            },
+            uses: HashMap::new(),
+            defs: HashMap::new(),
+        };
+        assert!(statement_occurrences(&registry, &stmt_ssa, "entry", 0, None).is_empty());
+    }
+
+    #[test]
+    fn is_worth_reporting_unknown_command_is_false() {
+        let registry = CommandRegistry::build_default();
+        assert!(!is_worth_reporting(&registry, "__nonexistent"));
     }
 
     #[test]
