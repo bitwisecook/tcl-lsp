@@ -72,22 +72,41 @@ pub mod analyses;
 pub mod cfg;
 pub mod cfg_builder;
 pub mod codegen;
+pub mod compilation_unit;
+pub mod compiler_checks;
+pub mod dataflow_graph;
+pub mod def_use;
+pub mod execution_intent;
 pub mod expr_ast;
 pub mod expr_parser;
+pub mod gvn;
+pub mod interprocedural;
 pub mod ir;
 pub mod ir_helpers;
 pub mod lowering;
 pub mod lowering_hooks;
+pub mod memory_ssa;
 pub mod naming;
+pub mod optimiser;
+pub mod rendered_properties;
+pub mod sccp;
 pub mod segmenter;
+pub mod shimmer;
+pub mod side_effects;
 pub mod ssa;
+pub mod static_loops;
+pub mod taint;
+pub mod tcl_expr_eval;
 pub mod types;
+pub mod value_shapes;
 pub mod var_refs;
+pub mod var_scoping;
 
 // Re-export key types for convenience.
 pub use expr_ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
 pub use expr_parser::parse_expr;
 pub use ir::{Module, Procedure, Script, Statement};
+pub use tcl_expr_eval::{eval_tcl_expr, format_tcl_value, Env, EnvValue, TclValue};
 
 /// Crate version string, useful for migration diagnostics.
 ///

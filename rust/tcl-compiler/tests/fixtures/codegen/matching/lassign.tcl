@@ -1,0 +1,1 @@
+lassign $lst a b

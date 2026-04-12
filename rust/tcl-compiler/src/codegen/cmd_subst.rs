@@ -370,6 +370,109 @@ impl CodegenCtx {
         self.emit(op, vec![Operand::Imm(argc)]);
     }
 
+    /// Inline compile `[list {*}$a {*}$b]` as `load a; load b; listConcat`.
+    ///
+    /// Only matches the exact two-argument form — `[list {*}$x]` (one
+    /// argument) and three-or-more-argument variants fall back to the
+    /// generic path. The matched pattern is: `[list` followed by two
+    /// `{*}$name` tokens separated by whitespace, closed by `]`.
+    ///
+    /// Returns `true` if the pattern matched and the bytecode was
+    /// emitted. Ported from `core/compiler/codegen/_values.py::
+    /// _try_list_expand_concat` (C19).
+    pub fn try_list_expand_concat(&mut self, value: &str) -> bool {
+        let Some(inner) = value.strip_prefix("[list").and_then(|s| s.strip_suffix(']')) else {
+            return false;
+        };
+        let mut names: Vec<&str> = Vec::new();
+        for tok in inner.split_whitespace() {
+            let Some(name) = tok.strip_prefix("{*}$") else {
+                return false;
+            };
+            if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                return false;
+            }
+            names.push(name);
+        }
+        if names.len() != 2 {
+            return false;
+        }
+        self.load_var(names[0]);
+        self.load_var(names[1]);
+        self.emit(Op::LIST_CONCAT, vec![]);
+        true
+    }
+
+    /// Inline compile `[list arg ... [break] ...]` or
+    /// `[list arg ... [continue] ...]` when a loop-break/continue
+    /// target is in scope.
+    ///
+    /// tclsh 9.0 compiles `break`/`continue` inside a `list` command
+    /// substitution as an inline jump with stack cleanup: values
+    /// pushed for earlier list arguments are popped, then a `jump4`
+    /// goes to the loop target. The trailing `list N` and any outer
+    /// command instructions become dead code that the bytecode layout
+    /// still lays out.
+    ///
+    /// Returns `true` if the pattern matched and was emitted. Ported
+    /// from `core/compiler/codegen/_values.py::
+    /// _try_inline_list_with_break_continue` (C19).
+    pub fn try_inline_list_with_break_continue(&mut self, value: &str) -> bool {
+        if !(value.starts_with("[list ") && value.ends_with(']')) {
+            return false;
+        }
+        let parts = parse_cmd_parts(value);
+        if parts.first().map(|(n, _)| n.as_str()) != Some("list") {
+            return false;
+        }
+        let args = &parts[1..];
+        let has_bc = args
+            .iter()
+            .any(|(a, _)| a == "[break]" || a == "[continue]");
+        if !has_bc {
+            return false;
+        }
+
+        let mut n_pushed: usize = 0;
+        for (arg, _braced) in args {
+            if arg == "[break]" && self.break_target.is_some() {
+                let target = self.break_target.clone().unwrap();
+                let end_label = self.fresh_label("cmd_end");
+                self.emit(
+                    Op::START_CMD,
+                    vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
+                );
+                self.cmd_index += 1;
+                for _ in 0..n_pushed {
+                    self.emit(Op::POP, vec![]);
+                }
+                self.emit_comment(Op::JUMP4, vec![Operand::Label(target)], "break");
+                self.place_label(&end_label);
+                n_pushed += 1; // dead-code placeholder
+            } else if arg == "[continue]" && self.continue_target.is_some() {
+                let target = self.continue_target.clone().unwrap();
+                let end_label = self.fresh_label("cmd_end");
+                self.emit(
+                    Op::START_CMD,
+                    vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
+                );
+                self.cmd_index += 1;
+                for _ in 0..n_pushed {
+                    self.emit(Op::POP, vec![]);
+                }
+                self.emit_comment(Op::JUMP4, vec![Operand::Label(target)], "continue");
+                self.place_label(&end_label);
+                n_pushed += 1;
+            } else {
+                self.emit_value(arg, false);
+                n_pushed += 1;
+            }
+        }
+        let argc = i32::try_from(args.len()).unwrap_or(i32::MAX);
+        self.emit(Op::LIST, vec![Operand::Imm(argc)]);
+        true
+    }
+
     /// Emit a value with full interpolation support.
     ///
     /// Extends the simplified `emit_value_interpolated` with command
@@ -388,6 +491,24 @@ impl CodegenCtx {
         }
         // Constant-fold [list arg1 arg2 ...]
         if let Some(folded) = super::helpers::fold_list_cmd(value) {
+            self.push_lit_no_dedup(&folded);
+            return;
+        }
+        // Inline [list {*}$a {*}$b] → load a, load b, listConcat (C19).
+        // tclsh 9.0 compiles two-list expansion as a specialised
+        // listConcat opcode rather than a generic `list` invoke.
+        if self.try_list_expand_concat(value) {
+            return;
+        }
+        // Inline [list arg ... [break] ...] or [list arg ... [continue] ...]
+        // (C19). tclsh 9.0 compiles break/continue inside `list` command
+        // substitutions as inline jumps with stack cleanup.
+        if self.try_inline_list_with_break_continue(value) {
+            return;
+        }
+        // Constant-fold [format "..." arg ...] with literal args (C19).
+        // Relies on the existing `helpers::try_format_fold` for %s/%d/%%.
+        if let Some(folded) = super::helpers::try_format_fold(value) {
             self.push_lit_no_dedup(&folded);
             return;
         }
@@ -1260,6 +1381,81 @@ mod tests {
                 }
             }
         }
+    }
+
+    // -- C19 specialised value-emission paths --
+
+    #[test]
+    fn try_list_expand_concat_matches_two_vars() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        assert!(ctx.try_list_expand_concat("[list {*}$a {*}$b]"));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        // push "a"; loadStk; push "b"; loadStk; listConcat
+        assert_eq!(
+            ops,
+            vec![
+                Op::PUSH1,
+                Op::LOAD_STK,
+                Op::PUSH1,
+                Op::LOAD_STK,
+                Op::LIST_CONCAT,
+            ]
+        );
+    }
+
+    #[test]
+    fn try_list_expand_concat_rejects_single_var() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        assert!(!ctx.try_list_expand_concat("[list {*}$a]"));
+        assert!(ctx.instructions.is_empty());
+    }
+
+    #[test]
+    fn try_list_expand_concat_rejects_three_vars() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        assert!(!ctx.try_list_expand_concat("[list {*}$a {*}$b {*}$c]"));
+    }
+
+    #[test]
+    fn try_list_expand_concat_rejects_non_expanded_arg() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        // Literal first arg without {*} prefix — falls back to generic path.
+        assert!(!ctx.try_list_expand_concat("[list a {*}$b]"));
+    }
+
+    #[test]
+    fn try_inline_list_without_target_emits_break_as_literal() {
+        // Matches Python: when `[list ... [break] ...]` appears without
+        // a loop target in scope, the pattern still claims the value
+        // and emits `[break]` as a literal list element. The generic
+        // fallback is never reached.
+        let mut ctx = CodegenCtx::new(true, &[]);
+        assert!(ctx.try_inline_list_with_break_continue("[list a [break] c]"));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        // No JUMP4 since no break target.
+        assert!(!ops.contains(&Op::JUMP4));
+        // Still emits LIST N at the end.
+        assert!(ops.contains(&Op::LIST));
+    }
+
+    #[test]
+    fn try_inline_list_with_break_emits_jump_to_target() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        ctx.break_target = Some("loop_break_1".into());
+        assert!(ctx.try_inline_list_with_break_continue("[list a [break] c]"));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        // push "a"; startCommand; pop; jump4 break_target; push "c"; list 3
+        assert!(ops.contains(&Op::JUMP4), "expected JUMP4, got {ops:?}");
+        assert!(ops.contains(&Op::START_CMD), "expected START_CMD, got {ops:?}");
+        assert!(ops.contains(&Op::LIST), "expected LIST, got {ops:?}");
+    }
+
+    #[test]
+    fn try_inline_list_without_break_returns_false() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        ctx.break_target = Some("loop_break_1".into());
+        // No [break]/[continue] inside — should not match.
+        assert!(!ctx.try_inline_list_with_break_continue("[list a b c]"));
     }
 
     /// `lrange` with non-literal indices must not push the list arg

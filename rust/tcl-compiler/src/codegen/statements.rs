@@ -241,6 +241,19 @@ impl CodegenCtx {
             self.push_lit_no_dedup(&folded);
             return;
         }
+        // Inline [list {*}$a {*}$b] → load a, load b, listConcat (C19).
+        if self.try_list_expand_concat(value) {
+            return;
+        }
+        // Inline [list arg ... [break] ...] / [list arg ... [continue] ...] (C19).
+        if self.try_inline_list_with_break_continue(value) {
+            return;
+        }
+        // Constant-fold [format "..." arg ...] (C19).
+        if let Some(folded) = super::helpers::try_format_fold(value) {
+            self.push_lit_no_dedup(&folded);
+            return;
+        }
         // Constant-fold [dict create k v ...]
         if let Some(folded) = super::helpers::fold_dict_create_cmd(value) {
             self.push_lit(&folded);
@@ -299,6 +312,12 @@ impl CodegenCtx {
                 self.emit_comment(Op::JUMP4, vec![Operand::Label(brk_lbl)], "break");
                 return;
             }
+        }
+
+        // C21: try a registered per-command codegen hook before the
+        // generic invoke fallback.
+        if super::emitter::bytecoded::try_bytecoded(self, cmd, args, used_generic_invoke) {
+            return;
         }
 
         self.push_lit(cmd);
