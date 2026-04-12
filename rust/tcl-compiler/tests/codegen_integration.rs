@@ -3,7 +3,7 @@
 //! Builds small CFG fixtures and runs them through `codegen_function`
 //! / `codegen_module` to verify the resulting `FunctionAsm` shape.
 
-#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
 
 use std::collections::{HashMap, HashSet};
 
@@ -404,6 +404,132 @@ fn foreach_emits_native_opcodes() {
         ops.contains(&Op::FOREACH_END),
         "expected FOREACH_END, got {ops:?}"
     );
+}
+
+#[test]
+fn complex_foreach_body_emits_step_at_end() {
+    // Build a foreach whose body is a branch (if condition → break).
+    //   foreach_header_1 ─branch─→ foreach_body_1 (empty, if cond)
+    //                   ─else──→  foreach_end_1
+    //   foreach_body_1 ─branch(cond)─→ if_then_1 (break)
+    //                              └→ if_end_1 (goto foreach_header_1)
+    //   if_then_1 ─break command─→ foreach_end_1 (via loop_ctx)
+    //   foreach_end_1 ─→ return
+    let mut cfg = CfgFunction::new("::top", "entry_0");
+    for b in [
+        "foreach_header_1",
+        "foreach_body_1",
+        "if_then_1",
+        "if_end_1",
+        "foreach_end_1",
+    ] {
+        cfg.blocks.insert(b.into(), Block::new(b));
+    }
+
+    cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Goto {
+        target: "foreach_header_1".into(),
+        span: None,
+    });
+
+    // foreach header has the foreach statement.
+    cfg.blocks
+        .get_mut("foreach_header_1")
+        .unwrap()
+        .statements
+        .push(Statement::Call {
+            span: sp(),
+            command: "foreach".into(),
+            args: vec!["${lst}".into()],
+            defs: vec!["i".into()],
+            reads: vec![],
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        });
+    cfg.blocks.get_mut("foreach_header_1").unwrap().terminator =
+        Some(Terminator::Branch {
+            condition: ExprNode::Raw {
+                text: "<foreach>".into(),
+            },
+            true_target: "foreach_body_1".into(),
+            false_target: "foreach_end_1".into(),
+            span: None,
+        });
+
+    // Complex body: empty, branch terminator
+    cfg.blocks.get_mut("foreach_body_1").unwrap().terminator =
+        Some(Terminator::Branch {
+            condition: ExprNode::Var {
+                text: "$i".into(),
+                name: "i".into(),
+                start: 0,
+                end: 2,
+            },
+            true_target: "if_then_1".into(),
+            false_target: "if_end_1".into(),
+            span: None,
+        });
+
+    // if_then_1: a break statement
+    cfg.blocks
+        .get_mut("if_then_1")
+        .unwrap()
+        .statements
+        .push(Statement::Call {
+            span: sp(),
+            command: "break".into(),
+            args: vec![],
+            defs: vec![],
+            reads: vec![],
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        });
+    cfg.blocks.get_mut("if_then_1").unwrap().terminator = Some(Terminator::Goto {
+        target: "foreach_header_1".into(),
+        span: None,
+    });
+
+    // if_end_1: no-op, loops back
+    cfg.blocks.get_mut("if_end_1").unwrap().terminator = Some(Terminator::Goto {
+        target: "foreach_header_1".into(),
+        span: None,
+    });
+
+    cfg.blocks.get_mut("foreach_end_1").unwrap().terminator =
+        Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+    let asm = codegen_function(&cfg, &[], false);
+    let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
+    assert!(
+        ops.contains(&Op::FOREACH_START),
+        "expected FOREACH_START, got {ops:?}"
+    );
+    assert!(
+        ops.contains(&Op::FOREACH_STEP),
+        "expected FOREACH_STEP, got {ops:?}"
+    );
+    assert!(
+        ops.contains(&Op::FOREACH_END),
+        "expected FOREACH_END, got {ops:?}"
+    );
+    // The foreach_continue_N and foreach_break_N labels should be
+    // present in the label table, indicating we emitted them.
+    let has_continue_label = asm
+        .labels
+        .keys()
+        .any(|k| k.starts_with("foreach_continue_"));
+    let has_break_label = asm
+        .labels
+        .keys()
+        .any(|k| k.starts_with("foreach_break_"));
+    assert!(has_continue_label, "expected foreach_continue_N label");
+    assert!(has_break_label, "expected foreach_break_N label");
 }
 
 #[test]
