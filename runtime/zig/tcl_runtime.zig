@@ -15,6 +15,7 @@ const tcl_frames = @import("tcl_frames.zig");
 const tcl_procs = @import("tcl_procs.zig");
 const tcl_cmd_info = @import("tcl_cmd_info.zig");
 const tcl_clock = @import("tcl_clock.zig");
+const tcl_array = @import("tcl_array.zig");
 const interp = @import("tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -109,6 +110,16 @@ pub const info_dispatch = tcl_cmd_info.info_dispatch;
 pub const clock_seconds = tcl_clock.clock_seconds;
 pub const clock_clicks = tcl_clock.clock_clicks;
 pub const clock_milliseconds = tcl_clock.clock_milliseconds;
+
+// Arrays
+pub const array_set = tcl_array.array_set;
+pub const array_get = tcl_array.array_get;
+pub const array_exists = tcl_array.array_exists;
+pub const array_element_exists = tcl_array.array_element_exists;
+pub const array_size = tcl_array.array_size;
+pub const array_unset = tcl_array.array_unset;
+pub const array_unset_element = tcl_array.array_unset_element;
+pub const array_names = tcl_array.array_names;
 
 // Ensure linker keeps all exported functions from each module.
 comptime {
@@ -209,6 +220,15 @@ comptime {
     _ = &tcl_clock.clock_seconds;
     _ = &tcl_clock.clock_clicks;
     _ = &tcl_clock.clock_milliseconds;
+    // tcl_array exports
+    _ = &tcl_array.array_set;
+    _ = &tcl_array.array_get;
+    _ = &tcl_array.array_exists;
+    _ = &tcl_array.array_element_exists;
+    _ = &tcl_array.array_size;
+    _ = &tcl_array.array_unset;
+    _ = &tcl_array.array_unset_element;
+    _ = &tcl_array.array_names;
     // tcl_interp exports
     _ = &interp.tcl_eval;
 }

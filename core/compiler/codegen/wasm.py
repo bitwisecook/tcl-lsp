@@ -745,6 +745,30 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_clock_seconds": ("tcl", "clock_seconds", [], [ValType.I32]),
     "tcl_clock_clicks": ("tcl", "clock_clicks", [], [ValType.I32]),
     "tcl_clock_milliseconds": ("tcl", "clock_milliseconds", [], [ValType.I32]),
+    # Arrays — dedicated per-array hash tables.
+    "tcl_array_set": (
+        "tcl",
+        "array_set",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_array_get": ("tcl", "array_get", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_array_exists": ("tcl", "array_exists", [ValType.I32], [ValType.I32]),
+    "tcl_array_element_exists": (
+        "tcl",
+        "array_element_exists",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_array_size": ("tcl", "array_size", [ValType.I32], [ValType.I32]),
+    "tcl_array_unset": ("tcl", "array_unset", [ValType.I32], [ValType.I32]),
+    "tcl_array_unset_element": (
+        "tcl",
+        "array_unset_element",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_array_names": ("tcl", "array_names", [ValType.I32], [ValType.I32]),
     # String split/join
     "tcl_split": ("tcl", "split", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_join": ("tcl", "join", [ValType.I32, ValType.I32], [ValType.I32]),
@@ -866,6 +890,46 @@ _UNSUPPORTED_COMMANDS = frozenset(
 )
 
 
+def _parse_array_ref(name: str) -> tuple[str, str] | None:
+    """Return ``(array_name, key_text)`` if *name* looks like ``arr(key)``.
+
+    Returns ``None`` for scalar names.  The key may be a literal, a
+    variable reference (``$i``), an interpolated string
+    (``counter-$tag``), or a command substitution — the caller is
+    responsible for emitting it as a TclObj value via ``_emit_value``.
+
+    Array names can themselves contain ``::`` (``::ns::arr(key)``) and
+    the key may contain ``)``-balanced nested parens — we require
+    properly nested parens with the final ``)`` matching the first
+    unescaped ``(``.
+    """
+    # Strip Tcl's ``$=`` scalar-disambiguator prefix that the lowerer
+    # sometimes applies to braced ``${x(1)}`` scalars so we don't
+    # misidentify those as array refs.
+    if not name or "(" not in name or not name.endswith(")"):
+        return None
+    if name.startswith("$={"):
+        return None
+    # Find the first '(' that isn't escaped.
+    i = 0
+    n = len(name)
+    while i < n:
+        if name[i] == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if name[i] == "(":
+            break
+        i += 1
+    else:
+        return None
+    arr = name[:i]
+    if not arr:
+        return None
+    # The key runs from i+1 to the matching ')', which is the last char.
+    key = name[i + 1 : -1]
+    return (arr, key)
+
+
 def _derive_proc_namespace(qname: str) -> str:
     """Return the namespace containing *qname*.
 
@@ -979,6 +1043,20 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     key = _CLOCK_SUBCMD_IMPORT.get(parts[1])
                     if key is not None:
                         needed.add(key)
+                elif cmd == "array" and len(parts) > 1:
+                    sub = parts[1]
+                    if sub == "exists":
+                        needed.add("tcl_array_exists")
+                    elif sub == "size":
+                        needed.add("tcl_array_size")
+                    elif sub == "unset":
+                        needed.add("tcl_array_unset")
+                    elif sub == "names":
+                        needed.add("tcl_array_names")
+                    elif sub == "set":
+                        needed.add("tcl_array_set")
+                    elif sub == "get":
+                        needed.add("tcl_array_get")
                 elif cmd == "expr":
                     pass  # expr doesn't need imports itself
                 # Recurse into the command text for nested substitutions
@@ -1018,6 +1096,8 @@ def _scan_needed_imports(
         # at codegen time to concatenate the parts.
         if _has_embedded_subst_scan(value):
             needed.add("tcl_append")
+        # ``$arr(key)`` references need tcl_array_get at codegen time.
+        _scan_value_for_array_refs(value)
 
     def _scan_expr(expr: object) -> None:
         """Walk an expression AST and scan ExprCommand nodes."""
@@ -1051,11 +1131,66 @@ def _scan_needed_imports(
         """``::``-prefixed variable names route reads/writes through the
         global table.  Pull in the matching runtime hooks eagerly so the
         code emission paths can rely on them being registered.
+
+        Also handles array-element writes: ``set arr(key) val`` lowers
+        with ``name='arr(key)'``, which needs ``tcl_array_set``.
         """
-        if not name or not name.startswith("::"):
+        if not name:
             return
-        needed.add("tcl_global_get")
-        needed.add("tcl_global_set")
+        if _parse_array_ref(name) is not None:
+            needed.add("tcl_array_set")
+            needed.add("tcl_array_get")
+            return
+        if name.startswith("::"):
+            needed.add("tcl_global_get")
+            needed.add("tcl_global_set")
+
+    def _scan_value_for_array_refs(value: str | None) -> None:
+        """Pull in array-get for ``$arr(key)`` references inside a value
+        string.  The read path routes through tcl_array_get whenever the
+        name parses as an array reference.
+        """
+        if not value or "(" not in value:
+            return
+        # Conservative: scan for ``$name(`` or ``${name(`` substrings.
+        i = 0
+        n = len(value)
+        while i < n:
+            if value[i] == "$" and i + 1 < n:
+                # Advance over bare name or ${...} with parens.
+                j = i + 1
+                if value[j] == "{":
+                    j += 1
+                    while j < n and value[j] != "}":
+                        j += 1
+                else:
+                    while j < n and (
+                        value[j].isalnum()
+                        or value[j] == "_"
+                        or (value[j] == ":" and j + 1 < n and value[j + 1] == ":")
+                    ):
+                        j += 1
+                if j < n and value[j] == "(":
+                    needed.add("tcl_array_get")
+                    break
+                i = j
+            else:
+                i += 1
+
+    def _scan_array_subcmd(args: tuple[str, ...]) -> None:
+        if not args:
+            return
+        sub = args[0]
+        if sub == "exists":
+            needed.add("tcl_array_exists")
+        elif sub == "size":
+            needed.add("tcl_array_size")
+        elif sub == "unset":
+            needed.add("tcl_array_unset")
+        elif sub == "names":
+            needed.add("tcl_array_names")
+        elif sub == "set":
+            needed.add("tcl_array_set")
 
     def _scan_stmt(stmt: IRStatement) -> None:
         match stmt:
@@ -1101,6 +1236,13 @@ def _scan_needed_imports(
                     key = _CLOCK_SUBCMD_IMPORT.get(args[0])
                     if key is not None:
                         needed.add(key)
+                elif command == "array" and args:
+                    _scan_array_subcmd(args)
+                elif command == "unset":
+                    for a in args:
+                        if _parse_array_ref(a) is not None:
+                            needed.add("tcl_array_unset_element")
+                            break
                 elif command == "catch":
                     needed.add("tcl_catch_enter")
                     needed.add("tcl_catch_leave")
@@ -1117,17 +1259,24 @@ def _scan_needed_imports(
             case IRAssignValue(name=name, value=value):
                 _scan_qualified_name(name)
                 _scan_value(value)
+                _scan_value_for_array_refs(value)
             case IRAssignConst(name=name):
                 _scan_qualified_name(name)
             case IRIncr(name=name, amount=amount):
                 _scan_qualified_name(name)
                 if isinstance(amount, str):
                     _scan_value(amount)
+                    _scan_value_for_array_refs(amount)
             case IRExprEval(expr=expr):
                 _scan_expr(expr)
             case IRAssignExpr(name=name, expr=expr):
                 _scan_qualified_name(name)
                 _scan_expr(expr)
+            case IRReturn(value=value, expr=expr):
+                if value is not None:
+                    _scan_value(value)
+                if expr is not None:
+                    _scan_expr(expr)
             case IRIf(clauses=clauses, else_body=else_body):
                 for clause in clauses:
                     _scan_expr(clause.condition)
@@ -1630,6 +1779,11 @@ class _WasmEmitter:
             self._emit_clock_value(tuple(cmd_args))
             return
 
+        # array subcommand in value context.
+        if cmd_name == "array" and cmd_args:
+            self._emit_array_subcmd_value(tuple(cmd_args))
+            return
+
         # Runtime command in value context (llength, lindex, etc.)
         if cmd_name in _CMD_RUNTIME:
             import_key, _ = _CMD_RUNTIME[cmd_name]
@@ -1758,10 +1912,22 @@ class _WasmEmitter:
         match node:
             case ExprLiteral(text=value):
                 self._emit_literal(value)
-            case ExprVar(name=name):
+            case ExprVar(name=name, text=text):
                 # Alias-aware: reads through _emit_var_read_obj so upvar'd
                 # and variable-declared vars resolve via the global table.
-                self._emit_var_read_obj(name)
+                # For array refs (``$a(key)``) the parser reports only the
+                # base name; the ``text`` field carries the full token
+                # including the ``(key)`` suffix, which _emit_var_read_obj
+                # re-parses via _parse_array_ref.
+                resolved = name
+                if "(" in text and text.endswith(")"):
+                    # Drop the leading ``$``/``${`` so _parse_array_ref
+                    # sees ``name(key)``.
+                    bare = text[1:] if text.startswith("$") else text
+                    if bare.startswith("{") and bare.endswith("}"):
+                        bare = bare[1:-1]
+                    resolved = bare
+                self._emit_var_read_obj(resolved)
                 self._emit_unbox_int()
             case ExprBinary(op=op, left=left, right=right):
                 self._emit_binary(op, left, right)
@@ -1896,6 +2062,12 @@ class _WasmEmitter:
         # clock in expression context — integer timer value.
         if cmd_name == "clock" and cmd_args:
             self._emit_clock_value(tuple(cmd_args))
+            self._emit_unbox_int()
+            return
+
+        # array subcommand in expression context.
+        if cmd_name == "array" and cmd_args:
+            self._emit_array_subcmd_value(tuple(cmd_args))
             self._emit_unbox_int()
             return
 
@@ -2088,6 +2260,15 @@ class _WasmEmitter:
 
         match node:
             case ExprVar(text=text):
+                # Array ref in value context: ``$a(key)`` — strip the
+                # leading ``$`` / ``${`` / trailing ``}`` and route
+                # through the array-aware _emit_var_read_obj path.
+                if "(" in text and text.endswith(")"):
+                    bare = text[1:] if text.startswith("$") else text
+                    if bare.startswith("{") and bare.endswith("}"):
+                        bare = bare[1:-1]
+                    self._emit_var_read_obj(bare)
+                    return
                 var = self._resolve_var_name(text)
                 if var is not None:
                     self._emit_var_read_obj(var)
@@ -2322,10 +2503,12 @@ class _WasmEmitter:
                     return int(value)
                 except ValueError:
                     return None
-            case ExprVar(name=name):
-                # Aliased vars have time-varying values — don't treat
-                # them as constants even if _const_map was populated
+            case ExprVar(name=name, text=text):
+                # Array refs and aliased vars have time-varying values — don't
+                # treat them as constants even if _const_map was populated
                 # before the alias was established.
+                if "(" in text:
+                    return None
                 if name in self._aliases:
                     return None
                 return self._const_map.get(name)
@@ -2570,6 +2753,25 @@ class _WasmEmitter:
                 self._emit(WasmOp.DROP)
             return
 
+        # array subcommand dispatch — reads/writes route through the
+        # dedicated array hash tables.
+        if command == "array" and args:
+            self._emit_array_subcmd_value(args)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
+
+        # unset — handle array elements specially so ``unset arr(key)``
+        # actually removes the element from the array storage.  Plain
+        # scalar unset is fine to fall through for now (compiled procs
+        # don't need to clear WASM locals).
+        if command == "unset" and args:
+            if self._emit_unset_array_elems(args):
+                return
+
         # Commands backed by runtime imports
         if command in _CMD_RUNTIME:
             self._emit_cmd_runtime(command, args, defs)
@@ -2771,6 +2973,11 @@ class _WasmEmitter:
             self._emit_clock_value(args)
             return
 
+        # array subcommand in tail position — keep result on stack
+        if command == "array" and args:
+            self._emit_array_subcmd_value(args)
+            return
+
         # string sub-commands — keep result on stack
         if command == "string" and args:
             subcmd = args[0]
@@ -2875,9 +3082,14 @@ class _WasmEmitter:
         For aliased variables (``upvar``/``variable``), this reads through
         ``tcl_global_get`` using the target name stashed at alias-setup time.
         For ``::``-qualified names (e.g. ``::ns::var``), this reads the
-        global directly.  Otherwise this is a plain WASM ``local.get`` of
-        the interned local.
+        global directly.  Array references (``arr(key)``) dispatch to
+        ``tcl_array_get`` with the element's stored value.  Otherwise
+        this is a plain WASM ``local.get`` of the interned local.
         """
+        array_ref = _parse_array_ref(name)
+        if array_ref is not None:
+            self._emit_array_element_read(*array_ref)
+            return
         binding = self._aliases.get(name)
         if binding is not None:
             kind, target_idx = binding
@@ -2915,6 +3127,10 @@ class _WasmEmitter:
         self._emit_var_write_obj_impl(name, keep_on_stack=True)
 
     def _emit_var_write_obj_impl(self, name: str, *, keep_on_stack: bool) -> None:
+        array_ref = _parse_array_ref(name)
+        if array_ref is not None:
+            self._emit_array_element_write(array_ref[0], array_ref[1], keep_on_stack=keep_on_stack)
+            return
         binding = self._aliases.get(name)
         if binding is not None:
             kind, target_idx = binding
@@ -2932,6 +3148,52 @@ class _WasmEmitter:
         else:
             self._emit_local_set(idx)
         self._emit_global_writeback(name, idx)
+
+    def _emit_array_name_obj(self, arr: str) -> None:
+        """Push the TclObj containing the runtime name of array *arr*.
+
+        Honours ``upvar`` / ``variable`` aliases so ``upvar #0
+        counter::T-$tag counter; set counter(N) 0`` hits the correct
+        per-tag array.  ``::``-qualified and plain names pass through
+        as literals.
+        """
+        binding = self._aliases.get(arr)
+        if binding is not None and binding[0] == "global":
+            self._emit_local_get(binding[1])
+            return
+        self._emit_obj_literal(arr)
+
+    def _emit_array_element_read(self, arr: str, key: str) -> None:
+        """``$arr(key)`` — emit tcl_array_get(arr_name, key) and leave the
+        i32 TclObj result on the stack.
+        """
+        func_idx = self._shared_imports.get("tcl_array_get")
+        if func_idx is None:
+            self._emit_i32_const(0)
+            return
+        self._emit_array_name_obj(arr)
+        self._emit_value(key)
+        self._emit_call(func_idx)
+
+    def _emit_array_element_write(self, arr: str, key: str, *, keep_on_stack: bool) -> None:
+        """``set arr(key) value`` — value is already on the stack.
+
+        Stashes the value, pushes (arr_name, key, value) and calls
+        tcl_array_set.
+        """
+        func_idx = self._shared_imports.get("tcl_array_set")
+        if func_idx is None:
+            if not keep_on_stack:
+                self._emit(WasmOp.DROP)
+            return
+        tmp = self._add_extra_local(prefix="_arr_val", val_type=ValType.I32)
+        self._emit_local_set(tmp)
+        self._emit_array_name_obj(arr)
+        self._emit_value(key)
+        self._emit_local_get(tmp)
+        self._emit_call(func_idx)
+        if not keep_on_stack:
+            self._emit(WasmOp.DROP)
 
     def _emit_global_set_via_local(self, target_local_idx: int, *, keep_on_stack: bool) -> None:
         """Consume a value on the stack, write it to the global whose name
@@ -3223,6 +3485,122 @@ class _WasmEmitter:
                 self._emit(WasmOp.DROP)
         else:
             self._emit_unsupported_trap(f"dict {subcmd}")
+
+    def _emit_array_subcmd_value(self, args: tuple[str, ...]) -> None:
+        """``array <subcmd> <arr> ?args?`` — leaves i32 TclObj on the stack.
+
+        Supported subcommands:
+          exists, size, unset, names, set, get.  Others fall back to
+          the interpreter, which will see the compile-time snapshot
+          of the array's state (via globals — interpreter doesn't
+          touch per-array tables yet).
+        """
+        if not args:
+            self._emit_i32_const(0)
+            return
+        subcmd = args[0]
+        if subcmd == "exists" and len(args) >= 2:
+            fidx = self._shared_imports.get("tcl_array_exists")
+            if fidx is not None:
+                self._emit_array_name_obj(args[1])
+                self._emit_call(fidx)
+                return
+        elif subcmd == "size" and len(args) >= 2:
+            fidx = self._shared_imports.get("tcl_array_size")
+            if fidx is not None:
+                self._emit_array_name_obj(args[1])
+                self._emit_call(fidx)
+                return
+        elif subcmd == "unset" and len(args) >= 2:
+            fidx = self._shared_imports.get("tcl_array_unset")
+            if fidx is not None:
+                self._emit_array_name_obj(args[1])
+                self._emit_call(fidx)
+                return
+        elif subcmd == "names" and len(args) >= 2:
+            fidx = self._shared_imports.get("tcl_array_names")
+            if fidx is not None:
+                self._emit_array_name_obj(args[1])
+                self._emit_call(fidx)
+                return
+        elif subcmd == "set" and len(args) >= 3:
+            # ``array set arr {key val key val ...}`` — iterate the list
+            # literal at compile time when possible, otherwise fall back
+            # to the interpreter.  Most real-world usage is literal.
+            self._emit_array_set_list(args[1], args[2])
+            return
+        elif subcmd == "get" and len(args) >= 2:
+            # ``array get arr`` — return a flat {key val key val ...}
+            # list.  Not implemented in the compiled runtime yet; fall
+            # back to tcl_eval so the interpreter handles it (returns
+            # empty for now, which degrades rather than mis-computes).
+            pass
+        self._emit_eval_fallback("array", args)
+
+    def _emit_array_set_list(self, arr: str, kv_text: str) -> None:
+        """``array set arr {k v k v ...}`` — compile-time list literal.
+
+        Parses the inline list and emits one ``array_set`` call per
+        pair.  Falls back to the interpreter for non-literal inputs.
+        Leaves an empty string TclObj on the stack as the command's
+        return value.
+        """
+        from ._helpers import _split_list_simple
+
+        fidx = self._shared_imports.get("tcl_array_set")
+        if fidx is None:
+            self._emit_eval_fallback("array", ("set", arr, kv_text))
+            return
+        # Strip an optional outer braces around the literal list.
+        text = kv_text
+        if text.startswith("{") and text.endswith("}"):
+            text = text[1:-1]
+        try:
+            words = _split_list_simple(text)
+        except Exception:
+            self._emit_eval_fallback("array", ("set", arr, kv_text))
+            return
+        if len(words) % 2 != 0:
+            self._emit_eval_fallback("array", ("set", arr, kv_text))
+            return
+        for i in range(0, len(words), 2):
+            self._emit_array_name_obj(arr)
+            self._emit_value(words[i])
+            self._emit_value(words[i + 1])
+            self._emit_call(fidx)
+            self._emit(WasmOp.DROP)
+        # ``array set`` returns empty string.
+        self._emit_obj_literal("")
+
+    def _emit_unset_array_elems(self, args: tuple[str, ...]) -> bool:
+        """Handle ``unset arr(key)`` forms.  Returns True if at least one
+        array-element unset was emitted (and scalar unsets, if mixed in,
+        were emitted as NOPs) — caller should ``return`` from the
+        dispatch.  Returns False if *args* contains no array-element
+        references at all.
+        """
+        had_array = False
+        fidx = self._shared_imports.get("tcl_array_unset_element")
+        # Skip ``-nocomplain`` / ``--`` option prefix.
+        i = 0
+        while i < len(args) and args[i].startswith("-"):
+            if args[i] == "--":
+                i += 1
+                break
+            i += 1
+        for name in args[i:]:
+            ref = _parse_array_ref(name)
+            if ref is None:
+                continue
+            had_array = True
+            arr, key = ref
+            if fidx is None:
+                continue
+            self._emit_array_name_obj(arr)
+            self._emit_value(key)
+            self._emit_call(fidx)
+            self._emit(WasmOp.DROP)
+        return had_array
 
     def _emit_clock_value(self, args: tuple[str, ...]) -> None:
         """Emit a ``clock <subcmd>`` expression; leaves i32 TclObj on stack.

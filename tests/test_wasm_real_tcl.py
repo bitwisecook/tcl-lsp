@@ -835,6 +835,161 @@ return [main]
         assert val == 1
 
 
+class TestArrays:
+    """Tcl arrays — ``set arr(key) val``, ``$arr(key)``, ``array …``."""
+
+    def test_array_basic_set_and_get(self):
+        source = """\
+proc main {} {
+    set a(1) 10
+    set a(2) 20
+    return [expr {$a(1) + $a(2)}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 30
+
+    def test_array_overwrite(self):
+        source = """\
+proc main {} {
+    set a(key) 1
+    set a(key) 42
+    return $a(key)
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 42
+
+    def test_array_incr(self):
+        source = """\
+proc main {} {
+    set counter(N) 0
+    incr counter(N)
+    incr counter(N)
+    incr counter(N)
+    return $counter(N)
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 3
+
+    def test_array_dynamic_key(self):
+        """Keys can be computed at runtime — use $var in key position."""
+        source = """\
+proc main {} {
+    set key alpha
+    set a($key) 7
+    set a(beta) 11
+    return [expr {$a($key) + $a(beta)}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 18
+
+    def test_array_exists_size(self):
+        source = """\
+proc main {} {
+    set r 0
+    if {[array exists missing]} { set r [expr {$r + 100}] }
+    set a(1) 1
+    set a(2) 1
+    if {[array exists a]} { set r [expr {$r + 1}] }
+    set r [expr {$r + [array size a]}]
+    return $r
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 3  # 0 missing-hit + 1 a-exists + 2 size
+
+    def test_array_names_join(self):
+        source = """\
+proc main {} {
+    set a(x) 1
+    set a(y) 2
+    set a(z) 3
+    set names [array names a]
+    return [llength $names]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 3
+
+    def test_array_unset_element(self):
+        source = """\
+proc main {} {
+    set a(1) 1
+    set a(2) 2
+    unset a(1)
+    return [array size a]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_array_unset_whole(self):
+        source = """\
+proc main {} {
+    set a(1) 1
+    set a(2) 2
+    array unset a
+    return [array size a]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 0
+
+    def test_array_set_literal(self):
+        source = """\
+proc main {} {
+    array set a {one 1 two 2 three 3}
+    return [expr {$a(one) + $a(two) + $a(three)}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 6
+
+    def test_array_via_upvar_alias(self):
+        """upvar #0 of a dynamic array name — tcllib counter pattern."""
+        source = """\
+proc put {tag k v} {
+    upvar #0 store::T-$tag arr
+    set arr($k) $v
+}
+proc fetch {tag k} {
+    upvar #0 store::T-$tag arr
+    return $arr($k)
+}
+proc main {} {
+    put alpha N 10
+    put alpha total 100
+    put beta N 1
+    return [expr {[fetch alpha N] + [fetch alpha total] + [fetch beta N]}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 111
+
+
 class TestUpvarCompilation:
     """Upvar/variable compilation tests — validate without execution."""
 
