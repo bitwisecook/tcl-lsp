@@ -27,8 +27,15 @@ fn htab_init() void {
 }
 
 pub fn fnv1a(ptr: u32, len: u32) u32 {
-    const src: [*]const u8 = @ptrFromInt(ptr);
+    // Empty string (common: ``$arr()`` with an empty key, or an
+    // empty TclObj with ptr=0 from obj_ensure_string).  Skip the
+    // ``@ptrFromInt`` — Zig's safe-mode checks panic on a null
+    // pointer conversion, which is especially noisy when the
+    // payload is a zero-length slice that wouldn't be dereferenced
+    // anyway.
+    if (len == 0) return 2166136261;
     var h: u32 = 2166136261;
+    const src: [*]const u8 = @ptrFromInt(ptr);
     for (0..len) |i| {
         h ^= @as(u32, src[i]);
         h *%= 16777619;
@@ -43,10 +50,10 @@ fn htab_find(name_ptr: u32, name_len: u32, hash: u32) ?u32 {
     var probes: u32 = 0;
     while (probes < htab_cap) : (probes += 1) {
         const base = htab_buf + idx * HTAB_BUCKET_SIZE;
-        const ep: u32 = @intCast(read_i32(base));
+        const ep: u32 = @bitCast(read_i32(base));
         if (ep == 0) return null;
-        const el: u32 = @intCast(read_i32(base + 4));
-        const eh: u32 = @intCast(read_i32(base + 8));
+        const el: u32 = @bitCast(read_i32(base + 4));
+        const eh: u32 = @bitCast(read_i32(base + 8));
         if (eh == hash and el == name_len) {
             const sp: [*]const u8 = @ptrFromInt(ep);
             const np: [*]const u8 = @ptrFromInt(name_ptr);
@@ -69,13 +76,13 @@ fn htab_insert(name_ptr: u32, name_len: u32, hash: u32, value: i32) void {
     var idx = hash & mask;
     while (true) {
         const base = htab_buf + idx * HTAB_BUCKET_SIZE;
-        const ep: u32 = @intCast(read_i32(base));
+        const ep: u32 = @bitCast(read_i32(base));
         if (ep == 0) {
             const nbuf = alloc(name_len);
             memcpy(nbuf, name_ptr, name_len);
-            write_i32(base, @intCast(nbuf));
-            write_i32(base + 4, @intCast(name_len));
-            write_i32(base + 8, @intCast(hash));
+            write_i32(base, @bitCast(nbuf));
+            write_i32(base + 4, @bitCast(name_len));
+            write_i32(base + 8, @bitCast(hash));
             write_i32(base + 12, value);
             htab_count += 1;
             return;
@@ -97,19 +104,19 @@ fn htab_grow() void {
     i = 0;
     while (i < old_cap) : (i += 1) {
         const base = old_buf + i * HTAB_BUCKET_SIZE;
-        const ep: u32 = @intCast(read_i32(base));
+        const ep: u32 = @bitCast(read_i32(base));
         if (ep != 0) {
-            const el: u32 = @intCast(read_i32(base + 4));
-            const eh: u32 = @intCast(read_i32(base + 8));
+            const el: u32 = @bitCast(read_i32(base + 4));
+            const eh: u32 = @bitCast(read_i32(base + 8));
             const ev: i32 = read_i32(base + 12);
             const mask = htab_cap - 1;
             var idx = eh & mask;
             while (true) {
                 const nb = htab_buf + idx * HTAB_BUCKET_SIZE;
-                if (@as(u32, @intCast(read_i32(nb))) == 0) {
-                    write_i32(nb, @intCast(ep));
-                    write_i32(nb + 4, @intCast(el));
-                    write_i32(nb + 8, @intCast(eh));
+                if (@as(u32, @bitCast(read_i32(nb))) == 0) {
+                    write_i32(nb, @bitCast(ep));
+                    write_i32(nb + 4, @bitCast(el));
+                    write_i32(nb + 8, @bitCast(eh));
                     write_i32(nb + 12, ev);
                     htab_count += 1;
                     break;

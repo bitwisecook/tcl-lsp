@@ -80,14 +80,21 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
     const n_params: u32 = @intCast(procs.proc_get_n_params(bucket));
     const has_args_tail: bool = procs.proc_get_args_tail(bucket) != 0;
 
-    // Effective argc we pass to the host bridge.  Without an
-    // ``args`` tail we forward ``given`` as-is and let wasmtime's
-    // arity check flag the mismatch — matches the old behaviour
-    // for non-variadic procs.  With a tail we always pass exactly
-    // ``n_params`` values: the first (n_params - 1) from words
-    // directly, then a synthesised list of the rest as the final
-    // slot.
-    const argc: u32 = if (has_args_tail) n_params else given;
+    // Effective argc we pass to the host bridge.  The compiled
+    // proc's WASM signature has fixed ``n_params`` arity, so we
+    // always pass exactly ``n_params`` values regardless of how
+    // many the caller supplied — WASM's arity check rejects
+    // mismatches as a trap.  Missing slots (``given < n_params``)
+    // get a null TclObj sentinel (0), which the proc's declared-
+    // default bindings can substitute for.
+    //
+    // This padding matters when an *interpreted* call into a
+    // compiled proc (via eval_proc_call → dispatch) doesn't know
+    // about the callee's defaults — e.g. tcltest's
+    // ``::tcltest::Configure`` with optional trailing options —
+    // whereas the compiled-side ``_emit_cmd_proc_call`` already
+    // pads defaults at the call site.
+    const argc: u32 = n_params;
 
     var argv_buf: u32 = 0;
     if (argc > 0) {
@@ -108,9 +115,16 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
             const tail_list = build_args_list(words, fixed);
             obj.write_i32(argv_buf + fixed * 4, tail_list);
         } else {
+            // Pad with 0 when caller supplied fewer args than the
+            // compiled proc declares.  Excess args beyond
+            // n_params are silently dropped — that matches
+            // ``_emit_cmd_proc_call``'s truncation and lets procs
+            // reached via ``[info level 0]`` / interp fallback
+            // survive arity surprises.
             var i: u32 = 0;
             while (i < argc) : (i += 1) {
-                obj.write_i32(argv_buf + i * 4, words[i + 1]);
+                const val: i32 = if (i < given) words[i + 1] else 0;
+                obj.write_i32(argv_buf + i * 4, val);
             }
         }
     }
