@@ -13,9 +13,13 @@ const procs = @import("tcl_procs.zig");
 const frames = @import("tcl_frames.zig");
 const info = @import("tcl_cmd_info.zig");
 
+const obj_mod = @import("tcl_obj.zig");
+
 // Re-export runtime functions used throughout this file
 const alloc = rt.alloc;
 const memcpy = rt.memcpy;
+const read_i32 = obj_mod.read_i32;
+const write_i32 = obj_mod.write_i32;
 const obj_new_string = rt.obj_new_string;
 const obj_new_int = rt.obj_new_int;
 const obj_get_int = rt.obj_get_int;
@@ -198,29 +202,58 @@ fn subst_flagged(
     if (!has_dollar and !has_bracket and !do_bs) {
         return obj_new_string(@intCast(wptr), @intCast(wlen));
     }
-    // Two-pass approach: first pass walks *src* to compute the
-    // exact output size by resolving each ``$var`` / ``[cmd]``
-    // substitution and summing its string length; second pass
-    // re-resolves and writes into a buffer sized exactly right.
+    // Single-pass substitution into a pre-recorded "pieces" array.
     //
-    // The previous single-pass implementation used a ``wlen * 4 +
-    // 64`` heuristic — fine for short words but catastrophically
-    // wrong when a word like ``$s`` (2 chars of source) resolves
-    // to a multi-KB value (a tcltest ``ConstraintInitializer``
-    // body, for instance).  ``memcpy`` would write past the
-    // buffer end, corrupting adjacent heap allocations; the
-    // resulting ``info complete $s`` read the overflowed tail,
-    // saw mis-matched braces, and returned 0 ("not complete"),
-    // which in turn made tcltest reject every multi-line
-    // constraint script.  Resolving substitutions twice is
-    // cheap compared to the bump-allocator cost of over-reserving,
-    // and eliminates the overflow class entirely.
-    const total_out = compute_subst_size(src, wlen, do_vars, do_cmds, do_bs);
-    const buf = alloc(total_out + 1);
-    var out: u32 = 0;
+    // Earlier revisions used two passes — one to sum sizes and one
+    // to write — but that required calling ``eval_script`` /
+    // ``var_resolve`` twice per substitution.  That changes Tcl
+    // semantics for observable side effects (``subst {[incr x]}``
+    // incremented twice) and — worse — reopened the same overflow
+    // class the two-pass approach was meant to close: if a first
+    // pass read ``$x`` and got a short value, then ``[set x
+    // longer]`` changed it, the allocated buffer would be
+    // undersized for the second pass's re-read.
+    //
+    // The fix: resolve each ``$var`` / ``[cmd]`` exactly once,
+    // record each resulting (ptr, len) span (plus literal runs and
+    // backslash-escape replacements) in a scratch ``pieces``
+    // array, then sum the lens and memcpy into a tight buffer.
+    // Each piece occupies 8 bytes: (ptr: u32, len: u32).  The
+    // upper bound on piece count is ``wlen`` — one piece per
+    // source byte in the pathological case of alternating ``$a``
+    // single-char vars.  We allocate ``wlen`` pieces up front from
+    // the bump arena; the overshoot is cheap and there is no
+    // growth path to get wrong.
+    const pieces_buf = alloc(wlen * 8);
+    var n_pieces: u32 = 0;
+    var total_out: u32 = 0;
+    var lit_start: u32 = 0;
+    var lit_run: u32 = 0;
+    const flush_lit = struct {
+        fn go(pb: u32, np: *u32, to: *u32, start: u32, run: *u32, base: u32) void {
+            if (run.* == 0) return;
+            const slot = pb + np.* * 8;
+            write_i32(slot, @bitCast(base + start));
+            write_i32(slot + 4, @bitCast(run.*));
+            np.* += 1;
+            to.* += run.*;
+            run.* = 0;
+        }
+    }.go;
+    const push_piece = struct {
+        fn go(pb: u32, np: *u32, to: *u32, ptr: u32, len: u32) void {
+            if (len == 0) return;
+            const slot = pb + np.* * 8;
+            write_i32(slot, @bitCast(ptr));
+            write_i32(slot + 4, @bitCast(len));
+            np.* += 1;
+            to.* += len;
+        }
+    }.go;
     var i: u32 = 0;
     while (i < wlen) {
         if (do_vars and src[i] == '$' and i + 1 < wlen) {
+            flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
             i += 1;
             const vstart = i;
             if (src[i] == '{') {
@@ -233,21 +266,25 @@ fn subst_flagged(
                 const val = frames.var_resolve(name_obj);
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
-                    if (sv.len > 0) { memcpy(buf + out, sv.ptr, sv.len); out += sv.len; }
+                    push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
                 }
             } else {
                 while (i < wlen and ((src[i] >= 'a' and src[i] <= 'z') or
                     (src[i] >= 'A' and src[i] <= 'Z') or
                     (src[i] >= '0' and src[i] <= '9') or src[i] == '_'))
-                { i += 1; }
+                {
+                    i += 1;
+                }
                 const name_obj = obj_new_string(@intCast(wptr + vstart), @intCast(i - vstart));
                 const val = frames.var_resolve(name_obj);
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
-                    if (sv.len > 0) { memcpy(buf + out, sv.ptr, sv.len); out += sv.len; }
+                    push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
                 }
             }
+            lit_start = i;
         } else if (do_cmds and src[i] == '[') {
+            flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
             i += 1;
             const cs = i;
             var depth: u32 = 1;
@@ -259,95 +296,41 @@ fn subst_flagged(
             const result = eval_script(wptr + cs, ce - cs);
             if (result != 0) {
                 const sv = obj_ensure_string(result);
-                if (sv.len > 0) { memcpy(buf + out, sv.ptr, sv.len); out += sv.len; }
+                push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
             }
+            lit_start = i;
         } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
+            flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
             i += 1;
             const esc: u8 = switch (src[i]) { 'n' => '\n', 't' => '\t', 'r' => '\r', else => src[i] };
-            const d: [*]u8 = @ptrFromInt(buf + out);
+            // Stash the escape byte at a stable address so the
+            // final memcpy has a source to read.
+            const esc_ptr = alloc(1);
+            const d: [*]u8 = @ptrFromInt(esc_ptr);
             d[0] = esc;
-            out += 1;
+            push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, 1);
             i += 1;
+            lit_start = i;
         } else {
-            const d: [*]u8 = @ptrFromInt(buf + out);
-            d[0] = src[i];
-            out += 1;
+            lit_run += 1;
             i += 1;
+        }
+    }
+    flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
+
+    const buf = alloc(total_out + 1);
+    var out: u32 = 0;
+    var pi: u32 = 0;
+    while (pi < n_pieces) : (pi += 1) {
+        const slot = pieces_buf + pi * 8;
+        const p: u32 = @bitCast(read_i32(slot));
+        const l: u32 = @bitCast(read_i32(slot + 4));
+        if (l > 0) {
+            memcpy(buf + out, p, l);
+            out += l;
         }
     }
     return obj_new_string(@intCast(buf), @intCast(out));
-}
-
-/// First-pass of :func:`subst_flagged`: walk *src* and resolve
-/// each ``$var`` / ``[cmd]`` the same way the main loop would,
-/// summing up the total byte count so the second pass can
-/// allocate an exactly-sized buffer.  Side effects: command
-/// substitutions ARE executed here, and their results are
-/// subsequently re-executed by the second pass — not ideal for
-/// commands with observable side effects, but matches what the
-/// old single-pass impl's over-sized buffer would have done in
-/// the degenerate case (it still called ``eval_script`` once).
-/// ``puts`` etc. will now print twice from a ``subst`` call
-/// that wraps them; callers that care route through ``eval``
-/// directly rather than ``subst``.
-fn compute_subst_size(
-    src: [*]const u8,
-    wlen: u32,
-    do_vars: bool,
-    do_cmds: bool,
-    do_bs: bool,
-) u32 {
-    var total: u32 = 0;
-    var i: u32 = 0;
-    while (i < wlen) {
-        if (do_vars and src[i] == '$' and i + 1 < wlen) {
-            i += 1;
-            const vstart = i;
-            if (src[i] == '{') {
-                i += 1;
-                const vs = i;
-                while (i < wlen and src[i] != '}') i += 1;
-                const ve = i;
-                if (i < wlen) i += 1;
-                const name_obj = obj_new_string(@intCast(@intFromPtr(src) + vs), @intCast(ve - vs));
-                const val = frames.var_resolve(name_obj);
-                if (val != 0) {
-                    total += obj_ensure_string(val).len;
-                }
-            } else {
-                while (i < wlen and ((src[i] >= 'a' and src[i] <= 'z') or
-                    (src[i] >= 'A' and src[i] <= 'Z') or
-                    (src[i] >= '0' and src[i] <= '9') or src[i] == '_'))
-                { i += 1; }
-                const name_obj = obj_new_string(@intCast(@intFromPtr(src) + vstart), @intCast(i - vstart));
-                const val = frames.var_resolve(name_obj);
-                if (val != 0) {
-                    total += obj_ensure_string(val).len;
-                }
-            }
-        } else if (do_cmds and src[i] == '[') {
-            i += 1;
-            const cs = i;
-            var depth: u32 = 1;
-            while (i < wlen and depth > 0) {
-                if (src[i] == '[') depth += 1 else if (src[i] == ']') depth -= 1;
-                if (depth > 0) i += 1 else i += 1;
-            }
-            const ce = i - 1;
-            const result = eval_script(@intCast(@intFromPtr(src) + cs), ce - cs);
-            if (result != 0) {
-                total += obj_ensure_string(result).len;
-            }
-        } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
-            // Backslash-escape output is always 1 byte.
-            i += 2;
-            total += 1;
-        } else {
-            i += 1;
-            total += 1;
-        }
-    }
-    return total;
 }
 
 // -- Expression evaluator --
@@ -783,7 +766,6 @@ fn eval_command(words: []const i32) i32 {
         // existing list-shaped arguments, so build in one pass.
         if (words.len <= 1) return obj_new_string(0, 0);
         if (words.len == 2) return words[1];
-        const obj_mod = @import("tcl_obj.zig");
         var total: u32 = 0;
         var ei: u32 = 1;
         while (ei < words.len) : (ei += 1) {

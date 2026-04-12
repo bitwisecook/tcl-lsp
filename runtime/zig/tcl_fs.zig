@@ -23,7 +23,16 @@
 //   file size / mtime /
 //     atime / ctime         — real stat()-derived.
 //   file mkdir / delete /
-//     rename / copy / …     — still trap; follow-up work.
+//     rename / copy / link /
+//     readlink              — real wasi-libc syscalls (mkdir /
+//                             rmdir / unlink / rename / symlink /
+//                             readlink / POSIX open+read+write
+//                             for copy).  Failures surface through
+//                             ``stubs.raise`` with a clear
+//                             syscall-failure message (not the
+//                             ``unsupported command:`` prefix,
+//                             which would be misleading for an
+//                             *implemented* command).
 //
 // Path handling: Tcl paths arrive as TclObj-wrapped UTF-8 byte
 // strings without a trailing NUL.  We allocate a fresh
@@ -237,11 +246,14 @@ fn eq(a: [*]const u8, alen: u32, literal: []const u8) bool {
 /// extension / normalize / pathtype / split) compute purely on
 /// the path text.  Status queries (exists / isfile / isdirectory
 /// / readable / writable / executable / owned / size / mtime /
-/// atime / ctime) now route through ``access(2)`` / ``stat(2)``
-/// so they reflect the actual WASI-preopen-exposed filesystem.
-/// Mutating operations (mkdir / delete / rename / copy /
-/// attributes / link / readlink / tempfile / stat / lstat /
-/// system / type) continue to trap; incremental follow-up work.
+/// atime / ctime) route through ``access(2)`` / ``stat(2)`` and
+/// reflect the actual WASI-preopen-exposed filesystem.
+/// Mutating operations (mkdir / delete / rename / copy / link /
+/// readlink / stat / lstat / type) are implemented via real
+/// wasi-libc syscalls; real failures raise a clear syscall-
+/// failure message (not the ``unsupported command:`` prefix).
+/// ``attributes`` / ``tempfile`` / ``system`` remain stubs for
+/// now — follow-up work.
 pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     if (sub == 0) {
         stubs.unsupported("file (missing subcommand)");
@@ -453,11 +465,18 @@ fn file_split(a: i32) i32 {
 /// creates ``$temporaryDirectory``).
 fn file_mkdir(path: i32) i32 {
     if (path == 0) {
-        stubs.unsupported("file mkdir (no path)");
+        stubs.raise("file mkdir: missing path argument");
         return 0;
     }
     if (!mkdir_p(path)) {
-        stubs.unsupported("file mkdir (failed)");
+        // Real syscall failure (permission denied, parent missing,
+        // out of space, …).  Tagging it as ``unsupported command:``
+        // would be misleading — ``file mkdir`` is fully
+        // implemented; the OS call just failed.  wasi-libc doesn't
+        // expose ``errno`` cheaply here, so we report a generic
+        // failure; callers inside ``catch`` see the message via
+        // ``$::errorInfo`` / the catch var.
+        stubs.raise("file mkdir: filesystem operation failed");
         return 0;
     }
     return obj_new_string(0, 0);
@@ -563,13 +582,16 @@ fn file_delete(arg1: i32, arg2: i32) i32 {
         if (force) {
             // Recursive removal needs directory iteration
             // (readdir) which is a separate piece of wiring.
-            // Trap rather than silently miss entries.
+            // This ``unsupported`` is genuine — we don't implement
+            // the recursive path yet — so keep the prefix.
             stubs.unsupported("file delete -force (recursive)");
             return 0;
         }
         const rc = rmdir(path_cstr(target));
         if (rc != 0) {
-            stubs.unsupported("file delete (directory not empty)");
+            // Real failure (non-empty directory, permission, …) —
+            // the command *is* implemented, the syscall failed.
+            stubs.raise("file delete: rmdir failed (directory may not be empty)");
             return 0;
         }
         return obj_new_string(0, 0);
@@ -577,7 +599,7 @@ fn file_delete(arg1: i32, arg2: i32) i32 {
 
     const rc = unlink(path_cstr(target));
     if (rc != 0) {
-        stubs.unsupported("file delete (unlink failed)");
+        stubs.raise("file delete: unlink failed");
         return 0;
     }
     return obj_new_string(0, 0);
@@ -591,12 +613,12 @@ fn file_delete(arg1: i32, arg2: i32) i32 {
 /// but fail on directory collision) propagate directly.
 fn file_rename(src: i32, dst: i32) i32 {
     if (src == 0 or dst == 0) {
-        stubs.unsupported("file rename (missing arg)");
+        stubs.raise("file rename: missing src or dst argument");
         return 0;
     }
     const rc = rename(path_cstr(src), path_cstr(dst));
     if (rc != 0) {
-        stubs.unsupported("file rename (failed)");
+        stubs.raise("file rename: rename failed");
         return 0;
     }
     return obj_new_string(0, 0);
@@ -608,19 +630,19 @@ fn file_rename(src: i32, dst: i32) i32 {
 /// recursive) is not yet wired — a follow-up concern.
 fn file_copy(src: i32, dst: i32) i32 {
     if (src == 0 or dst == 0) {
-        stubs.unsupported("file copy (missing arg)");
+        stubs.raise("file copy: missing src or dst argument");
         return 0;
     }
     const in_fd = open(path_cstr(src), O_RDONLY, 0);
     if (in_fd < 0) {
-        stubs.unsupported("file copy (open src failed)");
+        stubs.raise("file copy: could not open source for reading");
         return 0;
     }
     // 0o644 = rw-r--r-- — matches cp's default create-mode.
     const out_fd = open(path_cstr(dst), O_WRONLY | O_CREAT | O_TRUNC, 0o644);
     if (out_fd < 0) {
         _ = close(in_fd);
-        stubs.unsupported("file copy (open dst failed)");
+        stubs.raise("file copy: could not open destination for writing");
         return 0;
     }
     // 8 KiB buffer on the bump allocator — big enough to keep
@@ -653,7 +675,7 @@ fn file_copy(src: i32, dst: i32) i32 {
     _ = close(in_fd);
     _ = close(out_fd);
     if (!ok) {
-        stubs.unsupported("file copy (I/O error)");
+        stubs.raise("file copy: I/O error during transfer");
         return 0;
     }
     return obj_new_string(0, 0);
@@ -666,14 +688,16 @@ fn file_copy(src: i32, dst: i32) i32 {
 /// resolving — matches Tcl's documented behaviour.
 fn file_type(path: i32) i32 {
     if (path == 0) {
-        stubs.unsupported("file type (no path)");
+        stubs.raise("file type: missing path argument");
         return 0;
     }
     const st = lstat_path(path);
     if (st == 0) {
         // Path doesn't exist — Tcl's ``file type`` errors here.
-        // Trap so scripts see a clear failure.
-        stubs.unsupported("file type (no such file)");
+        // Report as a real error rather than tagging it
+        // ``unsupported command:`` (the command IS supported;
+        // the path just isn't there).
+        stubs.raise("file type: could not stat path");
         return 0;
     }
     const masked = stat_mode(st) & S_IFMT;
@@ -699,12 +723,12 @@ fn file_type(path: i32) i32 {
 /// itself fails.
 fn file_stat_cmd(path: i32, arr_name: i32, use_lstat: bool) i32 {
     if (path == 0 or arr_name == 0) {
-        stubs.unsupported("file stat (missing arg)");
+        stubs.raise("file stat: missing path or array-name argument");
         return 0;
     }
     const buf = if (use_lstat) lstat_path(path) else stat_path(path);
     if (buf == 0) {
-        stubs.unsupported("file stat (no such file)");
+        stubs.raise("file stat: could not stat path");
         return 0;
     }
 
@@ -752,7 +776,7 @@ fn file_stat_cmd(path: i32, arr_name: i32, use_lstat: bool) i32 {
 /// provides ``readlink(2)`` backed by ``path_readlink``.
 fn file_readlink(path: i32) i32 {
     if (path == 0) {
-        stubs.unsupported("file readlink (no path)");
+        stubs.raise("file readlink: missing path argument");
         return 0;
     }
     // 4 KiB is enough for any realistic symlink on WASI's
@@ -763,7 +787,7 @@ fn file_readlink(path: i32) i32 {
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     const n = readlink(path_cstr(path), buf, buf_size);
     if (n < 0) {
-        stubs.unsupported("file readlink (not a symlink)");
+        stubs.raise("file readlink: path is not a symlink or is inaccessible");
         return 0;
     }
     return obj.obj_new_string(@intCast(buf_addr), @intCast(n));
@@ -778,13 +802,16 @@ fn file_readlink(path: i32) i32 {
 /// arg support.
 fn file_link(link_name: i32, target: i32) i32 {
     if (link_name == 0 or target == 0) {
-        stubs.unsupported("file link (missing arg)");
+        stubs.raise("file link: missing linkName or target argument");
         return 0;
     }
     const rc = symlink(path_cstr(target), path_cstr(link_name));
     if (rc != 0) {
-        stubs.unsupported("file link (symlink failed)");
+        stubs.raise("file link: symlink syscall failed");
         return 0;
     }
-    return target;
+    // Per ``file link`` semantics the result is the *linkName*,
+    // not the target — callers like
+    // ``set lnk [file link a.link a]`` expect ``a.link`` back.
+    return link_name;
 }
