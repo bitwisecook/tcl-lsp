@@ -61,9 +61,12 @@ impl CompilationUnitHandle {
     }
 }
 
-/// Build a compilation unit for `source` (optionally with
-/// interprocedural summaries populated when `dialect` is not None
-/// — the `build_interprocedural_analysis` call is dialect-aware).
+/// Build a compilation unit for `source` with interprocedural
+/// summaries always populated — passing `dialect=None` produces a
+/// plain-Tcl analysis, while a non-None `dialect` activates the
+/// dialect-aware branches (iRules call-graph resolution, event-
+/// flow barriers, etc.). The underlying
+/// `CompilationUnit::with_interprocedural` is always called.
 ///
 /// Returns a [`CompilationUnitHandle`] that Python can pass to
 /// other bindings (CU-aware wrappers shipped in follow-ups).

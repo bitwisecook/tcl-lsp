@@ -94,15 +94,27 @@ def test_rust_fallback_to_python_on_failure(monkeypatch) -> None:
 
 @pytest.mark.skipif(not _rust_available(), reason="Rust wheel not installed")
 def test_gate_is_opt_in_default_stays_python(monkeypatch) -> None:
-    """Without the env var, the Python pipeline runs — verified by
-    the Rust-only ``param_traits`` being empty in the Rust path but
-    (when inferrable) non-empty in the Python path for an
-    expression-using proc."""
+    """Without the env var, analysis must stay on the Python path.
+
+    Verified via a spy that wraps the Rust binding and counts calls —
+    an observable signal that delegation did not occur regardless of
+    whether the dataclass fields happen to coincide.
+    """
+    rust_calls = 0
+    original_rust = _interproc_module._rust_interprocedural_summaries
+
+    def _spy(src, dialect):
+        nonlocal rust_calls
+        rust_calls += 1
+        return original_rust(src, dialect)
+
+    monkeypatch.setattr(
+        _interproc_module, "_rust_interprocedural_summaries", _spy, raising=False
+    )
     monkeypatch.delenv("TCL_LSP_RUST_INTERPROC", raising=False)
+
     ia = analyse_interprocedural_source(
         "proc ::f {x} { if {$x > 0} { return 1 } ; return 0 }"
     )
-    # The Python pipeline always populates param_traits (even if
-    # empty) by calling infer_param_traits — the presence of the
-    # ``param_traits`` field on the dataclass is the contract.
-    assert hasattr(ia.procedures["::f"], "param_traits")
+    assert "::f" in ia.procedures
+    assert rust_calls == 0, "Rust binding must not be invoked when gate is off"

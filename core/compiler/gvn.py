@@ -1313,33 +1313,13 @@ def _materialise_rust_gvn_tuples(
     Tuple shape:
     ``(code, span_start, span_end, first_start, first_end, expr_text, message)``.
     Rust spans are UTF-8 byte offsets (exclusive-end); this helper
-    builds Python ``Range`` / ``SourcePosition`` values matching
-    the convention used by ``_manager._materialise_rust_optimisations``.
+    uses the shared ``rust_spans.build_position_resolver`` so the
+    UTF-8/UTF-16 conversion stays in lockstep with the optimiser
+    materialiser in ``_manager._materialise_rust_optimisations``.
     """
-    import bisect
+    from .rust_spans import build_position_resolver
 
-    from ..parsing.tokens import SourcePosition
-
-    utf8_source = source.encode("utf-8")
-    source_len = len(utf8_source)
-    line_starts = [0]
-    for i, b in enumerate(utf8_source):
-        if b == 0x0A:
-            line_starts.append(i + 1)
-
-    def position_at(offset: int) -> SourcePosition:
-        clamped = max(0, min(offset, source_len))
-        idx = bisect.bisect_right(line_starts, clamped) - 1
-        if idx < 0:
-            idx = 0
-        line_start = line_starts[idx]
-        line_prefix = utf8_source[line_start:clamped].decode("utf-8", errors="replace")
-        utf16_column = len(line_prefix.encode("utf-16-le")) // 2
-        return SourcePosition(line=idx, character=utf16_column, offset=clamped)
-
-    def range_at(start: int, end: int) -> Range:
-        end_incl = max(start, end - 1) if end > start else start
-        return Range(start=position_at(start), end=position_at(end_incl))
+    _, range_at = build_position_resolver(source)
 
     return [
         RedundantComputation(

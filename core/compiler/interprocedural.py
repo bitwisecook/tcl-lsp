@@ -912,7 +912,15 @@ def analyse_interprocedural_source(source: str) -> InterproceduralAnalysis:
         "TCL_LSP_RUST_INTERPROC"
     ):
         try:
-            raw = _rust_interprocedural_summaries(source, None)
+            # Forward the active dialect so dialect-gated side-
+            # effect / call-graph analysis (notably iRules event
+            # boundaries) matches the Python pipeline — without
+            # this, ``pure`` / ``has_unknown_calls`` /
+            # ``can_fold_static_calls`` diverge on dialect-
+            # specific sources.
+            from ..common.dialect import active_dialect
+
+            raw = _rust_interprocedural_summaries(source, active_dialect())
             return _materialise_rust_summaries(raw)
         except Exception:
             log.debug(

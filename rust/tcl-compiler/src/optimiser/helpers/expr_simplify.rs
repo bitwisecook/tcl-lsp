@@ -613,30 +613,26 @@ fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
             }
             None
         }
-        // Logical identities / absorbing:
-        //   x && 0 → 0 (absorbing); x && 1 → x (identity);
-        //   x || 1 → 1 (absorbing); x || 0 → x (identity).
+        // Logical absorbing only — NOT identity:
+        //   x && 0 → 0, 0 && x → 0  (absorbing, safe)
+        //   x || 1 → 1, 1 || x → 1  (absorbing, safe)
+        //
+        // Identities (``x && 1 → x``, ``x || 0 → x``) are
+        // *unsafe* in Tcl because `&&`/`||` return the
+        // normalised boolean (`0`/`1`), not the operand value —
+        // `expr {2 && 1}` is `1`, not `2`, so a rewrite to
+        // `x` would change the runtime result for any non-0/1
+        // `x`. The absorbing cases collapse to the correct
+        // boolean result regardless of the other operand.
         BinOp::And => {
             if lit_right == Some(0) || lit_left == Some(0) {
                 return Some(make_int_literal(0));
-            }
-            if lit_right == Some(1) {
-                return Some((**left).clone());
-            }
-            if lit_left == Some(1) {
-                return Some((**right).clone());
             }
             None
         }
         BinOp::Or => {
             if lit_right == Some(1) || lit_left == Some(1) {
                 return Some(make_int_literal(1));
-            }
-            if lit_right == Some(0) {
-                return Some((**left).clone());
-            }
-            if lit_left == Some(0) {
-                return Some((**right).clone());
             }
             None
         }

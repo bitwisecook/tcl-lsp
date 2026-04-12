@@ -1,10 +1,14 @@
 //! `PyO3` bindings for the compiler-checks aggregator (C32-shim).
 //!
-//! Exposes `run_all_checks(source, dialect)` to Python. The Python
-//! `core.compiler.compiler_checks` entry point delegates here when
-//! the Rust wheel is importable and the call site is gated behind
-//! `TCL_LSP_RUST_CHECKS=1`, falling back to the Python pipeline
-//! otherwise (same pattern as L11's lexer flip).
+//! Exposes `run_all_checks(source, dialect)` to Python. The binding
+//! is available for the Python layer to call, but the Python
+//! `core.compiler.compiler_checks` entry point is **not yet** wired
+//! to delegate here in this PR — no `TCL_LSP_RUST_CHECKS` env-var
+//! gate consumes this binding today. That follow-up is blocked on
+//! landing Rust-side shimmer / taint bodies (C27d / C29) so the
+//! delegated path doesn't silently drop those diagnostic classes.
+//! When the consumer lands it will follow the same try-import +
+//! env-gate pattern as L11's lexer flip.
 //!
 //! Diagnostics are returned as tuples rather than a full `pyclass`
 //! so the Python side can construct its own `Diagnostic` dataclass
