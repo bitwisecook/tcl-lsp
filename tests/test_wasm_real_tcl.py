@@ -240,27 +240,30 @@ class TestFixtureSimple:
         ok, stdout, err = _run_tcl_for_stdout(source)
         assert ok, f"error: {err}"
         assert "Hello, World!" in stdout
+        # String interpolation: "Sum is $sum" should resolve sum=30
+        assert "Sum is 30" in stdout
 
 
 class TestFixtureProcs:
-    """Run procs.tcl fixture — fibonacci, factorial, break/continue.
-
-    Note: procs.tcl uses ``puts "fib(10) = [fib 10]"`` which requires
-    command substitution inside double-quoted string arguments.  The WASM
-    codegen doesn't yet inline [cmd] inside string literals for puts,
-    so we test the individual procs via direct calls instead.
-    """
+    """Run procs.tcl fixture — fibonacci, factorial, break/continue."""
 
     def test_compiles(self):
         source = (_FIXTURES_DIR / "procs.tcl").read_text()
         ok, err = _try_compile(source)
         assert ok, f"compile error: {err}"
 
-    def test_runs_without_trap(self):
-        """procs.tcl should execute without trapping."""
+    def test_runs_and_outputs(self):
+        """Full fixture run: fib(10)=55, 10!=3628800, loop skips 5 and breaks at 15."""
         source = (_FIXTURES_DIR / "procs.tcl").read_text()
         ok, stdout, err = _run_tcl_for_stdout(source)
         assert ok, f"error: {err}"
+        assert "fib(10) = 55" in stdout
+        assert "10! = 3628800" in stdout
+        # Loop should print i = 1..14 with i = 5 skipped, i = 15 breaks
+        assert "i = 4" in stdout
+        assert "i = 5" not in stdout  # continue at 5
+        assert "i = 14" in stdout
+        assert "i = 15" not in stdout  # break at 15
 
     def test_fib_proc_directly(self):
         """Call the compiled fib proc directly."""
@@ -328,6 +331,37 @@ return $i
         ok, val, err = _run_tcl_for_value(source)
         assert ok, f"error: {err}"
         assert val == 15
+
+    def test_while_break_continue(self):
+        """break and continue inside if inside while — sum 1..14 minus 5 = 100."""
+        source = """\
+set sum 0
+set i 0
+while {$i < 20} {
+    incr i
+    if {$i == 5} { continue }
+    if {$i == 15} { break }
+    set sum [expr {$sum + $i}]
+}
+return $sum
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 100
+
+    def test_for_break_in_if(self):
+        """break inside if inside for loop — must exit cleanly."""
+        source = """\
+set last 0
+for {set i 0} {$i < 100} {incr i} {
+    set last $i
+    if {$i == 7} { break }
+}
+return $last
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 7
 
     def test_for_loop(self):
         """For loop runs to completion and accumulates correctly."""

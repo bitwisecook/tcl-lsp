@@ -854,6 +854,46 @@ _UNSUPPORTED_COMMANDS = frozenset(
 )
 
 
+def _has_embedded_subst_scan(value: str) -> bool:
+    """Detect embedded $var / ${var} / [cmd] substitutions mixed with literal text.
+
+    Returns True when *value* contains both literal characters and a
+    substitution — a pure ``$x`` / ``${x}`` / ``[cmd]`` reference returns
+    False (handled by the single-token paths in _emit_value).
+    """
+    # Strip off a pure variable or command substitution to see if there's
+    # anything else present.
+    if value.startswith("${") and value.endswith("}"):
+        # Only a substitution if the single ${...} spans the whole string.
+        # If the close brace is the last char and no other substitutions
+        # exist, this is a pure ${var}.
+        return False
+    if value.startswith("$") and not value.startswith("$["):
+        # Check whether the entire string is just $name
+        j = 1
+        while j < len(value) and (value[j].isalnum() or value[j] == "_"):
+            j += 1
+        if j == len(value):
+            return False
+    if value.startswith("[") and value.endswith("]"):
+        return False
+    i = 0
+    n = len(value)
+    while i < n:
+        c = value[i]
+        if c == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if c == "$" and i + 1 < n:
+            nxt = value[i + 1]
+            if nxt == "{" or nxt.isalpha() or nxt == "_":
+                return True
+        if c == "[":
+            return True
+        i += 1
+    return False
+
+
 def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
     """Scan a text value for [cmd ...] command substitutions and add imports."""
     i = 0
@@ -912,6 +952,10 @@ def _scan_needed_imports(
         """Scan a value string for embedded command substitutions."""
         if "[" in value:
             _scan_text_for_cmd_subst(value, needed)
+        # Interpolated strings ("hello $x" / "$x[foo]" etc.) need tcl_append
+        # at codegen time to concatenate the parts.
+        if _has_embedded_subst_scan(value):
+            needed.add("tcl_append")
 
     def _scan_expr(expr: object) -> None:
         """Walk an expression AST and scan ExprCommand nodes."""
@@ -1123,6 +1167,14 @@ class _WasmEmitter:
         # Block ordering for structured control flow
         self._visited: set[str] = set()
 
+        # Active loop headers — used by _is_loop_header to distinguish
+        # a nested-loop back-edge from an outer-loop back-edge. When we
+        # walk from a body-start node looking for a cycle back to the
+        # current branch block, reaching an active OUTER loop header
+        # means we've followed the outer loop's back-edge, not found
+        # a new nested loop; stop the walk in that case.
+        self._active_loop_headers: set[str] = set()
+
         # Loop control — break/continue use WASM structured control flow.
         # The `_loop_depth` increments each time we enter a block{loop{}}
         # pair.  An `if` inside a loop body adds nesting that break/continue
@@ -1177,6 +1229,10 @@ class _WasmEmitter:
         (already i32), detects ``[cmd ...]`` command substitution and
         dispatches through the proc-call mechanism, or creates a new
         TclObj for literals.
+
+        For strings with embedded substitutions (e.g. ``"hello $x"`` or
+        ``"fib(10) = [fib 10]"``), parses the string into chunks and
+        emits a concat chain using the runtime ``tcl_append`` function.
         """
         var = self._resolve_var_name(value)
         if var is not None:
@@ -1195,7 +1251,135 @@ class _WasmEmitter:
         if value.startswith("[") and value.endswith("]"):
             self._emit_command_subst_value(value)
             return
+        # Interpolated string: contains embedded $var/${var}/[cmd]
+        # mixed with literal text.  Emit a concat chain.
+        if self._has_embedded_subst(value):
+            self._emit_interpolated_value(value)
+            return
         self._emit_obj_literal(value)
+
+    def _has_embedded_subst(self, value: str) -> bool:
+        """Check if *value* contains embedded $var, ${var}, or [cmd] substitutions."""
+        i = 0
+        n = len(value)
+        while i < n:
+            c = value[i]
+            if c == "\\" and i + 1 < n:
+                i += 2
+                continue
+            if c == "$" and i + 1 < n:
+                nxt = value[i + 1]
+                if nxt == "{" or nxt.isalpha() or nxt == "_":
+                    return True
+            if c == "[":
+                return True
+            i += 1
+        return False
+
+    def _parse_interpolated_parts(self, value: str) -> list[tuple[str, str]]:
+        """Parse an interpolated string into ("lit", text) / ("var", name) /
+        ("cmd", body) tuples.
+
+        The returned list represents the string as a sequence of parts to
+        concatenate.  Backslash escapes are preserved in literal parts.
+        """
+        parts: list[tuple[str, str]] = []
+        buf: list[str] = []
+
+        def flush() -> None:
+            if buf:
+                parts.append(("lit", "".join(buf)))
+                buf.clear()
+
+        i = 0
+        n = len(value)
+        while i < n:
+            c = value[i]
+            if c == "\\" and i + 1 < n:
+                esc = value[i + 1]
+                buf.append({"n": "\n", "t": "\t", "r": "\r"}.get(esc, esc))
+                i += 2
+                continue
+            if c == "$" and i + 1 < n:
+                nxt = value[i + 1]
+                if nxt == "{":
+                    # ${name}
+                    j = value.find("}", i + 2)
+                    if j == -1:
+                        buf.append(c)
+                        i += 1
+                        continue
+                    flush()
+                    parts.append(("var", value[i + 2 : j]))
+                    i = j + 1
+                    continue
+                if nxt.isalpha() or nxt == "_":
+                    # $name (alpha/digit/underscore, possibly with :: namespace)
+                    j = i + 1
+                    while j < n and (value[j].isalnum() or value[j] == "_"):
+                        j += 1
+                    flush()
+                    parts.append(("var", value[i + 1 : j]))
+                    i = j
+                    continue
+            if c == "[":
+                # [cmd ...] — find matching ] with nesting
+                depth = 1
+                j = i + 1
+                while j < n and depth > 0:
+                    if value[j] == "[":
+                        depth += 1
+                    elif value[j] == "]":
+                        depth -= 1
+                    if depth > 0:
+                        j += 1
+                    else:
+                        break
+                if depth != 0:
+                    buf.append(c)
+                    i += 1
+                    continue
+                flush()
+                parts.append(("cmd", value[i + 1 : j]))
+                i = j + 1
+                continue
+            buf.append(c)
+            i += 1
+        flush()
+        return parts
+
+    def _emit_interpolated_value(self, value: str) -> None:
+        """Emit a TclObj for an interpolated string with $var/[cmd] chunks.
+
+        Parses the string and emits each part (literal, variable, or
+        command substitution), then concatenates them via tcl_append.
+        """
+        parts = self._parse_interpolated_parts(value)
+        if not parts:
+            self._emit_obj_literal("")
+            return
+        append_idx = self._shared_imports.get("tcl_append")
+        if append_idx is None:
+            # No append available — fall back to literal
+            self._emit_obj_literal(value)
+            return
+
+        # Emit the first part
+        self._emit_part(parts[0])
+        # Concat remaining parts
+        for part in parts[1:]:
+            self._emit_part(part)
+            self._emit_call(append_idx)
+
+    def _emit_part(self, part: tuple[str, str]) -> None:
+        kind, data = part
+        if kind == "lit":
+            self._emit_obj_literal(data)
+        elif kind == "var":
+            idx = self._intern_local(data)
+            self._emit_local_get(idx)
+        elif kind == "cmd":
+            self._emit_command_subst_value("[" + data + "]")
 
     def _emit_command_subst_value(self, text: str) -> None:
         """Emit an i32 TclObj for a command substitution in value context.
@@ -3161,6 +3345,10 @@ class _WasmEmitter:
 
         Returns ``True`` when following goto/branch edges from *body_start*
         reaches *header* again, indicating a loop back-edge.
+
+        Stops the walk at any block in ``self._active_loop_headers``: if
+        we reach an OUTER loop's header, we have followed the outer
+        loop's back-edge and this is not a new nested loop.
         """
         visited: set[str] = set()
         worklist = [body_start]
@@ -3169,6 +3357,10 @@ class _WasmEmitter:
             if name == header:
                 return True
             if name in visited:
+                continue
+            # Outer loop header — stop the walk here so we don't wrap
+            # around through the outer loop back to `header`.
+            if name in self._active_loop_headers and name != header:
                 continue
             visited.add(name)
             blk = self._cfg.blocks.get(name)
@@ -3197,6 +3389,9 @@ class _WasmEmitter:
         """
         # Mark the header as visited to prevent re-entry from the back-edge
         self._visited.add(header)
+        # Track header so nested _is_loop_header walks don't confuse
+        # outer back-edges with new nested loops.
+        self._active_loop_headers.add(header)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
         self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
@@ -3223,6 +3418,8 @@ class _WasmEmitter:
         self._emit_br(0)
         self._emit(WasmOp.END)  # end loop
         self._emit(WasmOp.END)  # end block
+
+        self._active_loop_headers.discard(header)
 
         # Continue with the exit block
         self._emit_block(exit_block)
@@ -3258,6 +3455,7 @@ class _WasmEmitter:
                     # eventually loops back to this block.
                     if self._is_loop_header(current, tt):
                         # Emit a nested WASM loop for this inner header.
+                        self._active_loop_headers.add(current)
                         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
                         self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
 
@@ -3272,6 +3470,7 @@ class _WasmEmitter:
                         self._emit_br(0)  # loop back
                         self._emit(WasmOp.END)  # end loop
                         self._emit(WasmOp.END)  # end block
+                        self._active_loop_headers.discard(current)
 
                         # Continue with the false-target (loop exit)
                         current = ft
