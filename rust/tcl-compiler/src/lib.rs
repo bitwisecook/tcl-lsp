@@ -90,6 +90,7 @@ pub mod side_effects;
 pub mod ssa;
 pub mod tcl_expr_eval;
 pub mod types;
+pub mod value_shapes;
 pub mod var_refs;
 pub mod var_scoping;
 
