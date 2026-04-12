@@ -36,6 +36,7 @@ pub fn try_bytecoded(
         "lrange" => lrange(ctx, args),
         "linsert" => linsert(ctx, args),
         "lset" => lset(ctx, args),
+        "dict" => dict(ctx, args),
         "array" => array(ctx, args, used_generic_invoke),
         _ => false,
     }
@@ -179,6 +180,122 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     }
     ctx.emit(Op::POP, vec![]);
     true
+}
+
+// ── dict ──────────────────────────────────────────────────────────
+
+/// `dict SUBCOMMAND …` — dispatch to a handful of specialised
+/// opcodes when the target variable is a proc-local (non-qualified)
+/// scalar. Falls back to the generic invoke otherwise.
+///
+/// Covered subcommands:
+/// - `dict set var k1 ?k2 …? value` — `DICT_SET N slot`.
+/// - `dict unset var k1 ?k2 …?` — `DICT_UNSET N slot`.
+/// - `dict incr var key ?amount?` — `DICT_INCR_IMM amt slot`.
+/// - `dict append var key value` — `DICT_APPEND slot`.
+/// - `dict lappend var key value` — `DICT_LAPPEND slot`.
+#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if !ctx.is_proc || args.len() < 3 {
+        return false;
+    }
+    let sub = args[0].as_str();
+    let rest = &args[1..];
+    let var_name = &rest[0];
+    if is_qualified(var_name) {
+        return false;
+    }
+
+    match sub {
+        "set" if rest.len() >= 3 => {
+            let keys = &rest[1..rest.len() - 1];
+            let value = rest.last().unwrap();
+            let slot = ctx.lvt.intern(var_name);
+            for k in keys {
+                ctx.push_lit(k);
+            }
+            ctx.push_lit(value);
+            ctx.emit_comment(
+                Op::DICT_SET,
+                vec![
+                    Operand::Imm(keys.len() as i32),
+                    Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX)),
+                ],
+                &format!("var \"{var_name}\""),
+            );
+            ctx.emit(Op::POP, vec![]);
+            true
+        }
+        "unset" if rest.len() >= 2 => {
+            let keys = &rest[1..];
+            let slot = ctx.lvt.intern(var_name);
+            for k in keys {
+                ctx.push_lit(k);
+            }
+            ctx.emit_comment(
+                Op::DICT_UNSET,
+                vec![
+                    Operand::Imm(keys.len() as i32),
+                    Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX)),
+                ],
+                &format!("var \"{var_name}\""),
+            );
+            ctx.emit(Op::POP, vec![]);
+            true
+        }
+        "incr" if matches!(rest.len(), 2 | 3) => {
+            let key = &rest[1];
+            let amount: i32 = if rest.len() == 3 {
+                match rest[2].parse::<i32>() {
+                    Ok(v) => v,
+                    Err(_) => return false,
+                }
+            } else {
+                1
+            };
+            let slot = ctx.lvt.intern(var_name);
+            ctx.push_lit(key);
+            ctx.emit_comment(
+                Op::DICT_INCR_IMM,
+                vec![
+                    Operand::Imm(amount),
+                    Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX)),
+                ],
+                &format!("var \"{var_name}\""),
+            );
+            ctx.emit(Op::POP, vec![]);
+            true
+        }
+        "append" if rest.len() == 3 => {
+            let key = &rest[1];
+            let value = &rest[2];
+            let slot = ctx.lvt.intern(var_name);
+            ctx.push_lit(key);
+            ctx.push_lit(value);
+            ctx.emit_comment(
+                Op::DICT_APPEND,
+                vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],
+                &format!("var \"{var_name}\""),
+            );
+            ctx.emit(Op::POP, vec![]);
+            true
+        }
+        "lappend" if rest.len() == 3 => {
+            let key = &rest[1];
+            let value = &rest[2];
+            let slot = ctx.lvt.intern(var_name);
+            ctx.push_lit(key);
+            ctx.push_lit(value);
+            ctx.emit_comment(
+                Op::DICT_LAPPEND,
+                vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],
+                &format!("var \"{var_name}\""),
+            );
+            ctx.emit(Op::POP, vec![]);
+            true
+        }
+        _ => false,
+    }
 }
 
 // ── array ─────────────────────────────────────────────────────────
@@ -381,6 +498,90 @@ mod tests {
         let args = vec!["lst".to_string(), "new".into()];
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "lset", &args, &mut used));
+    }
+
+    // -- C21e4: dict subcommands --
+
+    #[test]
+    fn dict_set_proc_uses_dict_set_opcode() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        let args = vec!["set".into(), "d".into(), "k".into(), "v".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::DICT_SET));
+    }
+
+    #[test]
+    fn dict_incr_with_default_amount() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        let args = vec!["incr".into(), "d".into(), "k".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::DICT_INCR_IMM));
+    }
+
+    #[test]
+    fn dict_incr_with_explicit_amount() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        let args = vec!["incr".into(), "d".into(), "k".into(), "5".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
+    }
+
+    #[test]
+    fn dict_incr_rejects_non_integer_amount() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        let args = vec!["incr".into(), "d".into(), "k".into(), "$amt".into()];
+        let mut used = false;
+        assert!(!try_bytecoded(&mut ctx, "dict", &args, &mut used));
+    }
+
+    #[test]
+    fn dict_unset_uses_dict_unset_opcode() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        let args = vec!["unset".into(), "d".into(), "k".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::DICT_UNSET));
+    }
+
+    #[test]
+    fn dict_append_uses_dict_append_opcode() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        let args = vec!["append".into(), "d".into(), "k".into(), "v".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::DICT_APPEND));
+    }
+
+    #[test]
+    fn dict_lappend_uses_dict_lappend_opcode() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        let args = vec!["lappend".into(), "d".into(), "k".into(), "v".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::DICT_LAPPEND));
+    }
+
+    #[test]
+    fn dict_in_non_proc_context_rejects() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        let args = vec!["set".into(), "d".into(), "k".into(), "v".into()];
+        let mut used = false;
+        assert!(!try_bytecoded(&mut ctx, "dict", &args, &mut used));
+    }
+
+    #[test]
+    fn dict_with_qualified_name_rejects() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        let args = vec!["set".into(), "::global::d".into(), "k".into(), "v".into()];
+        let mut used = false;
+        assert!(!try_bytecoded(&mut ctx, "dict", &args, &mut used));
     }
 
     #[test]
