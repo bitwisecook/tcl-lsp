@@ -24,9 +24,10 @@ use std::collections::HashMap;
 use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, Traits};
 
+use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
 use crate::side_effects::{classify_side_effects, EffectRegion};
-use crate::ssa::SsaStatement;
+use crate::ssa::{SsaFunction, SsaStatement};
 
 // ---------------------------------------------------------------------------
 // Expression-key alias (C26a)
@@ -463,6 +464,149 @@ pub fn statement_occurrences(
     out
 }
 
+// ---------------------------------------------------------------------------
+// Find-redundancies driver (C26d)
+// ---------------------------------------------------------------------------
+
+/// Walk `cfg` / `ssa` in dominator-tree preorder and return a
+/// [`RedundantComputation`] diagnostic for every pure-expression
+/// occurrence that replays a dominating occurrence on the same
+/// path.
+///
+/// Uses an iterative traversal (explicit `(block, phase)` work
+/// stack) so deeply nested dominator trees don't risk blowing the
+/// Rust call stack. Each block pushes a new scope on entry,
+/// processes its statements, visits dominator-tree children, and
+/// pops the scope on exit.
+///
+/// Focused subset of `gvn.py::_gvn_walk_function`:
+///
+/// - Treats every CFG block as executable (no SCCP unreachability
+///   filter). Callers that want SCCP pruning can pre-filter the
+///   CFG.
+/// - Detects *full* redundancy (same expression computed twice on
+///   the same path) with the `"O105"` code and the
+///   [`full_redundancy_message`] text.
+/// - Partial-redundancy (`O106`) and loop-invariant (`O107`)
+///   detection are deferred to follow-up strips — they each need
+///   substantially more walker state.
+///
+/// Returns the diagnostics in the order the walker encounters
+/// them.
+/// Iterative dominator-tree walk step. `Enter` pushes a fresh
+/// scope and processes the block; `Leave` pops the scope when all
+/// dominator children have been visited.
+enum WalkStep<'a> {
+    Enter(&'a str),
+    Leave,
+}
+
+/// Walk `cfg` / `ssa` in dominator-tree preorder and return a
+/// [`RedundantComputation`] diagnostic for every pure-expression
+/// occurrence that replays a dominating occurrence on the same
+/// path.
+///
+/// Uses an iterative traversal (explicit `(block, phase)` work
+/// stack) so deeply nested dominator trees don't risk blowing the
+/// Rust call stack. Each block pushes a new scope on entry,
+/// processes its statements, visits dominator-tree children, and
+/// pops the scope on exit.
+///
+/// Focused subset of `gvn.py::_gvn_walk_function`:
+///
+/// - Treats every CFG block as executable (no SCCP unreachability
+///   filter). Callers that want SCCP pruning can pre-filter the
+///   CFG.
+/// - Detects *full* redundancy (same expression computed twice on
+///   the same path) with the `"O105"` code and the
+///   [`full_redundancy_message`] text.
+/// - Partial-redundancy (`O106`) and loop-invariant (`O107`)
+///   detection are deferred to follow-up strips — they each need
+///   substantially more walker state.
+///
+/// Returns the diagnostics in the order the walker encounters
+/// them.
+#[must_use]
+pub fn find_redundancies(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let mut table = ScopedValueTable::new();
+    let mut results: Vec<RedundantComputation> = Vec::new();
+    if !cfg.blocks.contains_key(&ssa.entry) {
+        return results;
+    }
+    let mut stack: Vec<WalkStep> = vec![WalkStep::Enter(ssa.entry.as_str())];
+
+    while let Some(step) = stack.pop() {
+        match step {
+            WalkStep::Leave => {
+                table.pop_scope();
+            }
+            WalkStep::Enter(bn) => {
+                table.push_scope();
+                stack.push(WalkStep::Leave);
+
+                let Some(cfg_block) = cfg.blocks.get(bn) else {
+                    continue;
+                };
+                let Some(ssa_block) = ssa.blocks.get(bn) else {
+                    continue;
+                };
+                let stmt_count =
+                    std::cmp::min(cfg_block.statements.len(), ssa_block.statements.len());
+
+                for idx in 0..stmt_count {
+                    let ir_stmt = &cfg_block.statements[idx];
+                    let ssa_stmt = &ssa_block.statements[idx];
+
+                    if statement_writes_state(registry, ir_stmt, dialect) {
+                        table.kill_all();
+                        continue;
+                    }
+
+                    let occurrences =
+                        statement_occurrences(registry, ssa_stmt, bn, idx, dialect);
+                    for occ in occurrences {
+                        if let Some(existing) = table.lookup(&occ.key) {
+                            let text = existing.expression_text.clone();
+                            results.push(RedundantComputation {
+                                span: occ.span,
+                                first_span: existing.span,
+                                expression_text: text.clone(),
+                                code: "O105".into(),
+                                message: full_redundancy_message(&text),
+                            });
+                            continue;
+                        }
+                        table.insert(ValueEntry {
+                            key: occ.key.clone(),
+                            block: occ.block.clone(),
+                            statement_index: occ.statement_index,
+                            span: occ.span,
+                            expression_text: occ.expression_text.clone(),
+                        });
+                    }
+                }
+
+                // Visit dominator-tree children. Push in reverse so
+                // they're popped in left-to-right order.
+                if let Some(children) = ssa.dominator_tree.get(bn) {
+                    // Store borrowed references; the `children`
+                    // Vec's strings outlive the walk.
+                    for child in children.iter().rev() {
+                        stack.push(WalkStep::Enter(child.as_str()));
+                    }
+                }
+            }
+        }
+    }
+
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -729,6 +873,227 @@ mod tests {
     fn is_worth_reporting_unknown_command_is_false() {
         let registry = CommandRegistry::build_default();
         assert!(!is_worth_reporting(&registry, "__nonexistent"));
+    }
+
+    // -- C26d: find_redundancies driver --
+
+    use crate::cfg::{Block, Function, Terminator};
+    use crate::ssa::{SsaBlock, SsaStatement};
+    use std::collections::HashMap as Map;
+
+    fn llength_call() -> Statement {
+        Statement::Call {
+            span: Span::new(0, 0),
+            command: "llength".into(),
+            args: vec!["$x".into()],
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        }
+    }
+
+    fn ssa_stmt_for(stmt: Statement, uses_x_ver: Option<u32>) -> SsaStatement {
+        let mut uses = Map::new();
+        if let Some(v) = uses_x_ver {
+            uses.insert("x".to_string(), v);
+        }
+        SsaStatement {
+            statement: stmt,
+            uses,
+            defs: Map::new(),
+        }
+    }
+
+    fn empty_ssa_block(name: &str) -> SsaBlock {
+        SsaBlock {
+            name: name.into(),
+            phis: Vec::new(),
+            statements: Vec::new(),
+            entry_versions: Map::new(),
+            exit_versions: Map::new(),
+        }
+    }
+
+    #[test]
+    fn find_redundancies_detects_same_block_duplicate() {
+        let registry = CommandRegistry::build_default();
+        let mut cfg = Function::new("::top", "entry");
+        let entry_blk = cfg.blocks.get_mut("entry").unwrap();
+        entry_blk.statements.push(llength_call());
+        entry_blk.statements.push(llength_call());
+        entry_blk.terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        ssa.dominator_tree.insert("entry".into(), Vec::new());
+        let mut ssa_entry = empty_ssa_block("entry");
+        ssa_entry.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        ssa_entry.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        ssa.blocks.insert("entry".into(), ssa_entry);
+
+        let results = find_redundancies(&registry, &cfg, &ssa, None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].code, "O105");
+        assert!(results[0].expression_text.contains("llength"));
+    }
+
+    #[test]
+    fn find_redundancies_ignores_different_ssa_version() {
+        let registry = CommandRegistry::build_default();
+        let mut cfg = Function::new("::top", "entry");
+        let entry_blk = cfg.blocks.get_mut("entry").unwrap();
+        entry_blk.statements.push(llength_call());
+        entry_blk.statements.push(llength_call());
+        entry_blk.terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        ssa.dominator_tree.insert("entry".into(), Vec::new());
+        let mut ssa_entry = empty_ssa_block("entry");
+        // Same expression but different SSA versions of $x → no
+        // redundancy.
+        ssa_entry.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        ssa_entry.statements.push(ssa_stmt_for(llength_call(), Some(2)));
+        ssa.blocks.insert("entry".into(), ssa_entry);
+
+        let results = find_redundancies(&registry, &cfg, &ssa, None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn find_redundancies_global_write_invalidates_cache() {
+        let registry = CommandRegistry::build_default();
+        // entry: llength $x; set ::g 1; llength $x
+        let mut cfg = Function::new("::top", "entry");
+        let entry_blk = cfg.blocks.get_mut("entry").unwrap();
+        entry_blk.statements.push(llength_call());
+        entry_blk.statements.push(Statement::Call {
+            span: Span::new(0, 0),
+            command: "set".into(),
+            args: vec!["::g".into(), "1".into()],
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        });
+        entry_blk.statements.push(llength_call());
+        entry_blk.terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        ssa.dominator_tree.insert("entry".into(), Vec::new());
+        let mut ssa_entry = empty_ssa_block("entry");
+        ssa_entry.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        ssa_entry
+            .statements
+            .push(ssa_stmt_for(cfg.blocks["entry"].statements[1].clone(), None));
+        ssa_entry.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        ssa.blocks.insert("entry".into(), ssa_entry);
+
+        // The global write should invalidate — no redundancy reported.
+        let results = find_redundancies(&registry, &cfg, &ssa, None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn find_redundancies_descends_dominator_tree() {
+        let registry = CommandRegistry::build_default();
+        // entry: llength $x
+        // dom_child: llength $x   (should trigger)
+        let mut cfg = Function::new("::top", "entry");
+        cfg.blocks.insert("child".into(), Block::new("child"));
+        cfg.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(llength_call());
+        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Goto {
+            target: "child".into(),
+            span: None,
+        });
+        cfg.blocks
+            .get_mut("child")
+            .unwrap()
+            .statements
+            .push(llength_call());
+        cfg.blocks.get_mut("child").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        ssa.dominator_tree.insert("entry".into(), vec!["child".into()]);
+        ssa.dominator_tree.insert("child".into(), Vec::new());
+        let mut e = empty_ssa_block("entry");
+        e.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        let mut c = empty_ssa_block("child");
+        c.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        ssa.blocks.insert("entry".into(), e);
+        ssa.blocks.insert("child".into(), c);
+
+        let results = find_redundancies(&registry, &cfg, &ssa, None);
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn find_redundancies_empty_for_no_blocks() {
+        let registry = CommandRegistry::build_default();
+        let cfg = Function::new("::top", "entry");
+        let ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "nonexistent".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        let results = find_redundancies(&registry, &cfg, &ssa, None);
+        assert!(results.is_empty());
     }
 
     #[test]
