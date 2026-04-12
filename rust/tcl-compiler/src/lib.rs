@@ -80,6 +80,7 @@ pub mod ir;
 pub mod ir_helpers;
 pub mod lowering;
 pub mod lowering_hooks;
+pub mod memory_ssa;
 pub mod naming;
 pub mod segmenter;
 pub mod side_effects;
