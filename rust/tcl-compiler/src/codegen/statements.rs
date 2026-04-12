@@ -241,6 +241,19 @@ impl CodegenCtx {
             self.push_lit_no_dedup(&folded);
             return;
         }
+        // Inline [list {*}$a {*}$b] → load a, load b, listConcat (C19).
+        if self.try_list_expand_concat(value) {
+            return;
+        }
+        // Inline [list arg ... [break] ...] / [list arg ... [continue] ...] (C19).
+        if self.try_inline_list_with_break_continue(value) {
+            return;
+        }
+        // Constant-fold [format "..." arg ...] (C19).
+        if let Some(folded) = super::helpers::try_format_fold(value) {
+            self.push_lit_no_dedup(&folded);
+            return;
+        }
         // Constant-fold [dict create k v ...]
         if let Some(folded) = super::helpers::fold_dict_create_cmd(value) {
             self.push_lit(&folded);
