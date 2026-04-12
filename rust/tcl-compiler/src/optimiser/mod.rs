@@ -18,6 +18,7 @@ pub mod branch_folding;
 pub mod elimination;
 pub mod expr_simplify;
 pub mod helpers;
+pub mod pattern_recognition;
 pub mod propagation;
 pub mod structure_elimination;
 pub mod unused_procs;
@@ -330,6 +331,9 @@ impl PassId {
 /// - [`PassId::Propagation`] → [`propagation::run`] (C30f,
 ///   O100 constant-var-ref only; six remaining propagation
 ///   modes deferred).
+/// - [`PassId::PatternRecognition`] →
+///   [`pattern_recognition::run`] (C30g, O114 incr-idiom only;
+///   O119 + O122 deferred).
 pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[PassId]) {
     for pass in passes {
         match pass {
@@ -339,9 +343,10 @@ pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[Pas
             PassId::Elimination => elimination::run(ctx, cu),
             PassId::ExprSimplify => expr_simplify::run(ctx, cu),
             PassId::Propagation => propagation::run(ctx, cu),
+            PassId::PatternRecognition => pattern_recognition::run(ctx, cu),
             // Remaining passes are deferred follow-ups; see the
             // module docs for the landing plan.
-            PassId::PatternRecognition | PassId::TailCall | PassId::CodeSinking => {}
+            PassId::TailCall | PassId::CodeSinking => {}
         }
     }
 }
@@ -461,11 +466,7 @@ mod tests {
         run_passes(
             &mut ctx,
             &cu,
-            &[
-                PassId::PatternRecognition,
-                PassId::TailCall,
-                PassId::CodeSinking,
-            ],
+            &[PassId::TailCall, PassId::CodeSinking],
         );
         assert!(ctx.optimisations.is_empty());
     }
