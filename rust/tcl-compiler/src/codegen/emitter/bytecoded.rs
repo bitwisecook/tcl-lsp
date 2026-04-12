@@ -10,10 +10,11 @@
 //!
 //! Ported from `core/compiler/codegen/_bytecoded.py` (C21).
 
+use super::super::values::is_qualified;
 use super::super::CodegenCtx;
 use super::super::Op;
 use super::super::Operand;
-use super::super::INDEX_END;
+use super::super::{parse_tcl_index, INDEX_END};
 
 /// Try to emit specialised bytecode for `cmd args...` via a per-
 /// command hook. Returns `true` if the hook handled the command;
@@ -32,6 +33,9 @@ pub fn try_bytecoded(
     match cmd {
         "lassign" => lassign(ctx, args),
         "llength" => llength(ctx, args),
+        "lrange" => lrange(ctx, args),
+        "linsert" => linsert(ctx, args),
+        "lset" => lset(ctx, args),
         "array" => array(ctx, args, used_generic_invoke),
         _ => false,
     }
@@ -73,6 +77,106 @@ fn lassign(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         Op::LIST_RANGE_IMM,
         vec![Operand::Imm(n), Operand::Imm(INDEX_END)],
     );
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+/// `lrange list first last` — emits `LIST_RANGE_IMM` when both
+/// indices are compile-time constants (integers or `end[-N]`).
+/// Mixed or non-constant indices fall back to the generic invoke.
+fn lrange(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if args.len() != 3 {
+        return false;
+    }
+    let Some(start_idx) = parse_tcl_index(&args[1]) else {
+        return false;
+    };
+    let Some(end_idx) = parse_tcl_index(&args[2]) else {
+        return false;
+    };
+    ctx.emit_value_interpolated(&args[0]);
+    ctx.emit(
+        Op::LIST_RANGE_IMM,
+        vec![Operand::Imm(start_idx), Operand::Imm(end_idx)],
+    );
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+/// `linsert list index element ...` — emits `LREPLACE4 N 2` where
+/// the final `2` operand distinguishes insert from replace in the
+/// shared lreplace opcode family.
+fn linsert(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if args.len() < 2 {
+        return false;
+    }
+    ctx.emit_value_interpolated(&args[0]);
+    for a in &args[1..] {
+        ctx.emit_value_interpolated(a);
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+    let depth = args.len() as i32;
+    ctx.emit(Op::LREPLACE4, vec![Operand::Imm(depth), Operand::Imm(2)]);
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+/// `lset varname ?index ...? newvalue` — proc-context with a
+/// simple (non-qualified) variable name compiles to
+/// `loadScalar1 SLOT; LSET_LIST | LSET_FLAT; storeScalar1 SLOT`;
+/// everything else uses stack-based `loadStk` / `storeStk`.
+fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if args.len() < 3 {
+        return false;
+    }
+    let var_name = &args[0];
+    let indices = &args[1..args.len() - 1];
+    let value = args.last().expect("args.len() >= 3");
+
+    if ctx.is_proc && !is_qualified(var_name) && !indices.is_empty() {
+        let slot = ctx.lvt.intern(var_name);
+        for idx in indices {
+            ctx.emit_value_interpolated(idx);
+        }
+        ctx.emit_value_interpolated(value);
+        ctx.emit_comment(
+            Op::LOAD_SCALAR1,
+            vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],
+            &format!("var \"{var_name}\""),
+        );
+        if indices.len() >= 2 {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+            let total = (indices.len() + 2) as i32;
+            ctx.emit(Op::LSET_FLAT, vec![Operand::Imm(total)]);
+        } else {
+            ctx.emit(Op::LSET_LIST, vec![]);
+        }
+        let op = if slot < 256 {
+            Op::STORE_SCALAR1
+        } else {
+            Op::STORE_SCALAR4
+        };
+        ctx.emit_comment(
+            op,
+            vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],
+            &format!("var \"{var_name}\""),
+        );
+    } else {
+        // Non-proc or qualified: stack-based lsetList with OVER
+        // to duplicate the variable reference onto the top of
+        // stack so loadStk finds it.
+        ctx.push_lit(var_name);
+        for idx in indices {
+            ctx.emit_value_interpolated(idx);
+        }
+        ctx.emit_value_interpolated(value);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        let depth = (indices.len() + 1) as i32;
+        ctx.emit(Op::OVER, vec![Operand::Imm(depth)]);
+        ctx.emit(Op::LOAD_STK, vec![]);
+        ctx.emit(Op::LSET_LIST, vec![]);
+        ctx.emit(Op::STORE_STK, vec![]);
+    }
     ctx.emit(Op::POP, vec![]);
     true
 }
@@ -183,6 +287,100 @@ mod tests {
         let args = vec!["names".into(), "${arr}".into()];
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "array", &args, &mut used));
+    }
+
+    // -- C21 follow-ups: lrange / linsert / lset --
+
+    #[test]
+    fn lrange_constant_indices() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        let args = vec!["${lst}".to_string(), "0".into(), "end".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "lrange", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::LIST_RANGE_IMM));
+    }
+
+    #[test]
+    fn lrange_non_constant_indices_rejects() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        let args = vec![
+            "${lst}".to_string(),
+            "$i".into(),
+            "end".into(),
+        ];
+        let mut used = false;
+        assert!(!try_bytecoded(&mut ctx, "lrange", &args, &mut used));
+    }
+
+    #[test]
+    fn linsert_emits_lreplace4_with_op2() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        let args = vec![
+            "${lst}".to_string(),
+            "2".into(),
+            "hello".into(),
+        ];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "linsert", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::LREPLACE4));
+    }
+
+    #[test]
+    fn lset_proc_single_index_uses_lset_list() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        let args = vec![
+            "lst".to_string(),
+            "1".into(),
+            "new".into(),
+        ];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "lset", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::LSET_LIST));
+        assert!(ops.contains(&Op::LOAD_SCALAR1));
+        assert!(ops.contains(&Op::STORE_SCALAR1));
+    }
+
+    #[test]
+    fn lset_proc_multi_index_uses_lset_flat() {
+        let mut ctx = CodegenCtx::new(true, &[]);
+        let args = vec![
+            "lst".to_string(),
+            "0".into(),
+            "2".into(),
+            "new".into(),
+        ];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "lset", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::LSET_FLAT));
+    }
+
+    #[test]
+    fn lset_toplevel_uses_stk_form() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        let args = vec![
+            "lst".to_string(),
+            "1".into(),
+            "new".into(),
+        ];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "lset", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::OVER));
+        assert!(ops.contains(&Op::LOAD_STK));
+        assert!(ops.contains(&Op::STORE_STK));
+        assert!(ops.contains(&Op::LSET_LIST));
+    }
+
+    #[test]
+    fn lset_rejects_too_few_args() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        let args = vec!["lst".to_string(), "new".into()];
+        let mut used = false;
+        assert!(!try_bytecoded(&mut ctx, "lset", &args, &mut used));
     }
 
     #[test]
