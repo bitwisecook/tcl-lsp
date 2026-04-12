@@ -44,6 +44,7 @@ from ..parsing.tokens import Token, TokenType
 from .ir import (
     CommandTokens,
     IRBarrier,
+    IRBlock,
     IRCall,
     IRCatch,
     IRFor,
@@ -87,6 +88,72 @@ def _qualify_proc_name(namespace: str, proc_name: str) -> str:
     if namespace == "::":
         return _normalise_qualified_name(f"::{proc_name}")
     return _normalise_qualified_name(f"{namespace}::{proc_name}")
+
+
+def _parse_params_with_defaults(param_str: str) -> tuple[tuple[str, str | None], ...]:
+    """Parse a Tcl proc ``param_str`` into ``(name, default_or_None)`` pairs.
+
+    ``{name default}`` → ``(name, default)``; bare ``name`` →
+    ``(name, None)``.  The default string is returned verbatim
+    (braces already stripped, interior whitespace preserved).
+    Used by the WASM codegen to pad missing call-site args with the
+    declared default rather than a boxed zero.
+    """
+    params: list[tuple[str, str | None]] = []
+    i = 0
+    text = param_str.strip()
+    while i < len(text):
+        while i < len(text) and text[i] in " \t\n\r":
+            i += 1
+        if i >= len(text):
+            break
+        if text[i] == "{":
+            level = 1
+            i += 1
+            start = i
+            while i < len(text) and level > 0:
+                if text[i] == "{":
+                    level += 1
+                elif text[i] == "}":
+                    level -= 1
+                i += 1
+            inner = text[start : i - 1]
+            inner_stripped = inner.strip()
+            if not inner_stripped:
+                continue
+            # Split into name + optional default.  The default may
+            # contain whitespace (``{x {a b c}}``) so we take
+            # everything after the first whitespace as the raw
+            # default text, stripping outer whitespace only.
+            split_at = 0
+            while split_at < len(inner) and inner[split_at] not in " \t\n\r":
+                split_at += 1
+            name = inner[:split_at]
+            default: str | None
+            if split_at < len(inner):
+                raw_default = inner[split_at:].strip()
+                # Strip one level of Tcl grouping so ``""`` becomes the
+                # empty string and ``{a b c}`` becomes ``a b c``.  The
+                # caller gets back the plain value ready to be emitted
+                # as an obj_literal.
+                if len(raw_default) >= 2 and raw_default[0] == '"' and raw_default[-1] == '"':
+                    default = raw_default[1:-1]
+                elif len(raw_default) >= 2 and raw_default[0] == "{" and raw_default[-1] == "}":
+                    default = raw_default[1:-1]
+                else:
+                    default = raw_default
+            else:
+                default = None
+            if name:
+                params.append((name, default))
+            continue
+        start = i
+        while i < len(text) and text[i] not in " \t\n\r":
+            i += 1
+        word = text[start:i]
+        if word:
+            params.append((word, None))
+    return tuple(params)
 
 
 def _parse_param_names(param_str: str) -> tuple[str, ...]:
@@ -1057,11 +1124,56 @@ class _Lowerer:
                 )
 
             case "namespace" if len(args) >= 3 and args[0] == "eval" and len(arg_tokens) >= 3:
-                child_ns = _join_namespace(namespace, args[1])
-                prev_ns_eval = self._in_namespace_eval
-                self._in_namespace_eval = True
-                self._lower_body_arg(args[2], arg_tokens[2], namespace=child_ns)
-                self._in_namespace_eval = prev_ns_eval
+                # Only inline-compile the body when *all* three args
+                # are static (braced or bare identifiers).  A dynamic
+                # namespace name (``[namespace current]``) or a
+                # dynamic body (``[list upvar 0 A B]``) can't be
+                # reasoned about statically — the body might
+                # evaluate to a script that does anything — so fall
+                # back to the tcl_eval barrier path where the
+                # interpreter resolves both at runtime.
+                #
+                # For the canonical shape ``namespace eval ::ns {
+                # body }`` the body is a single STR token; anything
+                # else (CMD / VAR / ESC with substitutions) means
+                # dynamic.  The namespace arg must likewise be a
+                # plain identifier.
+                from ..parsing.tokens import TokenType as _TT
+
+                body_tok = arg_tokens[2]
+                ns_tok = arg_tokens[1]
+                body_is_static = body_tok is not None and body_tok.type == _TT.STR
+                ns_is_static = (
+                    ns_tok is not None
+                    and ns_tok.type in (_TT.STR, _TT.ESC)
+                    and "$" not in args[1]
+                    and "[" not in args[1]
+                )
+                if body_is_static and ns_is_static:
+                    child_ns = _join_namespace(namespace, args[1])
+                    prev_ns_eval = self._in_namespace_eval
+                    self._in_namespace_eval = True
+                    body_script = self._lower_body_arg(args[2], arg_tokens[2], namespace=child_ns)
+                    self._in_namespace_eval = prev_ns_eval
+                    # Emit the body as an inline block — procs
+                    # inside were lifted to module.procedures with
+                    # qualified names (child_ns::name); other
+                    # statements (variable, trace, Option …) run as
+                    # ordinary code, with codegen consulting
+                    # IRBlock.namespace for unqualified command
+                    # resolution.  source_args/source_tokens let
+                    # non-inlining codegen targets dispatch the
+                    # original namespace-eval call instead.
+                    return IRBlock(
+                        range=cmd.range,
+                        body=body_script,
+                        namespace=child_ns,
+                        source_args=tuple(args),
+                        source_tokens=cmd.cmd_tokens,
+                    )
+                # Dynamic namespace eval — fall back to tcl_eval so
+                # the runtime evaluates the body script however it
+                # shakes out.
                 return IRBarrier(
                     range=cmd.range,
                     reason="namespace eval",

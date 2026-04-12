@@ -202,12 +202,68 @@ pub export fn proc_register_compiled(name: i32, n_params: i32, func_idx: i32) i3
 /// Return encoding (packed into linear memory scratch):
 ///   If found: returns pointer to the bucket (caller reads fields)
 ///   If not found: returns 0
+///
+/// Resolution order for an unqualified name:
+///   1. Exact match (``name``).
+///   2. Global namespace (``::name``).
+///   3. Linear scan for an entry ending in ``::name`` — a best-
+///      effort stand-in for Tcl's namespace-path semantics when
+///      a dynamically-registered proc (``proc $varName …``) calls
+///      a helper that lives in the surrounding namespace.
+///      Non-ambiguous matches win; multiple matches take the
+///      first seen (deterministic because buckets are append-only
+///      until a grow).
 pub export fn proc_lookup(name: i32) i32 {
     const sn = obj_ensure_string(name);
     if (proc_buf == 0) return 0;
+    // 1. Exact match.
     const hash = fnv1a(sn.ptr, sn.len);
     if (proc_find(sn.ptr, sn.len, hash)) |base| {
         return @intCast(base);
+    }
+    // Only fall through to namespace search for UNQUALIFIED names.
+    // A ``::-``prefixed name is already explicitly global and a
+    // miss is a real miss.
+    if (sn.len >= 2) {
+        const first_two: [*]const u8 = @ptrFromInt(sn.ptr);
+        if (first_two[0] == ':' and first_two[1] == ':') return 0;
+    }
+    // 2. Try ``::name``.
+    {
+        const alen: u32 = sn.len + 2;
+        const buf = alloc(alen);
+        const b: [*]u8 = @ptrFromInt(buf);
+        b[0] = ':';
+        b[1] = ':';
+        const src: [*]const u8 = @ptrFromInt(sn.ptr);
+        for (0..sn.len) |i| b[2 + i] = src[i];
+        const h2 = fnv1a(buf, alen);
+        if (proc_find(buf, alen, h2)) |base| {
+            return @intCast(base);
+        }
+    }
+    // 3. Linear scan for ``*::name`` suffix.
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    var idx: u32 = 0;
+    while (idx < proc_cap) : (idx += 1) {
+        const base = proc_buf + idx * PROC_BUCKET_SIZE;
+        const np: u32 = @intCast(read_i32(base));
+        if (np == 0) continue;
+        const nl: u32 = @intCast(read_i32(base + 4));
+        if (nl <= sn.len + 2) continue; // need room for "::name"
+        const npp: [*]const u8 = @ptrFromInt(np);
+        // Match suffix "::<name>"
+        const tail_start: u32 = nl - sn.len;
+        if (tail_start < 2) continue;
+        if (npp[tail_start - 2] != ':' or npp[tail_start - 1] != ':') continue;
+        var matches = true;
+        for (0..sn.len) |i| {
+            if (npp[tail_start + i] != sp[i]) {
+                matches = false;
+                break;
+            }
+        }
+        if (matches) return @intCast(base);
     }
     return 0;
 }
@@ -238,6 +294,24 @@ pub export fn proc_get_body(bucket: i32) i32 {
     if (bucket == 0) return 0;
     const base: u32 = @intCast(bucket);
     return read_i32(base + 16);
+}
+
+/// Get the stored name pointer for a proc bucket — the
+/// fully-qualified name the proc was registered under.  Distinct
+/// from ``words[0]`` at the caller (which may be the unqualified
+/// form resolved via namespace-path search).  Used by the host-
+/// bridge dispatcher so the embedder can look up the compiled
+/// WASM export by its real qualified name.
+pub export fn proc_get_name_ptr(bucket: i32) i32 {
+    if (bucket == 0) return 0;
+    const base: u32 = @intCast(bucket);
+    return read_i32(base);
+}
+
+pub export fn proc_get_name_len(bucket: i32) i32 {
+    if (bucket == 0) return 0;
+    const base: u32 = @intCast(bucket);
+    return read_i32(base + 4);
 }
 
 /// Check if a proc exists by name. Returns 1 or 0.

@@ -252,6 +252,13 @@ pub export fn local_exists(name: i32) i32 {
 /// This is the standard Tcl lookup order for the interpreter.
 pub export fn var_resolve(name: i32) i32 {
     const sn = obj_ensure_string(name);
+    // ``::``-qualified names always go to globals.
+    if (sn.len >= 2) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        if (sp[0] == ':' and sp[1] == ':') {
+            return globals.global_get(name);
+        }
+    }
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
@@ -267,6 +274,16 @@ pub export fn var_resolve(name: i32) i32 {
 /// Set a variable: sets in current frame if one is active, otherwise global.
 /// If the local is an alias to a global, the write propagates to globals.
 pub export fn var_set(name: i32, value: i32) i32 {
+    // ``::``-qualified names are always global, regardless of frame
+    // depth — matches Tcl's namespace resolution where an absolute
+    // name bypasses all local scopes.
+    const sn = obj_ensure_string(name);
+    if (sn.len >= 2) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        if (sp[0] == ':' and sp[1] == ':') {
+            return globals.global_set(name, value);
+        }
+    }
     if (current_frame() != null) {
         return local_set(name, value);
     }

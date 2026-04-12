@@ -16,6 +16,20 @@ const tcl_procs = @import("tcl_procs.zig");
 const tcl_cmd_info = @import("tcl_cmd_info.zig");
 const tcl_clock = @import("tcl_clock.zig");
 const tcl_array = @import("tcl_array.zig");
+const tcl_diag = @import("tcl_diag.zig");
+const tcl_stubs = @import("tcl_stubs.zig");
+const tcl_io_stubs = @import("tcl_io_stubs.zig");
+const tcl_fs_stubs = @import("tcl_fs_stubs.zig");
+const tcl_fmt_stubs = @import("tcl_fmt_stubs.zig");
+const tcl_time_stubs = @import("tcl_time_stubs.zig");
+const tcl_env_stubs = @import("tcl_env_stubs.zig");
+const tcl_encoding = @import("tcl_encoding.zig");
+const tcl_chan = @import("tcl_chan.zig");
+const tcl_trace = @import("tcl_trace.zig");
+const tcl_fs = @import("tcl_fs.zig");
+const tcl_format = @import("tcl_format.zig");
+const tcl_dispatch = @import("tcl_dispatch.zig");
+const tcl_cmd_dispatch = @import("tcl_cmd_dispatch.zig");
 const interp = @import("tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -113,6 +127,10 @@ pub const clock_seconds = tcl_clock.clock_seconds;
 pub const clock_clicks = tcl_clock.clock_clicks;
 pub const clock_milliseconds = tcl_clock.clock_milliseconds;
 
+// Diagnostic / source-location map
+pub const diag_set = tcl_diag.diag_set;
+pub const diag_set_eval_ctx = tcl_diag.diag_set_eval_ctx;
+
 // Arrays
 pub const array_set = tcl_array.array_set;
 pub const array_get = tcl_array.array_get;
@@ -188,12 +206,62 @@ comptime {
     _ = &tcl_catch.catch_result;
     _ = &tcl_catch.catch_has_error;
     _ = &tcl_catch.@"error";
-    _ = &tcl_catch.format;
-    _ = &tcl_catch.regexp;
-    _ = &tcl_catch.open;
-    _ = &tcl_catch.close;
-    _ = &tcl_catch.read;
-    _ = &tcl_catch.gets;
+    // tcl_*_stubs exports — stubs trap with ``unsupported command:
+    // <name>`` so the compiled code sees a clear error rather than
+    // a silent wrong answer.  Imports of these are wired up in
+    // core/compiler/codegen/wasm.py's ``_RUNTIME_IMPORTS``; the
+    // comptime references here ensure the linker keeps them.
+    _ = &tcl_io_stubs.open;
+    _ = &tcl_io_stubs.close;
+    _ = &tcl_io_stubs.read;
+    _ = &tcl_io_stubs.gets;
+    _ = &tcl_io_stubs.eof;
+    _ = &tcl_io_stubs.flush;
+    _ = &tcl_io_stubs.fblocked;
+    _ = &tcl_io_stubs.tell;
+    _ = &tcl_io_stubs.seek;
+    _ = &tcl_io_stubs.chan;
+    _ = &tcl_io_stubs.fcopy;
+    _ = &tcl_io_stubs.fileevent;
+    _ = &tcl_io_stubs.socket;
+    // file has a real impl in tcl_fs.zig.
+    _ = &tcl_fs.file;
+    _ = &tcl_fs_stubs.glob;
+    // pwd and cd live in tcl_fs.zig (pass-through impl).
+    _ = &tcl_fs.pwd;
+    _ = &tcl_fs.cd;
+    _ = &tcl_fs_stubs.exec;
+    _ = &tcl_fs_stubs.source;
+    _ = &tcl_fs_stubs.load;
+    _ = &tcl_fs_stubs.unload;
+    // format lives in tcl_format.zig (real impl).
+    _ = &tcl_format.format;
+    _ = &tcl_fmt_stubs.scan;
+    _ = &tcl_fmt_stubs.binary;
+    _ = &tcl_fmt_stubs.regexp;
+    _ = &tcl_fmt_stubs.regsub;
+    // encoding lives in tcl_encoding.zig (real pass-through impl).
+    _ = &tcl_encoding.encoding;
+    // fconfigure lives in tcl_chan.zig (NOP).
+    _ = &tcl_chan.fconfigure;
+    _ = &tcl_time_stubs.clock_format;
+    _ = &tcl_time_stubs.clock_scan;
+    _ = &tcl_time_stubs.clock_add;
+    _ = &tcl_time_stubs.after;
+    _ = &tcl_time_stubs.vwait;
+    _ = &tcl_time_stubs.update;
+    _ = &tcl_time_stubs.coroutine;
+    _ = &tcl_time_stubs.yield;
+    _ = &tcl_time_stubs.yieldto;
+    _ = &tcl_env_stubs.@"namespace";
+    _ = &tcl_env_stubs.package_cmd;
+    // trace lives in tcl_trace.zig (pass-through impl).
+    _ = &tcl_trace.trace_cmd;
+    _ = &tcl_env_stubs.interp_cmd;
+    _ = &tcl_env_stubs.apply;
+    _ = &tcl_stubs.unsupported;
+    _ = &tcl_cmd_dispatch.try_stub;
+    _ = &tcl_dispatch.dispatch;
     // tcl_frames exports
     _ = &tcl_frames.frame_push;
     _ = &tcl_frames.frame_pop;
@@ -224,6 +292,9 @@ comptime {
     _ = &tcl_clock.clock_seconds;
     _ = &tcl_clock.clock_clicks;
     _ = &tcl_clock.clock_milliseconds;
+    // tcl_diag exports
+    _ = &tcl_diag.diag_set;
+    _ = &tcl_diag.diag_set_eval_ctx;
     // tcl_array exports
     _ = &tcl_array.array_set;
     _ = &tcl_array.array_get;

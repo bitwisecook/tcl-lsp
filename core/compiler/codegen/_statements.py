@@ -10,6 +10,7 @@ from ..ir import (
     IRAssignExpr,
     IRAssignValue,
     IRBarrier,
+    IRBlock,
     IRCall,
     IRExprEval,
     IRIncr,
@@ -316,6 +317,31 @@ class _StatementsMixin:
                         self._used_generic_invoke = False
                 else:
                     self._emit(Op.NOP, comment=f"barrier: {reason}")
+
+            case IRBlock(source_args=source_args, source_tokens=source_tokens):
+                # ``namespace eval`` inlined for the WASM backend,
+                # but the stack-VM doesn't inline — its runtime
+                # handles namespaces with proper semantics, so we
+                # dispatch the original ``namespace eval NS body``
+                # call and let the interpreter / VM enter the
+                # namespace, evaluate the body, and leave.  The
+                # source args were captured at lower time precisely
+                # for this fallback.
+                if source_args:
+                    if (
+                        source_tokens
+                        and source_tokens.expand_word
+                        and any(source_tokens.expand_word)
+                    ):
+                        self._emit_expanded_call(
+                            "namespace", source_args, source_tokens.expand_word
+                        )
+                    else:
+                        self._emit_call("namespace", source_args)
+                    if source_tokens and source_tokens.argv_texts:
+                        self._tag_last_invoke_source(source_tokens.argv_texts, source_tokens)
+                else:
+                    self._emit(Op.NOP, comment="IRBlock without source_args")
 
             case IRReturn(value=value):
                 self._emit_value(value if value is not None else "", interpolate=True)
