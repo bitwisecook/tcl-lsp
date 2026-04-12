@@ -24,6 +24,7 @@ use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Procedure, Script, Statement};
 use crate::naming::normalise_qualified_name;
 
+use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Run the tail-call detection pass. Emits `O121` for every
@@ -171,7 +172,7 @@ fn emit_loop_conversion(
         format!(
             "Convert tail-recursive '{short_name}' to iterative loop"
         ),
-        proc.span,
+        full_rewrite_span(ctx.source, proc.span),
         replacement,
     ));
 }
@@ -395,17 +396,18 @@ fn collect_tail_sites(
     };
     match last {
         Statement::Call { span, command, args, .. } if self_names.contains(command) => {
+            let rewrite_span = full_rewrite_span(ctx.source, *span);
             ctx.report(Optimisation::new(
                 "O121",
                 format!(
                     "Use tailcall for self-recursion in proc '{}'",
                     proc.name,
                 ),
-                *span,
+                rewrite_span,
                 format!("tailcall {command}"),
             ));
             sites.push(TailSite {
-                span: *span,
+                span: rewrite_span,
                 args: args.clone(),
             });
         }
@@ -421,13 +423,14 @@ fn collect_tail_sites(
                     } else {
                         format!("tailcall {call_head} {call_args}")
                     };
+                    let rewrite_span = full_rewrite_span(ctx.source, *span);
                     ctx.report(Optimisation::new(
                         "O121",
                         format!(
                             "Use tailcall for self-recursion in proc '{}'",
                             proc.name,
                         ),
-                        *span,
+                        rewrite_span,
                         replacement,
                     ));
                     let split_args: Vec<String> = if call_args.is_empty() {
@@ -439,7 +442,7 @@ fn collect_tail_sites(
                             .collect()
                     };
                     sites.push(TailSite {
-                        span: *span,
+                        span: rewrite_span,
                         args: split_args,
                     });
                 }

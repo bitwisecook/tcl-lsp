@@ -34,6 +34,7 @@ use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{eval_tcl_expr, Env, EnvValue};
 
 use super::helpers::literals::is_plain_literal;
+use super::helpers::spans::full_rewrite_span;
 use super::helpers::tokens::extract_body_text;
 use super::{Optimisation, PassContext};
 
@@ -162,7 +163,7 @@ fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
             ctx.report(Optimisation::new(
                 "O112",
                 "Eliminate dead while loop (condition is always false)",
-                *span,
+                full_rewrite_span(ctx.source, *span),
                 "",
             ));
         }
@@ -189,7 +190,7 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
                 ctx.report(Optimisation::new(
                     "O112",
                     "Eliminate dead for loop (condition is always false)",
-                    *span,
+                    full_rewrite_span(ctx.source, *span),
                     "",
                 ));
             } else {
@@ -197,7 +198,7 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
                 ctx.report(Optimisation::new(
                     "O112",
                     "Eliminate dead for loop (condition is always false); keep init",
-                    *span,
+                    full_rewrite_span(ctx.source, *span),
                     replacement,
                 ));
             }
@@ -260,7 +261,7 @@ fn try_eliminate_if(
             ctx.report(Optimisation::new(
                 "O112",
                 "Eliminate constant if (condition is always true)",
-                stmt_span,
+                full_rewrite_span(ctx.source, stmt_span),
                 replacement,
             ));
             return;
@@ -273,14 +274,14 @@ fn try_eliminate_if(
         ctx.report(Optimisation::new(
             "O112",
             "Eliminate constant if (all conditions false); keep else",
-            stmt_span,
+            full_rewrite_span(ctx.source, stmt_span),
             replacement,
         ));
     } else {
         ctx.report(Optimisation::new(
             "O112",
             "Eliminate dead if (all conditions are always false)",
-            stmt_span,
+            full_rewrite_span(ctx.source, stmt_span),
             "",
         ));
     }
@@ -337,7 +338,7 @@ fn try_eliminate_switch(
                     "Eliminate switch (subject '{subject}' always matches pattern '{}')",
                     arm.pattern,
                 ),
-                stmt_span,
+                full_rewrite_span(ctx.source, stmt_span),
                 replacement,
             ));
         }
@@ -349,14 +350,14 @@ fn try_eliminate_switch(
         ctx.report(Optimisation::new(
             "O112",
             format!("Eliminate switch (subject '{subject}' matches no pattern); keep default"),
-            stmt_span,
+            full_rewrite_span(ctx.source, stmt_span),
             replacement,
         ));
     } else {
         ctx.report(Optimisation::new(
             "O112",
             format!("Eliminate dead switch (subject '{subject}' matches no pattern)"),
-            stmt_span,
+            full_rewrite_span(ctx.source, stmt_span),
             "",
         ));
     }

@@ -48,6 +48,7 @@ use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 
 use super::helpers::literals::{is_safe_word, is_static_var_word};
+use super::helpers::spans::full_word_span;
 use super::{Optimisation, PassContext};
 
 /// Run the propagation pass across every function.
@@ -179,35 +180,6 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
             opt.hint_only = true;
             ctx.report(opt);
         }
-    }
-}
-
-/// The argv span returned by the lexer for `${name}` / `[cmd …]`
-/// words excludes the closing `}` / `]`. Extend the span by one
-/// byte when the next source byte is the expected closing
-/// delimiter, so the rewrite target covers the full word. The
-/// argv `text` may be the canonicalised reconstruction (e.g.
-/// `$n` in source becomes `${n}` in `argv_texts`), so we check
-/// source directly rather than trust the text shape.
-fn full_word_span(source: &str, argv_span: tcl_lexer::Span) -> tcl_lexer::Span {
-    let end = argv_span.end() as usize;
-    if end >= source.len() {
-        return argv_span;
-    }
-    let start = argv_span.start() as usize;
-    if start >= source.len() {
-        return argv_span;
-    }
-    let covered = source.as_bytes().get(start..end).unwrap_or_default();
-    let Some(&first) = covered.first() else {
-        return argv_span;
-    };
-    let next = source.as_bytes()[end];
-    let needs_extend = (first == b'[' && next == b']') || (first == b'$' && covered.get(1) == Some(&b'{') && next == b'}');
-    if needs_extend {
-        tcl_lexer::Span::new(argv_span.start(), argv_span.end() + 1)
-    } else {
-        argv_span
     }
 }
 
@@ -1026,21 +998,6 @@ mod tests {
         // Leading `$` / `[` / `{` / `"` → would re-substitute.
         assert_eq!(parse_cmd_subst_head("$cmd"), None);
         assert_eq!(parse_cmd_subst_head("[cmd]"), None);
-    }
-
-    #[test]
-    fn full_word_span_extends_closing_delimiters() {
-        use tcl_lexer::Span;
-        // `$x`: argv span 0..2 covers `$x`, next byte isn't `}` or `]` → no extension.
-        assert_eq!(full_word_span("$x", Span::new(0, 2)), Span::new(0, 2));
-        // `${x}`: argv span 0..3 covers `${x`, next byte is `}` → extend to 0..4.
-        assert_eq!(full_word_span("${x}", Span::new(0, 3)), Span::new(0, 4));
-        // `[cmd]`: argv span 0..4 covers `[cmd`, next byte is `]` → extend to 0..5.
-        assert_eq!(full_word_span("[cmd]", Span::new(0, 4)), Span::new(0, 5));
-        // Plain identifier word: no extension.
-        assert_eq!(full_word_span("plain ", Span::new(0, 5)), Span::new(0, 5));
-        // Span at EOF: no extension (guards against panic).
-        assert_eq!(full_word_span("[x", Span::new(0, 2)), Span::new(0, 2));
     }
 
     #[test]
