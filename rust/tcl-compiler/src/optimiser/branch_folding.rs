@@ -1,16 +1,21 @@
-//! Branch-folding optimiser pass (C30a).
+//! Branch-folding optimiser pass (C30a + C30a').
 //!
-//! Ported from `core/compiler/optimiser/_branch_folding.py`. For
-//! every [`ConstantBranch`] that SCCP produced while analysing a
-//! function, emit an `O101` suggestion to replace the condition
-//! with the literal boolean the branch folded to.
+//! Ported from `core/compiler/optimiser/_branch_folding.py`. Two
+//! Python entry points — both folded into [`run`]:
 //!
-//! The Python pass has a second entry point —
-//! `optimise_branch_proc_calls` — that re-runs expression
-//! simplification / constant-propagation on branch conditions
-//! SCCP could not resolve. That entry point depends on the
-//! `expr_simplify` and `propagation` passes, which are still
-//! deferred; it will land alongside those follow-ups.
+//! - **C30a** — `optimise_constant_branches`: for every
+//!   [`ConstantBranch`] SCCP produced, emits an `O101`
+//!   suggestion rewriting the condition to the literal boolean
+//!   it folded to.
+//! - **C30a'** — `optimise_branch_proc_calls`: for every branch
+//!   condition SCCP could *not* fold, tries propagation via
+//!   [`substitute_expr_constants`] (from the landed
+//!   [`super::helpers::expr_simplify`] toolkit). Emits **`O100`**
+//!   ("Propagate constants into branch expression") when a
+//!   substitution produced a text change. The deeper
+//!   simplification rewrites (O113 / O117 / O120 / O110) plug
+//!   in here once their C30e sub-strips land — their signatures
+//!   already work and the stubs silently no-op.
 //!
 //! Switch-dispatch branches (the ones `cfg_builder` synthesises
 //! inside `switch` blocks: a chain of `StrEq` probes against
@@ -18,18 +23,23 @@
 //! them would produce misleading rewrites of user-visible source
 //! text.
 
+use std::collections::{HashMap, HashSet};
+
+use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::Terminator;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::sccp::ConstantBranch;
 
+use super::helpers::expr_simplify::substitute_expr_constants;
+use super::helpers::literals::format_constant;
 use super::{Optimisation, PassContext};
 
-/// Run the branch-folding pass.
+/// Run the branch-folding pass — both C30a
+/// (`optimise_constant_branches`) and C30a'
+/// (`optimise_branch_proc_calls`).
 ///
-/// Appends one [`Optimisation`] per foldable constant branch
-/// across every function in `cu`. Matches the Python
-/// `optimise_constant_branches` behaviour:
+/// Constant-branch pass (C30a):
 ///
 /// - Code: `O101` ("Fold constant expression").
 /// - Replacement: `"1"` or `"0"` depending on the folded value,
@@ -37,10 +47,118 @@ use super::{Optimisation, PassContext};
 /// - Span: the branch terminator's condition span.
 /// - Switch-dispatch branches (`StrEq` condition + block or
 ///   targets whose names mention `switch_next`) are skipped.
+///
+/// Branch-proc-call propagation (C30a'):
+///
+/// - Code: `O100` ("Propagate constants into branch
+///   expression") when SCCP could not fold the branch but the
+///   constant-substitution pass produced a text change.
+/// - Uses per-function SCCP lattice to build the constants map;
+///   variables whose every tracked version agrees on a single
+///   `Const` value participate.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     for fu in cu.functions() {
         fold_constant_branches(ctx, fu);
+        propagate_into_branches(ctx, fu);
     }
+}
+
+/// For every branch the SCCP pass *did not* fold, project the
+/// per-function lattice into a constants map and try to rewrite
+/// the condition text via [`substitute_expr_constants`]. Emits
+/// `O100` on any text change.
+fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
+    let constants = sccp_constants_for(fu);
+    if constants.is_empty() {
+        return;
+    }
+    let folded: HashSet<String> = fu
+        .sccp
+        .constant_branches
+        .iter()
+        .map(|cb| cb.block.clone())
+        .collect();
+
+    for (bn, block) in &fu.cfg.blocks {
+        if folded.contains(bn) {
+            continue;
+        }
+        let Some(Terminator::Branch {
+            condition,
+            span: Some(span),
+            ..
+        }) = &block.terminator
+        else {
+            continue;
+        };
+        if is_switch_dispatch_cond(condition) {
+            continue;
+        }
+        let range = span.as_range();
+        if range.end > ctx.source.len() {
+            continue;
+        }
+        let cond_text = &ctx.source[range];
+        if cond_text.is_empty() {
+            continue;
+        }
+
+        // Unwrap one level of braces so the substituter sees the
+        // bare expression body; we re-wrap before reporting.
+        let (inner, braced) =
+            if let Some(body) = cond_text.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
+                (body, true)
+            } else {
+                (cond_text, false)
+            };
+
+        let result = substitute_expr_constants(inner, &constants, ctx.dialect);
+        if !result.changed {
+            continue;
+        }
+        let replacement = if braced {
+            format!("{{{}}}", result.text)
+        } else {
+            result.text
+        };
+        ctx.report(Optimisation::new(
+            "O100",
+            "Propagate constants into branch expression",
+            *span,
+            replacement,
+        ));
+    }
+}
+
+fn is_switch_dispatch_cond(cond: &ExprNode) -> bool {
+    matches!(cond, ExprNode::Binary { op: BinOp::StrEq, .. })
+}
+
+fn sccp_constants_for(fu: &FunctionUnit) -> HashMap<String, String> {
+    let mut per_var: HashMap<String, Vec<&ConstValue>> = HashMap::new();
+    let mut dirty: HashSet<String> = HashSet::new();
+    for ((name, _ver), lv) in &fu.sccp.values {
+        if dirty.contains(name) {
+            continue;
+        }
+        if let LatticeValue::Const(cv) = lv {
+            per_var.entry(name.clone()).or_default().push(cv);
+        } else {
+            dirty.insert(name.clone());
+            per_var.remove(name);
+        }
+    }
+    let mut out = HashMap::new();
+    for (name, cvs) in per_var {
+        let first = cvs[0];
+        if !cvs.iter().all(|cv| *cv == first) {
+            continue;
+        }
+        if let Some(text) = format_constant(first) {
+            out.insert(name, text);
+        }
+    }
+    out
 }
 
 fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
@@ -580,6 +698,61 @@ mod tests {
             ctx.optimisations.is_empty(),
             "switch dispatch branches must not be folded: got {:?}",
             ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn branch_proc_calls_propagates_constant_into_non_folded_branch() {
+        // `$cond` is Overdefined (written two different values
+        // in branches of an outer if); the inner `if {$cond}` is
+        // therefore not a SCCP constant branch. The branch-
+        // proc-calls pass should attempt substitution and — since
+        // $cond is Overdefined — emit nothing. This test exercises
+        // the "no constant available" code path.
+        let cu = CompilationUnit::build_for(
+            "set cond 1\nif {$flag} { set cond 2 }\nif {$cond} { set x 1 }",
+            &registry(),
+            false,
+        );
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        run(&mut ctx, &cu);
+        // No O100 because $cond is not a single constant across
+        // all tracked versions.
+        assert!(
+            !ctx.optimisations.iter().any(|o| o.code == "O100"),
+            "unexpected O100 for Overdefined variable: {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn branch_proc_calls_emits_o100_when_const_propagates() {
+        // `set x 5` makes $x constant; `if {$x < $y}` has one
+        // tracked version of $x, which SCCP collapses. The
+        // branch condition `$x < $y` is not a SCCP constant
+        // branch (because $y is Unknown), so substituting $x → 5
+        // is the only rewrite. Expect an O100.
+        let cu = CompilationUnit::build_for(
+            "set x 5\nif {$x < $y} { set z 1 }",
+            &registry(),
+            false,
+        );
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        run(&mut ctx, &cu);
+        let got = ctx
+            .optimisations
+            .iter()
+            .find(|o| o.code == "O100" && o.message.contains("branch"));
+        assert!(
+            got.is_some(),
+            "expected O100 propagating x=5 into branch, got {:?}",
+            ctx.optimisations,
+        );
+        let opt = got.unwrap();
+        assert!(
+            opt.replacement.contains('5'),
+            "replacement should contain the propagated value, got {:?}",
+            opt.replacement,
         );
     }
 
