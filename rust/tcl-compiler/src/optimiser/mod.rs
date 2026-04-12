@@ -18,6 +18,7 @@ pub mod branch_folding;
 pub mod elimination;
 pub mod expr_simplify;
 pub mod helpers;
+pub mod propagation;
 pub mod structure_elimination;
 pub mod unused_procs;
 
@@ -326,6 +327,9 @@ impl PassId {
 /// - [`PassId::ExprSimplify`] → [`expr_simplify::run`] (C30e,
 ///   O101 fold + O115 unwrap; deeper AST rewrites deferred to
 ///   C30e4–C30e7).
+/// - [`PassId::Propagation`] → [`propagation::run`] (C30f,
+///   O100 constant-var-ref only; six remaining propagation
+///   modes deferred).
 pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[PassId]) {
     for pass in passes {
         match pass {
@@ -334,12 +338,10 @@ pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[Pas
             PassId::StructureElimination => structure_elimination::run(ctx, cu),
             PassId::Elimination => elimination::run(ctx, cu),
             PassId::ExprSimplify => expr_simplify::run(ctx, cu),
+            PassId::Propagation => propagation::run(ctx, cu),
             // Remaining passes are deferred follow-ups; see the
             // module docs for the landing plan.
-            PassId::PatternRecognition
-            | PassId::Propagation
-            | PassId::TailCall
-            | PassId::CodeSinking => {}
+            PassId::PatternRecognition | PassId::TailCall | PassId::CodeSinking => {}
         }
     }
 }
@@ -460,7 +462,6 @@ mod tests {
             &mut ctx,
             &cu,
             &[
-                PassId::Propagation,
                 PassId::PatternRecognition,
                 PassId::TailCall,
                 PassId::CodeSinking,
