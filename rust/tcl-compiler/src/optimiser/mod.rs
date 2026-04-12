@@ -16,6 +16,7 @@
 
 pub mod branch_folding;
 pub mod helpers;
+pub mod unused_procs;
 
 use std::collections::{HashMap, HashSet};
 
@@ -147,6 +148,12 @@ pub struct ProcCfgEntry {
 pub struct PassContext<'a> {
     /// Full source text (UTF-8).
     pub source: &'a str,
+    /// Tcl dialect currently active. Matches the Python
+    /// `active_dialect()` thread-local — passed once when the
+    /// context is built so gated passes (e.g. O124) can check
+    /// for `"f5-irules"` without threading it through every
+    /// entry point.
+    pub dialect: Option<&'a str>,
     /// Accumulator for produced optimisations.
     pub optimisations: Vec<Optimisation>,
     /// Interprocedural analysis result. Passes consult it to
@@ -183,6 +190,22 @@ impl<'a> PassContext<'a> {
     pub fn new(source: &'a str, interproc: InterproceduralAnalysis) -> Self {
         Self {
             source,
+            interproc,
+            ..Self::default()
+        }
+    }
+
+    /// Build a context bound to `source`, `interproc`, and an
+    /// explicit Tcl `dialect`.
+    #[must_use]
+    pub fn with_dialect(
+        source: &'a str,
+        interproc: InterproceduralAnalysis,
+        dialect: Option<&'a str>,
+    ) -> Self {
+        Self {
+            source,
+            dialect,
             interproc,
             ..Self::default()
         }
@@ -291,10 +314,12 @@ impl PassId {
 /// Currently landed passes:
 ///
 /// - [`PassId::BranchFolding`] → [`branch_folding::run`] (C30a).
+/// - [`PassId::UnusedProcs`] → [`unused_procs::run`] (C30b).
 pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[PassId]) {
     for pass in passes {
         match pass {
             PassId::BranchFolding => branch_folding::run(ctx, cu),
+            PassId::UnusedProcs => unused_procs::run(ctx, cu),
             // Remaining passes are deferred follow-ups; see the
             // module docs for the landing plan.
             PassId::Elimination
@@ -303,7 +328,6 @@ pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[Pas
             | PassId::Propagation
             | PassId::StructureElimination
             | PassId::TailCall
-            | PassId::UnusedProcs
             | PassId::CodeSinking => {}
         }
     }
@@ -431,7 +455,6 @@ mod tests {
                 PassId::PatternRecognition,
                 PassId::StructureElimination,
                 PassId::TailCall,
-                PassId::UnusedProcs,
                 PassId::CodeSinking,
             ],
         );
