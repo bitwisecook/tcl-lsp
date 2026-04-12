@@ -1,0 +1,18 @@
+ByteCode 0xbb9160010, refCt 1, epoch 21, interp 0xbb901c010 (epoch 21)
+  Source "catch {set x 123} a(1)\ncatch {set x 3} ::foo..."
+  Cmds 2, src 45, inst 18, litObjs 5, aux 0, stkDepth 3, code/src 0.00
+  Commands 2:
+      1: pc 0-8, src 0-21        2: pc 9-16, src 23-43
+  Command 1: "catch {set x 123} a(1)..."
+    (0) push1 0 	# "catch"
+    (2) push1 1 	# "set x 123"
+    (4) push1 2 	# "a(1)"
+    (6) invokeStk1 3 
+    (8) pop 
+  Command 2: "catch {set x 3} ::foo..."
+    (9) push1 0 	# "catch"
+    (11) push1 3 	# "set x 3"
+    (13) push1 4 	# "::foo"
+    (15) invokeStk1 3 
+    (17) done 
+

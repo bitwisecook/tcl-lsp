@@ -1,0 +1,70 @@
+ByteCode 0xc66d28a10, refCt 1, epoch 21, interp 0xc66c28010 (epoch 21)
+  Source "set x 5\nif {$x == 1} {\n    set r \"one\"\n} elseif {$..."
+  Cmds 8, src 220, inst 87, litObjs 13, aux 0, stkDepth 2, code/src 0.00
+  Commands 8:
+      1: pc 0-5, src 0-6        2: pc 6-85, src 8-218
+      3: pc 14-18, src 27-37        4: pc 29-33, src 64-74
+      5: pc 44-48, src 101-113        6: pc 59-63, src 140-151
+      7: pc 74-78, src 178-189        8: pc 81-85, src 204-216
+  Command 1: "set x 5..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "5"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "if {$x == 1} {\n    set r \"one\"\n} elseif {$x == 2} {..."
+    (6) push1 0 	# "x"
+    (8) loadStk 
+    (9) push1 2 	# "1"
+    (11) eq 
+    (12) jumpFalse1 +9 	# pc 21
+  Command 3: "set r \"one..."
+    (14) push1 3 	# "r"
+    (16) push1 4 	# "one"
+    (18) storeStk 
+    (19) jump1 +67 	# pc 86
+    (21) push1 0 	# "x"
+    (23) loadStk 
+    (24) push1 5 	# "2"
+    (26) eq 
+    (27) jumpFalse1 +9 	# pc 36
+  Command 4: "set r \"two..."
+    (29) push1 3 	# "r"
+    (31) push1 6 	# "two"
+    (33) storeStk 
+    (34) jump1 +52 	# pc 86
+    (36) push1 0 	# "x"
+    (38) loadStk 
+    (39) push1 7 	# "3"
+    (41) eq 
+    (42) jumpFalse1 +9 	# pc 51
+  Command 5: "set r \"three..."
+    (44) push1 3 	# "r"
+    (46) push1 8 	# "three"
+    (48) storeStk 
+    (49) jump1 +37 	# pc 86
+    (51) push1 0 	# "x"
+    (53) loadStk 
+    (54) push1 9 	# "4"
+    (56) eq 
+    (57) jumpFalse1 +9 	# pc 66
+  Command 6: "set r \"four..."
+    (59) push1 3 	# "r"
+    (61) push1 10 	# "four"
+    (63) storeStk 
+    (64) jump1 +22 	# pc 86
+    (66) push1 0 	# "x"
+    (68) loadStk 
+    (69) push1 1 	# "5"
+    (71) eq 
+    (72) jumpFalse1 +9 	# pc 81
+  Command 7: "set r \"five..."
+    (74) push1 3 	# "r"
+    (76) push1 11 	# "five"
+    (78) storeStk 
+    (79) jump1 +7 	# pc 86
+  Command 8: "set r \"other..."
+    (81) push1 3 	# "r"
+    (83) push1 12 	# "other"
+    (85) storeStk 
+    (86) done 
+

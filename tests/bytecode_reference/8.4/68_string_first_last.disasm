@@ -1,0 +1,44 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x2f0dc000, refCt 1, epoch 0, interp 0x2ceac60 (epoch 0)
+  Source "set s \"hello world hello\"\nstring first \"hello\" $s\nstrin"
+  Cmds 5, src 115, inst 49, litObjs 8, aux 0, stkDepth 4, code/src 2.61
+  Code 300 = header 160+inst 49+litObj 64+exc 0+aux 0+cmdMap 20
+  Proc 0x2f0d4c00, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "s"
+  Commands 5:
+      1: pc 0-4, src 0-24   	   2: pc 5-15, src 26-48
+      3: pc 16-26, src 50-71   	   4: pc 27-37, src 73-93
+      5: pc 38-47, src 95-113
+  Command 1: "set s \"hello world hello\""
+    (0) push1 0  	# "hello world hello"
+    (2) storeScalar1 0	# var "s"
+    (4) pop 
+  Command 2: "string first \"hello\" $s"
+    (5) push1 1  	# "string"
+    (7) push1 2  	# "first"
+    (9) push1 3  	# "hello"
+    (11) loadScalar1 0	# var "s"
+    (13) invokeStk1 4 
+    (15) pop 
+  Command 3: "string last \"hello\" $s"
+    (16) push1 1  	# "string"
+    (18) push1 4  	# "last"
+    (20) push1 3  	# "hello"
+    (22) loadScalar1 0	# var "s"
+    (24) invokeStk1 4 
+    (26) pop 
+  Command 4: "string wordstart $s 6"
+    (27) push1 1  	# "string"
+    (29) push1 5  	# "wordstart"
+    (31) loadScalar1 0	# var "s"
+    (33) push1 6  	# "6"
+    (35) invokeStk1 4 
+    (37) pop 
+  Command 5: "string wordend $s 6"
+    (38) push1 1  	# "string"
+    (40) push1 7  	# "wordend"
+    (42) loadScalar1 0	# var "s"
+    (44) push1 6  	# "6"
+    (46) invokeStk1 4 
+    (48) done 

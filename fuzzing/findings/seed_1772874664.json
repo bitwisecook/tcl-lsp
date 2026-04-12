@@ -1,0 +1,24 @@
+{
+  "seed": 1772874664,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"false\"\n    while executing\n\"incr n\"\n    (\"foreach\" body line 22)\n    invoked from within\n\"foreach a {no iivb -37.40} {\n        expr {-52}\n        foreach j {je -263} {\n            set key -246\n            append j -89\n            string map...\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$a < 2} {\n    set j \"tj=oiq1boedgog,#e\"\n    foreach a {no iivb -37.40} {\n        expr {-52}\n        foreach j {je -263} {\n            set key -...\"\n    (file \"/var/folders"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"false\"\n    while executing\n\"incr n\"\n    (\"foreach\" body line 22)\n    invoked from within\n\"foreach a {no iivb -37.40} {\n        expr {-52}\n        foreach j {je -263} {\n            set key -246\n            append j -89\n            string map...\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$a < 2} {\n    set j \"tj=oiq1boedgog,#e\"\n    foreach a {no iivb -37.40} {\n        expr {-52}\n        foreach j {je -263} {\n            set key -...\"\n    (file \"/var/folders"
+    }
+  ],
+  "fixed": true,
+  "fix": "strict integer parsing rejects boolean literals",
+  "category": "expected-integer"
+}

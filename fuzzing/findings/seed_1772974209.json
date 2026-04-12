@@ -1,0 +1,16 @@
+{
+  "seed": 1772974209,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "missing close-brace"
+    }
+  ],
+  "fixed": true,
+  "fix": "parse divergence on corrupted input; one backend errors, others timeout",
+  "category": "parse-divergence"
+}

@@ -1,0 +1,24 @@
+ByteCode ::top, 13 instructions, 35 bytes, 4 literals, 0 variables
+  Literals:
+    0: "d"
+    1: "x 1 y 2 z 3"
+    2: "::tcl::dict::with"
+    3: "\n    incr x\n    incr y 10\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "d"
+    (2) startCommand +13 1	# next cmd at pc 15, 1 cmds start here
+    (11) push1 1	# "x 1 y 2 z 3"
+    (13) dup
+    (14) verifyDict
+  # cmd_end_1:
+    (15) storeStk
+    (16) pop
+    (17) startCommand +17 1	# next cmd at pc 34, 1 cmds start here
+    (26) push1 2	# "::tcl::dict::with"
+    (28) push1 0	# "d"
+    (30) push1 3	# "\n    incr x\n    incr y 10\n"
+    (32) invokeStk1 3
+  # cmd_end_2:
+  # exit_2:
+    (34) done

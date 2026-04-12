@@ -1,0 +1,55 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test"
+    2: ""
+    3: "\n    set a(1) one\n    set a(2) two\..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set a(1) one\n    set a(2) two\..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test, 21 instructions, 73 bytes, 7 literals, 1 variables
+  Literals:
+    0: "1"
+    1: "one"
+    2: "2"
+    3: "two"
+    4: "::tcl::array::names"
+    5: "a"
+    6: "::tcl::array::size"
+  Local variables:
+    %v0: "a"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "1"
+    (2) push1 1	# "one"
+    (4) storeArray1 %v0	# var "a"
+    (6) pop
+    (7) startCommand +15 1	# next cmd at pc 22, 1 cmds start here
+    (16) push1 2	# "2"
+    (18) push1 3	# "two"
+    (20) storeArray1 %v0	# var "a"
+  # cmd_end_1:
+    (22) pop
+    (23) startCommand +49 2	# next cmd at pc 72, 2 cmds start here
+    (32) arrayExistsImm %v0	# var "a"
+    (37) startCommand +15 1	# next cmd at pc 52, 1 cmds start here
+    (46) push1 4	# "::tcl::array::names"
+    (48) push1 5	# "a"
+    (50) invokeStk1 2
+  # subcmd_end_3:
+    (52) startCommand +15 1	# next cmd at pc 67, 1 cmds start here
+    (61) push1 6	# "::tcl::array::size"
+    (63) push1 5	# "a"
+    (65) invokeStk1 2
+  # subcmd_end_4:
+    (67) list 3
+  # cmd_end_2:
+  # exit_2:
+    (72) done

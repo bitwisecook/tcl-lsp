@@ -1,0 +1,49 @@
+ByteCode 0x9c9160210, refCt 1, epoch 21, interp 0x9c901c010 (epoch 21)
+  Source "string is integer \"42\"\nstring is double \"3.14\"\nst..."
+  Cmds 4, src 96, inst 61, litObjs 8, aux 0, stkDepth 3, code/src 0.00
+  Commands 4:
+      1: pc 0-22, src 0-21        2: pc 23-41, src 23-45
+      3: pc 42-46, src 47-69        4: pc 47-59, src 71-94
+  Command 1: "string is integer \"42..."
+    (0) push1 0 	# "42"
+    (2) dup 
+    (3) numericType 
+    (4) dup 
+    (5) jumpTrue1 +8 	# pc 13
+    (7) pop 
+    (8) push1 1 	# ""
+    (10) streq 
+    (11) jump1 +11 	# pc 22
+    (13) reverse 2 
+    (18) pop 
+    (19) push1 2 	# "3"
+    (21) le 
+    (22) pop 
+  Command 2: "string is double \"3.14..."
+    (23) push1 3 	# "3.14"
+    (25) dup 
+    (26) push1 1 	# ""
+    (28) streq 
+    (29) jumpTrue1 +9 	# pc 38
+    (31) numericType 
+    (32) jumpTrue1 +7 	# pc 39
+    (34) push1 4 	# "0"
+    (36) jump1 +5 	# pc 41
+    (38) pop 
+    (39) push1 5 	# "1"
+    (41) pop 
+  Command 3: "string is alpha \"hello..."
+    (42) push1 6 	# "hello"
+    (44) strclass alpha 
+    (46) pop 
+  Command 4: "string is boolean \"true..."
+    (47) push1 7 	# "true"
+    (49) tryCvtToBoolean 
+    (50) jumpTrue1 +7 	# pc 57
+    (52) push1 1 	# ""
+    (54) streq 
+    (55) jump1 +5 	# pc 60
+    (57) pop 
+    (58) push1 5 	# "1"
+    (60) done 
+

@@ -1,0 +1,32 @@
+{
+  "seed": 1772845973,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0cdsajw\"\n    while executing\n\"incr count\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$count < 4} {\n    append i -66\n    for {set count 0} {$count < 2} {incr count} {\n        if {((74 ** 31) ^ (~43))} {\n            string range \"...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmphb6k38zm.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0cdsajw\"\n    while executing\n\"incr count\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$count < 4} {\n    append i -66\n    for {set count 0} {$count < 2} {incr count} {\n        if {((74 ** 31) ^ (~43))} {\n            string range \"...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmphb6k38zm.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

@@ -1,0 +1,24 @@
+{
+  "seed": 1772845893,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-ul2\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-ul2\"\n    while executing\n\"incr buf\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach idx {yes -30.78} {\n        for {set buf 0} {$buf < 6} {incr buf} {\n            list gpteq \"vo-kcm#=9-bx5l@1a\" true 122\n            set a 77\n  ...\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach idx {no 80.68 bzmbsntz no 479 ovo} {\n    append idx -3\n    set idx \"fok5c\"\n    foreach idx {yes -30.78} {\n        for {set buf 0} {$buf < 6} {...\"\n    (file \"/var/folde"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

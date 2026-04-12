@@ -1,0 +1,24 @@
+{
+  "seed": 1772874987,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"63.33\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"63.33\" as left operand of \"|\"\n    while executing\n\"expr {(63.33 | (max(-70, 68) < -48))}\"\n    invoked from within\n\"if {$item <= 13} {\n    expr {(63.33 | (max(-70, 68) < -48))}\n    expr {((!(53.87 & 34)) && ((75 ? -47 : -83) <= (-75 ? $j : -46.16)))}\n    if {(-(48.9...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpaw62oxyk.tcl\" line 22)"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

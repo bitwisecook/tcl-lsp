@@ -1,0 +1,11 @@
+ByteCode 0xa16d42610, refCt 1, epoch 21, interp 0xa16c28010 (epoch 21)
+  Source "puts \"hello world\"..."
+  Cmds 1, src 19, inst 7, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Commands 1:
+      1: pc 0-5, src 0-17
+  Command 1: "puts \"hello world..."
+    (0) push1 0 	# "puts"
+    (2) push1 1 	# "hello world"
+    (4) invokeStk1 2 
+    (6) done 
+

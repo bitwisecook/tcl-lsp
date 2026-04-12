@@ -1,0 +1,30 @@
+ByteCode 0x0x856cfa210, refCt 1, epoch 3, interp 0x0x856c20010 (epoch 3)
+  Source "expr {1 ? 2 ? 3 : 4 : 5}\nexpr {0 ? 42 : 1 ? 99 : 0}\nset"
+  Cmds 4, src 83, inst 52, litObjs 6, aux 0, stkDepth 2, code/src 0.00
+  Commands 4:
+      1: pc 0-2, src 0-23   	   2: pc 3-14, src 25-50
+      3: pc 15-29, src 52-61   	   4: pc 30-50, src 63-81
+  Command 1: "expr {1 ? 2 ? 3 : 4 : 5}"
+    (0) push1 0 	# "3"
+    (2) pop 
+  Command 2: "expr {0 ? 42 : 1 ? 99 : 0}"
+    (3) startCommand +11 1 	# next cmd at pc 14
+    (12) push1 1 	# "99"
+    (14) pop 
+  Command 3: "set a \"no\""
+    (15) startCommand +14 1 	# next cmd at pc 29
+    (24) push1 2 	# "a"
+    (26) push1 3 	# "no"
+    (28) storeScalarStk 
+    (29) pop 
+  Command 4: "expr {1 ? $a : -54}"
+    (30) startCommand +21 1 	# next cmd at pc 51
+    (39) push1 4 	# "1"
+    (41) jumpFalse1 +7 	# pc 48
+    (43) push1 2 	# "a"
+    (45) loadScalarStk 
+    (46) jump1 +4 	# pc 50
+    (48) push1 5 	# "-54"
+    (50) tryCvtToNumeric 
+    (51) done 
+

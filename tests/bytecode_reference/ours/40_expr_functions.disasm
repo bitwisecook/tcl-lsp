@@ -1,0 +1,39 @@
+ByteCode ::top, 23 instructions, 59 bytes, 8 literals, 0 variables
+  Literals:
+    0: "tcl::mathfunc::abs"
+    1: "-5"
+    2: "tcl::mathfunc::int"
+    3: "3.7"
+    4: "tcl::mathfunc::double"
+    5: "42"
+    6: "tcl::mathfunc::round"
+    7: "3.5"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "tcl::mathfunc::abs"
+    (2) push1 1	# "-5"
+    (4) invokeStk1 2
+    (6) tryCvtToNumeric
+    (7) pop
+    (8) startCommand +16 1	# next cmd at pc 24, 1 cmds start here
+    (17) push1 2	# "tcl::mathfunc::int"
+    (19) push1 3	# "3.7"
+    (21) invokeStk1 2
+    (23) tryCvtToNumeric
+  # cmd_end_1:
+    (24) pop
+    (25) startCommand +16 1	# next cmd at pc 41, 1 cmds start here
+    (34) push1 4	# "tcl::mathfunc::double"
+    (36) push1 5	# "42"
+    (38) invokeStk1 2
+    (40) tryCvtToNumeric
+  # cmd_end_2:
+    (41) pop
+    (42) startCommand +16 1	# next cmd at pc 58, 1 cmds start here
+    (51) push1 6	# "tcl::mathfunc::round"
+    (53) push1 7	# "3.5"
+    (55) invokeStk1 2
+    (57) tryCvtToNumeric
+  # cmd_end_3:
+  # exit_2:
+    (58) done

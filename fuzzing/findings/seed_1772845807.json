@@ -1,0 +1,32 @@
+{
+  "seed": 1772845807,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"idx\": no such variable\n    while executing\n\"expr {$idx}\"\n    invoked from within\n\"if {(27.12 * (!12))} {\n    if {((-99 ? -39.54 : 46) >= (~37.78))} {\n        set tmp gwkkhuq\n        regexp \".\" \"rx4\"\n        append tmp 438\n        if...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpdumzpq4r.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"idx\": no such variable\n    while executing\n\"expr {$idx}\"\n    invoked from within\n\"if {(27.12 * (!12))} {\n    if {((-99 ? -39.54 : 46) >= (~37.78))} {\n        set tmp gwkkhuq\n        regexp \".\" \"rx4\"\n        append tmp 438\n        if...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpdumzpq4r.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

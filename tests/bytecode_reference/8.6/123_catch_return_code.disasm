@@ -1,0 +1,104 @@
+ByteCode 0x0x810d00010, refCt 1, epoch 17, interp 0x0x810c28010 (epoch 17)
+  Source "proc foo {} {\n    catch {return 1}\n}\nproc bar {} {\n..."
+  Cmds 3, src 112, inst 33, litObjs 8, aux 0, stkDepth 4, code/src 0.00
+  Commands 3:
+      1: pc 0-10, src 0-35        2: pc 11-21, src 37-76
+      3: pc 22-31, src 78-110
+  Command 1: "proc foo {} {\n    catch {return 1}\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "foo"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    catch {return 1}..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc bar {} {\n    catch {error \"fail\"..."
+    (11) push1 0 	# "proc"
+    (13) push1 4 	# "bar"
+    (15) push1 2 	# ""
+    (17) push1 5 	# "\n    catch {error \"fail\"..."
+    (19) invokeStk1 4 
+    (21) pop 
+  Command 3: "proc baz {} {\n    catch {break}\n..."
+    (22) push1 0 	# "proc"
+    (24) push1 6 	# "baz"
+    (26) push1 2 	# ""
+    (28) push1 7 	# "\n    catch {break}..."
+    (30) invokeStk1 4 
+    (32) done 
+
+
+ByteCode 0x0x810d00010, refCt 1, epoch 72, interp 0x0x810cb9810 (epoch 72)
+  Source "\n    catch {return 1}..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 2, src 22, inst 41, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x810cdb090, refCt 1, args 0, compiled locals 0
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-26, catch 31
+  Commands 2:
+      1: pc 0-39, src 5-20        2: pc 5-26, src 12-19
+  Command 1: "catch {return 1}..."
+    (0) beginCatch4 0 
+  Command 2: "return 1..."
+    (5) startCommand +22 1 	# next cmd at pc 27, 1 cmds start here
+    (14) push1 0 	# "1"
+    (16) push1 1 	# ""
+    (18) returnImm +0 1 
+    (27) push1 2 	# "0"
+    (29) jump1 +4 	# pc 33
+    (31) pushResult 
+    (32) pushReturnCode 
+    (33) endCatch 
+    (34) reverse 2 
+    (39) pop 
+    (40) done 
+
+
+ByteCode 0x0x810d02c10, refCt 1, epoch 72, interp 0x0x810cb9810 (epoch 72)
+  Source "\n    catch {error \"fail\"..."
+  File "scripts/reference_disasm.tcl" Line 33
+  Cmds 2, src 26, inst 41, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x810cf4a10, refCt 1, args 0, compiled locals 0
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-26, catch 31
+  Commands 2:
+      1: pc 0-39, src 5-24        2: pc 5-26, src 12-23
+  Command 1: "catch {error \"fail\"..."
+    (0) beginCatch4 0 
+  Command 2: "error \"fail..."
+    (5) startCommand +22 1 	# next cmd at pc 27, 1 cmds start here
+    (14) push1 0 	# "fail"
+    (16) push1 1 	# ""
+    (18) returnImm +1 0 
+    (27) push1 2 	# "0"
+    (29) jump1 +4 	# pc 33
+    (31) pushResult 
+    (32) pushReturnCode 
+    (33) endCatch 
+    (34) reverse 2 
+    (39) pop 
+    (40) done 
+
+
+ByteCode 0x0x810d02e10, refCt 1, epoch 72, interp 0x0x810cb9810 (epoch 72)
+  Source "\n    catch {break}..."
+  File "scripts/reference_disasm.tcl" Line 36
+  Cmds 2, src 19, inst 29, litObjs 1, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x810d05f10, refCt 1, args 0, compiled locals 0
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-14, catch 19
+  Commands 2:
+      1: pc 0-27, src 5-17        2: pc 5-14, src 12-16
+  Command 1: "catch {break}..."
+    (0) beginCatch4 0 
+  Command 2: "break..."
+    (5) startCommand +10 1 	# next cmd at pc 15, 1 cmds start here
+    (14) break 
+    (15) push1 0 	# "0"
+    (17) jump1 +4 	# pc 21
+    (19) pushResult 
+    (20) pushReturnCode 
+    (21) endCatch 
+    (22) reverse 2 
+    (27) pop 
+    (28) done 
+

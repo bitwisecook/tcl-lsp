@@ -1,0 +1,24 @@
+{
+  "seed": 1772875174,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {(-33 * ((-8 >> -41) - -47))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach flag {-311 -63.83 u} {\n    expr {(-33 * ((-8 >> -41) - -47))}\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmplidp9jyw.tcl\" line 36)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {(-33 * ((-8 >> -41) - -47))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach flag {-311 -63.83 u} {\n    expr {(-33 * ((-8 >> -41) - -47))}\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmplidp9jyw.tcl\" line 36)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

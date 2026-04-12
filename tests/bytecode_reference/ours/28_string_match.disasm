@@ -1,0 +1,18 @@
+ByteCode ::top, 8 instructions, 14 bytes, 4 literals, 0 variables
+  Literals:
+    0: "*.tcl"
+    1: "test.tcl"
+    2: "hello*"
+    3: "Hello World"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "*.tcl"
+    (2) push1 1	# "test.tcl"
+    (4) strmatch +0
+    (6) pop
+    (7) push1 2	# "hello*"
+    (9) push1 3	# "Hello World"
+    (11) strmatch +1
+  # cmd_end_1:
+  # exit_2:
+    (13) done

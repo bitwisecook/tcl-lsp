@@ -1,0 +1,51 @@
+ByteCode ::top, 34 instructions, 85 bytes, 8 literals, 0 variables
+  Literals:
+    0: "a"
+    1: "hello"
+    2: "b"
+    3: "world"
+    4: "string"
+    5: "compare"
+    6: "-nocase"
+    7: "::tcl::string::compare"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "a"
+    (2) push1 1	# "hello"
+    (4) storeStk
+    (5) pop
+    (6) startCommand +14 1	# next cmd at pc 20, 1 cmds start here
+    (15) push1 2	# "b"
+    (17) push1 3	# "world"
+    (19) storeStk
+  # cmd_end_1:
+    (20) pop
+    (21) startCommand +16 1	# next cmd at pc 37, 1 cmds start here
+    (30) push1 0	# "a"
+    (32) loadStk
+    (33) push1 2	# "b"
+    (35) loadStk
+    (36) strcmp
+  # cmd_end_2:
+    (37) pop
+    (38) startCommand +16 1	# next cmd at pc 54, 1 cmds start here
+    (47) push1 0	# "a"
+    (49) loadStk
+    (50) push1 2	# "b"
+    (52) loadStk
+    (53) streq
+  # cmd_end_3:
+    (54) pop
+    (55) startCommand +29 1	# next cmd at pc 84, 1 cmds start here
+    (64) push1 4	# "string"
+    (66) push1 5	# "compare"
+    (68) push1 6	# "-nocase"
+    (70) push1 0	# "a"
+    (72) loadStk
+    (73) push1 2	# "b"
+    (75) loadStk
+    (76) push1 7	# "::tcl::string::compare"
+    (78) invokeReplace 5 2
+  # cmd_end_4:
+  # exit_2:
+    (84) done

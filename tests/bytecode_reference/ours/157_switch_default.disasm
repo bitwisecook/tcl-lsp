@@ -1,0 +1,58 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "classify"
+    2: "x"
+    3: "\n    switch $x {\n        a { return..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "classify"
+    (4) push1 2	# "x"
+    (6) push1 3	# "\n    switch $x {\n        a { return..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::classify, 19 instructions, 76 bytes, 4 literals, 1 variables
+  Literals:
+    0: "alpha"
+    1: "beta"
+    2: "gamma"
+    3: "unknown"
+  Local variables:
+    %v0: "x"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "x"
+    (2) jumpTable 0
+		["a"->pc 12, "b"->pc 29, "c"->pc 46]
+    (7) jump4 +56	# pc 63
+  # switch_arm_body_4:
+    (12) startCommand +12 1	# next cmd at pc 24, 1 cmds start here
+    (21) push1 0	# "alpha"
+    (23) done
+  # ret_end_2:
+    (24) jump4 +51	# pc 75
+  # switch_next_7:
+  # switch_arm_body_5:
+    (29) startCommand +12 1	# next cmd at pc 41, 1 cmds start here
+    (38) push1 1	# "beta"
+    (40) done
+  # ret_end_3:
+    (41) jump4 +34	# pc 75
+  # switch_next_8:
+  # switch_arm_body_6:
+    (46) startCommand +12 1	# next cmd at pc 58, 1 cmds start here
+    (55) push1 2	# "gamma"
+    (57) done
+  # ret_end_4:
+    (58) jump4 +17	# pc 75
+  # switch_next_9:
+  # switch_default_3:
+    (63) startCommand +12 1	# next cmd at pc 75, 1 cmds start here
+    (72) push1 3	# "unknown"
+    (74) done
+  # ret_end_5:
+  # proc_exit_1:
+    (75) done

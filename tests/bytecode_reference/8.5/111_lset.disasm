@@ -1,0 +1,39 @@
+ByteCode 0x0xa5ccfa410, refCt 1, epoch 3, interp 0x0xa5cc20010 (epoch 3)
+  Source "set lst [list a b c d e]\nlset lst 2 X\nlset lst end Y\n"
+  Cmds 4, src 53, inst 66, litObjs 11, aux 0, stkDepth 7, code/src 0.00
+  Commands 4:
+      1: pc 0-17, src 0-23   	   2: pc 2-15, src 9-22
+      3: pc 18-41, src 25-36   	   4: pc 42-64, src 38-51
+  Command 1: "set lst [list a b c d e]"
+    (0) push1 0 	# "lst"
+  Command 2: "list a b c d e"
+    (2) push1 1 	# "list"
+    (4) push1 2 	# "a"
+    (6) push1 3 	# "b"
+    (8) push1 4 	# "c"
+    (10) push1 5 	# "d"
+    (12) push1 6 	# "e"
+    (14) invokeStk1 6 
+    (16) storeScalarStk 
+    (17) pop 
+  Command 3: "lset lst 2 X"
+    (18) startCommand +23 1 	# next cmd at pc 41
+    (27) push1 0 	# "lst"
+    (29) push1 7 	# "2"
+    (31) push1 8 	# "X"
+    (33) over 2 
+    (38) loadScalarStk 
+    (39) lsetList 
+    (40) storeScalarStk 
+    (41) pop 
+  Command 4: "lset lst end Y"
+    (42) startCommand +23 1 	# next cmd at pc 65
+    (51) push1 0 	# "lst"
+    (53) push1 9 	# "end"
+    (55) push1 10 	# "Y"
+    (57) over 2 
+    (62) loadScalarStk 
+    (63) lsetList 
+    (64) storeScalarStk 
+    (65) done 
+

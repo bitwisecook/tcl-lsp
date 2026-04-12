@@ -1,0 +1,51 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x410f0180, refCt 1, epoch 0, interp 0x40c0d000 (epoch 0)
+  Source "set a [string equal \"hello\" \"hello\"]\nset b [string equa"
+  Cmds 8, src 164, inst 48, litObjs 12, aux 0, stkDepth 6, code/src 2.05
+  Code 336 = header 160+inst 48+litObj 96+exc 0+aux 0+cmdMap 32
+  Proc 0x410c9c40, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, "a"
+      slot 1, scalar, "b"
+      slot 2, scalar, "c"
+      slot 3, scalar, "d"
+  Commands 8:
+      1: pc 0-7, src 0-35   	   2: pc 0-4, src 7-34
+      3: pc 8-22, src 37-80   	   4: pc 8-19, src 44-79
+      5: pc 23-30, src 82-115   	   6: pc 23-27, src 89-114
+      7: pc 31-46, src 117-162   	   8: pc 31-44, src 124-161
+  Command 1: "set a [string equal \"hello\" \"hello\"]"
+  Command 2: "string equal \"hello\" \"hello\""
+    (0) push1 0  	# "hello"
+    (2) push1 0  	# "hello"
+    (4) streq 
+    (5) storeScalar1 0	# var "a"
+    (7) pop 
+  Command 3: "set b [string equal -nocase \"Hello\" \"hello\"]"
+  Command 4: "string equal -nocase \"Hello\" \"hello\""
+    (8) push1 1  	# "string"
+    (10) push1 2  	# "equal"
+    (12) push1 3  	# "-nocase"
+    (14) push1 4  	# "Hello"
+    (16) push1 0  	# "hello"
+    (18) invokeStk1 5 
+    (20) storeScalar1 1	# var "b"
+    (22) pop 
+  Command 5: "set c [string compare \"abc\" \"abd\"]"
+  Command 6: "string compare \"abc\" \"abd\""
+    (23) push1 5  	# "abc"
+    (25) push1 6  	# "abd"
+    (27) strcmp 
+    (28) storeScalar1 2	# var "c"
+    (30) pop 
+  Command 7: "set d [string compare -length 3 \"abcX\" \"abcY\"]"
+  Command 8: "string compare -length 3 \"abcX\" \"abcY\""
+    (31) push1 1  	# "string"
+    (33) push1 7  	# "compare"
+    (35) push1 8  	# "-length"
+    (37) push1 9  	# "3"
+    (39) push1 10  	# "abcX"
+    (41) push1 11  	# "abcY"
+    (43) invokeStk1 6 
+    (45) storeScalar1 3	# var "d"
+    (47) done 

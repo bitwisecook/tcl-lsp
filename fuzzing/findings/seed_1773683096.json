@@ -1,0 +1,15 @@
+{
+  "seed": 1773683096,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable"
+    }
+  ],
+  "fixed": true,
+  "fix": "Previously fixed in earlier commits"
+}

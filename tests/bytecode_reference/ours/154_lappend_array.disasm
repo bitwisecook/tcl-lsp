@@ -1,0 +1,53 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test"
+    2: ""
+    3: "\n    lappend x(0) a b c\n    lappend..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    lappend x(0) a b c\n    lappend..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test, 22 instructions, 69 bytes, 7 literals, 1 variables
+  Literals:
+    0: "0"
+    1: "a"
+    2: "b"
+    3: "c"
+    4: "1"
+    5: "d"
+    6: "e"
+  Local variables:
+    %v0: "x"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "0"
+    (2) push1 1	# "a"
+    (4) push1 2	# "b"
+    (6) push1 3	# "c"
+    (8) list 3
+    (13) lappendListArray %v0	# var "x"
+    (18) pop
+    (19) startCommand +25 1	# next cmd at pc 44, 1 cmds start here
+    (28) push1 4	# "1"
+    (30) push1 5	# "d"
+    (32) push1 6	# "e"
+    (34) list 2
+    (39) lappendListArray %v0	# var "x"
+  # cmd_end_1:
+    (44) pop
+    (45) startCommand +23 2	# next cmd at pc 68, 2 cmds start here
+    (54) push1 0	# "0"
+    (56) loadArray1 %v0	# var "x"
+    (58) push1 4	# "1"
+    (60) loadArray1 %v0	# var "x"
+    (62) list 2
+    (67) done
+  # ret_end_2:
+    (68) done

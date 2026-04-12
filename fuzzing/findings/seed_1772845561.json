@@ -1,0 +1,24 @@
+{
+  "seed": 1772845561,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"\" as left operand of \">>\"\n    while executing\n\"expr {($x >> 31)}\"\n    (\"for\" body line 4)\n    invoked from within\n\"for {set flag 0} {$flag < 4} {incr flag} {\n    lassign {-13.59 711 1} n result\n    set result {-960 634 -598 220 -3.98 532}\n    expr {($x >> 31)}\n    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp8934et3x.tcl\" line 11)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

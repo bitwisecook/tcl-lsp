@@ -1,0 +1,32 @@
+{
+  "seed": 1772828701,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-26.52\" as left operand of \"|\"\n    invoked from within\n\"expr {((~(-26.52 | 93)) ^ -85)}\"\n    (\"default\" arm line 7)\n    invoked from within\n\"switch -- \"quy?kjf3?w#qyk\" {\n    \";88c?58h\" {\n        for {set n 0} {$n < 3} {incr n} {\n            concat {-612 -99} {-836 true -637 44 1 -38.96}\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpz2h6dohp.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-26.52\" as left operand of \"|\"\n    invoked from within\n\"expr {((~(-26.52 | 93)) ^ -85)}\"\n    (\"default\" arm line 7)\n    invoked from within\n\"switch -- \"quy?kjf3?w#qyk\" {\n    \";88c?58h\" {\n        for {set n 0} {$n < 3} {incr n} {\n            concat {-612 -99} {-836 true -637 44 1 -38.96}\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpz2h6dohp.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "bitwise float rejection prevents infinite loop",
+  "category": "bitwise-float"
+}

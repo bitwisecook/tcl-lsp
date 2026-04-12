@@ -1,0 +1,24 @@
+ByteCode 0x0xb96846410, refCt 1, epoch 3, interp 0x0xb96c20010 (epoch 3)
+  Source "set s \"hello\tworld\n\"\nset t \"line1\nline2\nline3\"\nset "
+  Cmds 3, src 72, inst 36, litObjs 6, aux 0, stkDepth 2, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-21   	   2: pc 6-20, src 23-49
+      3: pc 21-34, src 51-70
+  Command 1: "set s \"hello\tworld\n\""
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "hello\tworld\n"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set t \"line1\nline2\nline3\""
+    (6) startCommand +14 1 	# next cmd at pc 20
+    (15) push1 2 	# "t"
+    (17) push1 3 	# "line1\nline2\nline3"
+    (19) storeScalarStk 
+    (20) pop 
+  Command 3: "set u \"\x41\x42\x43\""
+    (21) startCommand +14 1 	# next cmd at pc 35
+    (30) push1 4 	# "u"
+    (32) push1 5 	# "ABC"
+    (34) storeScalarStk 
+    (35) done 
+

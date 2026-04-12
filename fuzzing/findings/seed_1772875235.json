@@ -1,0 +1,24 @@
+{
+  "seed": 1772875235,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "cannot use floating-point value \"3.53\" as right operand of \"%\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"3.53\" as right operand of \"%\"\n    while executing\n\"expr {(((-57 == 30) < (43 <= -93.97)) % max(1, abs(-3.53)))}\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach n {92.06} {\n        expr {(~int(int(28)))}\n        expr {(((-57 == 30) < (43 <= -93.97)) % max(1, abs(-3.53)))}\n    }\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set count 0} {$count < 3} {incr count} {\n    foreach n {92.06} {\n        expr {(~int(int(28)))}\n        expr {(((-57 == "
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

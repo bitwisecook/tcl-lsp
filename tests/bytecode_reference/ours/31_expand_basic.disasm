@@ -1,0 +1,8 @@
+ByteCode ::top, 2 instructions, 3 bytes, 1 literals, 0 variables
+  Literals:
+    0: "a b c"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "a b c"
+  # exit_2:
+    (2) done

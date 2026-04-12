@@ -1,0 +1,33 @@
+ByteCode 0x0x956cd6210, refCt 1, epoch 3, interp 0x0x956810010 (epoch 3)
+  Source "set s \"  hello world  \"\nstring trim $s\nstring trimleft "
+  Cmds 4, src 78, inst 36, litObjs 6, aux 0, stkDepth 3, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-22   	   2: pc 6-15, src 24-37
+      3: pc 16-25, src 39-56   	   4: pc 26-34, src 58-76
+  Command 1: "set s \"  hello world  \""
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "  hello world  "
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "string trim $s"
+    (6) push1 2 	# "string"
+    (8) push1 3 	# "trim"
+    (10) push1 0 	# "s"
+    (12) loadScalarStk 
+    (13) invokeStk1 3 
+    (15) pop 
+  Command 3: "string trimleft $s"
+    (16) push1 2 	# "string"
+    (18) push1 4 	# "trimleft"
+    (20) push1 0 	# "s"
+    (22) loadScalarStk 
+    (23) invokeStk1 3 
+    (25) pop 
+  Command 4: "string trimright $s"
+    (26) push1 2 	# "string"
+    (28) push1 5 	# "trimright"
+    (30) push1 0 	# "s"
+    (32) loadScalarStk 
+    (33) invokeStk1 3 
+    (35) done 
+

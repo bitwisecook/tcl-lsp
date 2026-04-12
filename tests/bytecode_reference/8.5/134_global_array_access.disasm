@@ -1,0 +1,46 @@
+ByteCode 0x0x82cc32710, refCt 1, epoch 3, interp 0x0x82cc20010 (epoch 3)
+  Source "proc test {} {\n    set ::a(1) 1\n    set ::a(2) $::a(1)\n"
+  Cmds 1, src 82, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-80
+  Command 1: "proc test {} {\n    set ::a(1) 1\n    set ::a(2) $::a(1)\n"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set ::a(1) 1\n    set ::a(2) $::a(1)"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x82cd1a610, refCt 1, epoch 3, interp 0x0x82cd04010 (epoch 3)
+  Source "\n    set ::a(1) 1\n    set ::a(2) $::a(1)\n    return $::"
+  Cmds 3, src 66, inst 47, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x0x82cd3a390, refCt 1, args 0, compiled locals 0
+  Commands 3:
+      1: pc 0-7, src 5-16   	   2: pc 8-27, src 22-39
+      3: pc 28-45, src 45-64
+  Command 1: "set ::a(1) 1"
+    (0) push1 0 	# "::a"
+    (2) push1 1 	# "1"
+    (4) push1 1 	# "1"
+    (6) storeArrayStk 
+    (7) pop 
+  Command 2: "set ::a(2) $::a(1)"
+    (8) startCommand +19 1 	# next cmd at pc 27
+    (17) push1 0 	# "::a"
+    (19) push1 2 	# "2"
+    (21) push1 0 	# "::a"
+    (23) push1 1 	# "1"
+    (25) loadArrayStk 
+    (26) storeArrayStk 
+    (27) pop 
+  Command 3: "return $::a($::a(1))"
+    (28) startCommand +18 1 	# next cmd at pc 46
+    (37) push1 0 	# "::a"
+    (39) push1 0 	# "::a"
+    (41) push1 1 	# "1"
+    (43) loadArrayStk 
+    (44) loadArrayStk 
+    (45) done 
+    (46) done 
+
