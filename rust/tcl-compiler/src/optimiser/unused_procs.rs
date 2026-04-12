@@ -21,6 +21,7 @@ use std::collections::HashSet;
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::when_event_name;
 
+use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Run the unused-procs pass.
@@ -86,7 +87,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let Some(ir_proc) = ir_module.procedures.get(qname) else {
             continue;
         };
-        let span = ir_proc.span;
+        let span = full_rewrite_span(ctx.source, ir_proc.span);
         let range = span.as_range();
         if range.end > ctx.source.len() || range.start >= ctx.source.len() {
             continue;
