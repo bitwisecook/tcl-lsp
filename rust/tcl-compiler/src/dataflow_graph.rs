@@ -384,6 +384,45 @@ pub fn extract_function_dataflow(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Module-level aggregator (C25e3)
+// ---------------------------------------------------------------------------
+
+/// Per-function inputs to the module-level aggregator.
+///
+/// The caller runs SSA + def-use + (optional) SCCP + (optional)
+/// memory-SSA for each function once and hands the resulting
+/// references to [`extract_dataflow_graph`], which merges them
+/// into a [`DataFlowGraph`] sorted by function name.
+#[derive(Debug, Clone, Copy)]
+pub struct FunctionInputs<'a> {
+    /// Qualified function name.
+    pub name: &'a str,
+    /// SSA form.
+    pub ssa: &'a SsaFunction,
+    /// Def-use chains.
+    pub du: &'a DefUseResult,
+    /// Optional SCCP result for lattice rendering.
+    pub sccp: Option<&'a SccpResult>,
+    /// Optional memory-SSA for alias-info extraction.
+    pub mem: Option<&'a MemorySSAFunction>,
+}
+
+/// Build a [`DataFlowGraph`] for an entire module from per-function
+/// analysis outputs.
+///
+/// Function graphs are appended in the order of `inputs` and then
+/// sorted by `function_name` so the output is stable across runs.
+#[must_use]
+pub fn extract_dataflow_graph(inputs: &[FunctionInputs<'_>]) -> DataFlowGraph {
+    let mut functions: Vec<FunctionDataFlowGraph> = inputs
+        .iter()
+        .map(|i| extract_function_dataflow(i.name, i.ssa, i.du, i.sccp, i.mem))
+        .collect();
+    functions.sort_by(|a, b| a.function_name.cmp(&b.function_name));
+    DataFlowGraph { functions }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -579,6 +618,68 @@ mod tests {
         assert_eq!(a.local_kind, "Global");
         assert_eq!(a.target_kind, "Local");
         assert_eq!(g.aliased_vars, 1); // same name "g" dedup.
+    }
+
+    #[test]
+    fn extract_dataflow_graph_merges_and_sorts_functions() {
+        let mut ssa_a = SsaFunction {
+            name: "::a".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        let mut entry_a = empty_ssa_block("entry");
+        entry_a.statements.push(assign_const_ssa("x", "1", 1));
+        ssa_a.blocks.insert("entry".into(), entry_a);
+
+        let mut ssa_b = SsaFunction {
+            name: "::b".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        let mut entry_b = empty_ssa_block("entry");
+        entry_b.statements.push(assign_const_ssa("y", "2", 1));
+        ssa_b.blocks.insert("entry".into(), entry_b);
+
+        let du_a = crate::def_use::build_def_use_chains(&ssa_a, None);
+        let du_b = crate::def_use::build_def_use_chains(&ssa_b, None);
+
+        // Pass inputs in reverse name order to exercise the sort.
+        let inputs = vec![
+            FunctionInputs {
+                name: "::z",
+                ssa: &ssa_b,
+                du: &du_b,
+                sccp: None,
+                mem: None,
+            },
+            FunctionInputs {
+                name: "::a",
+                ssa: &ssa_a,
+                du: &du_a,
+                sccp: None,
+                mem: None,
+            },
+        ];
+        let g = extract_dataflow_graph(&inputs);
+        assert_eq!(g.functions.len(), 2);
+        assert_eq!(g.functions[0].function_name, "::a");
+        assert_eq!(g.functions[1].function_name, "::z");
+        assert_eq!(g.total_defs(), 2);
+    }
+
+    #[test]
+    fn extract_dataflow_graph_empty_input() {
+        let g = extract_dataflow_graph(&[]);
+        assert!(g.functions.is_empty());
+        assert_eq!(g.total_defs(), 0);
+        assert_eq!(g.total_uses(), 0);
+        assert_eq!(g.total_aliases(), 0);
     }
 
     #[test]
