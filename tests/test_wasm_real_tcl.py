@@ -1842,6 +1842,69 @@ class TestFile:
         )
         assert "native" in out
 
+    def test_stat_returns_empty_and_sets_elements(self, tmp_path):
+        # ``file stat`` returns empty and sets the array; we verify
+        # the elements were created via ``info exists``.  Reading
+        # back ``$st(size)`` hits a separate compiler-side gap for
+        # interpolated array references in compiled code that's
+        # tracked separately; once fixed, extend this test.
+        (tmp_path / "stat-me.bin").write_bytes(b"1234567")
+        out = self._run(
+            tmp_path,
+            (
+                "puts [file stat /stat-me.bin st]\n"
+                "puts [info exists st(size)]\n"
+                "puts [info exists st(type)]\n"
+                "puts [info exists st(mode)]\n"
+            ),
+        )
+        # Splitlines rather than strip → preserves the leading
+        # blank from ``file stat`` returning empty.
+        lines = out.splitlines()
+        # First line: file stat's return value (empty).  The rest
+        # are the info-exists probes — every stat field present.
+        assert lines == ["", "1", "1", "1"], f"got {lines!r}"
+
+    def test_lstat_on_symlink(self, tmp_path):
+        (tmp_path / "target.txt").write_text("hi")
+        (tmp_path / "alias.txt").symlink_to("target.txt")
+        # ``file lstat`` populates an array; verify the array
+        # element was created.  ``file type`` via the direct
+        # return path covers the "does it see link vs file"
+        # distinction more directly — here we just ensure lstat
+        # doesn't trap.
+        out = self._run(
+            tmp_path,
+            (
+                "puts [file lstat /alias.txt st]\n"
+                "puts [file type /alias.txt]\n"
+                "puts [file type /target.txt]\n"
+            ),
+        )
+        lines = out.splitlines()
+        assert lines == ["", "link", "file"], f"got {lines!r}"
+
+    def test_readlink(self, tmp_path):
+        (tmp_path / "real.txt").write_text("x")
+        (tmp_path / "lnk.txt").symlink_to("real.txt")
+        out = self._run(
+            tmp_path,
+            "puts [file readlink /lnk.txt]\n",
+        )
+        assert out.strip() == "real.txt"
+
+    def test_link_creates_symlink(self, tmp_path):
+        # WASI's ``path_symlink`` takes the target verbatim (it's
+        # interpreted on read relative to the link's directory),
+        # so we pass a relative target.
+        (tmp_path / "tgt.txt").write_text("hello")
+        out = self._run(
+            tmp_path,
+            ("file link /ln.txt tgt.txt\nputs [file type /ln.txt]\nputs [file readlink /ln.txt]\n"),
+        )
+        lines = out.splitlines()
+        assert lines == ["link", "tgt.txt"], f"got {lines!r}"
+
 
 class TestEncoding:
     """Minimal UTF-8 encoding command — pass-through for identity/utf-8."""

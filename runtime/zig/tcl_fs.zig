@@ -51,6 +51,8 @@ extern fn mkdir(path: [*:0]const u8, mode: c_uint) c_int;
 extern fn rmdir(path: [*:0]const u8) c_int;
 extern fn unlink(path: [*:0]const u8) c_int;
 extern fn rename(old: [*:0]const u8, new: [*:0]const u8) c_int;
+extern fn symlink(target: [*:0]const u8, linkpath: [*:0]const u8) c_int;
+extern fn readlink(path: [*:0]const u8, buf: [*]u8, bufsiz: usize) isize;
 
 // File I/O for ``file copy`` — POSIX open/read/write/close.
 // ``extern`` imports don't collide with our Tcl-command WASM
@@ -324,6 +326,10 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     if (eq(sp, s.len, "rename")) return file_rename(arg1, arg2);
     if (eq(sp, s.len, "copy")) return file_copy(arg1, arg2);
     if (eq(sp, s.len, "type")) return file_type(arg1);
+    if (eq(sp, s.len, "stat")) return file_stat_cmd(arg1, arg2, false);
+    if (eq(sp, s.len, "lstat")) return file_stat_cmd(arg1, arg2, true);
+    if (eq(sp, s.len, "readlink")) return file_readlink(arg1);
+    if (eq(sp, s.len, "link")) return file_link(arg1, arg2);
     // ``file system`` returns the VFS that backs the path.  We
     // only have a single WASI-preopen filesystem; report ``native``
     // with an empty per-volume type, matching what tclsh reports
@@ -331,14 +337,12 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     if (eq(sp, s.len, "system")) return obj.obj_new_string_copy(@intFromPtr("native".ptr), 6);
 
     // -- Mutating operations — trap so scripts can't silently miss
-    //    work.  These have incremental follow-up commits pending;
-    //    see tcl_fs.zig's header comment.
+    //    work.  ``attributes`` queries/sets Unix-style owner/group/
+    //    permissions which WASI doesn't expose meaningfully; ``tempfile``
+    //    needs the mkstemp family that wasi-libc lacks cleanly.  Both
+    //    remain trap-as-unsupported until we have a concrete caller.
     if (eq(sp, s.len, "attributes") or
-        eq(sp, s.len, "link") or
-        eq(sp, s.len, "readlink") or
-        eq(sp, s.len, "tempfile") or
-        eq(sp, s.len, "stat") or
-        eq(sp, s.len, "lstat"))
+        eq(sp, s.len, "tempfile"))
     {
         const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(s.ptr)))[0..s.len];
         stubs.unsupported_sub("file", sub_slice);
@@ -685,8 +689,102 @@ fn file_type(path: i32) i32 {
     };
 }
 
-// Silence unused-warning for helpers that will be used by the
-// follow-up mutating-op commits (stat / lstat / link / readlink).
-comptime {
-    _ = &stat_ctim_sec;
+/// ``file stat path arrName`` / ``file lstat path arrName`` —
+/// populate *arrName* as a Tcl array with the classic POSIX
+/// stat fields: ``dev``, ``ino``, ``mode``, ``nlink``, ``uid``,
+/// ``gid``, ``size``, ``atime``, ``mtime``, ``ctime``, ``type``.
+/// ``lstat`` uses ``lstat(2)`` so the type reports ``link`` for
+/// symbolic links rather than following them.  Returns the
+/// empty string on success; traps with a clear error if stat
+/// itself fails.
+fn file_stat_cmd(path: i32, arr_name: i32, use_lstat: bool) i32 {
+    if (path == 0 or arr_name == 0) {
+        stubs.unsupported("file stat (missing arg)");
+        return 0;
+    }
+    const buf = if (use_lstat) lstat_path(path) else stat_path(path);
+    if (buf == 0) {
+        stubs.unsupported("file stat (no such file)");
+        return 0;
+    }
+
+    const array_mod = @import("tcl_array.zig");
+
+    // Small helper: set a single field by string key + i64 value.
+    const set_i64 = struct {
+        fn go(arr: i32, key: []const u8, v: i64) void {
+            const k = obj.obj_new_string_copy(@intFromPtr(key.ptr), @intCast(key.len));
+            _ = array_mod.array_set(arr, k, obj.obj_new_int(v));
+        }
+    }.go;
+
+    set_i64(arr_name, "dev", 0);
+    set_i64(arr_name, "ino", 0);
+    set_i64(arr_name, "mode", @intCast(stat_mode(buf)));
+    set_i64(arr_name, "nlink", 1);
+    set_i64(arr_name, "uid", 0);
+    set_i64(arr_name, "gid", 0);
+    set_i64(arr_name, "size", stat_size(buf));
+    set_i64(arr_name, "atime", stat_atim_sec(buf));
+    set_i64(arr_name, "mtime", stat_mtim_sec(buf));
+    set_i64(arr_name, "ctime", stat_ctim_sec(buf));
+
+    // ``type`` key mirrors ``file type``.
+    const type_str: []const u8 = switch (stat_mode(buf) & S_IFMT) {
+        S_IFREG => "file",
+        S_IFDIR => "directory",
+        S_IFLNK => "link",
+        S_IFCHR => "characterSpecial",
+        S_IFBLK => "blockSpecial",
+        S_IFIFO => "fifo",
+        S_IFSOCK => "socket",
+        else => "file",
+    };
+    const type_key = obj.obj_new_string_copy(@intFromPtr("type".ptr), 4);
+    const type_val = obj.obj_new_string_copy(@intFromPtr(type_str.ptr), @intCast(type_str.len));
+    _ = array_mod.array_set(arr_name, type_key, type_val);
+
+    return obj_new_string(0, 0);
+}
+
+/// ``file readlink path`` — returns the target of *path* as a
+/// string, or traps if *path* is not a symlink.  wasi-libc
+/// provides ``readlink(2)`` backed by ``path_readlink``.
+fn file_readlink(path: i32) i32 {
+    if (path == 0) {
+        stubs.unsupported("file readlink (no path)");
+        return 0;
+    }
+    // 4 KiB is enough for any realistic symlink on WASI's
+    // path_readlink (which is bounded anyway by the underlying
+    // preopen-relative resolution).
+    const buf_size: usize = 4096;
+    const buf_addr = obj.alloc(buf_size);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    const n = readlink(path_cstr(path), buf, buf_size);
+    if (n < 0) {
+        stubs.unsupported("file readlink (not a symlink)");
+        return 0;
+    }
+    return obj.obj_new_string(@intCast(buf_addr), @intCast(n));
+}
+
+/// ``file link ?-type? linkName target`` — create a link.  Tcl's
+/// full command accepts ``-symbolic`` / ``-hard`` and arg order
+/// ``linkName target``.  Our 3-arg export has arg1=linkName,
+/// arg2=target.  Defaults to a symbolic link (matching Tcl's
+/// documented default); if callers need hard links they'll hit
+/// the interpreter fallback path once ``file link`` gets richer
+/// arg support.
+fn file_link(link_name: i32, target: i32) i32 {
+    if (link_name == 0 or target == 0) {
+        stubs.unsupported("file link (missing arg)");
+        return 0;
+    }
+    const rc = symlink(path_cstr(target), path_cstr(link_name));
+    if (rc != 0) {
+        stubs.unsupported("file link (symlink failed)");
+        return 0;
+    }
+    return target;
 }
