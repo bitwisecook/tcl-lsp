@@ -471,8 +471,14 @@ def find_optimisations(
         and os.environ.get("TCL_LSP_RUST_OPTIMISER")
     ):
         try:
+            # Forward the active dialect so dialect-gated passes
+            # (O124 unused-procs on f5-irules) fire correctly and
+            # expr parsing uses the right operator table.
+            from ...common.dialect import active_dialect
+
+            dialect = active_dialect()
             return _materialise_rust_optimisations(
-                source, _rust_find_optimisations(source, None)
+                source, _rust_find_optimisations(source, dialect)
             )
         except Exception:
             log.debug("Rust optimiser delegation failed, falling back", exc_info=True)

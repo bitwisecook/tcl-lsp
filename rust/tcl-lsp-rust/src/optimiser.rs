@@ -14,7 +14,6 @@
 
 use pyo3::prelude::*;
 
-use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::optimiser;
 use tcl_registry::CommandRegistry;
 
@@ -71,12 +70,9 @@ pub fn optimiser_find_optimisations_raw(
     dialect: Option<&str>,
 ) -> Vec<(String, String, u32, u32, String, Option<u32>, bool)> {
     let registry = CommandRegistry::build_default();
-    // optimise_raw doesn't have a non-dialect overload.
+    // optimise_raw already constructs a CompilationUnit internally;
+    // no need to build one here.
     let opts = optimiser::optimise_raw(source, &registry, dialect);
-    // Also drive the CompilationUnit build (keeps the behaviour
-    // identical to the Python contract, which is "run every
-    // pass without arbitration").
-    let _ = CompilationUnit::build_for(source, &registry, false);
     opts.into_iter()
         .map(|o| {
             (
