@@ -4,6 +4,9 @@
 //!
 //! - **O107** — unreachable dead code (blocks SCCP proved
 //!   unreachable).
+//! - **O108** — transitively dead code. A side-effect-free def
+//!   whose every consumer was already eliminated (the ADCE
+//!   fixpoint on top of O109 / O126).
 //! - **O109** — dead stores (an SSA def whose chain is empty and
 //!   whose variable has at least one later definition — the
 //!   write is overwritten before any read).
@@ -13,13 +16,10 @@
 //!   last command's result may be the script return value) and
 //!   for scope-alias commands (`global` / `variable` / `upvar`).
 //!
-//! **O108** (transitively dead code) remains deferred — the
-//! ADCE fixpoint is a follow-up strip on top of O109/O126.
-//!
 //! Emission order is the deterministic CFG `cfg_order` (reverse
 //! post-order from the entry, unreachable blocks appended).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::cfg::Function as CfgFunction;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -29,17 +29,19 @@ use crate::sccp::{cfg_order, SccpResult};
 
 use super::{Optimisation, PassContext};
 
-/// Run the elimination pass — emits O107, O109, O126 across
-/// every function in `cu`.
+/// Run the elimination pass — emits O107, O108, O109, O126
+/// across every function in `cu`.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let is_top_level = |fu: &FunctionUnit| fu.name == "::top";
 
     emit_unreachable(ctx, &cu.top_level);
-    emit_dead_stores_and_unused(ctx, &cu.top_level, is_top_level(&cu.top_level));
+    let baseline = emit_dead_stores_and_unused(ctx, &cu.top_level, is_top_level(&cu.top_level));
+    emit_adce(ctx, &cu.top_level, &baseline);
 
     for fu in cu.procedures.values() {
         emit_unreachable(ctx, fu);
-        emit_dead_stores_and_unused(ctx, fu, false);
+        let baseline = emit_dead_stores_and_unused(ctx, fu, false);
+        emit_adce(ctx, fu, &baseline);
     }
 }
 
@@ -81,13 +83,24 @@ fn unreachable_blocks(cfg: &CfgFunction, sccp: &SccpResult) -> HashSet<String> {
         .collect()
 }
 
+/// Collected per-chain metadata used by
+/// [`emit_dead_stores_and_unused`] to sort + emit in span order.
+struct DseEntry {
+    span: tcl_lexer::Span,
+    code: &'static str,
+    msg: &'static str,
+    key: (String, u32),
+}
+
 /// Emit O109 (dead store) + O126 (unused variable) for each
-/// dead SSA def in `fu.def_use`.
+/// dead SSA def in `fu.def_use`. Returns the set of SSA value
+/// keys that were reported — the ADCE pass uses it as the
+/// "already eliminated" seed for its fixpoint.
 fn emit_dead_stores_and_unused(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
     is_top_level: bool,
-) {
+) -> HashSet<(String, u32)> {
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let scope_aliases = scan_scope_aliases(&fu.cfg);
     // The `def_use` builder does not scan Return-value reads or
@@ -97,8 +110,8 @@ fn emit_dead_stores_and_unused(
     // textually is kept live — conservative but correct.
     let textually_referenced = collect_textual_var_references(ctx.source, &fu.cfg);
 
-    // Collect (span, code, name) then sort + emit deterministically.
-    let mut entries: Vec<(tcl_lexer::Span, &'static str, &'static str, String)> = Vec::new();
+    // Collect one DseEntry per dead chain then sort + emit.
+    let mut entries: Vec<DseEntry> = Vec::new();
 
     for chain in fu.def_use.chains.values() {
         if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
@@ -155,13 +168,188 @@ fn emit_dead_stores_and_unused(
             // Top-level never emits O126.
             continue;
         };
-        entries.push((stmt.span(), code, msg, var.clone()));
+        let _ = var;
+        entries.push(DseEntry {
+            span: stmt.span(),
+            code,
+            msg,
+            key: chain.key.clone(),
+        });
     }
 
-    entries.sort_by_key(|(span, _, _, _)| span.start());
-    for (span, code, msg, _) in entries {
-        ctx.report(Optimisation::new(code, msg, span, ""));
+    entries.sort_by_key(|e| e.span.start());
+    let mut removed: HashSet<(String, u32)> = HashSet::new();
+    for e in entries {
+        ctx.report(Optimisation::new(e.code, e.msg, e.span, ""));
+        removed.insert(e.key);
     }
+    removed
+}
+
+/// Emit **O108** (transitively dead code) — the ADCE fixpoint.
+fn emit_adce(
+    ctx: &mut PassContext<'_>,
+    fu: &FunctionUnit,
+    baseline: &HashSet<(String, u32)>,
+) {
+    let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
+    let stmt_to_defs = build_stmt_to_defs(fu);
+    let removed = run_adce_fixpoint(
+        fu,
+        baseline,
+        &consumer_stmt_keys,
+        &keep_forever,
+        &stmt_to_defs,
+    );
+    emit_adce_reports(ctx, fu, baseline, &removed);
+}
+
+type ConsumerMap = HashMap<(String, u32), Vec<(String, usize)>>;
+
+fn build_adce_consumers(fu: &FunctionUnit) -> (ConsumerMap, HashSet<(String, u32)>) {
+    use crate::def_use::UseKind;
+    let mut consumer_stmt_keys: ConsumerMap = HashMap::new();
+    let mut keep_forever: HashSet<(String, u32)> = HashSet::new();
+    for chain in fu.def_use.chains.values() {
+        if chain.definition.kind != DefKind::Statement {
+            continue;
+        }
+        let key = chain.key.clone();
+        for use_site in &chain.uses {
+            match use_site.kind {
+                UseKind::Operand => {
+                    if let Ok(idx) = usize::try_from(use_site.statement_index) {
+                        consumer_stmt_keys
+                            .entry(key.clone())
+                            .or_default()
+                            .push((use_site.block.clone(), idx));
+                    }
+                }
+                UseKind::PhiIncoming | UseKind::Terminator => {
+                    keep_forever.insert(key.clone());
+                }
+            }
+        }
+    }
+    (consumer_stmt_keys, keep_forever)
+}
+
+type StmtDefsMap = HashMap<(String, usize), Vec<(String, u32)>>;
+
+fn build_stmt_to_defs(fu: &FunctionUnit) -> StmtDefsMap {
+    let mut out: StmtDefsMap = HashMap::new();
+    for chain in fu.def_use.chains.values() {
+        if chain.definition.kind != DefKind::Statement {
+            continue;
+        }
+        if let Ok(idx) = usize::try_from(chain.definition.statement_index) {
+            out.entry((chain.definition.block.clone(), idx))
+                .or_default()
+                .push(chain.key.clone());
+        }
+    }
+    out
+}
+
+fn run_adce_fixpoint(
+    fu: &FunctionUnit,
+    baseline: &HashSet<(String, u32)>,
+    consumer_stmt_keys: &ConsumerMap,
+    keep_forever: &HashSet<(String, u32)>,
+    stmt_to_defs: &StmtDefsMap,
+) -> HashSet<(String, u32)> {
+    let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
+    let mut removed = baseline.clone();
+    loop {
+        let mut changed = false;
+        for chain in fu.def_use.chains.values() {
+            if chain.definition.kind != DefKind::Statement {
+                continue;
+            }
+            let key = &chain.key;
+            if removed.contains(key) || keep_forever.contains(key) {
+                continue;
+            }
+            if unreachable.contains(&chain.definition.block) {
+                continue;
+            }
+            let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
+                continue;
+            };
+            let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+                continue;
+            };
+            let Some(stmt) = block.statements.get(idx) else {
+                continue;
+            };
+            if !is_side_effect_free_assignment(stmt) {
+                continue;
+            }
+            let empty: Vec<(String, usize)> = Vec::new();
+            let consumers: &Vec<(String, usize)> =
+                consumer_stmt_keys.get(key).unwrap_or(&empty);
+            if consumers.is_empty() {
+                continue;
+            }
+            let all_removed = consumers.iter().all(|pair: &(String, usize)| {
+                stmt_to_defs
+                    .get(pair)
+                    .is_some_and(|defs: &Vec<(String, u32)>| {
+                        defs.iter().all(|d: &(String, u32)| removed.contains(d))
+                    })
+            });
+            if all_removed {
+                removed.insert(key.clone());
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    removed
+}
+
+fn emit_adce_reports(
+    ctx: &mut PassContext<'_>,
+    fu: &FunctionUnit,
+    baseline: &HashSet<(String, u32)>,
+    removed: &HashSet<(String, u32)>,
+) {
+    let mut new_reports: Vec<tcl_lexer::Span> = Vec::new();
+    for key in removed.difference(baseline) {
+        if let Some(chain) = fu.def_use.chains.get(key) {
+            let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
+                continue;
+            };
+            let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+                continue;
+            };
+            let Some(stmt) = block.statements.get(idx) else {
+                continue;
+            };
+            new_reports.push(stmt.span());
+        }
+    }
+    new_reports.sort_by_key(|s| s.start());
+    for span in new_reports {
+        ctx.report(Optimisation::new(
+            "O108",
+            "Eliminate transitively dead code",
+            span,
+            "",
+        ));
+    }
+}
+
+fn is_side_effect_free_assignment(stmt: &Statement) -> bool {
+    matches!(
+        stmt,
+        Statement::AssignConst { .. }
+            | Statement::AssignValue { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::Incr { .. }
+    )
 }
 
 /// Scan every statement's source slice for `$var` / `${var}`
@@ -416,6 +604,20 @@ mod tests {
         assert!(
             opts.iter().all(|o| o.code != "O109" && o.code != "O126"),
             "writes through global should not be flagged, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn adce_removes_chain_of_dead_defs() {
+        // `set a 1` → `set b $a` → `set c $b`; `c` is never
+        // read. O126 flags `set c $b`, then ADCE should extend
+        // to `set b $a` and `set a 1` since their only consumer
+        // is the already-dead chain.
+        let opts = run_pass("proc ::f {} { set a 1; set b $a; set c $b; return 7 }");
+        let o108 = opts.iter().filter(|o| o.code == "O108").count();
+        assert!(
+            o108 >= 1,
+            "expected at least one O108 in transitive dead chain, got {opts:?}",
         );
     }
 
