@@ -423,6 +423,13 @@ pub fn evaluate_def(
                 None => LatticeValue::Overdefined,
             }
         }
+        Statement::AssignValue { value, .. } => {
+            // C25e4: fold when the RHS is either a plain literal
+            // (no command substitution), a simple `$var` that
+            // resolves to a lattice Const, or a `[cmd args...]`
+            // that try_fold_cmd_subst recognises.
+            fold_assign_value(value, &stmt_ssa.uses, values)
+        }
         Statement::Call {
             command,
             args,
@@ -628,6 +635,142 @@ pub fn resolve_foreach_list_via_lattice(
         }
         _ => None,
     }
+}
+
+// ---------------------------------------------------------------------------
+// AssignValue folding (C25e4)
+// ---------------------------------------------------------------------------
+
+/// Fold the RHS of an `AssignValue` statement to a lattice value.
+///
+/// Covers three tiers:
+/// 1. **Plain literal** — no `$` / `[` → `Const(parse_literal_value)`.
+/// 2. **Simple var reference** `$x` / `${x}` → lattice lookup.
+/// 3. **Command substitution** `[cmd args…]` → delegate to
+///    [`try_fold_cmd_subst`].
+///
+/// Anything else widens to `Overdefined`.
+fn fold_assign_value(
+    value: &str,
+    uses: &HashMap<String, crate::ssa::Version>,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> LatticeValue {
+    let stripped = value.trim();
+    // Plain literal.
+    if !stripped.contains('$') && !stripped.contains('[') {
+        return LatticeValue::Const(parse_literal_value(stripped));
+    }
+    // Simple var reference.
+    if let Some(resolved) = resolve_simple_var_ref(stripped, uses, values) {
+        return resolved;
+    }
+    // Command substitution.
+    if stripped.starts_with('[') && stripped.ends_with(']') {
+        if let Some(lv) = try_fold_cmd_subst(stripped, uses, values) {
+            return lv;
+        }
+    }
+    LatticeValue::Overdefined
+}
+
+/// Try to constant-fold a `[cmd args…]` command substitution.
+///
+/// Recognised forms:
+/// - `[list arg1 arg2 …]` with all-literal args → folded list text.
+/// - `[llength {a b c}]` / `[llength "a b c"]` → integer element count.
+/// - `[string length "text"]` → integer character count.
+/// - `[expr {EXPR}]` — parses the inner expression and folds it
+///   under the current lattice (bridges to C22's evaluator).
+///
+/// Returns `None` for anything else so callers widen to
+/// Overdefined.
+fn try_fold_cmd_subst(
+    value: &str,
+    uses: &HashMap<String, crate::ssa::Version>,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> Option<LatticeValue> {
+    // `[list ...]` — reuse the codegen fold.
+    if let Some(folded) = crate::codegen::helpers::fold_list_cmd(value) {
+        return Some(LatticeValue::Const(ConstValue::String(folded)));
+    }
+    // `[format "..." args…]` with literal args.
+    if let Some(folded) = crate::codegen::helpers::try_format_fold(value) {
+        return Some(LatticeValue::Const(ConstValue::String(folded)));
+    }
+
+    let inner = value.strip_prefix('[')?.strip_suffix(']')?;
+    let (cmd, rest) = split_head(inner);
+
+    // `[llength LIST]` with a literal or lattice-resolvable list.
+    if cmd == "llength" {
+        let arg = rest?.trim();
+        if let Some(elements) = extract_foreach_elements(arg) {
+            let n = i64::try_from(elements.len()).unwrap_or(i64::MAX);
+            return Some(LatticeValue::Const(ConstValue::Int(n)));
+        }
+        if let Some(items) = resolve_foreach_list_via_lattice(arg, uses, values) {
+            let n = i64::try_from(items.len()).unwrap_or(i64::MAX);
+            return Some(LatticeValue::Const(ConstValue::Int(n)));
+        }
+        return None;
+    }
+
+    // `[string length "text"]` with a literal string operand.
+    if cmd == "string" {
+        if let Some(after_cmd) = rest {
+            let (sub, sub_rest) = split_head(after_cmd.trim());
+            if sub == "length" {
+                if let Some(arg) = sub_rest.map(|s| strip_one_level(s.trim())) {
+                    let len = i64::try_from(arg.chars().count()).unwrap_or(i64::MAX);
+                    return Some(LatticeValue::Const(ConstValue::Int(len)));
+                }
+            }
+        }
+        return None;
+    }
+
+    // `[expr {EXPR}]` — parse + fold under the current lattice.
+    if cmd == "expr" {
+        let arg = rest?.trim();
+        let expr_text = strip_one_level(arg);
+        let expr = crate::expr_parser::parse_expr(expr_text, None);
+        let env = env_from_uses(uses, values);
+        return eval_tcl_expr(&expr, &env).map(|v| LatticeValue::Const(tcl_value_to_const(v)));
+    }
+
+    None
+}
+
+/// Split a command-substitution body into `(head_word, rest)`.
+/// `rest` is `None` if the body is a single word, otherwise the
+/// remaining text with the leading whitespace stripped.
+fn split_head(text: &str) -> (&str, Option<&str>) {
+    let trimmed = text.trim_start();
+    let end = trimmed.find(char::is_whitespace).unwrap_or(trimmed.len());
+    let head = &trimmed[..end];
+    if end >= trimmed.len() {
+        return (head, None);
+    }
+    let rest = trimmed[end..].trim_start();
+    if rest.is_empty() {
+        (head, None)
+    } else {
+        (head, Some(rest))
+    }
+}
+
+/// Strip one level of `{…}` or `"…"` wrapping, returning the
+/// inside trimmed.
+fn strip_one_level(text: &str) -> &str {
+    if text.len() >= 2 {
+        let bytes = text.as_bytes();
+        if (bytes[0] == b'{' && bytes[text.len() - 1] == b'}')
+            || (bytes[0] == b'"' && bytes[text.len() - 1] == b'"')
+        {
+            return text[1..text.len() - 1].trim();
+        }
+    }
+    text
 }
 
 /// Parse a literal text as a [`ConstValue`]. Matches Python's
@@ -1273,6 +1416,139 @@ mod tests {
         defs.push("w".into());
         let result = evaluate_def(&stmt, &HashMap::new());
         assert_eq!(result, LatticeValue::Overdefined);
+    }
+
+    // -- C25e4: AssignValue + command-substitution folding --
+
+    fn assign_value_stmt(name: &str, value: &str, ver: u32) -> SsaStatement {
+        let mut defs = HashMap::new();
+        defs.insert(name.to_string(), ver);
+        SsaStatement {
+            statement: Statement::AssignValue {
+                span: Span::new(0, 0),
+                name: name.into(),
+                value: value.into(),
+                value_needs_backsubst: false,
+                tokens: None,
+            },
+            uses: HashMap::new(),
+            defs,
+        }
+    }
+
+    #[test]
+    fn evaluate_def_assign_value_plain_literal() {
+        let stmt = assign_value_stmt("x", "hello", 1);
+        assert_eq!(
+            evaluate_def(&stmt, &HashMap::new()),
+            LatticeValue::Const(ConstValue::String("hello".into()))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_assign_value_integer_literal() {
+        let stmt = assign_value_stmt("x", "42", 1);
+        assert_eq!(
+            evaluate_def(&stmt, &HashMap::new()),
+            LatticeValue::Const(ConstValue::Int(42))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_assign_value_resolves_var_ref() {
+        let mut stmt = assign_value_stmt("y", "$x", 1);
+        stmt.uses.insert("x".into(), 1);
+        let mut values = HashMap::new();
+        values.insert(
+            ("x".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(7)),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values),
+            LatticeValue::Const(ConstValue::Int(7))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_assign_value_folds_list_cmd() {
+        let stmt = assign_value_stmt("x", "[list a b c]", 1);
+        let result = evaluate_def(&stmt, &HashMap::new());
+        match result {
+            LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "a b c"),
+            other => panic!("expected Const(String), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn evaluate_def_assign_value_folds_llength_literal() {
+        let stmt = assign_value_stmt("n", "[llength {a b c d}]", 1);
+        assert_eq!(
+            evaluate_def(&stmt, &HashMap::new()),
+            LatticeValue::Const(ConstValue::Int(4))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_assign_value_folds_string_length() {
+        let stmt = assign_value_stmt("n", "[string length \"hello\"]", 1);
+        assert_eq!(
+            evaluate_def(&stmt, &HashMap::new()),
+            LatticeValue::Const(ConstValue::Int(5))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_assign_value_folds_expr_cmd_subst() {
+        let stmt = assign_value_stmt("x", "[expr {1 + 2}]", 1);
+        assert_eq!(
+            evaluate_def(&stmt, &HashMap::new()),
+            LatticeValue::Const(ConstValue::Int(3))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_assign_value_folds_format_literal() {
+        let stmt = assign_value_stmt("s", "[format \"%d-%d\" 1 2]", 1);
+        match evaluate_def(&stmt, &HashMap::new()) {
+            LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "1-2"),
+            other => panic!("expected Const(String), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn evaluate_def_assign_value_unknown_cmd_widens() {
+        let stmt = assign_value_stmt("x", "[nonexistent_fold args]", 1);
+        assert_eq!(evaluate_def(&stmt, &HashMap::new()), LatticeValue::Overdefined);
+    }
+
+    #[test]
+    fn evaluate_def_assign_value_llength_via_lattice_var() {
+        let mut stmt = assign_value_stmt("n", "[llength $lst]", 1);
+        stmt.uses.insert("lst".into(), 1);
+        let mut values = HashMap::new();
+        values.insert(
+            ("lst".to_string(), 1),
+            LatticeValue::Const(ConstValue::String("a b c".into())),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values),
+            LatticeValue::Const(ConstValue::Int(3))
+        );
+    }
+
+    #[test]
+    fn split_head_basic() {
+        assert_eq!(split_head("cmd arg1 arg2"), ("cmd", Some("arg1 arg2")));
+        assert_eq!(split_head("  cmd"), ("cmd", None));
+        assert_eq!(split_head(""), ("", None));
+    }
+
+    #[test]
+    fn strip_one_level_braces_and_quotes() {
+        assert_eq!(strip_one_level("{abc}"), "abc");
+        assert_eq!(strip_one_level("\"abc\""), "abc");
+        assert_eq!(strip_one_level("bare"), "bare");
+        assert_eq!(strip_one_level("{}"), "");
     }
 
     #[test]
