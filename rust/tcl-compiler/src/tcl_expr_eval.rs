@@ -389,8 +389,8 @@ fn eval_binary(op: BinOp, left: &ExprNode, right: &ExprNode, env: &Env) -> Optio
         return Some(TclValue::Int(i64::from(rv.is_truthy())));
     }
 
-    // iRules string operators and list-membership are deferred —
-    // callers fall through to runtime emission.
+    // iRules string operators and list-membership — evaluate both
+    // operands as strings, then apply the operator (C22i1/i2).
     if matches!(
         op,
         BinOp::Contains
@@ -398,10 +398,15 @@ fn eval_binary(op: BinOp, left: &ExprNode, right: &ExprNode, env: &Env) -> Optio
             | BinOp::EndsWith
             | BinOp::StrEquals
             | BinOp::MatchesGlob
-            | BinOp::MatchesRegex
             | BinOp::In
             | BinOp::Ni
     ) {
+        let ls = eval_as_string(left, env)?;
+        let rs = eval_as_string(right, env)?;
+        return apply_irules_string_op(op, &ls, &rs);
+    }
+    // `matches_regex` is deferred — needs a regex engine dependency.
+    if matches!(op, BinOp::MatchesRegex) {
         return None;
     }
 
@@ -631,6 +636,183 @@ fn eval_unary(op: UnaryOp, operand: &ExprNode, env: &Env) -> Option<TclValue> {
 }
 
 // ---------------------------------------------------------------------------
+// iRules string ops (C22i1/i2)
+// ---------------------------------------------------------------------------
+
+/// Strip surrounding `"…"` or `{…}` delimiters from a literal.
+fn strip_string_delimiters(text: &str) -> &str {
+    if text.len() < 2 {
+        return text;
+    }
+    let first = text.as_bytes()[0];
+    let last = text.as_bytes()[text.len() - 1];
+    if (first == b'"' && last == b'"') || (first == b'{' && last == b'}') {
+        &text[1..text.len() - 1]
+    } else {
+        text
+    }
+}
+
+/// Extract a string value from an expression node.
+///
+/// Mirrors Python's `_eval_as_string`:
+/// - `ExprString` → strip delimiters.
+/// - `ExprLiteral` → use the raw text.
+/// - `ExprVar` → look up in `env`, render via [`format_tcl_value`]
+///   for numeric bindings or return the string binding directly.
+/// - Anything else → try to fold via [`eval`] and render the
+///   resulting [`TclValue`].
+fn eval_as_string(node: &ExprNode, env: &Env) -> Option<String> {
+    match node {
+        ExprNode::String { text, .. } => Some(strip_string_delimiters(text).to_owned()),
+        ExprNode::Literal { text, .. } => Some(text.clone()),
+        ExprNode::Var { name, .. } => match env.get(name)? {
+            EnvValue::Int(i) => Some(i.to_string()),
+            EnvValue::Float(f) => Some(format_tcl_value(TclValue::Float(*f))),
+            EnvValue::Str(s) => Some(s.clone()),
+        },
+        _ => eval(node, env).map(format_tcl_value),
+    }
+}
+
+/// Split a simple Tcl list string into elements.
+///
+/// Handles space-separated words and brace-grouped elements.
+/// Does not handle the full Tcl list-quoting grammar (backslash
+/// continuations, nested braces within quoted strings) but covers
+/// the constant inputs seen by `in` / `ni` at compile time.
+fn split_tcl_list(text: &str) -> Vec<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        while i < bytes.len() && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        if bytes[i] == b'{' {
+            let mut level = 1i32;
+            i += 1;
+            let start = i;
+            while i < bytes.len() && level > 0 {
+                match bytes[i] {
+                    b'{' => level += 1,
+                    b'}' => level -= 1,
+                    _ => {}
+                }
+                i += 1;
+            }
+            out.push(text[start..i - 1].to_owned());
+        } else if bytes[i] == b'"' {
+            i += 1;
+            let start = i;
+            while i < bytes.len() && bytes[i] != b'"' {
+                if bytes[i] == b'\\' && i + 1 < bytes.len() {
+                    i += 2;
+                    continue;
+                }
+                i += 1;
+            }
+            out.push(text[start..i].to_owned());
+            if i < bytes.len() {
+                i += 1;
+            }
+        } else {
+            let start = i;
+            while i < bytes.len() && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
+                i += 1;
+            }
+            out.push(text[start..i].to_owned());
+        }
+    }
+    out
+}
+
+/// Simple glob matcher supporting `*`, `?`, and `[abc]` character
+/// classes — enough to cover `matches_glob` operands without
+/// pulling in the `glob` / `fnmatch` crate.
+fn glob_match(pattern: &str, text: &str) -> bool {
+    fn go(pb: &[u8], tb: &[u8]) -> bool {
+        let mut pi = 0usize;
+        let mut ti = 0usize;
+        let mut star: Option<(usize, usize)> = None;
+        while ti < tb.len() {
+            if pi < pb.len() {
+                match pb[pi] {
+                    b'*' => {
+                        star = Some((pi, ti));
+                        pi += 1;
+                        continue;
+                    }
+                    b'?' => {
+                        pi += 1;
+                        ti += 1;
+                        continue;
+                    }
+                    b'[' => {
+                        // Find closing bracket.
+                        let mut j = pi + 1;
+                        while j < pb.len() && pb[j] != b']' {
+                            j += 1;
+                        }
+                        if j >= pb.len() {
+                            // Unterminated class — treat `[` as literal.
+                            if pb[pi] == tb[ti] {
+                                pi += 1;
+                                ti += 1;
+                                continue;
+                            }
+                        } else {
+                            let class = &pb[pi + 1..j];
+                            if class.contains(&tb[ti]) {
+                                pi = j + 1;
+                                ti += 1;
+                                continue;
+                            }
+                        }
+                    }
+                    c if c == tb[ti] => {
+                        pi += 1;
+                        ti += 1;
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
+            if let Some((sp, st)) = star {
+                pi = sp + 1;
+                ti = st + 1;
+                star = Some((sp, ti));
+                continue;
+            }
+            return false;
+        }
+        while pi < pb.len() && pb[pi] == b'*' {
+            pi += 1;
+        }
+        pi == pb.len()
+    }
+    go(pattern.as_bytes(), text.as_bytes())
+}
+
+/// Apply an iRules string operator to two rendered string operands.
+fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue> {
+    let res = match op {
+        BinOp::Contains => left.contains(right),
+        BinOp::StartsWith => left.starts_with(right),
+        BinOp::EndsWith => left.ends_with(right),
+        BinOp::StrEquals => left == right,
+        BinOp::MatchesGlob => glob_match(right, left),
+        BinOp::In => split_tcl_list(right).iter().any(|e| e == left),
+        BinOp::Ni => !split_tcl_list(right).iter().any(|e| e == left),
+        _ => return None,
+    };
+    Some(TclValue::Int(i64::from(res)))
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -646,6 +828,18 @@ mod tests {
 
     fn eval_str_env(expr: &str, env: &Env) -> Option<TclValue> {
         eval_tcl_expr(&parse_expr(expr, None), env)
+    }
+
+    /// Parse + evaluate using the iRules dialect, which enables
+    /// `contains`/`starts_with`/`ends_with`/`equals`/`matches_glob`/
+    /// `matches_regex`/`in`/`ni` word operators.
+    fn eval_irules(expr: &str) -> Option<TclValue> {
+        let env = Env::new();
+        eval_tcl_expr(&parse_expr(expr, Some("f5-irules")), &env)
+    }
+
+    fn eval_irules_env(expr: &str, env: &Env) -> Option<TclValue> {
+        eval_tcl_expr(&parse_expr(expr, Some("f5-irules")), env)
     }
 
     #[test]
@@ -809,9 +1003,178 @@ mod tests {
     }
 
     #[test]
-    fn irules_string_ops_return_none() {
-        // Deferred — callers fall through to runtime.
-        assert_eq!(eval_str("\"abc\" contains \"b\""), None);
+    fn irules_string_ops_matches_regex_returns_none() {
+        // matches_regex is the only iRules op still deferred.
+        assert_eq!(
+            eval_irules(r#""abc" matches_regex "b""#),
+            None
+        );
+    }
+
+    // -- C22i1: simple iRules string ops --
+
+    #[test]
+    fn irules_contains() {
+        assert_eq!(
+            eval_irules(r#""hello world" contains "world""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""hello" contains "bye""#),
+            Some(TclValue::Int(0))
+        );
+    }
+
+    #[test]
+    fn irules_starts_with() {
+        assert_eq!(
+            eval_irules(r#""foobar" starts_with "foo""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""foobar" starts_with "bar""#),
+            Some(TclValue::Int(0))
+        );
+    }
+
+    #[test]
+    fn irules_ends_with() {
+        assert_eq!(
+            eval_irules(r#""foobar" ends_with "bar""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""foobar" ends_with "foo""#),
+            Some(TclValue::Int(0))
+        );
+    }
+
+    #[test]
+    fn irules_str_equals() {
+        assert_eq!(
+            eval_irules(r#""abc" equals "abc""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""abc" equals "xyz""#),
+            Some(TclValue::Int(0))
+        );
+    }
+
+    #[test]
+    fn irules_string_op_with_bound_variable() {
+        let mut env = Env::new();
+        env.insert("name".into(), EnvValue::Str("production".into()));
+        assert_eq!(
+            eval_irules_env(r#"$name contains "prod""#, &env),
+            Some(TclValue::Int(1))
+        );
+    }
+
+    // -- C22i2: matches_glob + in/ni --
+
+    #[test]
+    fn irules_matches_glob_star() {
+        assert_eq!(
+            eval_irules(r#""hello world" matches_glob "hello*""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""hello world" matches_glob "*world""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""hello world" matches_glob "*lo w*""#),
+            Some(TclValue::Int(1))
+        );
+    }
+
+    #[test]
+    fn irules_matches_glob_question_and_class() {
+        assert_eq!(
+            eval_irules(r#""abc" matches_glob "a?c""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""abc" matches_glob "a[bxy]c""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""axc" matches_glob "a[bxy]c""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""azc" matches_glob "a[bxy]c""#),
+            Some(TclValue::Int(0))
+        );
+    }
+
+    #[test]
+    fn irules_matches_glob_rejects_on_mismatch() {
+        assert_eq!(
+            eval_irules(r#""hello" matches_glob "world""#),
+            Some(TclValue::Int(0))
+        );
+    }
+
+    #[test]
+    fn irules_in_list_membership() {
+        assert_eq!(
+            eval_irules(r#""b" in "a b c""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""d" in "a b c""#),
+            Some(TclValue::Int(0))
+        );
+        // Braced element grouping.
+        assert_eq!(
+            eval_irules(r#""b c" in "{a b} {b c} d""#),
+            Some(TclValue::Int(1))
+        );
+    }
+
+    #[test]
+    fn irules_ni_negated_membership() {
+        assert_eq!(
+            eval_irules(r#""d" ni "a b c""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""b" ni "a b c""#),
+            Some(TclValue::Int(0))
+        );
+    }
+
+    #[test]
+    fn split_tcl_list_handles_braces_and_quotes() {
+        assert_eq!(split_tcl_list("a b c"), vec!["a", "b", "c"]);
+        assert_eq!(
+            split_tcl_list("{hello world} foo"),
+            vec!["hello world", "foo"]
+        );
+        assert_eq!(split_tcl_list(""), Vec::<String>::new());
+    }
+
+    #[test]
+    fn glob_match_spec_cases() {
+        assert!(glob_match("*", ""));
+        assert!(glob_match("*", "anything"));
+        assert!(glob_match("a*c", "abc"));
+        assert!(glob_match("a*c", "azzzc"));
+        assert!(!glob_match("a*c", "ab"));
+        assert!(glob_match("a?c", "abc"));
+        assert!(!glob_match("a?c", "ac"));
+        assert!(!glob_match("a?c", "abcd"));
+    }
+
+    #[test]
+    fn strip_string_delimiters_round_trips_quotes_and_braces() {
+        assert_eq!(strip_string_delimiters("\"abc\""), "abc");
+        assert_eq!(strip_string_delimiters("{abc}"), "abc");
+        assert_eq!(strip_string_delimiters("abc"), "abc");
+        assert_eq!(strip_string_delimiters(""), "");
+        assert_eq!(strip_string_delimiters("\""), "\"");
     }
 
     // -- Math function dispatch --
