@@ -478,6 +478,17 @@ fn eval_command(words: []const i32) i32 {
         return 0;
     }
     if (str_eq(cmd, cmd_s.len, "error")) { if (words.len >= 2) rt.tcl_cmd_error(words[1]); return 0; }
+    // ``regexp`` — dispatch to the Tcl regex engine wrapper.
+    // Handles the switches the 2-arg compiled-path export can't
+    // (``-nocase``, ``--``); capture vars and ``-all`` / ``-indices``
+    // / ``-inline`` are not supported yet and are silently
+    // ignored (the match result is still returned correctly —
+    // the ignored vars just don't get set, which is observable
+    // but doesn't silently return a wrong match result).
+    if (str_eq(cmd, cmd_s.len, "regexp")) {
+        const regex_mod = @import("tcl_regex.zig");
+        return regex_mod.eval_regexp_cmd(words);
+    }
     if (str_eq(cmd, cmd_s.len, "catch")) {
         if (words.len >= 2) {
             rt.catch_enter();

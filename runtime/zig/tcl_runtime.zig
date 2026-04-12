@@ -21,6 +21,7 @@ const tcl_stubs = @import("tcl_stubs.zig");
 const tcl_io_stubs = @import("tcl_io_stubs.zig");
 const tcl_fs_stubs = @import("tcl_fs_stubs.zig");
 const tcl_fmt_stubs = @import("tcl_fmt_stubs.zig");
+const tcl_regex = @import("tcl_regex.zig");
 const tcl_time_stubs = @import("tcl_time_stubs.zig");
 const tcl_env_stubs = @import("tcl_env_stubs.zig");
 const tcl_encoding = @import("tcl_encoding.zig");
@@ -238,7 +239,10 @@ comptime {
     _ = &tcl_format.tcl_cmd_format;
     _ = &tcl_fmt_stubs.tcl_cmd_scan;
     _ = &tcl_fmt_stubs.tcl_cmd_binary;
-    _ = &tcl_fmt_stubs.tcl_cmd_regexp;
+    // ``regexp`` is wired to the real Tcl regex engine in
+    // tcl_regex.zig; ``regsub`` remains a trapping stub until
+    // the substitution path is implemented.
+    _ = &tcl_regex.tcl_cmd_regexp;
     _ = &tcl_fmt_stubs.tcl_cmd_regsub;
     // encoding lives in tcl_encoding.zig (real pass-through impl).
     _ = &tcl_encoding.tcl_cmd_encoding;

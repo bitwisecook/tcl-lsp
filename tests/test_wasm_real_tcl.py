@@ -1437,7 +1437,10 @@ class TestDiagMap:
             ("file mkdir /tmp/x\n", "file"),
             ("glob *.tcl\n", "glob"),
             ("exec /bin/true\n", "exec"),
-            ("regexp {foo} bar\n", "regexp"),
+            # ``regexp`` has a real impl in tcl_regex.zig backed by
+            # Tcl's Henry-Spencer engine — see TestRegexp.  ``regsub``
+            # remains a trapping stub until the substitution path is
+            # wired up.
             ("regsub {foo} bar baz\n", "regsub"),
             # ``format`` has a minimal real impl in tcl_format.zig —
             # see TestFormat.
@@ -1480,20 +1483,22 @@ class TestDiagMap:
         # A standalone ``[cmd …]`` at top level compiles as an eval
         # fallback, so the interpreter walks it command-by-command
         # and the eval-context stamping runs before each dispatch.
-        # Use ``regexp`` — still a trapping stub and not in the
+        # Use ``regsub`` — still a trapping stub and not in the
         # interpreter's implemented-command set, so the eval path
-        # exercises the unsupported-command branch.
-        source = "[regexp foo bar]\n"
+        # exercises the unsupported-command branch.  ``regexp`` used
+        # to sit here but now routes to a real impl; ``regsub`` is
+        # the obvious shape-matching substitute.
+        source = "[regsub foo bar baz]\n"
         wasm, diag = _compile_tcl_with_diag(source, "t.tcl")
         try:
             _run_wasm(wasm, capture_stderr=True)
             pytest.fail("expected trap")
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
-            assert "unsupported command: regexp" in stderr
+            assert "unsupported command: regsub" in stderr
             assert "in eval-script at offset" in stderr
             # The snippet must contain at least the command name.
-            assert "regexp" in stderr
+            assert "regsub" in stderr
 
     def test_parse_bare_tracks_bracket_nesting(self):
         """``parse_bare`` must keep ``[cmd arg]`` as a single word.
@@ -1534,6 +1539,107 @@ class TestDiagMap:
             resolved = _resolve_trap(trap, stderr, diag)
             assert "t.tcl:1:1" in resolved
             assert "unknown command: definitely_not_a_command" in resolved
+
+
+class TestRegexp:
+    """Tcl regex engine (Henry Spencer) linked via ``tcl_regex.zig``.
+
+    The engine covers Tcl's full ARE syntax — ``^``/``$`` anchors,
+    alternation, groups, ``\\s``/``\\w``/``\\d`` escapes, character
+    classes — because it's the same engine ``tclsh`` ships with.
+    These tests pin the baseline behaviour so regressions in the
+    build/shim layer surface immediately.
+
+    Capture vars and options beyond ``-nocase`` / ``--`` are not
+    yet wired up; the interpreter path silently ignores them (see
+    ``tcl_regex.zig::eval_regexp_cmd``).
+    """
+
+    @pytest.mark.parametrize(
+        "pattern,subject,expected",
+        [
+            # Basic literal match
+            (r"hello", "hello world", 1),
+            (r"xyz", "hello world", 0),
+            # Anchors
+            (r"^hello", "hello world", 1),
+            (r"^hello", "world hello", 0),
+            (r"world$", "hello world", 1),
+            (r"world$", "world hello", 0),
+            # Alternation + groups
+            (r"(cat|dog|bird)", "I have a dog", 1),
+            (r"(cat|dog|bird)", "I have a fish", 0),
+            # ``\s``/``\d``/``\w`` Perl-style escapes (ARE feature)
+            (r"\s+", "hello   world", 1),
+            (r"\s+", "helloworld", 0),
+            (r"\d+", "abc123def", 1),
+            (r"\d+", "no digits here", 0),
+            (r"\w+", "hello", 1),
+            # Character classes
+            (r"[0-9]+", "abc42", 1),
+            (r"[0-9]+", "abcdef", 0),
+            (r"[^0-9]+", "42", 0),
+            # The tcltest ``AcceptVerbose`` regex — alternation with
+            # anchors is the pattern that used to trap the runner
+            # when ``regexp`` was a stub.
+            (r"^(list|pass|body|skip|error)$", "body", 1),
+            (r"^(list|pass|body|skip|error)$", "unknown", 0),
+            (r"^(list|pass|body|skip|error)$", "pass", 1),
+        ],
+    )
+    def test_regexp_match(self, pattern, subject, expected):
+        # Pattern is brace-protected so Tcl's parser doesn't treat
+        # bracket characters as command substitutions.
+        source = (
+            "proc t {} {\n"
+            f"    if {{[regexp {{{pattern}}} {{{subject}}}]}} {{\n"
+            "        puts MATCH\n"
+            "    } else {\n"
+            "        puts NOMATCH\n"
+            "    }\n"
+            "}\n"
+            "t\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        want = "MATCH" if expected == 1 else "NOMATCH"
+        assert want in stdout, f"pattern={pattern!r} subject={subject!r}: {stdout!r}"
+
+    @pytest.mark.parametrize(
+        "pattern,subject,expected",
+        [
+            # ``-nocase`` takes a non-2-arg shape, so the codegen
+            # routes through eval fallback → interpreter's
+            # ``eval_regexp_cmd`` switch parser.  Pin the option
+            # parsing here to catch regressions in that path.
+            (r"hello", "HELLO", 0),  # case-sensitive: no match
+            (r"hello", "HELLO", 1),  # case-insensitive: match
+            (r"^WORLD$", "world", 1),  # case-insensitive anchors too
+        ],
+    )
+    def test_regexp_nocase(self, pattern, subject, expected):
+        # Index 0 is case-sensitive (no -nocase), 1 and 2 are.
+        # pytest parametrize orders them — so we decide via expected:
+        # case-sensitive "HELLO" against "hello" yields 0 (no match),
+        # with -nocase it yields 1.
+        use_nocase = expected == 1
+        switches = "-nocase " if use_nocase else ""
+        source = (
+            "proc t {} {\n"
+            f"    if {{[regexp {switches}-- {{{pattern}}} {{{subject}}}]}} {{\n"
+            "        puts MATCH\n"
+            "    } else {\n"
+            "        puts NOMATCH\n"
+            "    }\n"
+            "}\n"
+            "t\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        want = "MATCH" if expected == 1 else "NOMATCH"
+        assert want in stdout, (
+            f"pattern={pattern!r} subject={subject!r} nocase={use_nocase}: {stdout!r}"
+        )
 
 
 class TestEncoding:

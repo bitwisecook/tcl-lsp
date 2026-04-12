@@ -28,12 +28,10 @@ pub export fn tcl_cmd_binary(sub: i32, arg: i32) i32 {
     return 0;
 }
 
-pub export fn tcl_cmd_regexp(pattern: i32, str: i32) i32 {
-    _ = pattern;
-    _ = str;
-    stubs.unsupported("regexp");
-    return 0;
-}
+// ``regexp`` moved to tcl_regex.zig — real implementation backed
+// by Tcl's Henry-Spencer engine (linked from
+// ``runtime/zig/vendor/tcl-regex/``).  Only ``regsub`` remains a
+// stub until we add the substitution path.
 
 pub export fn tcl_cmd_regsub(pattern: i32, str: i32) i32 {
     _ = pattern;
