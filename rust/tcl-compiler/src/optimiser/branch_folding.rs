@@ -31,7 +31,10 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::sccp::ConstantBranch;
 
-use super::helpers::expr_simplify::substitute_expr_constants;
+use super::helpers::expr_simplify::{
+    instcombine_expr, substitute_expr_constants, try_eq_ne_string_compare_simplify_expr,
+    try_strength_reduce_expr, try_strlen_simplify_expr,
+};
 use super::helpers::literals::format_constant;
 use super::{Optimisation, PassContext};
 
@@ -112,21 +115,47 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
                 (cond_text, false)
             };
 
-        let result = substitute_expr_constants(inner, &constants, ctx.dialect);
-        if !result.changed {
-            continue;
-        }
-        let replacement = if braced {
-            format!("{{{}}}", result.text)
-        } else {
-            result.text
+        // Cascade: substitute → strength-reduce → strlen → streq
+        // → instcombine. Each transform is a text → (text, changed)
+        // helper; the first one that changes the text wins its
+        // diagnostic code. Mirrors `optimise_branch_proc_calls`'s
+        // priority order in the Python source.
+        let (code, message, final_text) = {
+            let sub = substitute_expr_constants(inner, &constants, ctx.dialect);
+            let working = if sub.changed { sub.text.clone() } else { inner.to_owned() };
+
+            let (sred, sred_changed) = try_strength_reduce_expr(&working);
+            if sred_changed {
+                ("O113", "Strength-reduce expression", sred)
+            } else {
+                let (slen, slen_changed) = try_strlen_simplify_expr(&working);
+                if slen_changed {
+                    ("O117", "Simplify string length zero-check", slen)
+                } else {
+                    let (streq, streq_changed) =
+                        try_eq_ne_string_compare_simplify_expr(&working);
+                    if streq_changed {
+                        ("O120", "Use eq/ne for string comparison", streq)
+                    } else {
+                        let (combined, combined_changed) = instcombine_expr(&working, true);
+                        if combined_changed {
+                            ("O110", "Canonicalise expression (InstCombine)", combined)
+                        } else if sub.changed {
+                            ("O100", "Propagate constants into branch expression", sub.text)
+                        } else {
+                            continue;
+                        }
+                    }
+                }
+            }
         };
-        ctx.report(Optimisation::new(
-            "O100",
-            "Propagate constants into branch expression",
-            *span,
-            replacement,
-        ));
+
+        let replacement = if braced {
+            format!("{{{final_text}}}")
+        } else {
+            final_text
+        };
+        ctx.report(Optimisation::new(code, message, *span, replacement));
     }
 }
 
