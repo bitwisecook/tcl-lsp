@@ -404,6 +404,13 @@ fn materialise_summaries(
         calls_list.sort();
         let is_pure = *pure.get(qname).unwrap_or(&false);
 
+        let (returns_constant, constant_return, passthrough, depends) =
+            summarise_returns(&facts.returns);
+        // A proc is foldable at a call site when its return is
+        // fully determined by the static call — that means pure
+        // AND (constant return OR passthrough of a param).
+        let can_fold = is_pure && (returns_constant || passthrough.is_some());
+
         procedures.insert(
             qname.clone(),
             ProcSummary {
@@ -417,11 +424,11 @@ fn materialise_summaries(
                 pure: is_pure,
                 effect_reads: *effect_reads.get(qname).unwrap_or(&EffectRegion::UNKNOWN_STATE),
                 effect_writes: *effect_writes.get(qname).unwrap_or(&EffectRegion::UNKNOWN_STATE),
-                returns_constant: false,
-                constant_return: None,
-                return_depends_on_params: Vec::new(),
-                return_passthrough_param: None,
-                can_fold_static_calls: false,
+                returns_constant,
+                constant_return,
+                return_depends_on_params: depends,
+                return_passthrough_param: passthrough,
+                can_fold_static_calls: can_fold,
                 param_traits: HashMap::new(),
             },
         );
@@ -440,6 +447,25 @@ struct LocalFacts {
     local_pure: bool,
     effect_reads: EffectRegion,
     effect_writes: EffectRegion,
+    /// Collected return-value classifications — one entry per
+    /// `Statement::Return` visited in the body (including those
+    /// inside nested compound statements).
+    returns: Vec<ReturnKind>,
+}
+
+/// Classification of a single return statement's shape.
+#[derive(Debug, Clone, PartialEq)]
+enum ReturnKind {
+    /// `return LITERAL` with a safe-looking literal.
+    Literal(String),
+    /// `return $param` — a passthrough of a known parameter.
+    Passthrough(String),
+    /// `return [expr {$param}]` or any return that references a
+    /// specific parameter but isn't a plain passthrough.
+    UsesParam(Vec<String>),
+    /// Any other return (dynamic value, command substitution,
+    /// etc.).
+    Other,
 }
 
 impl Default for LocalFacts {
@@ -452,6 +478,7 @@ impl Default for LocalFacts {
             local_pure: false,
             effect_reads: EffectRegion::NONE,
             effect_writes: EffectRegion::NONE,
+            returns: Vec::new(),
         }
     }
 }
@@ -467,7 +494,8 @@ fn scan_proc(
         local_pure: true,
         ..LocalFacts::default()
     };
-    scan_script(&proc.body, qname, known, registry, dialect, &mut facts);
+    let params: HashSet<String> = proc.params.iter().cloned().collect();
+    scan_script(&proc.body, qname, known, registry, dialect, &mut facts, &params);
     facts
 }
 
@@ -478,9 +506,10 @@ fn scan_script(
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&str>,
     facts: &mut LocalFacts,
+    params: &HashSet<String>,
 ) {
     for stmt in &script.statements {
-        scan_statement(stmt, caller, known, registry, dialect, facts);
+        scan_statement(stmt, caller, known, registry, dialect, facts, params);
     }
 }
 
@@ -492,6 +521,7 @@ fn scan_statement(
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&str>,
     facts: &mut LocalFacts,
+    params: &HashSet<String>,
 ) {
     use crate::ir::Statement;
     match stmt {
@@ -511,9 +541,12 @@ fn scan_statement(
                 facts.effect_writes |= EffectRegion::GLOBAL_STATE;
             }
         }
-        Statement::ExprEval { .. } | Statement::Return { .. } => {
-            // Pure expression evaluation + return: no effect on
-            // procedure-level side-effect classification.
+        Statement::ExprEval { .. } => {
+            // Pure expression evaluation — no effect.
+        }
+        Statement::Return { value, expr, .. } => {
+            let kind = classify_return(value.as_deref(), expr.as_ref(), params);
+            facts.returns.push(kind);
         }
         Statement::Call { command, args, .. } => {
             let ci = classify_side_effects(registry, command, args, dialect, None);
@@ -545,23 +578,23 @@ fn scan_statement(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                scan_script(&c.body, caller, known, registry, dialect, facts);
+                scan_script(&c.body, caller, known, registry, dialect, facts, params);
             }
             if let Some(body) = else_body {
-                scan_script(body, caller, known, registry, dialect, facts);
+                scan_script(body, caller, known, registry, dialect, facts, params);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            scan_script(init, caller, known, registry, dialect, facts);
-            scan_script(next, caller, known, registry, dialect, facts);
-            scan_script(body, caller, known, registry, dialect, facts);
+            scan_script(init, caller, known, registry, dialect, facts, params);
+            scan_script(next, caller, known, registry, dialect, facts, params);
+            scan_script(body, caller, known, registry, dialect, facts, params);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
         | Statement::Foreach { body, .. } => {
-            scan_script(body, caller, known, registry, dialect, facts);
+            scan_script(body, caller, known, registry, dialect, facts, params);
         }
         Statement::Try {
             body,
@@ -569,12 +602,12 @@ fn scan_statement(
             finally_body,
             ..
         } => {
-            scan_script(body, caller, known, registry, dialect, facts);
+            scan_script(body, caller, known, registry, dialect, facts, params);
             for h in handlers {
-                scan_script(&h.body, caller, known, registry, dialect, facts);
+                scan_script(&h.body, caller, known, registry, dialect, facts, params);
             }
             if let Some(fb) = finally_body {
-                scan_script(fb, caller, known, registry, dialect, facts);
+                scan_script(fb, caller, known, registry, dialect, facts, params);
             }
         }
         Statement::Switch {
@@ -582,11 +615,11 @@ fn scan_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    scan_script(b, caller, known, registry, dialect, facts);
+                    scan_script(b, caller, known, registry, dialect, facts, params);
                 }
             }
             if let Some(db) = default_body {
-                scan_script(db, caller, known, registry, dialect, facts);
+                scan_script(db, caller, known, registry, dialect, facts, params);
             }
         }
     }
@@ -594,6 +627,187 @@ fn scan_statement(
 
 fn is_global_or_namespace(name: &str) -> bool {
     name.starts_with("::") || name.contains("::")
+}
+
+/// Classify a single `Statement::Return` shape for
+/// interprocedural summary purposes.
+fn classify_return(
+    value: Option<&str>,
+    expr: Option<&crate::expr_ast::ExprNode>,
+    params: &HashSet<String>,
+) -> ReturnKind {
+    // Prefer the structured `expr` when the return was `return
+    // [expr {…}]` or similar — the AST gives precise information.
+    if let Some(node) = expr {
+        return classify_return_expr(node, params);
+    }
+
+    let Some(raw) = value else {
+        return ReturnKind::Other;
+    };
+    let v = raw.trim();
+    if v.is_empty() {
+        return ReturnKind::Other;
+    }
+    // Pure literal — integer, bare word, or quoted string.
+    if v.parse::<i64>().is_ok() || is_bare_word(v) {
+        return ReturnKind::Literal(v.to_owned());
+    }
+    if let Some(inside) = v.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+        if !inside.contains(['$', '[', '\\']) {
+            return ReturnKind::Literal(inside.to_owned());
+        }
+    }
+    if let Some(inside) = v.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
+        return ReturnKind::Literal(inside.to_owned());
+    }
+    // Passthrough of `$param`.
+    if let Some(name) = v.strip_prefix('$') {
+        if params.contains(name) {
+            return ReturnKind::Passthrough(name.to_owned());
+        }
+    }
+    if let Some(name) = v.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+        if params.contains(name) {
+            return ReturnKind::Passthrough(name.to_owned());
+        }
+    }
+    ReturnKind::Other
+}
+
+fn classify_return_expr(
+    node: &crate::expr_ast::ExprNode,
+    params: &HashSet<String>,
+) -> ReturnKind {
+    use crate::expr_ast::ExprNode;
+
+    if let ExprNode::Literal { text, .. } = node {
+        return ReturnKind::Literal(text.clone());
+    }
+    if let ExprNode::String { text, .. } = node {
+        // Strip outer delimiters.
+        let inside = text
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .or_else(|| text.strip_prefix('{').and_then(|s| s.strip_suffix('}')))
+            .unwrap_or(text);
+        return ReturnKind::Literal(inside.to_owned());
+    }
+    if let ExprNode::Var { name, .. } = node {
+        if params.contains(name) {
+            return ReturnKind::Passthrough(name.clone());
+        }
+    }
+    // Walk the AST collecting var references against the param
+    // set; any match → UsesParam.
+    let mut referenced: Vec<String> = Vec::new();
+    walk_collect_param_refs(node, params, &mut referenced);
+    if !referenced.is_empty() {
+        referenced.sort();
+        referenced.dedup();
+        return ReturnKind::UsesParam(referenced);
+    }
+    ReturnKind::Other
+}
+
+fn walk_collect_param_refs(
+    node: &crate::expr_ast::ExprNode,
+    params: &HashSet<String>,
+    out: &mut Vec<String>,
+) {
+    use crate::expr_ast::ExprNode;
+    match node {
+        ExprNode::Var { name, .. } => {
+            if params.contains(name) {
+                out.push(name.clone());
+            }
+        }
+        ExprNode::Binary { left, right, .. } => {
+            walk_collect_param_refs(left, params, out);
+            walk_collect_param_refs(right, params, out);
+        }
+        ExprNode::Unary { operand, .. } => walk_collect_param_refs(operand, params, out),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            walk_collect_param_refs(condition, params, out);
+            walk_collect_param_refs(true_branch, params, out);
+            walk_collect_param_refs(false_branch, params, out);
+        }
+        ExprNode::Call { args, .. } => {
+            for a in args {
+                walk_collect_param_refs(a, params, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn is_bare_word(text: &str) -> bool {
+    !text.is_empty()
+        && text.bytes().all(|b| {
+            b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'/' | b':' | b'+' | b'-')
+        })
+}
+
+/// Derive the return-value summary fields from a proc's
+/// collected [`ReturnKind`] list. Returns `(returns_constant,
+/// constant_return, passthrough_param, depends_on_params)`.
+fn summarise_returns(
+    returns: &[ReturnKind],
+) -> (bool, Option<ConstantReturn>, Option<String>, Vec<String>) {
+    if returns.is_empty() {
+        return (false, None, None, Vec::new());
+    }
+    // Constant-return: every return must be a Literal with the
+    // same text.
+    if let ReturnKind::Literal(first) = &returns[0] {
+        if returns.iter().all(|r| matches!(r, ReturnKind::Literal(v) if v == first)) {
+            return (true, Some(literal_to_constant_return(first)), None, Vec::new());
+        }
+    }
+    // Passthrough: every return is Passthrough of the same param.
+    if let ReturnKind::Passthrough(first) = &returns[0] {
+        if returns
+            .iter()
+            .all(|r| matches!(r, ReturnKind::Passthrough(v) if v == first))
+        {
+            return (false, None, Some(first.clone()), vec![first.clone()]);
+        }
+    }
+    // Depends on params: union of all ParamRefs + Passthrough
+    // targets.
+    let mut depends: Vec<String> = Vec::new();
+    for r in returns {
+        match r {
+            ReturnKind::Passthrough(p) => depends.push(p.clone()),
+            ReturnKind::UsesParam(ps) => depends.extend(ps.iter().cloned()),
+            _ => {}
+        }
+    }
+    depends.sort();
+    depends.dedup();
+    (false, None, None, depends)
+}
+
+fn literal_to_constant_return(text: &str) -> ConstantReturn {
+    let t = text.trim();
+    if let Ok(i) = t.parse::<i64>() {
+        return ConstantReturn::Int(i);
+    }
+    if let Ok(f) = t.parse::<f64>() {
+        return ConstantReturn::Float(f);
+    }
+    let lower = t.to_ascii_lowercase();
+    if lower == "true" {
+        ConstantReturn::Bool(true)
+    } else if lower == "false" {
+        ConstantReturn::Bool(false)
+    } else {
+        ConstantReturn::Str(t.to_owned())
+    }
 }
 
 fn compute_transitive_calls(
@@ -790,16 +1004,36 @@ mod tests {
     }
 
     #[test]
-    fn deferred_fields_keep_conservative_defaults() {
+    fn constant_return_inferred_for_literal_proc() {
         let ia = build("proc ::f {} { return 1 }");
         let s = ia.procedures.get("::f").unwrap();
-        // The follow-up C28 sub-strip will populate these —
-        // today they stay at their conservative defaults.
-        assert!(!s.returns_constant);
-        assert!(s.constant_return.is_none());
-        assert!(s.return_passthrough_param.is_none());
-        assert!(!s.can_fold_static_calls);
-        assert!(s.param_traits.is_empty());
+        assert!(s.returns_constant);
+        assert_eq!(s.constant_return, Some(ConstantReturn::Int(1)));
+    }
+
+    #[test]
+    fn passthrough_param_detected() {
+        let ia = build("proc ::id {x} { return $x }");
+        let s = ia.procedures.get("::id").unwrap();
+        assert_eq!(s.return_passthrough_param.as_deref(), Some("x"));
+        assert_eq!(s.return_depends_on_params, vec!["x".to_string()]);
+    }
+
+    #[test]
+    fn can_fold_gated_on_pure_and_return_shape() {
+        // Pure + literal → can fold.
+        let ia = build("proc ::f {} { return 42 }");
+        assert!(ia.procedures.get("::f").unwrap().can_fold_static_calls);
+        // Impure (eval barrier) + literal → cannot fold.
+        let ia = build("proc ::f {} { eval {} ; return 42 }");
+        assert!(!ia.procedures.get("::f").unwrap().can_fold_static_calls);
+    }
+
+    #[test]
+    fn param_traits_still_empty() {
+        // Param trait inference remains a follow-up.
+        let ia = build("proc ::f {x y} { return $x }");
+        assert!(ia.procedures.get("::f").unwrap().param_traits.is_empty());
     }
 
     #[test]
