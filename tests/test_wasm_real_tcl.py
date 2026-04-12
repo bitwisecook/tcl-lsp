@@ -713,6 +713,22 @@ return [main]
         # Before write: 0; after write: 1 → 0*10 + 1 = 1
         assert val == 1
 
+    def test_info_exists_array_element(self):
+        """info exists arr(key) probes the array-element table."""
+        source = """\
+proc main {} {
+    set a(1) 10
+    set r 0
+    if {[info exists a(1)]} { set r [expr {$r + 1}] }
+    if {[info exists a(2)]} { set r [expr {$r + 10}] }
+    return $r
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1  # only a(1) exists
+
 
 class TestLassign:
     """``lassign`` destructures a list into variables and returns the rest."""
@@ -953,6 +969,72 @@ return [main]
         ok, val, err = _run_tcl_for_value(source)
         assert ok, f"error: {err}"
         assert val == 0
+
+    def test_array_exists_after_removing_all_elements(self):
+        """``array exists`` returns 1 for an array variable even when it
+        has zero elements — matches Tcl semantics where the array
+        variable persists after the last ``unset``.
+        """
+        source = """\
+proc main {} {
+    set a(1) 1
+    unset a(1)
+    if {[array exists a]} { return 1 }
+    return 0
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_array_unset_preserves_probe_chain(self):
+        """Deleting an element must not break lookups of collision-mates.
+
+        We insert enough keys to provoke multiple collisions in the
+        initial 8-bucket table, unset one in the middle, and check
+        that the remaining keys are all still findable.
+        """
+        source = """\
+proc main {} {
+    set n 12
+    for {set i 0} {$i < $n} {incr i} {
+        set a($i) $i
+    }
+    unset a(3)
+    set sum 0
+    for {set i 0} {$i < $n} {incr i} {
+        if {[info exists a($i)]} {
+            set sum [expr {$sum + $a($i)}]
+        }
+    }
+    return $sum
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        # Sum 0..11 = 66, minus 3 = 63.  If the probe chain breaks
+        # we'd miss some later keys and the sum drops below 63.
+        assert val == 63
+
+    def test_array_unset_and_reinsert(self):
+        """After unsetting a key we can still insert a new one with the
+        same or a colliding hash and look it up.
+        """
+        source = """\
+proc main {} {
+    set a(x) 100
+    unset a(x)
+    set a(x) 7
+    set a(y) 11
+    return [expr {$a(x) + $a(y)}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 18
 
     def test_array_set_literal(self):
         source = """\

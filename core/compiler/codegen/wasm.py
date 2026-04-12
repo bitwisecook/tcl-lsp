@@ -1043,6 +1043,16 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     if subcmd == "exists":
                         needed.add("tcl_global_exists")
                         needed.add("tcl_obj_new_int")
+                        # ``info exists arr(key)`` inside a substitution —
+                        # parts[2] (if present) is the var text.
+                        if len(parts) > 2:
+                            raw = parts[2]
+                            if raw.startswith("${") and raw.endswith("}"):
+                                raw = raw[2:-1]
+                            elif raw.startswith("$"):
+                                raw = raw[1:]
+                            if _parse_array_ref(raw) is not None:
+                                needed.add("tcl_array_element_exists")
                     if subcmd in ("body", "args", "exists"):
                         needed.add("tcl_info_dispatch")
                 elif cmd == "lassign":
@@ -1261,6 +1271,16 @@ def _scan_needed_imports(
                     if args[0] == "exists":
                         needed.add("tcl_global_exists")
                         needed.add("tcl_obj_new_int")
+                        # ``info exists arr(key)`` — probe the array table.
+                        if len(args) >= 2:
+                            raw = args[1]
+                            # Strip a ``$`` / ``${...}`` sigil if present.
+                            if raw.startswith("${") and raw.endswith("}"):
+                                raw = raw[2:-1]
+                            elif raw.startswith("$"):
+                                raw = raw[1:]
+                            if _parse_array_ref(raw) is not None:
+                                needed.add("tcl_array_element_exists")
                     if args[0] in ("body", "args", "exists"):
                         needed.add("tcl_info_dispatch")
                 elif command == "lassign":
@@ -3947,6 +3967,23 @@ class _WasmEmitter:
             # Normalise ``$name`` / ``${name}`` just in case the lowerer
             # hasn't stripped the sigil.
             resolved = self._resolve_var_name(var) or var
+            # ``info exists arr(key)`` — array element lookup.  The array
+            # name itself may be alias-bound (upvar/variable) so resolve
+            # it through _emit_array_name_obj, then probe the element
+            # table via tcl_array_element_exists.
+            array_ref = _parse_array_ref(resolved)
+            if array_ref is not None:
+                elem_idx = self._shared_imports.get("tcl_array_element_exists")
+                if elem_idx is not None:
+                    arr, key = array_ref
+                    self._emit_array_name_obj(arr)
+                    self._emit_value(key)
+                    self._emit_call(elem_idx)
+                    return
+                # Runtime helper missing — conservative false.
+                self._emit_i64_const(0)
+                self._emit_box_int()
+                return
             gexist_idx = self._shared_imports.get("tcl_global_exists")
             binding = self._aliases.get(resolved)
             if binding is not None and binding[0] == "global" and gexist_idx is not None:
