@@ -22,7 +22,7 @@ const stubs = @import("tcl_stubs.zig");
 // / nativename), always-false answers for existence queries, and
 // trapping behaviour for mutating ops (mkdir / delete / rename / …).
 
-pub export fn glob(pattern: i32) i32 {
+pub export fn tcl_cmd_glob(pattern: i32) i32 {
     _ = pattern;
     stubs.unsupported("glob");
     return 0;
@@ -33,19 +33,19 @@ pub export fn glob(pattern: i32) i32 {
 // path-seed purposes (tcltest's ``workingDirectory`` option is the
 // poster child) now load without tripping.
 
-pub export fn exec(cmd: i32) i32 {
+pub export fn tcl_cmd_exec(cmd: i32) i32 {
     _ = cmd;
     stubs.unsupported("exec");
     return 0;
 }
 
-pub export fn source(path: i32) i32 {
+pub export fn tcl_cmd_source(path: i32) i32 {
     _ = path;
     stubs.unsupported("source");
     return 0;
 }
 
-pub export fn load(path: i32) i32 {
+pub export fn tcl_cmd_load(path: i32) i32 {
     _ = path;
     stubs.unsupported("load");
     return 0;

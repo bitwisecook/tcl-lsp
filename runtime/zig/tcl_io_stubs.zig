@@ -17,37 +17,37 @@
 
 const stubs = @import("tcl_stubs.zig");
 
-pub export fn open(path: i32) i32 {
+pub export fn tcl_cmd_open(path: i32) i32 {
     _ = path;
     stubs.unsupported("open");
     return 0;
 }
 
-pub export fn close(fd: i32) i32 {
+pub export fn tcl_cmd_close(fd: i32) i32 {
     _ = fd;
     stubs.unsupported("close");
     return 0;
 }
 
-pub export fn read(fd: i32) i32 {
+pub export fn tcl_cmd_read(fd: i32) i32 {
     _ = fd;
     stubs.unsupported("read");
     return 0;
 }
 
-pub export fn gets(fd: i32) i32 {
+pub export fn tcl_cmd_gets(fd: i32) i32 {
     _ = fd;
     stubs.unsupported("gets");
     return 0;
 }
 
-pub export fn eof(fd: i32) i32 {
+pub export fn tcl_cmd_eof(fd: i32) i32 {
     _ = fd;
     stubs.unsupported("eof");
     return 0;
 }
 
-pub export fn flush(fd: i32) i32 {
+pub export fn tcl_cmd_flush(fd: i32) i32 {
     _ = fd;
     stubs.unsupported("flush");
     return 0;
@@ -62,20 +62,20 @@ pub export fn fblocked(fd: i32) i32 {
 // ``fconfigure`` moved to tcl_chan.zig — it's a NOP that silently
 // accepts option-set calls and returns empty for queries.
 
-pub export fn tell(fd: i32) i32 {
+pub export fn tcl_cmd_tell(fd: i32) i32 {
     _ = fd;
     stubs.unsupported("tell");
     return 0;
 }
 
-pub export fn seek(fd: i32, offset: i32) i32 {
+pub export fn tcl_cmd_seek(fd: i32, offset: i32) i32 {
     _ = fd;
     _ = offset;
     stubs.unsupported("seek");
     return 0;
 }
 
-pub export fn chan(sub: i32, arg: i32) i32 {
+pub export fn tcl_cmd_chan(sub: i32, arg: i32) i32 {
     _ = sub;
     _ = arg;
     stubs.unsupported("chan");
@@ -96,7 +96,7 @@ pub export fn fileevent(fd: i32, mode: i32) i32 {
     return 0;
 }
 
-pub export fn socket(host: i32, port: i32) i32 {
+pub export fn tcl_cmd_socket(host: i32, port: i32) i32 {
     _ = host;
     _ = port;
     stubs.unsupported("socket");

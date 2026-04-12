@@ -365,7 +365,7 @@ fn eval_command(words: []const i32) i32 {
         else if (words.len >= 2) { return frames.var_resolve(words[1]); }
         return 0;
     }
-    if (str_eq(cmd, cmd_s.len, "puts")) { if (words.len >= 2) return rt.puts(words[words.len - 1]); return 0; }
+    if (str_eq(cmd, cmd_s.len, "puts")) { if (words.len >= 2) return rt.tcl_cmd_puts(words[words.len - 1]); return 0; }
     if (str_eq(cmd, cmd_s.len, "expr")) {
         if (words.len >= 2) { const es = obj_ensure_string(words[1]); return obj_new_int(eval_expr_str(es.ptr, es.len)); }
         return 0;

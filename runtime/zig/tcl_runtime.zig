@@ -49,7 +49,7 @@ pub const global_get = tcl_globals.global_get;
 pub const global_exists = tcl_globals.global_exists;
 pub const tcl_incr = tcl_globals.tcl_incr;
 
-pub const puts = tcl_io.puts;
+pub const tcl_cmd_puts = tcl_io.tcl_cmd_puts;
 
 pub const append = tcl_string.append;
 pub const string_length = tcl_string.string_length;
@@ -157,7 +157,7 @@ comptime {
     _ = &tcl_globals.global_exists;
     _ = &tcl_globals.tcl_incr;
     // tcl_io exports
-    _ = &tcl_io.puts;
+    _ = &tcl_io.tcl_cmd_puts;
     // tcl_string exports
     _ = &tcl_string.append;
     _ = &tcl_string.string_compare;
@@ -211,28 +211,28 @@ comptime {
     // a silent wrong answer.  Imports of these are wired up in
     // core/compiler/codegen/wasm.py's ``_RUNTIME_IMPORTS``; the
     // comptime references here ensure the linker keeps them.
-    _ = &tcl_io_stubs.open;
-    _ = &tcl_io_stubs.close;
-    _ = &tcl_io_stubs.read;
-    _ = &tcl_io_stubs.gets;
-    _ = &tcl_io_stubs.eof;
-    _ = &tcl_io_stubs.flush;
+    _ = &tcl_io_stubs.tcl_cmd_open;
+    _ = &tcl_io_stubs.tcl_cmd_close;
+    _ = &tcl_io_stubs.tcl_cmd_read;
+    _ = &tcl_io_stubs.tcl_cmd_gets;
+    _ = &tcl_io_stubs.tcl_cmd_eof;
+    _ = &tcl_io_stubs.tcl_cmd_flush;
     _ = &tcl_io_stubs.fblocked;
-    _ = &tcl_io_stubs.tell;
-    _ = &tcl_io_stubs.seek;
-    _ = &tcl_io_stubs.chan;
+    _ = &tcl_io_stubs.tcl_cmd_tell;
+    _ = &tcl_io_stubs.tcl_cmd_seek;
+    _ = &tcl_io_stubs.tcl_cmd_chan;
     _ = &tcl_io_stubs.fcopy;
     _ = &tcl_io_stubs.fileevent;
-    _ = &tcl_io_stubs.socket;
+    _ = &tcl_io_stubs.tcl_cmd_socket;
     // file has a real impl in tcl_fs.zig.
     _ = &tcl_fs.file;
-    _ = &tcl_fs_stubs.glob;
+    _ = &tcl_fs_stubs.tcl_cmd_glob;
     // pwd and cd live in tcl_fs.zig (pass-through impl).
     _ = &tcl_fs.pwd;
     _ = &tcl_fs.cd;
-    _ = &tcl_fs_stubs.exec;
-    _ = &tcl_fs_stubs.source;
-    _ = &tcl_fs_stubs.load;
+    _ = &tcl_fs_stubs.tcl_cmd_exec;
+    _ = &tcl_fs_stubs.tcl_cmd_source;
+    _ = &tcl_fs_stubs.tcl_cmd_load;
     _ = &tcl_fs_stubs.unload;
     // format lives in tcl_format.zig (real impl).
     _ = &tcl_format.format;
