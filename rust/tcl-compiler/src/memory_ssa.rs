@@ -28,6 +28,9 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, Version};
+use crate::var_scoping::{
+    global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
+};
 
 // ---------------------------------------------------------------------------
 // MemoryLocationKind / MemoryLocation (C24b1)
@@ -356,62 +359,32 @@ fn call_parts(stmt: &Statement) -> Option<(&str, &[String])> {
 
 /// Detect `upvar ?level? otherVar myVar ?…?` aliasing pairs.
 ///
-/// Returns a list of `(caller_var, local_var)` pairs. Also handles
-/// the three-word `namespace upvar ns otherVar myVar …` form.
-///
-/// The Python port defers to
-/// `core.analysis.var_scoping.upvar_local_declaration_indices` for
-/// the full grammar. This Rust port inlines a simplified grammar
-/// covering the common patterns:
-///
-/// - `upvar varName localName` (no level).
-/// - `upvar LEVEL varName localName`, where LEVEL is `#N` or a
-///   decimal integer.
-/// - `upvar ?level? v1 l1 v2 l2 …` pairs after the level word.
-/// - `namespace upvar NS v1 l1 v2 l2 …` pairs after the namespace
-///   word.
+/// Returns a list of `(caller_var, local_var)` pairs. Delegates to
+/// [`upvar_local_declaration_indices`] for the grammar, so all
+/// level-word forms (decimal, negative decimal, `#N`) and both
+/// `namespace upvar` entry points (lowered or pre-composed) are
+/// handled the same way the LSP declaration provider and the
+/// Python port see them.
 #[must_use]
 pub fn detect_upvar(stmt: &Statement) -> Vec<(String, String)> {
     let Some((cmd, args)) = call_parts(stmt) else {
         return Vec::new();
     };
-    let (pairs_start, pair_args) = match cmd {
-        "upvar" => {
-            // `upvar ?level? v1 l1 …`. Level is detected as the first
-            // arg when it's `#N` or all-digits, and there is an even
-            // number of remaining args.
-            if args.is_empty() {
-                return Vec::new();
-            }
-            let looks_like_level = |s: &str| -> bool {
-                if let Some(rest) = s.strip_prefix('#') {
-                    return !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit());
-                }
-                !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
-            };
-            if looks_like_level(&args[0]) && args.len() >= 3 && args.len() % 2 == 1 {
-                (1, &args[1..])
-            } else {
-                (0, args)
-            }
+    let args_vec: Vec<String> = args.to_vec();
+    let indices = upvar_local_declaration_indices(cmd, &args_vec);
+    // The helper returns *local* indices; each pair is at
+    // (local - 1, local).
+    let mut out = Vec::with_capacity(indices.len());
+    for local_idx in indices {
+        if local_idx >= 1 && local_idx < args_vec.len() {
+            out.push((args_vec[local_idx - 1].clone(), args_vec[local_idx].clone()));
         }
-        "namespace" if args.len() >= 3 && args[0] == "upvar" => {
-            // `namespace upvar NS v1 l1 …`. Skip "upvar" + NS.
-            (2, &args[2..])
-        }
-        _ => return Vec::new(),
-    };
-    let _ = pairs_start;
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i + 1 < pair_args.len() {
-        out.push((pair_args[i].clone(), pair_args[i + 1].clone()));
-        i += 2;
     }
     out
 }
 
-/// Detect `global varName …` declarations.
+/// Detect `global varName …` declarations, skipping any
+/// substituted `$ref` arguments.
 #[must_use]
 pub fn detect_global(stmt: &Statement) -> Vec<String> {
     let Some((cmd, args)) = call_parts(stmt) else {
@@ -420,17 +393,16 @@ pub fn detect_global(stmt: &Statement) -> Vec<String> {
     if cmd != "global" {
         return Vec::new();
     }
-    args.to_vec()
+    let args_vec: Vec<String> = args.to_vec();
+    global_declaration_indices(&args_vec)
+        .into_iter()
+        .map(|i| args_vec[i].clone())
+        .collect()
 }
 
-/// Detect `variable varName ?value? …` declarations.
-///
-/// `variable` takes (name, value) pairs after the optional leading
-/// namespace. The Python port inspects registry metadata; this Rust
-/// port uses the simpler convention that the first, third, fifth, …
-/// arguments are variable names. Names that start with an ASCII
-/// letter or `_` are considered valid; literal-value arguments are
-/// skipped.
+/// Detect `variable varName ?value? …` declarations, filtering out
+/// any substituted `$ref` name positions via
+/// [`variable_declaration_indices`].
 #[must_use]
 pub fn detect_namespace_variable(stmt: &Statement) -> Vec<String> {
     let Some((cmd, args)) = call_parts(stmt) else {
@@ -439,15 +411,11 @@ pub fn detect_namespace_variable(stmt: &Statement) -> Vec<String> {
     if cmd != "variable" {
         return Vec::new();
     }
-    // `variable name ?value? name ?value? …` — the first argument
-    // is always a name; subsequent args alternate name, value.
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < args.len() {
-        out.push(args[i].clone());
-        i += 2;
-    }
-    out
+    let args_vec: Vec<String> = args.to_vec();
+    variable_declaration_indices(&args_vec)
+        .into_iter()
+        .map(|i| args_vec[i].clone())
+        .collect()
 }
 
 /// True if `stmt` may clobber arbitrary memory locations.
