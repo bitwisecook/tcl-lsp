@@ -143,12 +143,175 @@ fn eval(node: &ExprNode, env: &Env) -> Option<TclValue> {
                 eval(false_branch, env)
             }
         }
-        // Math function calls, command substitutions, quoted strings,
-        // and the raw fallback are opaque at compile time.
-        ExprNode::Call { .. }
-        | ExprNode::Command { .. }
-        | ExprNode::String { .. }
-        | ExprNode::Raw { .. } => None,
+        ExprNode::Call { function, args, .. } => eval_call(function, args, env),
+        // Command substitutions, quoted strings, and raw fallbacks
+        // are opaque at compile time.
+        ExprNode::Command { .. } | ExprNode::String { .. } | ExprNode::Raw { .. } => None,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Math function calls
+// ---------------------------------------------------------------------------
+
+/// Dispatch a math-function call with already-evaluated operand
+/// nodes. Returns `None` for unknown functions, non-deterministic
+/// ones (`rand`, `srand`), and any call whose argument count or
+/// value doesn't match the function's expected shape.
+fn eval_call(function: &str, args: &[ExprNode], env: &Env) -> Option<TclValue> {
+    let name = function.to_ascii_lowercase();
+    if matches!(name.as_str(), "rand" | "srand") {
+        return None;
+    }
+    let mut vals = Vec::with_capacity(args.len());
+    for arg in args {
+        vals.push(eval(arg, env)?);
+    }
+    dispatch_math(&name, &vals)
+}
+
+#[allow(clippy::too_many_lines)]
+fn dispatch_math(name: &str, vals: &[TclValue]) -> Option<TclValue> {
+    // Helpers for common argument shapes.
+    let one = || -> Option<TclValue> {
+        if vals.len() == 1 {
+            Some(vals[0])
+        } else {
+            None
+        }
+    };
+    let unary_float = |f: fn(f64) -> f64| -> Option<TclValue> {
+        let v = one()?;
+        let r = f(v.as_f64());
+        if r.is_nan() && !v.as_f64().is_nan() {
+            None // domain error (e.g. log(-1))
+        } else {
+            Some(TclValue::Float(r))
+        }
+    };
+    let binary_float = |f: fn(f64, f64) -> f64| -> Option<TclValue> {
+        if vals.len() != 2 {
+            return None;
+        }
+        let r = f(vals[0].as_f64(), vals[1].as_f64());
+        if r.is_nan() {
+            None
+        } else {
+            Some(TclValue::Float(r))
+        }
+    };
+
+    match name {
+        // Type conversion.
+        "abs" => match one()? {
+            TclValue::Int(i) => i.checked_abs().map(TclValue::Int),
+            TclValue::Float(f) => Some(TclValue::Float(f.abs())),
+        },
+        "int" | "entier" | "wide" => match one()? {
+            TclValue::Int(i) => Some(TclValue::Int(i)),
+            TclValue::Float(f) => {
+                if f.is_finite() {
+                    Some(TclValue::Int(f as i64))
+                } else {
+                    None
+                }
+            }
+        },
+        "double" => Some(TclValue::Float(one()?.as_f64())),
+        "bool" => Some(TclValue::Int(i64::from(one()?.is_truthy()))),
+
+        // Rounding — Tcl `round` ties away from zero; `ceil` / `floor`
+        // return doubles, matching C Tcl.
+        "round" => match one()? {
+            TclValue::Int(i) => Some(TclValue::Int(i)),
+            TclValue::Float(f) => {
+                if !f.is_finite() {
+                    None
+                } else if f >= 0.0 {
+                    Some(TclValue::Int((f + 0.5).floor() as i64))
+                } else {
+                    Some(TclValue::Int((f - 0.5).ceil() as i64))
+                }
+            }
+        },
+        "ceil" => {
+            let v = one()?;
+            Some(TclValue::Float(v.as_f64().ceil()))
+        }
+        "floor" => {
+            let v = one()?;
+            Some(TclValue::Float(v.as_f64().floor()))
+        }
+
+        // Variadic min/max — never shrink width.
+        "min" | "max" => {
+            if vals.is_empty() {
+                return None;
+            }
+            let all_int = vals.iter().all(|v| matches!(v, TclValue::Int(_)));
+            if all_int {
+                let ints: Vec<i64> = vals
+                    .iter()
+                    .map(|v| match v {
+                        TclValue::Int(i) => *i,
+                        TclValue::Float(_) => unreachable!(),
+                    })
+                    .collect();
+                let r = if name == "min" {
+                    *ints.iter().min().unwrap()
+                } else {
+                    *ints.iter().max().unwrap()
+                };
+                Some(TclValue::Int(r))
+            } else {
+                let mut best = vals[0].as_f64();
+                for v in &vals[1..] {
+                    let f = v.as_f64();
+                    let take = if name == "min" { f < best } else { f > best };
+                    if take {
+                        best = f;
+                    }
+                }
+                Some(TclValue::Float(best))
+            }
+        }
+
+        // Integer sqrt.
+        "isqrt" => match one()? {
+            TclValue::Int(i) if i >= 0 => Some(TclValue::Int((i as f64).sqrt() as i64)),
+            _ => None,
+        },
+
+        // Classification (returns int 0/1).
+        "isinf" => Some(TclValue::Int(i64::from(matches!(one()?, TclValue::Float(f) if f.is_infinite())))),
+        "isnan" => Some(TclValue::Int(i64::from(matches!(one()?, TclValue::Float(f) if f.is_nan())))),
+        "isfinite" => match one()? {
+            TclValue::Int(_) => Some(TclValue::Int(1)),
+            TclValue::Float(f) => Some(TclValue::Int(i64::from(f.is_finite()))),
+        },
+
+        // Unary float.
+        "sqrt" => unary_float(f64::sqrt),
+        "exp" => unary_float(f64::exp),
+        "log" => unary_float(f64::ln),
+        "log10" => unary_float(f64::log10),
+        "sin" => unary_float(f64::sin),
+        "cos" => unary_float(f64::cos),
+        "tan" => unary_float(f64::tan),
+        "asin" => unary_float(f64::asin),
+        "acos" => unary_float(f64::acos),
+        "atan" => unary_float(f64::atan),
+        "sinh" => unary_float(f64::sinh),
+        "cosh" => unary_float(f64::cosh),
+        "tanh" => unary_float(f64::tanh),
+
+        // Binary float.
+        "atan2" => binary_float(f64::atan2),
+        "hypot" => binary_float(f64::hypot),
+        "fmod" => binary_float(|a, b| a % b),
+        "pow" => binary_float(f64::powf),
+
+        _ => None,
     }
 }
 
@@ -649,5 +812,119 @@ mod tests {
     fn irules_string_ops_return_none() {
         // Deferred — callers fall through to runtime.
         assert_eq!(eval_str("\"abc\" contains \"b\""), None);
+    }
+
+    // -- Math function dispatch --
+
+    #[test]
+    fn math_abs_int_and_float() {
+        assert_eq!(eval_str("abs(-5)"), Some(TclValue::Int(5)));
+        assert_eq!(eval_str("abs(-1.5)"), Some(TclValue::Float(1.5)));
+    }
+
+    #[test]
+    fn math_int_conversion_truncates() {
+        assert_eq!(eval_str("int(3.7)"), Some(TclValue::Int(3)));
+        assert_eq!(eval_str("int(-3.7)"), Some(TclValue::Int(-3)));
+        assert_eq!(eval_str("entier(2.9)"), Some(TclValue::Int(2)));
+        assert_eq!(eval_str("wide(1)"), Some(TclValue::Int(1)));
+    }
+
+    #[test]
+    fn math_double_promotes_ints() {
+        assert_eq!(eval_str("double(3)"), Some(TclValue::Float(3.0)));
+    }
+
+    #[test]
+    fn math_bool_normalises_to_01() {
+        assert_eq!(eval_str("bool(42)"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("bool(0)"), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("bool(0.0)"), Some(TclValue::Int(0)));
+    }
+
+    #[test]
+    fn math_round_ties_away_from_zero() {
+        // Tcl round: 0.5 → 1, -0.5 → -1 (NOT banker's rounding).
+        assert_eq!(eval_str("round(0.5)"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("round(-0.5)"), Some(TclValue::Int(-1)));
+        assert_eq!(eval_str("round(1.5)"), Some(TclValue::Int(2)));
+        assert_eq!(eval_str("round(-1.5)"), Some(TclValue::Int(-2)));
+        assert_eq!(eval_str("round(2.5)"), Some(TclValue::Int(3)));
+    }
+
+    #[test]
+    fn math_ceil_and_floor_return_floats() {
+        assert_eq!(eval_str("ceil(1.2)"), Some(TclValue::Float(2.0)));
+        assert_eq!(eval_str("floor(1.8)"), Some(TclValue::Float(1.0)));
+    }
+
+    #[test]
+    fn math_min_max_preserve_int_width() {
+        assert_eq!(eval_str("min(3, 1, 2)"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("max(3, 1, 2)"), Some(TclValue::Int(3)));
+        // Mixed int/float → float result.
+        assert_eq!(eval_str("min(1, 2.5)"), Some(TclValue::Float(1.0)));
+    }
+
+    #[test]
+    fn math_sqrt_and_pow() {
+        assert_eq!(eval_str("sqrt(16)"), Some(TclValue::Float(4.0)));
+        assert_eq!(eval_str("pow(2, 10)"), Some(TclValue::Float(1024.0)));
+    }
+
+    #[test]
+    fn math_sqrt_negative_is_domain_error() {
+        assert_eq!(eval_str("sqrt(-1)"), None);
+    }
+
+    #[test]
+    fn math_log_zero_and_negative_domain_error() {
+        assert_eq!(eval_str("log(-1)"), None);
+        // log(0) → -inf, treated as success (Tcl returns -inf too).
+        let v = eval_str("log(0)");
+        assert!(matches!(v, Some(TclValue::Float(f)) if f.is_infinite()));
+    }
+
+    #[test]
+    fn math_atan2_and_hypot() {
+        // atan2(0, 1) = 0, hypot(3, 4) = 5
+        assert_eq!(eval_str("atan2(0, 1)"), Some(TclValue::Float(0.0)));
+        assert_eq!(eval_str("hypot(3, 4)"), Some(TclValue::Float(5.0)));
+    }
+
+    #[test]
+    fn math_trig_approx() {
+        // sin(0) == 0.
+        assert!(matches!(
+            eval_str("sin(0)"),
+            Some(TclValue::Float(f)) if f == 0.0
+        ));
+    }
+
+    #[test]
+    fn math_classification() {
+        assert_eq!(eval_str("isinf(1)"), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("isnan(1.0)"), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("isfinite(1.0)"), Some(TclValue::Int(1)));
+    }
+
+    #[test]
+    fn math_isqrt_integer_only() {
+        assert_eq!(eval_str("isqrt(16)"), Some(TclValue::Int(4)));
+        assert_eq!(eval_str("isqrt(17)"), Some(TclValue::Int(4)));
+        // Float arg → None (mirrors Python behaviour).
+        assert_eq!(eval_str("isqrt(4.0)"), None);
+    }
+
+    #[test]
+    fn math_rand_and_srand_always_none() {
+        // Non-deterministic — callers must not constant-fold.
+        assert_eq!(eval_str("rand()"), None);
+        assert_eq!(eval_str("srand(42)"), None);
+    }
+
+    #[test]
+    fn math_unknown_function_is_none() {
+        assert_eq!(eval_str("thereisnosuchfn(1)"), None);
     }
 }
