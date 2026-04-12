@@ -32,32 +32,21 @@ use super::{Optimisation, PassContext};
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     for (qname, proc) in &cu.ir_module.procedures {
         let self_names = self_name_variants(qname);
-        let tail_count_before = ctx.optimisations.iter().filter(|o| o.code == "O121").count();
-        collect_tail_sites(ctx, &proc.body, &self_names, proc);
-        let tail_count = ctx
-            .optimisations
-            .iter()
-            .filter(|o| o.code == "O121")
-            .count()
-            - tail_count_before;
+        let mut sites: Vec<TailSite> = Vec::new();
+        collect_tail_sites(ctx, &proc.body, &self_names, proc, &mut sites);
 
         let total_self_calls = count_self_calls_in_script(&proc.body, &self_names);
-        if tail_count > 0 && tail_count == total_self_calls {
-            let mut opt = Optimisation::new(
-                "O122",
-                format!(
-                    "Convert tail-recursive proc '{}' to a while loop",
-                    proc.name
-                ),
-                proc.span,
-                "",
-            );
-            opt.hint_only = true;
-            ctx.report(opt);
+        if !sites.is_empty() && sites.len() == total_self_calls {
+            // O122: every self-call is in tail position. Emit a
+            // real source rewrite — restructure the proc body as
+            // a `while {1}` loop, replacing each tail call with
+            // a parameter reassignment (`set p v` for single
+            // param, `lassign` for multiple).
+            emit_loop_conversion(ctx, proc, &sites);
         }
 
         // O123: any non-tail self-call embedded in an expression
-        // → accumulator candidate.
+        // → accumulator candidate (hint-only, matches Python).
         if non_tail_self_call_in_expression(&proc.body, &self_names) {
             let mut opt = Optimisation::new(
                 "O123",
@@ -72,6 +61,119 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             ctx.report(opt);
         }
     }
+}
+
+/// One tail-position self-call site — the span of the call
+/// statement plus the argument texts (needed to build the loop
+/// body's parameter reassignment).
+#[derive(Debug, Clone)]
+struct TailSite {
+    /// Absolute source span of the tail-call statement.
+    span: tcl_lexer::Span,
+    /// Raw argument texts passed to the recursive call.
+    args: Vec<String>,
+}
+
+/// Produce the replacement parameter reassignment for a tail
+/// call — `set p v` for a single param, `lassign {v1 v2 …} p1
+/// p2 …` for multiple. Matches the Python `_make_reassignment`
+/// output.
+fn make_reassignment(params: &[String], args: &[String]) -> String {
+    if params.len() == 1 {
+        format!("set {} {}", params[0], args[0])
+    } else {
+        let arg_list = args.join(" ");
+        let param_list = params.join(" ");
+        format!("lassign {{{arg_list}}} {param_list}")
+    }
+}
+
+/// Emit the O122 while-loop conversion rewrite on top of the
+/// full proc span. Falls back silently when the proc's
+/// `body_source` is not available (synthetic procs) or when
+/// argument counts don't line up with parameter counts.
+fn emit_loop_conversion(
+    ctx: &mut PassContext<'_>,
+    proc: &crate::ir::Procedure,
+    sites: &[TailSite],
+) {
+    let Some(body_source) = &proc.body_source else {
+        return;
+    };
+    if proc.params.is_empty() {
+        return;
+    }
+    // Every tail-call site must pass exactly `params.len()` args
+    // — otherwise the loop conversion would lose information.
+    for site in sites {
+        if site.args.len() != proc.params.len() {
+            return;
+        }
+    }
+    // Find the body_source within the outer source so we can
+    // translate absolute call-site spans to body-local offsets.
+    let proc_range = proc.span.as_range();
+    if proc_range.end > ctx.source.len() {
+        return;
+    }
+    let proc_text = &ctx.source[proc_range.clone()];
+    let Some(body_offset_in_proc) = proc_text.find(body_source.as_str()) else {
+        return;
+    };
+    let body_start_abs = proc_range.start + body_offset_in_proc;
+
+    // Replace every tail-call site with the reassignment — in
+    // reverse order so earlier substitutions don't shift later
+    // offsets.
+    let mut modified = body_source.clone();
+    let mut ordered = sites.to_vec();
+    ordered.sort_by_key(|s| std::cmp::Reverse(s.span.start()));
+    for site in ordered {
+        let site_range = site.span.as_range();
+        if site_range.start < body_start_abs || site_range.end > body_start_abs + modified.len() {
+            return;
+        }
+        let rel_start = site_range.start - body_start_abs;
+        let rel_end = site_range.end - body_start_abs;
+        let reassign = make_reassignment(&proc.params, &site.args);
+        modified.replace_range(rel_start..rel_end, &reassign);
+    }
+
+    // Re-indent the body for the `while {1}` nesting (add 4
+    // spaces to every non-empty line).
+    let trimmed = modified.trim_end();
+    let reindented: String = trimmed
+        .split('\n')
+        .map(|line| {
+            if line.trim().is_empty() {
+                line.to_owned()
+            } else {
+                format!("    {line}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Pull the short name + params_raw from the proc so the
+    // replacement matches the original shape.
+    let short_name = &proc.name;
+    let params_raw = if proc.params_raw.is_empty() {
+        proc.params.join(" ")
+    } else {
+        proc.params_raw.clone()
+    };
+    let replacement = format!(
+        "proc {short_name} {{{params_raw}}} {{\n    while {{1}} {{{reindented}\n    }}\n}}"
+    );
+
+    ctx.report(Optimisation::new(
+        "O122",
+        format!(
+            "Convert tail-recursive '{short_name}' to iterative loop"
+        ),
+        proc.span,
+        replacement,
+    ));
 }
 
 /// Count every textual reference to a self-name across the
@@ -286,12 +388,13 @@ fn collect_tail_sites(
     script: &Script,
     self_names: &HashSet<String>,
     proc: &Procedure,
+    sites: &mut Vec<TailSite>,
 ) {
     let Some(last) = script.statements.last() else {
         return;
     };
     match last {
-        Statement::Call { span, command, .. } if self_names.contains(command) => {
+        Statement::Call { span, command, args, .. } if self_names.contains(command) => {
             ctx.report(Optimisation::new(
                 "O121",
                 format!(
@@ -301,6 +404,10 @@ fn collect_tail_sites(
                 *span,
                 format!("tailcall {command}"),
             ));
+            sites.push(TailSite {
+                span: *span,
+                args: args.clone(),
+            });
         }
         Statement::Return {
             span,
@@ -323,6 +430,18 @@ fn collect_tail_sites(
                         *span,
                         replacement,
                     ));
+                    let split_args: Vec<String> = if call_args.is_empty() {
+                        Vec::new()
+                    } else {
+                        call_args
+                            .split_whitespace()
+                            .map(str::to_owned)
+                            .collect()
+                    };
+                    sites.push(TailSite {
+                        span: *span,
+                        args: split_args,
+                    });
                 }
             }
         }
@@ -330,10 +449,10 @@ fn collect_tail_sites(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                collect_tail_sites(ctx, &c.body, self_names, proc);
+                collect_tail_sites(ctx, &c.body, self_names, proc, sites);
             }
             if let Some(eb) = else_body {
-                collect_tail_sites(ctx, eb, self_names, proc);
+                collect_tail_sites(ctx, eb, self_names, proc, sites);
             }
         }
         Statement::Switch {
@@ -341,11 +460,11 @@ fn collect_tail_sites(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    collect_tail_sites(ctx, b, self_names, proc);
+                    collect_tail_sites(ctx, b, self_names, proc, sites);
                 }
             }
             if let Some(db) = default_body {
-                collect_tail_sites(ctx, db, self_names, proc);
+                collect_tail_sites(ctx, db, self_names, proc, sites);
             }
         }
         _ => {}
@@ -459,14 +578,57 @@ mod tests {
     }
 
     #[test]
-    fn o122_loop_conversion_hint_when_all_self_calls_are_tail() {
-        // Every self-call is in a tail position → emit O122 hint.
+    fn o122_loop_conversion_rewrite_when_all_self_calls_are_tail() {
+        // Every self-call is in a tail position → emit a
+        // real source rewrite (not hint-only).
         let opts = run_pass(
             "proc ::fact {n} { if {$n <= 1} { return 1 } else { fact [expr {$n - 1}] } }",
         );
+        let opt = opts
+            .iter()
+            .find(|o| o.code == "O122")
+            .expect("O122 should fire");
+        assert!(!opt.hint_only, "O122 should now be a real rewrite");
         assert!(
-            opts.iter().any(|o| o.code == "O122" && o.hint_only),
-            "expected O122 loop-conversion hint, got {opts:?}",
+            opt.replacement.contains("while {1}"),
+            "expected while-loop replacement, got {:?}",
+            opt.replacement,
+        );
+        assert!(
+            opt.replacement.contains("set n")
+                || opt.replacement.contains("lassign"),
+            "expected parameter reassignment in loop body, got {:?}",
+            opt.replacement,
+        );
+    }
+
+    #[test]
+    fn o122_multi_param_uses_lassign() {
+        // Two-param tail-recursive proc → lassign for simultaneous
+        // reassignment.
+        let opts = run_pass(
+            "proc ::f {a b} { if {$a <= 0} { return $b } else { f [expr {$a - 1}] [expr {$b + 1}] } }",
+        );
+        let opt = opts
+            .iter()
+            .find(|o| o.code == "O122")
+            .expect("O122 should fire");
+        assert!(
+            opt.replacement.contains("lassign"),
+            "expected lassign for multi-param reassignment, got {:?}",
+            opt.replacement,
+        );
+    }
+
+    #[test]
+    fn o122_skipped_when_arity_mismatch() {
+        // Tail-call passes wrong number of args → fold refused.
+        let opts = run_pass(
+            "proc ::f {a b} { if {$a <= 0} { return 0 } else { f 1 } }",
+        );
+        assert!(
+            opts.iter().all(|o| o.code != "O122"),
+            "arity mismatch should suppress O122, got {opts:?}",
         );
     }
 
