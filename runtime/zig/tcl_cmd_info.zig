@@ -59,6 +59,14 @@ pub export fn info_args(name: i32) i32 {
 /// and other harnesses to validate user-supplied scripts before
 /// evaluating them.  We walk the string once, tracking brace and
 /// bracket nesting depth and honouring ``\`` escapes.
+///
+/// Brackets inside braced text (``{a [b} c]``) do NOT count —
+/// brace-quoted words treat ``[`` as a literal character, not a
+/// command-substitution marker.  So a script like ``"{[}"`` is
+/// structurally complete: the outer ``[`` / ``]`` are consumed by
+/// the braced word, which is itself balanced.  Only brackets
+/// outside brace depth 0 affect completeness.  Similarly quotes
+/// are literal inside braces.
 pub fn info_complete(script: i32) i32 {
     const s = obj_ensure_string(script);
     if (s.len == 0) return obj_new_int(1);
@@ -71,6 +79,17 @@ pub fn info_complete(script: i32) i32 {
         const c = sp[i];
         if (c == '\\' and i + 1 < s.len) {
             i += 1;
+            continue;
+        }
+        if (brace > 0) {
+            // Inside braces: only ``{`` / ``}`` (and escaped chars)
+            // affect completeness.  Brackets and quotes are
+            // literal bytes.
+            switch (c) {
+                '{' => brace += 1,
+                '}' => brace -= 1,
+                else => {},
+            }
             continue;
         }
         if (in_quote) {

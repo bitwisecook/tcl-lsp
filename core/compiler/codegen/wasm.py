@@ -101,6 +101,59 @@ def _leb128_signed(value: int) -> bytes:
     return bytes(result)
 
 
+def _tcl_list_quote(s: str) -> str:
+    """Return *s* encoded as a single Tcl list element.
+
+    The result can be concatenated with a single space against
+    other ``_tcl_list_quote`` outputs and re-parsed as a list with
+    one element per input.  Matches (a subset of) ``Tcl_ConvertElement``:
+
+      - Empty strings become ``{}`` so they aren't collapsed by
+        whitespace-split re-parsing.
+      - Strings containing whitespace, ``{`` / ``}`` / ``[`` / ``]``
+        / ``"`` / ``\\`` / ``$`` / ``;`` and no unbalanced braces
+        are wrapped in ``{}``.
+      - Strings with unbalanced braces would need backslash escaping
+        (full ``Tcl_ConvertElement``); we fall back to double-quoting
+        with ``\\``-escaped special chars as a best-effort — rare in
+        practice because most such strings come from user code that
+        already brace-encloses them.
+
+    Plain words with no special chars pass through unchanged.
+    """
+    if s == "":
+        return "{}"
+    needs_quoting = False
+    brace_depth = 0
+    unbalanced = False
+    for ch in s:
+        if ch in ' \t\n\r{}[]"\\$;':
+            needs_quoting = True
+        if ch == "{":
+            brace_depth += 1
+        elif ch == "}":
+            brace_depth -= 1
+            if brace_depth < 0:
+                unbalanced = True
+                break
+    if brace_depth != 0:
+        unbalanced = True
+    if not needs_quoting:
+        return s
+    if not unbalanced:
+        return "{" + s + "}"
+    # Fallback: backslash-escape the special chars.  This is the
+    # "convert everything to literal bytes" form from
+    # Tcl_ConvertElement — correct for every input but uglier than
+    # the braced form for most real code.
+    out: list[str] = []
+    for ch in s:
+        if ch in '{}\\$[] \t\n\r;"':
+            out.append("\\")
+        out.append(ch)
+    return "".join(out)
+
+
 def _encode_string(s: str) -> bytes:
     """Encode a UTF-8 string with length prefix."""
     encoded = s.encode("utf-8")
@@ -4216,23 +4269,29 @@ class _WasmEmitter:
     def _emit_list_value(self, args: tuple[str, ...]) -> None:
         """Build a Tcl list from *args* and leave it on the stack as a TclObj.
 
-        If every arg is a literal (no ``$`` / ``[`` substitution), the
-        list is folded at compile time into a single ``obj_new_string``
-        — ideal for ``list upvar 0 Option($option) $varName`` because
-        our list representation is just space-separated words.  When
-        any arg needs runtime evaluation, we emit a ``tcl_concat``
-        chain with single-space separators that produces the same
-        space-joined string shape.
+        Each arg is emitted with proper Tcl list-element encoding —
+        empty strings become ``{}``, words containing whitespace /
+        braces / brackets / ``"`` / ``\\`` / ``$`` / ``;`` get wrapped
+        in braces so re-parsers see one element per arg.  This is
+        critical: ``[list "a b" c]`` must produce a two-element list
+        ``{a b} c``, not the three-word string ``a b c``.
 
-        This bypasses the 2-arg ``tcl_list`` runtime helper entirely
-        so we don't lose elements on N-ary calls.
+        When every arg is a literal the result is folded at compile
+        time into a single ``obj_new_string``; otherwise we emit a
+        ``tcl_concat`` chain with single-space separators.  Variable
+        and command-substitution args skip the element-quoting step
+        — their runtime value is used as-is, matching the pre-
+        existing ``tcl_list`` behaviour for interpolated values
+        (quoting them at compile time would brace-wrap whatever
+        runtime value they hold, changing semantics).
         """
         if not args:
             self._emit_i32_const(0)
             return
-        # Fast path: all literals → compile-time string.
+        # Fast path: all literals → compile-time string with each
+        # element Tcl-quoted.
         if all(not a.startswith("$") and not a.startswith("[") for a in args):
-            self._emit_obj_literal(" ".join(args))
+            self._emit_obj_literal(" ".join(_tcl_list_quote(a) for a in args))
             return
         # Mixed: emit each arg and chain tcl_concat with " " separators.
         concat_idx = self._shared_imports.get("tcl_concat")
@@ -4240,11 +4299,18 @@ class _WasmEmitter:
             # No concat helper — best-effort: just emit the first arg.
             self._emit_value(args[0])
             return
-        self._emit_value(args[0])
+
+        def _emit_elem(a: str) -> None:
+            if a.startswith("$") or a.startswith("["):
+                self._emit_value(a)
+            else:
+                self._emit_obj_literal(_tcl_list_quote(a))
+
+        _emit_elem(args[0])
         for i in range(1, len(args)):
             self._emit_obj_literal(" ")
             self._emit_call(concat_idx)
-            self._emit_value(args[i])
+            _emit_elem(args[i])
             self._emit_call(concat_idx)
 
     def _emit_cmd_uplevel(self, args: tuple[str, ...]) -> None:
@@ -4719,14 +4785,16 @@ class _WasmEmitter:
         for i in range(min(n_params, len(args))):
             self._emit_value(args[i])
         # Pad missing args with the declared default or boxed zero.
+        # Defaults are LITERAL values from the param spec — ``{$y}``
+        # and ``{[clock seconds]}`` must reach the callee unchanged,
+        # *not* be substituted at call time.  Emit as an obj literal
+        # so no ``$var`` / ``[cmd]`` interpolation happens.
         for slot in range(len(args), n_params):
             default = defaults[slot] if slot < len(defaults) else None
             if default is None:
                 self._emit_default_arg()
             else:
-                # Defaults may themselves contain ``$var`` / ``[cmd]``
-                # substitutions; _emit_value handles interpolation.
-                self._emit_value(default)
+                self._emit_obj_literal(default)
 
         self._emit_call(func_idx)
 
