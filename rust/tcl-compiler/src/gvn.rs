@@ -17,6 +17,8 @@
 //! - **C26d** — `find_redundancies` driver that walks the
 //!   dominator tree and reports full/partial redundancies.
 
+#![allow(clippy::implicit_hasher, clippy::format_push_string)]
+
 use std::collections::HashMap;
 
 use tcl_lexer::Span;
@@ -198,6 +200,159 @@ impl ScopedValueTable {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Canonicalisation helpers (C26b)
+// ---------------------------------------------------------------------------
+
+/// Rewrite `$var` / `${var}` references in `text` to their
+/// SSA-versioned canonical form `$var@N`.
+///
+/// Scans `text` left-to-right and rewrites each variable reference
+/// exactly once — avoiding the re-matching trap where a naive
+/// `.replace` on `${x}` produces `$x@3@3` because the emitted
+/// `$x@3` contains a second `$x` substring.
+///
+/// A variable reference begins at `$`:
+/// - `${name}` — braced form; `name` is everything up to the
+///   closing `}`.
+/// - `$name` — bare form; `name` matches the Tcl identifier
+///   grammar (`[A-Za-z0-9_:]+`).
+///
+/// Names that are not present in `uses` are left unchanged.
+///
+/// Ported from `gvn.py::_canonicalise_word` — the Rust version
+/// corrects the `${x}` re-matching quirk of the Python `.replace`
+/// chain while preserving the observable result on inputs that do
+/// not already contain `@` sigils.
+#[must_use]
+pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
+    if uses.is_empty() {
+        return text.to_owned();
+    }
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'$' {
+            out.push(char::from(bytes[i]));
+            i += 1;
+            continue;
+        }
+        // At `$` — inspect the next char.
+        if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+            // `${name}` — find the closing brace.
+            let start = i + 2;
+            let mut j = start;
+            while j < bytes.len() && bytes[j] != b'}' {
+                j += 1;
+            }
+            if j < bytes.len() {
+                let name = &text[start..j];
+                if let Some(ver) = uses.get(name) {
+                    out.push_str(&format!("${name}@{ver}"));
+                } else {
+                    out.push_str(&text[i..=j]);
+                }
+                i = j + 1;
+                continue;
+            }
+            // No closing brace — treat as a bare `$` and move on.
+            out.push('$');
+            i += 1;
+            continue;
+        }
+        // Bare `$name` — scan identifier characters.
+        let start = i + 1;
+        let mut j = start;
+        while j < bytes.len() {
+            let b = bytes[j];
+            let is_ident = b.is_ascii_alphanumeric() || b == b'_' || b == b':';
+            if !is_ident {
+                break;
+            }
+            j += 1;
+        }
+        if j == start {
+            // Lone `$` with no name — pass through.
+            out.push('$');
+            i += 1;
+            continue;
+        }
+        let name = &text[start..j];
+        if let Some(ver) = uses.get(name) {
+            out.push_str(&format!("${name}@{ver}"));
+        } else {
+            out.push_str(&text[i..j]);
+        }
+        i = j;
+    }
+    out
+}
+
+/// Build the canonical [`ExprKey`] for a pure-command invocation:
+/// `["call", command, canonicalised_arg1, canonicalised_arg2, …]`.
+///
+/// Ported from `gvn.py::_build_call_key`.
+#[must_use]
+pub fn build_call_key(command: &str, args: &[String], uses: &HashMap<String, u32>) -> ExprKey {
+    let mut parts: ExprKey = Vec::with_capacity(2 + args.len());
+    parts.push("call".into());
+    parts.push(command.to_owned());
+    for arg in args {
+        parts.push(canonicalise_word(arg, uses));
+    }
+    parts
+}
+
+/// Render a command invocation as human-readable text for
+/// diagnostic messages. Matches `gvn.py::_format_expression_text`.
+#[must_use]
+pub fn format_expression_text(command: &str, args: &[String]) -> String {
+    if args.is_empty() {
+        return command.to_owned();
+    }
+    let mut out = String::with_capacity(
+        command.len() + args.iter().map(|s| s.len() + 1).sum::<usize>(),
+    );
+    out.push_str(command);
+    out.push(' ');
+    out.push_str(&args.join(" "));
+    out
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostic messages (C26b)
+// ---------------------------------------------------------------------------
+
+/// Message shown when a pure expression is computed twice on the
+/// same control-flow path.
+#[must_use]
+pub fn full_redundancy_message(expression_text: &str) -> String {
+    format!(
+        "'{expression_text}' computed again with the same arguments. \
+        Consider storing the result in a local variable."
+    )
+}
+
+/// Message shown when a pure expression is computed on some but
+/// not all paths into a merge point.
+#[must_use]
+pub fn partial_redundancy_message(expression_text: &str) -> String {
+    format!(
+        "'{expression_text}' is partially redundant across control-flow \
+        paths. Consider hoisting it before the branch."
+    )
+}
+
+/// Message shown when a pure expression is loop-invariant.
+#[must_use]
+pub fn loop_invariant_message(expression_text: &str) -> String {
+    format!(
+        "'{expression_text}' is loop-invariant and re-computed on each \
+        iteration. Consider hoisting it before the loop."
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,6 +442,79 @@ mod tests {
         assert_eq!(r.code, "O105");
         assert_eq!(r.span.start(), 10);
         assert_eq!(r.first_span.end(), 5);
+    }
+
+    // -- C26b: canonicalisation + messages --
+
+    #[test]
+    fn canonicalise_empty_uses_returns_input() {
+        let uses = HashMap::new();
+        assert_eq!(canonicalise_word("foo", &uses), "foo");
+    }
+
+    #[test]
+    fn canonicalise_replaces_bare_and_braced() {
+        let mut uses = HashMap::new();
+        uses.insert("x".to_string(), 3);
+        assert_eq!(canonicalise_word("$x", &uses), "$x@3");
+        assert_eq!(canonicalise_word("${x}", &uses), "$x@3");
+    }
+
+    #[test]
+    fn canonicalise_sorts_by_name_length_desc() {
+        // `$longname` must be replaced before `$long` so the
+        // longer name is not partially matched.
+        let mut uses = HashMap::new();
+        uses.insert("long".to_string(), 1);
+        uses.insert("longname".to_string(), 2);
+        let out = canonicalise_word("$longname$long", &uses);
+        assert_eq!(out, "$longname@2$long@1");
+    }
+
+    #[test]
+    fn canonicalise_ignores_unmentioned_variables() {
+        let uses = HashMap::new();
+        assert_eq!(canonicalise_word("$x", &uses), "$x");
+    }
+
+    #[test]
+    fn build_call_key_for_pure_command() {
+        let mut uses = HashMap::new();
+        uses.insert("x".to_string(), 3);
+        let args = vec!["$x".into(), "literal".into()];
+        let key = build_call_key("llength", &args, &uses);
+        assert_eq!(
+            key,
+            vec![
+                "call".to_string(),
+                "llength".into(),
+                "$x@3".into(),
+                "literal".into()
+            ]
+        );
+    }
+
+    #[test]
+    fn format_expression_text_no_args() {
+        let args: Vec<String> = Vec::new();
+        assert_eq!(format_expression_text("clock", &args), "clock");
+    }
+
+    #[test]
+    fn format_expression_text_with_args() {
+        let args: Vec<String> = vec!["$x".into(), "literal".into()];
+        assert_eq!(
+            format_expression_text("llength", &args),
+            "llength $x literal"
+        );
+    }
+
+    #[test]
+    fn message_builders_include_expression_text() {
+        assert!(full_redundancy_message("llength $x").contains("llength $x"));
+        assert!(full_redundancy_message("llength $x").contains("local variable"));
+        assert!(partial_redundancy_message("dict get $d k").contains("partially redundant"));
+        assert!(loop_invariant_message("expr {$x + 1}").contains("loop-invariant"));
     }
 
     #[test]
