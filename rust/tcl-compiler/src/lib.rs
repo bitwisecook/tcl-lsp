@@ -87,6 +87,7 @@ pub mod naming;
 pub mod rendered_properties;
 pub mod sccp;
 pub mod segmenter;
+pub mod shimmer;
 pub mod side_effects;
 pub mod ssa;
 pub mod static_loops;
