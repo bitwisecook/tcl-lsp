@@ -1128,6 +1128,9 @@ class _WasmEmitter:
         func_index_base: int = 0,
         shared_imports: dict[str, int] | None = None,
         proc_index: dict[str, tuple[int, int]] | None = None,
+        shared_strings: list[tuple[str, int]] | None = None,
+        shared_string_index: dict[str, int] | None = None,
+        shared_string_offset: list[int] | None = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
@@ -1152,10 +1155,13 @@ class _WasmEmitter:
         # Instructions
         self._body: list[WasmInstruction] = []
 
-        # String data accumulation
-        self._strings: list[tuple[str, int]] = []  # (value, offset)
-        self._string_index: dict[str, int] = {}
-        self._string_offset = 0
+        # String data accumulation — shared across all functions in the
+        # module so data segments don't overlap in linear memory.
+        # shared_string_offset is a single-element list so all emitters
+        # mutate the same counter.
+        self._strings: list[tuple[str, int]] = shared_strings if shared_strings is not None else []
+        self._string_index: dict[str, int] = shared_string_index if shared_string_index is not None else {}
+        self._string_offset_ref: list[int] = shared_string_offset if shared_string_offset is not None else [0]
 
         # Global variable tracking
         self._globals: set[str] = set()
@@ -1539,9 +1545,9 @@ class _WasmEmitter:
         """Return the memory offset for a string constant."""
         if value in self._string_index:
             return self._string_index[value]
-        offset = self._string_offset
+        offset = self._string_offset_ref[0]
         encoded = value.encode("utf-8")
-        self._string_offset += len(encoded) + 4  # 4 bytes for length prefix
+        self._string_offset_ref[0] += len(encoded) + 4  # 4 bytes for length prefix
         self._strings.append((value, offset))
         self._string_index[value] = offset
         return offset
@@ -3849,6 +3855,13 @@ def wasm_codegen_module(
         proc_index[qname] = (func_idx, len(params))
         func_idx += 1
 
+    # Shared string table so data segments from different functions
+    # don't collide at offset 0. All emitters share a single list,
+    # index dict, and offset counter.
+    shared_strings: list[tuple[str, int]] = []
+    shared_string_index: dict[str, int] = {}
+    shared_string_offset: list[int] = [0]
+
     # Phase 4: Compile top-level with shared state
     emitter = _WasmEmitter(
         cfg_module.top_level,
@@ -3856,11 +3869,13 @@ def wasm_codegen_module(
         is_proc=False,
         shared_imports=shared_imports,
         proc_index=proc_index,
+        shared_strings=shared_strings,
+        shared_string_index=shared_string_index,
+        shared_string_offset=shared_string_offset,
     )
     top_func = emitter.generate()
     top_func.name = "::top"
     module.functions.append(top_func)
-    module.data_segments.extend(emitter.data_segments)
 
     # Phase 5: Compile callables (procedures and methods)
     for qname, cfg_func, params in callables:
@@ -3871,11 +3886,19 @@ def wasm_codegen_module(
             is_proc=True,
             shared_imports=shared_imports,
             proc_index=proc_index,
+            shared_strings=shared_strings,
+            shared_string_index=shared_string_index,
+            shared_string_offset=shared_string_offset,
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname
         module.functions.append(callable_func)
-        module.data_segments.extend(callable_emitter.data_segments)
+
+    # Emit a single set of data segments from the shared string table.
+    for value, offset in shared_strings:
+        encoded = value.encode("utf-8")
+        data = len(encoded).to_bytes(4, "little") + encoded
+        module.data_segments.append(WasmData(offset=offset, data=data))
 
     # Ensure types are registered
     for func in module.functions:

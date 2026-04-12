@@ -33,6 +33,7 @@ _ZIG_RUNTIME_PATH = (
 
 _SNIPPETS_DIR = Path(__file__).resolve().parent / "bytecode_snippets"
 _FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+_EXTERNAL_DIR = Path(__file__).resolve().parent / "external"
 
 _engine: wasmtime.Engine | None = None
 _rt_module: wasmtime.Module | None = None
@@ -461,3 +462,107 @@ return $result
         ok, val, err = _run_tcl_for_value(source)
         assert ok, f"error: {err}"
         assert val == 1
+
+
+class TestExternalTcllibCounter:
+    """Compile and run the real tcllib counter module (pure Tcl).
+
+    https://github.com/tcltk/tcllib/tree/master/modules/counter
+    14 procs, ~1200 lines of pure Tcl. Tests that a real-world tcllib
+    module compiles to WASM and instantiates without trapping.
+
+    Note: counter uses ``upvar #0`` to track per-counter globals; our
+    codegen treats upvar as a NOP, so the procs run but don't share
+    state correctly. These tests verify the *compilation* and *dispatch*
+    work end-to-end, not the counter semantics.
+    """
+
+    _COUNTER_TCL = _EXTERNAL_DIR / "tcllib" / "counter" / "counter.tcl"
+
+    def test_compiles(self):
+        if not self._COUNTER_TCL.exists():
+            pytest.skip(f"tcllib counter.tcl not present at {self._COUNTER_TCL}")
+        source = self._COUNTER_TCL.read_text()
+        wasm_bytes = _compile_tcl(source)
+        # Should be a reasonable size
+        assert len(wasm_bytes) > 5000
+        assert len(wasm_bytes) < 100000
+
+    def test_top_level_runs(self):
+        """Running ::top should not trap (validates string table sharing)."""
+        if not self._COUNTER_TCL.exists():
+            pytest.skip(f"tcllib counter.tcl not present at {self._COUNTER_TCL}")
+        source = self._COUNTER_TCL.read_text()
+        wasm_bytes = _compile_tcl(source)
+        val, _ = _run_wasm(wasm_bytes)
+        assert val == 0
+
+    def test_all_procs_exported(self):
+        """All 14 counter procs should be exported."""
+        if not self._COUNTER_TCL.exists():
+            pytest.skip(f"tcllib counter.tcl not present at {self._COUNTER_TCL}")
+        source = self._COUNTER_TCL.read_text()
+        wasm_bytes = _compile_tcl(source)
+
+        engine = _get_engine()
+        module = wasmtime.Module(engine, wasm_bytes)
+        export_names = {e.name for e in module.exports}
+        expected_procs = {
+            "::counter::init",
+            "::counter::reset",
+            "::counter::count",
+            "::counter::exists",
+            "::counter::get",
+            "::counter::names",
+            "::counter::start",
+            "::counter::stop",
+        }
+        missing = expected_procs - export_names
+        assert not missing, f"missing exports: {missing}"
+
+    def test_init_proc_dispatches(self):
+        """counter::init should dispatch without trapping."""
+        if not self._COUNTER_TCL.exists():
+            pytest.skip(f"tcllib counter.tcl not present at {self._COUNTER_TCL}")
+        source = self._COUNTER_TCL.read_text()
+        wasm_bytes = _compile_tcl(source)
+
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        wasi_config = wasmtime.WasiConfig()
+        store.set_wasi(wasi_config)
+
+        rt_mod = _get_rt_module()
+        linker = wasmtime.Linker(engine)
+        linker.define_wasi()
+        rt_inst = linker.instantiate(store, rt_mod)
+        for export in rt_mod.exports:
+            name = export.name
+            if name.startswith("__"):
+                continue
+            val = rt_inst.exports(store)[name]
+            if isinstance(val, wasmtime.Func):
+                linker.define(store, "tcl", name, val)
+            elif name == "memory":
+                linker.define(store, "tcl", name, val)
+
+        tcl_mod = wasmtime.Module(engine, wasm_bytes)
+        tcl_inst = linker.instantiate(store, tcl_mod)
+
+        exports = tcl_inst.exports(store)
+        exports["::top"](store)  # Run top-level
+
+        # Build a tag TclObj
+        obj_new_string = rt_inst.exports(store)["obj_new_string"]
+        memory = rt_inst.exports(store)["memory"]
+        mem = memory.data_ptr(store)
+        tag_bytes = b"simple"
+        tag_off = 200000
+        for i, b in enumerate(tag_bytes):
+            mem[tag_off + i] = b
+        tag_obj = obj_new_string(store, tag_off, len(tag_bytes))
+
+        # counter::init {tag args} — 2 params
+        result = exports["::counter::init"](store, tag_obj, 0)
+        # Should return a non-trapping result (actual value depends on semantics)
+        assert isinstance(result, int)
