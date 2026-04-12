@@ -1279,6 +1279,103 @@ return [main]
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "42\n"
 
+    def test_array_set_list_form(self):
+        """``array set arr {k v k v ...}`` — the pair-list form
+        must populate each element, not store the whole list under
+        one key.  Regression for tcltest's ``ArrayDefault numTests
+        [list Total 0 …]`` where the old interpreter path stored
+        the full payload as a single key and later ``incr
+        numTests(Total)`` ran on an uninitialised element.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "array set a {x 1 y 2 z 3}\n"
+            'puts "x=$a(x) y=$a(y) z=$a(z)"\n'
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "x=1 y=2 z=3\n"
+
+    def test_array_set_list_via_command_subst(self):
+        """``array set arr [list k v k v …]`` — command-sub payload
+        reaches the Zig interpreter via ``_emit_eval_fallback`` (the
+        compile-time list-literal path only fires on brace literals),
+        which must route through the new ``array_set_list`` helper.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "array set a [list x 1 y 2]\n"
+            'puts "x=$a(x) y=$a(y)"\n'
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "x=1 y=2\n"
+
+    def test_array_read_in_double_quoted_string(self):
+        """``"v=$arr(key)"`` — the lowerer rewrites to
+        ``v=${arr(key)}`` which the import-scan must still
+        recognise as needing ``tcl_array_get``; without the braced
+        scan fix, the read falls back to ``i32.const 0`` at runtime
+        (silent empty-string).
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            'set a(x) 42\nputs "v=$a(x) done"\n'
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "v=42 done\n"
+
+
+class TestNamespaceVariables:
+    """Variables inside ``namespace eval ::ns { … }`` bodies must
+    persist at ``::ns::<name>``.  Regression coverage for the
+    previously no-op ``variable`` at namespace-eval top-level and
+    the bare-local fast path that mis-qualified unqualified names.
+    """
+
+    def test_variable_with_initializer_persists(self):
+        src = (
+            "namespace eval ns { variable x 5 }\n"
+            "puts [set ::ns::x]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "5\n"
+
+    def test_set_inside_namespace_eval_persists(self):
+        src = (
+            "namespace eval ns { set x 5 }\n"
+            "puts [set ::ns::x]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "5\n"
+
+    def test_incr_inside_namespace_eval(self):
+        """``incr`` must route through the global table too, not
+        operate on a bare local.  Otherwise the incremented value
+        doesn't end up at ``::ns::n``.
+        """
+        src = (
+            "namespace eval ns { variable n 0; incr n; incr n }\n"
+            "puts [set ::ns::n]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "2\n"
+
+    def test_variable_alias_in_proc_still_works(self):
+        """The in-proc ``variable name`` alias path mustn't regress
+        — it still needs to route reads/writes through the global
+        table using the enclosing namespace.
+        """
+        src = (
+            "namespace eval ns {\n"
+            "    variable x 0\n"
+            "    proc inc {} { variable x; incr x }\n"
+            "    inc; inc; inc\n"
+            "}\n"
+            "puts [set ::ns::x]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "3\n"
+
     def test_array_unset_preserves_probe_chain(self):
         """Deleting an element must not break lookups of collision-mates.
 

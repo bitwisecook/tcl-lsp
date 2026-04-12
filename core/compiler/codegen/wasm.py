@@ -1482,9 +1482,31 @@ def _scan_needed_imports(
                 # Advance over bare name or ${...} with parens.
                 j = i + 1
                 if value[j] == "{":
-                    j += 1
-                    while j < n and value[j] != "}":
-                        j += 1
+                    # ``${arr(key)}`` — the lowerer emits this form
+                    # when the surface syntax was a quoted-string
+                    # ``$arr(key)``.  Check for ``(`` *inside* the
+                    # braced content, not just after the closing
+                    # brace.  Without this, the import-scan misses
+                    # ``tcl_array_get`` and ``_emit_array_element_read``
+                    # silently emits ``i32.const 0`` at run time —
+                    # making every ``puts "v=$arr(key)"`` read come
+                    # back as empty string.
+                    inner_start = j + 1
+                    k = inner_start
+                    while k < n and value[k] != "}":
+                        k += 1
+                    # scan the inner for ``(``
+                    ii = inner_start
+                    while ii < k:
+                        if value[ii] == "(":
+                            needed.add("tcl_array_get")
+                            break
+                        ii += 1
+                    else:
+                        pass
+                    if "tcl_array_get" in needed:
+                        break
+                    j = k
                 else:
                     while j < n and (
                         value[j].isalnum()
@@ -3761,6 +3783,17 @@ class _WasmEmitter:
         # set: inline local operations (returns the i32 TclObj)
         if command == "set" and 1 <= len(args) <= 2:
             var = args[0]
+            # Inside ``namespace eval ::ns { ... }`` the
+            # fast-local-path is wrong — unqualified writes must
+            # land in ``::ns::<name>``.  Route through the full
+            # write path (which consults ``_block_namespace``
+            # and emits ``tcl_global_set``).
+            in_ns_block = (
+                not self._is_proc
+                and self._block_namespace is not None
+                and self._block_namespace != "::"
+                and _parse_array_ref(var) is None
+            )
             if var in self._aliases and len(args) >= 2:
                 # Aliased write: route through global set, which returns the value.
                 self._emit_value(args[1])
@@ -3769,6 +3802,13 @@ class _WasmEmitter:
             if var in self._aliases:
                 # Aliased read: tcl_global_get leaves value on stack.
                 self._emit_var_read_obj(var)
+                return
+            if in_ns_block:
+                if len(args) >= 2:
+                    self._emit_value(args[1])
+                    self._emit_var_write_obj_keep(var)
+                else:
+                    self._emit_var_read_obj(var)
                 return
             idx = self._intern_local(var)
             if len(args) >= 2:
@@ -3781,8 +3821,15 @@ class _WasmEmitter:
         # incr: returns the new value as i32 TclObj (Tcl semantics)
         if command == "incr" and 1 <= len(args) <= 2:
             var = args[0]
-            if var in self._aliases:
-                # Aliased incr: load via alias, add, store via alias (keep on stack).
+            in_ns_block = (
+                not self._is_proc
+                and self._block_namespace is not None
+                and self._block_namespace != "::"
+                and _parse_array_ref(var) is None
+            )
+            if var in self._aliases or in_ns_block:
+                # Aliased or namespace-scoped incr: load via the
+                # global table, add, store back.
                 self._emit_var_read_obj(var)
                 self._emit_unbox_int()
                 amt = 1
@@ -3981,6 +4028,22 @@ class _WasmEmitter:
                 self._emit_obj_literal(name)
                 self._emit_call(gget_idx)
                 return
+        # Mirror of the write-side fix: inside a ``namespace eval
+        # ::ns { … }`` body, unqualified reads must look up the
+        # ``::ns::<name>`` global rather than a bare local — because
+        # we wrote it through the global table with the qualified
+        # name, and a bare-local read would find 0.
+        if (
+            not self._is_proc
+            and self._block_namespace
+            and self._block_namespace != "::"
+        ):
+            gget_idx = self._shared_imports.get("tcl_global_get")
+            if gget_idx is not None:
+                qname = f"{self._block_namespace}::{name}"
+                self._emit_obj_literal(qname)
+                self._emit_call(gget_idx)
+                return
         idx = self._intern_local(name)
         self._emit_local_get(idx)
 
@@ -4017,6 +4080,24 @@ class _WasmEmitter:
             # ``::``-qualified names always refer to globals.  Route the
             # write directly without creating an unused WASM local.
             self._emit_global_set_via_literal(name, keep_on_stack=keep_on_stack)
+            return
+        # Inside a ``namespace eval ::ns { … }`` body, unqualified
+        # writes must land in the ``::ns::`` table, not in a local
+        # or in ``::``.  Without this, ``namespace eval ns { set x
+        # 5 }`` wrote ``::x`` (overwriting/creating the wrong
+        # global) and reads of ``$::ns::x`` came back empty.  We
+        # qualify and route through ``tcl_global_set`` with the
+        # full name; no local mirror, because the block may be
+        # re-entered in a different frame (tcltest's stage-2 body
+        # is a sequence of ``namespace eval ::tcltest { … }``
+        # blocks).
+        if (
+            not self._is_proc
+            and self._block_namespace
+            and self._block_namespace != "::"
+        ):
+            qname = f"{self._block_namespace}::{name}"
+            self._emit_global_set_via_literal(qname, keep_on_stack=keep_on_stack)
             return
         # At the top level (``::top``) there's no ``proc`` scope — every
         # variable is in the global namespace.  Route writes through
@@ -4213,19 +4294,39 @@ class _WasmEmitter:
         Inside a namespace proc, aliases ``name`` to ``::ns::name`` in
         the enclosing namespace.  If a value is provided and the
         namespace variable does not already exist, it is initialised.
-        Outside a proc (namespace-eval top-level) this is a no-op in
-        the compiled model: the namespace-eval body itself runs at
-        global scope, so assignments already land in globals.
+
+        At namespace-eval top-level (``namespace eval ::ns {
+        variable debug 0 }``), the ``?value?`` form still needs to do
+        the write — ``debug 0`` must land in ``::ns::debug``.  The
+        previous implementation treated ns-eval variables as a no-op
+        claiming assignments "already hit globals", but bare ``set x
+        5`` in the body was writing to ``::x`` (the wrong global);
+        reads of ``::ns::x`` came back empty, and tcltest's ``$debug
+        >= 1`` compared ``""`` against ``1`` (empty-string comparisons
+        pass as truthy here), forcing every ``DebugPuts`` to fire.
         """
         if not args:
             return
         if not self._is_proc:
-            # At namespace-eval top-level the body runs at global scope
-            # in our compiled model.  Tcl's real ``variable`` at
-            # namespace scope would initialise but not create a local;
-            # our compiler has no namespace-local storage distinct from
-            # globals yet, so assignments in the body already hit
-            # globals.  Nothing to do here.
+            # Namespace-eval top-level — no frame to alias into,
+            # but the ``?value?`` pairs still need their writes.
+            # Route through ``_emit_var_write_obj`` so the
+            # namespace-qualification logic in that path picks
+            # ``_block_namespace`` (set by the enclosing ``IRBlock``)
+            # and writes ``::ns::<name>`` to the global table.
+            # Bare ``variable name`` with no initializer is a
+            # declaration that does nothing in our compiled model
+            # (reads are already auto-qualified by block-ns).
+            i = 0
+            while i < len(args):
+                name = args[i]
+                has_value = i + 1 < len(args)
+                if has_value:
+                    self._emit_value(args[i + 1])
+                    self._emit_var_write_obj(name)
+                    i += 2
+                else:
+                    i += 1
             return
 
         ns = self._proc_namespace or "::"

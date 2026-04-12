@@ -773,9 +773,39 @@ fn eval_command(words: []const i32) i32 {
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "list")) {
-        if (words.len >= 3) return rt.tcl_list(words[1], words[2]);
-        if (words.len >= 2) return words[1];
-        return obj_new_string(0, 0);
+        // ``list`` is variadic — build a single Tcl list from all
+        // word arguments.  The previous 2-arg pairwise form left
+        // the tail behind on 3+ arg calls, silently dropping
+        // elements from e.g. ``array set a [list x 1 y 2]``
+        // (only x=1 stored).  Use a two-pass buffer: size each
+        // element with ``dict_needs_braces`` quoting then copy.
+        // Nested calls to ``rt.tcl_list`` would double-brace
+        // existing list-shaped arguments, so build in one pass.
+        if (words.len <= 1) return obj_new_string(0, 0);
+        if (words.len == 2) return words[1];
+        const obj_mod = @import("tcl_obj.zig");
+        var total: u32 = 0;
+        var ei: u32 = 1;
+        while (ei < words.len) : (ei += 1) {
+            const s = obj_ensure_string(words[ei]);
+            const needs = obj_mod.dict_needs_braces(s.ptr, s.len);
+            total += if (needs) s.len + 2 else s.len;
+            if (ei > 1) total += 1; // separator space
+        }
+        if (total == 0) return obj_new_string(0, 0);
+        const buf = obj_mod.alloc(total);
+        var off: u32 = 0;
+        ei = 1;
+        while (ei < words.len) : (ei += 1) {
+            if (ei > 1) {
+                const d: [*]u8 = @ptrFromInt(buf + off);
+                d[0] = ' ';
+                off += 1;
+            }
+            const s = obj_ensure_string(words[ei]);
+            off = obj_mod.dict_append_elem(buf, off, s.ptr, s.len);
+        }
+        return obj_new_string(@bitCast(buf), @bitCast(off));
     }
     if (str_eq(cmd, cmd_s.len, "concat")) {
         if (words.len >= 3) return rt.tcl_cmd_concat(words[1], words[2]);
@@ -1010,7 +1040,17 @@ fn eval_array_cmd(words: []const i32) i32 {
         return array_mod.array_get(words[2], obj_new_string(0, 0));
     }
     if (str_eq(sp, sub.len, "set") and words.len >= 4) {
-        return array_mod.array_set(words[2], words[3], 0);
+        // ``array set arr pairlist`` — the payload is a Tcl list
+        // of ``{k v k v …}`` pairs.  We always route through
+        // ``array_set_list`` because even a single-pair invocation
+        // (``array set a {key value}``) is just a 2-element list.
+        // The previous shape ``array_set(words[2], words[3], 0)``
+        // stored the whole payload under one key with a null
+        // value — that silently broke tcltest's
+        // ``ArrayDefault numTests [list Total 0 …]``
+        // initialisation (``incr numTests(Total)`` then ran on
+        // an uninitialised element).
+        return array_mod.array_set_list(words[2], words[3]);
     }
     if (str_eq(sp, sub.len, "exists")) return array_mod.array_exists(words[2]);
     if (str_eq(sp, sub.len, "names")) {

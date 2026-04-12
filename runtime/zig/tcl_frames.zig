@@ -121,10 +121,10 @@ fn frame_find(base: u32, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
     var probes: u32 = 0;
     while (probes < FRAME_BUCKET_COUNT) : (probes += 1) {
         const bucket = base + idx * FRAME_BUCKET_SIZE;
-        const ep: u32 = @intCast(read_i32(bucket));
+        const ep: u32 = @bitCast(read_i32(bucket));
         if (ep == 0) return null; // empty slot
-        const el: u32 = @intCast(read_i32(bucket + 4));
-        const eh: u32 = @intCast(read_i32(bucket + 8));
+        const el: u32 = @bitCast(read_i32(bucket + 4));
+        const eh: u32 = @bitCast(read_i32(bucket + 8));
         if (eh == hash and el == name_len) {
             const sp: [*]const u8 = @ptrFromInt(ep);
             const np: [*]const u8 = @ptrFromInt(name_ptr);
@@ -148,14 +148,14 @@ fn frame_insert(base: u32, name_ptr: u32, name_len: u32, hash: u32, value: i32) 
     var probes: u32 = 0;
     while (probes < FRAME_BUCKET_COUNT) : (probes += 1) {
         const bucket = base + idx * FRAME_BUCKET_SIZE;
-        const ep: u32 = @intCast(read_i32(bucket));
+        const ep: u32 = @bitCast(read_i32(bucket));
         if (ep == 0) {
             // Copy name to heap (frame outlives the source script potentially)
             const nbuf = alloc(name_len);
             memcpy(nbuf, name_ptr, name_len);
-            write_i32(bucket, @intCast(nbuf));
-            write_i32(bucket + 4, @intCast(name_len));
-            write_i32(bucket + 8, @intCast(hash));
+            write_i32(bucket, @bitCast(nbuf));
+            write_i32(bucket + 4, @bitCast(name_len));
+            write_i32(bucket + 8, @bitCast(hash));
             write_i32(bucket + 12, value);
             return;
         }

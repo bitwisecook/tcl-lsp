@@ -58,10 +58,10 @@ fn dir_find(name_ptr: u32, name_len: u32, hash: u32) ?u32 {
     var probes: u32 = 0;
     while (probes < dir_cap) : (probes += 1) {
         const bucket = dir_buf + idx * DIR_BUCKET_SIZE;
-        const ep: u32 = @intCast(read_i32(bucket));
+        const ep: u32 = @bitCast(read_i32(bucket));
         if (ep == 0) return null;
-        const el: u32 = @intCast(read_i32(bucket + 4));
-        const eh: u32 = @intCast(read_i32(bucket + 8));
+        const el: u32 = @bitCast(read_i32(bucket + 4));
+        const eh: u32 = @bitCast(read_i32(bucket + 8));
         if (eh == hash and el == name_len) {
             const sp: [*]const u8 = @ptrFromInt(ep);
             const np: [*]const u8 = @ptrFromInt(name_ptr);
@@ -89,10 +89,10 @@ fn dir_insert(name_ptr: u32, name_len: u32, hash: u32, table_ptr: u32) void {
         if (read_i32(bucket) == 0) {
             const nbuf = alloc(name_len);
             memcpy(nbuf, name_ptr, name_len);
-            write_i32(bucket, @intCast(nbuf));
-            write_i32(bucket + 4, @intCast(name_len));
-            write_i32(bucket + 8, @intCast(hash));
-            write_i32(bucket + 12, @intCast(table_ptr));
+            write_i32(bucket, @bitCast(nbuf));
+            write_i32(bucket + 4, @bitCast(name_len));
+            write_i32(bucket + 8, @bitCast(hash));
+            write_i32(bucket + 12, @bitCast(table_ptr));
             dir_count += 1;
             return;
         }
@@ -113,11 +113,11 @@ fn dir_grow() void {
     var j: u32 = 0;
     while (j < old_cap) : (j += 1) {
         const bucket = old_buf + j * DIR_BUCKET_SIZE;
-        const ep: u32 = @intCast(read_i32(bucket));
+        const ep: u32 = @bitCast(read_i32(bucket));
         if (ep == 0) continue;
-        const el: u32 = @intCast(read_i32(bucket + 4));
-        const eh: u32 = @intCast(read_i32(bucket + 8));
-        const tp: u32 = @intCast(read_i32(bucket + 12));
+        const el: u32 = @bitCast(read_i32(bucket + 4));
+        const eh: u32 = @bitCast(read_i32(bucket + 8));
+        const tp: u32 = @bitCast(read_i32(bucket + 12));
         dir_insert(ep, el, eh, tp);
     }
 }
@@ -141,7 +141,7 @@ const AR_TOMBSTONE: i32 = @bitCast(@as(u32, 0xFFFF_FFFF));
 fn ar_new() u32 {
     const cap: u32 = AR_INITIAL_CAP;
     const t = alloc(AR_HEADER_SIZE + cap * AR_BUCKET_SIZE);
-    write_i32(t, @intCast(cap));
+    write_i32(t, @bitCast(cap));
     write_i32(t + 4, 0);
     var i: u32 = 0;
     while (i < cap) : (i += 1) {
@@ -151,15 +151,15 @@ fn ar_new() u32 {
 }
 
 fn ar_cap(table: u32) u32 {
-    return @intCast(read_i32(table));
+    return @bitCast(read_i32(table));
 }
 
 fn ar_count(table: u32) u32 {
-    return @intCast(read_i32(table + 4));
+    return @bitCast(read_i32(table + 4));
 }
 
 fn ar_set_count(table: u32, count: u32) void {
-    write_i32(table + 4, @intCast(count));
+    write_i32(table + 4, @bitCast(count));
 }
 
 fn ar_find(table: u32, key_ptr: u32, key_len: u32, hash: u32) ?u32 {
@@ -176,9 +176,9 @@ fn ar_find(table: u32, key_ptr: u32, key_len: u32, hash: u32) ?u32 {
             idx = (idx + 1) & mask;
             continue;
         }
-        const ep: u32 = @intCast(raw);
-        const el: u32 = @intCast(read_i32(bucket + 4));
-        const eh: u32 = @intCast(read_i32(bucket + 8));
+        const ep: u32 = @bitCast(raw);
+        const el: u32 = @bitCast(read_i32(bucket + 4));
+        const eh: u32 = @bitCast(read_i32(bucket + 8));
         if (eh == hash and el == key_len) {
             const sp: [*]const u8 = @ptrFromInt(ep);
             const np: [*]const u8 = @ptrFromInt(key_ptr);
@@ -216,9 +216,9 @@ fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 
             const target = first_tomb orelse bucket;
             const kbuf = alloc(key_len);
             memcpy(kbuf, key_ptr, key_len);
-            write_i32(target, @intCast(kbuf));
-            write_i32(target + 4, @intCast(key_len));
-            write_i32(target + 8, @intCast(hash));
+            write_i32(target, @bitCast(kbuf));
+            write_i32(target + 4, @bitCast(key_len));
+            write_i32(target + 8, @bitCast(hash));
             write_i32(target + 12, value);
             ar_set_count(t, ar_count(t) + 1);
             return t;
@@ -229,10 +229,10 @@ fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 
             continue;
         }
         // Occupied slot: if it matches, overwrite in place.
-        const el: u32 = @intCast(read_i32(bucket + 4));
-        const eh: u32 = @intCast(read_i32(bucket + 8));
+        const el: u32 = @bitCast(read_i32(bucket + 4));
+        const eh: u32 = @bitCast(read_i32(bucket + 8));
         if (eh == hash and el == key_len) {
-            const ep: u32 = @intCast(raw);
+            const ep: u32 = @bitCast(raw);
             const sp: [*]const u8 = @ptrFromInt(ep);
             const np: [*]const u8 = @ptrFromInt(key_ptr);
             var match = true;
@@ -253,9 +253,9 @@ fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 
     if (first_tomb) |target| {
         const kbuf = alloc(key_len);
         memcpy(kbuf, key_ptr, key_len);
-        write_i32(target, @intCast(kbuf));
-        write_i32(target + 4, @intCast(key_len));
-        write_i32(target + 8, @intCast(hash));
+        write_i32(target, @bitCast(kbuf));
+        write_i32(target + 4, @bitCast(key_len));
+        write_i32(target + 8, @bitCast(hash));
         write_i32(target + 12, value);
         ar_set_count(t, ar_count(t) + 1);
     }
@@ -266,7 +266,7 @@ fn ar_grow(old_table: u32) u32 {
     const old_cap = ar_cap(old_table);
     const new_cap = old_cap * 2;
     const t = alloc(AR_HEADER_SIZE + new_cap * AR_BUCKET_SIZE);
-    write_i32(t, @intCast(new_cap));
+    write_i32(t, @bitCast(new_cap));
     write_i32(t + 4, 0);
     var i: u32 = 0;
     while (i < new_cap) : (i += 1) {
@@ -279,9 +279,9 @@ fn ar_grow(old_table: u32) u32 {
         // Skip empty slots and tombstones — growing is an opportunity
         // to compact the probe chains.
         if (raw == 0 or raw == AR_TOMBSTONE) continue;
-        const ep: u32 = @intCast(raw);
-        const el: u32 = @intCast(read_i32(bucket + 4));
-        const eh: u32 = @intCast(read_i32(bucket + 8));
+        const ep: u32 = @bitCast(raw);
+        const el: u32 = @bitCast(read_i32(bucket + 4));
+        const eh: u32 = @bitCast(read_i32(bucket + 8));
         const v: i32 = read_i32(bucket + 12);
         _ = ar_insert(t, ep, el, eh, v);
     }
@@ -292,9 +292,9 @@ fn ar_grow(old_table: u32) u32 {
         var di: u32 = 0;
         while (di < dir_cap) : (di += 1) {
             const db = dir_buf + di * DIR_BUCKET_SIZE;
-            const v: u32 = @intCast(read_i32(db + 12));
+            const v: u32 = @bitCast(read_i32(db + 12));
             if (v == old_table) {
-                write_i32(db + 12, @intCast(t));
+                write_i32(db + 12, @bitCast(t));
             }
         }
     }
@@ -305,7 +305,7 @@ fn find_or_create(name: i32) u32 {
     const sn = obj_ensure_string(name);
     const hash = fnv1a(sn.ptr, sn.len);
     if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
-        return @intCast(read_i32(bucket + 12));
+        return @bitCast(read_i32(bucket + 12));
     }
     const t = ar_new();
     dir_insert(sn.ptr, sn.len, hash, t);
@@ -317,7 +317,7 @@ fn find_table(name: i32) u32 {
     if (dir_buf == 0) return 0;
     const hash = fnv1a(sn.ptr, sn.len);
     if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
-        return @intCast(read_i32(bucket + 12));
+        return @bitCast(read_i32(bucket + 12));
     }
     return 0;
 }
@@ -336,6 +336,46 @@ pub export fn array_set(arr: i32, key: i32, value: i32) i32 {
     }
     _ = ar_insert(t, sk.ptr, sk.len, hash, value);
     return value;
+}
+
+/// ``array set arrName {k v k v …}`` — the *list-of-pairs* form.
+/// Splits the list payload via ``list_element_at`` and stores each
+/// ``(key, value)`` pair under *arr*.  Returns empty string.
+///
+/// This exists as a runtime helper because the compile-time form
+/// in ``_emit_array_set_list`` only fires when the value argument
+/// is a brace-literal; command-substitution payloads (``[list
+/// Total 0 …]``) or variable payloads (``$pairs``) reach here at
+/// runtime and need the same "iterate pairs" semantics.  Without
+/// it, the compiler's eval-fallback would take the interpreter's
+/// 1-pair ``array set`` path and (mis-)store the whole list as a
+/// single key — which silently broke ``ArrayDefault numTests``
+/// initialisation in tcltest, since ``incr numTests(Total)`` then
+/// ran on an uninitialised element.
+pub export fn array_set_list(arr: i32, pairs: i32) i32 {
+    const sp = obj_ensure_string(pairs);
+    const n = obj.list_count_elements(sp.ptr, sp.len);
+    if (n == 0) return obj_new_string(0, 0);
+    // Tcl silently tolerates odd-count lists here in practice
+    // (stores ``n/2`` pairs) — but real Tcl raises
+    // ``list must have an even number of elements``.  Err on the
+    // side of tolerance so partial initialisation lists don't
+    // trap an otherwise-progressing bundle.
+    var i: i64 = 0;
+    while (i + 1 < n) : (i += 2) {
+        // ``list_element_at`` returns ``start`` as an *offset*
+        // from the list payload pointer, not an absolute memory
+        // address — add ``sp.ptr`` before wrapping in an obj.
+        // Without this, ``fnv1a`` panics on the sub-2GB offset
+        // when it calls ``@ptrFromInt(offset)`` with a value
+        // the runtime's heap never mapped.
+        const k_info = obj.list_element_at(sp.ptr, sp.len, i);
+        const v_info = obj.list_element_at(sp.ptr, sp.len, i + 1);
+        const k_obj = obj_new_string(@bitCast(sp.ptr + k_info.start), @bitCast(k_info.len));
+        const v_obj = obj_new_string(@bitCast(sp.ptr + v_info.start), @bitCast(v_info.len));
+        _ = array_set(arr, k_obj, v_obj);
+    }
+    return obj_new_string(0, 0);
 }
 
 /// array_get arrName key — returns the stored value, or 0 (null
@@ -392,7 +432,7 @@ pub export fn array_unset(arr: i32) i32 {
         // Replace the array's table with a fresh empty one rather
         // than trying to free — the bump allocator can't free.
         const fresh = ar_new();
-        write_i32(bucket + 12, @intCast(fresh));
+        write_i32(bucket + 12, @bitCast(fresh));
     }
     return obj_new_int(0);
 }
@@ -447,7 +487,7 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
     const matches = struct {
         fn go(use: bool, pat: i32, key_ptr: u32, key_len: u32) bool {
             if (!use) return true;
-            const k = obj_new_string(@intCast(key_ptr), @intCast(key_len));
+            const k = obj_new_string(@bitCast(key_ptr), @bitCast(key_len));
             // ``string_match`` returns a TclObj wrapping 1 or 0.
             const r = str_mod.string_match(pat, k);
             return obj_get_int(r) != 0;
@@ -464,8 +504,8 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         const bucket = t + AR_HEADER_SIZE + i * AR_BUCKET_SIZE;
         const raw = read_i32(bucket);
         if (raw == 0 or raw == AR_TOMBSTONE) continue;
-        const ep: u32 = @intCast(raw);
-        const el: u32 = @intCast(read_i32(bucket + 4));
+        const ep: u32 = @bitCast(raw);
+        const el: u32 = @bitCast(read_i32(bucket + 4));
         if (!matches(use_filter, pattern, ep, el)) continue;
         total += el;
         if (nonempty > 0) total += 1; // separator
@@ -480,8 +520,8 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         const bucket = t + AR_HEADER_SIZE + i * AR_BUCKET_SIZE;
         const raw = read_i32(bucket);
         if (raw == 0 or raw == AR_TOMBSTONE) continue;
-        const ep: u32 = @intCast(raw);
-        const el: u32 = @intCast(read_i32(bucket + 4));
+        const ep: u32 = @bitCast(raw);
+        const el: u32 = @bitCast(read_i32(bucket + 4));
         if (!matches(use_filter, pattern, ep, el)) continue;
         if (written > 0) {
             const d: [*]u8 = @ptrFromInt(buf + off);
@@ -492,5 +532,5 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         off += el;
         written += 1;
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
