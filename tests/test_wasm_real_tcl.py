@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from core.compiler.cfg import build_cfg
-from core.compiler.codegen.wasm import wasm_codegen_module
+from core.compiler.codegen.wasm import DiagMap, wasm_codegen_module
 from core.compiler.lowering import lower_to_ir
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
@@ -63,6 +63,20 @@ def _compile_tcl(source: str) -> bytes:
     return wasm_module.to_bytes()
 
 
+def _compile_tcl_with_diag(source: str, filename: str = "<inline>") -> tuple[bytes, DiagMap]:
+    """Compile Tcl source and return the bytes + populated diag map.
+
+    The map resolves ``site=<id>`` prefixes the runtime writes on trap
+    back to ``(file, line, col, command)``.  Used by the external
+    runner to decode trap output inline.
+    """
+    ir_module = lower_to_ir(source)
+    cfg_module = build_cfg(ir_module)
+    diag_map = DiagMap(filename=filename)
+    wasm_module = wasm_codegen_module(cfg_module, ir_module, optimise=False, diag_map=diag_map)
+    return wasm_module.to_bytes(), diag_map
+
+
 def _compile_tcl_as_proc(source: str) -> tuple[bytes, str]:
     """Wrap source in a __main__ proc so we get a return value.
 
@@ -77,10 +91,15 @@ def _run_wasm(
     capture_stdout: bool = False,
     func_name: str = "::top",
     args: tuple[int, ...] = (),
-) -> tuple[int, str]:
+    capture_stderr: bool = False,
+) -> tuple[int, str] | tuple[int, str, str]:
     """Link and run a compiled Tcl WASM module.
 
-    Returns (return_value, stdout_text).
+    Returns ``(return_value, stdout_text)`` by default.  When
+    ``capture_stderr`` is true, returns ``(return_value, stdout_text,
+    stderr_text)`` — used by the external tcllib runner to surface
+    ``tcl trap: site=<id> …`` messages alongside the wasmtime
+    backtrace.
     """
     engine = _get_engine()
     store = wasmtime.Store(engine)
@@ -91,6 +110,12 @@ def _run_wasm(
         fd, stdout_path = tempfile.mkstemp(suffix=".txt")
         os.close(fd)
         wasi_config.stdout_file = stdout_path
+
+    stderr_path = None
+    if capture_stderr:
+        fd, stderr_path = tempfile.mkstemp(suffix=".err")
+        os.close(fd)
+        wasi_config.stderr_file = stderr_path
 
     store.set_wasi(wasi_config)
 
@@ -123,17 +148,94 @@ def _run_wasm(
         raise RuntimeError(f"function {func_name} not found in WASM exports")
 
     boxed_args = tuple(obj_new_int(store, a) for a in args)
-    result_obj = func(store, *boxed_args)
-    result_val = obj_get_int(store, result_obj) if result_obj else 0
+    try:
+        result_obj = func(store, *boxed_args)
+        result_val = obj_get_int(store, result_obj) if result_obj else 0
+    except BaseException:
+        # Drain captured stderr/stdout before re-raising so the trap
+        # site message written by the runtime is visible to the
+        # caller.  ``_TrapWithCaptures`` is an exception subclass that
+        # wraps the original trap and exposes the captures.
+        stdout_text = _maybe_read(stdout_path)
+        stderr_text = _maybe_read(stderr_path)
+        import sys
 
-    stdout_text = ""
-    if stdout_path:
-        try:
-            stdout_text = Path(stdout_path).read_text()
-        finally:
-            os.unlink(stdout_path)
+        exc = sys.exc_info()[1]
+        if exc is not None and stderr_text:
+            # Attach as attribute so the caller can grab it without
+            # catching an unrelated exception type.  wasmtime.Trap is
+            # a plain exception and allows attribute assignment.
+            try:
+                exc.tcl_stdout = stdout_text  # type: ignore[attr-defined]
+                exc.tcl_stderr = stderr_text  # type: ignore[attr-defined]
+            except (AttributeError, TypeError):
+                pass
+        raise
 
+    stdout_text = _maybe_read(stdout_path)
+    stderr_text = _maybe_read(stderr_path)
+
+    if capture_stderr:
+        return result_val, stdout_text, stderr_text
     return result_val, stdout_text
+
+
+def _maybe_read(path: str | None) -> str:
+    """Read and delete *path* if set, else return empty string."""
+    if not path:
+        return ""
+    try:
+        return Path(path).read_text()
+    finally:
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+
+
+def _resolve_trap(trap_exc: Exception, stderr_text: str, diag: DiagMap) -> str:
+    """Decode a wasmtime trap + stderr into a human-readable message.
+
+    Looks for ``tcl trap: site=<id> <msg>`` in *stderr_text* and
+    resolves ``<id>`` against *diag* to print the originating source
+    location, command, and (if known) proc.  The wasmtime backtrace
+    is rewritten so ``<wasm function N>`` tokens become proc names
+    when the map knows them.
+    """
+    import re
+
+    out = []
+    m = re.search(r"tcl trap:\s*site=(\d+)\s*(.*)", stderr_text)
+    if m:
+        site_id = int(m.group(1))
+        msg = m.group(2).strip()
+        site = next((s for s in diag.sites if s.id == site_id), None)
+        if site is not None:
+            out.append(f"tcl trap: {msg}")
+            out.append(
+                f"  at {site.file}:{site.line}:{site.col} "
+                f"in {site.command} (site #{site.id}, {site.kind})"
+            )
+            if site.proc:
+                out.append(f"  inside proc {site.proc}")
+            if site.args:
+                preview = ", ".join(repr(a)[:60] for a in site.args[:3])
+                out.append(f"  args: {preview}")
+    elif stderr_text.strip():
+        out.append(f"stderr: {stderr_text.strip()}")
+
+    # Resolve wasm function indices in the backtrace.
+    trap_txt = str(trap_exc)
+    func_map = {idx: qname for idx, qname in diag.procs}
+
+    def _sub(mo: re.Match) -> str:
+        idx = int(mo.group(1))
+        qname = func_map.get(idx)
+        return f"<{qname or f'wasm function {idx}'}>"
+
+    trap_txt = re.sub(r"<wasm function (\d+)>", _sub, trap_txt)
+    out.append(trap_txt)
+    return "\n".join(out)
 
 
 def _try_compile(source: str) -> tuple[bool, str]:
@@ -1177,6 +1279,73 @@ proc ::ns::use {} {
 """
         ok, err = _try_compile(source)
         assert ok, f"compile error: {err}"
+
+
+class TestDiagMap:
+    """Source-location diag map — codegen side of the trap resolver.
+
+    Verifies that the codegen attaches a site entry with a correct
+    (file, line, col) for every ``_emit_eval_fallback`` /
+    ``_emit_unsupported_trap`` call, that the runtime emits a
+    ``tcl trap: site=<id> <msg>`` line on an unknown command, and
+    that ``_resolve_trap`` round-trips both the site and the proc
+    name in the wasmtime backtrace.
+    """
+
+    def test_fallback_records_site(self):
+        # ``encoding`` has no builtin emitter so codegen falls back
+        # to tcl_eval.  The emit of that call site must register a
+        # diag entry with the command name.
+        source = "encoding convertfrom identity hello\n"
+        _, diag = _compile_tcl_with_diag(source, "t.tcl")
+        assert len(diag.sites) >= 1
+        hit = [s for s in diag.sites if s.command == "encoding"]
+        assert hit, f"no 'encoding' site in diag map: {diag.sites}"
+        site = hit[0]
+        assert site.kind == "fallback"
+        assert site.file == "t.tcl"
+        assert site.line == 1
+        assert site.col == 1
+        assert "convertfrom" in site.args
+
+    def test_unsupported_trap_records_site(self):
+        # ``exec`` is in _UNSUPPORTED_COMMANDS so it routes to
+        # _emit_unsupported_trap — the site kind must be
+        # ``unsupported`` and the command preserved.
+        source = "exec /bin/true\n"
+        _, diag = _compile_tcl_with_diag(source, "t.tcl")
+        hit = [s for s in diag.sites if s.kind == "unsupported"]
+        assert hit, f"no unsupported site in diag map: {diag.sites}"
+        assert hit[0].command == "exec"
+
+    def test_procs_indexed_by_wasm_function(self):
+        # Every compiled proc (and ::top) must appear in diag.procs so
+        # a ``<wasm function N>`` backtrace resolves to a proc name.
+        source = "proc ::foo {} { return 1 }\nproc ::bar {} { return 2 }\n"
+        _, diag = _compile_tcl_with_diag(source, "t.tcl")
+        qnames = {qn for _, qn in diag.procs}
+        assert "::top" in qnames
+        assert "::foo" in qnames
+        assert "::bar" in qnames
+        # Indices must be strictly increasing (one per func).
+        idxs = [f for f, _ in diag.procs]
+        assert idxs == sorted(idxs)
+
+    def test_runtime_trap_emits_site_prefix(self):
+        # End-to-end: trigger an unknown command through the eval
+        # fallback and verify the stderr line is the promised shape.
+        source = "definitely_not_a_command\n"
+        wasm, diag = _compile_tcl_with_diag(source, "t.tcl")
+        try:
+            _run_wasm(wasm, capture_stderr=True)
+            pytest.fail("expected trap")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "tcl trap: site=" in stderr, f"stderr was: {stderr!r}"
+            # The resolver must map the site back to our source file.
+            resolved = _resolve_trap(trap, stderr, diag)
+            assert "t.tcl:1:1" in resolved
+            assert "unknown command: definitely_not_a_command" in resolved
 
 
 class TestExternalTcllibCounter:

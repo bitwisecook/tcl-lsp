@@ -2,6 +2,7 @@
 
 const obj = @import("tcl_obj.zig");
 const io = @import("tcl_io.zig");
+const diag = @import("tcl_diag.zig");
 const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
 const fd_write_all = io.fd_write_all;
@@ -43,18 +44,46 @@ pub export fn catch_has_error() i32 {
 }
 
 // Exported: error — write message to stderr and trap, OR set error flag in catch.
+//
+// On an out-of-catch error we prefix the stderr line with
+// ``tcl trap: site=<id> `` when the codegen has registered a site;
+// a companion sidecar map resolves the site to a source location.
 pub export fn @"error"(msg: i32) void {
     if (catch_depth > 0) {
         error_flag = 1;
         error_msg = msg;
         return;
     }
+    fd_write_all(2, "tcl trap: ", 10);
+    _ = diag.write_prefix(2);
     const s = obj_ensure_string(msg);
     if (s.len > 0) {
         fd_write_all(2, @ptrFromInt(s.ptr), s.len);
-        fd_write_all(2, "\n", 1);
     }
+    fd_write_all(2, "\n", 1);
     @trap();
+}
+
+// Build a "unknown command: <name>" TclObj and route it through
+// @"error".  Used by the interpreter fallback when a word doesn't
+// match any builtin or registered proc.  Keeping the formatting here
+// rather than in tcl_interp.zig avoids duplicating the obj-allocation
+// dance and guarantees every "unknown command" trap looks the same.
+pub fn error_unknown_command(cmd_obj: i32) void {
+    const prefix: []const u8 = "unknown command: ";
+    const s = obj_ensure_string(cmd_obj);
+    const total: u32 = @intCast(prefix.len + s.len);
+    // Allocate a fresh byte buffer in the bump allocator so the
+    // TclObj's string data outlives this frame.
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    for (prefix, 0..) |c, i| buf[i] = c;
+    if (s.len > 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| buf[prefix.len + i] = src[i];
+    }
+    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    @"error"(msg);
 }
 
 // Exported: format

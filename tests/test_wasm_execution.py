@@ -708,11 +708,21 @@ class TestCommandDispatch:
         assert result == 99
 
     def test_no_cmd_imports_for_pure_arithmetic(self):
-        """Pure arithmetic code should only import lifecycle + error functions."""
+        """Pure arithmetic code should only import lifecycle + error + diag functions."""
         wasm_mod, _ = _compile_to_wasm("proc add {a b} { expr {$a + $b} }\n")
         import_names = {imp.name for imp in wasm_mod.imports}
-        # Lifecycle + error + eval (always imported)
-        assert import_names == {"obj_new_int", "obj_new_string", "obj_get_int", "error", "tcl_eval"}
+        # Lifecycle + error + eval + diag_set (always imported — diag_set is
+        # needed so every potentially-trapping site can register its source
+        # location before trapping, even when no command-specific runtime
+        # fn is imported).
+        assert import_names == {
+            "obj_new_int",
+            "obj_new_string",
+            "obj_get_int",
+            "error",
+            "tcl_eval",
+            "diag_set",
+        }
 
 
 # Runtime import architecture

@@ -23,6 +23,7 @@ import struct
 from dataclasses import dataclass, field
 from enum import IntEnum
 
+from ...analysis.semantic_model import Range
 from ..cfg import (
     CFGBranch,
     CFGFunction,
@@ -289,6 +290,77 @@ class WasmData:
 
     offset: int
     data: bytes
+
+
+@dataclass(slots=True)
+class DiagSite:
+    """A single diagnostic call-site in the compiled module.
+
+    Emitted by the codegen as a sidecar entry for every command invocation
+    whose trap path surfaces the command to the user — the eval fallback,
+    unsupported-command trap, and unknown-command dispatch.  At runtime
+    the last-registered site's ID is prefixed onto the stderr trap line
+    so a companion resolver (tcl-trap-resolve skill, or an in-process
+    harness loader) can map ``site=1234`` back to ``(file, line, col,
+    command)`` without embedding the strings in the .wasm.
+    """
+
+    id: int  # site_id emitted as the argument to tcl_diag_set
+    file: str  # source filename (may be "<unknown>" when not threaded)
+    line: int  # 1-based line number of the originating command
+    col: int  # 1-based column
+    end_line: int
+    end_col: int
+    command: str  # the Tcl command being dispatched
+    args: tuple[str, ...] = ()  # raw argument strings (best-effort)
+    kind: str = "fallback"  # "fallback" | "unsupported" | "unknown"
+    proc: str | None = None  # fully-qualified proc name this site lives in
+
+
+@dataclass(slots=True)
+class DiagMap:
+    """Sidecar source-location map for a compiled WASM module.
+
+    Produced alongside a :class:`WasmModule` by
+    :func:`wasm_codegen_module` when a filename is supplied.  The map
+    resolves the opaque ``site_id`` values that the runtime writes on a
+    trap back to concrete source locations.  :func:`to_json_dict` emits
+    the wire format that the runner writes to ``<module>.wasm.map.json``.
+
+    ``procs`` separately resolves WASM function indices to their proc
+    qualified names so a wasm backtrace like ``<wasm function 73>`` can
+    be rendered as ``::tcltest::Configure``.
+    """
+
+    sites: list[DiagSite] = field(default_factory=list)
+    procs: list[tuple[int, str]] = field(default_factory=list)
+    filename: str = "<unknown>"
+
+    def add_site(self, site: DiagSite) -> int:
+        """Register a site and return its id (1-based; 0 means 'unset')."""
+        self.sites.append(site)
+        return site.id
+
+    def to_json_dict(self) -> dict:
+        return {
+            "filename": self.filename,
+            "sites": [
+                {
+                    "id": s.id,
+                    "file": s.file,
+                    "line": s.line,
+                    "col": s.col,
+                    "end_line": s.end_line,
+                    "end_col": s.end_col,
+                    "command": s.command,
+                    "args": list(s.args),
+                    "kind": s.kind,
+                    "proc": s.proc,
+                }
+                for s in self.sites
+            ],
+            "procs": [{"func_idx": f, "qname": q} for f, q in self.procs],
+        }
 
 
 @dataclass(slots=True)
@@ -781,6 +853,9 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     # String split/join
     "tcl_split": ("tcl", "split", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_join": ("tcl", "join", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Diagnostic — record the current source site so trap paths can
+    # prefix stderr with ``site=<id>`` for sidecar-map resolution.
+    "tcl_diag_set": ("tcl", "diag_set", [ValType.I32], []),
 }
 
 # Import keys for the TclObj lifecycle functions — always registered
@@ -1413,9 +1488,12 @@ def _scan_needed_imports(
     needed.update(_OBJ_LIFECYCLE_IMPORTS)
 
     # Always include error and eval — error for traps, eval for
-    # interpreter fallback on uncompiled commands.
+    # interpreter fallback on uncompiled commands.  tcl_diag_set is
+    # also always imported so trap messages can be resolved against
+    # the sidecar source-location map.
     needed.add("tcl_error")
     needed.add("tcl_eval")
+    needed.add("tcl_diag_set")
 
     return needed
 
@@ -1474,6 +1552,7 @@ class _WasmEmitter:
         shared_string_index: dict[str, int] | None = None,
         shared_string_offset: list[int] | None = None,
         proc_qname: str | None = None,
+        diag_map: DiagMap | None = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
@@ -1554,6 +1633,22 @@ class _WasmEmitter:
 
         # Constant propagation state (for optimised mode)
         self._const_map: dict[str, int] = {}
+
+        # Source-location sidecar.  Shared across all emitters in a
+        # module so a single monotonic ID space covers every trap-able
+        # call site.  When ``None`` the emitter runs without diag
+        # instrumentation (useful for tests that don't care about
+        # source mapping); fallback / unsupported sites still work,
+        # they just don't emit ``tcl_diag_set`` before the call.
+        self._diag_map: DiagMap | None = diag_map
+
+        # Current statement's source range + command, updated at the
+        # top of ``_emit_stmt`` and consulted by the fallback / trap
+        # emitters to stamp a diag site.  Zero/empty until the first
+        # statement is walked.
+        self._current_range: Range | None = None
+        self._current_command: str = ""
+        self._current_args: tuple[str, ...] = ()
 
     def _intern_local(self, name: str) -> int:
         """Register a Tcl variable as an i32 local (TclObj pointer)."""
@@ -2608,8 +2703,30 @@ class _WasmEmitter:
 
     # -- Statement emission --
 
+    def _record_stmt_context(self, stmt: IRStatement) -> None:
+        """Update the 'current statement' tracking the diag machinery reads.
+
+        Called at the top of ``_emit_stmt`` and — importantly — from
+        ``_emit_block``'s implicit-return tail path which invokes
+        ``_emit_call_stmt_tail`` directly without going through
+        ``_emit_stmt``.  Every IR statement carries a ``range`` (see
+        core/compiler/ir.py); IRCall additionally carries ``command``
+        and ``args``.
+        """
+        rng = getattr(stmt, "range", None)
+        if rng is not None:
+            self._current_range = rng
+        cmd = getattr(stmt, "command", None)
+        self._current_command = cmd if isinstance(cmd, str) else ""
+        raw_args = getattr(stmt, "args", ())
+        self._current_args = tuple(raw_args) if isinstance(raw_args, tuple | list) else ()
+
     def _emit_stmt(self, stmt: IRStatement) -> None:
         """Emit WASM for a single IR statement."""
+        # Record this statement's source location so any nested trap
+        # emission (eval fallback, unsupported-command trap) can stamp
+        # a sidecar diag site with a meaningful file:line:col.
+        self._record_stmt_context(stmt)
         match stmt:
             case IRAssignConst(name=name, value=value):
                 self._emit_obj_literal(value)
@@ -2893,6 +3010,55 @@ class _WasmEmitter:
         self._emit_eval_fallback(command, args)
         self._emit(WasmOp.DROP)  # statement context — discard result
 
+    def _emit_diag_site(
+        self,
+        command: str,
+        *,
+        args: tuple[str, ...] = (),
+        kind: str = "fallback",
+    ) -> None:
+        """Register a diagnostic site and emit a ``tcl_diag_set`` call.
+
+        The site ID is a monotonic counter scoped to the module's
+        :class:`DiagMap`; ID 0 is reserved for "unset", so the first
+        emitted site is ID 1.  The site stores the current statement's
+        source range (populated by ``_emit_stmt``) and the supplied
+        command + kind so a sidecar resolver can print a useful
+        location on trap.
+
+        When no ``diag_map`` is attached to this emitter (standalone
+        tests that don't care about source mapping) the call is a
+        no-op — the ``tcl_diag_set`` import is still registered, but
+        we simply don't emit a call for it.
+        """
+        if self._diag_map is None:
+            return
+        diag_idx = self._shared_imports.get("tcl_diag_set")
+        if diag_idx is None:
+            return
+        rng = self._current_range
+        if rng is None:
+            # Happens when a trap is emitted outside a statement context
+            # (rare — e.g. the upvar preamble pre-scan).  Skip rather
+            # than pointing at an unrelated site.
+            return
+        site_id = len(self._diag_map.sites) + 1
+        site = DiagSite(
+            id=site_id,
+            file=self._diag_map.filename,
+            line=rng.start.line + 1,  # IR is 0-based; sidecar is 1-based
+            col=rng.start.character + 1,
+            end_line=rng.end.line + 1,
+            end_col=rng.end.character + 1,
+            command=command,
+            args=args,
+            kind=kind,
+            proc=self._proc_qname,
+        )
+        self._diag_map.add_site(site)
+        self._emit_i32_const(site_id)
+        self._emit_call(diag_idx)
+
     def _emit_unsupported_trap(self, command: str) -> None:
         """Emit hard trap for commands that cannot work in WASM at all.
 
@@ -2900,6 +3066,7 @@ class _WasmEmitter:
         handled by the interpreter either.  Inside catch, error()
         sets the flag without trapping.
         """
+        self._emit_diag_site(command, kind="unsupported")
         fidx = self._shared_imports.get("tcl_error")
         if fidx is not None:
             msg = f"unsupported in WASM: {command}"
@@ -2915,6 +3082,7 @@ class _WasmEmitter:
         ``tcl_eval(script)``.  The result (i32 TclObj) is left on
         the WASM stack — caller must drop or use it as needed.
         """
+        self._emit_diag_site(command, args=tuple(args), kind="fallback")
         eval_idx = self._shared_imports.get("tcl_eval")
         if eval_idx is not None:
             # Build command string: "command arg1 arg2 ..."
@@ -4929,6 +5097,11 @@ class _WasmEmitter:
             for stmt in stmts[:-1]:
                 self._emit_stmt(stmt)
             last = stmts[-1]
+            # Update diag-site context before the tail-call branches
+            # dispatch — otherwise a fallback or unsupported-trap in
+            # the tail would stamp a site with whichever range the
+            # previous statement happened to leave behind.
+            self._record_stmt_context(last)
             if isinstance(last, IRExprEval):
                 # Emit the final expression (i64), box to i32 for return
                 self._emit_expr(last.expr)
@@ -5098,6 +5271,8 @@ def wasm_codegen_module(
     ir_module: IRModule,
     *,
     optimise: bool = False,
+    filename: str | None = None,
+    diag_map: DiagMap | None = None,
 ) -> WasmModule:
     """Generate a complete WASM module from a CFG module.
 
@@ -5107,11 +5282,28 @@ def wasm_codegen_module(
         optimise: When ``True``, enable optimisation passes
             (constant folding, peephole, dead-code elimination).
             When ``False``, emit straightforward unoptimised code.
+        filename: Source filename recorded on every diag site.  Stored
+            on :class:`DiagMap` and used when *diag_map* is not
+            supplied (the default — a fresh map is allocated).
+            Defaults to ``"<unknown>"``.
+        diag_map: Optional pre-allocated :class:`DiagMap` to populate.
+            Pass one when the caller wants to keep a reference (e.g.
+            to serialise alongside the WASM bytes).  When ``None`` a
+            map is allocated internally but the codegen still emits
+            ``tcl_diag_set`` calls so the runtime trap prefixes work.
 
     Returns:
         A ``WasmModule`` that can be serialised to ``.wasm`` binary
-        or inspected as WAT text.
+        or inspected as WAT text.  The populated :class:`DiagMap` is
+        available on the supplied *diag_map* (or a fresh one if
+        ``None`` was passed — see :func:`wasm_codegen_module_with_map`
+        when you need the map returned directly).
     """
+    if diag_map is None:
+        diag_map = DiagMap(filename=filename or "<unknown>")
+    elif filename is not None:
+        diag_map.filename = filename
+
     module = WasmModule()
 
     # Phase 1: Pre-scan IR to find which runtime imports are needed
@@ -5171,10 +5363,13 @@ def wasm_codegen_module(
         shared_strings=shared_strings,
         shared_string_index=shared_string_index,
         shared_string_offset=shared_string_offset,
+        diag_map=diag_map,
     )
     top_func = emitter.generate()
     top_func.name = "::top"
     module.functions.append(top_func)
+    # ::top occupies the first function index after imports.
+    diag_map.procs.append((num_imports, "::top"))
 
     # Phase 5: Compile callables (procedures and methods)
     for qname, cfg_func, params in callables:
@@ -5189,10 +5384,15 @@ def wasm_codegen_module(
             shared_string_index=shared_string_index,
             shared_string_offset=shared_string_offset,
             proc_qname=qname,
+            diag_map=diag_map,
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname
         module.functions.append(callable_func)
+        # Record the proc's WASM function index so the sidecar can
+        # resolve ``<wasm function N>`` backtraces to proc names.
+        f_idx, _ = proc_index[qname]
+        diag_map.procs.append((f_idx, qname))
 
     # Emit a single set of data segments from the shared string table.
     for value, offset in shared_strings:

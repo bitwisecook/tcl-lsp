@@ -519,8 +519,11 @@ fn eval_foreach(words: []const i32) i32 {
 fn eval_proc_call(words: []const i32) i32 {
     const bucket = procs.proc_lookup(words[0]);
     if (bucket == 0) {
-        // Unknown command — error
-        rt.@"error"(words[0]);
+        // Unknown command — build a "unknown command: <name>" message
+        // so the stderr/error_msg output identifies the missing proc
+        // rather than emitting a bare command name.
+        const catch_mod = @import("tcl_catch.zig");
+        catch_mod.error_unknown_command(words[0]);
         return 0;
     }
     const body_obj = procs.proc_get_body(bucket);

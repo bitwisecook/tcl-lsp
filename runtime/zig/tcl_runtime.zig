@@ -16,6 +16,7 @@ const tcl_procs = @import("tcl_procs.zig");
 const tcl_cmd_info = @import("tcl_cmd_info.zig");
 const tcl_clock = @import("tcl_clock.zig");
 const tcl_array = @import("tcl_array.zig");
+const tcl_diag = @import("tcl_diag.zig");
 const interp = @import("tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -112,6 +113,9 @@ pub const info_dispatch = tcl_cmd_info.info_dispatch;
 pub const clock_seconds = tcl_clock.clock_seconds;
 pub const clock_clicks = tcl_clock.clock_clicks;
 pub const clock_milliseconds = tcl_clock.clock_milliseconds;
+
+// Diagnostic / source-location map
+pub const diag_set = tcl_diag.diag_set;
 
 // Arrays
 pub const array_set = tcl_array.array_set;
@@ -224,6 +228,8 @@ comptime {
     _ = &tcl_clock.clock_seconds;
     _ = &tcl_clock.clock_clicks;
     _ = &tcl_clock.clock_milliseconds;
+    // tcl_diag exports
+    _ = &tcl_diag.diag_set;
     // tcl_array exports
     _ = &tcl_array.array_set;
     _ = &tcl_array.array_get;

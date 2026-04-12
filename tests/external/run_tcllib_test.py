@@ -42,7 +42,12 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+from tests.test_wasm_real_tcl import (
+    _compile_tcl,
+    _compile_tcl_with_diag,
+    _resolve_trap,
+    _run_wasm,
+)
 
 _EXTERNAL = Path(__file__).resolve().parent
 _TCLTEST = _EXTERNAL / "tcllib" / "tcltest" / "tcltest.tcl"
@@ -132,11 +137,19 @@ class TestTcltestTopRuns:
     def test_tcltest_top_runs(self):
         _require_files()
         try:
-            wasm = _compile_tcl(_TCLTEST.read_text())
+            wasm, diag = _compile_tcl_with_diag(_TCLTEST.read_text(), "tcltest.tcl")
         except Exception as e:
             pytest.skip(f"tcltest.tcl does not yet compile: {e}")
-        val, _ = _run_wasm(wasm)
-        assert val == 0
+        try:
+            result = _run_wasm(wasm, capture_stderr=True)
+        except Exception as trap:
+            # _run_wasm attaches captured stderr to the trap as
+            # ``tcl_stderr`` so we can surface the ``tcl trap:
+            # site=<id> …`` prefix and resolve it via the diag map.
+            pytest.fail(_resolve_trap(trap, getattr(trap, "tcl_stderr", ""), diag))
+        val = result[0]
+        stderr_text = result[2] if len(result) == 3 else ""
+        assert val == 0, f"::top returned {val}; stderr:\n{stderr_text}"
 
 
 class TestCounterBundle:
@@ -152,10 +165,14 @@ class TestCounterBundle:
     def test_counter_bundle_runs_and_passes(self):
         _require_files()
         try:
-            wasm = _compile_tcl(_bundle_source())
+            wasm, diag = _compile_tcl_with_diag(_bundle_source(), "counter_bundle.tcl")
         except Exception as e:
             pytest.skip(f"bundle does not yet compile: {e}")
-        val, stdout = _run_wasm(wasm, capture_stdout=True)
+        try:
+            result = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        except Exception as trap:
+            pytest.fail(_resolve_trap(trap, getattr(trap, "tcl_stderr", ""), diag))
+        val, stdout = result[0], result[1]
         # tcltest's cleanupTests emits a summary like:
         #   all.tcl:        Total    9  Passed    9  Skipped    0  Failed    0
         # counter.test isn't run via all.tcl here, so we match the
