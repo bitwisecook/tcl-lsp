@@ -394,27 +394,44 @@ def _materialise_rust_optimisations(
     """Convert Rust ``(code, message, start, end, replacement, group, hint_only)``
     tuples into Python :class:`Optimisation` dataclasses with proper
     :class:`Range` positions computed from *source*.
+
+    Rust produces **UTF-8 byte offsets**; Python's string is a
+    Unicode string. We encode *source* once to bytes so indexing
+    by byte offset is correct for non-ASCII input, and compute
+    :attr:`SourcePosition.character` as LSP-mandated UTF-16 code
+    units (not codepoints). Both conventions match the contracts
+    documented on :class:`SourcePosition`.
     """
+    import bisect
+
     from ...analysis.semantic_model import Range
     from ...parsing.tokens import SourcePosition
 
-    # Pre-compute line-start offsets once for O(log n) lookup.
+    utf8_source = source.encode("utf-8")
+    source_len = len(utf8_source)
+
+    # Pre-compute line-start byte offsets once for O(log n) lookup.
     line_starts = [0]
-    for i, ch in enumerate(source):
-        if ch == "\n":
+    for i, b in enumerate(utf8_source):
+        if b == 0x0A:  # '\n'
             line_starts.append(i + 1)
 
     def position_at(offset: int) -> SourcePosition:
-        # Binary search for the largest line_start <= offset.
-        import bisect
-
-        idx = bisect.bisect_right(line_starts, offset) - 1
+        clamped = max(0, min(offset, source_len))
+        idx = bisect.bisect_right(line_starts, clamped) - 1
         if idx < 0:
             idx = 0
+        line_start = line_starts[idx]
+        # Decode the line prefix and measure its UTF-16 length so
+        # `character` matches LSP semantics. `errors="replace"`
+        # keeps us robust if a span ever lands on a codepoint
+        # boundary mid-sequence — we produce a column, not fail.
+        line_prefix = utf8_source[line_start:clamped].decode("utf-8", errors="replace")
+        utf16_column = len(line_prefix.encode("utf-16-le")) // 2
         return SourcePosition(
             line=idx,
-            character=offset - line_starts[idx],
-            offset=offset,
+            character=utf16_column,
+            offset=clamped,
         )
 
     out: list[Optimisation] = []
