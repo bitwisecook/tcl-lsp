@@ -423,8 +423,73 @@ pub fn evaluate_def(
                 None => LatticeValue::Overdefined,
             }
         }
+        Statement::Incr { name, amount, .. } => {
+            // C25e1: track `incr NAME ?AMOUNT?` through the lattice
+            // when the current value of NAME is a single Const(Int)
+            // and AMOUNT is either absent (defaults to 1), a decimal
+            // integer literal, or a simple `$var` reference that
+            // resolves to Const(Int) via `uses`.
+            let ver = stmt_ssa.uses.get(name).copied().unwrap_or(0);
+            let base = values
+                .get(&(name.clone(), ver))
+                .cloned()
+                .unwrap_or(LatticeValue::Unknown);
+            let base_int = match &base {
+                LatticeValue::Const(ConstValue::Int(i)) => *i,
+                LatticeValue::Unknown => return LatticeValue::Unknown,
+                // Overdefined or a non-integer Const widens.
+                _ => return LatticeValue::Overdefined,
+            };
+            let amt = match amount.as_deref() {
+                None => 1,
+                Some(text) => {
+                    let trimmed = text.trim();
+                    if let Ok(v) = trimmed.parse::<i64>() {
+                        v
+                    } else if let Some(amount) =
+                        resolve_simple_var_ref(trimmed, &stmt_ssa.uses, values)
+                    {
+                        match amount {
+                            LatticeValue::Const(ConstValue::Int(i)) => i,
+                            LatticeValue::Unknown => return LatticeValue::Unknown,
+                            _ => return LatticeValue::Overdefined,
+                        }
+                    } else {
+                        return LatticeValue::Overdefined;
+                    }
+                }
+            };
+            base_int
+                .checked_add(amt)
+                .map_or(LatticeValue::Overdefined, |v| {
+                    LatticeValue::Const(ConstValue::Int(v))
+                })
+        }
         _ => LatticeValue::Overdefined,
     }
+}
+
+/// Resolve `$var` / `${var}` to a lattice value by looking up the
+/// SSA version in `uses` and indexing `values`. Returns None when
+/// the text isn't a simple var reference.
+fn resolve_simple_var_ref(
+    text: &str,
+    uses: &HashMap<String, crate::ssa::Version>,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> Option<LatticeValue> {
+    let name = if let Some(name) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+        name
+    } else if let Some(name) = text.strip_prefix('$') {
+        if name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':') {
+            name
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+    let ver = *uses.get(name)?;
+    Some(values.get(&(name.to_owned(), ver)).cloned().unwrap_or(LatticeValue::Unknown))
 }
 
 /// Evaluate a branch condition.
@@ -880,6 +945,136 @@ mod tests {
             evaluate_def(&stmt_ssa, &values),
             LatticeValue::Const(ConstValue::Int(5))
         );
+    }
+
+    // -- C25e1: evaluate_def for Incr --
+
+    fn incr_stmt(name: &str, amount: Option<&str>, old_ver: u32, new_ver: u32) -> SsaStatement {
+        let mut uses = HashMap::new();
+        uses.insert(name.to_string(), old_ver);
+        let mut defs = HashMap::new();
+        defs.insert(name.to_string(), new_ver);
+        SsaStatement {
+            statement: Statement::Incr {
+                span: Span::new(0, 0),
+                name: name.into(),
+                amount: amount.map(String::from),
+                safe_on_uninit: false,
+            },
+            uses,
+            defs,
+        }
+    }
+
+    #[test]
+    fn evaluate_def_incr_default_amount() {
+        // x@1 = Const(Int(5)); `incr x` → x@2 = Const(Int(6)).
+        let stmt = incr_stmt("x", None, 1, 2);
+        let mut values = HashMap::new();
+        values.insert(
+            ("x".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(5)),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values),
+            LatticeValue::Const(ConstValue::Int(6))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_incr_integer_literal_amount() {
+        let stmt = incr_stmt("x", Some("10"), 1, 2);
+        let mut values = HashMap::new();
+        values.insert(
+            ("x".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(3)),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values),
+            LatticeValue::Const(ConstValue::Int(13))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_incr_negative_literal_amount() {
+        let stmt = incr_stmt("x", Some("-2"), 1, 2);
+        let mut values = HashMap::new();
+        values.insert(
+            ("x".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(10)),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values),
+            LatticeValue::Const(ConstValue::Int(8))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_incr_var_ref_amount() {
+        // `incr x $y` where $y resolves to 4.
+        let mut stmt = incr_stmt("x", Some("$y"), 1, 2);
+        stmt.uses.insert("y".to_string(), 1);
+        let mut values = HashMap::new();
+        values.insert(
+            ("x".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(6)),
+        );
+        values.insert(
+            ("y".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(4)),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values),
+            LatticeValue::Const(ConstValue::Int(10))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_incr_unknown_base_propagates_unknown() {
+        let stmt = incr_stmt("x", None, 1, 2);
+        let values = HashMap::new();
+        // No entry for x@1 → base is Unknown → result Unknown.
+        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Unknown);
+    }
+
+    #[test]
+    fn evaluate_def_incr_overdefined_base_widens() {
+        let stmt = incr_stmt("x", None, 1, 2);
+        let mut values = HashMap::new();
+        values.insert(("x".to_string(), 1), LatticeValue::Overdefined);
+        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Overdefined);
+    }
+
+    #[test]
+    fn evaluate_def_incr_non_integer_amount_widens() {
+        let stmt = incr_stmt("x", Some("2.5"), 1, 2);
+        let mut values = HashMap::new();
+        values.insert(
+            ("x".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(1)),
+        );
+        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Overdefined);
+    }
+
+    #[test]
+    fn resolve_simple_var_ref_accepts_bare_and_braced() {
+        let mut uses = HashMap::new();
+        uses.insert("x".to_string(), 1);
+        let mut values = HashMap::new();
+        values.insert(
+            ("x".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(7)),
+        );
+        assert_eq!(
+            resolve_simple_var_ref("$x", &uses, &values),
+            Some(LatticeValue::Const(ConstValue::Int(7)))
+        );
+        assert_eq!(
+            resolve_simple_var_ref("${x}", &uses, &values),
+            Some(LatticeValue::Const(ConstValue::Int(7)))
+        );
+        assert_eq!(resolve_simple_var_ref("$y", &uses, &values), None);
+        assert_eq!(resolve_simple_var_ref("plain", &uses, &values), None);
     }
 
     #[test]
