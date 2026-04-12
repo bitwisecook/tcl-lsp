@@ -15,6 +15,7 @@
 //!   code-sinking, and the manager — still stubbed.
 
 pub mod branch_folding;
+pub mod code_sinking;
 pub mod elimination;
 pub mod expr_simplify;
 pub mod helpers;
@@ -338,6 +339,10 @@ impl PassId {
 /// - [`PassId::TailCall`] → [`tail_call::run`] (C30h, O121
 ///   bare-call tail variant only; return-subst / O122 loop
 ///   conversion / O123 accumulator deferred).
+/// - [`PassId::CodeSinking`] → [`code_sinking::run`] (C30i,
+///   scaffolding / walker only — the O125 emitter is blocked
+///   on side-effect classification + per-statement variable-use
+///   scanning that the Rust pipeline does not yet expose).
 pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[PassId]) {
     for pass in passes {
         match pass {
@@ -349,9 +354,7 @@ pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[Pas
             PassId::Propagation => propagation::run(ctx, cu),
             PassId::PatternRecognition => pattern_recognition::run(ctx, cu),
             PassId::TailCall => tail_call::run(ctx, cu),
-            // Remaining passes are deferred follow-ups; see the
-            // module docs for the landing plan.
-            PassId::CodeSinking => {}
+            PassId::CodeSinking => code_sinking::run(ctx, cu),
         }
     }
 }
@@ -461,14 +464,12 @@ mod tests {
     }
 
     #[test]
-    fn run_passes_skips_deferred_passes_silently() {
+    fn run_passes_empty_list_is_noop() {
         use tcl_registry::CommandRegistry;
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for("set x 1", &registry, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
-        // Requesting only deferred passes must leave the
-        // context untouched.
-        run_passes(&mut ctx, &cu, &[PassId::CodeSinking]);
+        run_passes(&mut ctx, &cu, &[]);
         assert!(ctx.optimisations.is_empty());
     }
 }
