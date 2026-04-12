@@ -1331,6 +1331,17 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         needed.add("tcl_array_get")
                 elif cmd == "expr":
                     pass  # expr doesn't need imports itself
+                elif cmd == "catch":
+                    # ``[catch {body} ?var?]`` as a command substitution
+                    # compiles via the real catch codegen path (see
+                    # ``_emit_command_subst``/``_emit_command_subst_value``);
+                    # that path needs the catch runtime imports whose
+                    # top-level scan only adds them when ``catch`` is a
+                    # statement command.
+                    needed.add("tcl_catch_enter")
+                    needed.add("tcl_catch_leave")
+                    needed.add("tcl_catch_result")
+                    needed.add("tcl_catch_has_error")
                 # Recurse into the command text for nested substitutions
                 if len(parts) > 1:
                     _scan_text_for_cmd_subst(parts[-1], needed)
@@ -2102,6 +2113,15 @@ class _WasmEmitter:
             except Exception:
                 pass
 
+        # [catch {body} ?varName?] in value context — re-parse the body
+        # and emit via the real catch codegen so the body runs in the
+        # compiled frame (with locals visible to eval-fallbacks).  Going
+        # through ``_emit_eval_fallback`` would rebuild the script as
+        # ``catch $v1 $v2 ...`` and lose the body's word structure.
+        if cmd_name == "catch" and cmd_args:
+            self._emit_catch_from_args(tuple(cmd_args), defs=(), keep_on_stack=True)
+            return
+
         # Proc call — result is already i32 TclObj
         proc_info = self._resolve_proc(cmd_name)
         if proc_info is not None:
@@ -2388,6 +2408,18 @@ class _WasmEmitter:
             except Exception:
                 self._emit_i64_const(0)
                 return
+
+        # [catch {body} ?varName?] in expression context — emit the
+        # real catch codegen and unbox the i32 return code to i64 so
+        # ``if {[catch { ... } msg]} { ... }`` tests OK vs ERROR via
+        # integer comparison.  Falling through to the eval fallback
+        # here would rebuild ``catch`` as a space-joined script,
+        # losing the body's word boundaries when the first body word
+        # starts with ``$``.
+        if cmd_name == "catch" and cmd_args:
+            self._emit_catch_from_args(tuple(cmd_args), defs=(), keep_on_stack=True)
+            self._emit_unbox_int()
+            return
 
         # Handle proc calls — resolve command to a known procedure
         proc_info = self._resolve_proc(cmd_name)
