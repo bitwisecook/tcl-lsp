@@ -410,6 +410,8 @@ fn materialise_summaries(
         // fully determined by the static call — that means pure
         // AND (constant return OR passthrough of a param).
         let can_fold = is_pure && (returns_constant || passthrough.is_some());
+        let param_traits =
+            finalise_param_traits(&proc.params, &facts.param_trait_flags, passthrough.as_deref());
 
         procedures.insert(
             qname.clone(),
@@ -429,7 +431,7 @@ fn materialise_summaries(
                 return_depends_on_params: depends,
                 return_passthrough_param: passthrough,
                 can_fold_static_calls: can_fold,
-                param_traits: HashMap::new(),
+                param_traits,
             },
         );
     }
@@ -451,6 +453,10 @@ struct LocalFacts {
     /// `Statement::Return` visited in the body (including those
     /// inside nested compound statements).
     returns: Vec<ReturnKind>,
+    /// Accumulated trait observations per parameter name. The
+    /// final `ProcSummary::param_traits` is built from this
+    /// after the body walk completes.
+    param_trait_flags: HashMap<String, HashSet<ProcArgTrait>>,
 }
 
 /// Classification of a single return statement's shape.
@@ -479,6 +485,7 @@ impl Default for LocalFacts {
             effect_reads: EffectRegion::NONE,
             effect_writes: EffectRegion::NONE,
             returns: Vec::new(),
+            param_trait_flags: HashMap::new(),
         }
     }
 }
@@ -541,9 +548,6 @@ fn scan_statement(
                 facts.effect_writes |= EffectRegion::GLOBAL_STATE;
             }
         }
-        Statement::ExprEval { .. } => {
-            // Pure expression evaluation — no effect.
-        }
         Statement::Return { value, expr, .. } => {
             let kind = classify_return(value.as_deref(), expr.as_ref(), params);
             facts.returns.push(kind);
@@ -567,17 +571,40 @@ fn scan_statement(
             }
 
             // Resolve internal-proc call targets.
-            if let Some(target) = resolve_internal_call(command, caller, known) {
-                facts.direct_calls.insert(target);
+            let internal_target = resolve_internal_call(command, caller, known);
+            if let Some(target) = &internal_target {
+                facts.direct_calls.insert(target.clone());
             } else if registry.get(command).is_none() {
                 facts.has_unknown_calls = true;
                 facts.local_pure = false;
+            }
+
+            // Param-trait observation: any param whose `$p`
+            // appears in an argument text is "used"; when the
+            // call resolves to another internal proc, classify
+            // it as ForwardedToCallee.
+            for arg in args {
+                for param in params {
+                    if text_references_name(arg, param) {
+                        let trait_kind = if internal_target.is_some() {
+                            ProcArgTrait::ForwardedToCallee
+                        } else {
+                            ProcArgTrait::Passthrough
+                        };
+                        facts
+                            .param_trait_flags
+                            .entry(param.clone())
+                            .or_default()
+                            .insert(trait_kind);
+                    }
+                }
             }
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
+                note_params_in_expr(&c.condition, params, facts);
                 scan_script(&c.body, caller, known, registry, dialect, facts, params);
             }
             if let Some(body) = else_body {
@@ -585,15 +612,25 @@ fn scan_statement(
             }
         }
         Statement::For {
-            init, next, body, ..
+            init,
+            condition,
+            next,
+            body,
+            ..
         } => {
+            note_params_in_expr(condition, params, facts);
             scan_script(init, caller, known, registry, dialect, facts, params);
             scan_script(next, caller, known, registry, dialect, facts, params);
             scan_script(body, caller, known, registry, dialect, facts, params);
         }
-        Statement::While { body, .. }
-        | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => {
+        Statement::While { condition, body, .. } => {
+            note_params_in_expr(condition, params, facts);
+            scan_script(body, caller, known, registry, dialect, facts, params);
+        }
+        Statement::ExprEval { expr, .. } => {
+            note_params_in_expr(expr, params, facts);
+        }
+        Statement::Foreach { body, .. } | Statement::Catch { body, .. } => {
             scan_script(body, caller, known, registry, dialect, facts, params);
         }
         Statement::Try {
@@ -627,6 +664,124 @@ fn scan_statement(
 
 fn is_global_or_namespace(name: &str) -> bool {
     name.starts_with("::") || name.contains("::")
+}
+
+/// Scan a raw Tcl source word for `$name` / `${name}`
+/// references of the given variable name. Used for param-trait
+/// observation in call arguments (where we only have text, not
+/// parsed expressions).
+fn text_references_name(text: &str, name: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'$' {
+            i += 1;
+            continue;
+        }
+        i += 1;
+        if i >= bytes.len() {
+            break;
+        }
+        if bytes[i] == b'{' {
+            i += 1;
+            let start = i;
+            while i < bytes.len() && bytes[i] != b'}' {
+                i += 1;
+            }
+            if let Ok(n) = std::str::from_utf8(&bytes[start..i]) {
+                if n == name {
+                    return true;
+                }
+            }
+            if i < bytes.len() {
+                i += 1;
+            }
+            continue;
+        }
+        let start = i;
+        while i < bytes.len() {
+            let b = bytes[i];
+            if b.is_ascii_alphanumeric() || b == b'_' {
+                i += 1;
+            } else if b == b':' && i + 1 < bytes.len() && bytes[i + 1] == b':' {
+                i += 2;
+            } else {
+                break;
+            }
+        }
+        if let Ok(n) = std::str::from_utf8(&bytes[start..i]) {
+            if n == name {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Visit each `ExprNode::Var` in `node` and mark matching
+/// parameters as `UsedInCondition` — the expression is inside an
+/// `if` / `while` / `for` condition (or a standalone `ExprEval`
+/// treated analogously).
+fn note_params_in_expr(
+    node: &crate::expr_ast::ExprNode,
+    params: &HashSet<String>,
+    facts: &mut LocalFacts,
+) {
+    use crate::expr_ast::ExprNode;
+    match node {
+        ExprNode::Var { name, .. } => {
+            if params.contains(name) {
+                facts
+                    .param_trait_flags
+                    .entry(name.clone())
+                    .or_default()
+                    .insert(ProcArgTrait::UsedInCondition);
+            }
+        }
+        ExprNode::Binary { left, right, .. } => {
+            note_params_in_expr(left, params, facts);
+            note_params_in_expr(right, params, facts);
+        }
+        ExprNode::Unary { operand, .. } => note_params_in_expr(operand, params, facts),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            note_params_in_expr(condition, params, facts);
+            note_params_in_expr(true_branch, params, facts);
+            note_params_in_expr(false_branch, params, facts);
+        }
+        ExprNode::Call { args, .. } => {
+            for a in args {
+                note_params_in_expr(a, params, facts);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Collapse the raw trait observation flags into the final
+/// per-param trait set. Adds `Passthrough` when the proc's
+/// `return_passthrough_param` matches this param; adds `Unused`
+/// when no observation fired and the proc has any body.
+fn finalise_param_traits(
+    params: &[String],
+    flags: &HashMap<String, HashSet<ProcArgTrait>>,
+    passthrough: Option<&str>,
+) -> HashMap<String, HashSet<ProcArgTrait>> {
+    let mut out: HashMap<String, HashSet<ProcArgTrait>> = HashMap::new();
+    for p in params {
+        let mut traits: HashSet<ProcArgTrait> = flags.get(p).cloned().unwrap_or_default();
+        if passthrough == Some(p) {
+            traits.insert(ProcArgTrait::Passthrough);
+        }
+        if traits.is_empty() {
+            traits.insert(ProcArgTrait::Unused);
+        }
+        out.insert(p.clone(), traits);
+    }
+    out
 }
 
 /// Classify a single `Statement::Return` shape for
@@ -1030,10 +1185,44 @@ mod tests {
     }
 
     #[test]
-    fn param_traits_still_empty() {
-        // Param trait inference remains a follow-up.
+    fn param_traits_inferred() {
+        // `x` is returned → Passthrough; `y` never read → Unused.
         let ia = build("proc ::f {x y} { return $x }");
-        assert!(ia.procedures.get("::f").unwrap().param_traits.is_empty());
+        let s = ia.procedures.get("::f").unwrap();
+        let x_traits = s.param_traits.get("x").expect("x traits");
+        assert!(
+            x_traits.contains(&ProcArgTrait::Passthrough),
+            "expected Passthrough for x, got {x_traits:?}",
+        );
+        let y_traits = s.param_traits.get("y").expect("y traits");
+        assert!(
+            y_traits.contains(&ProcArgTrait::Unused),
+            "expected Unused for y, got {y_traits:?}",
+        );
+    }
+
+    #[test]
+    fn used_in_condition_detected() {
+        let ia = build("proc ::f {n} { if {$n > 0} { return 1 } else { return 0 } }");
+        let s = ia.procedures.get("::f").unwrap();
+        let traits = s.param_traits.get("n").expect("n traits");
+        assert!(
+            traits.contains(&ProcArgTrait::UsedInCondition),
+            "expected UsedInCondition for n, got {traits:?}",
+        );
+    }
+
+    #[test]
+    fn forwarded_to_callee_detected() {
+        let ia = build(
+            "proc ::helper {v} { return $v }\nproc ::f {x} { ::helper $x }",
+        );
+        let s = ia.procedures.get("::f").unwrap();
+        let traits = s.param_traits.get("x").expect("x traits");
+        assert!(
+            traits.contains(&ProcArgTrait::ForwardedToCallee),
+            "expected ForwardedToCallee for x, got {traits:?}",
+        );
     }
 
     #[test]
