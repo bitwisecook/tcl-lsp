@@ -296,6 +296,24 @@ pub export fn proc_get_body(bucket: i32) i32 {
     return read_i32(base + 16);
 }
 
+/// Get the stored name pointer for a proc bucket — the
+/// fully-qualified name the proc was registered under.  Distinct
+/// from ``words[0]`` at the caller (which may be the unqualified
+/// form resolved via namespace-path search).  Used by the host-
+/// bridge dispatcher so the embedder can look up the compiled
+/// WASM export by its real qualified name.
+pub export fn proc_get_name_ptr(bucket: i32) i32 {
+    if (bucket == 0) return 0;
+    const base: u32 = @intCast(bucket);
+    return read_i32(base);
+}
+
+pub export fn proc_get_name_len(bucket: i32) i32 {
+    if (bucket == 0) return 0;
+    const base: u32 = @intCast(bucket);
+    return read_i32(base + 4);
+}
+
 /// Check if a proc exists by name. Returns 1 or 0.
 pub export fn proc_exists(name: i32) i32 {
     const sn = obj_ensure_string(name);
