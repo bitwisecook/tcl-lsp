@@ -1617,6 +1617,19 @@ def _scan_needed_imports(
                     # interpolation helpers.
                     for arg in barrier_args:
                         _scan_value(arg)
+                elif (
+                    barrier_cmd == "return"
+                    and barrier_args
+                    and len(barrier_args) == 3
+                    and barrier_args[0] == "-code"
+                    and barrier_args[1] == "error"
+                ):
+                    # ``return -code error <msg>`` emits the message
+                    # inline via ``_emit_value``; scan it so the
+                    # interpolation helpers (``tcl_append``, maybe
+                    # ``tcl_array_get`` for ``$arr(key)`` references)
+                    # show up in the module's import list.
+                    _scan_value(barrier_args[2])
             case IRBlock(body=body):
                 # ``namespace eval`` body inlined; recurse into its
                 # statements so any runtime helpers they need (e.g.
@@ -3087,6 +3100,25 @@ class _WasmEmitter:
                 if barrier_cmd == "uplevel" and barrier_args:
                     self._emit_cmd_uplevel(barrier_args)
                     self._emit(WasmOp.DROP)
+                elif (
+                    barrier_cmd == "return"
+                    and barrier_args
+                    and len(barrier_args) == 3
+                    and barrier_args[0] == "-code"
+                    and barrier_args[1] == "error"
+                ):
+                    # ``return -code error <msg>`` — evaluate the
+                    # message value inline so embedded ``$var`` /
+                    # ``[cmd]`` substitutions resolve against the
+                    # current frame, then call ``tcl_cmd_error``.
+                    # Going through the eval fallback would
+                    # brace-wrap the message and block the
+                    # substitutions the error text needs (tcltest's
+                    # error strings embed ``$option``/``$values``
+                    # everywhere).  Other ``return -code …`` forms
+                    # (dynamic code, break/continue, numeric) reach
+                    # the fallback below where quoting is safe.
+                    self._emit_cmd_return(barrier_args)
                 elif barrier_cmd and barrier_cmd in _CMD_RUNTIME:
                     self._emit_cmd_runtime(barrier_cmd, barrier_args, ())
                 elif barrier_cmd:
@@ -4085,13 +4117,45 @@ class _WasmEmitter:
     def _emit_cmd_return(self, args: tuple[str, ...]) -> None:
         """``return ?value?`` or ``return -code code ?value?``.
 
-        The simple single-value form compiles to a WASM return.  The
-        ``-code`` / ``-level`` / ``-errorinfo`` / ``-errorcode``
-        variants have semantics (raising a Tcl error, breaking out of
-        enclosing loops, etc.) we don't replicate inline — fall back
-        to ``tcl_eval`` so the interpreter's return handler can
-        produce the right control-flow signal.
+        The simple single-value form compiles to a WASM return.
+        ``return -code error <msg>`` is special-cased inline: evaluate
+        *msg* via :meth:`_emit_value` (so embedded ``$var`` /
+        ``[cmd]`` substitutions work), then call ``tcl_cmd_error``
+        — which sets the catch's ``error_flag``/``error_msg`` when
+        inside a ``catch`` or traps otherwise.  Going through
+        :meth:`_emit_eval_fallback` would brace-wrap the message to
+        preserve list structure, blocking the substitutions the
+        error text needs — a real hazard because tcltest's error
+        messages embed ``$option`` / ``$values`` everywhere.
+
+        Other ``-code`` forms (``return -code break``, ``return -code
+        continue``, numeric codes, ``-level N``, ``-errorinfo``
+        ``-errorcode``) are rarer and fall through to the eval
+        fallback, whose argument quoting is safe for them because
+        their payloads are typically literal keywords or numeric
+        values without interpolation.
         """
+        if args and len(args) >= 3 and args[0] == "-code" and args[1] == "error" and len(args) == 3:
+            # return -code error <msg>
+            self._emit_value(args[2])
+            # ``_RUNTIME_IMPORTS`` keys the error import as
+            # ``tcl_error`` (internal key) → WASM name
+            # ``tcl_cmd_error``; use the internal key to look up
+            # the shared import slot.
+            err_idx = self._shared_imports.get("tcl_error")
+            if err_idx is None:
+                self._emit_eval_fallback("return", args)
+                return
+            self._emit_call(err_idx)
+            # tcl_cmd_error returns nothing; emit a null TclObj for
+            # the WASM return value.  When inside a catch, error_flag
+            # is now set and the catch body's has_error check will
+            # trip on the next statement.  When outside a catch, the
+            # runtime's tcl_cmd_error already traps and this return
+            # is unreachable.
+            self._emit_i32_const(0)
+            self._emit(WasmOp.RETURN)
+            return
         if args and args[0].startswith("-"):
             self._emit_eval_fallback("return", args)
             return

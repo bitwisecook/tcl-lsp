@@ -1572,6 +1572,37 @@ class TestDiagMap:
             assert "unknown command: definitely_not_a_command" in resolved
 
 
+class TestReturnCodeError:
+    """``return -code error "<msg with $substitutions>"`` — inline path.
+
+    This special-cased codegen lets the message value go through
+    ``_emit_value`` (which handles ``$var`` / ``[cmd]``
+    interpolation) rather than the eval fallback's brace-quoting
+    that would block substitution.  The literal test below would
+    previously emit the raw ``${var}`` text because the fallback
+    wraps the message in braces to preserve list structure.
+    """
+
+    def test_error_message_substitutes_vars(self):
+        # Wrap the error-raising call in ``catch`` so the test
+        # can observe the captured message through the resultVar.
+        # Without the special-case codegen, ``msg`` would be
+        # ``"ambiguous option ${o}: could match ${m}"`` (raw).
+        source = (
+            "proc fail {o m} {\n"
+            '    return -code error "ambiguous option $o: could match $m"\n'
+            "}\n"
+            "if {[catch {fail -tmpdir {a b}} msg]} {\n"
+            "    puts $msg\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        # ``$o`` must have expanded to ``-tmpdir`` and ``$m`` to
+        # ``a b``.  Literal ``${o}`` in the output = regression.
+        assert "ambiguous option -tmpdir: could match a b" in stdout, f"got: {stdout!r}"
+
+
 class TestRegexp:
     """Tcl regex engine (Henry Spencer) linked via ``tcl_regex.zig``.
 
