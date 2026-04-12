@@ -83,6 +83,40 @@ pub fn full_rewrite_span(source: &str, span: Span) -> Span {
     Span::new(span.start(), u32::try_from(end).unwrap_or(span.end()))
 }
 
+/// Extend an argv span that points at a `"…"` composite word to
+/// cover the full quoted string.
+///
+/// A composite word like `"$a $b $c"` segments into many tokens
+/// and `CommandTokens::argv[i]` holds only the representative
+/// token (the opening `"`). To rewrite the *whole* string we need
+/// the span to reach the closing quote — this helper scans the
+/// source forward from the argv start through `\"` escapes until
+/// the matching close quote. Returns the input span unchanged
+/// when the first byte isn't `"` or no close quote is found.
+#[must_use]
+pub fn full_quoted_string_span(source: &str, argv_span: Span) -> Span {
+    let bytes = source.as_bytes();
+    let start = argv_span.start() as usize;
+    if start >= bytes.len() || bytes[start] != b'"' {
+        return argv_span;
+    }
+    let mut i = start + 1;
+    while i < bytes.len() {
+        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            i += 2;
+            continue;
+        }
+        if bytes[i] == b'"' {
+            return Span::new(
+                argv_span.start(),
+                u32::try_from(i + 1).unwrap_or(argv_span.end()),
+            );
+        }
+        i += 1;
+    }
+    argv_span
+}
+
 /// Simpler variant for single-word argv spans. The lexer reports
 /// the representative token for `${name}` / `[cmd]` words without
 /// the trailing `}` / `]`; this helper extends by exactly one
@@ -217,6 +251,36 @@ mod tests {
     fn full_rewrite_span_at_eof_no_panic() {
         // Oversized span must not panic.
         assert_eq!(full_rewrite_span("hi", Span::new(0, 5)), Span::new(0, 5));
+    }
+
+    #[test]
+    fn full_quoted_string_span_extends_through_close_quote() {
+        let source = "puts \"$a $b $c\"";
+        // Argv span points at just the opening `"` token (5..7
+        // covering `"$`). Extension should reach the closing `"`.
+        assert_eq!(
+            full_quoted_string_span(source, Span::new(5, 7)),
+            Span::new(5, 15),
+        );
+    }
+
+    #[test]
+    fn full_quoted_string_span_respects_escape() {
+        // `"a\"b"` — the `\"` is an escape, not the close quote.
+        let source = "\"a\\\"b\"";
+        assert_eq!(
+            full_quoted_string_span(source, Span::new(0, 1)),
+            Span::new(0, 6),
+        );
+    }
+
+    #[test]
+    fn full_quoted_string_span_no_open_quote_unchanged() {
+        let source = "plain";
+        assert_eq!(
+            full_quoted_string_span(source, Span::new(0, 3)),
+            Span::new(0, 3),
+        );
     }
 
     #[test]

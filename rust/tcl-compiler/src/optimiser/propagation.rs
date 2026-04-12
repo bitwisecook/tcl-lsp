@@ -48,7 +48,7 @@ use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 
 use super::helpers::literals::{is_safe_word, is_static_var_word};
-use super::helpers::spans::full_word_span;
+use super::helpers::spans::{full_quoted_string_span, full_word_span};
 use super::{Optimisation, PassContext};
 
 /// Run the propagation pass across every function.
@@ -574,10 +574,15 @@ fn visit_string_interpolation(
     if rewritten == inside {
         return;
     }
+    // The argv span for a composite `"$a $b $c"` word holds only
+    // the opening-quote token (e.g. `"$` at 5..7). Extend to the
+    // matching close quote so the rewrite target covers the full
+    // string — otherwise we leave trailing `$b $c"` garbage.
+    let rewrite_span = full_quoted_string_span(ctx.source, span);
     ctx.report(Optimisation::new(
         "O100",
         "Inline constant into string interpolation",
-        span,
+        rewrite_span,
         format!("\"{rewritten}\""),
     ));
 }
