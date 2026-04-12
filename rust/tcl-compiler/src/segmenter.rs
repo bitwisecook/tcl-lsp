@@ -63,6 +63,27 @@ impl SegmentedCommand {
             &[]
         }
     }
+
+    /// Return a copy of `self` with every span shifted by
+    /// `base_offset`. Used by
+    /// [`segment_commands_with_offset`] to relocate a body
+    /// script's spans into the outer source buffer's offset
+    /// space.
+    #[must_use]
+    pub fn shifted_by(mut self, base_offset: u32) -> Self {
+        self.span = shift_span(self.span, base_offset);
+        for tok in &mut self.argv {
+            tok.span = shift_span(tok.span, base_offset);
+        }
+        for tok in &mut self.all_tokens {
+            tok.span = shift_span(tok.span, base_offset);
+        }
+        self
+    }
+}
+
+fn shift_span(span: Span, by: u32) -> Span {
+    Span::new(span.start() + by, span.end() + by)
 }
 
 /// Return the source-level text fragment for a single token.
@@ -106,15 +127,27 @@ pub fn segment_commands(source: &str) -> Vec<SegmentedCommand> {
 }
 
 /// Segment with a base byte offset (for body scripts inside braces).
+///
+/// The lexer tokenises `source` starting at local offset `0`.
+/// Segmentation runs in local-offset space so the `SourceMap`
+/// can slice text via [`Token::span`]; immediately before
+/// returning, every `SegmentedCommand` has its spans relocated
+/// by `base_offset` so downstream IR / optimiser / def-use
+/// consumers see absolute offsets into the outer source buffer.
 #[must_use]
 pub fn segment_commands_with_offset(source: &str, base_offset: u32) -> Vec<SegmentedCommand> {
+    let commands = segment_commands_local(source);
+    if base_offset == 0 {
+        return commands;
+    }
+    commands.into_iter().map(|c| c.shifted_by(base_offset)).collect()
+}
+
+fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
     // word_piece only needs token_text (source indexing), no base offset.
     let sm = SourceMap::new(source);
-    let config = LexerConfig {
-        base_offset,
-        ..LexerConfig::default()
-    };
-    let lexer_sm = SourceMap::new(source).with_base(base_offset, 0, 0);
+    let config = LexerConfig::default();
+    let lexer_sm = SourceMap::new(source);
     let lexer = Lexer::with_source_map(lexer_sm, config);
     let Ok(tokens) = lexer.tokenise_all() else {
         return Vec::new();
@@ -311,5 +344,26 @@ mod tests {
     fn blank_lines_between_commands() {
         let cmds = segment_commands("set x 1\n\nset y 2");
         assert_eq!(cmds.len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod span_absolute_tests {
+    use crate::compilation_unit::CompilationUnit;
+    use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn proc_body_statement_spans_are_absolute() {
+        let src = "proc ::f {} { set x 1; return $x }";
+        let r = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(src, &r, false);
+        let proc = cu.ir_module.procedures.get("::f").expect("proc");
+        let first = proc.body.statements.first().expect("body stmt");
+        let span = first.span();
+        let text = &src[span.as_range()];
+        assert!(
+            text.starts_with("set"),
+            "expected absolute span pointing at `set`, got {text:?}",
+        );
     }
 }

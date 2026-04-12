@@ -602,14 +602,26 @@ mod tests {
         assert_eq!(opt.replacement, "");
     }
 
-    // NOTE: The Rust IR's switch lowering
-    // (`lowering/structured.rs::lower_switch`) currently does not
-    // populate per-arm `body_span` / `default_span`. Switch-arm
-    // and switch-default replacements depend on that text, so the
-    // pass returns without emitting for those shapes. The
-    // `switch_no_match_no_default_emits_empty` test below covers
-    // the one path that does not need body text — the pre-existing
-    // IR limitation is tracked separately.
+    #[test]
+    fn switch_literal_subject_matches_arm() {
+        let opts = run_pass("switch foo { foo { puts one } bar { puts two } }");
+        assert!(
+            opts.iter().any(|o| o.code == "O112"
+                && o.message.contains("subject 'foo' always matches pattern 'foo'")),
+            "expected a switch-match O112, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn switch_no_match_emits_default() {
+        let opts = run_pass(
+            "switch baz { foo { puts one } bar { puts two } default { puts none } }",
+        );
+        assert!(
+            opts.iter().any(|o| o.code == "O112" && o.message.contains("keep default")),
+            "expected a switch-no-match-with-default O112, got {opts:?}",
+        );
+    }
 
     #[test]
     fn switch_no_match_no_default_emits_empty() {

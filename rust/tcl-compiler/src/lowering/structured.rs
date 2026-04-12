@@ -19,14 +19,30 @@ use super::{parse_param_names, Lowerer};
 ///
 /// Tokenises the body text and collects words separated by whitespace/EOL,
 /// merging multi-token words. Returns the element texts in order.
-fn switch_body_elements(body_text: &str) -> Vec<String> {
+/// A single pattern/body pair collected by
+/// [`lower_switch`](super::Lowerer::lower_switch) before the
+/// final `SwitchArm` list is built. Factored out to keep the
+/// pair vector's type signature readable.
+struct SwitchPair {
+    pattern: String,
+    pattern_span: Span,
+    body_text: String,
+    body_span: Option<Span>,
+    body_arg_idx: Option<usize>,
+}
+
+/// Split a switch's braced body into its `(element_text,
+/// local_span)` pairs. The span is expressed in the body text's
+/// own offset space — callers relocate it to the full source
+/// buffer by adding the body text's starting offset.
+fn switch_body_elements(body_text: &str) -> Vec<(String, Span)> {
     let sm = SourceMap::new(body_text);
     let lexer = Lexer::new(body_text);
     let Ok(tokens) = lexer.tokenise_all() else {
         return Vec::new();
     };
 
-    let mut elements = Vec::new();
+    let mut elements: Vec<(String, Span)> = Vec::new();
     let mut prev_is_sep = true;
 
     for &tok in &tokens {
@@ -40,17 +56,42 @@ fn switch_body_elements(body_text: &str) -> Vec<String> {
         }
 
         let piece = word_piece(&sm, tok);
+        // Token spans for braced / quoted words do not include
+        // the trailing `}` / `"` — the lexer treats the closing
+        // delimiter as an anchor rather than a span member.
+        // Extend `end` by one byte when the source byte at the
+        // current end position is the matching closer, so the
+        // resulting span covers the whole `{…}` / `"…"` word.
+        let tok_span = adjusted_delim_span(body_text, tok);
         if prev_is_sep {
-            elements.push(piece);
+            elements.push((piece, tok_span));
         } else if let Some(last) = elements.last_mut() {
-            last.push_str(&piece);
+            last.0.push_str(&piece);
+            last.1 = Span::new(last.1.start(), tok_span.end());
         } else {
-            elements.push(piece);
+            elements.push((piece, tok_span));
         }
         prev_is_sep = false;
     }
 
     elements
+}
+
+/// Extend a token's span by one byte when its end lands on a
+/// closing `{}` / `""` delimiter — the lexer stops the span
+/// just before the closer. For all other tokens the span is
+/// returned unchanged.
+fn adjusted_delim_span(source: &str, tok: tcl_lexer::Token) -> Span {
+    if tok.content_offset == 0 {
+        return tok.span;
+    }
+    let end = tok.span.end() as usize;
+    let bytes = source.as_bytes();
+    if end < bytes.len() && matches!(bytes[end], b'}' | b'"') {
+        Span::new(tok.span.start(), tok.span.end() + 1)
+    } else {
+        tok.span
+    }
 }
 
 /// Parse switch options, returning `(first_non_option_index, mode, nocase)`.
@@ -349,6 +390,7 @@ impl Lowerer<'_> {
     // ── switch ────────────────────────────────────────────────────
 
     /// Lower `switch ?options? subject pattern body ...`.
+    #[allow(clippy::too_many_lines)]
     pub(super) fn lower_switch(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
@@ -370,24 +412,43 @@ impl Lowerer<'_> {
             return Self::barrier(seg, "switch missing arms");
         }
 
-        // Collect pattern/body pairs.
-        let mut pairs: Vec<(String, Span, String, Option<usize>)> = Vec::new();
+        // Collect pattern/body pairs. Each pair carries a
+        // `body_span` resolved in the outer source's offset
+        // space plus an optional `body_arg_idx` into
+        // `arg_tokens` so the body lowerer can still pick up
+        // the right content offset / encoding flags.
+        let mut pairs: Vec<SwitchPair> = Vec::new();
 
         // Single braced body form: switch subject { pat1 body1 pat2 body2 ... }
         if i == args.len() - 1 && i < arg_single.len() && arg_single[i] {
             let body_text = &args[i];
+            // Starting offset of the body *content* inside the
+            // outer source. For a braced word the content begins
+            // one byte after the opening `{`.
+            let outer_arg_span = arg_tokens.get(i).map_or(seg.span, |t| t.span);
+            let content_shift = 1_u32; // skip leading `{`
+            let body_base = outer_arg_span.start().saturating_add(content_shift);
+
             let elements = switch_body_elements(body_text);
             if elements.len() % 2 != 0 {
                 return Self::barrier(seg, "switch odd pattern count");
             }
+            let relocate = |local: Span| {
+                let start = body_base.saturating_add(local.start());
+                let end = body_base.saturating_add(local.end());
+                Span::new(start, end)
+            };
             let mut j = 0;
             while j + 1 < elements.len() {
-                pairs.push((
-                    elements[j].clone(),
-                    seg.span,
-                    elements[j + 1].clone(),
-                    None, // no per-element arg token index
-                ));
+                let (pat_text, pat_local) = &elements[j];
+                let (body_text_e, body_local) = &elements[j + 1];
+                pairs.push(SwitchPair {
+                    pattern: pat_text.clone(),
+                    pattern_span: relocate(*pat_local),
+                    body_text: body_text_e.clone(),
+                    body_span: Some(relocate(*body_local)),
+                    body_arg_idx: None,
+                });
                 j += 2;
             }
         } else {
@@ -399,9 +460,16 @@ impl Lowerer<'_> {
             while i + 1 < args.len() {
                 let pattern = args[i].clone();
                 let pattern_span = arg_tokens.get(i).map_or(seg.span, |t| t.span);
-                let body_text = args[i + 1].clone();
+                let body_text_inner = args[i + 1].clone();
                 let body_tok_idx = i + 1;
-                pairs.push((pattern, pattern_span, body_text, Some(body_tok_idx)));
+                let body_span_val = arg_tokens.get(body_tok_idx).map(|t| t.span);
+                pairs.push(SwitchPair {
+                    pattern,
+                    pattern_span,
+                    body_text: body_text_inner,
+                    body_span: body_span_val,
+                    body_arg_idx: Some(body_tok_idx),
+                });
                 i += 2;
             }
         }
@@ -410,12 +478,11 @@ impl Lowerer<'_> {
         let mut default_body = None;
         let mut default_span = None;
 
-        for (pair_idx, (pattern, pattern_span, body_text, body_tok_idx)) in pairs.iter().enumerate()
-        {
-            if body_text == "-" {
+        for (pair_idx, pair) in pairs.iter().enumerate() {
+            if pair.body_text == "-" {
                 arms.push(SwitchArm {
-                    pattern: pattern.clone(),
-                    pattern_span: *pattern_span,
+                    pattern: pair.pattern.clone(),
+                    pattern_span: pair.pattern_span,
                     body: None,
                     body_span: None,
                     fallthrough: true,
@@ -423,19 +490,18 @@ impl Lowerer<'_> {
                 continue;
             }
 
-            let body_tok = body_tok_idx.and_then(|idx| arg_tokens.get(idx));
-            let body = self.lower_body_from_tok(body_text, body_tok, namespace);
-            let body_span_val = body_tok.map(|t| t.span);
+            let body_tok = pair.body_arg_idx.and_then(|idx| arg_tokens.get(idx));
+            let body = self.lower_body_from_tok(&pair.body_text, body_tok, namespace);
 
-            if pattern == "default" && pair_idx == pairs.len() - 1 {
+            if pair.pattern == "default" && pair_idx == pairs.len() - 1 {
                 default_body = Some(body);
-                default_span = body_span_val;
+                default_span = pair.body_span;
             } else {
                 arms.push(SwitchArm {
-                    pattern: pattern.clone(),
-                    pattern_span: *pattern_span,
+                    pattern: pair.pattern.clone(),
+                    pattern_span: pair.pattern_span,
                     body: Some(body),
-                    body_span: body_span_val,
+                    body_span: pair.body_span,
                     fallthrough: false,
                 });
             }
@@ -631,5 +697,61 @@ mod tests {
                 ..
             }
         ));
+    }
+}
+
+#[cfg(test)]
+mod switch_span_tests {
+    use crate::compilation_unit::CompilationUnit;
+    use crate::ir::Statement;
+    use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn switch_arm_and_default_spans_point_at_body_text() {
+        let src =
+            "switch foo { foo { puts one } bar { puts two } default { puts none } }";
+        let r = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(src, &r, false);
+
+        // Locate the switch statement in the IR (top-level).
+        let switch = cu
+            .ir_module
+            .top_level
+            .statements
+            .iter()
+            .find(|s| matches!(s, Statement::Switch { .. }))
+            .expect("switch statement");
+
+        let Statement::Switch {
+            arms,
+            default_body,
+            default_span,
+            ..
+        } = switch
+        else {
+            panic!("expected Switch variant");
+        };
+
+        assert_eq!(arms.len(), 2);
+        for arm in arms {
+            let span = arm.body_span.expect("arm body_span populated");
+            let text = &src[span.as_range()];
+            assert!(
+                text.starts_with('{') && text.ends_with('}'),
+                "expected braced body, got {text:?}",
+            );
+            assert!(
+                text.contains("puts"),
+                "expected body to contain `puts`, got {text:?}",
+            );
+        }
+
+        assert!(default_body.is_some());
+        let dspan = default_span.expect("default_span populated");
+        let dtext = &src[dspan.as_range()];
+        assert!(
+            dtext.contains("puts none"),
+            "expected default body to contain `puts none`, got {dtext:?}",
+        );
     }
 }
