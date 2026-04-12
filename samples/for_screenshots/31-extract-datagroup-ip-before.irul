@@ -1,0 +1,15 @@
+when CLIENT_ACCEPTED {
+    set addr [IP::client_addr]
+    #   ^--- cursor on if
+    if {$addr eq "10.0.0.0/8"} {
+        drop
+    } elseif {$addr eq "172.16.0.0/12"} {
+        drop
+    } elseif {$addr eq "192.168.0.0/16"} {
+        drop
+    } elseif {$addr eq "2001:db8::/32"} {
+        drop
+    } elseif {$addr eq "fd00::/8"} {
+        drop
+    }
+}

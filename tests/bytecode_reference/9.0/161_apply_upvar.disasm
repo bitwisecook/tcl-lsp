@@ -1,0 +1,16 @@
+ByteCode 0x7f2d44410, refCt 1, epoch 21, interp 0x7f2c28010 (epoch 21)
+  Source "set x 10\napply {{} {\n    upvar 1 x local\n    incr lo..."
+  Cmds 2, src 61, inst 13, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-7        2: pc 6-11, src 9-59
+  Command 1: "set x 10..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "10"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "apply {{} {\n    upvar 1 x local\n    incr local 5\n..."
+    (6) push1 2 	# "apply"
+    (8) push1 3 	# "{} {\n    upvar 1 x local\n    incr loca..."
+    (10) invokeStk1 2 
+    (12) done 
+

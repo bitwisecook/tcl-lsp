@@ -1,0 +1,25 @@
+ByteCode 0x0x9d6cf6410, refCt 1, epoch 3, interp 0x0x9d6c20010 (epoch 3)
+  Source "{*}list\n{*}list {*}{x y z}\n{*}list x y z\n"
+  Cmds 3, src 41, inst 27, litObjs 5, aux 0, stkDepth 4, code/src 0.00
+  Commands 3:
+      1: pc 0-4, src 0-6   	   2: pc 5-15, src 8-25
+      3: pc 16-25, src 27-39
+  Command 1: "{*}list"
+    (0) push1 0 	# "list"
+    (2) invokeStk1 1 
+    (4) pop 
+  Command 2: "{*}list {*}{x y z}"
+    (5) push1 1 	# "list"
+    (7) push1 2 	# "x"
+    (9) push1 3 	# "y"
+    (11) push1 4 	# "z"
+    (13) invokeStk1 4 
+    (15) pop 
+  Command 3: "{*}list x y z"
+    (16) push1 1 	# "list"
+    (18) push1 2 	# "x"
+    (20) push1 3 	# "y"
+    (22) push1 4 	# "z"
+    (24) invokeStk1 4 
+    (26) done 
+

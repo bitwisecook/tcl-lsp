@@ -1,0 +1,22 @@
+ByteCode ::top, 11 instructions, 20 bytes, 5 literals, 0 variables
+  Literals:
+    0: "catch"
+    1: "expr {1/0}"
+    2: "result"
+    3: "opts"
+    4: "set x 42"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "catch"
+    (2) push1 1	# "expr {1/0}"
+    (4) push1 2	# "result"
+    (6) push1 3	# "opts"
+    (8) invokeStk1 4	# catch
+    (10) pop
+    (11) push1 0	# "catch"
+    (13) push1 4	# "set x 42"
+    (15) push1 2	# "result"
+    (17) invokeStk1 3	# catch
+  # cmd_end_1:
+  # exit_2:
+    (19) done

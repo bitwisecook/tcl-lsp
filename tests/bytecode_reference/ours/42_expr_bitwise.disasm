@@ -1,0 +1,33 @@
+ByteCode ::top, 17 instructions, 18 bytes, 6 literals, 0 variables
+  Literals:
+    0: "15"
+    1: "255"
+    2: "240"
+    3: "-1"
+    4: "16"
+    5: "16"
+  Instructions:
+  # entry_1:
+    (0) nop
+    (1) nop
+    (2) nop
+    (3) nop
+  # cmd_end_1:
+    (4) nop
+    (5) nop
+    (6) nop
+  # cmd_end_2:
+    (7) nop
+    (8) nop
+    (9) nop
+  # cmd_end_3:
+    (10) nop
+    (11) nop
+    (12) nop
+  # cmd_end_4:
+    (13) nop
+    (14) nop
+    (15) push1 5	# "16"
+  # cmd_end_5:
+  # exit_2:
+    (17) done

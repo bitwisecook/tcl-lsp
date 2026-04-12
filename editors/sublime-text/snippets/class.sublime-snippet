@@ -1,0 +1,14 @@
+<snippet>
+	<content><![CDATA[oo::class create ${1:ClassName} {
+    constructor {${2:args}} {
+        ${3:# init}
+    }
+
+    method ${4:methodName} {${5:args}} {
+        ${0:# body}
+    }
+}]]></content>
+	<tabTrigger>tcl-class</tabTrigger>
+	<scope>source.tcl</scope>
+	<description>Create an oo::class</description>
+</snippet>

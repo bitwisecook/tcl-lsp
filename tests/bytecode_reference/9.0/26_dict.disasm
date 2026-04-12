@@ -1,0 +1,41 @@
+ByteCode 0xb7b160610, refCt 1, epoch 21, interp 0xb7b01c010 (epoch 21)
+  Source "set d [dict create name Alice age 30]\ndict get $d name..."
+  Cmds 5, src 97, inst 85, litObjs 9, aux 0, stkDepth 6, code/src 0.00
+  Commands 5:
+      1: pc 0-16, src 0-36        2: pc 2-14, src 7-35
+      3: pc 17-36, src 38-53        4: pc 37-64, src 55-76
+      5: pc 65-83, src 78-95
+  Command 1: "set d [dict create name Alice age 30]..."
+    (0) push1 0 	# "d"
+  Command 2: "dict create name Alice age 30..."
+    (2) startCommand +13 1 	# next cmd at pc 15, 1 cmds start here
+    (11) push1 1 	# "name Alice age 30"
+    (13) dup 
+    (14) verifyDict 
+    (15) storeStk 
+    (16) pop 
+  Command 3: "dict get $d name..."
+    (17) startCommand +19 1 	# next cmd at pc 36, 1 cmds start here
+    (26) push1 0 	# "d"
+    (28) loadStk 
+    (29) push1 2 	# "name"
+    (31) dictGet 1 
+    (36) pop 
+  Command 4: "dict set d city London..."
+    (37) startCommand +27 1 	# next cmd at pc 64, 1 cmds start here
+    (46) push1 3 	# "dict"
+    (48) push1 4 	# "set"
+    (50) push1 0 	# "d"
+    (52) push1 5 	# "city"
+    (54) push1 6 	# "London"
+    (56) push1 7 	# "::tcl::dict::set"
+    (58) invokeReplace 5 2 
+    (64) pop 
+  Command 5: "dict exists $d age..."
+    (65) startCommand +19 1 	# next cmd at pc 84, 1 cmds start here
+    (74) push1 0 	# "d"
+    (76) loadStk 
+    (77) push1 8 	# "age"
+    (79) dictExists 1 
+    (84) done 
+

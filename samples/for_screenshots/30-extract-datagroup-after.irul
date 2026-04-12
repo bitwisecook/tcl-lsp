@@ -1,0 +1,18 @@
+## After: iRule uses class match against data-group
+when HTTP_REQUEST {
+    set host [HTTP::host]
+    if {[class match $host equals allowed_hosts]} {
+        pool app_pool
+    }
+}
+
+## tmsh data-group definition:
+# ltm data-group internal allowed_hosts {
+#     type string
+#     records {
+#         "app.example.com" { }
+#         "api.example.com" { }
+#         "web.example.com" { }
+#         "cdn.example.com" { }
+#     }
+# }

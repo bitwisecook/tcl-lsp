@@ -1,0 +1,16 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x18880600, refCt 1, epoch 0, interp 0x107ae20 (epoch 0)
+  Source "proc greet {{name World}} {\n    return \"Hello, $name!\"\n"
+  Cmds 1, src 57, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 3.72
+  Code 212 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 4
+  Proc 0x19871180, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-55
+  Command 1: "proc greet {{name World}} {\n    return \"Hello, $name!\"\n"
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "greet"
+    (4) push1 2  	# "{name World}"
+    (6) push1 3  	# "\n    return \"Hello, $name!\"\n"
+    (8) invokeStk1 4 
+    (10) done 

@@ -1,0 +1,19 @@
+ByteCode 0xc0ed39610, refCt 1, epoch 21, interp 0xc0ec28010 (epoch 21)
+  Source "set x \"hello\"\nswitch -glob $x {\n    h* {set y 1}\n ..."
+  Cmds 2, src 91, inst 18, litObjs 5, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-12        2: pc 6-16, src 14-89
+  Command 1: "set x \"hello..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "hello"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "switch -glob $x {\n    h* {set y 1}\n    *lo {set y 2}\n..."
+    (6) push1 2 	# "switch"
+    (8) push1 3 	# "-glob"
+    (10) push1 0 	# "x"
+    (12) loadStk 
+    (13) push1 4 	# "\n    h* {set y 1}\n    *lo {set y 2}\n ..."
+    (15) invokeStk1 4 
+    (17) done 
+

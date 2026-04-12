@@ -1,0 +1,69 @@
+TCLSH    /usr/local/bin/tclsh8.5
+VERSION  8.5.19
+FILE     upvar.test
+DATE     2026-03-03T12:53:31Z
+---
+PASS upvar-1.1
+PASS upvar-1.2
+PASS upvar-1.3
+PASS upvar-1.4
+PASS upvar-1.5
+PASS upvar-10.1
+PASS upvar-2.1
+PASS upvar-2.2
+PASS upvar-2.3
+PASS upvar-2.4
+PASS upvar-3.1
+PASS upvar-3.2
+PASS upvar-3.3
+PASS upvar-3.4
+PASS upvar-3.5
+PASS upvar-3.6
+PASS upvar-4.1
+PASS upvar-4.2
+PASS upvar-5.1
+PASS upvar-5.2
+PASS upvar-5.3
+PASS upvar-6.1
+PASS upvar-6.2
+PASS upvar-6.3
+PASS upvar-7.1
+PASS upvar-7.2
+PASS upvar-7.3
+PASS upvar-7.4
+PASS upvar-7.5
+PASS upvar-8.1
+PASS upvar-8.10
+PASS upvar-8.11
+PASS upvar-8.2
+PASS upvar-8.3
+PASS upvar-8.4
+PASS upvar-8.5
+PASS upvar-8.6
+PASS upvar-8.7
+PASS upvar-8.8
+PASS upvar-8.9
+PASS upvar-NS-1.1
+PASS upvar-NS-1.2
+PASS upvar-NS-1.3
+PASS upvar-NS-1.4
+PASS upvar-NS-1.5
+PASS upvar-NS-1.6
+PASS upvar-NS-1.7
+PASS upvar-NS-1.8
+PASS upvar-NS-1.9
+PASS upvar-NS-3.1
+PASS upvar-NS-3.2
+PASS upvar-NS-3.3
+SKIP upvar-9.1 testupvar
+SKIP upvar-9.2 testupvar
+SKIP upvar-9.3 testupvar
+SKIP upvar-9.4 testupvar
+SKIP upvar-9.5 testupvar
+SKIP upvar-9.6 testupvar
+SKIP upvar-9.7 testupvar
+---
+TOTAL   59
+PASSED  52
+SKIPPED 7
+FAILED  0

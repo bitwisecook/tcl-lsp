@@ -1,0 +1,31 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x2a8bc500, refCt 1, epoch 0, interp 0x3866c60 (epoch 0)
+  Source "set arr(msg) \"hello\"\nappend arr(msg) \" \" \"world\"\nlappen"
+  Cmds 3, src 72, inst 31, litObjs 11, aux 0, stkDepth 5, code/src 4.06
+  Code 292 = header 160+inst 31+litObj 88+exc 0+aux 0+cmdMap 12
+  Proc 0x2b878c00, refCt 1, args 0, compiled locals 1
+      slot 0, array, "arr"
+  Commands 3:
+      1: pc 0-6, src 0-19   	   2: pc 7-17, src 21-47
+      3: pc 18-29, src 49-70
+  Command 1: "set arr(msg) \"hello\""
+    (0) push1 0  	# "msg"
+    (2) push1 1  	# "hello"
+    (4) storeArray1 0	# var "arr"
+    (6) pop 
+  Command 2: "append arr(msg) \" \" \"world\""
+    (7) push1 2  	# "append"
+    (9) push1 3  	# "arr(msg)"
+    (11) push1 4  	# " "
+    (13) push1 5  	# "world"
+    (15) invokeStk1 4 
+    (17) pop 
+  Command 3: "lappend arr(lst) a b c"
+    (18) push1 6  	# "lappend"
+    (20) push1 7  	# "arr(lst)"
+    (22) push1 8  	# "a"
+    (24) push1 9  	# "b"
+    (26) push1 10  	# "c"
+    (28) invokeStk1 5 
+    (30) done 

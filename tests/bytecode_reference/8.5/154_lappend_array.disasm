@@ -1,0 +1,48 @@
+ByteCode 0x0x7a4d17310, refCt 1, epoch 3, interp 0x0x7a4c20010 (epoch 3)
+  Source "proc test {} {\n    lappend x(0) a b c\n    lappend x(1) "
+  Cmds 1, src 91, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-89
+  Command 1: "proc test {} {\n    lappend x(0) a b c\n    lappend x(1) "
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    lappend x(0) a b c\n    lappend x(1)"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x7a4d1a610, refCt 1, epoch 3, interp 0x0x7a4cf4810 (epoch 3)
+  Source "\n    lappend x(0) a b c\n    lappend x(1) d e\n    return"
+  Cmds 4, src 75, inst 48, litObjs 10, aux 0, stkDepth 5, code/src 0.00
+  Proc 0x0x7a4d0be10, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 4:
+      1: pc 0-12, src 5-22   	   2: pc 13-23, src 28-43
+      3: pc 24-46, src 49-73   	   4: pc 33-45, src 57-72
+  Command 1: "lappend x(0) a b c"
+    (0) push1 0 	# "lappend"
+    (2) push1 1 	# "x(0)"
+    (4) push1 2 	# "a"
+    (6) push1 3 	# "b"
+    (8) push1 4 	# "c"
+    (10) invokeStk1 5 
+    (12) pop 
+  Command 2: "lappend x(1) d e"
+    (13) push1 0 	# "lappend"
+    (15) push1 5 	# "x(1)"
+    (17) push1 6 	# "d"
+    (19) push1 7 	# "e"
+    (21) invokeStk1 4 
+    (23) pop 
+  Command 3: "return [list $x(0) $x(1)]"
+    (24) startCommand +23 2 	# next cmd at pc 47, 2 cmds start here
+  Command 4: "list $x(0) $x(1)"
+    (33) push1 8 	# "0"
+    (35) loadArray1 %v0 	# var "x"
+    (37) push1 9 	# "1"
+    (39) loadArray1 %v0 	# var "x"
+    (41) list 2 
+    (46) done 
+    (47) done 
+

@@ -1,0 +1,12 @@
+TCLSH    /usr/local/bin/tclsh8.4
+VERSION  8.4.20
+FILE     uplevel.test
+DATE     2026-03-03T12:54:46
+---
+PASS uplevel-1.1
+PASS uplevel-1.2
+---
+TOTAL   2
+PASSED  2
+SKIPPED 0
+FAILED  0

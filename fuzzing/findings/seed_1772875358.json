@@ -1,0 +1,24 @@
+{
+  "seed": 1772875358,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected number but got \"wbaql\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"wbaql\" as right operand of \"+\"\n    while executing\n\"if {((17 + 43) - (46 + $n))} {\n            set i 45.35\n            set j 34\n            incr j -2\n            string first \"a\" \"1th=o2zv\"\n        }\"\n    (\"foreach\" body line 10)\n    invoked from within\n\"foreach j {-147 -12.75 169} {\n    lassign {1 888 182 -232} n item\n    if {(($flag ? 39 : 59) < (45 % max(1, abs(88))))} {\n        expr {min(-32, 12)}\n...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T"
+    }
+  ],
+  "fixed": true,
+  "fix": "boolean coercion rejection in arithmetic operators",
+  "category": "boolean-coercion"
+}

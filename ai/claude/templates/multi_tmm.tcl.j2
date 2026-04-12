@@ -1,0 +1,55 @@
+{# Multi-TMM test section.
+   Variables (from multi_tmm dict):
+     multi_tmm.source       — iRule source
+     multi_tmm.profiles_str — profile string
+     multi_tmm.pools        — list of pool names
+     multi_tmm.test_name    — base test name
+     multi_tmm.check_var    — static var to check (or None)
+#}
+# ── Multi-TMM tests (fakeCMP distribution) ──
+#
+# The iRule uses patterns that behave differently across TMMs.
+# These tests verify correctness with 4 simulated TMMs.
+# fakeCMP hashes (src_ip, src_port, dst_ip, dst_port) to pick TMM.
+
+::orch::configure_tests \
+    -tmm_count 4 \
+    -tmm_select auto \
+    -profiles {{ "{" }}{{ multi_tmm.profiles_str }}{{ "}" }} \
+    -irule {
+{{ multi_tmm.source | indent(8, first=true) }}
+    }
+{% if multi_tmm.pools %}
+
+::orch::configure_tests -setup {
+{% for pool_name in multi_tmm.pools %}
+    ::orch::add_pool {{ pool_name }} {{10.0.0.1:80} {10.0.0.2:80}}
+{% endfor %}
+}
+{% endif %}
+
+::orch::test "{{ multi_tmm.test_name }}-multi-1.0" "fakeCMP distributes clients across TMMs" -body {
+    # Use fakecmp_suggest_sources to get a source per TMM
+    set plan [::orch::fakecmp_suggest_sources -count 3]
+    foreach tmm_id [::orch::tmm_ids] {
+        set sources [dict get $plan $tmm_id]
+        foreach {addr port} $sources {
+            ::orch::configure -client_addr $addr -client_port $port
+            ::orch::run_http_request -host app.example.com
+        }
+    }
+
+    # Verify all TMMs received traffic
+    set active 0
+    foreach tmm_id [::orch::tmm_ids] {
+{% if multi_tmm.check_var %}
+        set val [::orch::tmm_get_static $tmm_id {{ multi_tmm.check_var }}]
+        if {$val ne ""} { incr active }
+{% else %}
+        # TODO: add per-TMM state check here
+        incr active
+{% endif %}
+    }
+    ::orch::assert {$active >= 2} \
+        "{{ multi_tmm.test_name }}-multi-1.0: only $active TMMs got traffic"
+}

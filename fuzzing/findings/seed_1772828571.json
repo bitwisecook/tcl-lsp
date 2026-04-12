@@ -1,0 +1,24 @@
+{
+  "seed": 1772828571,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"tmp\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"tmp\": no such variable\n    while executing\n\"expr {($tmp != -80)}\"\n    (\"default\" arm line 7)\n    invoked from within\n\"switch -- \"kp\" {\n    80 {\n        for {set idx 0} {$idx < 2} {incr idx} {\n            set idx \"vd@uj4.;v7=8?#qsrq\"\n            regexp \"[a-z]+\" \"?w?g05...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpk4bqibfi.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now errors on missing variable \u2014 was timing out before",
+  "category": "vm-timeout-resolved"
+}

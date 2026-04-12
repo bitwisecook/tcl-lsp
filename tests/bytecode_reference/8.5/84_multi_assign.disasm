@@ -1,0 +1,39 @@
+ByteCode 0x0x94483a410, refCt 1, epoch 3, interp 0x0x944c20010 (epoch 3)
+  Source "set x 1\nset y 2\nset z 3\nset x [set y [set z 42]]\n"
+  Cmds 6, src 49, inst 75, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Commands 6:
+      1: pc 0-5, src 0-6   	   2: pc 6-20, src 8-14
+      3: pc 21-35, src 16-22   	   4: pc 36-73, src 24-47
+      5: pc 47-72, src 31-46   	   6: pc 58-71, src 38-45
+  Command 1: "set x 1"
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "1"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set y 2"
+    (6) startCommand +14 1 	# next cmd at pc 20
+    (15) push1 2 	# "y"
+    (17) push1 3 	# "2"
+    (19) storeScalarStk 
+    (20) pop 
+  Command 3: "set z 3"
+    (21) startCommand +14 1 	# next cmd at pc 35
+    (30) push1 4 	# "z"
+    (32) push1 5 	# "3"
+    (34) storeScalarStk 
+    (35) pop 
+  Command 4: "set x [set y [set z 42]]"
+    (36) startCommand +38 1 	# next cmd at pc 74
+    (45) push1 0 	# "x"
+  Command 5: "set y [set z 42]"
+    (47) startCommand +26 1 	# next cmd at pc 73
+    (56) push1 2 	# "y"
+  Command 6: "set z 42"
+    (58) startCommand +14 1 	# next cmd at pc 72
+    (67) push1 4 	# "z"
+    (69) push1 6 	# "42"
+    (71) storeScalarStk 
+    (72) storeScalarStk 
+    (73) storeScalarStk 
+    (74) done 
+

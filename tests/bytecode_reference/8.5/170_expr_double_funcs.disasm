@@ -1,0 +1,65 @@
+ByteCode 0x0xafe814a10, refCt 1, epoch 3, interp 0x0xafec20010 (epoch 3)
+  Source "set a [expr {sin(0.5)}]\nset b [expr {cos(0.0)}]\nset c ["
+  Cmds 10, src 130, inst 138, litObjs 15, aux 0, stkDepth 4, code/src 0.00
+  Commands 10:
+      1: pc 0-19, src 0-22   	   2: pc 2-17, src 7-21
+      3: pc 20-48, src 24-46   	   4: pc 31-46, src 31-45
+      5: pc 49-77, src 48-71   	   6: pc 60-75, src 55-70
+      7: pc 78-108, src 73-102   	   8: pc 89-106, src 80-101
+      9: pc 109-136, src 104-128   	  10: pc 120-135, src 111-127
+  Command 1: "set a [expr {sin(0.5)}]"
+    (0) push1 0 	# "a"
+  Command 2: "expr {sin(0.5)}"
+    (2) startCommand +16 1 	# next cmd at pc 18
+    (11) push1 1 	# "tcl::mathfunc::sin"
+    (13) push1 2 	# "0.5"
+    (15) invokeStk1 2 
+    (17) tryCvtToNumeric 
+    (18) storeScalarStk 
+    (19) pop 
+  Command 3: "set b [expr {cos(0.0)}]"
+    (20) startCommand +28 1 	# next cmd at pc 48
+    (29) push1 3 	# "b"
+  Command 4: "expr {cos(0.0)}"
+    (31) startCommand +16 1 	# next cmd at pc 47
+    (40) push1 4 	# "tcl::mathfunc::cos"
+    (42) push1 5 	# "0.0"
+    (44) invokeStk1 2 
+    (46) tryCvtToNumeric 
+    (47) storeScalarStk 
+    (48) pop 
+  Command 5: "set c [expr {sqrt(2.0)}]"
+    (49) startCommand +28 1 	# next cmd at pc 77
+    (58) push1 6 	# "c"
+  Command 6: "expr {sqrt(2.0)}"
+    (60) startCommand +16 1 	# next cmd at pc 76
+    (69) push1 7 	# "tcl::mathfunc::sqrt"
+    (71) push1 8 	# "2.0"
+    (73) invokeStk1 2 
+    (75) tryCvtToNumeric 
+    (76) storeScalarStk 
+    (77) pop 
+  Command 7: "set d [expr {atan2(1.0, 1.0)}]"
+    (78) startCommand +30 1 	# next cmd at pc 108
+    (87) push1 9 	# "d"
+  Command 8: "expr {atan2(1.0, 1.0)}"
+    (89) startCommand +18 1 	# next cmd at pc 107
+    (98) push1 10 	# "tcl::mathfunc::atan2"
+    (100) push1 11 	# "1.0"
+    (102) push1 11 	# "1.0"
+    (104) invokeStk1 3 
+    (106) tryCvtToNumeric 
+    (107) storeScalarStk 
+    (108) pop 
+  Command 9: "set e [expr {double(42)}]"
+    (109) startCommand +28 1 	# next cmd at pc 137
+    (118) push1 12 	# "e"
+  Command 10: "expr {double(42)}"
+    (120) startCommand +16 1 	# next cmd at pc 136
+    (129) push1 13 	# "tcl::mathfunc::double"
+    (131) push1 14 	# "42"
+    (133) invokeStk1 2 
+    (135) tryCvtToNumeric 
+    (136) storeScalarStk 
+    (137) done 
+

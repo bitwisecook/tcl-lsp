@@ -1,0 +1,24 @@
+{
+  "seed": 1772822489,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm error vs tclsh(tclsh9.0) ok",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "expected integer but got \"g_fyo2ol.tac k_k@.\"",
+      "detail_b": "(ok)"
+    },
+    {
+      "kind": "error_status",
+      "description": "vm_opt error vs tclsh(tclsh9.0) ok",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "expected integer but got \"g_fyo2ol.tac k_k@.\"",
+      "detail_b": "(ok)"
+    }
+  ],
+  "fixed": true,
+  "fix": "added STR_RFIND opcode handler for string last",
+  "category": "str-rfind-missing"
+}

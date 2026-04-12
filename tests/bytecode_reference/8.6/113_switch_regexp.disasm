@@ -1,0 +1,19 @@
+ByteCode 0x0x7d2ca7e10, refCt 1, epoch 17, interp 0x0x7d2c28010 (epoch 17)
+  Source "set x \"hello123\"\nswitch -regexp $x {\n    {^[0-9]+$}..."
+  Cmds 2, src 136, inst 18, litObjs 5, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-15        2: pc 6-16, src 17-134
+  Command 1: "set x \"hello123..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "hello123"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "switch -regexp $x {\n    {^[0-9]+$} {set y \"number\"}\n..."
+    (6) push1 2 	# "switch"
+    (8) push1 3 	# "-regexp"
+    (10) push1 0 	# "x"
+    (12) loadStk 
+    (13) push1 4 	# "\n    {^[0-9]+$} {set y \"number\"}\n   ..."
+    (15) invokeStk1 4 
+    (17) done 
+

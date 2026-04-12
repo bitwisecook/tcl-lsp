@@ -1,0 +1,8 @@
+%YAML 1.2
+---
+# Mentor EDA dialect — selects mentor-eda-tcl for LSP analysis
+name: Mentor EDA
+scope: source.tcl
+version: 2
+
+extends: Tcl.sublime-syntax

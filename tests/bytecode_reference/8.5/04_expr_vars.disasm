@@ -1,0 +1,26 @@
+ByteCode 0x0x92cc48a10, refCt 1, epoch 3, interp 0x0x92cc20010 (epoch 3)
+  Source "set a 10\nset b 20\nexpr {$a + $b}\n"
+  Cmds 3, src 33, inst 38, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-7   	   2: pc 6-20, src 9-16
+      3: pc 21-36, src 18-31
+  Command 1: "set a 10"
+    (0) push1 0 	# "a"
+    (2) push1 1 	# "10"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set b 20"
+    (6) startCommand +14 1 	# next cmd at pc 20
+    (15) push1 2 	# "b"
+    (17) push1 3 	# "20"
+    (19) storeScalarStk 
+    (20) pop 
+  Command 3: "expr {$a + $b}"
+    (21) startCommand +16 1 	# next cmd at pc 37
+    (30) push1 0 	# "a"
+    (32) loadScalarStk 
+    (33) push1 2 	# "b"
+    (35) loadScalarStk 
+    (36) add 
+    (37) done 
+

@@ -1,0 +1,46 @@
+ByteCode 0x0x728d1a610, refCt 1, epoch 3, interp 0x0x728c20010 (epoch 3)
+  Source "proc myerror {} {\n    return -code error \"something wen"
+  Cmds 2, src 124, inst 22, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-10, src 0-64   	   2: pc 11-20, src 66-122
+  Command 1: "proc myerror {} {\n    return -code error \"something wen"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "myerror"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    return -code error \"something went "
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc myreturn {} {\n    return -code return \"early exit\""
+    (11) push1 0 	# "proc"
+    (13) push1 4 	# "myreturn"
+    (15) push1 2 	# ""
+    (17) push1 5 	# "\n    return -code return \"early exit\"\n"
+    (19) invokeStk1 4 
+    (21) done 
+
+
+ByteCode 0x0x728d17910, refCt 1, epoch 3, interp 0x0x728d4a810 (epoch 3)
+  Source "\n    return -code error \"something went wrong\"\n"
+  Cmds 1, src 47, inst 14, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x728d54d10, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-12, src 5-45
+  Command 1: "return -code error \"something went wrong\""
+    (0) push1 0 	# "something went wrong"
+    (2) push1 1 	# ""
+    (4) returnImm +1 1 
+    (13) done 
+
+
+ByteCode 0x0x728c32f10, refCt 1, epoch 3, interp 0x0x728d4a810 (epoch 3)
+  Source "\n    return -code return \"early exit\"\n"
+  Cmds 1, src 38, inst 14, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x728d08790, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-12, src 5-36
+  Command 1: "return -code return \"early exit\""
+    (0) push1 0 	# "early exit"
+    (2) push1 1 	# ""
+    (4) returnImm +0 2 
+    (13) done 
+

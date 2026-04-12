@@ -1,0 +1,33 @@
+ByteCode ::top, 16 instructions, 30 bytes, 11 literals, 0 variables
+  Literals:
+    0: "regexp"
+    1: "(\w+)\s+(\w+)"
+    2: "hello world"
+    3: "all"
+    4: "first"
+    5: "second"
+    6: "-nocase"
+    7: "^(abc)$"
+    8: "ABC"
+    9: "match"
+    10: "group"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "regexp"
+    (2) push1 1	# "(\w+)\s+(\w+)"
+    (4) push1 2	# "hello world"
+    (6) push1 3	# "all"
+    (8) push1 4	# "first"
+    (10) push1 5	# "second"
+    (12) invokeStk1 6	# regexp
+    (14) pop
+    (15) push1 0	# "regexp"
+    (17) push1 6	# "-nocase"
+    (19) push1 7	# "^(abc)$"
+    (21) push1 8	# "ABC"
+    (23) push1 9	# "match"
+    (25) push1 10	# "group"
+    (27) invokeStk1 6	# regexp
+  # cmd_end_1:
+  # exit_2:
+    (29) done

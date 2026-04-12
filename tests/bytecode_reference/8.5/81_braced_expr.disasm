@@ -1,0 +1,44 @@
+ByteCode 0x0xbfecd2410, refCt 1, epoch 3, interp 0x0xbfe80c010 (epoch 3)
+  Source "set x 5\nif {$x > 0} {set sign 1}\nwhile {[incr x -1] > 0"
+  Cmds 5, src 60, inst 77, litObjs 7, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 53-54, continue 56, break 74
+  Commands 5:
+      1: pc 0-5, src 0-6   	   2: pc 6-41, src 8-31
+      3: pc 23-36, src 21-30   	   4: pc 42-75, src 33-58
+      5: pc 56-68, src 41-49
+  Command 1: "set x 5"
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "5"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "if {$x > 0} {set sign 1}"
+    (6) startCommand +35 1 	# next cmd at pc 41
+    (15) push1 0 	# "x"
+    (17) loadScalarStk 
+    (18) push1 2 	# "0"
+    (20) gt 
+    (21) jumpFalse1 +18 	# pc 39
+  Command 3: "set sign 1"
+    (23) startCommand +14 1 	# next cmd at pc 37
+    (32) push1 3 	# "sign"
+    (34) push1 4 	# "1"
+    (36) storeScalarStk 
+    (37) jump1 +4 	# pc 41
+    (39) push1 5 	# ""
+    (41) pop 
+  Command 4: "while {[incr x -1] > 0} {}"
+    (42) startCommand +34 1 	# next cmd at pc 76
+    (51) jump1 +5 	# pc 56
+    (53) push1 6 	# ""
+    (55) pop 
+  Command 5: "incr x -1"
+    (56) startCommand +13 1 	# next cmd at pc 69
+    (65) push1 0 	# "x"
+    (67) incrScalarStkImm -1 
+    (69) push1 2 	# "0"
+    (71) gt 
+    (72) jumpTrue1 -19 	# pc 53
+    (74) push1 5 	# ""
+    (76) done 
+

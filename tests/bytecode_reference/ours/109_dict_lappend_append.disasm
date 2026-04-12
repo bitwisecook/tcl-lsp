@@ -1,0 +1,54 @@
+ByteCode ::top, 31 instructions, 87 bytes, 14 literals, 0 variables
+  Literals:
+    0: "d"
+    1: "a hello b {}"
+    2: "::tcl::dict::append"
+    3: "a"
+    4: " world"
+    5: "dict"
+    6: "lappend"
+    7: "b"
+    8: "x"
+    9: "y"
+    10: "z"
+    11: "::tcl::dict::lappend"
+    12: "::tcl::dict::incr"
+    13: "c"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "d"
+    (2) startCommand +13 1	# next cmd at pc 15, 1 cmds start here
+    (11) push1 1	# "a hello b {}"
+    (13) dup
+    (14) verifyDict
+  # cmd_end_1:
+    (15) storeStk
+    (16) pop
+    (17) startCommand +19 1	# next cmd at pc 36, 1 cmds start here
+    (26) push1 2	# "::tcl::dict::append"
+    (28) push1 0	# "d"
+    (30) push1 3	# "a"
+    (32) push1 4	# " world"
+    (34) invokeStk1 4
+  # cmd_end_2:
+    (36) pop
+    (37) startCommand +31 1	# next cmd at pc 68, 1 cmds start here
+    (46) push1 5	# "dict"
+    (48) push1 6	# "lappend"
+    (50) push1 0	# "d"
+    (52) push1 7	# "b"
+    (54) push1 8	# "x"
+    (56) push1 9	# "y"
+    (58) push1 10	# "z"
+    (60) push1 11	# "::tcl::dict::lappend"
+    (62) invokeReplace 7 2
+  # cmd_end_3:
+    (68) pop
+    (69) startCommand +17 1	# next cmd at pc 86, 1 cmds start here
+    (78) push1 12	# "::tcl::dict::incr"
+    (80) push1 0	# "d"
+    (82) push1 13	# "c"
+    (84) invokeStk1 3
+  # cmd_end_4:
+  # exit_2:
+    (86) done

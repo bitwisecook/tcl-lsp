@@ -1,0 +1,13 @@
+ByteCode 0x0xb8ad15810, refCt 1, epoch 3, interp 0x0xb8ac20010 (epoch 3)
+  Source "list {*}{a b c}\n"
+  Cmds 1, src 16, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-14
+  Command 1: "list {*}{a b c}"
+    (0) push1 0 	# "list"
+    (2) push1 1 	# "a"
+    (4) push1 2 	# "b"
+    (6) push1 3 	# "c"
+    (8) invokeStk1 4 
+    (10) done 
+

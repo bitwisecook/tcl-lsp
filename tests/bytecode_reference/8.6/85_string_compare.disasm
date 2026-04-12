@@ -1,0 +1,47 @@
+ByteCode 0x0xa6b117a10, refCt 1, epoch 17, interp 0x0xa6b01c010 (epoch 17)
+  Source "set a \"hello\"\nset b \"world\"\nstring compare $a $b\n..."
+  Cmds 5, src 97, inst 85, litObjs 8, aux 0, stkDepth 6, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-12        2: pc 6-20, src 14-26
+      3: pc 21-37, src 28-47        4: pc 38-54, src 49-66
+      5: pc 55-83, src 68-95
+  Command 1: "set a \"hello..."
+    (0) push1 0 	# "a"
+    (2) push1 1 	# "hello"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set b \"world..."
+    (6) startCommand +14 1 	# next cmd at pc 20, 1 cmds start here
+    (15) push1 2 	# "b"
+    (17) push1 3 	# "world"
+    (19) storeStk 
+    (20) pop 
+  Command 3: "string compare $a $b..."
+    (21) startCommand +16 1 	# next cmd at pc 37, 1 cmds start here
+    (30) push1 0 	# "a"
+    (32) loadStk 
+    (33) push1 2 	# "b"
+    (35) loadStk 
+    (36) strcmp 
+    (37) pop 
+  Command 4: "string equal $a $b..."
+    (38) startCommand +16 1 	# next cmd at pc 54, 1 cmds start here
+    (47) push1 0 	# "a"
+    (49) loadStk 
+    (50) push1 2 	# "b"
+    (52) loadStk 
+    (53) streq 
+    (54) pop 
+  Command 5: "string compare -nocase $a $b..."
+    (55) startCommand +29 1 	# next cmd at pc 84, 1 cmds start here
+    (64) push1 4 	# "string"
+    (66) push1 5 	# "compare"
+    (68) push1 6 	# "-nocase"
+    (70) push1 0 	# "a"
+    (72) loadStk 
+    (73) push1 2 	# "b"
+    (75) loadStk 
+    (76) push1 7 	# "::tcl::string::compare"
+    (78) invokeReplace 5 2 
+    (84) done 
+

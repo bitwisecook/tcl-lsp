@@ -1,0 +1,24 @@
+{
+  "seed": 1772874951,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-14.62\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-14.62\" as left operand of \"&\"\n    invoked from within\n\"expr {(-85 - ((-14.62 & 33) <= $result))}\"\n    (\"for\" body line 69)\n    invoked from within\n\"for {set key 0} {$key < 2} {incr key} {\n    if {$y <= 9} {\n        set data -100\n        set idx 68\n        incr idx -3\n    }\n    set idx {}\n    if {$...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp8_89_1f6.tcl\" line 110)"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

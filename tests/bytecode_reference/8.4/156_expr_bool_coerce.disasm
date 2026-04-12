@@ -1,0 +1,57 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x810e4500, refCt 1, epoch 0, interp 0xe26e10 (epoch 0)
+  Source "set a [expr {true && false}]\nset b [expr {!true}]\nset c"
+  Cmds 8, src 111, inst 55, litObjs 6, aux 0, stkDepth 2, code/src 2.67
+  Code 296 = header 160+inst 55+litObj 48+exc 0+aux 0+cmdMap 32
+  Proc 0x810e1c80, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, "a"
+      slot 1, scalar, "b"
+      slot 2, scalar, "c"
+      slot 3, scalar, "d"
+  Commands 8:
+      1: pc 0-18, src 0-27   	   2: pc 0-15, src 7-26
+      3: pc 19-24, src 29-48   	   4: pc 19-21, src 36-47
+      5: pc 25-39, src 50-77   	   6: pc 25-36, src 57-76
+      7: pc 40-53, src 79-109   	   8: pc 40-51, src 86-108
+  Command 1: "set a [expr {true && false}]"
+  Command 2: "expr {true && false}"
+    (0) push1 0  	# "true"
+    (2) jumpTrue1 6  	# pc 8
+    (4) push1 1  	# "0"
+    (6) jump1 4  	# pc 10
+    (8) push1 2  	# "1"
+    (10) dup 
+    (11) jumpFalse1 5  	# pc 16
+    (13) push1 3  	# "false"
+    (15) land 
+    (16) storeScalar1 0	# var "a"
+    (18) pop 
+  Command 3: "set b [expr {!true}]"
+  Command 4: "expr {!true}"
+    (19) push1 0  	# "true"
+    (21) not 
+    (22) storeScalar1 1	# var "b"
+    (24) pop 
+  Command 5: "set c [expr {\"yes\" ? 1 : 0}]"
+  Command 6: "expr {\"yes\" ? 1 : 0}"
+    (25) push1 4  	# "yes"
+    (27) jumpFalse1 7  	# pc 34
+    (29) push1 2  	# "1"
+    (31) tryCvtToNumeric 
+    (32) jump1 5  	# pc 37
+    (34) push1 1  	# "0"
+    (36) tryCvtToNumeric 
+    (37) storeScalar1 2	# var "c"
+    (39) pop 
+  Command 7: "set d [expr {0 ? \"no\" : \"yes\"}]"
+  Command 8: "expr {0 ? \"no\" : \"yes\"}"
+    (40) push1 1  	# "0"
+    (42) jumpFalse1 7  	# pc 49
+    (44) push1 5  	# "no"
+    (46) tryCvtToNumeric 
+    (47) jump1 5  	# pc 52
+    (49) push1 4  	# "yes"
+    (51) tryCvtToNumeric 
+    (52) storeScalar1 3	# var "d"
+    (54) done 

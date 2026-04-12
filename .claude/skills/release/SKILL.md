@@ -1,0 +1,160 @@
+---
+name: release
+description: >
+  Run the full release workflow: validate branch, test, bump version,
+  generate changelog, tag, push, and publish to all editor marketplaces.
+  Asks for patch/minor/major if not specified.
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
+---
+
+# Release
+
+Orchestrates a full release of tcl-lsp. This skill is internal to the project.
+
+## Workflow
+
+Follow these steps **in order**. Stop and report on failure at any step.
+
+### 1. Branch guard
+
+```bash
+branch=$(git branch --show-current)
+if [ "$branch" != "main" ]; then
+  echo "ERROR: Must be on 'main' branch to release (currently on '$branch')"
+  exit 1
+fi
+```
+
+Fail immediately if not on `main`. Do not offer to switch branches.
+
+### 2. Pull latest
+
+```bash
+git pull origin main
+```
+
+### 3. Pre-release validation
+
+Run the fast gate first, then slow tests:
+
+```bash
+make prep-pr
+```
+
+If `prep-pr` applies formatting changes, commit them:
+
+```bash
+git add -A && git commit -m "Pre-release formatting fixes"
+```
+
+Then run slow tests:
+
+```bash
+make test-slow
+```
+
+If any test fails, investigate and fix the issue. After fixing, re-run the
+failing target. Once all tests pass, commit fixes and push:
+
+```bash
+git push origin main
+```
+
+### 4. Determine version bump
+
+Check `$ARGUMENTS` for `patch`, `minor`, or `major`. If not provided, ask the
+user with `AskUserQuestion`:
+
+> What type of version bump? (patch / minor / major)
+
+Compute the new version from the latest git tag:
+
+```bash
+prev_tag=$(git describe --tags --abbrev=0)
+prev_version=${prev_tag#v}
+```
+
+Split `prev_version` into MAJOR.MINOR.PATCH and apply the bump:
+
+- `patch`: increment PATCH
+- `minor`: increment MINOR, reset PATCH to 0
+- `major`: increment MAJOR, reset MINOR and PATCH to 0
+
+### 5. Generate changelog
+
+Generate a changelog from the **source diff** between the previous tag and
+HEAD, not from the git log:
+
+```bash
+git diff "$prev_tag"..HEAD -- '*.py' '*.ts' '*.rs' '*.toml' '*.json' '*.tcl' \
+  ':!**/package-lock.json' ':!**/Cargo.lock'
+```
+
+Analyse the diff and write a concise `RELEASE_NOTES.md` at the repository root
+with these sections (omit empty sections):
+
+```markdown
+# vX.Y.Z
+
+## New Features
+- ...
+
+## Improvements
+- ...
+
+## Bug Fixes
+- ...
+
+## Breaking Changes
+- ...
+```
+
+Focus on user-visible changes. Group related changes. Use UK spelling. Do not
+list every file touched; summarise the meaningful changes. Commit the file:
+
+```bash
+git add RELEASE_NOTES.md
+git commit -m "Add release notes for vX.Y.Z"
+```
+
+### 6. Bump version, tag, and push
+
+```bash
+make release-tag V=X.Y.Z
+```
+
+This runs `scripts/release.sh` which bumps all version files, commits, creates
+an annotated tag `vX.Y.Z`, and pushes with `--follow-tags`.
+
+### 7. Editor publishing
+
+Ask the user which editors to publish to using `AskUserQuestion`:
+
+> Which editors should be published? (All / None / comma-separated list of: vscode, jetbrains, sublime, zed)
+> Default: None
+
+Based on the response:
+
+- **None** (default): Skip publishing entirely.
+- **All**: Run `make publish-all`.
+- **Specific editors**: Run the corresponding `make publish-<editor>` targets.
+
+Available targets:
+- `make publish-vsix` — VS Code Marketplace (requires valid PAT)
+- `make publish-jetbrains` — JetBrains Marketplace (requires `JETBRAINS_TOKEN` env var)
+- `make publish-sublime` — Sublime Text (built; distributed via GitHub Release)
+- `make publish-zed` — Zed (built; distributed via GitHub Release)
+
+### 8. Summary
+
+Print a summary of what was done:
+
+```
+Release vX.Y.Z complete.
+  Previous version: <prev>
+  New version:      X.Y.Z
+  Tag:              vX.Y.Z
+  Editors published: <list or "none">
+```
+
+$ARGUMENTS

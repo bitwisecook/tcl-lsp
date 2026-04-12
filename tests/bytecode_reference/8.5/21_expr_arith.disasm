@@ -1,0 +1,27 @@
+ByteCode 0x0xbdecfa410, refCt 1, epoch 3, interp 0x0xbdec20010 (epoch 3)
+  Source "expr {2 + 3}\nexpr {10 - 4}\nexpr {3 * 7}\nexpr {20 / 4}\ne"
+  Cmds 5, src 68, inst 51, litObjs 5, aux 0, stkDepth 1, code/src 0.00
+  Commands 5:
+      1: pc 0-2, src 0-11   	   2: pc 3-14, src 13-25
+      3: pc 15-26, src 27-38   	   4: pc 27-38, src 40-52
+      5: pc 39-49, src 54-66
+  Command 1: "expr {2 + 3}"
+    (0) push1 0 	# "5"
+    (2) pop 
+  Command 2: "expr {10 - 4}"
+    (3) startCommand +11 1 	# next cmd at pc 14
+    (12) push1 1 	# "6"
+    (14) pop 
+  Command 3: "expr {3 * 7}"
+    (15) startCommand +11 1 	# next cmd at pc 26
+    (24) push1 2 	# "21"
+    (26) pop 
+  Command 4: "expr {20 / 4}"
+    (27) startCommand +11 1 	# next cmd at pc 38
+    (36) push1 3 	# "5"
+    (38) pop 
+  Command 5: "expr {17 % 5}"
+    (39) startCommand +11 1 	# next cmd at pc 50
+    (48) push1 4 	# "2"
+    (50) done 
+
