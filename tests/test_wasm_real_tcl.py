@@ -1649,6 +1649,56 @@ class TestArrayNamesPattern:
         assert stdout.strip() == "--"
 
 
+class TestSwitchWithCommandSubst:
+    """``switch`` whose subject is a command substitution.
+
+    The CFG builder wraps the switch subject as
+    ``ExprBinary(STR_EQ, ExprRaw(subject_text), ExprLiteral(arm))``.
+    ``_emit_str_value`` used to emit ``ExprRaw`` through
+    ``_emit_obj_literal``, which shipped the raw text (e.g.
+    ``"[llength $x]"``) instead of executing it — so the
+    comparison never matched any arm and ``default`` always
+    fired.  Routing ``ExprRaw`` through ``_emit_value`` honours
+    command-substitution and interpolation.
+    """
+
+    def test_llength_direct_as_switch_subject(self):
+        source = (
+            "switch -- [llength -tmpdir] {\n"
+            "    0 { puts zero }\n"
+            "    1 { puts one }\n"
+            "    default { puts default }\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "one"
+
+    def test_llength_of_empty_list(self):
+        source = (
+            "switch -- [llength {}] {\n"
+            "    0 { puts zero }\n"
+            "    1 { puts one }\n"
+            "    default { puts default }\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "zero"
+
+    def test_interpolated_subject_matches_arm(self):
+        source = (
+            "set prefix hello\n"
+            'switch -- "$prefix-world" {\n'
+            "    hello-world { puts greet }\n"
+            "    default { puts default }\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "greet"
+
+
 class TestRegexp:
     """Tcl regex engine (Henry Spencer) linked via ``tcl_regex.zig``.
 

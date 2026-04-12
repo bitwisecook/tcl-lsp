@@ -1673,11 +1673,22 @@ def _scan_needed_imports(
                 needed.add("tcl_list_length")
                 needed.add("tcl_list_index")
                 _scan_script(body)
-            case IRSwitch(arms=arms, default_body=default_body, mode=mode):
+            case IRSwitch(subject=subject, arms=arms, default_body=default_body, mode=mode):
                 if mode == "glob":
                     needed.add("tcl_string_match")
                 else:
                     needed.add("tcl_string_equal")
+                # The subject may be a command substitution or
+                # interpolated string — scan it so the codegen's
+                # ``_emit_value`` call in ``_emit_str_value``
+                # (which now routes ``ExprRaw`` through the full
+                # value-emitter) can reach ``tcl_append`` /
+                # ``tcl_list_length`` / etc.  Without this the
+                # interpolation emitter degrades to
+                # ``_emit_obj_literal`` and the subject compares
+                # against its raw source text rather than its
+                # runtime value.
+                _scan_value(subject)
                 for arm in arms:
                     if arm.body:
                         _scan_script(arm.body)
@@ -2770,11 +2781,21 @@ class _WasmEmitter:
                     self._emit_var_read_obj(var)
                     return
             case ExprRaw(text=text):
-                var = self._resolve_var_name(text)
-                if var is not None:
-                    self._emit_var_read_obj(var)
-                    return
-                self._emit_obj_literal(text)
+                # ``ExprRaw`` carries the literal source text of a
+                # subject / operand that the expression parser
+                # couldn't classify further — commonly the subject
+                # of a ``switch`` whose CFG builder wraps it as
+                # ``ExprBinary(STR_EQ, ExprRaw(subject), ...)``.
+                # Route through ``_emit_value`` so ``[cmd …]``
+                # command substitutions and ``"text $var"``
+                # interpolated strings get evaluated, not emitted
+                # as the raw literal source.  The old path only
+                # handled bare ``$var`` references via
+                # ``_resolve_var_name``, so ``switch -- [llength
+                # $m] {…}`` compared ``"[llength $m]"`` (the
+                # literal string) against each arm's pattern and
+                # always fell through to the ``default`` branch.
+                self._emit_value(text)
                 return
             case ExprLiteral(text=text):
                 self._emit_obj_literal(text)
