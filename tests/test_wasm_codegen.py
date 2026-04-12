@@ -307,10 +307,21 @@ def test_runtime_imports_registered_for_puts():
 
 
 def test_no_cmd_imports_for_pure_math():
-    """Pure arithmetic code should only import lifecycle + error functions."""
+    """Pure arithmetic code should only import lifecycle + error + diag functions."""
     module = _compile("set x [expr {1 + 2}]\n")
     import_names = {imp.name for imp in module.imports}
-    assert import_names == {"obj_new_int", "obj_new_string", "obj_get_int", "error", "tcl_eval"}
+    # diag_set is always imported so any trap site can prefix stderr with
+    # the source-location site ID the sidecar map resolves.
+    assert import_names == {
+        "obj_new_int",
+        "obj_new_string",
+        "obj_get_int",
+        "error",
+        "tcl_eval",
+        "diag_set",
+        "global_set",
+        "global_get",
+    }
 
 
 def test_scope_declarations_no_imports():
