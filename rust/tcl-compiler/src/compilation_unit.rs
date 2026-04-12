@@ -135,6 +135,24 @@ impl CompilationUnit {
         }
     }
 
+    /// Populate [`InterproceduralAnalysis`] via
+    /// [`build_interprocedural_analysis`]. Call after
+    /// [`build_for`] when a consumer (optimiser, compiler-checks)
+    /// needs proc summaries.
+    #[must_use]
+    pub fn with_interprocedural(
+        mut self,
+        registry: &CommandRegistry,
+        dialect: Option<&str>,
+    ) -> Self {
+        self.interproc = Some(crate::interprocedural::build_interprocedural_analysis(
+            &self.ir_module,
+            registry,
+            dialect,
+        ));
+        self
+    }
+
     /// Populate memory-SSA on the top-level and every procedure.
     #[must_use]
     pub fn with_memory_ssa(mut self) -> Self {
