@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 
 from ...common.naming import normalise_var_name as _NORMALISE
@@ -11,6 +12,21 @@ from ..compilation_unit import CompilationUnit, ensure_compilation_unit
 from ..execution_intent import FunctionExecutionIntent
 from ..interprocedural import InterproceduralAnalysis
 from ..ir import IRAssignConst, IRBarrier, IRCall, IRModule, IRScript
+
+# Optional Rust delegation (C32). When the `tcl_lsp_rust` wheel is
+# importable AND `TCL_LSP_RUST_OPTIMISER=1` is set in the
+# environment, `find_optimisations` forwards to the Rust pass
+# manager. Default is off: the Python pipeline still runs so
+# existing tests observe the exact diagnostic shapes they expect.
+# The flip can be promoted to default-on once the Rust output has
+# been verified parity-for-parity against the Python pass suite.
+# Pattern mirrors the L11 lexer flip.
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        optimiser_find_optimisations as _rust_find_optimisations,
+    )
+except ImportError:
+    _rust_find_optimisations = None
 from . import (
     _branch_folding,
     _code_sinking,
@@ -371,11 +387,78 @@ class _CompilerOptimiser:
         _structure_elimination.optimise_structure_elimination(ctx, ir_script, cfg, ssa, analysis)
 
 
+def _materialise_rust_optimisations(
+    source: str,
+    tuples: list[tuple[str, str, int, int, str, int | None, bool]],
+) -> list[Optimisation]:
+    """Convert Rust ``(code, message, start, end, replacement, group, hint_only)``
+    tuples into Python :class:`Optimisation` dataclasses with proper
+    :class:`Range` positions computed from *source*.
+    """
+    from ...analysis.semantic_model import Range
+    from ...parsing.tokens import SourcePosition
+
+    # Pre-compute line-start offsets once for O(log n) lookup.
+    line_starts = [0]
+    for i, ch in enumerate(source):
+        if ch == "\n":
+            line_starts.append(i + 1)
+
+    def position_at(offset: int) -> SourcePosition:
+        # Binary search for the largest line_start <= offset.
+        import bisect
+
+        idx = bisect.bisect_right(line_starts, offset) - 1
+        if idx < 0:
+            idx = 0
+        return SourcePosition(
+            line=idx,
+            character=offset - line_starts[idx],
+            offset=offset,
+        )
+
+    out: list[Optimisation] = []
+    for code, message, start, end, replacement, group, hint_only in tuples:
+        # Rust Span is exclusive-end; Python Range.end is
+        # inclusive. Subtract 1 when the span is non-empty.
+        end_incl = max(start, end - 1) if end > start else start
+        out.append(
+            Optimisation(
+                code=code,
+                message=message,
+                range=Range(
+                    start=position_at(start),
+                    end=position_at(end_incl),
+                ),
+                replacement=replacement,
+                group=group,
+                hint_only=hint_only,
+            )
+        )
+    return out
+
+
 def find_optimisations(
     source: str,
     cu: CompilationUnit | None = None,
 ) -> list[Optimisation]:
-    """Find static optimisation opportunities in source order."""
+    """Find static optimisation opportunities in source order.
+
+    Set ``TCL_LSP_RUST_OPTIMISER=1`` in the environment to
+    delegate to the Rust implementation (experimental — diagnostic
+    messages / overlap arbitration may differ from the Python
+    pipeline). The Python pipeline is the default.
+    """
+    if (
+        _rust_find_optimisations is not None
+        and os.environ.get("TCL_LSP_RUST_OPTIMISER")
+    ):
+        try:
+            return _materialise_rust_optimisations(
+                source, _rust_find_optimisations(source, None)
+            )
+        except Exception:
+            log.debug("Rust optimiser delegation failed, falling back", exc_info=True)
     selected = _select_non_overlapping_optimisations(
         _CompilerOptimiser().run(source, cu=cu),
     )
