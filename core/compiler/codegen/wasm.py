@@ -4033,11 +4033,7 @@ class _WasmEmitter:
         # ``::ns::<name>`` global rather than a bare local — because
         # we wrote it through the global table with the qualified
         # name, and a bare-local read would find 0.
-        if (
-            not self._is_proc
-            and self._block_namespace
-            and self._block_namespace != "::"
-        ):
+        if not self._is_proc and self._block_namespace and self._block_namespace != "::":
             gget_idx = self._shared_imports.get("tcl_global_get")
             if gget_idx is not None:
                 qname = f"{self._block_namespace}::{name}"
@@ -4091,11 +4087,7 @@ class _WasmEmitter:
         # re-entered in a different frame (tcltest's stage-2 body
         # is a sequence of ``namespace eval ::tcltest { … }``
         # blocks).
-        if (
-            not self._is_proc
-            and self._block_namespace
-            and self._block_namespace != "::"
-        ):
+        if not self._is_proc and self._block_namespace and self._block_namespace != "::":
             qname = f"{self._block_namespace}::{name}"
             self._emit_global_set_via_literal(qname, keep_on_stack=keep_on_stack)
             return

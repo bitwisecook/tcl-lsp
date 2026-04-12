@@ -1228,9 +1228,7 @@ return [main]
         the ``(key)`` as part of the variable reference, not split
         it into a variable ``$a`` followed by literal ``(x)``.
         """
-        wasm, _ = _compile_tcl_with_diag(
-            'set a(x) 42\nputs "v=$a(x) done"\n'
-        )
+        wasm, _ = _compile_tcl_with_diag('set a(x) 42\nputs "v=$a(x) done"\n')
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "v=42 done\n"
 
@@ -1240,9 +1238,7 @@ return [main]
         Without the special-case in ``_emit_command_subst_value``
         it falls through to the eval fallback and returns empty.
         """
-        wasm, _ = _compile_tcl_with_diag(
-            "set a(x) 42\nputs [set a(x)]\n"
-        )
+        wasm, _ = _compile_tcl_with_diag("set a(x) 42\nputs [set a(x)]\n")
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "42\n"
 
@@ -1251,8 +1247,7 @@ return [main]
         value-context special-case, for ``if {[set a(x)] == 1}``.
         """
         wasm, _ = _compile_tcl_with_diag(
-            "set a(x) 1\n"
-            "if {[set a(x)] == 1} { puts yes } else { puts no }\n"
+            "set a(x) 1\nif {[set a(x)] == 1} { puts yes } else { puts no }\n"
         )
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "yes\n"
@@ -1261,9 +1256,7 @@ return [main]
         """Array reads inside a proc must go through the same
         value-context path as at top level.
         """
-        wasm, _ = _compile_tcl_with_diag(
-            "proc f {} { set a(x) 42; puts <$a(x)> }\nf\n"
-        )
+        wasm, _ = _compile_tcl_with_diag("proc f {} { set a(x) 42; puts <$a(x)> }\nf\n")
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "<42>\n"
 
@@ -1273,9 +1266,7 @@ return [main]
         through the matching ``)`` rather than treating ``$i)`` as
         a separate variable followed by literal ``)``.
         """
-        wasm, _ = _compile_tcl_with_diag(
-            "set i x\nset a($i) 42\nputs $a($i)\n"
-        )
+        wasm, _ = _compile_tcl_with_diag("set i x\nset a($i) 42\nputs $a($i)\n")
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "42\n"
 
@@ -1288,8 +1279,7 @@ return [main]
         numTests(Total)`` ran on an uninitialised element.
         """
         wasm, _ = _compile_tcl_with_diag(
-            "array set a {x 1 y 2 z 3}\n"
-            'puts "x=$a(x) y=$a(y) z=$a(z)"\n'
+            'array set a {x 1 y 2 z 3}\nputs "x=$a(x) y=$a(y) z=$a(z)"\n'
         )
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "x=1 y=2 z=3\n"
@@ -1300,10 +1290,7 @@ return [main]
         compile-time list-literal path only fires on brace literals),
         which must route through the new ``array_set_list`` helper.
         """
-        wasm, _ = _compile_tcl_with_diag(
-            "array set a [list x 1 y 2]\n"
-            'puts "x=$a(x) y=$a(y)"\n'
-        )
+        wasm, _ = _compile_tcl_with_diag('array set a [list x 1 y 2]\nputs "x=$a(x) y=$a(y)"\n')
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "x=1 y=2\n"
 
@@ -1314,9 +1301,7 @@ return [main]
         scan fix, the read falls back to ``i32.const 0`` at runtime
         (silent empty-string).
         """
-        wasm, _ = _compile_tcl_with_diag(
-            'set a(x) 42\nputs "v=$a(x) done"\n'
-        )
+        wasm, _ = _compile_tcl_with_diag('set a(x) 42\nputs "v=$a(x) done"\n')
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "v=42 done\n"
 
@@ -1329,19 +1314,13 @@ class TestNamespaceVariables:
     """
 
     def test_variable_with_initializer_persists(self):
-        src = (
-            "namespace eval ns { variable x 5 }\n"
-            "puts [set ::ns::x]\n"
-        )
+        src = "namespace eval ns { variable x 5 }\nputs [set ::ns::x]\n"
         wasm, _ = _compile_tcl_with_diag(src)
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "5\n"
 
     def test_set_inside_namespace_eval_persists(self):
-        src = (
-            "namespace eval ns { set x 5 }\n"
-            "puts [set ::ns::x]\n"
-        )
+        src = "namespace eval ns { set x 5 }\nputs [set ::ns::x]\n"
         wasm, _ = _compile_tcl_with_diag(src)
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "5\n"
@@ -1351,10 +1330,7 @@ class TestNamespaceVariables:
         operate on a bare local.  Otherwise the incremented value
         doesn't end up at ``::ns::n``.
         """
-        src = (
-            "namespace eval ns { variable n 0; incr n; incr n }\n"
-            "puts [set ::ns::n]\n"
-        )
+        src = "namespace eval ns { variable n 0; incr n; incr n }\nputs [set ::ns::n]\n"
         wasm, _ = _compile_tcl_with_diag(src)
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "2\n"
