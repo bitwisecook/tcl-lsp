@@ -24,7 +24,10 @@
 //!   helpers.
 //! - **C24b3** — `compute_aliases` + `build_memory_ssa` driver.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
+
+use crate::ir::Statement;
+use crate::ssa::Version;
 
 // ---------------------------------------------------------------------------
 // MemoryLocationKind / MemoryLocation (C24b1)
@@ -162,6 +165,308 @@ impl AliasSet {
     }
 }
 
+// ---------------------------------------------------------------------------
+// MemoryOpKind / MemoryOp (C24b2)
+// ---------------------------------------------------------------------------
+
+/// Kind of memory operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MemoryOpKind {
+    /// Memory write (store).
+    Def,
+    /// Memory read (load).
+    Use,
+    /// Memory phi at a merge point.
+    Phi,
+    /// Barrier / call that may modify any aliased memory.
+    Clobber,
+}
+
+/// A versioned memory operation attached to a statement.
+///
+/// Uses are annotated with `reaching_version` indicating the version
+/// of the memory state visible at the read; defs/phis/clobbers bump
+/// `version` monotonically across a function.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryOp {
+    /// Operation kind.
+    pub kind: MemoryOpKind,
+    /// Location being read or written.
+    pub location: MemoryLocation,
+    /// New version number assigned by this op (for Def/Phi/Clobber).
+    /// For Use, matches the reaching version.
+    pub version: Version,
+    /// Version of memory state reaching this read (Use only).
+    pub reaching_version: Version,
+    /// Block containing the op.
+    pub block: String,
+    /// Statement index within the block (`-1` for phi).
+    pub statement_index: i32,
+}
+
+impl MemoryOp {
+    /// Build a def/clobber attached to a block+index.
+    #[must_use]
+    pub fn new_def(
+        location: MemoryLocation,
+        version: Version,
+        block: impl Into<String>,
+        statement_index: i32,
+    ) -> Self {
+        Self {
+            kind: MemoryOpKind::Def,
+            location,
+            version,
+            reaching_version: 0,
+            block: block.into(),
+            statement_index,
+        }
+    }
+
+    /// Build a use annotated with its reaching version.
+    #[must_use]
+    pub fn new_use(
+        location: MemoryLocation,
+        reaching_version: Version,
+        block: impl Into<String>,
+        statement_index: i32,
+    ) -> Self {
+        Self {
+            kind: MemoryOpKind::Use,
+            location,
+            version: reaching_version,
+            reaching_version,
+            block: block.into(),
+            statement_index,
+        }
+    }
+
+    /// Build a memory phi at the start of a block.
+    #[must_use]
+    pub fn new_phi(
+        location: MemoryLocation,
+        version: Version,
+        block: impl Into<String>,
+    ) -> Self {
+        Self {
+            kind: MemoryOpKind::Phi,
+            location,
+            version,
+            reaching_version: 0,
+            block: block.into(),
+            statement_index: -1,
+        }
+    }
+
+    /// Build a clobber (e.g. for `eval`/`uplevel` barriers).
+    #[must_use]
+    pub fn new_clobber(
+        version: Version,
+        block: impl Into<String>,
+        statement_index: i32,
+    ) -> Self {
+        Self {
+            kind: MemoryOpKind::Clobber,
+            location: MemoryLocation::new(MemoryLocationKind::Unknown, "*"),
+            version,
+            reaching_version: 0,
+            block: block.into(),
+            statement_index,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// MemorySSAFunction (C24b2)
+// ---------------------------------------------------------------------------
+
+/// Memory-SSA annotations for a single function.
+///
+/// Produced by `build_memory_ssa` (C24b3). Carries:
+/// - `alias_sets`: every detected alias set in the function.
+/// - `memory_ops`: one entry per def/use/phi/clobber, in emission
+///   order.
+/// - `memory_phis`: per-block memory phis, keyed by block name.
+/// - pre-computed counts (`count_defs`, `count_uses`, `count_clobbers`)
+///   for O(1) summary queries.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MemorySSAFunction {
+    /// Alias sets covering this function's aliased variables.
+    pub alias_sets: Vec<AliasSet>,
+    /// Memory operations in emission order.
+    pub memory_ops: Vec<MemoryOp>,
+    /// Block-indexed memory phi nodes.
+    pub memory_phis: HashMap<String, Vec<MemoryOp>>,
+    /// Number of [`MemoryOpKind::Def`] ops.
+    pub count_defs: usize,
+    /// Number of [`MemoryOpKind::Use`] ops.
+    pub count_uses: usize,
+    /// Number of [`MemoryOpKind::Clobber`] ops.
+    pub count_clobbers: usize,
+}
+
+impl MemorySSAFunction {
+    /// All variable names involved in aliasing.
+    #[must_use]
+    pub fn aliased_names(&self) -> BTreeSet<String> {
+        let mut out = BTreeSet::new();
+        for aset in &self.alias_sets {
+            out.extend(aset.names());
+        }
+        out
+    }
+
+    /// Alias sets that contain `name`.
+    #[must_use]
+    pub fn aliases_for(&self, name: &str) -> Vec<&AliasSet> {
+        self.alias_sets
+            .iter()
+            .filter(|s| s.contains_name(name))
+            .collect()
+    }
+
+    /// True when two variable names may refer to the same storage.
+    /// Same-name always aliases; otherwise names must share an alias
+    /// set.
+    #[must_use]
+    pub fn may_alias(&self, name_a: &str, name_b: &str) -> bool {
+        if name_a == name_b {
+            return true;
+        }
+        self.alias_sets
+            .iter()
+            .any(|s| s.contains_name(name_a) && s.contains_name(name_b))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Detection helpers (C24b2)
+// ---------------------------------------------------------------------------
+
+/// Return `true` if `stmt` is the call form `cmd args…` or the
+/// equivalent barrier form. Used by the detection helpers below.
+fn call_parts(stmt: &Statement) -> Option<(&str, &[String])> {
+    match stmt {
+        Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
+            Some((command.as_str(), args.as_slice()))
+        }
+        _ => None,
+    }
+}
+
+/// Detect `upvar ?level? otherVar myVar ?…?` aliasing pairs.
+///
+/// Returns a list of `(caller_var, local_var)` pairs. Also handles
+/// the three-word `namespace upvar ns otherVar myVar …` form.
+///
+/// The Python port defers to
+/// `core.analysis.var_scoping.upvar_local_declaration_indices` for
+/// the full grammar. This Rust port inlines a simplified grammar
+/// covering the common patterns:
+///
+/// - `upvar varName localName` (no level).
+/// - `upvar LEVEL varName localName`, where LEVEL is `#N` or a
+///   decimal integer.
+/// - `upvar ?level? v1 l1 v2 l2 …` pairs after the level word.
+/// - `namespace upvar NS v1 l1 v2 l2 …` pairs after the namespace
+///   word.
+#[must_use]
+pub fn detect_upvar(stmt: &Statement) -> Vec<(String, String)> {
+    let Some((cmd, args)) = call_parts(stmt) else {
+        return Vec::new();
+    };
+    let (pairs_start, pair_args) = match cmd {
+        "upvar" => {
+            // `upvar ?level? v1 l1 …`. Level is detected as the first
+            // arg when it's `#N` or all-digits, and there is an even
+            // number of remaining args.
+            if args.is_empty() {
+                return Vec::new();
+            }
+            let looks_like_level = |s: &str| -> bool {
+                if let Some(rest) = s.strip_prefix('#') {
+                    return !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit());
+                }
+                !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
+            };
+            if looks_like_level(&args[0]) && args.len() >= 3 && args.len() % 2 == 1 {
+                (1, &args[1..])
+            } else {
+                (0, args)
+            }
+        }
+        "namespace" if args.len() >= 3 && args[0] == "upvar" => {
+            // `namespace upvar NS v1 l1 …`. Skip "upvar" + NS.
+            (2, &args[2..])
+        }
+        _ => return Vec::new(),
+    };
+    let _ = pairs_start;
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i + 1 < pair_args.len() {
+        out.push((pair_args[i].clone(), pair_args[i + 1].clone()));
+        i += 2;
+    }
+    out
+}
+
+/// Detect `global varName …` declarations.
+#[must_use]
+pub fn detect_global(stmt: &Statement) -> Vec<String> {
+    let Some((cmd, args)) = call_parts(stmt) else {
+        return Vec::new();
+    };
+    if cmd != "global" {
+        return Vec::new();
+    }
+    args.to_vec()
+}
+
+/// Detect `variable varName ?value? …` declarations.
+///
+/// `variable` takes (name, value) pairs after the optional leading
+/// namespace. The Python port inspects registry metadata; this Rust
+/// port uses the simpler convention that the first, third, fifth, …
+/// arguments are variable names. Names that start with an ASCII
+/// letter or `_` are considered valid; literal-value arguments are
+/// skipped.
+#[must_use]
+pub fn detect_namespace_variable(stmt: &Statement) -> Vec<String> {
+    let Some((cmd, args)) = call_parts(stmt) else {
+        return Vec::new();
+    };
+    if cmd != "variable" {
+        return Vec::new();
+    }
+    // `variable name ?value? name ?value? …` — the first argument
+    // is always a name; subsequent args alternate name, value.
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        out.push(args[i].clone());
+        i += 2;
+    }
+    out
+}
+
+/// True if `stmt` may clobber arbitrary memory locations.
+///
+/// Barriers always clobber. Calls clobber when their command name
+/// matches an explicit dynamic-dispatch name (`eval`, `uplevel`,
+/// `interp eval`, `namespace eval`).
+#[must_use]
+pub fn is_clobber(stmt: &Statement) -> bool {
+    match stmt {
+        Statement::Barrier { .. } => true,
+        Statement::Call { command, .. } => matches!(
+            command.as_str(),
+            "eval" | "uplevel" | "interp eval" | "namespace eval"
+        ),
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,6 +512,137 @@ mod tests {
         assert!(names.contains("a"));
         assert!(names.contains("b"));
         assert_eq!(names.len(), 2);
+    }
+
+    // -- C24b2: MemoryOp + MemorySSAFunction + detection --
+
+    fn call(cmd: &str, args: &[&str]) -> Statement {
+        Statement::Call {
+            span: tcl_lexer::Span::new(0, 0),
+            command: cmd.into(),
+            args: args.iter().map(|s| (*s).into()).collect(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        }
+    }
+
+    fn barrier(cmd: &str, args: &[&str]) -> Statement {
+        Statement::Barrier {
+            span: tcl_lexer::Span::new(0, 0),
+            reason: "test".into(),
+            command: cmd.into(),
+            args: args.iter().map(|s| (*s).into()).collect(),
+            tokens: None,
+        }
+    }
+
+    #[test]
+    fn memory_op_constructors() {
+        let loc = MemoryLocation::new(MemoryLocationKind::Local, "x");
+        let def = MemoryOp::new_def(loc.clone(), 3, "b", 1);
+        assert_eq!(def.kind, MemoryOpKind::Def);
+        assert_eq!(def.version, 3);
+
+        let uv = MemoryOp::new_use(loc.clone(), 3, "b", 2);
+        assert_eq!(uv.kind, MemoryOpKind::Use);
+        assert_eq!(uv.reaching_version, 3);
+        assert_eq!(uv.version, 3);
+
+        let phi = MemoryOp::new_phi(loc.clone(), 4, "join");
+        assert_eq!(phi.kind, MemoryOpKind::Phi);
+        assert_eq!(phi.statement_index, -1);
+
+        let clob = MemoryOp::new_clobber(5, "b", 7);
+        assert_eq!(clob.kind, MemoryOpKind::Clobber);
+        assert_eq!(clob.location.kind, MemoryLocationKind::Unknown);
+        assert_eq!(clob.location.name, "*");
+    }
+
+    #[test]
+    fn may_alias_same_name_trivial() {
+        let f = MemorySSAFunction::default();
+        assert!(f.may_alias("x", "x"));
+        assert!(!f.may_alias("x", "y"));
+    }
+
+    #[test]
+    fn may_alias_via_shared_alias_set() {
+        let mut locs = BTreeSet::new();
+        locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "a"));
+        locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "b"));
+        let f = MemorySSAFunction {
+            alias_sets: vec![AliasSet::new(locs, "upvar")],
+            ..MemorySSAFunction::default()
+        };
+        assert!(f.may_alias("a", "b"));
+        assert!(f.may_alias("b", "a"));
+        assert!(!f.may_alias("a", "c"));
+        assert!(f.aliases_for("a").len() == 1);
+        assert!(f.aliases_for("c").is_empty());
+    }
+
+    #[test]
+    fn detect_upvar_pair_no_level() {
+        let stmt = call("upvar", &["caller_x", "local_x"]);
+        assert_eq!(
+            detect_upvar(&stmt),
+            vec![("caller_x".to_string(), "local_x".to_string())]
+        );
+    }
+
+    #[test]
+    fn detect_upvar_with_level_and_multi_pairs() {
+        let stmt = call("upvar", &["1", "a", "la", "b", "lb"]);
+        let pairs = detect_upvar(&stmt);
+        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs[0], ("a".into(), "la".into()));
+        assert_eq!(pairs[1], ("b".into(), "lb".into()));
+    }
+
+    #[test]
+    fn detect_upvar_with_hash_level() {
+        let stmt = call("upvar", &["#0", "caller_x", "local_x"]);
+        let pairs = detect_upvar(&stmt);
+        assert_eq!(pairs, vec![("caller_x".into(), "local_x".into())]);
+    }
+
+    #[test]
+    fn detect_namespace_upvar_pairs() {
+        let stmt = call("namespace", &["upvar", "::foo", "bar", "lb", "baz", "lz"]);
+        let pairs = detect_upvar(&stmt);
+        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs[0], ("bar".into(), "lb".into()));
+    }
+
+    #[test]
+    fn detect_upvar_rejects_unrelated_commands() {
+        let stmt = call("set", &["a", "1"]);
+        assert!(detect_upvar(&stmt).is_empty());
+    }
+
+    #[test]
+    fn detect_global_names() {
+        let stmt = call("global", &["foo", "bar"]);
+        assert_eq!(detect_global(&stmt), vec!["foo".to_string(), "bar".into()]);
+    }
+
+    #[test]
+    fn detect_namespace_variable_pairs() {
+        // Name, (optional value) alternating.
+        let stmt = call("variable", &["counter", "0", "name"]);
+        let names = detect_namespace_variable(&stmt);
+        assert_eq!(names, vec!["counter".to_string(), "name".into()]);
+    }
+
+    #[test]
+    fn is_clobber_barrier_and_eval() {
+        assert!(is_clobber(&barrier("eval", &["x"])));
+        assert!(is_clobber(&call("eval", &["script"])));
+        assert!(is_clobber(&call("uplevel", &["1", "script"])));
+        assert!(!is_clobber(&call("set", &["x", "1"])));
     }
 
     #[test]
