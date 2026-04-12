@@ -1,18 +1,166 @@
-// Filesystem pass-through implementations for the few commands
-// that have a meaningful answer in a WASI-sandboxed WASM build.
-// Everything else lives in ``tcl_fs_stubs.zig`` and traps.
+// Filesystem implementations backed by wasi-libc's POSIX wrappers.
 //
-// Coverage:
-//   pwd → always "/" (the WASI preopen root).
-//   cd  → accept the argument but do nothing; return empty.
+// Tcl's ``file`` command has dozens of subcommands; the ones that
+// mutate or query the filesystem route to wasi-libc calls
+// (``mkdir`` / ``rmdir`` / ``unlink`` / ``rename`` / ``access`` /
+// ``stat`` / …), which wasi-libc translates into WASI preopens
+// under the hood.  Scripts running in wasmtime can reach the
+// files the embedder grants via ``WasiConfig.preopen_dir``.  With
+// no preopens, every path resolves to ``ENOTCAPABLE`` and the
+// queries report "doesn't exist" — same behaviour we had before
+// but now backed by real system calls rather than hardcoded 0.
 //
-// ``file mkdir``, ``file delete``, ``glob``, ``exec``, ``source``,
-// ``load``, ``unload`` continue to trap; those operate on a disk we
-// don't have (or a preopened FD we don't expose to Tcl).
+// Coverage (updated incrementally):
+//   pwd / cd                — stable strings (root preopen).
+//   file join / dirname /
+//     tail / rootname /
+//     extension / split /
+//     pathtype / …          — pure string operations.
+//   file exists / isfile /
+//     isdirectory /
+//     readable / writable /
+//     executable / owned    — real access()/stat() checks.
+//   file size / mtime /
+//     atime / ctime         — real stat()-derived.
+//   file mkdir / delete /
+//     rename / copy / …     — still trap; follow-up work.
+//
+// Path handling: Tcl paths arrive as TclObj-wrapped UTF-8 byte
+// strings without a trailing NUL.  We allocate a fresh
+// NUL-terminated copy on the bump allocator for each call
+// (cheap — a few bytes per syscall) rather than demanding the
+// caller preserve a NUL-terminated form.
 
 const obj = @import("tcl_obj.zig");
 const obj_new_string = obj.obj_new_string;
 const obj_new_string_copy = obj.obj_new_string_copy;
+const obj_ensure_string = obj.obj_ensure_string;
+const stubs = @import("tcl_stubs.zig");
+
+// --- wasi-libc extern declarations ---
+//
+// These resolve against the wasi-libc archive linked in by
+// ``build.zig``'s ``linkLibC()`` call.  Signatures match POSIX;
+// on 32-bit WASM, ``long`` is 32 bits and ``long long`` is 64.
+// ``mode_t`` is ``unsigned`` (32 bits).
+
+extern fn access(path: [*:0]const u8, mode: c_int) c_int;
+extern fn stat(path: [*:0]const u8, buf: *anyopaque) c_int;
+extern fn lstat(path: [*:0]const u8, buf: *anyopaque) c_int;
+
+// access() mode flags (POSIX unistd.h values).
+const F_OK: c_int = 0;
+const X_OK: c_int = 1;
+const W_OK: c_int = 2;
+const R_OK: c_int = 4;
+
+// struct stat layout on 32-bit WASM / wasi-libc (musl-derived).
+// Verified against
+//   zig/lib/libc/include/wasm-wasi-musl/__struct_stat.h
+// Field sizes + padding:
+//   dev_t (u64)     [  0..  8)
+//   ino_t (u64)     [  8.. 16)
+//   nlink_t (u64)   [ 16.. 24)
+//   mode_t (u32)    [ 24.. 28)
+//   uid_t (u32)     [ 28.. 32)
+//   gid_t (u32)     [ 32.. 36)
+//   __pad0 (u32)    [ 36.. 40)
+//   rdev (u64)      [ 40.. 48)
+//   st_size (i64)   [ 48.. 56)
+//   blksize (i32)   [ 56.. 60)
+//   pad             [ 60.. 64)
+//   blocks (i64)    [ 64.. 72)
+//   atim.tv_sec     [ 72.. 80)
+//   atim.tv_nsec    [ 80.. 84)
+//   pad             [ 84.. 88)
+//   mtim.tv_sec     [ 88.. 96)
+//   mtim.tv_nsec    [ 96..100)
+//   pad             [100..104)
+//   ctim.tv_sec     [104..112)
+//   ctim.tv_nsec    [112..116)
+//   pad             [116..120)
+//   __reserved[3]   [120..144)
+// Total: 144 bytes.  Allocate 160 to cover any future libc
+// changes without overflowing.
+const STAT_SIZE: u32 = 160;
+const STAT_OFF_MODE: u32 = 24;
+const STAT_OFF_SIZE: u32 = 48;
+const STAT_OFF_ATIM_SEC: u32 = 72;
+const STAT_OFF_MTIM_SEC: u32 = 88;
+const STAT_OFF_CTIM_SEC: u32 = 104;
+
+// mode_t bits (POSIX <sys/stat.h>).
+const S_IFMT: u32 = 0o170000;
+const S_IFSOCK: u32 = 0o140000;
+const S_IFLNK: u32 = 0o120000;
+const S_IFREG: u32 = 0o100000;
+const S_IFBLK: u32 = 0o060000;
+const S_IFDIR: u32 = 0o040000;
+const S_IFCHR: u32 = 0o020000;
+const S_IFIFO: u32 = 0o010000;
+
+/// Copy *path*'s bytes onto the bump allocator with a trailing
+/// NUL so it can be passed to wasi-libc APIs that expect
+/// C-strings.
+fn path_cstr(path: i32) [*:0]const u8 {
+    const s = obj_ensure_string(path);
+    const buf_addr = obj.alloc(s.len + 1);
+    const out: [*]u8 = @ptrFromInt(buf_addr);
+    if (s.len > 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| out[i] = src[i];
+    }
+    out[s.len] = 0;
+    return @ptrCast(out);
+}
+
+/// Run ``stat(2)`` on *path*.  Returns the bump-allocator address
+/// of the filled struct, or 0 if the call failed (path doesn't
+/// exist, not accessible, etc.).
+fn stat_path(path: i32) u32 {
+    const buf_addr = obj.alloc(STAT_SIZE);
+    const buf: *anyopaque = @ptrFromInt(buf_addr);
+    const rc = stat(path_cstr(path), buf);
+    if (rc != 0) return 0;
+    return buf_addr;
+}
+
+/// Same as :func:`stat_path` but uses ``lstat(2)`` — does not
+/// follow symbolic links on the final path component.
+fn lstat_path(path: i32) u32 {
+    const buf_addr = obj.alloc(STAT_SIZE);
+    const buf: *anyopaque = @ptrFromInt(buf_addr);
+    const rc = lstat(path_cstr(path), buf);
+    if (rc != 0) return 0;
+    return buf_addr;
+}
+
+fn stat_mode(stat_buf: u32) u32 {
+    const p: *u32 = @ptrFromInt(stat_buf + STAT_OFF_MODE);
+    return p.*;
+}
+
+fn stat_size(stat_buf: u32) i64 {
+    const p: *i64 = @ptrFromInt(stat_buf + STAT_OFF_SIZE);
+    return p.*;
+}
+
+fn stat_atim_sec(stat_buf: u32) i64 {
+    const p: *i64 = @ptrFromInt(stat_buf + STAT_OFF_ATIM_SEC);
+    return p.*;
+}
+
+fn stat_mtim_sec(stat_buf: u32) i64 {
+    const p: *i64 = @ptrFromInt(stat_buf + STAT_OFF_MTIM_SEC);
+    return p.*;
+}
+
+fn stat_ctim_sec(stat_buf: u32) i64 {
+    const p: *i64 = @ptrFromInt(stat_buf + STAT_OFF_CTIM_SEC);
+    return p.*;
+}
+
+// --- pwd / cd ---
 
 pub export fn tcl_cmd_pwd() i32 {
     // WASI programs without preopens report ``/`` as their root;
@@ -26,12 +174,9 @@ pub export fn tcl_cmd_cd(dir: i32) i32 {
     _ = dir;
     // Accept but do nothing — there's no real filesystem cwd in
     // WASM.  Scripts that rely on ``cd`` changing the cwd will not
-    // observe the effect (real files are inaccessible anyway).
+    // observe the effect.
     return obj_new_string(0, 0);
 }
-
-const obj_ensure_string = obj.obj_ensure_string;
-const stubs = @import("tcl_stubs.zig");
 
 fn eq(a: [*]const u8, alen: u32, literal: []const u8) bool {
     if (alen != literal.len) return false;
@@ -39,17 +184,16 @@ fn eq(a: [*]const u8, alen: u32, literal: []const u8) bool {
     return true;
 }
 
-/// ``file <sub> <arg> ?extra?`` — minimal dispatch for the small set
-/// of subcommands scripts use at init time without expecting real
-/// filesystem access.  String-only operations (join / dirname /
-/// tail / rootname / extension / normalize) compute their result
-/// purely on the path text.  Status queries (exists / isfile /
-/// isdirectory / readable / writable / executable / size / mtime /
-/// atime) return "doesn't exist" (0 or -1) rather than trap so
-/// init-time checks that optionally skip a path fall naturally.
-/// Mutating operations (mkdir / delete / rename / copy / attributes
-/// / link / readlink / tempfile / stat / lstat) trap so they can't
-/// silently miss work.
+/// ``file <sub> <arg> ?extra?`` — dispatch for subcommand set.
+/// String-only operations (join / dirname / tail / rootname /
+/// extension / normalize / pathtype / split) compute purely on
+/// the path text.  Status queries (exists / isfile / isdirectory
+/// / readable / writable / executable / owned / size / mtime /
+/// atime / ctime) now route through ``access(2)`` / ``stat(2)``
+/// so they reflect the actual WASI-preopen-exposed filesystem.
+/// Mutating operations (mkdir / delete / rename / copy /
+/// attributes / link / readlink / tempfile / stat / lstat /
+/// system / type) continue to trap; incremental follow-up work.
 pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     if (sub == 0) {
         stubs.unsupported("file (missing subcommand)");
@@ -74,25 +218,50 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     if (eq(sp, s.len, "nativename")) return arg1; // no native names in WASM
     if (eq(sp, s.len, "split")) return file_split(arg1);
 
-    // -- Existence / attribute queries — WASI has no preopens we
-    //    expose to Tcl, so every path reports as "doesn't exist" /
-    //    "not readable".
-    if (eq(sp, s.len, "exists") or
-        eq(sp, s.len, "isfile") or
-        eq(sp, s.len, "isdirectory") or
-        eq(sp, s.len, "readable") or
-        eq(sp, s.len, "writable") or
-        eq(sp, s.len, "executable") or
-        eq(sp, s.len, "owned"))
-    {
-        return obj.obj_new_int(0);
+    // -- Existence / accessibility queries — real access(2) calls.
+    if (eq(sp, s.len, "exists")) return bool_obj(access(path_cstr(arg1), F_OK) == 0);
+    if (eq(sp, s.len, "readable")) return bool_obj(access(path_cstr(arg1), R_OK) == 0);
+    if (eq(sp, s.len, "writable")) return bool_obj(access(path_cstr(arg1), W_OK) == 0);
+    if (eq(sp, s.len, "executable")) return bool_obj(access(path_cstr(arg1), X_OK) == 0);
+
+    // -- Type queries — stat + S_IF* bit check.
+    if (eq(sp, s.len, "isfile")) {
+        const st = stat_path(arg1);
+        if (st == 0) return obj.obj_new_int(0);
+        return bool_obj((stat_mode(st) & S_IFMT) == S_IFREG);
     }
-    if (eq(sp, s.len, "size") or
-        eq(sp, s.len, "mtime") or
-        eq(sp, s.len, "atime") or
-        eq(sp, s.len, "ctime"))
-    {
-        return obj.obj_new_int(-1);
+    if (eq(sp, s.len, "isdirectory")) {
+        const st = stat_path(arg1);
+        if (st == 0) return obj.obj_new_int(0);
+        return bool_obj((stat_mode(st) & S_IFMT) == S_IFDIR);
+    }
+    // ``file owned`` — always false under WASI (no meaningful
+    // user identity); keep the old 0 return rather than faking a
+    // match.
+    if (eq(sp, s.len, "owned")) return obj.obj_new_int(0);
+
+    // -- Size / time queries — stat-derived.  Return -1 (matches
+    //    Tcl's typical "unavailable" signal; tclsh would error,
+    //    but -1 lets scripts test for non-positive).
+    if (eq(sp, s.len, "size")) {
+        const st = stat_path(arg1);
+        if (st == 0) return obj.obj_new_int(-1);
+        return obj.obj_new_int(stat_size(st));
+    }
+    if (eq(sp, s.len, "mtime")) {
+        const st = stat_path(arg1);
+        if (st == 0) return obj.obj_new_int(-1);
+        return obj.obj_new_int(stat_mtim_sec(st));
+    }
+    if (eq(sp, s.len, "atime")) {
+        const st = stat_path(arg1);
+        if (st == 0) return obj.obj_new_int(-1);
+        return obj.obj_new_int(stat_atim_sec(st));
+    }
+    if (eq(sp, s.len, "ctime")) {
+        const st = stat_path(arg1);
+        if (st == 0) return obj.obj_new_int(-1);
+        return obj.obj_new_int(stat_ctim_sec(st));
     }
 
     // -- Channel inquiry --
@@ -100,7 +269,8 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     if (eq(sp, s.len, "volumes")) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
 
     // -- Mutating operations — trap so scripts can't silently miss
-    //    work.
+    //    work.  These have incremental follow-up commits pending;
+    //    see tcl_fs.zig's header comment.
     if (eq(sp, s.len, "mkdir") or
         eq(sp, s.len, "delete") or
         eq(sp, s.len, "rename") or
@@ -121,6 +291,10 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
 
     stubs.unsupported("file (unknown subcommand)");
     return 0;
+}
+
+fn bool_obj(b: bool) i32 {
+    return obj.obj_new_int(if (b) 1 else 0);
 }
 
 fn file_join(a: i32, b: i32) i32 {
@@ -203,4 +377,15 @@ fn file_split(a: i32) i32 {
     // whole path keeps the list-looking shape so ``file join``
     // round-trips.
     return a;
+}
+
+// Silence unused-warning for helpers that will be used by the
+// follow-up mutating-op commits (mkdir / delete / rename / stat /
+// lstat / type).  Keeping the forward references here means the
+// wiring is already in place and subsequent commits only touch
+// the dispatch table above.
+comptime {
+    _ = &lstat_path;
+    _ = &stat_ctim_sec;
+    _ = &lstat;
 }
