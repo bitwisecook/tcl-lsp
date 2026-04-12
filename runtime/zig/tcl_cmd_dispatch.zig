@@ -1,236 +1,145 @@
-// Interpreter-side stub dispatch.
+// Interpreter-side pre-wired dispatch for every Tcl 8.4–9.0 core command.
 //
-// When compiled code falls back to ``tcl_eval`` — typically because
-// a ``namespace eval { ... }`` body is too dynamic to compile — the
-// interpreter then walks commands one at a time through
-// ``eval_command`` / ``eval_proc_call``.  For user-defined procs the
-// existing proc-registry lookup wins; for *core* Tcl 8.4–9.0 commands
-// we haven't implemented (``encoding``, ``fconfigure``, ``regexp``,
-// ``trace``, ``file``, ``glob``, …) we want the same clean trap that
-// direct compiled dispatch produces via the ``_CMD_RUNTIME`` path —
-// ``unsupported command: <name>`` with the current diag site.
+// Philosophy: the interpreter must produce a meaningful result (or a
+// clear trap) for *any* Tcl core command, without ever reaching
+// ``unknown command: <name>``.  A user-defined proc that shadows a
+// core command is handled by the proc registry (consulted in
+// ``eval_proc_call`` *before* this dispatch table), so shadowing
+// still works.  Commands in this file fall into three groups:
 //
-// This file owns that mapping.  Keeping the command-name → stub
-// table in one place means adding a new stub is a one-line change
-// here in addition to the area-specific ``tcl_*_stubs.zig`` file.
+//   (a) **Real** — the command has a runtime implementation and we
+//       dispatch to it (``encoding``, ``fconfigure``, …).
 //
-// Only *unsupported* commands are listed.  Implemented commands
-// (``puts``, ``lappend``, ``list_index``, ``string *``, ``dict *``,
-// ``array *``, ``clock_seconds`` / ``clock_clicks`` /
-// ``clock_milliseconds``, ``info exists`` etc.) continue to be
-// handled by their dedicated dispatch in ``eval_command`` —
-// ``try_stub`` is consulted only when the proc-registry lookup
-// misses.
+//   (b) **Stub** — the command has no WASM-available implementation
+//       (``regexp``, ``file``, ``exec``, …); we trap with
+//       ``unsupported command: X`` so the caller sees a precise
+//       diagnostic.
+//
+//   (c) **Already handled in eval_command** — the hot-path builtins
+//       (``set``, ``puts``, ``expr``, ``if``, ``while``, ``proc``,
+//       ``string``, ``dict``, ``info``, ``array``, …) are not listed
+//       here because they're checked with ``str_eq`` in the
+//       interpreter's main switch before we're ever called.  They
+//       still count as "pre-wired" — this file only covers the
+//       remaining core surface.
+//
+// ``try_stub`` is called from ``eval_proc_call`` when proc_lookup
+// misses.  It returns true if it handled the command (real impl ran
+// *or* stub trap fired); false to let the caller emit the generic
+// ``unknown command`` error.
 
 const stubs = @import("tcl_stubs.zig");
 
-/// Consult the stub dispatch table.  Returns true if the command was
-/// a known stub (and therefore an ``unsupported command: <name>``
-/// error has been raised through :func:`tcl_stubs.unsupported`);
-/// returns false if the caller should continue to the unknown-command
-/// error path.
+/// Consult the dispatch table.  Returns true when the command name
+/// matched a Tcl 8.4–9.0 core command — either executing it or
+/// trapping through :func:`tcl_stubs.unsupported`.
 pub fn try_stub(cmd: [*]const u8, cmd_len: u32) bool {
     return match_stub(cmd[0..cmd_len]);
 }
 
+fn eql(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    for (a, b) |x, y| if (x != y) return false;
+    return true;
+}
+
 fn match_stub(c: []const u8) bool {
-    // Helper — Zig 0.13's std.mem.eql requires a slice pair but
-    // keeping the match explicit saves on std dependency here.
-    const eql = struct {
-        fn f(a: []const u8, b: []const u8) bool {
-            if (a.len != b.len) return false;
-            for (a, b) |x, y| if (x != y) return false;
-            return true;
-        }
-    }.f;
+    // I/O + channel — ``fconfigure`` has a real impl in tcl_chan.zig;
+    // it's dispatched directly from ``eval_command`` before we're
+    // reached.  The rest are trapping stubs.
+    if (eql(c, "open")) return trap("open");
+    if (eql(c, "close")) return trap("close");
+    if (eql(c, "read")) return trap("read");
+    if (eql(c, "gets")) return trap("gets");
+    if (eql(c, "eof")) return trap("eof");
+    if (eql(c, "flush")) return trap("flush");
+    if (eql(c, "fblocked")) return trap("fblocked");
+    if (eql(c, "tell")) return trap("tell");
+    if (eql(c, "seek")) return trap("seek");
+    if (eql(c, "chan")) return trap("chan");
+    if (eql(c, "fcopy")) return trap("fcopy");
+    if (eql(c, "fileevent")) return trap("fileevent");
+    if (eql(c, "socket")) return trap("socket");
 
-    // I/O + channel stubs (tcl_io_stubs.zig).
-    if (eql(c, "open")) {
-        stubs.unsupported("open");
-        return true;
-    }
-    if (eql(c, "close")) {
-        stubs.unsupported("close");
-        return true;
-    }
-    if (eql(c, "read")) {
-        stubs.unsupported("read");
-        return true;
-    }
-    if (eql(c, "gets")) {
-        stubs.unsupported("gets");
-        return true;
-    }
-    if (eql(c, "eof")) {
-        stubs.unsupported("eof");
-        return true;
-    }
-    if (eql(c, "flush")) {
-        stubs.unsupported("flush");
-        return true;
-    }
-    if (eql(c, "fblocked")) {
-        stubs.unsupported("fblocked");
-        return true;
-    }
-    // ``fconfigure`` has a real (NOP) implementation in tcl_chan.zig
-    // so a trap inside an eval-fallback that references it doesn't
-    // derail; the interpreter still goes through the proc-registry
-    // miss → this dispatch, so we need to call the real function.
-    if (eql(c, "fconfigure")) {
-        const chan = @import("tcl_chan.zig");
-        _ = chan.fconfigure(0, 0);
-        return true;
-    }
-    if (eql(c, "tell")) {
-        stubs.unsupported("tell");
-        return true;
-    }
-    if (eql(c, "seek")) {
-        stubs.unsupported("seek");
-        return true;
-    }
-    if (eql(c, "chan")) {
-        stubs.unsupported("chan");
-        return true;
-    }
-    if (eql(c, "fcopy")) {
-        stubs.unsupported("fcopy");
-        return true;
-    }
-    if (eql(c, "fileevent")) {
-        stubs.unsupported("fileevent");
-        return true;
-    }
-    if (eql(c, "socket")) {
-        stubs.unsupported("socket");
-        return true;
-    }
+    // Filesystem / process.
+    if (eql(c, "file")) return trap("file");
+    if (eql(c, "glob")) return trap("glob");
+    if (eql(c, "pwd")) return trap("pwd");
+    if (eql(c, "cd")) return trap("cd");
+    if (eql(c, "exec")) return trap("exec");
+    if (eql(c, "source")) return trap("source");
+    if (eql(c, "load")) return trap("load");
+    if (eql(c, "unload")) return trap("unload");
 
-    // Filesystem / process stubs (tcl_fs_stubs.zig).
-    if (eql(c, "file")) {
-        stubs.unsupported("file");
-        return true;
-    }
-    if (eql(c, "glob")) {
-        stubs.unsupported("glob");
-        return true;
-    }
-    if (eql(c, "pwd")) {
-        stubs.unsupported("pwd");
-        return true;
-    }
-    if (eql(c, "cd")) {
-        stubs.unsupported("cd");
-        return true;
-    }
-    if (eql(c, "exec")) {
-        stubs.unsupported("exec");
-        return true;
-    }
-    if (eql(c, "source")) {
-        stubs.unsupported("source");
-        return true;
-    }
-    if (eql(c, "load")) {
-        stubs.unsupported("load");
-        return true;
-    }
-    if (eql(c, "unload")) {
-        stubs.unsupported("unload");
-        return true;
-    }
+    // Format / pattern matching.  ``encoding`` lives in
+    // ``eval_command`` (real impl) and isn't listed here.
+    if (eql(c, "format")) return trap("format");
+    if (eql(c, "scan")) return trap("scan");
+    if (eql(c, "binary")) return trap("binary");
+    if (eql(c, "regexp")) return trap("regexp");
+    if (eql(c, "regsub")) return trap("regsub");
 
-    // Format / regex / encoding stubs (tcl_fmt_stubs.zig).
-    if (eql(c, "format")) {
-        stubs.unsupported("format");
-        return true;
-    }
-    if (eql(c, "scan")) {
-        stubs.unsupported("scan");
-        return true;
-    }
-    if (eql(c, "binary")) {
-        stubs.unsupported("binary");
-        return true;
-    }
-    if (eql(c, "regexp")) {
-        stubs.unsupported("regexp");
-        return true;
-    }
-    if (eql(c, "regsub")) {
-        stubs.unsupported("regsub");
-        return true;
-    }
-    // ``encoding`` has a real (UTF-8 pass-through) implementation
-    // in tcl_encoding.zig.  When the interpreter walks a fallback
-    // script and hits an unknown ``encoding`` command, we'd want
-    // that real implementation to run — but here we don't have the
-    // ``words`` array, so we can't marshal subcommand + arg into
-    // its signature.  Fall through to the unknown-command path;
-    // the interpreter's ``eval_proc_call`` will still trap with
-    // ``unknown command: encoding`` if ``words`` is malformed.
-    // Direct dispatch from compiled code (the common case) is
-    // still served by ``_CMD_RUNTIME`` → real ``encoding`` fn.
-    // NOTE: reaching encoding through this path is an interpreter
-    // edge case; add a sub-dispatcher here if real-world scripts
-    // prove to need it.
+    // Time / event loop.  ``clock seconds`` / ``clock clicks`` /
+    // ``clock milliseconds`` are hot-path and handled in
+    // ``eval_command``; the formatting subcommands need per-subcmd
+    // discrimination and surface as ``unsupported command: clock
+    // <sub>`` from tcl_time_stubs.
+    if (eql(c, "after")) return trap("after");
+    if (eql(c, "vwait")) return trap("vwait");
+    if (eql(c, "update")) return trap("update");
+    if (eql(c, "coroutine")) return trap("coroutine");
+    if (eql(c, "yield")) return trap("yield");
+    if (eql(c, "yieldto")) return trap("yieldto");
+    if (eql(c, "yieldmeta")) return trap("yieldmeta");
+    if (eql(c, "tailcall")) return trap("tailcall");
 
-    // Event-loop / coroutine stubs (tcl_time_stubs.zig).  ``clock``
-    // is NOT in this table because ``clock seconds`` / ``clock
-    // clicks`` / ``clock milliseconds`` are real runtime functions;
-    // the formatting variants (``clock format`` / ``clock scan`` /
-    // ``clock add``) would need a sub-dispatcher we haven't wired.
-    // See wasm.py::_CMD_RUNTIME note.
-    if (eql(c, "after")) {
-        stubs.unsupported("after");
-        return true;
-    }
-    if (eql(c, "vwait")) {
-        stubs.unsupported("vwait");
-        return true;
-    }
-    if (eql(c, "update")) {
-        stubs.unsupported("update");
-        return true;
-    }
-    if (eql(c, "coroutine")) {
-        stubs.unsupported("coroutine");
-        return true;
-    }
-    if (eql(c, "yield")) {
-        stubs.unsupported("yield");
-        return true;
-    }
-    if (eql(c, "yieldto")) {
-        stubs.unsupported("yieldto");
-        return true;
-    }
+    // Environment / metadata.  ``namespace eval`` is handled by the
+    // compiler (barrier fallback); this entry catches every other
+    // ``namespace`` subcommand (current, qualifiers, which, tail,
+    // code, delete, import, export, exists, parent, children,
+    // inscope, origin, forget, path, ensemble).
+    if (eql(c, "namespace")) return trap("namespace");
+    if (eql(c, "package")) return trap("package");
+    if (eql(c, "trace")) return trap("trace");
+    if (eql(c, "interp")) return trap("interp");
+    if (eql(c, "apply")) return trap("apply");
+    if (eql(c, "rename")) return trap("rename");
+    if (eql(c, "subst")) return trap("subst");
+    if (eql(c, "time")) return trap("time");
+    if (eql(c, "try")) return trap("try");
+    if (eql(c, "throw")) return trap("throw");
+    if (eql(c, "unknown")) return trap("unknown");
 
-    // Environment / metadata stubs (tcl_env_stubs.zig).  ``namespace``
-    // eval is evaluated specially through the interpreter's own
-    // namespace handling (coming in a follow-up); for now the stub
-    // catches ``namespace current`` / ``namespace which`` / etc.
-    // However the interpreter still NOPs ``namespace`` because it
-    // can't know whether the caller meant ``namespace eval``.  Skip
-    // the namespace stub here — the user will see the inner traps
-    // once we grow real ``namespace eval`` support in the interpreter.
-    if (eql(c, "package")) {
-        stubs.unsupported("package");
-        return true;
-    }
-    if (eql(c, "trace")) {
-        stubs.unsupported("trace");
-        return true;
-    }
-    if (eql(c, "interp")) {
-        stubs.unsupported("interp");
-        return true;
-    }
-    if (eql(c, "apply")) {
-        stubs.unsupported("apply");
-        return true;
-    }
+    // List commands that aren't in eval_command's hot path.
+    if (eql(c, "lreplace")) return trap("lreplace");
+    if (eql(c, "linsert")) return trap("linsert");
+    if (eql(c, "lset")) return trap("lset");
+    if (eql(c, "lreverse")) return trap("lreverse");
+    if (eql(c, "lrepeat")) return trap("lrepeat");
+    if (eql(c, "lmap")) return trap("lmap");
+    if (eql(c, "lassign")) return trap("lassign");
+    if (eql(c, "lseq")) return trap("lseq");
+
+    // Object system (TclOO, 8.6+).
+    if (eql(c, "oo::class")) return trap("oo::class");
+    if (eql(c, "oo::define")) return trap("oo::define");
+    if (eql(c, "oo::object")) return trap("oo::object");
+    if (eql(c, "oo::copy")) return trap("oo::copy");
+    if (eql(c, "self")) return trap("self");
+    if (eql(c, "my")) return trap("my");
+    if (eql(c, "next")) return trap("next");
+
+    // Misc that tcltest specifically references.
+    if (eql(c, "zlib")) return trap("zlib");
+    if (eql(c, "registry")) return trap("registry");
+    if (eql(c, "pid")) return trap("pid");
 
     return false;
+}
+
+/// Emit ``unsupported command: <name>`` and return true so the
+/// dispatch caller treats the command as handled.
+fn trap(comptime name: []const u8) bool {
+    stubs.unsupported(name);
+    return true;
 }

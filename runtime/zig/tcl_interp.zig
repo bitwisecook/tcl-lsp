@@ -404,6 +404,40 @@ fn eval_command(words: []const i32) i32 {
     }
     if (str_eq(cmd, cmd_s.len, "string")) return eval_string_cmd(words);
     if (str_eq(cmd, cmd_s.len, "dict")) return eval_dict_cmd(words);
+    if (str_eq(cmd, cmd_s.len, "encoding")) {
+        // Route ``encoding <sub> ?arg1? ?arg2?`` through the real
+        // UTF-8 implementation in tcl_encoding.zig.  When the
+        // interpreter is walking a fallback script (e.g. the body
+        // of tcltest::bytestring) and hits an encoding command, we
+        // want the same pass-through semantics compiled code gets.
+        const enc = @import("tcl_encoding.zig");
+        const sub = if (words.len >= 2) words[1] else 0;
+        const arg1 = if (words.len >= 3) words[2] else 0;
+        const arg2 = if (words.len >= 4) words[3] else 0;
+        return enc.encoding(sub, arg1, arg2);
+    }
+    if (str_eq(cmd, cmd_s.len, "fconfigure")) {
+        // Fconfigure pass-through: packs the remaining words into
+        // a space-joined TclObj and calls the real impl.  Walking
+        // Tcl-registered procs that call fconfigure hit this path.
+        const chan = @import("tcl_chan.zig");
+        if (words.len < 2) return chan.fconfigure(0, 0);
+        const fd = words[1];
+        if (words.len < 3) return chan.fconfigure(fd, 0);
+        // Concatenate words[2..] with a single space separator via
+        // the existing ``concat`` runtime helper.
+        var acc = words[2];
+        var i: u32 = 3;
+        while (i < words.len) : (i += 1) {
+            const sp_ptr: u32 = alloc(1);
+            const d: [*]u8 = @ptrFromInt(sp_ptr);
+            d[0] = ' ';
+            const sep = obj_new_string(@intCast(sp_ptr), 1);
+            acc = rt.concat(acc, sep);
+            acc = rt.concat(acc, words[i]);
+        }
+        return chan.fconfigure(fd, acc);
+    }
     if (str_eq(cmd, cmd_s.len, "info")) {
         if (words.len >= 3) return info.info_dispatch(words[1], words[2]);
         return obj_new_string(0, 0);
