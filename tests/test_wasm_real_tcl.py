@@ -485,6 +485,193 @@ return $result
         assert val == 1
 
 
+class TestUpvarAndVariable:
+    """Tests for ``upvar`` and ``variable`` alias semantics.
+
+    ``upvar #0 target local`` aliases local → global ``target``; reads
+    and writes of ``local`` route through the global table, so changes
+    made from one proc are visible from another.  ``variable name``
+    inside a namespace proc aliases ``name`` → ``::ns::name``.
+    """
+
+    def test_upvar_hash0_literal_target(self):
+        """upvar #0 with a literal target name — writes propagate across procs."""
+        source = """\
+proc set_value {v} {
+    upvar #0 my_global g
+    set g $v
+}
+proc get_value {} {
+    upvar #0 my_global g
+    return $g
+}
+proc main {} {
+    set_value 42
+    return [get_value]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 42
+
+    def test_upvar_hash0_dynamic_target(self):
+        """upvar #0 with an interpolated target (counter::T-$tag pattern)."""
+        source = """\
+proc put {tag value} {
+    upvar #0 store::slot-$tag s
+    set s $value
+}
+proc fetch {tag} {
+    upvar #0 store::slot-$tag s
+    return $s
+}
+proc main {} {
+    put 7 111
+    put 9 222
+    set a [fetch 7]
+    set b [fetch 9]
+    return [expr {$a + $b}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 333
+
+    def test_upvar_incr_through_alias(self):
+        """incr on an upvar'd variable updates the underlying global."""
+        source = """\
+proc bump {tag} {
+    upvar #0 counter::c-$tag cnt
+    incr cnt
+}
+proc fetch_cnt {tag} {
+    upvar #0 counter::c-$tag cnt
+    return $cnt
+}
+proc main {} {
+    upvar #0 counter::c-x cnt
+    set cnt 10
+    bump x
+    bump x
+    bump x
+    return [fetch_cnt x]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 13
+
+    def test_variable_in_namespace_proc(self):
+        """variable in a namespace proc aliases local → ::ns::local.
+
+        We initialise the namespace var via the proc-level ``variable total 0``
+        form rather than the namespace-eval-level ``variable total 0`` form:
+        the interpreter's current ``namespace eval`` fallback does not yet
+        execute ``variable`` bodies, so top-level initialisation doesn't
+        land in the global table.  A proc-level ``variable name value``
+        does emit an initialising write through our alias machinery.
+        """
+        source = """\
+set ::ctr::total 0
+proc ::ctr::add {n} {
+    variable total
+    set total [expr {$total + $n}]
+    return $total
+}
+proc main {} {
+    ::ctr::add 5
+    ::ctr::add 7
+    return [::ctr::add 3]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 15
+
+    def test_variable_and_upvar_interop(self):
+        """A namespace variable is visible via upvar #0 in another proc."""
+        source = """\
+set ::st::count 0
+proc ::st::inc {} {
+    variable count
+    incr count
+    return $count
+}
+proc main {} {
+    ::st::inc
+    ::st::inc
+    upvar #0 ::st::count c
+    return $c
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 2
+
+    def test_variable_with_initializer(self):
+        """``variable name value`` inside a proc initialises the namespace var."""
+        source = """\
+proc ::ns::init {} {
+    variable counter 100
+    return $counter
+}
+proc ::ns::read_counter {} {
+    variable counter
+    return $counter
+}
+proc main {} {
+    ::ns::init
+    return [::ns::read_counter]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 100
+
+
+class TestUpvarCompilation:
+    """Upvar/variable compilation tests — validate without execution."""
+
+    def test_upvar_literal_target_compiles(self):
+        source = """\
+proc p {} {
+    upvar #0 foo x
+    set x 1
+}
+"""
+        ok, err = _try_compile(source)
+        assert ok, f"compile error: {err}"
+
+    def test_upvar_dynamic_target_compiles(self):
+        source = """\
+proc p {tag} {
+    upvar #0 counter::T-$tag c
+    set c 0
+}
+"""
+        ok, err = _try_compile(source)
+        assert ok, f"compile error: {err}"
+
+    def test_variable_no_init_compiles(self):
+        source = """\
+namespace eval ::ns {
+    variable v
+}
+proc ::ns::use {} {
+    variable v
+    set v 42
+}
+"""
+        ok, err = _try_compile(source)
+        assert ok, f"compile error: {err}"
+
+
 class TestExternalTcllibCounter:
     """Compile and run the real tcllib counter module (pure Tcl).
 
@@ -492,10 +679,10 @@ class TestExternalTcllibCounter:
     14 procs, ~1200 lines of pure Tcl. Tests that a real-world tcllib
     module compiles to WASM and instantiates without trapping.
 
-    Note: counter uses ``upvar #0`` to track per-counter globals; our
-    codegen treats upvar as a NOP, so the procs run but don't share
-    state correctly. These tests verify the *compilation* and *dispatch*
-    work end-to-end, not the counter semantics.
+    ``upvar #0`` now produces a real global alias (see TestUpvarAndVariable);
+    however, full counter semantics also require Tcl arrays
+    (``set counter(N) 0``), which remain unimplemented. These tests
+    verify compilation and dispatch end-to-end, not full counter behaviour.
     """
 
     _COUNTER_TCL = _EXTERNAL_DIR / "tcllib" / "counter" / "counter.tcl"

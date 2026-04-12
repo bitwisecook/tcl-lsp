@@ -821,8 +821,6 @@ _DICT_SUBCMD_IMPORT: dict[str, str] = {
 # placeholders — NOPs in WASM.
 _SCOPE_NOP_COMMANDS = frozenset(
     {
-        "variable",
-        "upvar",
         "namespace",
         "proc",
         "package",
@@ -852,6 +850,22 @@ _UNSUPPORTED_COMMANDS = frozenset(
         "unload",
     }
 )
+
+
+def _derive_proc_namespace(qname: str) -> str:
+    """Return the namespace containing *qname*.
+
+    ``::counter::init`` → ``::counter``; ``::main`` → ``::``. Used to
+    resolve ``variable x`` inside a proc to ``::counter::x``.
+    """
+    if not qname:
+        return "::"
+    # Strip leading ``::`` for the search, then re-add.
+    bare = qname[2:] if qname.startswith("::") else qname
+    idx = bare.rfind("::")
+    if idx < 0:
+        return "::"
+    return "::" + bare[:idx]
 
 
 def _has_embedded_subst_scan(value: str) -> bool:
@@ -1021,6 +1035,17 @@ def _scan_needed_imports(
                 elif command == "global":
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")
+                elif command == "upvar":
+                    # upvar #0 resolves to a global alias — reads/writes go
+                    # through the global table. The target name is computed
+                    # at runtime (may be an interpolated string).
+                    needed.add("tcl_global_get")
+                    needed.add("tcl_global_set")
+                elif command == "variable":
+                    # variable inside a proc aliases local → ::ns::local in
+                    # the enclosing namespace. Same runtime path as upvar #0.
+                    needed.add("tcl_global_get")
+                    needed.add("tcl_global_set")
                 elif command == "catch":
                     needed.add("tcl_catch_enter")
                     needed.add("tcl_catch_leave")
@@ -1156,12 +1181,18 @@ class _WasmEmitter:
         shared_strings: list[tuple[str, int]] | None = None,
         shared_string_index: dict[str, int] | None = None,
         shared_string_offset: list[int] | None = None,
+        proc_qname: str | None = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
         self._optimise = optimise
         self._is_proc = is_proc
         self._func_index_base = func_index_base
+        # Fully qualified proc name (e.g. ``::counter::init``) so the
+        # ``variable`` command can resolve ``name`` → ``::counter::name``.
+        # None for ``::top`` and other non-proc emitters.
+        self._proc_qname = proc_qname
+        self._proc_namespace = _derive_proc_namespace(proc_qname) if proc_qname else "::"
 
         # Shared state from module compilation
         self._shared_imports: dict[str, int] = shared_imports or {}
@@ -1194,6 +1225,16 @@ class _WasmEmitter:
 
         # Global variable tracking
         self._globals: set[str] = set()
+
+        # Variable aliases — populated by ``upvar`` and ``variable``.
+        # Maps a local Tcl variable name to an (kind, target_local_idx)
+        # tuple where target_local_idx is a hidden WASM local holding the
+        # resolved target name as an i32 TclObj pointer.
+        #   kind == "global": reads/writes go through tcl_global_get/set
+        #     using the TclObj name stashed at the alias site.
+        # Caller-frame (``upvar 1 var local``) is not yet supported —
+        # _emit_cmd_upvar traps at compile time for non-``#0`` levels.
+        self._aliases: dict[str, tuple[str, int]] = {}
 
         # Catch depth — when > 0, unsupported commands call error()
         # without unreachable (error returns normally in catch context).
@@ -1274,10 +1315,15 @@ class _WasmEmitter:
             # Intern on first reference so reads before assignment
             # get a proper local (default-initialised to 0) instead
             # of falling through and boxing "$var" as a string literal.
-            idx = self._intern_local(var)
-            self._emit_local_get(idx)
+            # Aliased variables (upvar/variable) route through the
+            # runtime global table via _emit_var_read_obj.
+            self._emit_var_read_obj(var)
             return
-        # Try direct local lookup (for bare names like in IRAssignValue)
+        # Try direct local lookup (for bare names like in IRAssignValue).
+        # Alias-aware: checks _aliases before local_index.
+        if value in self._aliases:
+            self._emit_var_read_obj(value)
+            return
         idx = self._local_index.get(value)
         if idx is not None:
             self._emit_local_get(idx)
@@ -1635,8 +1681,9 @@ class _WasmEmitter:
             case ExprLiteral(text=value):
                 self._emit_literal(value)
             case ExprVar(name=name):
-                idx = self._intern_local(name)
-                self._emit_local_get(idx)
+                # Alias-aware: reads through _emit_var_read_obj so upvar'd
+                # and variable-declared vars resolve via the global table.
+                self._emit_var_read_obj(name)
                 self._emit_unbox_int()
             case ExprBinary(op=op, left=left, right=right):
                 self._emit_binary(op, left, right)
@@ -1947,14 +1994,12 @@ class _WasmEmitter:
             case ExprVar(text=text):
                 var = self._resolve_var_name(text)
                 if var is not None:
-                    idx = self._intern_local(var)
-                    self._emit_local_get(idx)
+                    self._emit_var_read_obj(var)
                     return
             case ExprRaw(text=text):
                 var = self._resolve_var_name(text)
                 if var is not None:
-                    idx = self._intern_local(var)
-                    self._emit_local_get(idx)
+                    self._emit_var_read_obj(var)
                     return
                 self._emit_obj_literal(text)
                 return
@@ -2182,6 +2227,11 @@ class _WasmEmitter:
                 except ValueError:
                     return None
             case ExprVar(name=name):
+                # Aliased vars have time-varying values — don't treat
+                # them as constants even if _const_map was populated
+                # before the alias was established.
+                if name in self._aliases:
+                    return None
                 return self._const_map.get(name)
             case _:
                 return None
@@ -2192,36 +2242,33 @@ class _WasmEmitter:
         """Emit WASM for a single IR statement."""
         match stmt:
             case IRAssignConst(name=name, value=value):
-                idx = self._intern_local(name)
                 self._emit_obj_literal(value)
-                self._emit_local_set(idx)
-                self._emit_global_writeback(name, idx)
-                if self._optimise:
+                self._emit_var_write_obj(name)
+                if self._optimise and name not in self._aliases:
+                    # Aliased writes go to a global under a possibly-dynamic
+                    # name — constant-tracking the local Tcl name would
+                    # short-circuit reads that ought to see cross-proc
+                    # updates to the global.
                     try:
                         self._const_map[name] = int(value)
                     except ValueError:
                         self._const_map.pop(name, None)
 
             case IRAssignExpr(name=name, expr=expr):
-                idx = self._intern_local(name)
                 self._emit_expr(expr)
                 self._emit_box_int()
-                self._emit_local_set(idx)
-                self._emit_global_writeback(name, idx)
+                self._emit_var_write_obj(name)
                 if self._optimise:
                     self._const_map.pop(name, None)
 
             case IRAssignValue(name=name, value=value):
-                idx = self._intern_local(name)
                 self._emit_value(value)
-                self._emit_local_set(idx)
-                self._emit_global_writeback(name, idx)
+                self._emit_var_write_obj(name)
                 if self._optimise:
                     self._const_map.pop(name, None)
 
             case IRIncr(name=name, amount=amount):
-                idx = self._intern_local(name)
-                self._emit_local_get(idx)
+                self._emit_var_read_obj(name)
                 self._emit_unbox_int()
                 amt = 1
                 if amount is not None:
@@ -2233,14 +2280,14 @@ class _WasmEmitter:
                         self._emit_unbox_int()
                         self._emit(WasmOp.I64_ADD)
                         self._emit_box_int()
-                        self._emit_local_set(idx)
+                        self._emit_var_write_obj(name)
                         if self._optimise:
                             self._const_map.pop(name, None)
                         return
                 self._emit_i64_const(amt)
                 self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
-                self._emit_local_set(idx)
+                self._emit_var_write_obj(name)
                 if self._optimise:
                     self._const_map.pop(name, None)
 
@@ -2314,6 +2361,12 @@ class _WasmEmitter:
         named ``puts`` shadows the built-in runtime import, matching
         Tcl's command resolution semantics.
         """
+        # <upvar-invalidate> — synthetic IRCall emitted by the CFG builder
+        # to invalidate caller-side SSA defs around a call that modifies
+        # variables via upvar.  No code to emit at the WASM level.
+        if command == "<upvar-invalidate>":
+            return
+
         # global varName — register variable as global-scoped
         if command == "global":
             for var_name in args:
@@ -2325,6 +2378,20 @@ class _WasmEmitter:
                     self._emit_obj_literal(var_name)
                     self._emit_call(gget_idx)
                     self._emit_local_set(local_idx)
+            return
+
+        # upvar ?level? otherVar myVar ?otherVar myVar ...? — register
+        # a local alias so subsequent reads/writes route through the
+        # target scope.  Only ``#0`` (global alias) is currently supported.
+        if command == "upvar":
+            self._emit_cmd_upvar(args)
+            return
+
+        # variable name ?value? ?name value ...? — in a namespace proc,
+        # aliases local ``name`` to ``::ns::name`` in the enclosing
+        # namespace and optionally initialises it.
+        if command == "variable":
+            self._emit_cmd_variable(args)
             return
 
         # Scope declarations are NOPs in the WASM model
@@ -2465,6 +2532,24 @@ class _WasmEmitter:
             self._emit_i32_const(0)
             return
 
+        # <upvar-invalidate> — synthetic CFG-builder invalidation node.
+        # In tail position (rare, but possible if placed last by optimisation)
+        # we still need to push a null TclObj.
+        if command == "<upvar-invalidate>":
+            self._emit_i32_const(0)
+            return
+
+        # upvar/variable in tail position — run the alias-setup side effects,
+        # then push null (upvar returns empty string).
+        if command == "upvar":
+            self._emit_cmd_upvar(args)
+            self._emit_i32_const(0)
+            return
+        if command == "variable":
+            self._emit_cmd_variable(args)
+            self._emit_i32_const(0)
+            return
+
         # catch in tail position — emit body with error handling,
         # leave the catch return code (0 or 1) on the stack.
         if command == "catch" and args:
@@ -2487,6 +2572,15 @@ class _WasmEmitter:
         # set: inline local operations (returns the i32 TclObj)
         if command == "set" and 1 <= len(args) <= 2:
             var = args[0]
+            if var in self._aliases and len(args) >= 2:
+                # Aliased write: route through global set, which returns the value.
+                self._emit_value(args[1])
+                self._emit_var_write_obj_keep(var)
+                return
+            if var in self._aliases:
+                # Aliased read: tcl_global_get leaves value on stack.
+                self._emit_var_read_obj(var)
+                return
             idx = self._intern_local(var)
             if len(args) >= 2:
                 self._emit_value(args[1])
@@ -2498,6 +2592,26 @@ class _WasmEmitter:
         # incr: returns the new value as i32 TclObj (Tcl semantics)
         if command == "incr" and 1 <= len(args) <= 2:
             var = args[0]
+            if var in self._aliases:
+                # Aliased incr: load via alias, add, store via alias (keep on stack).
+                self._emit_var_read_obj(var)
+                self._emit_unbox_int()
+                amt = 1
+                if len(args) >= 2:
+                    try:
+                        amt = int(args[1])
+                    except ValueError:
+                        self._emit_value(args[1])
+                        self._emit_unbox_int()
+                        self._emit(WasmOp.I64_ADD)
+                        self._emit_box_int()
+                        self._emit_var_write_obj_keep(var)
+                        return
+                self._emit_i64_const(amt)
+                self._emit(WasmOp.I64_ADD)
+                self._emit_box_int()
+                self._emit_var_write_obj_keep(var)
+                return
             idx = self._intern_local(var)
             self._emit_local_get(idx)
             self._emit_unbox_int()
@@ -2624,6 +2738,107 @@ class _WasmEmitter:
 
     # -- Global variable write-through --
 
+    def _emit_var_read_obj(self, name: str) -> None:
+        """Push the current TclObj value of local Tcl variable *name* on the stack.
+
+        For aliased variables (``upvar``/``variable``), this reads through
+        ``tcl_global_get`` using the target name stashed at alias-setup time.
+        For ``::``-qualified names (e.g. ``::ns::var``), this reads the
+        global directly.  Otherwise this is a plain WASM ``local.get`` of
+        the interned local.
+        """
+        binding = self._aliases.get(name)
+        if binding is not None:
+            kind, target_idx = binding
+            if kind == "global":
+                gget_idx = self._shared_imports.get("tcl_global_get")
+                if gget_idx is not None:
+                    self._emit_local_get(target_idx)
+                    self._emit_call(gget_idx)
+                    return
+        if name.startswith("::"):
+            gget_idx = self._shared_imports.get("tcl_global_get")
+            if gget_idx is not None:
+                self._emit_obj_literal(name)
+                self._emit_call(gget_idx)
+                return
+        idx = self._intern_local(name)
+        self._emit_local_get(idx)
+
+    def _emit_var_write_obj(self, name: str) -> None:
+        """Consume a TclObj value on the stack and write it to local Tcl variable *name*.
+
+        For aliased variables, the value is routed to ``tcl_global_set``
+        using the stashed target name.  For plain variables, the value is
+        stored in the interned WASM local; if the name was declared
+        ``global`` it's also written back to the global table.
+        """
+        self._emit_var_write_obj_impl(name, keep_on_stack=False)
+
+    def _emit_var_write_obj_keep(self, name: str) -> None:
+        """Like _emit_var_write_obj but leaves the written value on the stack.
+
+        Used in tail-position ``set``/``incr`` emissions where the command's
+        return value is the proc's return value.
+        """
+        self._emit_var_write_obj_impl(name, keep_on_stack=True)
+
+    def _emit_var_write_obj_impl(self, name: str, *, keep_on_stack: bool) -> None:
+        binding = self._aliases.get(name)
+        if binding is not None:
+            kind, target_idx = binding
+            if kind == "global":
+                self._emit_global_set_via_local(target_idx, keep_on_stack=keep_on_stack)
+                return
+        if name.startswith("::"):
+            # ``::``-qualified names always refer to globals.  Route the
+            # write directly without creating an unused WASM local.
+            self._emit_global_set_via_literal(name, keep_on_stack=keep_on_stack)
+            return
+        idx = self._intern_local(name)
+        if keep_on_stack:
+            self._emit_local_tee(idx)
+        else:
+            self._emit_local_set(idx)
+        self._emit_global_writeback(name, idx)
+
+    def _emit_global_set_via_local(self, target_local_idx: int, *, keep_on_stack: bool) -> None:
+        """Consume a value on the stack, write it to the global whose name
+        is held in WASM local *target_local_idx*.  Leaves the value on the
+        stack if *keep_on_stack*.
+        """
+        gset_idx = self._shared_imports.get("tcl_global_set")
+        if gset_idx is None:
+            if not keep_on_stack:
+                self._emit(WasmOp.DROP)
+            return
+        # Stack: [value].  We need [target_name, value] for tcl_global_set.
+        tmp = self._add_extra_local(prefix="_gset_val", val_type=ValType.I32)
+        self._emit_local_set(tmp)
+        self._emit_local_get(target_local_idx)
+        self._emit_local_get(tmp)
+        self._emit_call(gset_idx)
+        if not keep_on_stack:
+            self._emit(WasmOp.DROP)
+
+    def _emit_global_set_via_literal(self, target_name: str, *, keep_on_stack: bool) -> None:
+        """Consume a value on the stack, write it to the global named *target_name*.
+
+        Leaves the value on the stack if *keep_on_stack*.
+        """
+        gset_idx = self._shared_imports.get("tcl_global_set")
+        if gset_idx is None:
+            if not keep_on_stack:
+                self._emit(WasmOp.DROP)
+            return
+        tmp = self._add_extra_local(prefix="_gset_val", val_type=ValType.I32)
+        self._emit_local_set(tmp)
+        self._emit_obj_literal(target_name)
+        self._emit_local_get(tmp)
+        self._emit_call(gset_idx)
+        if not keep_on_stack:
+            self._emit(WasmOp.DROP)
+
     def _emit_global_writeback(self, name: str, local_idx: int) -> None:
         """If *name* is a declared global, write the local value to the global table."""
         if name not in self._globals:
@@ -2636,26 +2851,131 @@ class _WasmEmitter:
         self._emit_call(gset_idx)
         self._emit(WasmOp.DROP)
 
+    def _register_global_alias(self, local_name: str, target_value: str) -> None:
+        """Register *local_name* as a global alias and stash the target name.
+
+        Emits code that evaluates *target_value* (which may be an
+        interpolated string like ``counter::T-$tag``) to a TclObj, stores
+        it in a hidden WASM local, and records the binding so subsequent
+        reads/writes of *local_name* route through tcl_global_{get,set}.
+        """
+        target_idx = self._add_extra_local(prefix=f"_alias_{local_name}_tgt", val_type=ValType.I32)
+        self._emit_value(target_value)
+        self._emit_local_set(target_idx)
+        self._aliases[local_name] = ("global", target_idx)
+
+    def _emit_cmd_upvar(self, args: tuple[str, ...]) -> None:
+        """``upvar ?level? otherVar myVar ?otherVar myVar ...?``
+
+        Only the ``#0`` (global alias) form is currently compiled.  For
+        any other level the module traps at runtime with a descriptive
+        message — a future enhancement will add caller-frame alias
+        support via a new runtime hook.
+        """
+        if len(args) < 2:
+            self._emit_unsupported_trap("upvar (too few args)")
+            return
+
+        # Determine whether args[0] is a level specifier.  A leading '#'
+        # always marks one; a bare digit sequence does too.  Anything
+        # else means the level defaults to 1 and args[0] is otherVar.
+        first = args[0]
+        if first.startswith("#"):
+            level_spec = first
+            pairs_start = 1
+        elif first.lstrip("-").isdigit():
+            level_spec = first
+            pairs_start = 1
+        else:
+            level_spec = "1"
+            pairs_start = 0
+
+        pair_args = args[pairs_start:]
+        if len(pair_args) % 2 != 0:
+            self._emit_unsupported_trap("upvar (uneven var pairs)")
+            return
+
+        if level_spec != "#0":
+            # Caller-frame aliasing not yet implemented — trap with a
+            # clear message rather than silently mis-compiling.
+            self._emit_unsupported_trap(
+                f"upvar level {level_spec} (only #0 is supported in compiled procs)"
+            )
+            return
+
+        for i in range(0, len(pair_args), 2):
+            target = pair_args[i]
+            local_name = pair_args[i + 1]
+            self._register_global_alias(local_name, target)
+
+    def _emit_cmd_variable(self, args: tuple[str, ...]) -> None:
+        """``variable name ?value? ?name value ...?``
+
+        Inside a namespace proc, aliases ``name`` to ``::ns::name`` in
+        the enclosing namespace.  If a value is provided and the
+        namespace variable does not already exist, it is initialised.
+        Outside a proc (namespace-eval top-level) this is a no-op in
+        the compiled model: the namespace-eval body itself runs at
+        global scope, so assignments already land in globals.
+        """
+        if not args:
+            return
+        if not self._is_proc:
+            # At namespace-eval top-level the body runs at global scope
+            # in our compiled model.  Tcl's real ``variable`` at
+            # namespace scope would initialise but not create a local;
+            # our compiler has no namespace-local storage distinct from
+            # globals yet, so assignments in the body already hit
+            # globals.  Nothing to do here.
+            return
+
+        ns = self._proc_namespace or "::"
+        i = 0
+        while i < len(args):
+            name = args[i]
+            has_value = i + 1 < len(args)
+            # Resolve the target name: ``::ns::name`` for unqualified
+            # names, or the literal name if already qualified with ``::``.
+            if name.startswith("::"):
+                target = name
+                # The local alias uses the final segment as its Tcl name.
+                local_name = name.rsplit("::", 1)[-1]
+            else:
+                if ns == "::":
+                    target = f"::{name}"
+                else:
+                    target = f"{ns}::{name}"
+                local_name = name
+
+            # Stash the target literal in a hidden local and register.
+            target_idx = self._add_extra_local(
+                prefix=f"_var_{local_name}_tgt", val_type=ValType.I32
+            )
+            self._emit_obj_literal(target)
+            self._emit_local_set(target_idx)
+            self._aliases[local_name] = ("global", target_idx)
+
+            if has_value:
+                # ``variable name value`` — initialise the namespace var
+                # unconditionally (matches Tcl 8.x behaviour in practice
+                # for scripted modules; upstream tcltest uses it idempotently).
+                self._emit_value(args[i + 1])
+                self._emit_var_write_obj(local_name)
+                i += 2
+            else:
+                i += 1
+
     # -- Individual command emitters --
 
     def _emit_cmd_set(self, args: tuple[str, ...]) -> None:
-        """``set varName ?value?`` — read or write a local/global variable."""
+        """``set varName ?value?`` — read or write a local/global/aliased variable."""
         if not args:
             self._emit_unsupported_trap("set (no args)")
             return
         var = args[0]
-        idx = self._intern_local(var)
         if len(args) >= 2:
             self._emit_value(args[1])
-            self._emit_local_set(idx)
-            # Write through to global table if this var is declared global
-            if var in self._globals:
-                gset_idx = self._shared_imports.get("tcl_global_set")
-                if gset_idx is not None:
-                    self._emit_obj_literal(var)
-                    self._emit_local_get(idx)
-                    self._emit_call(gset_idx)
-                    self._emit(WasmOp.DROP)
+            self._emit_var_write_obj(var)
         else:
             pass  # set x — read (result unused in statement context)
 
@@ -2665,8 +2985,7 @@ class _WasmEmitter:
             self._emit_unsupported_trap("incr (no args)")
             return
         var = args[0]
-        idx = self._intern_local(var)
-        self._emit_local_get(idx)
+        self._emit_var_read_obj(var)
         self._emit_unbox_int()
         amt = 1
         if len(args) >= 2:
@@ -2678,12 +2997,12 @@ class _WasmEmitter:
                 self._emit_unbox_int()
                 self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
-                self._emit_local_set(idx)
+                self._emit_var_write_obj(var)
                 return
         self._emit_i64_const(amt)
         self._emit(WasmOp.I64_ADD)
         self._emit_box_int()
-        self._emit_local_set(idx)
+        self._emit_var_write_obj(var)
 
     def _emit_cmd_return(self, args: tuple[str, ...]) -> None:
         """``return ?value?`` — WASM return instruction (i32 TclObj)."""
@@ -3685,9 +4004,10 @@ class _WasmEmitter:
                 # Emit the call keeping its i32 result on the stack
                 self._emit_call_stmt_tail(last.command, last.args, last.defs)
             elif isinstance(last, IRIncr):
-                # Emit incr keeping the new value (i32 TclObj) on stack
-                idx = self._intern_local(last.name)
-                self._emit_local_get(idx)
+                # Emit incr keeping the new value (i32 TclObj) on stack.
+                # Alias-aware: reads/writes route through globals for
+                # upvar/variable-bound locals.
+                self._emit_var_read_obj(last.name)
                 self._emit_unbox_int()
                 amt = 1
                 if last.amount is not None:
@@ -3698,13 +4018,21 @@ class _WasmEmitter:
                         self._emit_unbox_int()
                         self._emit(WasmOp.I64_ADD)
                         self._emit_box_int()
-                        self._emit_local_tee(idx)
+                        if last.name in self._aliases:
+                            self._emit_var_write_obj_keep(last.name)
+                        else:
+                            idx = self._intern_local(last.name)
+                            self._emit_local_tee(idx)
                         self._emit(WasmOp.RETURN)
                         return
                 self._emit_i64_const(amt)
                 self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
-                self._emit_local_tee(idx)
+                if last.name in self._aliases:
+                    self._emit_var_write_obj_keep(last.name)
+                else:
+                    idx = self._intern_local(last.name)
+                    self._emit_local_tee(idx)
             self._emit(WasmOp.RETURN)
             return
 
@@ -3927,6 +4255,7 @@ def wasm_codegen_module(
             shared_strings=shared_strings,
             shared_string_index=shared_string_index,
             shared_string_offset=shared_string_offset,
+            proc_qname=qname,
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname
