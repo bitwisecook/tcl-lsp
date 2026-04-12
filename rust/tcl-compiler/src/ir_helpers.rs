@@ -204,6 +204,35 @@ fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<Str
     defs
 }
 
+/// Return `true` if *expr* contains at least one command
+/// substitution (`[cmd ...]`). Used by CFG lowering to decide
+/// whether a branch condition needs a synthetic `<cond>` placeholder
+/// for emission-time startCommand wrapping (C18 case 5).
+#[must_use]
+pub fn expr_has_command(expr: &ExprNode) -> bool {
+    match expr {
+        ExprNode::Command { .. } => true,
+        ExprNode::Binary { left, right, .. } => {
+            expr_has_command(left) || expr_has_command(right)
+        }
+        ExprNode::Unary { operand, .. } => expr_has_command(operand),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            expr_has_command(condition)
+                || expr_has_command(true_branch)
+                || expr_has_command(false_branch)
+        }
+        ExprNode::Call { args, .. } => args.iter().any(expr_has_command),
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::Var { .. }
+        | ExprNode::Raw { .. } => false,
+    }
+}
+
 /// Recursively collect `ExprNode::Command` text from an expression tree.
 ///
 /// Respects short-circuit evaluation: for `&&`/`||`, the RHS is
