@@ -246,6 +246,9 @@ fn walk_statement(
         Statement::Return { span, value, expr, braced, .. } => {
             try_fold_return_terminator(ctx, *span, value.as_deref(), expr.as_ref(), *braced, constants);
         }
+        Statement::AssignExpr { span, name, expr } => {
+            try_substitute_assign_expr(ctx, *span, name, expr, constants);
+        }
         Statement::If { clauses, else_body, .. } => {
             for c in clauses {
                 walk_script(ctx, cu, &c.body, constants);
@@ -402,6 +405,80 @@ fn try_fold_return_terminator(
         "Fold return of constant variable",
         span,
         format!("return {resolved}"),
+    ));
+}
+
+/// O100 (`AssignExpr` form): substitute SCCP-proved constants
+/// into ``set name [expr { … }]`` expressions.
+///
+/// Builds on ``substitute_expr_constants`` — the same helper the
+/// branch-condition pass uses. Emits an O100 rewrite targeting
+/// the whole ``set`` statement with the substituted expression
+/// re-wrapped in ``[expr { … }]``. The rewrite span is extended
+/// via ``full_rewrite_span`` so nested substitutions don't leave
+/// orphan delimiters.
+fn try_substitute_assign_expr(
+    ctx: &mut PassContext<'_>,
+    span: tcl_lexer::Span,
+    name: &str,
+    expr: &crate::expr_ast::ExprNode,
+    constants: &std::collections::HashMap<String, String>,
+) {
+    use crate::expr_parser::parse_expr;
+    use crate::tcl_expr_eval::{eval_tcl_expr, format_tcl_value, Env};
+    use super::helpers::expr_simplify::{
+        expr_has_command_subst, instcombine_expr, substitute_expr_constants,
+    };
+    use super::helpers::spans::full_rewrite_span;
+
+    if matches!(expr, crate::expr_ast::ExprNode::Raw { .. }) {
+        return;
+    }
+    if expr_has_command_subst(expr) {
+        return;
+    }
+    let expr_text = crate::expr_ast::render_expr(expr);
+    let result = substitute_expr_constants(&expr_text, constants, ctx.dialect);
+    if !result.changed {
+        return;
+    }
+    // After substitution, try to fold the result to a constant
+    // — matches the Python cascade where O100 enables O101. When
+    // the substituted expression is fully constant we can emit
+    // the unwrapped ``set name VALUE`` form directly. Otherwise
+    // keep the expression wrapper around the substituted text.
+    let parsed = parse_expr(&result.text, ctx.dialect);
+    let env = Env::new();
+    if let Some(val) = eval_tcl_expr(&parsed, &env) {
+        let folded = format_tcl_value(val);
+        let needs_quoting = folded.is_empty()
+            || folded.contains([
+                ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
+            ]);
+        if !needs_quoting {
+            ctx.report(Optimisation::new(
+                "O100",
+                "Propagate constant and fold",
+                full_rewrite_span(ctx.source, span),
+                format!("set {name} {folded}"),
+            ));
+            return;
+        }
+    }
+    // Not fully constant; try one pass of instcombine on the
+    // substituted expression to pick up identity simplifications
+    // (e.g. ``$a + 0`` after ``$a`` folds to ``3``).
+    let (simplified, _changed) = instcombine_expr(&result.text, false);
+    let final_text = if simplified.trim().is_empty() {
+        result.text.clone()
+    } else {
+        simplified
+    };
+    ctx.report(Optimisation::new(
+        "O100",
+        "Propagate constant into expr argument",
+        full_rewrite_span(ctx.source, span),
+        format!("set {name} [expr {{{final_text}}}]"),
     ));
 }
 
