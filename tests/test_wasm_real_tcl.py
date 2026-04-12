@@ -1603,9 +1603,13 @@ class TestDiagMap:
         [
             ("open /tmp/x\n", "open"),
             ("close ch0\n", "close"),
-            # ``file mkdir`` / ``file delete`` have real WASI-backed
-            # impls (see TestFile); ``file rename`` still traps.
-            ("file rename /tmp/a /tmp/b\n", "file"),
+            # ``file`` now has real WASI-backed impls for mkdir /
+            # delete / rename / copy / link / readlink / stat /
+            # lstat / type — see TestFile for the positive cases.
+            # Failures from those route through ``stubs.raise``
+            # with a syscall-specific message rather than the
+            # ``unsupported command:`` prefix, so we no longer
+            # parametrize a ``file`` stub entry here.
             ("glob *.tcl\n", "glob"),
             ("exec /bin/true\n", "exec"),
             # ``regexp`` has a real impl in tcl_regex.zig backed by
@@ -2081,6 +2085,84 @@ class TestRegexp:
             f"pattern={pattern!r} subject={subject!r} nocase={use_nocase}: {stdout!r}"
         )
 
+    def test_regexp_invalid_pattern_raises(self):
+        """``regexp`` with an unparseable pattern must raise a real
+        error, not silently report no-match.  Silent failure would
+        hide typos in user regexps.
+        """
+        # ``(`` with no closing paren is a compile-time error in
+        # the Henry-Spencer engine (unbalanced subexpression).
+        source = (
+            "if {[catch {regexp { (abc} xyz} msg]} {\n"
+            "    puts CAUGHT\n"
+            "} else {\n"
+            "    puts MISSED\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert "CAUGHT" in stdout, stdout
+
+    def test_regexp_unknown_switch_raises(self):
+        """Unsupported switches (e.g. ``-indices``) must raise an
+        error rather than being treated as the pattern.  The
+        previous silent-fallthrough behaviour caused
+        ``regexp -indices {a+} aa`` to try matching literal
+        ``-indices`` against ``{a+}`` and return a wrong boolean.
+        """
+        source = (
+            "if {[catch {regexp -indices {a+} aa} msg]} {\n"
+            "    puts CAUGHT\n"
+            "} else {\n"
+            "    puts MISSED\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert "CAUGHT" in stdout, stdout
+
+
+class TestSubstSemantics:
+    """``subst`` must execute each ``$var`` / ``[cmd]`` exactly
+    once (Tcl semantics) and size its output buffer against the
+    actual — not pre-computed and re-computed — substitution
+    lengths.  Regression coverage for the previous two-pass
+    implementation that called ``eval_script`` twice per
+    substitution, doubling side effects and reopening the
+    overflow class the two-pass approach was meant to close.
+    """
+
+    def test_subst_command_runs_once(self):
+        source = 'set x 0\nset r [subst {[incr x]}]\nputs "r=$r"\n'
+        wasm, _ = _compile_tcl_with_diag(source)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        # subst returns the result of a single incr — "1".  Two
+        # executions would return "2" (second incr returns 2).
+        assert stdout == "r=1\n"
+
+    def test_subst_puts_runs_once(self):
+        source = "subst {[puts hi]}\n"
+        wasm, _ = _compile_tcl_with_diag(source)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        # Exactly one "hi" line — two-pass would print twice.
+        assert stdout == "hi\n"
+
+    def test_subst_interleaved_var_and_side_effect(self):
+        """``subst "$x[set x longvalue]$x"`` — the read/write
+        interleave.  With single-pass semantics, the first ``$x``
+        sees the original value, ``[set x longvalue]`` both
+        returns its new value AND propagates the side effect, so
+        the second ``$x`` sees ``longvalue``.  The key property:
+        the output buffer is sized correctly even though the
+        second read yields a longer string than the first —
+        which is exactly the overflow case the two-pass approach
+        re-introduced.
+        """
+        source = 'set x a\nset r [subst "$x[set x longvalue]$x"]\nputs r=$r\n'
+        wasm, _ = _compile_tcl_with_diag(source)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "r=alongvaluelongvalue\n"
+
 
 class TestFile:
     """Tcl ``file`` command subcommands backed by wasi-libc.
@@ -2313,6 +2395,17 @@ class TestFile:
         )
         lines = out.splitlines()
         assert lines == ["link", "tgt.txt"], f"got {lines!r}"
+
+    def test_file_link_returns_link_name(self, tmp_path):
+        """Per Tcl semantics, ``file link linkName target`` returns
+        ``linkName`` — not the target.  Regression test for the
+        previous implementation that returned the target.
+        """
+        out = self._run(
+            tmp_path,
+            ("set r [file link /lnk tgt.txt]\nputs $r\n"),
+        )
+        assert out.strip() == "/lnk", f"got {out!r}"
 
 
 class TestEncoding:

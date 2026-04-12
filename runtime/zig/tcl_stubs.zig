@@ -37,6 +37,24 @@ pub fn unsupported(name: []const u8) void {
     catch_mod.tcl_cmd_error(msg);
 }
 
+/// Raise *msg* verbatim through the error path (no ``unsupported
+/// command:`` prefix).  Used by implementations that ARE wired up
+/// but need to report a real runtime failure — ``file mkdir``'s
+/// ``mkdir`` syscall failing, ``regexp`` rejecting a malformed
+/// pattern, etc.  Prefixing those with ``unsupported command:``
+/// would be actively misleading.
+///
+/// Inside a ``catch`` this sets ``error_flag`` + ``error_msg``;
+/// outside a catch the runtime writes the message to stderr and
+/// traps.
+pub fn raise(msg: []const u8) void {
+    const buf_addr: u32 = obj.alloc(@intCast(msg.len));
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    for (msg, 0..) |c, i| buf[i] = c;
+    const msg_obj = obj.obj_new_string(@intCast(buf_addr), @intCast(msg.len));
+    catch_mod.tcl_cmd_error(msg_obj);
+}
+
 /// Same shape as ``unsupported`` but for a subcommand.  Produces
 /// ``unsupported command: <cmd> <sub>`` so the user can see
 /// which specific form (``clock format`` vs ``clock scan``) is

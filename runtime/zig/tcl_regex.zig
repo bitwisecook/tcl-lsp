@@ -29,6 +29,7 @@
 
 const std = @import("std");
 const rt = @import("tcl_runtime.zig");
+const stubs = @import("tcl_stubs.zig");
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int = rt.obj_new_int;
 const alloc = rt.alloc;
@@ -165,9 +166,15 @@ fn run_match(pattern: i32, subject: i32, flags: c_int) bool {
         REG_ADVANCED | flags,
     );
     if (comp_rc != REG_OKAY) {
-        // Compile error — treat as no-match for graceful
-        // degradation.  Tcl itself raises an error here; the
-        // option-parsing paths can surface that more cleanly.
+        // Invalid pattern — raise a real error (Tcl semantics)
+        // rather than silently reporting no-match, which hides
+        // typos and can mask logic bugs that only manifest on
+        // complex patterns (tcltest's match-mode spec, counter's
+        // name-validation regexps).  Inside a ``catch`` this
+        // surfaces as a normal error return; otherwise it traps
+        // with the diag site prefix so the user can locate the
+        // offending pattern.
+        stubs.raise("regexp: couldn't compile regular expression pattern");
         return false;
     }
 
@@ -230,11 +237,17 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             flags |= REG_ICASE;
             continue;
         }
-        // Unknown option — treat as the start of the positional
-        // args so we don't swallow a pattern that happens to
-        // start with ``-``.  The 2-arg positional path below
-        // will handle it.
-        break;
+        // Unknown option — raise a real error rather than treating
+        // the switch token as the pattern.  Silently falling
+        // through would make ``regexp -indices {a+} aa`` match the
+        // literal ``-indices`` against ``{a+}`` and return a
+        // wrong boolean, giving callers no indication that a
+        // valid-but-unimplemented switch was ignored.  Raising
+        // here pushes the caller toward either supplying ``--``
+        // before a literal ``-``-prefixed pattern or updating
+        // this handler to support the switch.
+        stubs.raise("regexp: unsupported or unknown option");
+        return obj_new_int(0);
     }
     if (i + 1 >= words.len) {
         return obj_new_int(0);
