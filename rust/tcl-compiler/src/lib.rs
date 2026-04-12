@@ -91,6 +91,7 @@ pub mod ssa;
 pub mod tcl_expr_eval;
 pub mod types;
 pub mod var_refs;
+pub mod var_scoping;
 
 // Re-export key types for convenience.
 pub use expr_ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
