@@ -1069,14 +1069,15 @@ class TclLexer:
         the Rust implementation for a ~17× speedup. The Rust path
         receives the current ``expand_syntax``,
         ``irules_brace_separator``, strict-quoting mode, and base
-        position offsets. The ``get_token()`` incremental API
-        continues to use the Python lexer. The Python fallback is
-        used when virtual insertions are present or the Rust wheel
-        is not available.
+        position offsets, and surfaces its non-fatal warnings so
+        the Python ``self.warnings`` list stays in sync. The
+        ``get_token()`` incremental API continues to use the
+        Python lexer. The Python fallback is used when virtual
+        insertions are present or the Rust wheel is not available.
         """
         if _rust_lexer_tokenise_cfg is not None and not self._has_virtuals:
             try:
-                return _rust_lexer_tokenise_cfg(
+                tokens, warnings = _rust_lexer_tokenise_cfg(
                     self.text,
                     TclLexer.expand_syntax,
                     TclLexer.irules_brace_separator,
@@ -1090,6 +1091,9 @@ class TclLexer:
                 # syntax errors. Re-raise as TclParseError so
                 # callers that catch TclParseError still work.
                 raise TclParseError(str(exc)) from exc
+            if warnings:
+                self.warnings.extend(warnings)
+            return tokens
         tokens: list[Token] = []
         while True:
             tok = self.get_token()
