@@ -1977,6 +1977,13 @@ class _WasmEmitter:
             # option names like ``-tmpdir``) — ends the variable
             # reference and starts literal-text territory, which
             # means the value is an interpolated string.
+            #
+            # Exception: ``$arr(key)`` is a single variable reference
+            # (array element read) — once we see ``(`` after a valid
+            # identifier head, consume through the matching ``)`` and
+            # treat the whole thing as the variable name so that the
+            # downstream ``_emit_var_read_obj`` path can dispatch it
+            # to the array-element reader via ``_parse_array_ref``.
             i = 1
             while i < len(value):
                 c = value[i]
@@ -1984,6 +1991,10 @@ class _WasmEmitter:
                     i += 1
                     continue
                 break
+            if i < len(value) and value[i] == "(" and value.endswith(")"):
+                # ``$arr(key)`` — the key may itself contain
+                # substitutions; let downstream codegen handle it.
+                return value[1:]
             if i != len(value):
                 return None
             return value[1:]
@@ -2089,7 +2100,15 @@ class _WasmEmitter:
                     # $name — accepts [A-Za-z0-9_] and ``::`` namespace
                     # separators so names like ``$::counter::secsPerMinute``
                     # parse as a single variable reference rather than
-                    # stopping at the first colon.
+                    # stopping at the first colon.  When the name is
+                    # immediately followed by ``(``, consume through
+                    # the matching ``)`` so ``$arr(key)`` is emitted
+                    # as a single ("var", "arr(key)") part — the
+                    # downstream `_emit_var_read_obj` dispatcher then
+                    # routes it through ``_parse_array_ref`` to the
+                    # array-element reader.  Without this, ``$a(x)``
+                    # would split into ``$a`` + literal ``(x)`` and
+                    # the array lookup would never happen.
                     j = i + 1
                     while j < n:
                         ch = value[j]
@@ -2099,6 +2118,32 @@ class _WasmEmitter:
                             j += 2
                         else:
                             break
+                    if j < n and value[j] == "(":
+                        # Scan for matching ')' — nested ``(..)``
+                        # aren't standard in ``$arr(key)`` syntax
+                        # but embedded ``$var`` / ``[cmd]`` may
+                        # appear as part of the key; we look for
+                        # the first unescaped ``)`` at depth 0
+                        # relative to ``(``/``)`` nesting.
+                        depth = 1
+                        k = j + 1
+                        while k < n and depth > 0:
+                            ck = value[k]
+                            if ck == "\\" and k + 1 < n:
+                                k += 2
+                                continue
+                            if ck == "(":
+                                depth += 1
+                            elif ck == ")":
+                                depth -= 1
+                                if depth == 0:
+                                    break
+                            k += 1
+                        if k < n and value[k] == ")":
+                            flush()
+                            parts.append(("var", value[i + 1 : k + 1]))
+                            i = k + 1
+                            continue
                     flush()
                     parts.append(("var", value[i + 1 : j]))
                     i = j
@@ -2157,8 +2202,14 @@ class _WasmEmitter:
         if kind == "lit":
             self._emit_obj_literal(data)
         elif kind == "var":
-            idx = self._intern_local(data)
-            self._emit_local_get(idx)
+            # Route through _emit_var_read_obj so array references
+            # (``arr(key)``), aliases (upvar/variable), and
+            # ``::``-qualified globals resolve through the correct
+            # runtime path rather than all being treated as simple
+            # WASM locals — otherwise ``"v=$arr(x)"`` would intern
+            # a local named ``arr(x)`` and read 0 instead of
+            # dispatching to ``tcl_array_get``.
+            self._emit_var_read_obj(data)
         elif kind == "cmd":
             self._emit_command_subst_value("[" + data + "]")
 
@@ -2203,6 +2254,20 @@ class _WasmEmitter:
         # ``catch $v1 $v2 ...`` and lose the body's word structure.
         if cmd_name == "catch" and cmd_args:
             self._emit_catch_from_args(tuple(cmd_args), defs=(), keep_on_stack=True)
+            return
+
+        # ``[set varname]`` — 1-arg read form.  Without this shortcut
+        # the call falls through to the eval fallback, which rebuilds
+        # the script and evaluates ``set`` against the global table —
+        # but compiled-frame locals and array elements live in
+        # different storage, so ``[set a(x)]`` would return empty.
+        # Route reads through the same ``_emit_var_read_obj`` path
+        # that handles array refs, aliases, and qualified globals.
+        # 2-arg writes keep their inline set codegen via the
+        # statement-context path; value-context writes are rare
+        # enough to leave to the fallback.
+        if cmd_name == "set" and len(cmd_args) == 1:
+            self._emit_var_read_obj(cmd_args[0])
             return
 
         # Proc call — result is already i32 TclObj
@@ -2517,6 +2582,16 @@ class _WasmEmitter:
         # starts with ``$``.
         if cmd_name == "catch" and cmd_args:
             self._emit_catch_from_args(tuple(cmd_args), defs=(), keep_on_stack=True)
+            self._emit_unbox_int()
+            return
+
+        # ``[set varname]`` — 1-arg read form in expression context
+        # (e.g. ``if {[set a(x)] == 1} ...``).  Mirror the value-
+        # context special-case: route through ``_emit_var_read_obj``
+        # and unbox to i64.  See comment in
+        # ``_emit_command_subst_value``.
+        if cmd_name == "set" and len(cmd_args) == 1:
+            self._emit_var_read_obj(cmd_args[0])
             self._emit_unbox_int()
             return
 

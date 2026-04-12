@@ -1212,6 +1212,73 @@ return [main]
         assert ok, f"error: {err}"
         assert val == 1
 
+    def test_array_read_in_puts_value_context(self):
+        """``$arr(key)`` reads outside expression context — the
+        codegen must dispatch through ``tcl_array_get`` rather than
+        treating ``a`` as a local and ``(x)`` as literal text.
+        Regression test for ``_resolve_var_name`` not accepting
+        array refs.
+        """
+        wasm, _ = _compile_tcl_with_diag("set a(x) 42\nputs $a(x)\n")
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "42\n"
+
+    def test_array_read_in_interpolated_string(self):
+        """``"v=$arr(key)"`` — the interpolated parser must consume
+        the ``(key)`` as part of the variable reference, not split
+        it into a variable ``$a`` followed by literal ``(x)``.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            'set a(x) 42\nputs "v=$a(x) done"\n'
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "v=42 done\n"
+
+    def test_array_read_via_set_single_arg(self):
+        """``[set arr(key)]`` — the 1-arg ``set`` read form in value
+        context must route through the array-element reader.
+        Without the special-case in ``_emit_command_subst_value``
+        it falls through to the eval fallback and returns empty.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "set a(x) 42\nputs [set a(x)]\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "42\n"
+
+    def test_array_read_via_set_single_arg_expr(self):
+        """``[set arr(key)]`` in expression context — mirror of the
+        value-context special-case, for ``if {[set a(x)] == 1}``.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "set a(x) 1\n"
+            "if {[set a(x)] == 1} { puts yes } else { puts no }\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "yes\n"
+
+    def test_array_read_in_proc_value_context(self):
+        """Array reads inside a proc must go through the same
+        value-context path as at top level.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "proc f {} { set a(x) 42; puts <$a(x)> }\nf\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "<42>\n"
+
+    def test_array_read_with_interpolated_key(self):
+        """``$arr($i)`` — the key contains its own ``$var``
+        substitution.  The interpolated-parts scanner must consume
+        through the matching ``)`` rather than treating ``$i)`` as
+        a separate variable followed by literal ``)``.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "set i x\nset a($i) 42\nputs $a($i)\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "42\n"
+
     def test_array_unset_preserves_probe_chain(self):
         """Deleting an element must not break lookups of collision-mates.
 
