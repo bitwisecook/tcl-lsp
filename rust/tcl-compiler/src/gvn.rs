@@ -17,7 +17,11 @@
 //! - **C26d** — `find_redundancies` driver that walks the
 //!   dominator tree and reports full/partial redundancies.
 
-#![allow(clippy::implicit_hasher, clippy::format_push_string)]
+#![allow(
+    clippy::implicit_hasher,
+    clippy::format_push_string,
+    clippy::too_many_lines
+)]
 
 use std::collections::HashMap;
 
@@ -969,6 +973,271 @@ pub fn find_loop_invariants(
     results
 }
 
+// ---------------------------------------------------------------------------
+// Partial-redundancy detection (C26e3)
+// ---------------------------------------------------------------------------
+
+/// One event in a block's occurrence stream: either a pure
+/// occurrence that *adds* a key to availability, or `None` — a
+/// kill event produced by a mutator / barrier that clears all
+/// previously-tracked keys.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OccurrenceEvent {
+    /// An occurrence is available after this point.
+    Occur(ExprOccurrence),
+    /// Kill: clear all availability (barrier/impure call).
+    Kill,
+}
+
+/// Collect per-block occurrence events for a function. Each block
+/// contributes a Vec of events in statement order:
+///
+/// - For a statement that `statement_writes_state` returns true
+///   for, emit `OccurrenceEvent::Kill`.
+/// - For every pure + CSE-candidate occurrence reported by
+///   `statement_occurrences`, emit `OccurrenceEvent::Occur(occ)`.
+#[must_use]
+pub fn collect_function_occurrence_events(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+) -> (
+    std::collections::HashMap<String, Vec<OccurrenceEvent>>,
+    Vec<ExprOccurrence>,
+) {
+    let mut events_by_block: std::collections::HashMap<String, Vec<OccurrenceEvent>> =
+        std::collections::HashMap::new();
+    let mut all_occurrences: Vec<ExprOccurrence> = Vec::new();
+
+    for (bn, cfg_block) in &cfg.blocks {
+        let Some(ssa_block) = ssa.blocks.get(bn) else {
+            continue;
+        };
+        let stmt_count = cfg_block.statements.len().min(ssa_block.statements.len());
+        let mut events: Vec<OccurrenceEvent> = Vec::new();
+        for idx in 0..stmt_count {
+            let ir_stmt = &cfg_block.statements[idx];
+            let ssa_stmt = &ssa_block.statements[idx];
+            if statement_writes_state(registry, ir_stmt, dialect) {
+                events.push(OccurrenceEvent::Kill);
+                continue;
+            }
+            for occ in statement_occurrences(registry, ssa_stmt, bn, idx, dialect) {
+                all_occurrences.push(occ.clone());
+                events.push(OccurrenceEvent::Occur(occ));
+            }
+        }
+        if !events.is_empty() {
+            events_by_block.insert(bn.clone(), events);
+        }
+    }
+
+    (events_by_block, all_occurrences)
+}
+
+/// Apply a block's events to a starting set of available keys,
+/// returning the resulting set at block exit.
+fn transfer_occurrence_keys(
+    events: &[OccurrenceEvent],
+    mut state: std::collections::HashSet<ExprKey>,
+) -> std::collections::HashSet<ExprKey> {
+    for e in events {
+        match e {
+            OccurrenceEvent::Kill => state.clear(),
+            OccurrenceEvent::Occur(occ) => {
+                state.insert(occ.key.clone());
+            }
+        }
+    }
+    state
+}
+
+/// Detect path-partial redundancies via may/must availability
+/// dataflow. Returns `RedundantComputation { code: "O106", … }`
+/// for each occurrence that is *may-available* on entry (some
+/// path has already computed it) but not *must-available* (so
+/// hoisting before the merge point would save the computation
+/// on the path where it hadn't yet been run).
+///
+/// Matches the Python `gvn.py::_find_partial_redundancies`
+/// pipeline on a per-function basis.
+#[must_use]
+pub fn find_partial_redundancies(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let executable = reachable_from(cfg, &ssa.entry);
+    if !executable.contains(&ssa.entry) {
+        return Vec::new();
+    }
+    let (events_by_block, all_occurrences) =
+        collect_function_occurrence_events(registry, cfg, ssa, dialect);
+    if all_occurrences.is_empty() {
+        return Vec::new();
+    }
+    let universe: std::collections::HashSet<ExprKey> =
+        all_occurrences.iter().map(|o| o.key.clone()).collect();
+    let preds = cfg.predecessors();
+
+    let mut order: Vec<String> = cfg.reverse_postorder();
+    let seen: std::collections::HashSet<String> = order.iter().cloned().collect();
+    for name in &executable {
+        if !seen.contains(name) {
+            order.push(name.clone());
+        }
+    }
+
+    let mut may_in: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
+        std::collections::HashMap::new();
+    let mut may_out: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
+        std::collections::HashMap::new();
+    let mut must_in: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
+        std::collections::HashMap::new();
+    let mut must_out: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
+        std::collections::HashMap::new();
+    for bn in &executable {
+        may_in.insert(bn.clone(), std::collections::HashSet::new());
+        may_out.insert(bn.clone(), std::collections::HashSet::new());
+        must_in.insert(
+            bn.clone(),
+            if bn == &ssa.entry {
+                std::collections::HashSet::new()
+            } else {
+                universe.clone()
+            },
+        );
+    }
+    // Seed must_out from initial must_in + events.
+    for bn in &executable {
+        let initial_must_in = must_in[bn].clone();
+        let out = transfer_occurrence_keys(
+            events_by_block.get(bn).map_or(&[][..], Vec::as_slice),
+            initial_must_in,
+        );
+        must_out.insert(bn.clone(), out);
+    }
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for bn in &order {
+            if !executable.contains(bn) {
+                continue;
+            }
+            let pred_set: Vec<String> = preds
+                .get(bn)
+                .map(|s| {
+                    s.iter()
+                        .filter(|p| executable.contains(*p))
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default();
+            let (new_must_in, new_may_in) = if bn == &ssa.entry || pred_set.is_empty() {
+                (
+                    std::collections::HashSet::new(),
+                    std::collections::HashSet::new(),
+                )
+            } else {
+                let mut mi = must_out[&pred_set[0]].clone();
+                for p in &pred_set[1..] {
+                    mi = mi.intersection(&must_out[p]).cloned().collect();
+                }
+                let mut my: std::collections::HashSet<ExprKey> =
+                    std::collections::HashSet::new();
+                for p in &pred_set {
+                    my.extend(may_out[p].iter().cloned());
+                }
+                (mi, my)
+            };
+            let new_must_out = transfer_occurrence_keys(
+                events_by_block.get(bn).map_or(&[][..], Vec::as_slice),
+                new_must_in.clone(),
+            );
+            let new_may_out = transfer_occurrence_keys(
+                events_by_block.get(bn).map_or(&[][..], Vec::as_slice),
+                new_may_in.clone(),
+            );
+            if new_must_in != must_in[bn] {
+                must_in.insert(bn.clone(), new_must_in);
+                changed = true;
+            }
+            if new_may_in != may_in[bn] {
+                may_in.insert(bn.clone(), new_may_in);
+                changed = true;
+            }
+            if new_must_out != must_out[bn] {
+                must_out.insert(bn.clone(), new_must_out);
+                changed = true;
+            }
+            if new_may_out != may_out[bn] {
+                may_out.insert(bn.clone(), new_may_out);
+                changed = true;
+            }
+        }
+    }
+
+    // Build first-occurrence map by source offset.
+    let mut sorted = all_occurrences.clone();
+    sorted.sort_by_key(|o| o.span.start());
+    let mut first_by_key: std::collections::HashMap<ExprKey, ExprOccurrence> =
+        std::collections::HashMap::new();
+    for occ in sorted {
+        first_by_key.entry(occ.key.clone()).or_insert(occ);
+    }
+    let mut key_offsets: std::collections::HashMap<ExprKey, std::collections::HashSet<u32>> =
+        std::collections::HashMap::new();
+    for occ in &all_occurrences {
+        key_offsets
+            .entry(occ.key.clone())
+            .or_default()
+            .insert(occ.span.start());
+    }
+
+    let mut results: Vec<RedundantComputation> = Vec::new();
+    for bn in &order {
+        if !executable.contains(bn) {
+            continue;
+        }
+        let mut state_may = may_in[bn].clone();
+        let mut state_must = must_in[bn].clone();
+        for event in events_by_block.get(bn).map_or(&[][..], Vec::as_slice) {
+            match event {
+                OccurrenceEvent::Kill => {
+                    state_may.clear();
+                    state_must.clear();
+                }
+                OccurrenceEvent::Occur(occ) => {
+                    let multi = key_offsets
+                        .get(&occ.key)
+                        .is_some_and(|s| s.len() >= 2);
+                    if multi && state_may.contains(&occ.key) && !state_must.contains(&occ.key)
+                    {
+                        if let Some(first) = first_by_key.get(&occ.key) {
+                            if first.span.start() != occ.span.start() {
+                                let text = first.expression_text.clone();
+                                results.push(RedundantComputation {
+                                    span: occ.span,
+                                    first_span: first.span,
+                                    expression_text: text.clone(),
+                                    code: "O106".into(),
+                                    message: partial_redundancy_message(&text),
+                                });
+                            }
+                        }
+                    }
+                    state_may.insert(occ.key.clone());
+                    state_must.insert(occ.key.clone());
+                }
+            }
+        }
+    }
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1715,6 +1984,190 @@ mod tests {
         ssa.idom.insert("entry".into(), None);
         ssa.blocks.insert("entry".into(), empty_ssa_block("entry"));
         assert!(find_loop_invariants(&registry, &cfg, &ssa, None).is_empty());
+    }
+
+    // -- C26e3: partial-redundancy detection --
+
+    #[test]
+    fn find_partial_redundancies_if_diamond() {
+        // Diamond:
+        //   entry → tt (computes llength $x) → join
+        //         → ff → join (computes llength $x again)
+        // `llength $x` is may-available at join (came via tt), but
+        // not must-available (ff didn't compute it). On the join
+        // occurrence, report O106 — consider hoisting before the
+        // branch.
+        let registry = CommandRegistry::build_default();
+        let mut cfg = Function::new("::top", "entry");
+        cfg.blocks.insert("tt".into(), Block::new("tt"));
+        cfg.blocks.insert("ff".into(), Block::new("ff"));
+        cfg.blocks.insert("join".into(), Block::new("join"));
+        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+            condition: crate::expr_ast::ExprNode::Var {
+                text: "$c".into(),
+                name: "c".into(),
+                start: 0,
+                end: 2,
+            },
+            true_target: "tt".into(),
+            false_target: "ff".into(),
+            span: None,
+        });
+        cfg.blocks
+            .get_mut("tt")
+            .unwrap()
+            .statements
+            .push(Statement::Call {
+                span: Span::new(100, 110),
+                command: "llength".into(),
+                args: vec!["$x".into()],
+                defs: Vec::new(),
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+            });
+        cfg.blocks.get_mut("tt").unwrap().terminator = Some(Terminator::Goto {
+            target: "join".into(),
+            span: None,
+        });
+        cfg.blocks.get_mut("ff").unwrap().terminator = Some(Terminator::Goto {
+            target: "join".into(),
+            span: None,
+        });
+        cfg.blocks
+            .get_mut("join")
+            .unwrap()
+            .statements
+            .push(Statement::Call {
+                span: Span::new(200, 210),
+                command: "llength".into(),
+                args: vec!["$x".into()],
+                defs: Vec::new(),
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+            });
+        cfg.blocks.get_mut("join").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        ssa.idom.insert("entry".into(), None);
+        ssa.idom.insert("tt".into(), Some("entry".into()));
+        ssa.idom.insert("ff".into(), Some("entry".into()));
+        ssa.idom.insert("join".into(), Some("entry".into()));
+
+        let mut uses_x = Map::new();
+        uses_x.insert("x".to_string(), 1);
+
+        let entry_b = empty_ssa_block("entry");
+        let mut tt_b = empty_ssa_block("tt");
+        tt_b.statements.push(SsaStatement {
+            statement: Statement::Call {
+                span: Span::new(100, 110),
+                command: "llength".into(),
+                args: vec!["$x".into()],
+                defs: Vec::new(),
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+            },
+            uses: uses_x.clone(),
+            defs: Map::new(),
+        });
+        let ff_b = empty_ssa_block("ff");
+        let mut join_b = empty_ssa_block("join");
+        join_b.statements.push(SsaStatement {
+            statement: Statement::Call {
+                span: Span::new(200, 210),
+                command: "llength".into(),
+                args: vec!["$x".into()],
+                defs: Vec::new(),
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+            },
+            uses: uses_x,
+            defs: Map::new(),
+        });
+        ssa.blocks.insert("entry".into(), entry_b);
+        ssa.blocks.insert("tt".into(), tt_b);
+        ssa.blocks.insert("ff".into(), ff_b);
+        ssa.blocks.insert("join".into(), join_b);
+
+        let results = find_partial_redundancies(&registry, &cfg, &ssa, None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].code, "O106");
+        assert_eq!(results[0].span.start(), 200);
+        assert_eq!(results[0].first_span.start(), 100);
+    }
+
+    #[test]
+    fn find_partial_redundancies_none_on_linear_chain() {
+        let registry = CommandRegistry::build_default();
+        // Single-block function with one llength — no partial
+        // redundancy possible.
+        let mut cfg = Function::new("::top", "entry");
+        cfg.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(llength_call());
+        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        ssa.idom.insert("entry".into(), None);
+        let mut entry_b = empty_ssa_block("entry");
+        entry_b.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        ssa.blocks.insert("entry".into(), entry_b);
+
+        assert!(find_partial_redundancies(&registry, &cfg, &ssa, None).is_empty());
+    }
+
+    #[test]
+    fn transfer_occurrence_keys_kill_clears_state() {
+        use std::collections::HashSet;
+        let key: ExprKey = vec!["call".into(), "llength".into(), "$x@1".into()];
+        let occ = ExprOccurrence {
+            key: key.clone(),
+            span: Span::new(0, 0),
+            expression_text: String::new(),
+            block: String::new(),
+            statement_index: 0,
+            variable_uses: Vec::new(),
+        };
+        let events = vec![
+            OccurrenceEvent::Occur(occ),
+            OccurrenceEvent::Kill,
+        ];
+        let out = transfer_occurrence_keys(&events, HashSet::new());
+        assert!(!out.contains(&key));
     }
 
     #[test]
