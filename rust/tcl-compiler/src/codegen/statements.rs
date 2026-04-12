@@ -314,6 +314,12 @@ impl CodegenCtx {
             }
         }
 
+        // C21: try a registered per-command codegen hook before the
+        // generic invoke fallback.
+        if super::emitter::bytecoded::try_bytecoded(self, cmd, args, used_generic_invoke) {
+            return;
+        }
+
         self.push_lit(cmd);
         for a in args {
             self.emit_value_interpolated(a);
