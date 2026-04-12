@@ -9,6 +9,9 @@
 // are evaluated via a simple recursive-descent parser.
 
 const rt = @import("tcl_runtime.zig");
+const procs = @import("tcl_procs.zig");
+const frames = @import("tcl_frames.zig");
+const info = @import("tcl_cmd_info.zig");
 
 // Re-export runtime functions used throughout this file
 const alloc = rt.alloc;
@@ -20,6 +23,12 @@ const obj_new_string_copy = rt.obj_new_string_copy;
 const obj_ensure_string = rt.obj_ensure_string;
 const list_count_elements = rt.list_count_elements;
 const list_element_at = rt.list_element_at;
+
+// Convenience: check if any signal flag is set (error, return, break, continue)
+fn has_signal() bool {
+    return rt.error_flag.* != 0 or rt.return_flag.* != 0 or
+        rt.break_flag.* != 0 or rt.continue_flag.* != 0;
+}
 
 // -- Tokeniser --
 // Splits a Tcl script into commands, each command into words.
@@ -148,7 +157,7 @@ fn subst_word(wptr: u32, wlen: u32) i32 {
                 const ve = i;
                 if (i < wlen) i += 1;
                 const name_obj = obj_new_string(@intCast(wptr + vs), @intCast(ve - vs));
-                const val = rt.global_get(name_obj);
+                const val = frames.var_resolve(name_obj);
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
                     if (sv.len > 0) { memcpy(buf + out, sv.ptr, sv.len); out += sv.len; }
@@ -159,7 +168,7 @@ fn subst_word(wptr: u32, wlen: u32) i32 {
                     (src[i] >= '0' and src[i] <= '9') or src[i] == '_'))
                 { i += 1; }
                 const name_obj = obj_new_string(@intCast(wptr + vstart), @intCast(i - vstart));
-                const val = rt.global_get(name_obj);
+                const val = frames.var_resolve(name_obj);
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
                     if (sv.len > 0) { memcpy(buf + out, sv.ptr, sv.len); out += sv.len; }
@@ -261,7 +270,7 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32) i64 {
             (src[pos.*] >= '0' and src[pos.*] <= '9') or src[pos.*] == '_'))
         { pos.* += 1; }
         const name = obj_new_string(@intCast(ptr + vs), @intCast(pos.* - vs));
-        const val = rt.global_get(name);
+        const val = frames.var_resolve(name);
         if (val != 0) return obj_get_int(val);
         return 0;
     }
@@ -297,8 +306,8 @@ fn eval_command(words: []const i32) i32 {
     const cmd: [*]const u8 = @ptrFromInt(cmd_s.ptr);
 
     if (str_eq(cmd, cmd_s.len, "set")) {
-        if (words.len >= 3) { _ = rt.global_set(words[1], words[2]); return words[2]; }
-        else if (words.len >= 2) { return rt.global_get(words[1]); }
+        if (words.len >= 3) { _ = frames.var_set(words[1], words[2]); return words[2]; }
+        else if (words.len >= 2) { return frames.var_resolve(words[1]); }
         return 0;
     }
     if (str_eq(cmd, cmd_s.len, "puts")) { if (words.len >= 2) return rt.puts(words[words.len - 1]); return 0; }
@@ -306,13 +315,19 @@ fn eval_command(words: []const i32) i32 {
         if (words.len >= 2) { const es = obj_ensure_string(words[1]); return obj_new_int(eval_expr_str(es.ptr, es.len)); }
         return 0;
     }
-    if (str_eq(cmd, cmd_s.len, "return")) { if (words.len >= 2) return words[1]; return 0; }
+    if (str_eq(cmd, cmd_s.len, "return")) {
+        rt.return_flag.* = 1;
+        rt.return_val.* = if (words.len >= 2) words[1] else 0;
+        return rt.return_val.*;
+    }
+    if (str_eq(cmd, cmd_s.len, "break")) { rt.break_flag.* = 1; return 0; }
+    if (str_eq(cmd, cmd_s.len, "continue")) { rt.continue_flag.* = 1; return 0; }
     if (str_eq(cmd, cmd_s.len, "incr")) {
         if (words.len >= 2) {
             const amt_obj = if (words.len >= 3) words[2] else obj_new_int(1);
-            const cur = rt.global_get(words[1]);
+            const cur = frames.var_resolve(words[1]);
             const result = rt.tcl_incr(cur, amt_obj);
-            _ = rt.global_set(words[1], result);
+            _ = frames.var_set(words[1], result);
             return result;
         }
         return 0;
@@ -321,7 +336,10 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "while")) return eval_while(words);
     if (str_eq(cmd, cmd_s.len, "for")) return eval_for(words);
     if (str_eq(cmd, cmd_s.len, "foreach")) return eval_foreach(words);
-    if (str_eq(cmd, cmd_s.len, "proc")) return 0;
+    if (str_eq(cmd, cmd_s.len, "proc")) {
+        if (words.len >= 4) _ = procs.proc_register(words[1], words[2], words[3]);
+        return 0;
+    }
     if (str_eq(cmd, cmd_s.len, "error")) { if (words.len >= 2) rt.@"error"(words[1]); return 0; }
     if (str_eq(cmd, cmd_s.len, "catch")) {
         if (words.len >= 2) {
@@ -332,26 +350,77 @@ fn eval_command(words: []const i32) i32 {
         }
         return obj_new_int(0);
     }
-    if (str_eq(cmd, cmd_s.len, "append")) { if (words.len >= 3) return rt.append(rt.global_get(words[1]), words[2]); return 0; }
+    if (str_eq(cmd, cmd_s.len, "append")) {
+        if (words.len >= 3) {
+            const cur = frames.var_resolve(words[1]);
+            const result = rt.append(cur, words[2]);
+            _ = frames.var_set(words[1], result);
+            return result;
+        }
+        return 0;
+    }
     if (str_eq(cmd, cmd_s.len, "llength")) { if (words.len >= 2) return rt.list_length(words[1]); return 0; }
     if (str_eq(cmd, cmd_s.len, "lindex")) { if (words.len >= 3) return rt.list_index(words[1], words[2]); return 0; }
     if (str_eq(cmd, cmd_s.len, "lappend")) {
         if (words.len >= 3) {
-            const cur = rt.global_get(words[1]);
+            const cur = frames.var_resolve(words[1]);
             const result = rt.lappend(cur, words[2]);
-            _ = rt.global_set(words[1], result);
+            _ = frames.var_set(words[1], result);
             return result;
         }
         return 0;
     }
     if (str_eq(cmd, cmd_s.len, "string")) return eval_string_cmd(words);
     if (str_eq(cmd, cmd_s.len, "dict")) return eval_dict_cmd(words);
-    if (str_eq(cmd, cmd_s.len, "global") or str_eq(cmd, cmd_s.len, "package") or
+    if (str_eq(cmd, cmd_s.len, "info")) {
+        if (words.len >= 3) return info.info_dispatch(words[1], words[2]);
+        return obj_new_string(0, 0);
+    }
+    if (str_eq(cmd, cmd_s.len, "split")) {
+        if (words.len >= 3) return rt.split(words[1], words[2]);
+        if (words.len >= 2) return rt.split(words[1], obj_new_string(0, 0));
+        return obj_new_string(0, 0);
+    }
+    if (str_eq(cmd, cmd_s.len, "join")) {
+        if (words.len >= 3) return rt.join(words[1], words[2]);
+        if (words.len >= 2) {
+            // Default separator is a space
+            const sp = alloc(1);
+            const d: [*]u8 = @ptrFromInt(sp);
+            d[0] = ' ';
+            return rt.join(words[1], obj_new_string(@intCast(sp), 1));
+        }
+        return obj_new_string(0, 0);
+    }
+    if (str_eq(cmd, cmd_s.len, "list")) {
+        if (words.len >= 3) return rt.tcl_list(words[1], words[2]);
+        if (words.len >= 2) return words[1];
+        return obj_new_string(0, 0);
+    }
+    if (str_eq(cmd, cmd_s.len, "concat")) {
+        if (words.len >= 3) return rt.concat(words[1], words[2]);
+        if (words.len >= 2) return words[1];
+        return obj_new_string(0, 0);
+    }
+    if (str_eq(cmd, cmd_s.len, "lsort")) { if (words.len >= 2) return rt.list_sort(words[words.len - 1]); return obj_new_string(0, 0); }
+    if (str_eq(cmd, cmd_s.len, "lsearch")) { if (words.len >= 3) return rt.list_search(words[1], words[2]); return obj_new_int(-1); }
+    if (str_eq(cmd, cmd_s.len, "lrange")) { if (words.len >= 4) return rt.list_range(words[1], words[2], words[3]); return obj_new_string(0, 0); }
+    if (str_eq(cmd, cmd_s.len, "global")) {
+        // Register each listed name as a global alias in the current frame.
+        // Subsequent reads/writes of the local name pass through to globals,
+        // so the proc sees up-to-date values and mutations propagate.
+        var gi: u32 = 1;
+        while (gi < words.len) : (gi += 1) {
+            frames.frame_alias_global(words[gi]);
+        }
+        return 0;
+    }
+    if (str_eq(cmd, cmd_s.len, "package") or
         str_eq(cmd, cmd_s.len, "namespace") or str_eq(cmd, cmd_s.len, "variable") or
         str_eq(cmd, cmd_s.len, "rename"))
     { return 0; }
-    rt.@"error"(words[0]);
-    return 0;
+    // -- Proc dispatch: check registry before erroring --
+    return eval_proc_call(words);
 }
 
 fn str_eq(a: [*]const u8, alen: u32, comptime b: []const u8) bool {
@@ -389,7 +458,13 @@ fn eval_while(words: []const i32) i32 {
     const cond_s = obj_ensure_string(words[1]);
     const body_s = obj_ensure_string(words[2]);
     var result: i32 = 0;
-    while (true) { if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break; result = eval_script(body_s.ptr, body_s.len); }
+    while (true) {
+        if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break;
+        result = eval_script(body_s.ptr, body_s.len);
+        if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
+        if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
+        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
+    }
     return result;
 }
 
@@ -400,8 +475,16 @@ fn eval_for(words: []const i32) i32 {
     const next_s = obj_ensure_string(words[3]);
     const body_s = obj_ensure_string(words[4]);
     _ = eval_script(init_s.ptr, init_s.len);
+    if (has_signal()) return 0;
     var result: i32 = 0;
-    while (true) { if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break; result = eval_script(body_s.ptr, body_s.len); _ = eval_script(next_s.ptr, next_s.len); }
+    while (true) {
+        if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break;
+        result = eval_script(body_s.ptr, body_s.len);
+        if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
+        if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; }
+        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
+        _ = eval_script(next_s.ptr, next_s.len);
+    }
     return result;
 }
 
@@ -415,8 +498,74 @@ fn eval_foreach(words: []const i32) i32 {
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
         const elem = list_element_at(list_s.ptr, list_s.len, idx);
-        _ = rt.global_set(var_name, obj_new_string_copy(list_s.ptr + elem.start, elem.len));
+        _ = frames.var_set(var_name, obj_new_string_copy(list_s.ptr + elem.start, elem.len));
         result = eval_script(body_s.ptr, body_s.len);
+        if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
+        if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
+        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
+    }
+    return result;
+}
+
+// -- Proc dispatch (picol-style) --
+// Look up the command name in the proc registry. If found:
+//   1. Push a new call frame
+//   2. Bind arguments to parameter names as local variables
+//   3. Evaluate the body
+//   4. Pop the frame
+//   5. Absorb RETURN signal (convert to OK)
+// If not found, raise an error.
+
+fn eval_proc_call(words: []const i32) i32 {
+    const bucket = procs.proc_lookup(words[0]);
+    if (bucket == 0) {
+        // Unknown command — error
+        rt.@"error"(words[0]);
+        return 0;
+    }
+    const body_obj = procs.proc_get_body(bucket);
+    const params_obj = procs.proc_get_params(bucket);
+    const n_params: u32 = @intCast(procs.proc_get_n_params(bucket));
+
+    // Push frame
+    _ = frames.frame_push();
+
+    // Bind parameters: walk the params list, assign each from argv
+    if (params_obj != 0 and n_params > 0) {
+        const ps = obj_ensure_string(params_obj);
+        var pi: u32 = 0;
+        while (pi < n_params) : (pi += 1) {
+            const param_elem = list_element_at(ps.ptr, ps.len, @intCast(pi));
+            const param_name = obj_new_string_copy(ps.ptr + param_elem.start, param_elem.len);
+            // argv[0] is the command name, so argv[pi+1] is the first arg
+            const arg_idx = pi + 1;
+            const arg_val = if (arg_idx < words.len) words[arg_idx] else obj_new_string(0, 0);
+            _ = frames.local_set(param_name, arg_val);
+        }
+    }
+
+    // Evaluate body
+    const body_s = obj_ensure_string(body_obj);
+    const result = eval_script(body_s.ptr, body_s.len);
+
+    // Pop frame
+    frames.frame_pop();
+
+    // Absorb return signal (like picol: PICOL_RETURN → PICOL_OK)
+    if (rt.return_flag.* != 0) {
+        rt.return_flag.* = 0;
+        return rt.return_val.*;
+    }
+    // A break/continue that survived to the proc boundary is a Tcl error
+    // ("invoked \"break\" outside of a loop"); clear the flags and raise
+    // an error so the signal cannot short-circuit outer eval_script
+    // frames in the caller.  The error message uses words[0] (the proc
+    // name) because synthesising a fresh string object from a static
+    // literal is awkward in the WASM heap model.
+    if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
+        rt.break_flag.* = 0;
+        rt.continue_flag.* = 0;
+        rt.@"error"(words[0]);
     }
     return result;
 }
@@ -449,9 +598,9 @@ fn eval_dict_cmd(words: []const i32) i32 {
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
     if (str_eq(sp, sub.len, "get") and words.len >= 4) return rt.dict_get(words[2], words[3]);
     if (str_eq(sp, sub.len, "set") and words.len >= 5) {
-        const cur = rt.global_get(words[2]);
+        const cur = frames.var_resolve(words[2]);
         const result = rt.dict_set(cur, words[3], words[4]);
-        _ = rt.global_set(words[2], result);
+        _ = frames.var_set(words[2], result);
         return result;
     }
     if (str_eq(sp, sub.len, "exists") and words.len >= 4) return rt.dict_exists(words[2], words[3]);
@@ -484,7 +633,7 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         }
 
         result = eval_command(word_objs[0..cmd.count]);
-        if (rt.error_flag.* != 0) return result;
+        if (has_signal()) return result;
     }
     return result;
 }

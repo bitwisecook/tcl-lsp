@@ -8,9 +8,12 @@ const tcl_obj = @import("tcl_obj.zig");
 const tcl_globals = @import("tcl_globals.zig");
 const tcl_io = @import("tcl_io.zig");
 const tcl_string = @import("tcl_string.zig");
-const tcl_list = @import("tcl_list.zig");
+const tcl_list_mod = @import("tcl_list.zig");
 const tcl_dict = @import("tcl_dict.zig");
 const tcl_catch = @import("tcl_catch.zig");
+const tcl_frames = @import("tcl_frames.zig");
+const tcl_procs = @import("tcl_procs.zig");
+const tcl_cmd_info = @import("tcl_cmd_info.zig");
 const interp = @import("tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -27,6 +30,7 @@ pub const list_element_at = tcl_obj.list_element_at;
 
 pub const global_set = tcl_globals.global_set;
 pub const global_get = tcl_globals.global_get;
+pub const global_exists = tcl_globals.global_exists;
 pub const tcl_incr = tcl_globals.tcl_incr;
 
 pub const puts = tcl_io.puts;
@@ -47,13 +51,17 @@ pub const string_tolower = tcl_string.string_tolower;
 pub const string_reverse = tcl_string.string_reverse;
 pub const string_repeat = tcl_string.string_repeat;
 pub const string_replace = tcl_string.string_replace;
+pub const split = tcl_string.split;
+pub const join = tcl_string.join;
+pub const concat = tcl_string.concat;
 
-pub const list_length = tcl_list.list_length;
-pub const lappend = tcl_list.lappend;
-pub const list_index = tcl_list.list_index;
-pub const list_range = tcl_list.list_range;
-pub const list_sort = tcl_list.list_sort;
-pub const list_search = tcl_list.list_search;
+pub const list_length = tcl_list_mod.list_length;
+pub const lappend = tcl_list_mod.lappend;
+pub const tcl_list = tcl_list_mod.tcl_list;
+pub const list_index = tcl_list_mod.list_index;
+pub const list_range = tcl_list_mod.list_range;
+pub const list_sort = tcl_list_mod.list_sort;
+pub const list_search = tcl_list_mod.list_search;
 
 pub const dict_create = tcl_dict.dict_create;
 pub const dict_get = tcl_dict.dict_get;
@@ -69,6 +77,32 @@ pub const catch_result = tcl_catch.catch_result;
 pub const catch_has_error = tcl_catch.catch_has_error;
 pub const @"error" = tcl_catch.@"error";
 pub const error_flag = &tcl_catch.error_flag;
+pub const return_flag = &tcl_catch.return_flag;
+pub const return_val = &tcl_catch.return_val;
+pub const break_flag = &tcl_catch.break_flag;
+pub const continue_flag = &tcl_catch.continue_flag;
+
+// Frames
+pub const frame_push = tcl_frames.frame_push;
+pub const frame_pop = tcl_frames.frame_pop;
+pub const frame_alias_global = tcl_frames.frame_alias_global;
+pub const var_resolve = tcl_frames.var_resolve;
+pub const var_set = tcl_frames.var_set;
+pub const var_exists = tcl_frames.var_exists;
+pub const local_set = tcl_frames.local_set;
+pub const local_get = tcl_frames.local_get;
+
+// Procs
+pub const proc_register = tcl_procs.proc_register;
+pub const proc_lookup = tcl_procs.proc_lookup;
+pub const proc_get_func_idx = tcl_procs.proc_get_func_idx;
+pub const proc_get_n_params = tcl_procs.proc_get_n_params;
+pub const proc_get_params = tcl_procs.proc_get_params;
+pub const proc_get_body = tcl_procs.proc_get_body;
+
+// Info
+pub const info_exists = tcl_cmd_info.info_exists;
+pub const info_dispatch = tcl_cmd_info.info_dispatch;
 
 // Ensure linker keeps all exported functions from each module.
 comptime {
@@ -110,15 +144,17 @@ comptime {
     _ = &tcl_string.string_is_alpha;
     _ = &tcl_string.string_is_digit;
     _ = &tcl_string.string_is_space;
+    _ = &tcl_string.split;
+    _ = &tcl_string.join;
     _ = &tcl_string.concat;
     // tcl_list exports
-    _ = &tcl_list.list_length;
-    _ = &tcl_list.lappend;
-    _ = &tcl_list.tcl_list;
-    _ = &tcl_list.list_index;
-    _ = &tcl_list.list_range;
-    _ = &tcl_list.list_sort;
-    _ = &tcl_list.list_search;
+    _ = &tcl_list_mod.list_length;
+    _ = &tcl_list_mod.lappend;
+    _ = &tcl_list_mod.tcl_list;
+    _ = &tcl_list_mod.list_index;
+    _ = &tcl_list_mod.list_range;
+    _ = &tcl_list_mod.list_sort;
+    _ = &tcl_list_mod.list_search;
     // tcl_dict exports
     _ = &tcl_dict.dict_create;
     _ = &tcl_dict.dict_get;
@@ -139,6 +175,30 @@ comptime {
     _ = &tcl_catch.close;
     _ = &tcl_catch.read;
     _ = &tcl_catch.gets;
+    // tcl_frames exports
+    _ = &tcl_frames.frame_push;
+    _ = &tcl_frames.frame_pop;
+    _ = &tcl_frames.frame_get_depth;
+    _ = &tcl_frames.local_set;
+    _ = &tcl_frames.local_get;
+    _ = &tcl_frames.local_exists;
+    _ = &tcl_frames.var_resolve;
+    _ = &tcl_frames.var_set;
+    _ = &tcl_frames.var_exists;
+    // tcl_procs exports
+    _ = &tcl_procs.proc_register;
+    _ = &tcl_procs.proc_register_compiled;
+    _ = &tcl_procs.proc_lookup;
+    _ = &tcl_procs.proc_get_func_idx;
+    _ = &tcl_procs.proc_get_n_params;
+    _ = &tcl_procs.proc_get_params;
+    _ = &tcl_procs.proc_get_body;
+    _ = &tcl_procs.proc_exists;
+    // tcl_cmd_info exports
+    _ = &tcl_cmd_info.info_exists;
+    _ = &tcl_cmd_info.info_body;
+    _ = &tcl_cmd_info.info_args;
+    _ = &tcl_cmd_info.info_dispatch;
     // tcl_interp exports
     _ = &interp.tcl_eval;
 }
