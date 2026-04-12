@@ -16,6 +16,7 @@
 
 pub mod branch_folding;
 pub mod helpers;
+pub mod structure_elimination;
 pub mod unused_procs;
 
 use std::collections::{HashMap, HashSet};
@@ -315,18 +316,20 @@ impl PassId {
 ///
 /// - [`PassId::BranchFolding`] → [`branch_folding::run`] (C30a).
 /// - [`PassId::UnusedProcs`] → [`unused_procs::run`] (C30b).
+/// - [`PassId::StructureElimination`] →
+///   [`structure_elimination::run`] (C30c).
 pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[PassId]) {
     for pass in passes {
         match pass {
             PassId::BranchFolding => branch_folding::run(ctx, cu),
             PassId::UnusedProcs => unused_procs::run(ctx, cu),
+            PassId::StructureElimination => structure_elimination::run(ctx, cu),
             // Remaining passes are deferred follow-ups; see the
             // module docs for the landing plan.
             PassId::Elimination
             | PassId::ExprSimplify
             | PassId::PatternRecognition
             | PassId::Propagation
-            | PassId::StructureElimination
             | PassId::TailCall
             | PassId::CodeSinking => {}
         }
@@ -453,7 +456,6 @@ mod tests {
                 PassId::ExprSimplify,
                 PassId::Propagation,
                 PassId::PatternRecognition,
-                PassId::StructureElimination,
                 PassId::TailCall,
                 PassId::CodeSinking,
             ],
