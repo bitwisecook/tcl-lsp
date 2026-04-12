@@ -1,0 +1,43 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x2ccd8500, refCt 1, epoch 0, interp 0x2b92c60 (epoch 0)
+  Source "set lst {{a b} {c d} {e f}}\nset a [lindex $lst 0 1]\nset"
+  Cmds 7, src 100, inst 41, litObjs 4, aux 0, stkDepth 3, code/src 2.68
+  Code 268 = header 160+inst 41+litObj 32+exc 0+aux 0+cmdMap 28
+  Proc 0x2d0d4c00, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, "lst"
+      slot 1, scalar, "a"
+      slot 2, scalar, "b"
+      slot 3, scalar, "c"
+  Commands 7:
+      1: pc 0-4, src 0-26   	   2: pc 5-18, src 28-50
+      3: pc 5-15, src 35-49   	   4: pc 19-26, src 52-72
+      5: pc 19-23, src 59-71   	   6: pc 27-39, src 74-98
+      7: pc 27-37, src 81-97
+  Command 1: "set lst {{a b} {c d} {e f}}"
+    (0) push1 0  	# "{a b} {c d} {e f}"
+    (2) storeScalar1 0	# var "lst"
+    (4) pop 
+  Command 2: "set a [lindex $lst 0 1]"
+  Command 3: "lindex $lst 0 1"
+    (5) loadScalar1 0	# var "lst"
+    (7) push1 1  	# "0"
+    (9) push1 2  	# "1"
+    (11) lindexMulti 3 
+    (16) storeScalar1 1	# var "a"
+    (18) pop 
+  Command 4: "set b [lindex $lst 1]"
+  Command 5: "lindex $lst 1"
+    (19) loadScalar1 0	# var "lst"
+    (21) push1 2  	# "1"
+    (23) listindex 
+    (24) storeScalar1 2	# var "b"
+    (26) pop 
+  Command 6: "set c [lindex $lst end 0]"
+  Command 7: "lindex $lst end 0"
+    (27) loadScalar1 0	# var "lst"
+    (29) push1 3  	# "end"
+    (31) push1 1  	# "0"
+    (33) lindexMulti 3 
+    (38) storeScalar1 3	# var "c"
+    (40) done 

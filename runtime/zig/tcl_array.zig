@@ -1,0 +1,463 @@
+// Tcl array operations — dedicated per-array hash table storage.
+//
+// Tcl arrays are associative maps distinct from scalars and dicts.  An
+// array named "a" is addressed as ``a(key)``: ``set a(1) foo``,
+// ``$a(1)``, ``info exists a(1)``, ``array exists a``, ``array names
+// a``, ``array size a``, ``array unset a``.  Arrays and scalars of the
+// same name cannot coexist (``set a 1; set a(1) 2`` is a runtime
+// error in real Tcl; we diverge here and silently shadow to keep the
+// compiled sandbox small).
+//
+// Storage layout:
+//   Top-level "array directory": a growing open-addressing hash table
+//   keyed by array name → pointer to the array's own hash table.  Each
+//   per-array table is again open-addressing keyed by string key →
+//   TclObj value.  Both tables share layout with tcl_globals so we
+//   only need one hasher (FNV-1a).
+//
+// Memory: the bump allocator (tcl_obj.alloc) owns everything.  We
+// never free — small enough for batch-style scripts.
+
+const obj = @import("tcl_obj.zig");
+const alloc = obj.alloc;
+const memcpy = obj.memcpy;
+const read_i32 = obj.read_i32;
+const write_i32 = obj.write_i32;
+const obj_ensure_string = obj.obj_ensure_string;
+const obj_new_int = obj.obj_new_int;
+const obj_new_string = obj.obj_new_string;
+
+const globals = @import("tcl_globals.zig");
+const fnv1a = globals.fnv1a;
+
+// --- Array directory (name → per-array table) --------------------------
+
+// Bucket: [name_ptr:4 | name_len:4 | hash:4 | table_ptr:4] = 16 bytes
+const DIR_BUCKET_SIZE: u32 = 16;
+const DIR_INITIAL_CAP: u32 = 16;
+
+var dir_buf: u32 = 0;
+var dir_cap: u32 = 0;
+var dir_count: u32 = 0;
+
+fn dir_init() void {
+    if (dir_cap != 0) return;
+    dir_cap = DIR_INITIAL_CAP;
+    dir_buf = alloc(dir_cap * DIR_BUCKET_SIZE);
+    var i: u32 = 0;
+    while (i < dir_cap) : (i += 1) {
+        write_i32(dir_buf + i * DIR_BUCKET_SIZE, 0);
+    }
+}
+
+fn dir_find(name_ptr: u32, name_len: u32, hash: u32) ?u32 {
+    if (dir_buf == 0) return null;
+    const mask = dir_cap - 1;
+    var idx = hash & mask;
+    var probes: u32 = 0;
+    while (probes < dir_cap) : (probes += 1) {
+        const bucket = dir_buf + idx * DIR_BUCKET_SIZE;
+        const ep: u32 = @intCast(read_i32(bucket));
+        if (ep == 0) return null;
+        const el: u32 = @intCast(read_i32(bucket + 4));
+        const eh: u32 = @intCast(read_i32(bucket + 8));
+        if (eh == hash and el == name_len) {
+            const sp: [*]const u8 = @ptrFromInt(ep);
+            const np: [*]const u8 = @ptrFromInt(name_ptr);
+            var match = true;
+            for (0..el) |k| {
+                if (sp[k] != np[k]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return bucket;
+        }
+        idx = (idx + 1) & mask;
+    }
+    return null;
+}
+
+fn dir_insert(name_ptr: u32, name_len: u32, hash: u32, table_ptr: u32) void {
+    dir_init();
+    if (dir_count * 4 >= dir_cap * 3) dir_grow();
+    const mask = dir_cap - 1;
+    var idx = hash & mask;
+    while (true) {
+        const bucket = dir_buf + idx * DIR_BUCKET_SIZE;
+        if (read_i32(bucket) == 0) {
+            const nbuf = alloc(name_len);
+            memcpy(nbuf, name_ptr, name_len);
+            write_i32(bucket, @intCast(nbuf));
+            write_i32(bucket + 4, @intCast(name_len));
+            write_i32(bucket + 8, @intCast(hash));
+            write_i32(bucket + 12, @intCast(table_ptr));
+            dir_count += 1;
+            return;
+        }
+        idx = (idx + 1) & mask;
+    }
+}
+
+fn dir_grow() void {
+    const old_buf = dir_buf;
+    const old_cap = dir_cap;
+    dir_cap *= 2;
+    dir_buf = alloc(dir_cap * DIR_BUCKET_SIZE);
+    var i: u32 = 0;
+    while (i < dir_cap) : (i += 1) {
+        write_i32(dir_buf + i * DIR_BUCKET_SIZE, 0);
+    }
+    dir_count = 0;
+    var j: u32 = 0;
+    while (j < old_cap) : (j += 1) {
+        const bucket = old_buf + j * DIR_BUCKET_SIZE;
+        const ep: u32 = @intCast(read_i32(bucket));
+        if (ep == 0) continue;
+        const el: u32 = @intCast(read_i32(bucket + 4));
+        const eh: u32 = @intCast(read_i32(bucket + 8));
+        const tp: u32 = @intCast(read_i32(bucket + 12));
+        dir_insert(ep, el, eh, tp);
+    }
+}
+
+// --- Per-array table (key → value) -------------------------------------
+// Layout: [cap:4 | count:4 | buckets[cap]...] where each bucket is
+// [key_ptr:4 | key_len:4 | hash:4 | value:4] = 16 bytes.
+
+const AR_BUCKET_SIZE: u32 = 16;
+const AR_INITIAL_CAP: u32 = 8;
+const AR_HEADER_SIZE: u32 = 8; // cap:4 | count:4
+
+// Deletion sentinel for the ``name_ptr`` field of a bucket.  A regular
+// bucket has ``name_ptr = 0`` when empty and a valid heap pointer when
+// occupied — all real pointers are word-aligned below 2^32, so
+// ``0xFFFFFFFF`` cannot collide with one.  ``ar_find`` must skip past
+// tombstones (rather than treating them as empty terminators) to keep
+// probe chains intact for keys that collided onto the deleted slot.
+const AR_TOMBSTONE: i32 = @bitCast(@as(u32, 0xFFFF_FFFF));
+
+fn ar_new() u32 {
+    const cap: u32 = AR_INITIAL_CAP;
+    const t = alloc(AR_HEADER_SIZE + cap * AR_BUCKET_SIZE);
+    write_i32(t, @intCast(cap));
+    write_i32(t + 4, 0);
+    var i: u32 = 0;
+    while (i < cap) : (i += 1) {
+        write_i32(t + AR_HEADER_SIZE + i * AR_BUCKET_SIZE, 0);
+    }
+    return t;
+}
+
+fn ar_cap(table: u32) u32 {
+    return @intCast(read_i32(table));
+}
+
+fn ar_count(table: u32) u32 {
+    return @intCast(read_i32(table + 4));
+}
+
+fn ar_set_count(table: u32, count: u32) void {
+    write_i32(table + 4, @intCast(count));
+}
+
+fn ar_find(table: u32, key_ptr: u32, key_len: u32, hash: u32) ?u32 {
+    const cap = ar_cap(table);
+    const mask = cap - 1;
+    var idx = hash & mask;
+    var probes: u32 = 0;
+    while (probes < cap) : (probes += 1) {
+        const bucket = table + AR_HEADER_SIZE + idx * AR_BUCKET_SIZE;
+        const raw = read_i32(bucket);
+        if (raw == 0) return null; // empty slot — key cannot be further on
+        if (raw == AR_TOMBSTONE) {
+            // Deleted slot; continue probing past it.
+            idx = (idx + 1) & mask;
+            continue;
+        }
+        const ep: u32 = @intCast(raw);
+        const el: u32 = @intCast(read_i32(bucket + 4));
+        const eh: u32 = @intCast(read_i32(bucket + 8));
+        if (eh == hash and el == key_len) {
+            const sp: [*]const u8 = @ptrFromInt(ep);
+            const np: [*]const u8 = @ptrFromInt(key_ptr);
+            var match = true;
+            for (0..el) |k| {
+                if (sp[k] != np[k]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return bucket;
+        }
+        idx = (idx + 1) & mask;
+    }
+    return null;
+}
+
+fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 {
+    var t = table;
+    if (ar_count(t) * 4 >= ar_cap(t) * 3) {
+        t = ar_grow(t);
+    }
+    const cap = ar_cap(t);
+    const mask = cap - 1;
+    var idx = hash & mask;
+    // Track the first tombstone slot we see; we can reuse it only once
+    // we've confirmed the key isn't present further along the probe chain.
+    var first_tomb: ?u32 = null;
+    var probes: u32 = 0;
+    while (probes < cap) : (probes += 1) {
+        const bucket = t + AR_HEADER_SIZE + idx * AR_BUCKET_SIZE;
+        const raw = read_i32(bucket);
+        if (raw == 0) {
+            // Empty terminator: insert here, or fill the earlier tombstone if any.
+            const target = first_tomb orelse bucket;
+            const kbuf = alloc(key_len);
+            memcpy(kbuf, key_ptr, key_len);
+            write_i32(target, @intCast(kbuf));
+            write_i32(target + 4, @intCast(key_len));
+            write_i32(target + 8, @intCast(hash));
+            write_i32(target + 12, value);
+            ar_set_count(t, ar_count(t) + 1);
+            return t;
+        }
+        if (raw == AR_TOMBSTONE) {
+            if (first_tomb == null) first_tomb = bucket;
+            idx = (idx + 1) & mask;
+            continue;
+        }
+        // Occupied slot: if it matches, overwrite in place.
+        const el: u32 = @intCast(read_i32(bucket + 4));
+        const eh: u32 = @intCast(read_i32(bucket + 8));
+        if (eh == hash and el == key_len) {
+            const ep: u32 = @intCast(raw);
+            const sp: [*]const u8 = @ptrFromInt(ep);
+            const np: [*]const u8 = @ptrFromInt(key_ptr);
+            var match = true;
+            for (0..el) |k| {
+                if (sp[k] != np[k]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                write_i32(bucket + 12, value);
+                return t;
+            }
+        }
+        idx = (idx + 1) & mask;
+    }
+    // Table was full of tombstones — fall back to the tombstone slot.
+    if (first_tomb) |target| {
+        const kbuf = alloc(key_len);
+        memcpy(kbuf, key_ptr, key_len);
+        write_i32(target, @intCast(kbuf));
+        write_i32(target + 4, @intCast(key_len));
+        write_i32(target + 8, @intCast(hash));
+        write_i32(target + 12, value);
+        ar_set_count(t, ar_count(t) + 1);
+    }
+    return t;
+}
+
+fn ar_grow(old_table: u32) u32 {
+    const old_cap = ar_cap(old_table);
+    const new_cap = old_cap * 2;
+    const t = alloc(AR_HEADER_SIZE + new_cap * AR_BUCKET_SIZE);
+    write_i32(t, @intCast(new_cap));
+    write_i32(t + 4, 0);
+    var i: u32 = 0;
+    while (i < new_cap) : (i += 1) {
+        write_i32(t + AR_HEADER_SIZE + i * AR_BUCKET_SIZE, 0);
+    }
+    var j: u32 = 0;
+    while (j < old_cap) : (j += 1) {
+        const bucket = old_table + AR_HEADER_SIZE + j * AR_BUCKET_SIZE;
+        const raw = read_i32(bucket);
+        // Skip empty slots and tombstones — growing is an opportunity
+        // to compact the probe chains.
+        if (raw == 0 or raw == AR_TOMBSTONE) continue;
+        const ep: u32 = @intCast(raw);
+        const el: u32 = @intCast(read_i32(bucket + 4));
+        const eh: u32 = @intCast(read_i32(bucket + 8));
+        const v: i32 = read_i32(bucket + 12);
+        _ = ar_insert(t, ep, el, eh, v);
+    }
+    // Rewrite the directory entries that pointed at old_table.  Since
+    // we don't know which directory entry owned it cheaply, walk the
+    // entire directory — arrays are rare enough that O(n) is fine.
+    if (dir_buf != 0) {
+        var di: u32 = 0;
+        while (di < dir_cap) : (di += 1) {
+            const db = dir_buf + di * DIR_BUCKET_SIZE;
+            const v: u32 = @intCast(read_i32(db + 12));
+            if (v == old_table) {
+                write_i32(db + 12, @intCast(t));
+            }
+        }
+    }
+    return t;
+}
+
+fn find_or_create(name: i32) u32 {
+    const sn = obj_ensure_string(name);
+    const hash = fnv1a(sn.ptr, sn.len);
+    if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
+        return @intCast(read_i32(bucket + 12));
+    }
+    const t = ar_new();
+    dir_insert(sn.ptr, sn.len, hash, t);
+    return t;
+}
+
+fn find_table(name: i32) u32 {
+    const sn = obj_ensure_string(name);
+    if (dir_buf == 0) return 0;
+    const hash = fnv1a(sn.ptr, sn.len);
+    if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
+        return @intCast(read_i32(bucket + 12));
+    }
+    return 0;
+}
+
+// --- Public exports ----------------------------------------------------
+
+/// array_set arrName key value — stores value under key in the array
+/// named arrName.  Creates the array on first write.  Returns value.
+pub export fn array_set(arr: i32, key: i32, value: i32) i32 {
+    const t = find_or_create(arr);
+    const sk = obj_ensure_string(key);
+    const hash = fnv1a(sk.ptr, sk.len);
+    if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
+        write_i32(bucket + 12, value);
+        return value;
+    }
+    _ = ar_insert(t, sk.ptr, sk.len, hash, value);
+    return value;
+}
+
+/// array_get arrName key — returns the stored value, or 0 (null
+/// TclObj) if the array/key is missing.  Callers that need to
+/// distinguish missing-vs-present should use ``array_element_exists``
+/// first or ``info exists``.
+pub export fn array_get(arr: i32, key: i32) i32 {
+    const t = find_table(arr);
+    if (t == 0) return 0;
+    const sk = obj_ensure_string(key);
+    const hash = fnv1a(sk.ptr, sk.len);
+    if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
+        return read_i32(bucket + 12);
+    }
+    return 0;
+}
+
+/// array_exists arrName — 1 if the array *variable* has ever been
+/// created, regardless of current element count.  This matches Tcl:
+/// ``set a(x) 1; unset a(x); array exists a`` returns 1 because the
+/// array variable itself still exists as an (empty) array.  We treat
+/// "directory entry present" as equivalent to "array variable exists".
+pub export fn array_exists(arr: i32) i32 {
+    const t = find_table(arr);
+    if (t == 0) return obj_new_int(0);
+    return obj_new_int(1);
+}
+
+/// array_element_exists arrName key — 1 if arr(key) is set, 0 otherwise.
+/// Semantically equivalent to ``info exists arr(key)`` for a named
+/// array element.
+pub export fn array_element_exists(arr: i32, key: i32) i32 {
+    const t = find_table(arr);
+    if (t == 0) return obj_new_int(0);
+    const sk = obj_ensure_string(key);
+    const hash = fnv1a(sk.ptr, sk.len);
+    if (ar_find(t, sk.ptr, sk.len, hash) != null) return obj_new_int(1);
+    return obj_new_int(0);
+}
+
+/// array_size arrName — element count (0 if missing).
+pub export fn array_size(arr: i32) i32 {
+    const t = find_table(arr);
+    if (t == 0) return obj_new_int(0);
+    return obj_new_int(@intCast(ar_count(t)));
+}
+
+/// array_unset arrName — remove the entire array (all elements).
+pub export fn array_unset(arr: i32) i32 {
+    const sn = obj_ensure_string(arr);
+    if (dir_buf == 0) return obj_new_int(0);
+    const hash = fnv1a(sn.ptr, sn.len);
+    if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
+        // Replace the array's table with a fresh empty one rather
+        // than trying to free — the bump allocator can't free.
+        const fresh = ar_new();
+        write_i32(bucket + 12, @intCast(fresh));
+    }
+    return obj_new_int(0);
+}
+
+/// array_unset_element arrName key — remove a single element.
+///
+/// Writes ``AR_TOMBSTONE`` into the bucket's ``name_ptr`` slot so
+/// ``ar_find`` skips past it instead of treating it as the end of the
+/// probe chain — that's what would otherwise make collision-mates
+/// unreachable.  Tombstones are cleared wholesale on grow() and are
+/// reusable for future insertions.
+pub export fn array_unset_element(arr: i32, key: i32) i32 {
+    const t = find_table(arr);
+    if (t == 0) return obj_new_int(0);
+    const sk = obj_ensure_string(key);
+    const hash = fnv1a(sk.ptr, sk.len);
+    if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
+        write_i32(bucket, AR_TOMBSTONE);
+        write_i32(bucket + 4, 0);
+        write_i32(bucket + 8, 0);
+        write_i32(bucket + 12, 0);
+        ar_set_count(t, ar_count(t) - 1);
+    }
+    return obj_new_int(0);
+}
+
+/// array_names arrName — returns a space-separated list of keys
+/// (element names).  Order is hash-table order — matches Tcl which
+/// makes no ordering promise without an explicit sort.
+pub export fn array_names(arr: i32) i32 {
+    const t = find_table(arr);
+    if (t == 0) return obj_new_string(0, 0);
+    const cap = ar_cap(t);
+    // First pass: compute required buffer size.  Skip empty and
+    // tombstoned slots; only live entries contribute to the listing.
+    var total: u32 = 0;
+    var nonempty: u32 = 0;
+    var i: u32 = 0;
+    while (i < cap) : (i += 1) {
+        const bucket = t + AR_HEADER_SIZE + i * AR_BUCKET_SIZE;
+        const raw = read_i32(bucket);
+        if (raw == 0 or raw == AR_TOMBSTONE) continue;
+        const el: u32 = @intCast(read_i32(bucket + 4));
+        total += el;
+        if (nonempty > 0) total += 1; // separator
+        nonempty += 1;
+    }
+    if (nonempty == 0) return obj_new_string(0, 0);
+    const buf = alloc(total);
+    var off: u32 = 0;
+    var written: u32 = 0;
+    i = 0;
+    while (i < cap) : (i += 1) {
+        const bucket = t + AR_HEADER_SIZE + i * AR_BUCKET_SIZE;
+        const raw = read_i32(bucket);
+        if (raw == 0 or raw == AR_TOMBSTONE) continue;
+        const ep: u32 = @intCast(raw);
+        const el: u32 = @intCast(read_i32(bucket + 4));
+        if (written > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        memcpy(buf + off, ep, el);
+        off += el;
+        written += 1;
+    }
+    return obj_new_string(@intCast(buf), @intCast(off));
+}

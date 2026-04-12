@@ -1,0 +1,31 @@
+ByteCode 0x0x96cca1010, refCt 1, epoch 17, interp 0x0x96cc28010 (epoch 17)
+  Source "proc check {val} {\n    string is double -strict $val\n..."
+  Cmds 1, src 55, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-53
+  Command 1: "proc check {val} {\n    string is double -strict $val\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "check"
+    (4) push1 2 	# "val"
+    (6) push1 3 	# "\n    string is double -strict $val..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x96cd31010, refCt 1, epoch 72, interp 0x0x96ccf6810 (epoch 72)
+  Source "\n    string is double -strict $val..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 1, src 35, inst 12, litObjs 2, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x0x96ccecc90, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "val"
+  Commands 1:
+      1: pc 0-10, src 5-33
+  Command 1: "string is double -strict $val..."
+    (0) loadScalar1 %v0 	# var "val"
+    (2) numericType 
+    (3) jumpTrue1 +6 	# pc 9
+    (5) push1 0 	# "0"
+    (7) jump1 +4 	# pc 11
+    (9) push1 1 	# "1"
+    (11) done 
+

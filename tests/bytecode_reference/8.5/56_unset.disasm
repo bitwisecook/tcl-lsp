@@ -1,0 +1,29 @@
+ByteCode 0x0xba2c4a210, refCt 1, epoch 3, interp 0x0xba2c20010 (epoch 3)
+  Source "set x 42\nset y 99\nunset x\nunset -nocomplain z\n"
+  Cmds 4, src 46, inst 37, litObjs 7, aux 0, stkDepth 3, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-7   	   2: pc 6-20, src 9-16
+      3: pc 21-27, src 18-24   	   4: pc 28-35, src 26-44
+  Command 1: "set x 42"
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "42"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set y 99"
+    (6) startCommand +14 1 	# next cmd at pc 20
+    (15) push1 2 	# "y"
+    (17) push1 3 	# "99"
+    (19) storeScalarStk 
+    (20) pop 
+  Command 3: "unset x"
+    (21) push1 4 	# "unset"
+    (23) push1 0 	# "x"
+    (25) invokeStk1 2 
+    (27) pop 
+  Command 4: "unset -nocomplain z"
+    (28) push1 4 	# "unset"
+    (30) push1 5 	# "-nocomplain"
+    (32) push1 6 	# "z"
+    (34) invokeStk1 3 
+    (36) done 
+

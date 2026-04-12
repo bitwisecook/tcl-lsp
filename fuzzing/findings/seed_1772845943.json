@@ -1,0 +1,24 @@
+{
+  "seed": 1772845943,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"x\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"x\": no such variable\n    while executing\n\"expr {$x}\"\n    (\"for\" body line 2)\n    invoked from within\n\"for {set count 0} {$count < 3} {incr count} {\n    expr {$x}\n    set x 0\n    while {$x < 5} {\n        append data \"gq-5g#\"\n        switch -- 55 {\n     ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjx0gf1hk.tcl\" line 206)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

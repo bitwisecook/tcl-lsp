@@ -1,0 +1,24 @@
+{
+  "seed": 1772875068,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"acc\": no such variable\n    while executing\n\"expr {int(((21 % max(1, abs(-45))) > $acc))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach data {1 kwwnpco xsgcianl 39.84 501 -278} {\n                expr {int(((21 % max(1, abs(-45))) > $acc))}\n                switch -- \"gv.kcz#d-wn...\"\n    (\"while\" body line 82)\n    invoked from within\n\"while {$data < 4} {\n    set data \"nw=bt-dc06y.6a\"\n    foreach a {-762 yes -649 89.66 616 -611} {\n        string tolower \"8b\"\n        appen"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"acc\": no such variable\n    while executing\n\"expr {int(((21 % max(1, abs(-45))) > $acc))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach data {1 kwwnpco xsgcianl 39.84 501 -278} {\n                expr {int(((21 % max(1, abs(-45))) > $acc))}\n                switch -- \"gv.kcz#d-wn...\"\n    (\"while\" body line 82)\n    invoked from within\n\"while {$data < 4} {\n    set data \"nw=bt-dc06y.6a\"\n    foreach a {-762 yes -649 89.66 616 -611} {\n        string tolower \"8b\"\n        appen"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

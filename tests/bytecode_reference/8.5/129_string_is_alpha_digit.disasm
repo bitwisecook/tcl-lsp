@@ -1,0 +1,64 @@
+ByteCode 0x0x896d0c210, refCt 1, epoch 3, interp 0x0x896c20010 (epoch 3)
+  Source "proc test_types {s} {\n    set a [string is alpha $s]\n  "
+  Cmds 1, src 135, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-133
+  Command 1: "proc test_types {s} {\n    set a [string is alpha $s]\n  "
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test_types"
+    (4) push1 2 	# "s"
+    (6) push1 3 	# "\n    set a [string is alpha $s]\n    set "
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x896d1aa10, refCt 1, epoch 3, interp 0x0x896cf4810 (epoch 3)
+  Source "\n    set a [string is alpha $s]\n    set b [string is di"
+  Cmds 7, src 112, inst 78, litObjs 5, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x0x896d21290, refCt 1, args 1, compiled locals 4
+      slot 0, scalar, arg, "s"
+      slot 1, scalar, "a"
+      slot 2, scalar, "b"
+      slot 3, scalar, "c"
+  Commands 7:
+      1: pc 0-12, src 5-30   	   2: pc 0-9, src 12-29
+      3: pc 13-34, src 36-61   	   4: pc 22-31, src 43-60
+      5: pc 35-56, src 67-92   	   6: pc 44-53, src 74-91
+      7: pc 57-76, src 98-110
+  Command 1: "set a [string is alpha $s]"
+  Command 2: "string is alpha $s"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "is"
+    (4) push1 2 	# "alpha"
+    (6) loadScalar1 %v0 	# var "s"
+    (8) invokeStk1 4 
+    (10) storeScalar1 %v1 	# var "a"
+    (12) pop 
+  Command 3: "set b [string is digit $s]"
+    (13) startCommand +21 1 	# next cmd at pc 34
+  Command 4: "string is digit $s"
+    (22) push1 0 	# "string"
+    (24) push1 1 	# "is"
+    (26) push1 3 	# "digit"
+    (28) loadScalar1 %v0 	# var "s"
+    (30) invokeStk1 4 
+    (32) storeScalar1 %v2 	# var "b"
+    (34) pop 
+  Command 5: "set c [string is alnum $s]"
+    (35) startCommand +21 1 	# next cmd at pc 56
+  Command 6: "string is alnum $s"
+    (44) push1 0 	# "string"
+    (46) push1 1 	# "is"
+    (48) push1 4 	# "alnum"
+    (50) loadScalar1 %v0 	# var "s"
+    (52) invokeStk1 4 
+    (54) storeScalar1 %v3 	# var "c"
+    (56) pop 
+  Command 7: "list $a $b $c"
+    (57) startCommand +20 1 	# next cmd at pc 77
+    (66) loadScalar1 %v1 	# var "a"
+    (68) loadScalar1 %v2 	# var "b"
+    (70) loadScalar1 %v3 	# var "c"
+    (72) list 3 
+    (77) done 
+

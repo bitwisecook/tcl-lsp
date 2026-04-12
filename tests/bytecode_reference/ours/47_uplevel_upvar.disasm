@@ -1,0 +1,69 @@
+ByteCode ::top, 12 instructions, 22 bytes, 7 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "setvar"
+    2: "name value"
+    3: "\n    upvar 1 $name var\n    set var ..."
+    4: "getvar"
+    5: "name"
+    6: "\n    upvar 1 $name var\n    return $..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "setvar"
+    (4) push1 2	# "name value"
+    (6) push1 3	# "\n    upvar 1 $name var\n    set var ..."
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) push1 0	# "proc"
+    (13) push1 4	# "getvar"
+    (15) push1 5	# "name"
+    (17) push1 6	# "\n    upvar 1 $name var\n    return $..."
+    (19) invokeStk1 4	# proc
+  # cmd_end_1:
+  # exit_2:
+    (21) done
+
+ByteCode ::getvar, 11 instructions, 26 bytes, 1 literals, 2 variables
+  Literals:
+    0: "1"
+  Local variables:
+    %v0: "name"
+    %v1: "var"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "1"
+    (2) loadScalar1 %v0	# var "name"
+    (4) upvar %v1	# var "var"
+    (9) pop
+    (10) nop
+    (11) nop
+    (12) nop
+    (13) startCommand +12 1	# next cmd at pc 25, 1 cmds start here
+    (22) loadScalar1 %v1	# var "var"
+    (24) done
+  # ret_end_1:
+    (25) done
+
+ByteCode ::setvar, 11 instructions, 27 bytes, 1 literals, 3 variables
+  Literals:
+    0: "1"
+  Local variables:
+    %v0: "name"
+    %v1: "value"
+    %v2: "var"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "1"
+    (2) loadScalar1 %v0	# var "name"
+    (4) upvar %v2	# var "var"
+    (9) pop
+    (10) nop
+    (11) nop
+    (12) nop
+    (13) startCommand +13 1	# next cmd at pc 26, 1 cmds start here
+    (22) loadScalar1 %v1	# var "value"
+    (24) storeScalar1 %v2	# var "var"
+  # cmd_end_1:
+  # exit_2:
+    (26) done

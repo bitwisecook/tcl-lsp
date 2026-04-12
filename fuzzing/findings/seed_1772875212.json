@@ -1,0 +1,24 @@
+{
+  "seed": 1772875212,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"70.56\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"70.56\" as left operand of \"^\"\n    invoked from within\n\"expr {((95.15 ** (-81)) == ((27 / max(1, abs(-14))) ? (70.56 ^ -67) : ($idx | -91)))}\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach idx {971 98.59 60 574} {\n        if {(47 ? 23.77 : $idx)} {\n            string map {a b c d} \"o.+h:3,#r!\"\n            expr {((95.15 ** (-81)) ...\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$idx < 5} {\n    join {733 -133 true 306 -907} \" \"\n    forea"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

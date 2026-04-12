@@ -1,0 +1,14 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x92c6c380, refCt 1, epoch 0, interp 0xb8ae10 (epoch 0)
+  Source "puts \"hello world\"\n"
+  Cmds 1, src 19, inst 7, litObjs 2, aux 0, stkDepth 2, code/src 9.89
+  Code 188 = header 160+inst 7+litObj 16+exc 0+aux 0+cmdMap 4
+  Proc 0x930e1c80, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-5, src 0-17
+  Command 1: "puts \"hello world\""
+    (0) push1 0  	# "puts"
+    (2) push1 1  	# "hello world"
+    (4) invokeStk1 2 
+    (6) done 

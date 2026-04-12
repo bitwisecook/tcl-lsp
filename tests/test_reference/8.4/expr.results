@@ -1,0 +1,293 @@
+TCLSH    /usr/local/bin/tclsh8.4
+VERSION  8.4.20
+FILE     expr.test
+DATE     2026-03-03T12:54:46
+---
+PASS expr-1.1
+PASS expr-1.10
+PASS expr-1.11
+PASS expr-1.12
+PASS expr-1.13
+PASS expr-1.14
+PASS expr-1.15
+PASS expr-1.2
+PASS expr-1.3
+PASS expr-1.4
+PASS expr-1.5
+PASS expr-1.6
+PASS expr-1.7
+PASS expr-1.8
+PASS expr-1.9
+PASS expr-10.1
+PASS expr-10.10
+PASS expr-10.11
+PASS expr-10.2
+PASS expr-10.3
+PASS expr-10.4
+PASS expr-10.5
+PASS expr-10.6
+PASS expr-10.7
+PASS expr-10.8
+PASS expr-10.9
+PASS expr-11.1
+PASS expr-11.10
+PASS expr-11.11
+PASS expr-11.12
+PASS expr-11.13
+PASS expr-11.2
+PASS expr-11.3
+PASS expr-11.4
+PASS expr-11.5
+PASS expr-11.6
+PASS expr-11.7
+PASS expr-11.8
+PASS expr-11.9
+PASS expr-12.1
+PASS expr-12.10
+PASS expr-12.11
+PASS expr-12.2
+PASS expr-12.3
+PASS expr-12.4
+PASS expr-12.5
+PASS expr-12.6
+PASS expr-12.7
+PASS expr-12.8
+PASS expr-12.9
+PASS expr-13.1
+PASS expr-13.10
+PASS expr-13.11
+PASS expr-13.12
+PASS expr-13.13
+PASS expr-13.14
+PASS expr-13.15
+PASS expr-13.16
+PASS expr-13.17
+PASS expr-13.2
+PASS expr-13.3
+PASS expr-13.4
+PASS expr-13.5
+PASS expr-13.6
+PASS expr-13.7
+PASS expr-13.8
+PASS expr-13.9
+PASS expr-14.1
+PASS expr-14.10
+PASS expr-14.11
+PASS expr-14.12
+PASS expr-14.13
+PASS expr-14.14
+PASS expr-14.15
+PASS expr-14.17
+PASS expr-14.18
+PASS expr-14.19
+PASS expr-14.2
+PASS expr-14.20
+PASS expr-14.21
+PASS expr-14.22
+PASS expr-14.25
+PASS expr-14.26
+PASS expr-14.28
+PASS expr-14.3
+PASS expr-14.31
+PASS expr-14.4
+PASS expr-14.5
+PASS expr-14.6
+PASS expr-14.7
+PASS expr-14.8
+PASS expr-14.9
+PASS expr-16.1
+PASS expr-16.2
+PASS expr-17.1
+PASS expr-18.1
+PASS expr-18.2
+PASS expr-19.1
+PASS expr-2.1
+PASS expr-2.2
+PASS expr-2.3
+PASS expr-2.4
+PASS expr-20.1
+PASS expr-20.3
+PASS expr-20.4
+PASS expr-20.5
+PASS expr-20.6
+PASS expr-20.7
+PASS expr-21.1
+PASS expr-21.10
+PASS expr-21.11
+PASS expr-21.12
+PASS expr-21.2
+PASS expr-21.3
+PASS expr-21.4
+PASS expr-21.5
+PASS expr-21.6
+PASS expr-21.7
+PASS expr-21.8
+PASS expr-21.9
+PASS expr-24.1
+PASS expr-24.2
+PASS expr-24.3
+PASS expr-24.4
+PASS expr-24.7
+PASS expr-24.9
+PASS expr-3.1
+PASS expr-3.2
+PASS expr-3.3
+PASS expr-3.4
+PASS expr-3.5
+PASS expr-3.6
+PASS expr-38.1
+PASS expr-38.10
+PASS expr-38.2
+PASS expr-38.3
+PASS expr-38.9
+PASS expr-4.1
+PASS expr-4.2
+PASS expr-4.3
+PASS expr-4.4
+PASS expr-4.5
+PASS expr-4.6
+PASS expr-4.7
+PASS expr-4.8
+PASS expr-4.9
+PASS expr-46.1
+PASS expr-46.10
+PASS expr-46.11
+PASS expr-46.12
+PASS expr-46.13
+PASS expr-46.14
+PASS expr-46.15
+PASS expr-46.16
+PASS expr-46.17
+PASS expr-46.18
+PASS expr-46.2
+PASS expr-46.3
+PASS expr-46.4
+PASS expr-46.5
+PASS expr-46.6
+PASS expr-46.7
+PASS expr-46.8
+PASS expr-46.9
+PASS expr-5.1
+PASS expr-5.10
+PASS expr-5.2
+PASS expr-5.3
+PASS expr-5.4
+PASS expr-5.5
+PASS expr-5.6
+PASS expr-5.7
+PASS expr-5.8
+PASS expr-5.9
+PASS expr-6.1
+PASS expr-6.10
+PASS expr-6.2
+PASS expr-6.3
+PASS expr-6.4
+PASS expr-6.5
+PASS expr-6.6
+PASS expr-6.7
+PASS expr-6.8
+PASS expr-6.9
+PASS expr-7.1
+PASS expr-7.10
+PASS expr-7.11
+PASS expr-7.12
+PASS expr-7.13
+PASS expr-7.14
+PASS expr-7.18
+PASS expr-7.2
+PASS expr-7.20
+PASS expr-7.3
+PASS expr-7.4
+PASS expr-7.5
+PASS expr-7.6
+PASS expr-7.7
+PASS expr-7.8
+PASS expr-7.9
+PASS expr-8.1
+PASS expr-8.10
+PASS expr-8.11
+PASS expr-8.12
+PASS expr-8.13
+PASS expr-8.14
+PASS expr-8.15
+PASS expr-8.16
+PASS expr-8.17
+PASS expr-8.18
+PASS expr-8.19
+PASS expr-8.2
+PASS expr-8.20
+PASS expr-8.21
+PASS expr-8.3
+PASS expr-8.4
+PASS expr-8.5
+PASS expr-8.6
+PASS expr-8.7
+PASS expr-8.8
+PASS expr-8.9
+PASS expr-9.1
+PASS expr-9.10
+PASS expr-9.2
+PASS expr-9.3
+PASS expr-9.4
+PASS expr-9.6
+PASS expr-9.7
+PASS expr-9.8
+PASS expr-9.9
+SKIP expr-15.10 registeredMathFuncs
+SKIP expr-15.11 registeredMathFuncs
+SKIP expr-15.12 registeredMathFuncs
+SKIP expr-15.15 registeredMathFuncs
+SKIP expr-15.7 registeredMathFuncs
+SKIP expr-15.8 registeredMathFuncs
+SKIP expr-15.9 registeredMathFuncs
+SKIP expr-22.1 nonPortable
+SKIP expr-22.2 nonPortable
+SKIP expr-22.3 nonPortable
+SKIP expr-22.4 nonPortable
+SKIP expr-22.5 nonPortable
+SKIP expr-22.6 nonPortable
+SKIP expr-22.7 nonPortable
+SKIP expr-22.8 nonPortable
+SKIP expr-22.9 nonPortable
+SKIP expr-24.5 nonPortable
+SKIP expr-24.6 nonPortable
+SKIP expr-24.8 nonPortable
+SKIP expr-3.7 nonPortable
+SKIP expr-3.8 nonPortable
+SKIP expr-9.5 nonPortable
+SKIP expr=15.13 registeredMathFuncs
+SKIP expr=15.14 registeredMathFuncs
+SKIP expr=15.16 registeredMathFuncs
+FAIL expr-14.16
+FAIL expr-14.16 CompilePrimaryExpr: error compiling var reference primary
+FAIL expr-14.23
+FAIL expr-14.23 CompilePrimaryExpr: error in subcommand primary
+FAIL expr-14.24
+FAIL expr-14.24 CompilePrimaryExpr: error in subcommand primary
+FAIL expr-14.27
+FAIL expr-14.27 CompilePrimaryExpr: error in math function primary
+FAIL expr-14.29
+FAIL expr-14.29 CompilePrimaryExpr: error in subexpression primary
+FAIL expr-14.30
+FAIL expr-14.30 CompilePrimaryExpr: missing paren in subexpression primary
+FAIL expr-14.32
+FAIL expr-14.32 CompilePrimaryExpr: unexpected token
+FAIL expr-15.1
+FAIL expr-15.1 CompileMathFuncCall: missing parenthesis
+FAIL expr-15.2
+FAIL expr-15.2 CompileMathFuncCall: unknown math function
+FAIL expr-15.3
+FAIL expr-15.3 CompileMathFuncCall: too many arguments
+FAIL expr-15.4
+FAIL expr-15.4 CompileMathFuncCall: ')' found before last required arg
+FAIL expr-15.5
+FAIL expr-15.5 CompileMathFuncCall: too few arguments
+FAIL expr-15.6
+FAIL expr-15.6 CompileMathFuncCall: missing ')'
+FAIL expr-20.2
+FAIL expr-20.2 double invocation of variable traces
+---
+TOTAL   283
+PASSED  230
+SKIPPED 25
+FAILED  28

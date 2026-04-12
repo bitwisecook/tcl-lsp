@@ -1,0 +1,41 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x470e4500, refCt 1, epoch 0, interp 0x57dee10 (epoch 0)
+  Source "set x 5\nif {$x > 0} {set sign 1}\nwhile {[incr x -1] > 0"
+  Cmds 5, src 60, inst 37, litObjs 4, aux 0, stkDepth 2, code/src 4.73
+  Code 284 = header 160+inst 37+litObj 32+exc 28+aux 0+cmdMap 20
+  Proc 0x470e1d00, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "x"
+      slot 1, scalar, "sign"
+  Exception ranges 1, depth 1:
+      0: level 1, loop, pc 23-24, continue 26, break 34
+  Commands 5:
+      1: pc 0-4, src 0-6   	   2: pc 5-20, src 8-31
+      3: pc 12-15, src 21-30   	   4: pc 21-35, src 33-58
+      5: pc 26-28, src 41-49
+  Command 1: "set x 5"
+    (0) push1 0  	# "5"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "if {$x > 0} {set sign 1}"
+    (5) loadScalar1 0	# var "x"
+    (7) push1 1  	# "0"
+    (9) gt 
+    (10) jumpFalse1 8  	# pc 18
+  Command 3: "set sign 1"
+    (12) push1 2  	# "1"
+    (14) storeScalar1 1	# var "sign"
+    (16) jump1 4  	# pc 20
+    (18) push1 3  	# ""
+    (20) pop 
+  Command 4: "while {[incr x -1] > 0} {}"
+    (21) jump1 5  	# pc 26
+    (23) push1 3  	# ""
+    (25) pop 
+  Command 5: "incr x -1"
+    (26) incrScalar1Imm 0 -1
+    (29) push1 1  	# "0"
+    (31) gt 
+    (32) jumpTrue1 -9  	# pc 23
+    (34) push1 3  	# ""
+    (36) done 

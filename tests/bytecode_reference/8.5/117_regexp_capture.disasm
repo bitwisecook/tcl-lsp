@@ -1,0 +1,24 @@
+ByteCode 0x0xae4cfa410, refCt 1, epoch 3, interp 0x0xae4c20010 (epoch 3)
+  Source "regexp {(\w+)\s+(\w+)} \"hello world\" all first second\nr"
+  Cmds 2, src 97, inst 30, litObjs 11, aux 0, stkDepth 6, code/src 0.00
+  Commands 2:
+      1: pc 0-14, src 0-52   	   2: pc 15-28, src 54-95
+  Command 1: "regexp {(\w+)\s+(\w+)} \"hello world\" all first second"
+    (0) push1 0 	# "regexp"
+    (2) push1 1 	# "(\w+)\s+(\w+)"
+    (4) push1 2 	# "hello world"
+    (6) push1 3 	# "all"
+    (8) push1 4 	# "first"
+    (10) push1 5 	# "second"
+    (12) invokeStk1 6 
+    (14) pop 
+  Command 2: "regexp -nocase {^(abc)$} \"ABC\" match group"
+    (15) push1 0 	# "regexp"
+    (17) push1 6 	# "-nocase"
+    (19) push1 7 	# "^(abc)$"
+    (21) push1 8 	# "ABC"
+    (23) push1 9 	# "match"
+    (25) push1 10 	# "group"
+    (27) invokeStk1 6 
+    (29) done 
+

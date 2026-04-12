@@ -1,0 +1,8 @@
+%YAML 1.2
+---
+# Xilinx EDA dialect — selects xilinx-eda-tcl for LSP analysis
+name: Xilinx EDA
+scope: source.tcl
+version: 2
+
+extends: Tcl.sublime-syntax

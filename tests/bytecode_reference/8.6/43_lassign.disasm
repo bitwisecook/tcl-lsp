@@ -1,0 +1,33 @@
+ByteCode 0x0x892ce4210, refCt 1, epoch 17, interp 0x0x892c28010 (epoch 17)
+  Source "set lst [list a b c d]\nlassign $lst x y z..."
+  Cmds 3, src 42, inst 61, litObjs 5, aux 0, stkDepth 3, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-21        2: pc 2-3, src 9-20
+      3: pc 6-59, src 23-40
+  Command 1: "set lst [list a b c d]..."
+    (0) push1 0 	# "lst"
+  Command 2: "list a b c d..."
+    (2) push1 1 	# "a b c d"
+    (4) storeStk 
+    (5) pop 
+  Command 3: "lassign $lst x y z..."
+    (6) push1 0 	# "lst"
+    (8) loadStk 
+    (9) push1 2 	# "x"
+    (11) over 1 
+    (16) listIndexImm 0 
+    (21) storeStk 
+    (22) pop 
+    (23) push1 3 	# "y"
+    (25) over 1 
+    (30) listIndexImm 1 
+    (35) storeStk 
+    (36) pop 
+    (37) push1 4 	# "z"
+    (39) over 1 
+    (44) listIndexImm 2 
+    (49) storeStk 
+    (50) pop 
+    (51) listRangeImm 3 end 
+    (60) done 
+

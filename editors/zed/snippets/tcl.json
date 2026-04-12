@@ -1,0 +1,201 @@
+{
+  "Tcl Proc": {
+    "prefix": "tcl-proc",
+    "description": "Create a Tcl procedure",
+    "body": [
+      "proc ${1:name} {${2:args}} {",
+      "    ${0:# body}",
+      "}"
+    ]
+  },
+  "Namespace Eval": {
+    "prefix": "tcl-namespace",
+    "description": "Create a namespace eval block",
+    "body": [
+      "namespace eval ${1::ns} {",
+      "    ${0:# body}",
+      "}"
+    ]
+  },
+  "Package Boilerplate": {
+    "prefix": "tcl-package",
+    "description": "Create package provide/require boilerplate",
+    "body": [
+      "package require Tcl ${1:8.6}",
+      "package provide ${2:pkgname} ${3:1.0}",
+      "",
+      "namespace eval ${4::${2}} {",
+      "    namespace export ${5:*}",
+      "}",
+      "",
+      "${0}"
+    ]
+  },
+  "OO Class": {
+    "prefix": "tcl-class",
+    "description": "Create an oo::class",
+    "body": [
+      "oo::class create ${1:ClassName} {",
+      "    constructor {${2:args}} {",
+      "        ${3:# init}",
+      "    }",
+      "",
+      "    method ${4:methodName} {${5:args}} {",
+      "        ${0:# body}",
+      "    }",
+      "}"
+    ]
+  },
+  "If Else": {
+    "prefix": "tcl-if",
+    "description": "Create braced if/else block",
+    "body": [
+      "if {${1:condition}} {",
+      "    ${2:# then}",
+      "} else {",
+      "    ${0:# else}",
+      "}"
+    ]
+  },
+  "Foreach": {
+    "prefix": "tcl-foreach",
+    "description": "Create a foreach loop",
+    "body": [
+      "foreach ${1:item} ${2:listVar} {",
+      "    ${0:# body}",
+      "}"
+    ]
+  },
+  "For Loop": {
+    "prefix": "tcl-for",
+    "description": "Create a for loop with braced expressions",
+    "body": [
+      "for {set ${1:i} 0} {\\$${1:i} < ${2:10}} {incr ${1:i}} {",
+      "    ${0:# body}",
+      "}"
+    ]
+  },
+  "Switch (safe --)": {
+    "prefix": "tcl-switch",
+    "description": "Create a switch block with -- option terminator",
+    "body": [
+      "switch -- ${1:value} {",
+      "    ${2:pattern} {",
+      "        ${3:# body}",
+      "    }",
+      "    default {",
+      "        ${0:# default}",
+      "    }",
+      "}"
+    ]
+  },
+  "Catch with Result": {
+    "prefix": "tcl-catch",
+    "description": "Create a catch pattern that preserves result and options",
+    "body": [
+      "if {[catch {",
+      "    ${1:# risky call}",
+      "} result opts]} {",
+      "    puts stderr \\$result",
+      "    return -code error -options \\$opts \\$result",
+      "}",
+      "${0}"
+    ]
+  },
+  "Try Trap": {
+    "prefix": "tcl-try",
+    "description": "Create a try/trap block",
+    "body": [
+      "try {",
+      "    ${1:# body}",
+      "} trap {${2:TCL} ${3:*}} {result opts} {",
+      "    ${0:# recovery}",
+      "}"
+    ]
+  },
+  "Dict For": {
+    "prefix": "tcl-dict-for",
+    "description": "Iterate key/value pairs in a dict",
+    "body": [
+      "dict for {${1:key} ${2:value}} ${3:dictVar} {",
+      "    ${0:# body}",
+      "}"
+    ]
+  },
+  "iRule RULE_INIT": {
+    "prefix": "irule-rule-init",
+    "description": "Initialise iRule static state",
+    "body": [
+      "when RULE_INIT {",
+      "    ${0:# one-time initialisation}",
+      "}"
+    ]
+  },
+  "iRule HTTP_REQUEST Skeleton": {
+    "prefix": "irule-http-request",
+    "description": "Create an HTTP_REQUEST handler with safe defaults",
+    "body": [
+      "when HTTP_REQUEST {",
+      "    set host [string tolower [HTTP::host]]",
+      "    set path [HTTP::path]",
+      "    set uri [HTTP::uri]",
+      "",
+      "    if {\\$debug} {",
+      "        log local0.debug \"HTTP_REQUEST host=\\$host path=\\$path\"",
+      "    }",
+      "",
+      "    ${0:# routing logic}",
+      "}"
+    ]
+  },
+  "iRule Redirect HTTP->HTTPS": {
+    "prefix": "irule-redirect-https",
+    "description": "Redirect HTTP traffic to HTTPS",
+    "body": [
+      "when HTTP_REQUEST {",
+      "    if {[TCP::local_port] == 80} {",
+      "        HTTP::redirect \"https://[HTTP::host][HTTP::uri]\"",
+      "        return",
+      "    }",
+      "",
+      "    ${0:# continue request handling}",
+      "}"
+    ]
+  },
+  "iRule Collect/Release Pair": {
+    "prefix": "irule-collect-release",
+    "description": "Collect payload and release in HTTP_REQUEST_DATA",
+    "body": [
+      "when HTTP_REQUEST {",
+      "    if {[HTTP::method] eq \"POST\"} {",
+      "        HTTP::collect ${1:1024}",
+      "        return",
+      "    }",
+      "",
+      "    ${2:# non-body handling}",
+      "}",
+      "",
+      "when HTTP_REQUEST_DATA {",
+      "    set payload [HTTP::payload]",
+      "    HTTP::release",
+      "    ${0:# payload handling}",
+      "}"
+    ]
+  },
+  "iRule Data Group Lookup": {
+    "prefix": "irule-class-lookup",
+    "description": "Lookup value from a data-group and route",
+    "body": [
+      "when HTTP_REQUEST {",
+      "    set host [string tolower [HTTP::host]]",
+      "    set pool_name [class match -value \\$host equals ${1:host_to_pool_dg}]",
+      "    if {\\$pool_name ne \"\"} {",
+      "        pool \\$pool_name",
+      "        return",
+      "    }",
+      "",
+      "    ${0:# fallback path}",
+      "}"
+    ]
+  }
+}

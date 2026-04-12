@@ -1,0 +1,23 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x17894640, refCt 1, epoch 0, interp 0x16c0d000 (epoch 0)
+  Source "proc greet {{name \"World\"} {greeting \"Hello\"}} {\n    re"
+  Cmds 2, src 143, inst 22, litObjs 7, aux 0, stkDepth 4, code/src 1.73
+  Code 248 = header 160+inst 22+litObj 56+exc 0+aux 0+cmdMap 8
+  Proc 0x1789dc40, refCt 1, args 0, compiled locals 0
+  Commands 2:
+      1: pc 0-10, src 0-80   	   2: pc 11-20, src 82-141
+  Command 1: "proc greet {{name \"World\"} {greeting \"Hello\"}} {\n    re"
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "greet"
+    (4) push1 2  	# "{name \"World\"} {greeting \"Hello\"}"
+    (6) push1 3  	# "\n    return \"$greeting, $name!\"\n"
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc compute {{a 1} {b 2} {c 3}} {\n    expr {$a + $b + "
+    (11) push1 0  	# "proc"
+    (13) push1 4  	# "compute"
+    (15) push1 5  	# "{a 1} {b 2} {c 3}"
+    (17) push1 6  	# "\n    expr {$a + $b + $c}\n"
+    (19) invokeStk1 4 
+    (21) done 

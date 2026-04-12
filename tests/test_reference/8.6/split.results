@@ -1,0 +1,28 @@
+TCLSH    /opt/homebrew/bin/tclsh8.6
+VERSION  8.6.17
+FILE     split.test
+DATE     2026-03-03T12:53:43Z
+---
+PASS split-1.1
+PASS split-1.10
+PASS split-1.11
+PASS split-1.12
+PASS split-1.13
+PASS split-1.14
+PASS split-1.15
+PASS split-1.2
+PASS split-1.3
+PASS split-1.4
+PASS split-1.5
+PASS split-1.6
+PASS split-1.7
+PASS split-1.8
+PASS split-1.9
+PASS split-2.1
+PASS split-2.2
+SKIP bug-c9f0520f7e slowTest
+---
+TOTAL   18
+PASSED  17
+SKIPPED 1
+FAILED  0

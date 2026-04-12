@@ -1,0 +1,24 @@
+{
+  "seed": 1772875125,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected number but got \"-728 997 yes wtdwkz -0.08 -684\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use a list as left operand of \"*\"\n    while executing\n\"expr {double((~($flag * -97)))}\"\n    (\"for\" body line 5)\n    invoked from within\n\"for {set flag 0} {$flag < 3} {incr flag} {\n    set flag {}\n    append flag 511\n    set flag {-728 997 yes wtdwkz -0.08 -684}\n    expr {double((~($flag...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp2i49i5s1.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "list-as-operand errors now propagate correctly",
+  "category": "list-as-operand"
+}

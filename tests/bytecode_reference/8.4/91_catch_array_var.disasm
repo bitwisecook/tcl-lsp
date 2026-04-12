@@ -1,0 +1,47 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x3d029000, refCt 1, epoch 0, interp 0x3cc0d000 (epoch 0)
+  Source "catch {set x 123} a(1)\ncatch {set x 3} ::foo\n"
+  Cmds 2, src 45, inst 18, litObjs 5, aux 0, stkDepth 3, code/src 5.16
+  Code 232 = header 160+inst 18+litObj 40+exc 0+aux 0+cmdMap 8
+  Proc 0x3d0c9c80, refCt 1, args 0, compiled locals 0
+  Commands 2:
+      1: pc 0-8, src 0-21   	   2: pc 9-16, src 23-43
+  Command 1: "catch {set x 123} a(1)"
+    (0) push1 0  	# "catch"
+    (2) push1 1  	# "set x 123"
+    (4) push1 2  	# "a(1)"
+    (6) invokeStk1 3 
+    (8) pop 
+  Command 2: "catch {set x 3} ::foo"
+    (9) push1 0  	# "catch"
+    (11) push1 3  	# "set x 3"
+    (13) push1 4  	# "::foo"
+    (15) invokeStk1 3 
+    (17) done 
+  Compiling: "set x 123"
+
+ByteCode 0x3ccd8380, refCt 1, epoch 0, interp 0x3cc0d000 (epoch 0)
+  Source "set x 123"
+  Cmds 1, src 9, inst 6, litObjs 2, aux 0, stkDepth 2, code/src 20.89
+  Code 188 = header 160+inst 6+litObj 16+exc 0+aux 0+cmdMap 4
+  Commands 1:
+      1: pc 0-4, src 0-8
+  Command 1: "set x 123"
+    (0) push1 0  	# "x"
+    (2) push1 1  	# "123"
+    (4) storeScalarStk 
+    (5) done 
+  Compiling: "set x 3"
+
+ByteCode 0x3ccd8460, refCt 1, epoch 0, interp 0x3cc0d000 (epoch 0)
+  Source "set x 3"
+  Cmds 1, src 7, inst 6, litObjs 2, aux 0, stkDepth 2, code/src 26.86
+  Code 188 = header 160+inst 6+litObj 16+exc 0+aux 0+cmdMap 4
+  Commands 1:
+      1: pc 0-4, src 0-6
+  Command 1: "set x 3"
+    (0) push1 0  	# "x"
+    (2) push1 1  	# "3"
+    (4) storeScalarStk 
+    (5) done 

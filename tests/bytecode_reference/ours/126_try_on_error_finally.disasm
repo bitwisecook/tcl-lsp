@@ -1,0 +1,30 @@
+ByteCode ::top, 14 instructions, 25 bytes, 10 literals, 0 variables
+  Literals:
+    0: "cleanup"
+    1: "0"
+    2: "try"
+    3: "\n    expr {1/0}\n"
+    4: "on"
+    5: "error"
+    6: "msg"
+    7: "\n    set err $msg\n"
+    8: "finally"
+    9: "\n    set cleanup 1\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "cleanup"
+    (2) push1 1	# "0"
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "try"
+    (8) push1 3	# "\n    expr {1/0}\n"
+    (10) push1 4	# "on"
+    (12) push1 5	# "error"
+    (14) push1 6	# "msg"
+    (16) push1 7	# "\n    set err $msg\n"
+    (18) push1 8	# "finally"
+    (20) push1 9	# "\n    set cleanup 1\n"
+    (22) invokeStk1 8	# try
+  # cmd_end_1:
+  # exit_2:
+    (24) done

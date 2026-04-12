@@ -1,0 +1,24 @@
+{
+  "seed": 1772875035,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"32.54\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"32.54\" as left operand of \"&\"\n    invoked from within\n\"expr {(abs(int(-68.50)) ** ((77 || $z) / max(1, abs((32.54 & -62)))))}\"\n    (\"while\" body line 11)\n    invoked from within\n\"while {$a < 1} {\n    set count {1 -72.14}\n    catch {\n        regexp \"[0-9]\" \":w68h0@\"\n        lindex {true 285 220 -389} 2\n        string trimright \"...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpqrp2lqx_.tcl\" line 9)"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

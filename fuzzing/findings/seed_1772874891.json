@@ -1,0 +1,24 @@
+{
+  "seed": 1772874891,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "negative shift argument",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {max(-96, ((-1 * -25) <= (-82 >> -95)))}\"\n    (\"for\" body line 47)\n    invoked from within\n\"for {set a 0} {$a < 1} {incr a} {\n    lsort {kyx -15.15 31.85 0 -293}\n    switch -- jbktwgoh {\n        18 {\n            append flag \"71dhn+\"\n         ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpr2v7h3j2.tcl\" line 82)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

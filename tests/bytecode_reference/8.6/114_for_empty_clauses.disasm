@@ -1,0 +1,34 @@
+ByteCode 0x0xba10ed610, refCt 1, epoch 17, interp 0x0xba101c010 (epoch 17)
+  Source "set i 0\nfor {} {$i < 10} {} {\n    incr i\n..."
+  Cmds 3, src 43, inst 30, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 2, depth 1:
+      0: level 0, loop, pc 11-14, continue 16, break 27
+      1: level 0, loop, pc 16-17, continue -1, break 27
+  Commands 3:
+      1: pc 0-5, src 0-6        2: pc 6-28, src 8-41
+      3: pc 11-14, src 34-39
+  Command 1: "set i 0..."
+    (0) push1 0 	# "i"
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "for {} {$i < 10} {} {\n    incr i\n..."
+    (6) nop 
+    (7) nop 
+    (8) nop 
+    (9) jump1 +10 	# pc 19
+  Command 3: "incr i..."
+    (11) push1 0 	# "i"
+    (13) incrStkImm +1 
+    (15) pop 
+    (16) nop 
+    (17) nop 
+    (18) nop 
+    (19) push1 0 	# "i"
+    (21) loadStk 
+    (22) push1 3 	# "10"
+    (24) lt 
+    (25) jumpTrue1 -14 	# pc 11
+    (27) push1 2 	# ""
+    (29) done 
+

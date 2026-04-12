@@ -1,0 +1,26 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x55084600, refCt 1, epoch 0, interp 0xb7ae10 (epoch 0)
+  Source "set x [regexp -nocase {hello} \"HELLO WORLD\"]\nset y [reg"
+  Cmds 4, src 87, inst 18, litObjs 4, aux 0, stkDepth 2, code/src 2.67
+  Code 232 = header 160+inst 18+litObj 32+exc 0+aux 0+cmdMap 16
+  Proc 0x550e1c80, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "x"
+      slot 1, scalar, "y"
+  Commands 4:
+      1: pc 0-8, src 0-43   	   2: pc 0-5, src 7-42
+      3: pc 9-16, src 45-85   	   4: pc 9-14, src 52-84
+  Command 1: "set x [regexp -nocase {hello} \"HELLO WORLD\"]"
+  Command 2: "regexp -nocase {hello} \"HELLO WORLD\""
+    (0) push1 0  	# "*hello*"
+    (2) push1 1  	# "HELLO WORLD"
+    (4) strmatch 1
+    (6) storeScalar1 0	# var "x"
+    (8) pop 
+  Command 3: "set y [regexp -nocase -- {^abc} \"ABCdef\"]"
+  Command 4: "regexp -nocase -- {^abc} \"ABCdef\""
+    (9) push1 2  	# "abc*"
+    (11) push1 3  	# "ABCdef"
+    (13) strmatch 1
+    (15) storeScalar1 1	# var "y"
+    (17) done 

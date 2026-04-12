@@ -1,0 +1,8 @@
+%YAML 1.2
+---
+# Tcl 8.4 dialect — selects tcl8.4 for LSP analysis
+name: Tcl 8.4
+scope: source.tcl
+version: 2
+
+extends: Tcl.sublime-syntax
