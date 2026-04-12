@@ -19,11 +19,14 @@ pub mod code_sinking;
 pub mod elimination;
 pub mod expr_simplify;
 pub mod helpers;
+pub mod manager;
 pub mod pattern_recognition;
 pub mod propagation;
 pub mod structure_elimination;
 pub mod tail_call;
 pub mod unused_procs;
+
+pub use manager::{optimise, optimise_raw, optimise_with_dialect};
 
 use std::collections::{HashMap, HashSet};
 
