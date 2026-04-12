@@ -1,17 +1,24 @@
 //! Optimiser passes — source-rewrite suggestions produced by
 //! analysing the compiled IR / CFG / SSA.
 //!
-//! Ported from `core/compiler/optimiser/` (C30). This strip lands
-//! the core types (`Optimisation`, `PassContext`, opt priorities)
-//! and a stub `run_passes` entry point. The ten individual passes
-//! — branch-folding, elimination, expr-simplify,
-//! pattern-recognition, propagation, structure-elimination,
-//! tail-call, unused-procs, code-sinking, and the manager — are
-//! follow-ups that plug into the landed SCCP / GVN / taint /
-//! interprocedural infrastructure.
+//! Ported from `core/compiler/optimiser/` (C30). This module
+//! owns the shared optimiser types (`Optimisation`,
+//! `PassContext`, opt priorities, `PassId`, `run_passes`) plus
+//! per-pass submodules. Pass bodies land as follow-up strips
+//! (C30a–j):
+//!
+//! - **C30a** — [`branch_folding`] — constant branch folding,
+//!   powered by SCCP's
+//!   [`ConstantBranch`](crate::sccp::ConstantBranch) output.
+//! - C30b–j — elimination, expr-simplify, pattern-recognition,
+//!   propagation, structure-elimination, tail-call, unused-procs,
+//!   code-sinking, and the manager — still stubbed.
+
+pub mod branch_folding;
 
 use tcl_lexer::Span;
 
+use crate::compilation_unit::CompilationUnit;
 use crate::interprocedural::InterproceduralAnalysis;
 
 // ---------------------------------------------------------------------------
@@ -179,13 +186,30 @@ impl PassId {
 /// Run a sequence of optimisation passes over `ctx`, accumulating
 /// diagnostics in `ctx.optimisations`.
 ///
-/// **Current status**: stub. The individual pass bodies are not
-/// wired up yet; this function accepts the API shape so callers
-/// can integrate the top-level entry point now. Follow-up strips
-/// will populate the per-pass implementations.
-pub fn run_passes(ctx: &mut PassContext<'_>, passes: &[PassId]) {
-    let _ = ctx;
-    let _ = passes;
+/// Dispatches each requested [`PassId`] to its landed pass body.
+/// Passes whose body has not landed yet are silently skipped —
+/// the caller's pass list stays stable as follow-up strips plug
+/// in.
+///
+/// Currently landed passes:
+///
+/// - [`PassId::BranchFolding`] → [`branch_folding::run`] (C30a).
+pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[PassId]) {
+    for pass in passes {
+        match pass {
+            PassId::BranchFolding => branch_folding::run(ctx, cu),
+            // Remaining passes are deferred follow-ups; see the
+            // module docs for the landing plan.
+            PassId::Elimination
+            | PassId::ExprSimplify
+            | PassId::PatternRecognition
+            | PassId::Propagation
+            | PassId::StructureElimination
+            | PassId::TailCall
+            | PassId::UnusedProcs
+            | PassId::CodeSinking => {}
+        }
+    }
 }
 
 #[cfg(test)]
@@ -229,9 +253,37 @@ mod tests {
     }
 
     #[test]
-    fn run_passes_stub_no_panic() {
-        let mut ctx = PassContext::new("", InterproceduralAnalysis::default());
-        run_passes(&mut ctx, &PassId::all());
+    fn run_passes_empty_source_produces_nothing() {
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for("", &registry, false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        run_passes(&mut ctx, &cu, &PassId::all());
+        assert!(ctx.optimisations.is_empty());
+    }
+
+    #[test]
+    fn run_passes_skips_deferred_passes_silently() {
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for("set x 1", &registry, false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        // Requesting only deferred passes must leave the
+        // context untouched.
+        run_passes(
+            &mut ctx,
+            &cu,
+            &[
+                PassId::Elimination,
+                PassId::ExprSimplify,
+                PassId::Propagation,
+                PassId::PatternRecognition,
+                PassId::StructureElimination,
+                PassId::TailCall,
+                PassId::UnusedProcs,
+                PassId::CodeSinking,
+            ],
+        );
         assert!(ctx.optimisations.is_empty());
     }
 }
