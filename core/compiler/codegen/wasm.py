@@ -1309,6 +1309,12 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                                 needed.add("tcl_array_element_exists")
                     if subcmd in ("body", "args", "exists"):
                         needed.add("tcl_info_dispatch")
+                    elif subcmd == "level":
+                        # Inline ``info level 0`` in a compiled proc
+                        # builds a list by ``tcl_append``-ing the
+                        # proc name + each param; pull in the helper
+                        # so the codegen's concat chain can reach it.
+                        needed.add("tcl_append")
                 elif cmd == "lassign":
                     needed.add("tcl_list_index")
                     needed.add("tcl_list_tail")
@@ -1562,6 +1568,11 @@ def _scan_needed_imports(
                                 needed.add("tcl_array_element_exists")
                     if args[0] in ("body", "args", "exists"):
                         needed.add("tcl_info_dispatch")
+                    elif args[0] == "level":
+                        # Inline ``info level 0`` builds a list via
+                        # the ``tcl_append`` concat-chain; see
+                        # ``_emit_info_value``.
+                        needed.add("tcl_append")
                 elif command == "lassign":
                     needed.add("tcl_list_index")
                     needed.add("tcl_list_tail")
@@ -2198,10 +2209,26 @@ class _WasmEmitter:
         proc_info = self._resolve_proc(cmd_name)
         if proc_info is not None:
             func_idx, n_params = proc_info
+            qname = self._resolve_proc_qname(cmd_name)
+            defaults = self._proc_defaults.get(qname, ()) if qname else ()
             for i in range(min(n_params, len(cmd_args))):
                 self._emit_value(cmd_args[i])
-            for _ in range(n_params - len(cmd_args)):
-                self._emit_default_arg()
+            # Missing args: emit the declared default (as a string
+            # literal so ``{foo bar}`` reaches the callee as the
+            # literal string), or fall back to a boxed-int 0 sentinel
+            # when no default was declared.  ``[outputChannel]`` with
+            # no args relies on this — without proper default
+            # handling, ``filename`` arrives as the integer TclObj 0
+            # rather than the ``""`` the ``proc outputChannel
+            # {{filename ""}}`` spec declares, making ``info level
+            # 0`` report a 2-element list and the no-args early-
+            # return check fail.
+            for slot in range(len(cmd_args), n_params):
+                default = defaults[slot] if slot < len(defaults) else None
+                if default is None:
+                    self._emit_default_arg()
+                else:
+                    self._emit_obj_literal(default)
             self._emit_call(func_idx)
             return
 
@@ -2497,12 +2524,18 @@ class _WasmEmitter:
         proc_info = self._resolve_proc(cmd_name)
         if proc_info is not None:
             func_idx, n_params = proc_info
-            # Push arguments as i32 TclObj pointers
+            qname = self._resolve_proc_qname(cmd_name)
+            defaults = self._proc_defaults.get(qname, ()) if qname else ()
             for i in range(min(n_params, len(cmd_args))):
                 self._emit_value(cmd_args[i])
-            # Pad missing args
-            for _ in range(n_params - len(cmd_args)):
-                self._emit_default_arg()
+            # Pad missing args with declared defaults (see the mirror
+            # comment in ``_emit_command_subst_value``).
+            for slot in range(len(cmd_args), n_params):
+                default = defaults[slot] if slot < len(defaults) else None
+                if default is None:
+                    self._emit_default_arg()
+                else:
+                    self._emit_obj_literal(default)
             self._emit_call(func_idx)
             # Result is i32 TclObj — unbox to i64 for expression context
             self._emit_unbox_int()
@@ -4739,6 +4772,53 @@ class _WasmEmitter:
             self._emit_i32_const(0)
             return
         subcmd = args[0]
+
+        # ``info level 0`` — return the current proc's invocation as
+        # a list (proc-name + all args).  tcltest's ``outputChannel``
+        # uses ``[llength [info level 0]] == 1`` as a "was I called
+        # without a filename arg?" check; without a real impl the
+        # runtime's ``info_dispatch`` returns empty, llength = 0, and
+        # the check falls through to the ``open $filename`` branch
+        # that traps on the unsupported ``open`` stub.
+        #
+        # We know the proc's param list at compile time, so emit a
+        # list whose length tracks the real invocation: one element
+        # per declared parameter, space-joined (elements aren't
+        # list-quoted because we only care about the llength here —
+        # callers that inspect element contents via ``lindex`` would
+        # need proper quoting; extend then).  The proc name itself
+        # is the first element.
+        if (
+            subcmd == "level"
+            and len(args) == 2
+            and args[1] == "0"
+            and self._is_proc
+            and self._proc_qname is not None
+        ):
+            append_idx = self._shared_imports.get("tcl_append")
+            # proc-name as the first word (use the unqualified tail
+            # rather than the fully qualified name — tcltest's
+            # ``outputChannel`` call-site compares against the
+            # command name a script would've used, not its
+            # namespace-qualified form).
+            tail = self._proc_qname.rsplit("::", 1)[-1] or self._proc_qname
+            self._emit_obj_literal(tail)
+            if append_idx is not None:
+                for pname in self._params:
+                    # Space separator + param value.
+                    self._emit_obj_literal(" ")
+                    self._emit_call(append_idx)
+                    # Read the local — parameters are the first
+                    # N locals in a compiled proc.
+                    idx = self._local_index.get(pname)
+                    if idx is None:
+                        # Shouldn't happen for param names, but fall
+                        # back to empty string.
+                        self._emit_obj_literal("")
+                    else:
+                        self._emit_local_get(idx)
+                    self._emit_call(append_idx)
+            return
 
         if subcmd == "exists" and len(args) >= 2:
             # ``info exists var`` — resolve the variable reference with

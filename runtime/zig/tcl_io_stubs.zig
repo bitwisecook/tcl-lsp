@@ -47,9 +47,13 @@ pub export fn tcl_cmd_eof(fd: i32) i32 {
     return 0;
 }
 
+/// ``flush`` — WASI's ``fd_write`` is synchronous and unbuffered
+/// from our side (we don't maintain a per-channel write buffer),
+/// so ``flush`` has nothing to do beyond succeed.  Returns empty
+/// string, matching Tcl semantics.  Without this ``cleanupTests``
+/// traps at ``flush [outputChannel]`` during its per-file wrap-up.
 pub export fn tcl_cmd_flush(fd: i32) i32 {
     _ = fd;
-    stubs.unsupported("flush");
     return 0;
 }
 

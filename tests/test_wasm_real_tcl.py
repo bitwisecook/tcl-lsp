@@ -1699,6 +1699,80 @@ class TestSwitchWithCommandSubst:
         assert stdout.strip() == "greet"
 
 
+class TestInfoLevel:
+    """``info level 0`` inside a compiled proc.
+
+    Returns the proc's current invocation as a list whose first
+    element is the proc name and the rest are the parameter
+    values.  This unblocks tcltest's ``outputChannel`` /
+    ``errorChannel`` checks (``[llength [info level 0]] == 1``
+    means "called with no args") — without a working impl,
+    ``llength`` sees an empty string, returns 0, and the compiled
+    body falls through to the ``open $filename`` branch that traps
+    on our unsupported ``open`` stub during ``cleanupTests``.
+    """
+
+    def test_info_level_zero_reports_no_args(self):
+        source = (
+            'proc foo {{filename ""}} {\n'
+            "    if {[llength [info level 0]] == 1} {\n"
+            "        puts no-args\n"
+            "    } else {\n"
+            "        puts with-args\n"
+            "    }\n"
+            "}\n"
+            "foo\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "no-args"
+
+    def test_info_level_zero_with_args(self):
+        source = 'proc foo {{filename ""}} {\n    puts "l=[llength [info level 0]]"\n}\nfoo hello\n'
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "l=2"
+
+
+class TestProcDefaultsInCallSubst:
+    """Procs called via ``[name]`` in command-substitution context.
+
+    ``[outputChannel]`` with no args should receive the declared
+    default value (empty string for ``{{filename ""}}``), not a
+    boxed-integer 0 sentinel.  Without the declared-default fix,
+    ``filename`` inside ``outputChannel`` was the integer TclObj
+    0, making ``[info level 0]`` report a 2-element list and
+    forcing the compiled body into the ``open $filename`` default
+    branch that trapped on our unsupported ``open`` stub during
+    tcltest's ``cleanupTests``.
+    """
+
+    def test_default_empty_string_reaches_callee(self):
+        # Use ``string length`` rather than ``eq ""``/``eq {}`` —
+        # our string-equality operator has a separate gap when
+        # comparing against empty-string literals that this test
+        # would otherwise trip on.
+        source = (
+            'proc foo {{filename ""}} {\n'
+            "    if {[string length $filename] == 0} {\n"
+            "        puts empty\n"
+            "    } else {\n"
+            '        puts "value=<$filename>"\n'
+            "    }\n"
+            "}\n"
+            "puts [foo]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert "empty" in stdout.splitlines()
+
+    def test_default_literal_reaches_callee(self):
+        source = 'proc greet {{name world}} {\n    puts "hello $name"\n}\nset msg [greet]\n'
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "hello world"
+
+
 class TestVariadicArgs:
     """Tcl ``proc … args {…}`` variadic-tail support.
 
