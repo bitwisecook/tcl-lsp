@@ -990,6 +990,76 @@ return [main]
         assert val == 111
 
 
+class TestUplevel:
+    """``uplevel`` runs a script in a caller's scope.
+
+    Compiled procs don't currently push frames, so in a fully-compiled
+    call chain ``uplevel 1`` and ``uplevel #0`` both resolve to global
+    scope — matching ``#0`` semantics.  Scripts that need true
+    caller-frame semantics require a caller that's running through the
+    interpreter (which does push a frame).
+    """
+
+    def test_uplevel_hash0_set_global(self):
+        """uplevel #0 {set X V} — writes the global X."""
+        source = """\
+proc setup {} {
+    uplevel #0 {set ::g 42}
+}
+proc main {} {
+    setup
+    return $::g
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 42
+
+    def test_uplevel_hash0_complex_script(self):
+        """uplevel #0 with a multi-command script that the tiny embedded
+        interpreter can execute (no ``$::ns``-in-expr traps).
+        """
+        source = """\
+proc prep {} {
+    uplevel #0 {
+        set ::a 10
+        set ::b 20
+        set ::c 30
+    }
+}
+proc main {} {
+    prep
+    return [expr {$::a + $::b + $::c}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 60
+
+    def test_uplevel_default_level(self):
+        """``uplevel {set X V}`` with no level defaults to 1.
+
+        In a fully-compiled chain this still degrades to global since
+        no frames are pushed — sufficient for scripts that use uplevel
+        to simulate macros on globals.
+        """
+        source = """\
+proc mkglob {name val} {
+    uplevel "set ::$name $val"
+}
+proc main {} {
+    mkglob myvar 99
+    return $::myvar
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 99
+
+
 class TestUpvarCompilation:
     """Upvar/variable compilation tests — validate without execution."""
 

@@ -88,6 +88,8 @@ pub const continue_flag = &tcl_catch.continue_flag;
 pub const frame_push = tcl_frames.frame_push;
 pub const frame_pop = tcl_frames.frame_pop;
 pub const frame_alias_global = tcl_frames.frame_alias_global;
+pub const frame_depth_stash = tcl_frames.frame_depth_stash;
+pub const frame_depth_restore = tcl_frames.frame_depth_restore;
 pub const var_resolve = tcl_frames.var_resolve;
 pub const var_set = tcl_frames.var_set;
 pub const var_exists = tcl_frames.var_exists;
@@ -196,6 +198,8 @@ comptime {
     _ = &tcl_frames.frame_push;
     _ = &tcl_frames.frame_pop;
     _ = &tcl_frames.frame_get_depth;
+    _ = &tcl_frames.frame_depth_stash;
+    _ = &tcl_frames.frame_depth_restore;
     _ = &tcl_frames.local_set;
     _ = &tcl_frames.local_get;
     _ = &tcl_frames.local_exists;

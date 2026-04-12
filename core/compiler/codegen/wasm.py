@@ -745,6 +745,15 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_clock_seconds": ("tcl", "clock_seconds", [], [ValType.I32]),
     "tcl_clock_clicks": ("tcl", "clock_clicks", [], [ValType.I32]),
     "tcl_clock_milliseconds": ("tcl", "clock_milliseconds", [], [ValType.I32]),
+    # Frame-depth helpers for uplevel — temporarily shift frame_depth
+    # so a called ``tcl_eval`` runs at a caller's scope.
+    "tcl_frame_depth_stash": (
+        "tcl",
+        "frame_depth_stash",
+        [ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_frame_depth_restore": ("tcl", "frame_depth_restore", [ValType.I32], []),
     # Arrays — dedicated per-array hash tables.
     "tcl_array_set": (
         "tcl",
@@ -1043,6 +1052,10 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     key = _CLOCK_SUBCMD_IMPORT.get(parts[1])
                     if key is not None:
                         needed.add(key)
+                elif cmd == "uplevel":
+                    needed.add("tcl_eval")
+                    needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_restore")
                 elif cmd == "array" and len(parts) > 1:
                     sub = parts[1]
                     if sub == "exists":
@@ -1098,6 +1111,19 @@ def _scan_needed_imports(
             needed.add("tcl_append")
         # ``$arr(key)`` references need tcl_array_get at codegen time.
         _scan_value_for_array_refs(value)
+        # Pure ``$::ns::var`` / ``${::ns::var}`` references read through
+        # the global table.
+        if "::" in value and ("$" in value or value.startswith("::")):
+            # Conservative: request global_get whenever the value might
+            # resolve to a ``::``-qualified name.  False positives just
+            # over-import; they don't break correctness.
+            inner = value
+            if inner.startswith("${") and inner.endswith("}"):
+                inner = inner[2:-1]
+            elif inner.startswith("$"):
+                inner = inner[1:]
+            if inner.startswith("::"):
+                needed.add("tcl_global_get")
 
     def _scan_expr(expr: object) -> None:
         """Walk an expression AST and scan ExprCommand nodes."""
@@ -1107,11 +1133,19 @@ def _scan_needed_imports(
             ExprCommand,
             ExprTernary,
             ExprUnary,
+            ExprVar,
         )
 
         match expr:
             case ExprCommand(text=text):
                 _scan_text_for_cmd_subst(text, needed)
+            case ExprVar(name=name, text=text):
+                # ``$::ns::var`` in an expression reads from the global
+                # table; ``$arr(key)`` reads via tcl_array_get.
+                if name.startswith("::"):
+                    needed.add("tcl_global_get")
+                if "(" in text and text.endswith(")"):
+                    needed.add("tcl_array_get")
             case ExprBinary(op=op, left=left, right=right):
                 if op in (BinOp.STR_EQ, BinOp.STR_EQUALS, BinOp.STR_NE):
                     needed.add("tcl_string_equal")
@@ -1238,6 +1272,21 @@ def _scan_needed_imports(
                         needed.add(key)
                 elif command == "array" and args:
                     _scan_array_subcmd(args)
+                elif command == "uplevel":
+                    needed.add("tcl_eval")
+                    needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_restore")
+                    # Multi-word bodies concat with spaces; also each body
+                    # part is run through _emit_value which may need
+                    # tcl_append for interpolated strings.
+                    for arg in args:
+                        _scan_value(arg)
+                    if len(args) > 2 or (
+                        len(args) > 1
+                        and not args[0].startswith(("#", "-"))
+                        and not args[0].lstrip("-").isdigit()
+                    ):
+                        needed.add("tcl_append")
                 elif command == "unset":
                     for a in args:
                         if _parse_array_ref(a) is not None:
@@ -1277,6 +1326,17 @@ def _scan_needed_imports(
                     _scan_value(value)
                 if expr is not None:
                     _scan_expr(expr)
+            case IRBarrier(command=barrier_cmd, args=barrier_args):
+                # Eval-fallback path always needs tcl_eval.
+                needed.add("tcl_eval")
+                if barrier_cmd == "uplevel":
+                    needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_restore")
+                    # The body may contain ``$var``/``[cmd]`` references
+                    # that have to be resolved BEFORE eval — scan for
+                    # interpolation helpers.
+                    for arg in barrier_args:
+                        _scan_value(arg)
             case IRIf(clauses=clauses, else_body=else_body):
                 for clause in clauses:
                     _scan_expr(clause.condition)
@@ -1784,6 +1844,11 @@ class _WasmEmitter:
             self._emit_array_subcmd_value(tuple(cmd_args))
             return
 
+        # uplevel in value context.
+        if cmd_name == "uplevel" and cmd_args:
+            self._emit_cmd_uplevel(tuple(cmd_args))
+            return
+
         # Runtime command in value context (llength, lindex, etc.)
         if cmd_name in _CMD_RUNTIME:
             import_key, _ = _CMD_RUNTIME[cmd_name]
@@ -2068,6 +2133,12 @@ class _WasmEmitter:
         # array subcommand in expression context.
         if cmd_name == "array" and cmd_args:
             self._emit_array_subcmd_value(tuple(cmd_args))
+            self._emit_unbox_int()
+            return
+
+        # uplevel in expression context.
+        if cmd_name == "uplevel" and cmd_args:
+            self._emit_cmd_uplevel(tuple(cmd_args))
             self._emit_unbox_int()
             return
 
@@ -2589,8 +2660,14 @@ class _WasmEmitter:
 
             case IRBarrier(command=barrier_cmd, args=barrier_args, reason=reason):
                 # Barriers are dynamic commands (eval, uplevel, etc.)
-                # that defeat static analysis — fall back to interpreter.
-                if barrier_cmd:
+                # that defeat static analysis.  ``uplevel`` has a dedicated
+                # emitter that runs at a caller's scope via the runtime
+                # frame-depth shift helpers; other barriers fall back to
+                # the plain interpreter eval.
+                if barrier_cmd == "uplevel" and barrier_args:
+                    self._emit_cmd_uplevel(barrier_args)
+                    self._emit(WasmOp.DROP)
+                elif barrier_cmd:
                     self._emit_eval_fallback(barrier_cmd, barrier_args)
                     self._emit(WasmOp.DROP)
                 else:
@@ -2746,6 +2823,16 @@ class _WasmEmitter:
         # clock seconds / clicks / milliseconds — WASI-backed timer.
         if command == "clock" and args:
             self._emit_clock_value(args)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
+
+        # uplevel ?level? body — run script in a caller's scope.
+        if command == "uplevel" and args:
+            self._emit_cmd_uplevel(args)
             if defs:
                 def_idx = self._intern_local(defs[0])
                 self._emit_local_set(def_idx)
@@ -2976,6 +3063,11 @@ class _WasmEmitter:
         # array subcommand in tail position — keep result on stack
         if command == "array" and args:
             self._emit_array_subcmd_value(args)
+            return
+
+        # uplevel in tail position — keep eval result on stack.
+        if command == "uplevel" and args:
+            self._emit_cmd_uplevel(args)
             return
 
         # string sub-commands — keep result on stack
@@ -3292,7 +3384,10 @@ class _WasmEmitter:
             # Caller-frame aliasing not yet implemented — trap with a
             # clear message rather than silently mis-compiling.
             self._emit_unsupported_trap(
-                f"upvar level {level_spec} (only #0 is supported in compiled procs)"
+                f"upvar level {level_spec} — compiled procs only support #0 "
+                "(global alias).  Caller-frame aliasing (upvar N) needs "
+                "the frame-pushing variant of compiled procs; use uplevel "
+                "to run code in the caller instead."
             )
             return
 
@@ -3601,6 +3696,133 @@ class _WasmEmitter:
             self._emit_call(fidx)
             self._emit(WasmOp.DROP)
         return had_array
+
+    def _emit_cmd_uplevel(self, args: tuple[str, ...]) -> None:
+        """``uplevel ?level? body`` — evaluate script in a caller's frame.
+
+        ``level`` defaults to ``1``.  ``#0`` means absolute global
+        scope; ``#N`` means N frames above global (Tcl only really
+        uses ``#0``); a bare integer N means N frames up relative to
+        the current frame.
+
+        We emit:
+            saved = frame_depth_stash(up)
+            result = tcl_eval(body)
+            frame_depth_restore(saved)
+
+        ``frame_depth_stash`` clamps the shift at frame 0 so invalid
+        levels degrade to global-scope eval rather than trapping.  If
+        the caller chain is entirely compiled (no frames pushed), this
+        is effectively a no-op and the eval runs at global scope — the
+        ``#0`` behaviour Tcl scripts most commonly use.
+
+        Multiple bodies concatenated as separate words (``uplevel 1 a b c``)
+        are joined with spaces to form the script, matching Tcl's
+        semantics of "concat all remaining arguments into a single
+        script".
+        """
+        if not args:
+            self._emit_i32_const(0)
+            return
+        # Parse the level specifier.  ``#0`` → absolute 0 which clamps
+        # to global; a bare integer N → relative N; anything else means
+        # no level, default 1, and args[0] is the first body word.
+        level_spec = args[0]
+        up: int
+        body_start = 1
+        if level_spec.startswith("#"):
+            try:
+                abs_level = int(level_spec[1:])
+                # "#N means N frames above global".  We approximate by
+                # stashing all the way to that absolute depth; frame_depth_stash
+                # subtracts, so ``up`` is (current_depth - abs_level), which
+                # we can't know at compile time.  For the common #0 case
+                # we stash "all the way" by passing a large relative shift.
+                up = 0 if abs_level == 0 else 1
+            except ValueError:
+                up = 1
+        else:
+            try:
+                up = int(level_spec)
+                # Numeric → relative.
+            except ValueError:
+                # Not a level — arg0 is part of the body.
+                up = 1
+                body_start = 0
+        if body_start >= len(args):
+            self._emit_i32_const(0)
+            return
+
+        body_parts = list(args[body_start:])
+
+        eval_idx = self._shared_imports.get("tcl_eval")
+        stash_idx = self._shared_imports.get("tcl_frame_depth_stash")
+        restore_idx = self._shared_imports.get("tcl_frame_depth_restore")
+        if eval_idx is None or stash_idx is None or restore_idx is None:
+            # Missing runtime helpers — fall back to plain eval, which
+            # still works for compiled-to-compiled chains where
+            # frame_depth is 0 throughout.
+            self._emit_uplevel_body(body_parts)
+            if eval_idx is not None:
+                self._emit_call(eval_idx)
+            else:
+                self._emit_i32_const(0)
+            return
+
+        # For ``#0`` we pass a large shift (INT32_MAX / 2) so
+        # frame_depth_stash clamps to zero regardless of the actual depth.
+        shift = 0x3FFF_FFFF if level_spec == "#0" else up
+        saved_local = self._add_extra_local(prefix="_uplevel_saved", val_type=ValType.I32)
+
+        self._emit_i32_const(shift)
+        self._emit_call(stash_idx)
+        self._emit_local_set(saved_local)
+
+        self._emit_uplevel_body(body_parts)
+        self._emit_call(eval_idx)
+        # Result TclObj is on stack; stash temporarily so we can restore.
+        result_local = self._add_extra_local(prefix="_uplevel_result", val_type=ValType.I32)
+        self._emit_local_set(result_local)
+
+        self._emit_local_get(saved_local)
+        self._emit_call(restore_idx)
+
+        self._emit_local_get(result_local)
+
+    def _emit_uplevel_body(self, parts: list[str]) -> None:
+        """Push the uplevel body as a single TclObj, resolving any
+        ``$var``/``[cmd]`` substitutions the parts contain before
+        handing the final string to ``tcl_eval``.
+
+        Typical cases:
+          - ``uplevel #0 {set ::g 42}``  — parts = ["set ::g 42"], a
+            literal script.  Emitted as an obj_literal.
+          - ``uplevel "set ::$name $val"`` — parts = ["set ::$name $val"],
+            an interpolated string.  Emitted via ``_emit_value`` so the
+            concat chain resolves ``$name``/``$val`` before eval.
+          - ``uplevel 1 a b c`` — parts = ["a","b","c"], Tcl concat-join
+            with spaces.  Each part is resolved and joined.
+        """
+        if not parts:
+            self._emit_obj_literal("")
+            return
+        if len(parts) == 1:
+            self._emit_value(parts[0])
+            return
+        # Multi-part: emit each value obj and concat with spaces.
+        # Simplest: use _emit_value for each and chain tcl_append.
+        append_idx = self._shared_imports.get("tcl_append")
+        if append_idx is None:
+            # No concat helper — best-effort: fall back to the first part
+            # (typical callers supply a single braced script).
+            self._emit_value(parts[0])
+            return
+        self._emit_value(parts[0])
+        for part in parts[1:]:
+            self._emit_obj_literal(" ")
+            self._emit_call(append_idx)
+            self._emit_value(part)
+            self._emit_call(append_idx)
 
     def _emit_clock_value(self, args: tuple[str, ...]) -> None:
         """Emit a ``clock <subcmd>`` expression; leaves i32 TclObj on stack.
