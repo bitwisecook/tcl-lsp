@@ -36,7 +36,7 @@
 use bitflags::bitflags;
 
 use tcl_registry::prelude::StorageType as RegistryStorageType;
-use tcl_registry::CommandRegistry;
+use tcl_registry::{CommandRegistry, Traits};
 
 // ---------------------------------------------------------------------------
 // StorageType — data shape of a target
@@ -577,6 +577,242 @@ impl CommandSideEffects {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Classification (C23d)
+// ---------------------------------------------------------------------------
+
+/// Optional summary of a procedure's side effects, provided by
+/// interprocedural analysis. When supplied to
+/// [`classify_side_effects`], it bypasses registry-based classification
+/// and the summary's effect regions are translated directly into
+/// [`CommandSideEffects`]. Mirrors the `callee_summary` shim in
+/// `core/compiler/side_effects.py`.
+#[derive(Debug, Clone, Copy)]
+pub struct CalleeSummary {
+    /// Coarse regions read by the callee.
+    pub effect_reads: EffectRegion,
+    /// Coarse regions written by the callee.
+    pub effect_writes: EffectRegion,
+    /// Whether the callee is pure overall.
+    pub pure: bool,
+}
+
+impl Default for CalleeSummary {
+    fn default() -> Self {
+        Self {
+            effect_reads: EffectRegion::NONE,
+            effect_writes: EffectRegion::NONE,
+            pure: false,
+        }
+    }
+}
+
+/// Classify the side effects of a command invocation.
+///
+/// Combines registry metadata with argument inspection to produce a
+/// structured [`CommandSideEffects`] describing what the command
+/// reads and writes, in what scope, and on which connection side.
+///
+/// When `callee_summary` is `Some`, registry-based classification is
+/// skipped and the summary's effect regions are translated directly
+/// into effects — see [`classify_from_callee_summary`].
+///
+/// This is a focused port of the Python classifier. The registry
+/// traits consulted today are `PURE`, `PURE_EVALUATION`,
+/// `EVALUATES_CODE`, `CREATES_BARRIER`, `DEFINES_PROCEDURE`, and
+/// `DESTROYS_VARIABLE`, plus the spec-level `assigns_variable_at`
+/// field. Subcommand-form resolution, structured
+/// `side_effect_hints`, and protocol-namespace classification
+/// (`HTTP::`, `SSL::`, …) are left as follow-ups.
+#[must_use]
+pub fn classify_side_effects(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+    dialect: Option<&str>,
+    callee_summary: Option<&CalleeSummary>,
+) -> CommandSideEffects {
+    if let Some(summary) = callee_summary {
+        return classify_from_callee_summary(summary, dialect);
+    }
+
+    let Some(spec) = registry.get(command) else {
+        return fallback_unknown_write(dialect);
+    };
+
+    // Dynamic-dispatch commands are barriers.
+    if spec
+        .traits
+        .intersects(Traits::EVALUATES_CODE | Traits::CREATES_BARRIER)
+    {
+        return CommandSideEffects {
+            effects: vec![SideEffect::new(SideEffectTarget::Unknown, true, true)],
+            dynamic_barrier: true,
+            dialect: dialect.map(str::to_owned),
+            ..CommandSideEffects::default()
+        };
+    }
+
+    // Pure evaluation (expr when braced) is always pure.
+    if spec.traits.contains(Traits::PURE_EVALUATION) || spec.traits.contains(Traits::PURE) {
+        return CommandSideEffects {
+            pure: true,
+            deterministic: true,
+            dialect: dialect.map(str::to_owned),
+            ..CommandSideEffects::default()
+        };
+    }
+
+    // Variable-assigning commands (`set`, `incr`, `append`, `lappend`, …).
+    if let Some(idx) = spec.assigns_variable_at {
+        let idx = usize::from(idx);
+        if idx < args.len() {
+            return classify_variable_assignment(registry, command, args, idx, spec.traits, dialect);
+        }
+        return CommandSideEffects {
+            effects: vec![SideEffect::new(SideEffectTarget::Variable, true, true)],
+            dialect: dialect.map(str::to_owned),
+            ..CommandSideEffects::default()
+        };
+    }
+
+    // Procedure definition (`proc`).
+    if spec.traits.contains(Traits::DEFINES_PROCEDURE) {
+        let mut e = SideEffect::new(SideEffectTarget::ProcDefinition, false, true);
+        e.scope = StorageScope::Namespace;
+        e.dialect = dialect.map(str::to_owned);
+        return CommandSideEffects {
+            effects: vec![e],
+            dialect: dialect.map(str::to_owned),
+            ..CommandSideEffects::default()
+        };
+    }
+
+    // Destroys a variable (`unset`).
+    if spec.traits.contains(Traits::DESTROYS_VARIABLE) {
+        let mut e = SideEffect::new(SideEffectTarget::Variable, false, true);
+        if let Some(first) = args.first() {
+            let (scope, ns) = scope_from_varname(first);
+            e.scope = scope;
+            e.namespace = ns;
+            e.key = Some(first.clone());
+        }
+        e.dialect = dialect.map(str::to_owned);
+        return CommandSideEffects {
+            effects: vec![e],
+            dialect: dialect.map(str::to_owned),
+            ..CommandSideEffects::default()
+        };
+    }
+
+    // Fallback: conservative unknown read+write.
+    fallback_unknown_write(dialect)
+}
+
+/// Translate an interprocedural [`CalleeSummary`] into a
+/// [`CommandSideEffects`]. Mirrors the `callee_summary` branch in
+/// the Python `_classify_side_effects_impl`.
+fn classify_from_callee_summary(
+    summary: &CalleeSummary,
+    dialect: Option<&str>,
+) -> CommandSideEffects {
+    let reads = summary.effect_reads;
+    let writes = summary.effect_writes;
+    let commits = writes.contains(EffectRegion::RESPONSE_LIFECYCLE);
+    let mut effects = Vec::new();
+
+    if reads.contains(EffectRegion::HTTP_STATE) || writes.contains(EffectRegion::HTTP_STATE) {
+        effects.push(SideEffect::new(
+            SideEffectTarget::HttpHeader,
+            reads.contains(EffectRegion::HTTP_STATE),
+            writes.contains(EffectRegion::HTTP_STATE),
+        ));
+    }
+    if commits {
+        effects.push(SideEffect::new(SideEffectTarget::ResponseCommit, false, true));
+    }
+    if writes.contains(EffectRegion::GLOBAL_STATE) {
+        let mut e = SideEffect::new(SideEffectTarget::Variable, false, true);
+        e.scope = StorageScope::Global;
+        effects.push(e);
+    }
+    if writes.contains(EffectRegion::UNKNOWN_STATE) {
+        effects.push(SideEffect::new(SideEffectTarget::Unknown, true, true));
+    }
+    if effects.is_empty() && !summary.pure {
+        effects.push(SideEffect::new(SideEffectTarget::Unknown, true, true));
+    }
+
+    CommandSideEffects {
+        effects,
+        pure: summary.pure,
+        deterministic: summary.pure,
+        dynamic_barrier: false,
+        dialect: dialect.map(str::to_owned),
+    }
+}
+
+/// Build a `SideEffect` for a command that assigns a variable at
+/// position `idx`. Applies the Python heuristics for:
+///
+/// - Read-before-write commands (`incr`, `append`, `lappend`) always
+///   read and write.
+/// - `set x` (single var, no value) is a read; `set x v` is a write.
+/// - iRules context: `static::` targets use `ConnectionSide::Global`;
+///   proc-local targets use `ConnectionSide::Both`.
+fn classify_variable_assignment(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+    idx: usize,
+    traits: Traits,
+    dialect: Option<&str>,
+) -> CommandSideEffects {
+    let varname = &args[idx];
+    let (scope, ns) = scope_from_varname(varname);
+    let st = storage_type_for_command(registry, command, args);
+    let rmw = traits.contains(Traits::READS_BEFORE_WRITE);
+
+    // When there is only the variable name and no value, it's a read
+    // (`set x`); otherwise it's a write. Read-modify-write commands
+    // always write even with one arg.
+    let is_write = args.len() > idx + 1 || rmw;
+    let is_read = rmw || args.len() == idx + 1;
+
+    let is_irules = matches!(dialect, Some("irules" | "f5-irules"));
+    let side = if is_irules {
+        match scope {
+            StorageScope::Static => ConnectionSide::Global,
+            StorageScope::ProcLocal => ConnectionSide::Both,
+            _ => ConnectionSide::None,
+        }
+    } else {
+        ConnectionSide::None
+    };
+
+    let mut effect = SideEffect::new(SideEffectTarget::Variable, is_read, is_write);
+    effect.storage_type = st;
+    effect.scope = scope;
+    effect.connection_side = side;
+    effect.namespace = ns;
+    effect.dialect = dialect.map(str::to_owned);
+    effect.key = Some(varname.clone());
+
+    CommandSideEffects {
+        effects: vec![effect],
+        dialect: dialect.map(str::to_owned),
+        ..CommandSideEffects::default()
+    }
+}
+
+fn fallback_unknown_write(dialect: Option<&str>) -> CommandSideEffects {
+    CommandSideEffects {
+        effects: vec![SideEffect::new(SideEffectTarget::Unknown, true, true)],
+        dialect: dialect.map(str::to_owned),
+        ..CommandSideEffects::default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -804,6 +1040,171 @@ mod tests {
             storage_type_for_command(&registry, "array", &args),
             StorageType::Array
         );
+    }
+
+    // -- C23d: classify_side_effects --
+
+    #[test]
+    fn classify_pure_expr() {
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(&registry, "expr", &["{1 + 2}".into()], None, None);
+        assert!(cse.pure);
+        assert!(cse.deterministic);
+        assert!(cse.effects.is_empty());
+    }
+
+    #[test]
+    fn classify_set_write() {
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(
+            &registry,
+            "set",
+            &["x".into(), "42".into()],
+            None,
+            None,
+        );
+        assert!(!cse.pure);
+        assert!(cse.writes_any());
+        assert!(!cse.reads_any());
+        let eff = &cse.effects[0];
+        assert_eq!(eff.target, SideEffectTarget::Variable);
+        assert_eq!(eff.scope, StorageScope::ProcLocal);
+        assert_eq!(eff.key.as_deref(), Some("x"));
+    }
+
+    #[test]
+    fn classify_set_read_when_no_value() {
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(&registry, "set", &["x".into()], None, None);
+        assert!(cse.reads_any());
+        assert!(!cse.writes_any());
+    }
+
+    #[test]
+    fn classify_incr_is_read_modify_write() {
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(&registry, "incr", &["i".into()], None, None);
+        // incr always reads AND writes (READS_BEFORE_WRITE trait).
+        assert!(cse.reads_any());
+        assert!(cse.writes_any());
+    }
+
+    #[test]
+    fn classify_global_scope_variable() {
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(
+            &registry,
+            "set",
+            &["::foo::bar".into(), "v".into()],
+            None,
+            None,
+        );
+        let eff = &cse.effects[0];
+        assert_eq!(eff.scope, StorageScope::Namespace);
+        assert_eq!(eff.namespace.as_deref(), Some("::foo"));
+    }
+
+    #[test]
+    fn classify_irules_static_uses_global_connection_side() {
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(
+            &registry,
+            "set",
+            &["static::counter".into(), "0".into()],
+            Some("irules"),
+            None,
+        );
+        let eff = &cse.effects[0];
+        assert_eq!(eff.scope, StorageScope::Static);
+        assert_eq!(eff.connection_side, ConnectionSide::Global);
+    }
+
+    #[test]
+    fn classify_irules_proc_local_uses_both_side() {
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(
+            &registry,
+            "set",
+            &["local".into(), "0".into()],
+            Some("irules"),
+            None,
+        );
+        let eff = &cse.effects[0];
+        assert_eq!(eff.connection_side, ConnectionSide::Both);
+    }
+
+    #[test]
+    fn classify_eval_is_dynamic_barrier() {
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(&registry, "eval", &["script".into()], None, None);
+        assert!(cse.dynamic_barrier);
+        let (_, w) = cse.to_effect_regions();
+        assert!(w.contains(EffectRegion::UNKNOWN_STATE));
+    }
+
+    #[test]
+    fn classify_proc_is_procedure_definition() {
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(
+            &registry,
+            "proc",
+            &["foo".into(), "{}".into(), "{}".into()],
+            None,
+            None,
+        );
+        let eff = &cse.effects[0];
+        assert_eq!(eff.target, SideEffectTarget::ProcDefinition);
+        assert!(eff.writes);
+        assert_eq!(eff.scope, StorageScope::Namespace);
+    }
+
+    #[test]
+    fn classify_unknown_command_is_conservative() {
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(&registry, "__nonexistent", &[], None, None);
+        assert!(cse.reads_any());
+        assert!(cse.writes_any());
+        assert_eq!(cse.effects[0].target, SideEffectTarget::Unknown);
+    }
+
+    #[test]
+    fn callee_summary_http_read_emits_http_header_effect() {
+        let registry = CommandRegistry::build_default();
+        let summary = CalleeSummary {
+            effect_reads: EffectRegion::HTTP_STATE,
+            effect_writes: EffectRegion::NONE,
+            pure: false,
+        };
+        let cse = classify_side_effects(&registry, "doesnt_matter", &[], None, Some(&summary));
+        assert!(cse.affects_target(SideEffectTarget::HttpHeader));
+        assert!(cse.reads_target(SideEffectTarget::HttpHeader));
+        assert!(!cse.writes_target(SideEffectTarget::HttpHeader));
+    }
+
+    #[test]
+    fn callee_summary_response_commit_sets_write() {
+        let registry = CommandRegistry::build_default();
+        let summary = CalleeSummary {
+            effect_reads: EffectRegion::NONE,
+            effect_writes: EffectRegion::RESPONSE_LIFECYCLE | EffectRegion::HTTP_STATE,
+            pure: false,
+        };
+        let cse = classify_side_effects(&registry, "doesnt_matter", &[], None, Some(&summary));
+        assert!(cse.writes_target(SideEffectTarget::ResponseCommit));
+    }
+
+    #[test]
+    fn callee_summary_pure_bypass_registry() {
+        let registry = CommandRegistry::build_default();
+        let summary = CalleeSummary {
+            effect_reads: EffectRegion::NONE,
+            effect_writes: EffectRegion::NONE,
+            pure: true,
+        };
+        let cse = classify_side_effects(&registry, "doesnt_matter", &[], None, Some(&summary));
+        assert!(cse.pure);
+        assert!(cse.deterministic);
+        assert!(cse.effects.is_empty());
     }
 
     #[test]
