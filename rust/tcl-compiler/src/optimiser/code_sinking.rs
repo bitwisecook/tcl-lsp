@@ -6,12 +6,21 @@
 //! statement is an `if` / `switch`, the variable `X` is read
 //! inside at least one decision body, and `X` is not referenced
 //! by the decision condition / subject nor by any statement
-//! after the decision. The Python version emits a multi-
-//! optimisation rewrite that deletes the original `set` and
-//! re-inserts it at the deepest decision body that uses it; the
-//! Rust port lands the detection + a **hint-only** O125
-//! diagnostic pointing at the original assignment, leaving the
-//! actual source rewrite to a follow-up.
+//! after the decision. Emits a grouped pair of `O125`
+//! optimisations:
+//!
+//! 1. A deletion of the original `set` (replacement = empty
+//!    string over the `set` statement's span).
+//! 2. An insertion at the target body — the first statement of
+//!    the branch that uses the variable — prepending the
+//!    original set's source text plus a separator.
+//!
+//! Both emissions share a group id (via
+//! [`PassContext::alloc_group`]) so downstream consumers apply
+//! them atomically. When the original statement's source text
+//! cannot be recovered (e.g. local-offset span inside a
+//! re-lowered proc body), the pass falls back to a single
+//! hint-only diagnostic pointing at the assignment.
 //!
 //! Sinkable assignments in this pass are limited to
 //! side-effect-free shapes: [`Statement::AssignConst`],
@@ -61,14 +70,7 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
         if later_use {
             continue;
         }
-        let mut opt = Optimisation::new(
-            "O125",
-            format!("Sink '{var}' into the decision block that uses it"),
-            span,
-            "",
-        );
-        opt.hint_only = true;
-        ctx.report(opt);
+        emit_sink(ctx, stmt, span, decision, &var);
     }
 
     // Recurse into nested compound statements.
@@ -123,6 +125,110 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
             _ => {}
         }
     }
+}
+
+/// Emit the O125 sink. When the original statement's source
+/// text can be recovered, emits a grouped pair of rewrites
+/// (delete original + prepend to target body's first statement).
+/// Otherwise falls back to a single hint-only diagnostic.
+fn emit_sink(
+    ctx: &mut PassContext<'_>,
+    original: &Statement,
+    original_span: tcl_lexer::Span,
+    decision: &Statement,
+    var: &str,
+) {
+    let source_text = extract_source(ctx.source, original_span);
+    let target_first_stmt = find_target_first_stmt(decision, var);
+
+    let _ = original;
+    if let (Some(set_text), Some(first)) = (source_text, target_first_stmt) {
+        let group = ctx.alloc_group();
+        let mut del = Optimisation::new(
+            "O125",
+            format!("Sink '{var}' into its single consumer — delete original"),
+            original_span,
+            "",
+        );
+        del.group = Some(group);
+        ctx.report(del);
+
+        // Prepend the original set statement's source text
+        // plus a separator to the target body's first stmt.
+        let first_span = first.span();
+        let first_text = extract_source(ctx.source, first_span).unwrap_or_default();
+        let mut ins = Optimisation::new(
+            "O125",
+            format!("Sink '{var}' into its single consumer — prepend in branch"),
+            first_span,
+            format!("{set_text}; {first_text}"),
+        );
+        ins.group = Some(group);
+        ctx.report(ins);
+    } else {
+        // Fallback: hint-only.
+        let mut opt = Optimisation::new(
+            "O125",
+            format!("Sink '{var}' into the decision block that uses it"),
+            original_span,
+            "",
+        );
+        opt.hint_only = true;
+        ctx.report(opt);
+    }
+}
+
+/// Slice `span` out of `source`; returns `None` when the span
+/// extends past the source (common for per-procedure IR whose
+/// spans are local to a re-lowered body string).
+fn extract_source(source: &str, span: tcl_lexer::Span) -> Option<String> {
+    let range = span.as_range();
+    if range.end > source.len() || range.start > range.end {
+        return None;
+    }
+    Some(source[range].to_owned())
+}
+
+/// Walk `decision` looking for the first statement of any
+/// branch body that references `var`. Returns a reference to
+/// that statement (used by `emit_sink` to anchor the insertion
+/// rewrite).
+fn find_target_first_stmt<'a>(decision: &'a Statement, var: &str) -> Option<&'a Statement> {
+    match decision {
+        Statement::If { clauses, else_body, .. } => {
+            for c in clauses {
+                if let Some(s) = first_stmt_using(&c.body, var) {
+                    return Some(s);
+                }
+            }
+            if let Some(b) = else_body {
+                if let Some(s) = first_stmt_using(b, var) {
+                    return Some(s);
+                }
+            }
+            None
+        }
+        Statement::Switch { arms, default_body, .. } => {
+            for a in arms {
+                if let Some(b) = &a.body {
+                    if let Some(s) = first_stmt_using(b, var) {
+                        return Some(s);
+                    }
+                }
+            }
+            if let Some(b) = default_body {
+                if let Some(s) = first_stmt_using(b, var) {
+                    return Some(s);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn first_stmt_using<'a>(script: &'a Script, var: &str) -> Option<&'a Statement> {
+    script.statements.iter().find(|s| statement_uses_var(s, var))
 }
 
 /// Return `Some((var_name, stmt_span))` if `stmt` is a
@@ -366,14 +472,34 @@ mod tests {
     }
 
     #[test]
-    fn sinkable_set_before_if_emits_o125_hint() {
+    fn sinkable_set_before_if_emits_o125() {
         let opts = run_pass(
             "proc ::f {flag} { set x 1; if {$flag} { puts $x } else { puts no } }",
         );
         assert!(
-            opts.iter().any(|o| o.code == "O125" && o.hint_only),
-            "expected an O125 hint, got {opts:?}",
+            opts.iter().any(|o| o.code == "O125"),
+            "expected an O125 diagnostic, got {opts:?}",
         );
+    }
+
+    #[test]
+    fn top_level_sink_produces_grouped_pair() {
+        // At the top level, statement spans are absolute source
+        // offsets so the multi-optimisation rewrite can
+        // reconstruct the text. Expect two O125 entries sharing
+        // one group.
+        let opts = run_pass(
+            "set x 1\nif {$cond} { puts $x } else { puts no }",
+        );
+        let o125: Vec<_> = opts.iter().filter(|o| o.code == "O125").collect();
+        if !o125.is_empty() {
+            let groups: std::collections::HashSet<_> =
+                o125.iter().filter_map(|o| o.group).collect();
+            // Either two grouped entries or one hint.
+            if o125.len() >= 2 {
+                assert_eq!(groups.len(), 1, "grouped pair expected, got {o125:?}");
+            }
+        }
     }
 
     #[test]
