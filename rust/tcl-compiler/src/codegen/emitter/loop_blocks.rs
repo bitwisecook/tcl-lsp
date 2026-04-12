@@ -4,19 +4,12 @@
 //! while startCommand wrapping. Each handler corresponds to one
 //! `if bname.startswith(...)` branch in Python's `generate()`.
 
-#![allow(
-    dead_code,
-    unused_imports,
-    clippy::implicit_hasher,
-    clippy::doc_markdown
-)]
+#![allow(dead_code, clippy::implicit_hasher, clippy::doc_markdown)]
 
 use std::collections::{HashMap, HashSet};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::ir::Statement;
-
-use super::super::{CodegenCtx, Op, Operand};
 
 /// Metadata about a foreach loop detected in the CFG.
 #[derive(Debug, Clone)]

@@ -635,21 +635,22 @@ impl CodegenCtx {
                 }
             }
             "equal" if sargs.len() == 2 => {
-                if !self.is_proc {
+                let sc_end = if self.is_proc {
+                    None
+                } else {
                     self.used_inline_cmd_subst = prev_inline;
-                    let sc_end = self.fresh_label("subcmd_end");
+                    let label = self.fresh_label("subcmd_end");
                     self.emit_comment(
                         Op::START_CMD,
-                        vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
+                        vec![Operand::Label(label.clone()), Operand::Imm(1)],
                         "",
                     );
-                }
+                    Some(label)
+                };
                 self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
                 self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
                 self.emit(Op::STR_EQ, vec![]);
-                if !self.is_proc {
-                    // sc_end was declared above; place it
-                    let label = format!("subcmd_end_{}", self.label_counter - 1);
+                if let Some(label) = sc_end {
                     self.place_label(&label);
                 }
             }
@@ -675,20 +676,22 @@ impl CodegenCtx {
                 self.seen_generic_invoke = true;
             }
             "compare" if sargs.len() == 2 => {
-                if !self.is_proc {
+                let sc_end = if self.is_proc {
+                    None
+                } else {
                     self.used_inline_cmd_subst = prev_inline;
-                    let sc_end = self.fresh_label("subcmd_end");
+                    let label = self.fresh_label("subcmd_end");
                     self.emit_comment(
                         Op::START_CMD,
-                        vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
+                        vec![Operand::Label(label.clone()), Operand::Imm(1)],
                         "",
                     );
-                }
+                    Some(label)
+                };
                 self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
                 self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
                 self.emit(Op::STR_CMP, vec![]);
-                if !self.is_proc {
-                    let label = format!("subcmd_end_{}", self.label_counter - 1);
+                if let Some(label) = sc_end {
                     self.place_label(&label);
                 }
             }
@@ -912,16 +915,21 @@ impl CodegenCtx {
     }
 
     fn emit_inline_lrange(&mut self, args: &[(String, bool)]) {
-        self.used_inline_cmd_subst = true;
-        self.emit_cmd_subst_arg(&args[0].0, args[0].1);
+        // Decide between LIST_RANGE_IMM and the generic fallback
+        // *before* emitting any arguments — otherwise the fallback
+        // would push the list a second time, leaving an extra value
+        // on the stack.
         let start_idx = parse_tcl_index(&args[1].0);
         let end_idx = parse_tcl_index(&args[2].0);
         if let (Some(s), Some(e)) = (start_idx, end_idx) {
-            self.emit(Op::LIST_RANGE_IMM, vec![Operand::Imm(s), Operand::Imm(e)]);
+            self.used_inline_cmd_subst = true;
+            self.emit_cmd_subst_arg(&args[0].0, args[0].1);
+            self.emit(
+                Op::LIST_RANGE_IMM,
+                vec![Operand::Imm(s), Operand::Imm(e)],
+            );
         } else {
             self.used_inline_cmd_subst = false;
-            // Reset — we already emitted the list arg, so fall back to generic
-            // Actually, for simplicity emit a generic call
             self.emit_generic_cmd_subst("lrange", args);
         }
     }
@@ -1202,5 +1210,73 @@ mod tests {
         ctx.emit_inline_cmd_subst("[set x 1; set y 2]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::EVAL_STK));
+    }
+
+    // -- regression: label reconstruction in string equal/compare --
+
+    /// `string equal` in non-proc context with a nested command
+    /// substitution in one arg. The nested substitution allocates
+    /// labels (via `fresh_label`), so if the fast-path reconstructed
+    /// the end-label name from `label_counter - 1` it would resolve
+    /// to a different label.
+    #[test]
+    fn inline_string_equal_nested_cmd_label_resolves() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        // Nested `[expr ...]` does not allocate labels, but nested
+        // `[array names ...]` wraps in a startCommand, which does.
+        ctx.emit_inline_cmd_subst("[string equal [array names a] foo]");
+        // Build expected: the startCommand end label should resolve
+        // to the `STR_EQ` position (or later), not a dangling index.
+        let has_str_eq = ctx.instructions.iter().any(|i| i.op == Op::STR_EQ);
+        assert!(has_str_eq, "expected STR_EQ in output");
+        // All Label operands must resolve (i.e. exist in label_positions).
+        for instr in &ctx.instructions {
+            for op in &instr.operands {
+                if let Operand::Label(l) = op {
+                    assert!(
+                        ctx.label_positions.contains_key(l),
+                        "unresolved label {l:?} in {:?}",
+                        instr.op
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn inline_string_compare_nested_cmd_label_resolves() {
+        let mut ctx = CodegenCtx::new(false, &[]);
+        ctx.emit_inline_cmd_subst("[string compare [array names a] foo]");
+        let has_str_cmp = ctx.instructions.iter().any(|i| i.op == Op::STR_CMP);
+        assert!(has_str_cmp, "expected STR_CMP in output");
+        for instr in &ctx.instructions {
+            for op in &instr.operands {
+                if let Operand::Label(l) = op {
+                    assert!(
+                        ctx.label_positions.contains_key(l),
+                        "unresolved label {l:?} in {:?}",
+                        instr.op
+                    );
+                }
+            }
+        }
+    }
+
+    /// `lrange` with non-literal indices must not push the list arg
+    /// twice when falling back to the generic invoke path.
+    #[test]
+    fn inline_lrange_variable_indices_no_double_push() {
+        let mut ctx = CodegenCtx::new(true, &["lst", "a", "b"]);
+        ctx.emit_inline_cmd_subst("[lrange ${lst} ${a} ${b}]");
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        // Should be: push "lrange"; load lst; load a; load b; invokeStk1 4
+        // → 1 push, 3 loads, 1 invoke. NOT: load lst; push "lrange"; ...
+        let load_count = ops
+            .iter()
+            .filter(|o| matches!(o, Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4))
+            .count();
+        assert_eq!(load_count, 3, "expected 3 var loads, got {ops:?}");
+        let invoke_count = ops.iter().filter(|o| **o == Op::INVOKE_STK1).count();
+        assert_eq!(invoke_count, 1, "expected one invokeStk1, got {ops:?}");
     }
 }
