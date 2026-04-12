@@ -78,6 +78,7 @@ pub mod execution_intent;
 pub mod expr_ast;
 pub mod expr_parser;
 pub mod gvn;
+pub mod interprocedural;
 pub mod ir;
 pub mod ir_helpers;
 pub mod lowering;
