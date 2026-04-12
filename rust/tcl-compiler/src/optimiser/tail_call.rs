@@ -1,24 +1,24 @@
-//! Tail-call detection pass (C30h, partial).
+//! Tail-call detection pass (C30h).
 //!
-//! Ported from `core/compiler/optimiser/_tail_call.py`. The Python
-//! module emits three distinct diagnostic codes:
+//! Ported from `core/compiler/optimiser/_tail_call.py`. Emits:
 //!
-//! - **O121** — "Use `tailcall` for self-recursion". Fires on
-//!   every tail-position self-call — either a bare call as the
-//!   final statement of the procedure (or of each branch's tail
-//!   position), or `return [self ...]` with a command
-//!   substitution (**landed, bare-call variant only**).
-//! - `O122` — "Convert self-recursion to a `while` loop when
-//!   every self-call is a tail call". Requires a source-level
-//!   loop synthesis — deferred.
-//! - `O123` — "Accumulator-style eligible non-tail recursion".
-//!   Shape-specific analysis — deferred.
+//! - **O121** — "Use `tailcall` for self-recursion". Two
+//!   variants:
+//!   - **bare call**: `proc f {…} { …; f $args }` — the
+//!     self-call is the final statement of the body (or of each
+//!     branch's tail position). The pass emits O121 targeting
+//!     the call site with a `tailcall …` replacement.
+//!   - **return substitution**: `return [f $args]` — a return
+//!     whose value is a command substitution whose head is a
+//!     self-name. Detected from the source text slice of the
+//!     `Statement::Return` span; same diagnostic, replacement
+//!     `tailcall f $args`.
 //!
-//! The bare-call variant of O121 — `proc f {} { ... ; f $args }`
-//! — is landed here. The `return [f ...]` variant needs the
-//! inner command-substitution span propagated to the IR (the
-//! Rust lowering stores only the outer `Statement::Return`
-//! span); it lands with a follow-up strip.
+//! **O122** ("Convert self-recursion to a `while` loop when
+//! every self-call is a tail call") and **O123**
+//! ("Accumulator-style eligible non-tail recursion") remain
+//! deferred — each needs source-level body re-synthesis that is
+//! beyond this strip's scope.
 
 use std::collections::HashSet;
 
@@ -81,6 +81,30 @@ fn collect_tail_sites(
                 format!("tailcall {command}"),
             ));
         }
+        Statement::Return {
+            span,
+            value: Some(v),
+            ..
+        } => {
+            if let Some((call_head, call_args)) = parse_return_subst(v) {
+                if self_names.contains(&call_head) {
+                    let replacement = if call_args.is_empty() {
+                        format!("tailcall {call_head}")
+                    } else {
+                        format!("tailcall {call_head} {call_args}")
+                    };
+                    ctx.report(Optimisation::new(
+                        "O121",
+                        format!(
+                            "Use tailcall for self-recursion in proc '{}'",
+                            proc.name,
+                        ),
+                        *span,
+                        replacement,
+                    ));
+                }
+            }
+        }
         Statement::If {
             clauses, else_body, ..
         } => {
@@ -105,6 +129,25 @@ fn collect_tail_sites(
         }
         _ => {}
     }
+}
+
+/// Parse a `return` value's text looking for a `[cmd args…]`
+/// command substitution shape. Returns `(cmd, args_text)` or
+/// `None` if the text is not a single command substitution.
+fn parse_return_subst(value: &str) -> Option<(String, String)> {
+    let v = value.trim();
+    let inner = v.strip_prefix('[').and_then(|s| s.strip_suffix(']'))?;
+    let inner = inner.trim();
+    if inner.is_empty() {
+        return None;
+    }
+    // Split on the first whitespace run.
+    if let Some(pos) = inner.find(char::is_whitespace) {
+        let head = inner[..pos].to_owned();
+        let rest = inner[pos..].trim().to_owned();
+        return Some((head, rest));
+    }
+    Some((inner.to_owned(), String::new()))
 }
 
 #[cfg(test)]
@@ -166,6 +209,32 @@ mod tests {
             opts.iter().any(|o| o.code == "O121"),
             "expected O121 inside else branch, got {opts:?}",
         );
+    }
+
+    #[test]
+    fn return_substitution_variant_fires() {
+        let opts = run_pass(
+            "proc ::fact {n} { if {$n <= 1} { return 1 } else { return [fact [expr {$n - 1}]] } }",
+        );
+        assert!(
+            opts.iter()
+                .any(|o| o.code == "O121" && o.replacement.contains("tailcall")),
+            "expected O121 for return [self …] variant, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn parse_return_subst_extracts_head_and_args() {
+        assert_eq!(
+            parse_return_subst("[f $n]"),
+            Some(("f".to_string(), "$n".to_string()))
+        );
+        assert_eq!(
+            parse_return_subst("[g]"),
+            Some(("g".to_string(), String::new()))
+        );
+        assert!(parse_return_subst("$x").is_none());
+        assert!(parse_return_subst("[]").is_none());
     }
 
     #[test]
