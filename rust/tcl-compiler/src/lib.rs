@@ -81,6 +81,7 @@ pub mod lowering_hooks;
 pub mod naming;
 pub mod segmenter;
 pub mod ssa;
+pub mod tcl_expr_eval;
 pub mod types;
 pub mod var_refs;
 
@@ -88,6 +89,7 @@ pub mod var_refs;
 pub use expr_ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
 pub use expr_parser::parse_expr;
 pub use ir::{Module, Procedure, Script, Statement};
+pub use tcl_expr_eval::{eval_tcl_expr, format_tcl_value, Env, EnvValue, TclValue};
 
 /// Crate version string, useful for migration diagnostics.
 ///
