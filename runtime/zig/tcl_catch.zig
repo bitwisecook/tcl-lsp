@@ -1,4 +1,9 @@
-// Error handling for catch, plus file I/O stubs (format, regexp, open, close, read, gets).
+// Error handling: ``catch`` scope management + ``@"error"`` trap /
+// catch-flag entry point.  Previously this file also carried silent
+// stubs for ``format`` / ``regexp`` / ``open`` / ``close`` / ``read``
+// / ``gets``; those have moved to area-specific stub files
+// (``tcl_io_stubs.zig``, ``tcl_fmt_stubs.zig``) and now raise
+// ``unsupported command: <name>`` through :func:`tcl_stubs.unsupported`.
 
 const obj = @import("tcl_obj.zig");
 const io = @import("tcl_io.zig");
@@ -84,41 +89,4 @@ pub fn error_unknown_command(cmd_obj: i32) void {
     }
     const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
     @"error"(msg);
-}
-
-// Exported: format
-pub export fn format(fmt: i32, value: i32) i32 {
-    _ = fmt;
-    return value;
-}
-
-// Exported: regexp
-pub export fn regexp(pattern: i32, str: i32) i32 {
-    _ = pattern;
-    _ = str;
-    return obj_new_int(0);
-}
-
-// Exported: open
-pub export fn open(path: i32) i32 {
-    _ = path;
-    return obj_new_int(-1);
-}
-
-// Exported: close
-pub export fn close(fd: i32) i32 {
-    _ = fd;
-    return obj_new_int(0);
-}
-
-// Exported: read
-pub export fn read(fd: i32) i32 {
-    _ = fd;
-    return obj_new_int(0);
-}
-
-// Exported: gets
-pub export fn gets(fd: i32) i32 {
-    _ = fd;
-    return obj_new_int(0);
 }

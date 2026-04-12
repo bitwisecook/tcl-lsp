@@ -1292,31 +1292,36 @@ class TestDiagMap:
     name in the wasmtime backtrace.
     """
 
-    def test_fallback_records_site(self):
-        # ``encoding`` has no builtin emitter so codegen falls back
-        # to tcl_eval.  The emit of that call site must register a
-        # diag entry with the command name.
+    def test_stub_dispatch_records_runtime_site(self):
+        # ``encoding`` is wired to a runtime stub (tcl_fmt_stubs.zig)
+        # via ``_CMD_RUNTIME``; the dispatch registers a ``runtime``
+        # diag site so a trap inside the stub attributes to the
+        # right source location.
         source = "encoding convertfrom identity hello\n"
         _, diag = _compile_tcl_with_diag(source, "t.tcl")
         assert len(diag.sites) >= 1
         hit = [s for s in diag.sites if s.command == "encoding"]
         assert hit, f"no 'encoding' site in diag map: {diag.sites}"
         site = hit[0]
-        assert site.kind == "fallback"
+        # encoding is now wired to a runtime stub (tcl_fmt_stubs.zig),
+        # so the site kind is ``runtime`` rather than ``fallback``.
+        # The stub itself traps with "unsupported command: encoding".
+        assert site.kind == "runtime"
         assert site.file == "t.tcl"
         assert site.line == 1
         assert site.col == 1
         assert "convertfrom" in site.args
 
-    def test_unsupported_trap_records_site(self):
-        # ``exec`` is in _UNSUPPORTED_COMMANDS so it routes to
-        # _emit_unsupported_trap — the site kind must be
-        # ``unsupported`` and the command preserved.
+    def test_exec_stub_records_runtime_site(self):
+        # ``exec`` moved from _UNSUPPORTED_COMMANDS into the stub
+        # dispatch table when per-area stubs were introduced; the
+        # trap is still "unsupported command: exec", now attributed
+        # to the runtime-dispatch call site.
         source = "exec /bin/true\n"
         _, diag = _compile_tcl_with_diag(source, "t.tcl")
-        hit = [s for s in diag.sites if s.kind == "unsupported"]
-        assert hit, f"no unsupported site in diag map: {diag.sites}"
-        assert hit[0].command == "exec"
+        hit = [s for s in diag.sites if s.command == "exec"]
+        assert hit, f"no 'exec' site in diag map: {diag.sites}"
+        assert hit[0].kind == "runtime"
 
     def test_procs_indexed_by_wasm_function(self):
         # Every compiled proc (and ::top) must appear in diag.procs so
@@ -1330,6 +1335,42 @@ class TestDiagMap:
         # Indices must be strictly increasing (one per func).
         idxs = [f for f, _ in diag.procs]
         assert idxs == sorted(idxs)
+
+    @pytest.mark.parametrize(
+        ("source", "expected_cmd"),
+        [
+            ("open /tmp/x\n", "open"),
+            ("close ch0\n", "close"),
+            ("fconfigure stdout -buffering none\n", "fconfigure"),
+            ("file mkdir /tmp/x\n", "file"),
+            ("glob *.tcl\n", "glob"),
+            ("exec /bin/true\n", "exec"),
+            ("regexp {foo} bar\n", "regexp"),
+            ("regsub {foo} bar baz\n", "regsub"),
+            ("encoding convertfrom identity abc\n", "encoding"),
+            ("format %d 42\n", "format"),
+            ("scan 42 %d\n", "scan"),
+            ("source foo.tcl\n", "source"),
+            ("after 100\n", "after"),
+        ],
+    )
+    def test_core_stubs_trap_with_unsupported(self, source, expected_cmd):
+        """Each Tcl 8.4–9.0 stub must trap with ``unsupported command: X``.
+
+        Guards against silent-NOP regressions.  Also verifies the diag
+        machinery attributes the trap to the correct site (command
+        name matches, kind is ``runtime``).
+        """
+        wasm, diag = _compile_tcl_with_diag(source, "t.tcl")
+        try:
+            _run_wasm(wasm, capture_stderr=True)
+            pytest.fail(f"{expected_cmd} did not trap")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert f"unsupported command: {expected_cmd}" in stderr, f"stderr was: {stderr!r}"
+            hits = [s for s in diag.sites if s.command == expected_cmd]
+            assert hits, f"no {expected_cmd} site in diag map"
+            assert hits[0].kind == "runtime"
 
     def test_runtime_trap_emits_site_prefix(self):
         # End-to-end: trigger an unknown command through the eval

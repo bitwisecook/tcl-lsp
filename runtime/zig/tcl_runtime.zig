@@ -17,6 +17,12 @@ const tcl_cmd_info = @import("tcl_cmd_info.zig");
 const tcl_clock = @import("tcl_clock.zig");
 const tcl_array = @import("tcl_array.zig");
 const tcl_diag = @import("tcl_diag.zig");
+const tcl_stubs = @import("tcl_stubs.zig");
+const tcl_io_stubs = @import("tcl_io_stubs.zig");
+const tcl_fs_stubs = @import("tcl_fs_stubs.zig");
+const tcl_fmt_stubs = @import("tcl_fmt_stubs.zig");
+const tcl_time_stubs = @import("tcl_time_stubs.zig");
+const tcl_env_stubs = @import("tcl_env_stubs.zig");
 const interp = @import("tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -192,12 +198,54 @@ comptime {
     _ = &tcl_catch.catch_result;
     _ = &tcl_catch.catch_has_error;
     _ = &tcl_catch.@"error";
-    _ = &tcl_catch.format;
-    _ = &tcl_catch.regexp;
-    _ = &tcl_catch.open;
-    _ = &tcl_catch.close;
-    _ = &tcl_catch.read;
-    _ = &tcl_catch.gets;
+    // tcl_*_stubs exports — stubs trap with ``unsupported command:
+    // <name>`` so the compiled code sees a clear error rather than
+    // a silent wrong answer.  Imports of these are wired up in
+    // core/compiler/codegen/wasm.py's ``_RUNTIME_IMPORTS``; the
+    // comptime references here ensure the linker keeps them.
+    _ = &tcl_io_stubs.open;
+    _ = &tcl_io_stubs.close;
+    _ = &tcl_io_stubs.read;
+    _ = &tcl_io_stubs.gets;
+    _ = &tcl_io_stubs.eof;
+    _ = &tcl_io_stubs.flush;
+    _ = &tcl_io_stubs.fblocked;
+    _ = &tcl_io_stubs.fconfigure;
+    _ = &tcl_io_stubs.tell;
+    _ = &tcl_io_stubs.seek;
+    _ = &tcl_io_stubs.chan;
+    _ = &tcl_io_stubs.fcopy;
+    _ = &tcl_io_stubs.fileevent;
+    _ = &tcl_io_stubs.socket;
+    _ = &tcl_fs_stubs.file;
+    _ = &tcl_fs_stubs.glob;
+    _ = &tcl_fs_stubs.pwd;
+    _ = &tcl_fs_stubs.cd;
+    _ = &tcl_fs_stubs.exec;
+    _ = &tcl_fs_stubs.source;
+    _ = &tcl_fs_stubs.load;
+    _ = &tcl_fs_stubs.unload;
+    _ = &tcl_fmt_stubs.format;
+    _ = &tcl_fmt_stubs.scan;
+    _ = &tcl_fmt_stubs.binary;
+    _ = &tcl_fmt_stubs.regexp;
+    _ = &tcl_fmt_stubs.regsub;
+    _ = &tcl_fmt_stubs.encoding;
+    _ = &tcl_time_stubs.clock_format;
+    _ = &tcl_time_stubs.clock_scan;
+    _ = &tcl_time_stubs.clock_add;
+    _ = &tcl_time_stubs.after;
+    _ = &tcl_time_stubs.vwait;
+    _ = &tcl_time_stubs.update;
+    _ = &tcl_time_stubs.coroutine;
+    _ = &tcl_time_stubs.yield;
+    _ = &tcl_time_stubs.yieldto;
+    _ = &tcl_env_stubs.@"namespace";
+    _ = &tcl_env_stubs.package_cmd;
+    _ = &tcl_env_stubs.trace_cmd;
+    _ = &tcl_env_stubs.interp_cmd;
+    _ = &tcl_env_stubs.apply;
+    _ = &tcl_stubs.unsupported;
     // tcl_frames exports
     _ = &tcl_frames.frame_push;
     _ = &tcl_frames.frame_pop;

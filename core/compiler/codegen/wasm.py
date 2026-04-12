@@ -856,6 +856,54 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     # Diagnostic — record the current source site so trap paths can
     # prefix stderr with ``site=<id>`` for sidecar-map resolution.
     "tcl_diag_set": ("tcl", "diag_set", [ValType.I32], []),
+    # I/O + channel stubs (tcl_io_stubs.zig) — trap with "unsupported
+    # command: <name>".  Each stub takes i32 args and returns i32.
+    "tcl_eof": ("tcl", "eof", [ValType.I32], [ValType.I32]),
+    "tcl_flush": ("tcl", "flush", [ValType.I32], [ValType.I32]),
+    "tcl_fblocked": ("tcl", "fblocked", [ValType.I32], [ValType.I32]),
+    "tcl_fconfigure": ("tcl", "fconfigure", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_tell": ("tcl", "tell", [ValType.I32], [ValType.I32]),
+    "tcl_seek": ("tcl", "seek", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_chan": ("tcl", "chan", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_fcopy": ("tcl", "fcopy", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_fileevent": ("tcl", "fileevent", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_socket": ("tcl", "socket", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Filesystem / process stubs (tcl_fs_stubs.zig).
+    "tcl_file": ("tcl", "file", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_glob": ("tcl", "glob", [ValType.I32], [ValType.I32]),
+    "tcl_pwd": ("tcl", "pwd", [], [ValType.I32]),
+    "tcl_cd": ("tcl", "cd", [ValType.I32], [ValType.I32]),
+    "tcl_exec": ("tcl", "exec", [ValType.I32], [ValType.I32]),
+    "tcl_source": ("tcl", "source", [ValType.I32], [ValType.I32]),
+    "tcl_load": ("tcl", "load", [ValType.I32], [ValType.I32]),
+    "tcl_unload": ("tcl", "unload", [ValType.I32], [ValType.I32]),
+    # Format / regex / encoding stubs (tcl_fmt_stubs.zig).
+    "tcl_scan": ("tcl", "scan", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_binary": ("tcl", "binary", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_regsub": ("tcl", "regsub", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_encoding": ("tcl", "encoding", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Time / event stubs (tcl_time_stubs.zig).  clock_format /
+    # clock_scan / clock_add are the non-implemented clock
+    # subcommands; the arithmetic ones (seconds / clicks /
+    # milliseconds) are real runtime fns in tcl_clock.zig.
+    "tcl_clock_format": ("tcl", "clock_format", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_clock_scan": ("tcl", "clock_scan", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_clock_add": ("tcl", "clock_add", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_after": ("tcl", "after", [ValType.I32], [ValType.I32]),
+    "tcl_vwait": ("tcl", "vwait", [ValType.I32], [ValType.I32]),
+    "tcl_update": ("tcl", "update", [], [ValType.I32]),
+    "tcl_coroutine": ("tcl", "coroutine", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_yield": ("tcl", "yield", [ValType.I32], [ValType.I32]),
+    "tcl_yieldto": ("tcl", "yieldto", [ValType.I32], [ValType.I32]),
+    # Environment / metadata stubs (tcl_env_stubs.zig).  ``namespace``
+    # and ``namespace eval`` are handled separately by the compiler;
+    # this stub catches the other namespace subcommands falling
+    # through.
+    "tcl_namespace": ("tcl", "namespace", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_package": ("tcl", "package_cmd", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_trace": ("tcl", "trace_cmd", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_interp": ("tcl", "interp_cmd", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_apply": ("tcl", "apply", [ValType.I32, ValType.I32], [ValType.I32]),
 }
 
 # Import keys for the TclObj lifecycle functions — always registered
@@ -869,7 +917,14 @@ _OBJ_LIFECYCLE_IMPORTS = frozenset(
 
 # Commands that map to runtime imports.  The value is
 # (import_key, arg_count_or_None) where ``None`` means variadic.
+#
+# Stub-mapped commands (file, glob, encoding, trace, etc.) route
+# through this dispatch table so the compiler calls the stub
+# directly — producing a clean ``unsupported command: <name>`` trap
+# — instead of generating a ``tcl_eval`` fallback that invokes the
+# interpreter which then fails to find the command.
 _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
+    # Implemented runtime functions
     "puts": ("tcl_puts", 1),
     "append": ("tcl_append", 2),
     "llength": ("tcl_list_length", 1),
@@ -880,14 +935,64 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "lsearch": ("tcl_list_search", 2),
     "concat": ("tcl_concat", 2),
     "error": ("tcl_error", 1),
-    "format": ("tcl_format", 2),
-    "regexp": ("tcl_regexp", 2),
+    "split": ("tcl_split", 2),
+    "join": ("tcl_join", 2),
+    # I/O stubs — open/close/read/gets/eof/flush/fblocked/fconfigure/
+    # tell/seek/chan/fcopy/fileevent/socket all trap with
+    # "unsupported command: <name>".
     "open": ("tcl_open", 1),
     "close": ("tcl_close", 1),
     "read": ("tcl_read", 1),
     "gets": ("tcl_gets", 1),
-    "split": ("tcl_split", 2),
-    "join": ("tcl_join", 2),
+    "eof": ("tcl_eof", 1),
+    "flush": ("tcl_flush", 1),
+    "fblocked": ("tcl_fblocked", 1),
+    "fconfigure": ("tcl_fconfigure", 2),
+    "tell": ("tcl_tell", 1),
+    "seek": ("tcl_seek", 2),
+    "chan": ("tcl_chan", 2),
+    "fcopy": ("tcl_fcopy", 2),
+    "fileevent": ("tcl_fileevent", 2),
+    "socket": ("tcl_socket", 2),
+    # Filesystem / process stubs.
+    "file": ("tcl_file", 2),
+    "glob": ("tcl_glob", 1),
+    "pwd": ("tcl_pwd", 0),
+    "cd": ("tcl_cd", 1),
+    "exec": ("tcl_exec", 1),
+    "source": ("tcl_source", 1),
+    "load": ("tcl_load", 1),
+    "unload": ("tcl_unload", 1),
+    # Format / regex / encoding stubs.
+    "format": ("tcl_format", 2),
+    "scan": ("tcl_scan", 2),
+    "binary": ("tcl_binary", 2),
+    "regexp": ("tcl_regexp", 2),
+    "regsub": ("tcl_regsub", 2),
+    "encoding": ("tcl_encoding", 2),
+    # Event / coroutine stubs.  The arithmetic clock commands
+    # (``clock seconds`` / ``clock clicks`` / ``clock milliseconds``)
+    # are real runtime fns and route through a separate dispatcher
+    # in ``_emit_cmd_clock``; only the formatting variants surface
+    # here.
+    "after": ("tcl_after", 1),
+    "vwait": ("tcl_vwait", 1),
+    "update": ("tcl_update", 0),
+    "coroutine": ("tcl_coroutine", 2),
+    "yield": ("tcl_yield", 1),
+    "yieldto": ("tcl_yieldto", 1),
+    # Environment / metadata stubs.  ``namespace eval`` is compiled
+    # (it is a control-flow construct); the ``namespace`` entry here
+    # only catches the other subcommands (current, qualifiers, which,
+    # tail, code, delete, import, export, exists, parent, children,
+    # inscope, origin, forget, path, ensemble) that route through
+    # this dispatch.  Likewise ``interp`` covers the commands the
+    # previous ``_UNSUPPORTED_COMMANDS`` entry used to hard-trap;
+    # the stub trap is equivalent but gives a sourced site.
+    "package": ("tcl_package", 2),
+    "trace": ("tcl_trace", 2),
+    "interp": ("tcl_interp", 2),
+    "apply": ("tcl_apply", 2),
 }
 
 # String sub-command → import key
@@ -957,21 +1062,15 @@ _SCOPE_NOP_COMMANDS = frozenset(
 # The codegen emits a call to the runtime ``error`` function with a
 # descriptive message so the module traps with a clear diagnostic
 # rather than silently emitting a NOP.
-_UNSUPPORTED_COMMANDS = frozenset(
-    {
-        "exec",
-        "coroutine",
-        "yield",
-        "yieldto",
-        "vwait",
-        "after",
-        "fileevent",
-        "socket",
-        "interp",
-        "load",
-        "unload",
-    }
-)
+# Commands that have no meaningful implementation in WASM and
+# aren't covered by the ``_CMD_RUNTIME`` stub table.  Kept as an
+# explicit trap path so (a) we reject them at compile time with a
+# clear message and (b) new users see they're intentionally
+# unimplemented rather than silently accepted.  Most commands that
+# used to live here (``exec``, ``socket``, ``interp``, ``after``,
+# etc.) have moved to the stub dispatch table — they still trap,
+# but the diag machinery attributes the trap to a source site.
+_UNSUPPORTED_COMMANDS: frozenset[str] = frozenset()
 
 
 def _parse_array_ref(name: str) -> tuple[str, str] | None:
@@ -4206,6 +4305,14 @@ class _WasmEmitter:
         if func_idx is None:
             self._emit_unsupported_trap(command)
             return
+
+        # Record a diag site for *every* runtime-dispatched command so
+        # a trap inside the runtime (stubs raising ``unsupported
+        # command: X``, ``lappend`` erroring on a non-list value, etc.)
+        # is attributable to the right source location.  Three WASM
+        # bytes per call; negligible against the alternative of
+        # silent misattribution.
+        self._emit_diag_site(command, args=args, kind="runtime")
 
         spec = _RUNTIME_IMPORTS[import_key]
         param_count = len(spec[2])
