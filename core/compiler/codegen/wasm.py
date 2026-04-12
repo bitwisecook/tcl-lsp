@@ -690,6 +690,7 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    "tcl_list_tail": ("tcl", "list_tail", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_list_sort": ("tcl", "list_sort", [ValType.I32], [ValType.I32]),
     "tcl_list_search": ("tcl", "list_search", [ValType.I32, ValType.I32], [ValType.I32]),
     # Dict commands
@@ -958,6 +959,9 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         needed.add("tcl_obj_new_int")
                     if subcmd in ("body", "args", "exists"):
                         needed.add("tcl_info_dispatch")
+                elif cmd == "lassign":
+                    needed.add("tcl_list_index")
+                    needed.add("tcl_list_tail")
                 elif cmd == "expr":
                     pass  # expr doesn't need imports itself
                 # Recurse into the command text for nested substitutions
@@ -1073,6 +1077,9 @@ def _scan_needed_imports(
                         needed.add("tcl_obj_new_int")
                     if args[0] in ("body", "args", "exists"):
                         needed.add("tcl_info_dispatch")
+                elif command == "lassign":
+                    needed.add("tcl_list_index")
+                    needed.add("tcl_list_tail")
                 elif command == "catch":
                     needed.add("tcl_catch_enter")
                     needed.add("tcl_catch_leave")
@@ -1592,6 +1599,11 @@ class _WasmEmitter:
             self._emit_info_value(tuple(cmd_args))
             return
 
+        # lassign in value context — return leftover list.
+        if cmd_name == "lassign" and cmd_args:
+            self._emit_cmd_lassign(tuple(cmd_args), defs=(), keep_on_stack=True)
+            return
+
         # Runtime command in value context (llength, lindex, etc.)
         if cmd_name in _CMD_RUNTIME:
             import_key, _ = _CMD_RUNTIME[cmd_name]
@@ -1846,6 +1858,12 @@ class _WasmEmitter:
         # info sub-command — returns i32 TclObj, unbox to i64 for exprs.
         if cmd_name == "info" and cmd_args:
             self._emit_info_value(tuple(cmd_args))
+            self._emit_unbox_int()
+            return
+
+        # lassign in expression context — returns leftover list (i32 TclObj).
+        if cmd_name == "lassign" and cmd_args:
+            self._emit_cmd_lassign(tuple(cmd_args), defs=(), keep_on_stack=True)
             self._emit_unbox_int()
             return
 
@@ -2505,6 +2523,11 @@ class _WasmEmitter:
             self._emit_cmd_info(args, defs)
             return
 
+        # lassign list ?varName ...? — destructure a list.
+        if command == "lassign" and args:
+            self._emit_cmd_lassign(args, defs, keep_on_stack=False)
+            return
+
         # Commands backed by runtime imports
         if command in _CMD_RUNTIME:
             self._emit_cmd_runtime(command, args, defs)
@@ -2689,6 +2712,16 @@ class _WasmEmitter:
                 self._emit_value(args[0])
             else:
                 self._emit_i32_const(0)
+            return
+
+        # info sub-commands — keep result on stack
+        if command == "info" and args:
+            self._emit_info_value(args)
+            return
+
+        # lassign — keep leftover-list result on stack
+        if command == "lassign" and args:
+            self._emit_cmd_lassign(args, defs, keep_on_stack=True)
             return
 
         # string sub-commands — keep result on stack
@@ -3143,6 +3176,69 @@ class _WasmEmitter:
                 self._emit(WasmOp.DROP)
         else:
             self._emit_unsupported_trap(f"dict {subcmd}")
+
+    def _emit_cmd_lassign(
+        self,
+        args: tuple[str, ...],
+        defs: tuple[str, ...],
+        *,
+        keep_on_stack: bool,
+    ) -> None:
+        """``lassign list ?varName ...?`` — destructure a list into vars.
+
+        For each ``varName`` at position *i*, assigns ``list_index(list, i)``
+        to that variable (empty string if out of range).  Returns the
+        leftover list (elements beyond the supplied variables) — computed
+        at runtime via ``tcl_list_tail``.
+
+        If *keep_on_stack* is True (value/expression context), the
+        leftover-list i32 TclObj is left on the stack; otherwise the
+        result is stored in ``defs[0]`` if given, or dropped.
+        """
+        if not args:
+            self._emit_unsupported_trap("lassign (no list arg)")
+            return
+        list_arg = args[0]
+        var_names = args[1:]
+
+        # Stash the list value once so we can index into it repeatedly
+        # without re-evaluating its expression (which may have side effects
+        # via command substitution).
+        list_local = self._add_extra_local(prefix="_lassign_list", val_type=ValType.I32)
+        self._emit_value(list_arg)
+        self._emit_local_set(list_local)
+
+        # Per-variable: write list_index(list, i) into the named variable.
+        lindex_idx = self._shared_imports.get("tcl_list_index")
+        if lindex_idx is None:
+            # Can't emit without the runtime helper — fall back to trap.
+            self._emit_unsupported_trap("lassign (missing tcl_list_index)")
+            return
+
+        for i, var_name in enumerate(var_names):
+            self._emit_local_get(list_local)
+            # Index argument is a TclObj holding the integer i.
+            self._emit_obj_literal(str(i))
+            self._emit_call(lindex_idx)
+            self._emit_var_write_obj(var_name)
+
+        # Produce the leftover list (elements from index len(var_names) on).
+        ltail_idx = self._shared_imports.get("tcl_list_tail")
+        if ltail_idx is None:
+            # No tail helper — emit empty list.
+            self._emit_i32_const(0)
+        else:
+            self._emit_local_get(list_local)
+            self._emit_obj_literal(str(len(var_names)))
+            self._emit_call(ltail_idx)
+
+        if keep_on_stack:
+            return
+        # Statement context: the leftover list is discarded.  ``defs`` for
+        # lassign lists the VAR_WRITE targets (var_names), NOT a place to
+        # store the command's return value — ignore it here to avoid
+        # overwriting one of the just-assigned locals.
+        self._emit(WasmOp.DROP)
 
     def _emit_cmd_info(self, args: tuple[str, ...], defs: tuple[str, ...]) -> None:
         """``info subcommand ?arg?`` in statement context.

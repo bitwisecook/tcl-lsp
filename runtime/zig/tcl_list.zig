@@ -136,6 +136,21 @@ pub export fn list_range(list: i32, first: i32, last: i32) i32 {
     return obj_new_string(@intCast(result_buf), @intCast(result_len));
 }
 
+// Exported: tail of a list — elements from *start* onwards.  Used by
+// ``lassign`` to return the leftover elements after variable binding.
+// An empty or out-of-range start yields an empty list.
+pub export fn list_tail(list: i32, start: i32) i32 {
+    const s = obj_ensure_string(list);
+    const start_val = obj_get_int(start);
+    const total = list_count_elements(s.ptr, s.len);
+    if (start_val >= total or start_val < 0) return obj_new_string(0, 0);
+    // Re-use list_range with last = total - 1 (inclusive).  list_range's
+    // ``first``/``last`` arguments are TclObj pointers, so box them.
+    const start_obj = obj_new_int(start_val);
+    const last_obj = obj_new_int(total - 1);
+    return list_range(list, start_obj, last_obj);
+}
+
 // Exported: list sort — simple insertion sort on string comparison.
 pub export fn list_sort(list: i32) i32 {
     const s = obj_ensure_string(list);

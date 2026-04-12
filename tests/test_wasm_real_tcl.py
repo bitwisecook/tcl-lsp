@@ -714,6 +714,69 @@ return [main]
         assert val == 1
 
 
+class TestLassign:
+    """``lassign`` destructures a list into variables and returns the rest."""
+
+    def test_lassign_basic(self):
+        source = """\
+proc main {} {
+    lassign {10 20 30} a b c
+    return [expr {$a + $b + $c}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 60
+
+    def test_lassign_fewer_vars_than_elements(self):
+        """Extra list elements are returned as the leftover list."""
+        source = """\
+proc main {} {
+    set rest [lassign {1 2 3 4 5} a b]
+    return [llength $rest]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 3
+
+    def test_lassign_more_vars_than_elements(self):
+        """Missing elements bind to empty string; length of empty is 0."""
+        source = """\
+proc main {} {
+    lassign {42} a b c
+    return [string length $b]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 0
+
+    def test_lassign_into_upvar_alias(self):
+        """Writes go through upvar aliases — target reflects across procs."""
+        source = """\
+proc dispatch {tag} {
+    upvar #0 ::slot::$tag s
+    lassign {7 42} _ s
+}
+proc fetch {tag} {
+    upvar #0 ::slot::$tag s
+    return $s
+}
+proc main {} {
+    dispatch abc
+    return [fetch abc]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 42
+
+
 class TestUpvarCompilation:
     """Upvar/variable compilation tests — validate without execution."""
 
