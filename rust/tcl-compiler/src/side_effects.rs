@@ -291,6 +291,197 @@ pub fn target_to_region(target: SideEffectTarget, scope: StorageScope) -> Effect
     }
 }
 
+// ---------------------------------------------------------------------------
+// Dataclasses — SideEffect, CommandSideEffects (C23b)
+// ---------------------------------------------------------------------------
+
+/// One discrete read or write produced by a command invocation.
+///
+/// A single command may produce multiple [`SideEffect`] instances.
+/// For example, `HTTP::header replace Host "example.com"` produces
+/// both a read (current header state) and a write (new header
+/// value).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SideEffect {
+    /// What category of resource is touched.
+    pub target: SideEffectTarget,
+    /// Whether this effect includes a read from the target.
+    pub reads: bool,
+    /// Whether this effect includes a write to the target.
+    pub writes: bool,
+    /// Data shape of the target (scalar, list, dict, array).
+    pub storage_type: StorageType,
+    /// Where the data resides (proc-local, global, F5 table, …).
+    pub scope: StorageScope,
+    /// F5 proxy context for this effect.
+    pub connection_side: ConnectionSide,
+    /// Tcl namespace or F5 protocol namespace (e.g. `"HTTP"`).
+    ///
+    /// For Tcl variables this is the namespace path (`"::foo::bar"`).
+    /// For F5 commands this is the protocol prefix (`"HTTP"`,
+    /// `"SSL"`). `None` when not applicable or not determinable.
+    pub namespace: Option<String>,
+    /// Dialect this effect applies to (`"irules"`, `"tcl"`, …).
+    ///
+    /// `None` means the effect is dialect-independent.
+    pub dialect: Option<String>,
+    /// Optional key identifying the specific target.
+    ///
+    /// For variables: the variable name. For `table` / `session`:
+    /// the key expression (if literal). For HTTP headers: the
+    /// header name (if literal). `None` when dynamic or not
+    /// applicable.
+    pub key: Option<String>,
+    /// F5 session-table subtable name, if applicable.
+    pub subtable: Option<String>,
+}
+
+impl SideEffect {
+    /// Build a minimal effect with `target`, `reads`, `writes` set
+    /// and all other fields at their defaults. Convenient for
+    /// classifier impls to chain with struct-update syntax.
+    #[must_use]
+    pub fn new(target: SideEffectTarget, reads: bool, writes: bool) -> Self {
+        Self {
+            target,
+            reads,
+            writes,
+            storage_type: StorageType::Unknown,
+            scope: StorageScope::Unknown,
+            connection_side: ConnectionSide::None,
+            namespace: None,
+            dialect: None,
+            key: None,
+            subtable: None,
+        }
+    }
+}
+
+/// Complete side-effect profile for one command invocation.
+///
+/// Wraps zero or more individual [`SideEffect`] instances plus
+/// summary flags for quick consumer queries. Produced by
+/// [`classify_side_effects`] (C23d).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CommandSideEffects {
+    /// Individual side effects produced by this invocation.
+    pub effects: Vec<SideEffect>,
+    /// No observable side effects (reads from immutable state OK).
+    pub pure: bool,
+    /// Same inputs always produce the same outputs.
+    pub deterministic: bool,
+    /// Contains `eval`/`uplevel`/`call` — effects are unknowable.
+    pub dynamic_barrier: bool,
+    /// Dialect context in which this classification was made.
+    pub dialect: Option<String>,
+}
+
+impl CommandSideEffects {
+    /// The canonical pure/deterministic result.
+    #[must_use]
+    pub fn pure() -> Self {
+        Self {
+            effects: Vec::new(),
+            pure: true,
+            deterministic: true,
+            dynamic_barrier: false,
+            dialect: None,
+        }
+    }
+
+    /// A conservative "writes something unknown" result. Used when
+    /// the classifier cannot determine a precise target.
+    #[must_use]
+    pub fn unknown_write() -> Self {
+        Self {
+            effects: vec![SideEffect::new(SideEffectTarget::Unknown, false, true)],
+            pure: false,
+            deterministic: false,
+            dynamic_barrier: false,
+            dialect: None,
+        }
+    }
+
+    /// A dynamic-dispatch barrier (`eval` / `uplevel` / `call`).
+    #[must_use]
+    pub fn dynamic_barrier() -> Self {
+        Self {
+            effects: Vec::new(),
+            pure: false,
+            deterministic: false,
+            dynamic_barrier: true,
+            dialect: None,
+        }
+    }
+
+    /// Whether any effect includes a read.
+    #[must_use]
+    pub fn reads_any(&self) -> bool {
+        self.effects.iter().any(|e| e.reads)
+    }
+
+    /// Whether any effect includes a write.
+    #[must_use]
+    pub fn writes_any(&self) -> bool {
+        self.effects.iter().any(|e| e.writes)
+    }
+
+    /// Whether this invocation touches `target` (read or write).
+    #[must_use]
+    pub fn affects_target(&self, target: SideEffectTarget) -> bool {
+        self.effects.iter().any(|e| e.target == target)
+    }
+
+    /// Whether this invocation writes to `target`.
+    #[must_use]
+    pub fn writes_target(&self, target: SideEffectTarget) -> bool {
+        self.effects.iter().any(|e| e.target == target && e.writes)
+    }
+
+    /// Whether this invocation reads from `target`.
+    #[must_use]
+    pub fn reads_target(&self, target: SideEffectTarget) -> bool {
+        self.effects.iter().any(|e| e.target == target && e.reads)
+    }
+
+    /// Effects restricted to a specific storage scope.
+    #[must_use]
+    pub fn effects_in_scope(&self, scope: StorageScope) -> Vec<&SideEffect> {
+        self.effects.iter().filter(|e| e.scope == scope).collect()
+    }
+
+    /// Effects restricted to a specific connection side.
+    #[must_use]
+    pub fn effects_on_side(&self, side: ConnectionSide) -> Vec<&SideEffect> {
+        self.effects
+            .iter()
+            .filter(|e| e.connection_side == side)
+            .collect()
+    }
+
+    /// Map structured effects to coarse `(reads, writes)`
+    /// [`EffectRegion`] bitflags. Suitable for GVN /
+    /// interprocedural kill checks.
+    #[must_use]
+    pub fn to_effect_regions(&self) -> (EffectRegion, EffectRegion) {
+        let mut reads = EffectRegion::NONE;
+        let mut writes = EffectRegion::NONE;
+        for e in &self.effects {
+            let region = target_to_region(e.target, e.scope);
+            if e.reads {
+                reads |= region;
+            }
+            if e.writes {
+                writes |= region;
+            }
+        }
+        if self.dynamic_barrier {
+            writes |= EffectRegion::UNKNOWN_STATE;
+        }
+        (reads, writes)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -371,5 +562,100 @@ mod tests {
         assert!(combined.contains(EffectRegion::HTTP_STATE));
         assert!(combined.contains(EffectRegion::GLOBAL_STATE));
         assert!(!combined.contains(EffectRegion::UNKNOWN_STATE));
+    }
+
+    // -- C23b: SideEffect / CommandSideEffects --
+
+    #[test]
+    fn side_effect_new_defaults() {
+        let e = SideEffect::new(SideEffectTarget::Variable, true, false);
+        assert_eq!(e.target, SideEffectTarget::Variable);
+        assert!(e.reads);
+        assert!(!e.writes);
+        assert_eq!(e.storage_type, StorageType::Unknown);
+        assert_eq!(e.scope, StorageScope::Unknown);
+        assert_eq!(e.connection_side, ConnectionSide::None);
+        assert!(e.namespace.is_none());
+        assert!(e.dialect.is_none());
+        assert!(e.key.is_none());
+        assert!(e.subtable.is_none());
+    }
+
+    #[test]
+    fn command_side_effects_pure_constant() {
+        let cse = CommandSideEffects::pure();
+        assert!(cse.pure);
+        assert!(cse.deterministic);
+        assert!(cse.effects.is_empty());
+        assert!(!cse.dynamic_barrier);
+        assert!(!cse.reads_any());
+        assert!(!cse.writes_any());
+    }
+
+    #[test]
+    fn command_side_effects_unknown_write_constant() {
+        let cse = CommandSideEffects::unknown_write();
+        assert!(!cse.pure);
+        assert_eq!(cse.effects.len(), 1);
+        assert_eq!(cse.effects[0].target, SideEffectTarget::Unknown);
+        assert!(cse.effects[0].writes);
+        assert!(cse.writes_any());
+    }
+
+    #[test]
+    fn command_side_effects_dynamic_barrier_flag() {
+        let cse = CommandSideEffects::dynamic_barrier();
+        assert!(cse.dynamic_barrier);
+        let (_, w) = cse.to_effect_regions();
+        assert!(w.contains(EffectRegion::UNKNOWN_STATE));
+    }
+
+    #[test]
+    fn affects_reads_writes_target_helpers() {
+        let cse = CommandSideEffects {
+            effects: vec![
+                SideEffect::new(SideEffectTarget::HttpHeader, true, false),
+                SideEffect::new(SideEffectTarget::Variable, false, true),
+            ],
+            ..CommandSideEffects::default()
+        };
+        assert!(cse.affects_target(SideEffectTarget::HttpHeader));
+        assert!(cse.affects_target(SideEffectTarget::Variable));
+        assert!(!cse.affects_target(SideEffectTarget::FileIo));
+        assert!(cse.reads_target(SideEffectTarget::HttpHeader));
+        assert!(!cse.reads_target(SideEffectTarget::Variable));
+        assert!(cse.writes_target(SideEffectTarget::Variable));
+    }
+
+    #[test]
+    fn to_effect_regions_unions_reads_and_writes() {
+        let mut global_var = SideEffect::new(SideEffectTarget::Variable, false, true);
+        global_var.scope = StorageScope::Global;
+        let cse = CommandSideEffects {
+            effects: vec![
+                SideEffect::new(SideEffectTarget::HttpHeader, true, false),
+                global_var,
+            ],
+            ..CommandSideEffects::default()
+        };
+        let (r, w) = cse.to_effect_regions();
+        assert!(r.contains(EffectRegion::HTTP_STATE));
+        assert!(w.contains(EffectRegion::GLOBAL_STATE));
+        assert!(!w.contains(EffectRegion::HTTP_STATE));
+    }
+
+    #[test]
+    fn effects_filtered_by_scope_and_side() {
+        let mut client_hdr = SideEffect::new(SideEffectTarget::HttpHeader, true, false);
+        client_hdr.connection_side = ConnectionSide::Client;
+        let mut server_hdr = SideEffect::new(SideEffectTarget::HttpHeader, true, false);
+        server_hdr.connection_side = ConnectionSide::Server;
+        let cse = CommandSideEffects {
+            effects: vec![client_hdr, server_hdr],
+            ..CommandSideEffects::default()
+        };
+        assert_eq!(cse.effects_on_side(ConnectionSide::Client).len(), 1);
+        assert_eq!(cse.effects_on_side(ConnectionSide::Server).len(), 1);
+        assert_eq!(cse.effects_in_scope(StorageScope::Global).len(), 0);
     }
 }
