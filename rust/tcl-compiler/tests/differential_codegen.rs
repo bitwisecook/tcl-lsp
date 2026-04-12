@@ -169,7 +169,16 @@ fn python_disasm(source: &str) -> OracleResult {
     if out.status.success() {
         OracleResult::Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     } else {
-        OracleResult::Error(String::from_utf8_lossy(&out.stderr).into_owned())
+        let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+        // The Python driver exits with code 2 and an `ORACLE_IMPORT_FAIL:`
+        // stderr prefix when it can't import the oracle — mirror that as
+        // `Unavailable` so environments without the Python side skip
+        // gracefully instead of reporting divergence.
+        if out.status.code() == Some(2) && stderr.starts_with("ORACLE_IMPORT_FAIL:") {
+            OracleResult::Unavailable(stderr)
+        } else {
+            OracleResult::Error(stderr)
+        }
     }
 }
 
