@@ -60,3 +60,33 @@ def test_optimiser_find_optimisations_fires_o101() -> None:
 def test_optimiser_opt_priority_known_code() -> None:
     assert tcl_lsp_rust.optimiser_opt_priority("O112") == 9
     assert tcl_lsp_rust.optimiser_opt_priority("unknown") == 0
+
+
+def test_compiler_checks_run_all_returns_diagnostic_tuples() -> None:
+    """C32-shim smoke test: the Rust ``compiler_checks_run_all``
+    entry point must return diagnostic tuples for a source with a
+    constant-true branch (exercises the SCCP check), and each
+    tuple must have the six-field shape Python callers expect.
+    """
+    diagnostics = tcl_lsp_rust.compiler_checks_run_all(
+        "if {1} { set x 1 } else { set y 2 }", None
+    )
+    assert isinstance(diagnostics, list)
+    assert diagnostics, "expected at least one diagnostic from SCCP check"
+    for t in diagnostics:
+        assert len(t) == 6, f"unexpected tuple shape: {t!r}"
+        code, category, severity, message, start, end = t
+        assert isinstance(code, str) and code
+        assert isinstance(category, str) and category
+        assert severity in {"hint", "suggestion", "warning", "error"}
+        assert isinstance(message, str) and message
+        assert isinstance(start, int) and isinstance(end, int)
+        assert start <= end
+
+
+def test_compiler_checks_run_all_empty_source_is_empty() -> None:
+    """Empty source must produce no diagnostics — matches the Rust
+    ``run_all_checks`` unit test's behaviour and ensures the binding
+    doesn't invent spurious output from an empty compilation unit.
+    """
+    assert tcl_lsp_rust.compiler_checks_run_all("", None) == []
