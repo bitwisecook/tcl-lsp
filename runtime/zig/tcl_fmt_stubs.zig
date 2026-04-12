@@ -11,12 +11,8 @@
 
 const stubs = @import("tcl_stubs.zig");
 
-pub export fn format(fmt: i32, value: i32) i32 {
-    _ = fmt;
-    _ = value;
-    stubs.unsupported("format");
-    return 0;
-}
+// ``format`` moved to tcl_format.zig — minimal %d / %s / %c /
+// %x / %o / %f / %e / %g with width + precision support.
 
 pub export fn scan(str: i32, fmt: i32) i32 {
     _ = str;

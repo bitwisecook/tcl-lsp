@@ -319,6 +319,8 @@ def test_no_cmd_imports_for_pure_math():
         "error",
         "tcl_eval",
         "diag_set",
+        "global_set",
+        "global_get",
     }
 
 

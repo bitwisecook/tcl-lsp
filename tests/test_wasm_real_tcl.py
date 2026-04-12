@@ -123,6 +123,9 @@ def _run_wasm(
     rt_module = _get_rt_module()
     linker = wasmtime.Linker(engine)
     linker.define_wasi()
+
+    tcl_instance_box, memory_box = _define_call_compiled_proc(linker, store)
+
     rt_instance = linker.instantiate(store, rt_module)
 
     # Re-export under "tcl" namespace
@@ -139,6 +142,8 @@ def _run_wasm(
     # Instantiate compiled Tcl module
     tcl_module = wasmtime.Module(engine, wasm_bytes)
     tcl_instance = linker.instantiate(store, tcl_module)
+    tcl_instance_box[0] = tcl_instance
+    memory_box[0] = rt_instance.exports(store)["memory"]
 
     obj_new_int = rt_instance.exports(store)["obj_new_int"]
     obj_get_int = rt_instance.exports(store)["obj_get_int"]
@@ -178,6 +183,75 @@ def _run_wasm(
     if capture_stderr:
         return result_val, stdout_text, stderr_text
     return result_val, stdout_text
+
+
+def _define_call_compiled_proc(
+    linker: wasmtime.Linker,
+    store: wasmtime.Store,
+) -> tuple[list, list]:
+    """Register ``env.call_compiled_proc`` on *linker*.
+
+    The host bridge that lets the runtime dispatch a compiled proc
+    by name when an interpreter-path call site encounters one.  The
+    returned boxes must be filled by the caller AFTER instantiating
+    the compiled user module so the callback can see it:
+
+        tcl_instance_box[0] = tcl_instance
+        memory_box[0] = rt_instance.exports(store)["memory"]
+
+    Using a list as a 1-slot mutable cell keeps the closure trivially
+    updatable without juggling ``nonlocal`` declarations in multiple
+    call sites.
+    """
+    tcl_instance_box: list = [None]
+    memory_box: list = [None]
+
+    def _call_compiled_proc(name_ptr: int, name_len: int, argv_ptr: int, argc: int) -> int:
+        inst = tcl_instance_box[0]
+        mem = memory_box[0]
+        if inst is None or mem is None:
+            return 0
+        try:
+            raw = bytes(
+                mem.data_ptr(store)[name_ptr : name_ptr + name_len]  # type: ignore[index]
+            )
+        except Exception:
+            return 0
+        pname = raw.decode("utf-8", errors="replace")
+        func = inst.exports(store).get(pname)
+        if func is None:
+            return 0
+        args: list[int] = []
+        for i in range(argc):
+            off = argv_ptr + i * 4
+            try:
+                b = bytes(
+                    mem.data_ptr(store)[off : off + 4]  # type: ignore[index]
+                )
+            except Exception:
+                return 0
+            args.append(int.from_bytes(b, "little", signed=True))
+        try:
+            result = func(store, *args)
+        except Exception:
+            return 0
+        return int(result) if result is not None else 0
+
+    linker.define_func(
+        "env",
+        "call_compiled_proc",
+        wasmtime.FuncType(
+            [
+                wasmtime.ValType.i32(),
+                wasmtime.ValType.i32(),
+                wasmtime.ValType.i32(),
+                wasmtime.ValType.i32(),
+            ],
+            [wasmtime.ValType.i32()],
+        ),
+        _call_compiled_proc,
+    )
+    return tcl_instance_box, memory_box
 
 
 def _maybe_read(path: str | None) -> str:
@@ -1361,7 +1435,8 @@ class TestDiagMap:
             ("exec /bin/true\n", "exec"),
             ("regexp {foo} bar\n", "regexp"),
             ("regsub {foo} bar baz\n", "regsub"),
-            ("format %d 42\n", "format"),
+            # ``format`` has a minimal real impl in tcl_format.zig —
+            # see TestFormat.
             ("scan 42 %d\n", "scan"),
             ("source foo.tcl\n", "source"),
             ("after 100\n", "after"),
@@ -1613,6 +1688,7 @@ class TestExternalTcllibCounter:
         rt_mod = _get_rt_module()
         linker = wasmtime.Linker(engine)
         linker.define_wasi()
+        tcl_instance_box, memory_box = _define_call_compiled_proc(linker, store)
         rt_inst = linker.instantiate(store, rt_mod)
         for export in rt_mod.exports:
             name = export.name
@@ -1626,6 +1702,8 @@ class TestExternalTcllibCounter:
 
         tcl_mod = wasmtime.Module(engine, wasm_bytes)
         tcl_inst = linker.instantiate(store, tcl_mod)
+        tcl_instance_box[0] = tcl_inst
+        memory_box[0] = rt_inst.exports(store)["memory"]
 
         exports = tcl_inst.exports(store)
         exports["::top"](store)  # Run top-level

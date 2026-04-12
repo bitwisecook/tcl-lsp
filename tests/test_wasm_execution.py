@@ -61,9 +61,18 @@ def _link_and_instantiate(
     Returns ``(tcl_instance, rt_instance)`` — both live in the same
     store so the runtime's linear memory is shared.
     """
+    from tests.test_wasm_real_tcl import _define_call_compiled_proc
+
     engine = _get_engine()
     linker = wasmtime.Linker(engine)
     linker.define_wasi()
+
+    # ``env.call_compiled_proc`` — host bridge for cross-context
+    # dispatch from the interpreter into compiled procs.  Defined
+    # before runtime instantiation so the runtime's import resolves;
+    # filled with the real tcl_instance reference after the compiled
+    # module is instantiated below.
+    tcl_instance_box, memory_box = _define_call_compiled_proc(linker, store)
 
     # Instantiate the Zig runtime
     rt_module = _get_rt_module()
@@ -84,6 +93,8 @@ def _link_and_instantiate(
     # Instantiate the compiled Tcl module
     tcl_module = wasmtime.Module(engine, tcl_bytes)
     tcl_instance = linker.instantiate(store, tcl_module)
+    tcl_instance_box[0] = tcl_instance
+    memory_box[0] = rt_instance.exports(store)["memory"]
     return tcl_instance, rt_instance
 
 
@@ -708,7 +719,13 @@ class TestCommandDispatch:
         assert result == 99
 
     def test_no_cmd_imports_for_pure_arithmetic(self):
-        """Pure arithmetic code should only import lifecycle + error + diag functions."""
+        """Pure arithmetic code should only import lifecycle + error + diag functions.
+
+        ``proc_register_compiled`` is also pulled in whenever the
+        module defines procs — it's used at ::top init to mark
+        every compiled proc in the runtime proc table so the
+        interpreter's host-bridge dispatch can reach them.
+        """
         wasm_mod, _ = _compile_to_wasm("proc add {a b} { expr {$a + $b} }\n")
         import_names = {imp.name for imp in wasm_mod.imports}
         assert import_names == {
@@ -718,6 +735,12 @@ class TestCommandDispatch:
             "error",
             "tcl_eval",
             "diag_set",
+            "global_set",
+            "global_get",
+            "proc_register_compiled",
+            "frame_push",
+            "frame_pop",
+            "local_set",
         }
 
 

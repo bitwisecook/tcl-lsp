@@ -27,6 +27,8 @@ const tcl_encoding = @import("tcl_encoding.zig");
 const tcl_chan = @import("tcl_chan.zig");
 const tcl_trace = @import("tcl_trace.zig");
 const tcl_fs = @import("tcl_fs.zig");
+const tcl_format = @import("tcl_format.zig");
+const tcl_dispatch = @import("tcl_dispatch.zig");
 const tcl_cmd_dispatch = @import("tcl_cmd_dispatch.zig");
 const interp = @import("tcl_interp.zig");
 
@@ -232,7 +234,8 @@ comptime {
     _ = &tcl_fs_stubs.source;
     _ = &tcl_fs_stubs.load;
     _ = &tcl_fs_stubs.unload;
-    _ = &tcl_fmt_stubs.format;
+    // format lives in tcl_format.zig (real impl).
+    _ = &tcl_format.format;
     _ = &tcl_fmt_stubs.scan;
     _ = &tcl_fmt_stubs.binary;
     _ = &tcl_fmt_stubs.regexp;
@@ -258,6 +261,7 @@ comptime {
     _ = &tcl_env_stubs.apply;
     _ = &tcl_stubs.unsupported;
     _ = &tcl_cmd_dispatch.try_stub;
+    _ = &tcl_dispatch.dispatch;
     // tcl_frames exports
     _ = &tcl_frames.frame_push;
     _ = &tcl_frames.frame_pop;

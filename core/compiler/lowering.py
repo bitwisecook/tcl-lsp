@@ -90,6 +90,72 @@ def _qualify_proc_name(namespace: str, proc_name: str) -> str:
     return _normalise_qualified_name(f"{namespace}::{proc_name}")
 
 
+def _parse_params_with_defaults(param_str: str) -> tuple[tuple[str, str | None], ...]:
+    """Parse a Tcl proc ``param_str`` into ``(name, default_or_None)`` pairs.
+
+    ``{name default}`` → ``(name, default)``; bare ``name`` →
+    ``(name, None)``.  The default string is returned verbatim
+    (braces already stripped, interior whitespace preserved).
+    Used by the WASM codegen to pad missing call-site args with the
+    declared default rather than a boxed zero.
+    """
+    params: list[tuple[str, str | None]] = []
+    i = 0
+    text = param_str.strip()
+    while i < len(text):
+        while i < len(text) and text[i] in " \t\n\r":
+            i += 1
+        if i >= len(text):
+            break
+        if text[i] == "{":
+            level = 1
+            i += 1
+            start = i
+            while i < len(text) and level > 0:
+                if text[i] == "{":
+                    level += 1
+                elif text[i] == "}":
+                    level -= 1
+                i += 1
+            inner = text[start : i - 1]
+            inner_stripped = inner.strip()
+            if not inner_stripped:
+                continue
+            # Split into name + optional default.  The default may
+            # contain whitespace (``{x {a b c}}``) so we take
+            # everything after the first whitespace as the raw
+            # default text, stripping outer whitespace only.
+            split_at = 0
+            while split_at < len(inner) and inner[split_at] not in " \t\n\r":
+                split_at += 1
+            name = inner[:split_at]
+            default: str | None
+            if split_at < len(inner):
+                raw_default = inner[split_at:].strip()
+                # Strip one level of Tcl grouping so ``""`` becomes the
+                # empty string and ``{a b c}`` becomes ``a b c``.  The
+                # caller gets back the plain value ready to be emitted
+                # as an obj_literal.
+                if len(raw_default) >= 2 and raw_default[0] == '"' and raw_default[-1] == '"':
+                    default = raw_default[1:-1]
+                elif len(raw_default) >= 2 and raw_default[0] == "{" and raw_default[-1] == "}":
+                    default = raw_default[1:-1]
+                else:
+                    default = raw_default
+            else:
+                default = None
+            if name:
+                params.append((name, default))
+            continue
+        start = i
+        while i < len(text) and text[i] not in " \t\n\r":
+            i += 1
+        word = text[start:i]
+        if word:
+            params.append((word, None))
+    return tuple(params)
+
+
 def _parse_param_names(param_str: str) -> tuple[str, ...]:
     params: list[str] = []
     i = 0

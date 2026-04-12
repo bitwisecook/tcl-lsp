@@ -371,9 +371,53 @@ fn eval_command(words: []const i32) i32 {
         return 0;
     }
     if (str_eq(cmd, cmd_s.len, "return")) {
+        // ``return ?-code code? ?-level level? ?-errorinfo info?
+        // ?-errorcode code? ?result?``.  Walk the switches and
+        // capture the final positional arg (if any) as the result.
+        // ``-code error`` raises an error via ``@"error"`` so
+        // surrounding ``catch`` sees a 1/error code.
+        var is_error = false;
+        var result_obj: i32 = 0;
+        var wi: u32 = 1;
+        while (wi < words.len) : (wi += 1) {
+            const w = obj_ensure_string(words[wi]);
+            if (w.len >= 1) {
+                const wp: [*]const u8 = @ptrFromInt(w.ptr);
+                if (wp[0] == '-') {
+                    // Recognise ``-code <code>``.  Other switches
+                    // (-level, -errorinfo, -errorcode) are accepted
+                    // and their value skipped.
+                    if (str_eq(wp, w.len, "-code") and wi + 1 < words.len) {
+                        const code = obj_ensure_string(words[wi + 1]);
+                        if (code.len >= 1) {
+                            const cp: [*]const u8 = @ptrFromInt(code.ptr);
+                            if (str_eq(cp, code.len, "error")) {
+                                is_error = true;
+                            }
+                        }
+                        wi += 1;
+                        continue;
+                    }
+                    if ((str_eq(wp, w.len, "-level") or
+                        str_eq(wp, w.len, "-errorinfo") or
+                        str_eq(wp, w.len, "-errorcode") or
+                        str_eq(wp, w.len, "-options")) and wi + 1 < words.len)
+                    {
+                        wi += 1;
+                        continue;
+                    }
+                }
+            }
+            result_obj = words[wi];
+        }
+        if (is_error) {
+            const catch_mod = @import("tcl_catch.zig");
+            catch_mod.@"error"(result_obj);
+            return 0;
+        }
         rt.return_flag.* = 1;
-        rt.return_val.* = if (words.len >= 2) words[1] else 0;
-        return rt.return_val.*;
+        rt.return_val.* = result_obj;
+        return result_obj;
     }
     if (str_eq(cmd, cmd_s.len, "break")) { rt.break_flag.* = 1; return 0; }
     if (str_eq(cmd, cmd_s.len, "continue")) { rt.continue_flag.* = 1; return 0; }
@@ -393,6 +437,44 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "foreach")) return eval_foreach(words);
     if (str_eq(cmd, cmd_s.len, "proc")) {
         if (words.len >= 4) _ = procs.proc_register(words[1], words[2], words[3]);
+        return 0;
+    }
+    if (str_eq(cmd, cmd_s.len, "eval")) {
+        // ``eval script ?args?``: concatenate the args with spaces
+        // and evaluate the result as a script in the current scope.
+        // Single-arg form passes the script through directly; the
+        // multi-arg form concatenates with a single-space separator
+        // matching Tcl semantics.
+        if (words.len == 2) {
+            const s = obj_ensure_string(words[1]);
+            return eval_script(s.ptr, s.len);
+        }
+        if (words.len >= 3) {
+            // Build concat'd script on the bump allocator.  Size it
+            // conservatively (sum of arg lengths + separators).
+            var total: u32 = 0;
+            var k: u32 = 1;
+            while (k < words.len) : (k += 1) {
+                total += @as(u32, @intCast(obj_ensure_string(words[k]).len)) + 1;
+            }
+            if (total == 0) return 0;
+            const buf = alloc(total);
+            var off: u32 = 0;
+            k = 1;
+            while (k < words.len) : (k += 1) {
+                const s = obj_ensure_string(words[k]);
+                if (s.len > 0) {
+                    memcpy(buf + off, s.ptr, s.len);
+                    off += s.len;
+                }
+                if (k + 1 < words.len) {
+                    const d: [*]u8 = @ptrFromInt(buf + off);
+                    d[0] = ' ';
+                    off += 1;
+                }
+            }
+            return eval_script(buf, off);
+        }
         return 0;
     }
     if (str_eq(cmd, cmd_s.len, "error")) { if (words.len >= 2) rt.@"error"(words[1]); return 0; }
@@ -706,6 +788,16 @@ fn eval_proc_call(words: []const i32) i32 {
         const catch_mod = @import("tcl_catch.zig");
         catch_mod.error_unknown_command(words[0]);
         return 0;
+    }
+    // Compiled proc (func_idx != 0 is a marker set by
+    // ``proc_register_compiled``) — dispatch via the host bridge
+    // because pure WASM can't call across modules.  The bridge
+    // looks up the proc's compiled WASM function by name and
+    // invokes it with the unpacked argv.
+    const func_idx = procs.proc_get_func_idx(bucket);
+    if (func_idx != 0) {
+        const dispatch = @import("tcl_dispatch.zig");
+        return dispatch.dispatch(words);
     }
     const body_obj = procs.proc_get_body(bucket);
     const params_obj = procs.proc_get_params(bucket);

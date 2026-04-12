@@ -780,7 +780,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_dict_values": ("tcl", "dict_values", [ValType.I32], [ValType.I32]),
     "tcl_dict_size": ("tcl", "dict_size", [ValType.I32], [ValType.I32]),
     "tcl_error": ("tcl", "error", [ValType.I32], []),
-    "tcl_format": ("tcl", "format", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_format": (
+        "tcl",
+        "format",
+        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_regexp": ("tcl", "regexp", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_open": ("tcl", "open", [ValType.I32], [ValType.I32]),
     "tcl_close": ("tcl", "close", [ValType.I32], [ValType.I32]),
@@ -808,6 +813,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_proc_register": (
         "tcl",
         "proc_register",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_proc_register_compiled": (
+        "tcl",
+        "proc_register_compiled",
         [ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
@@ -975,7 +986,7 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "load": ("tcl_load", 1),
     "unload": ("tcl_unload", 1),
     # Format / regex / encoding stubs.
-    "format": ("tcl_format", 2),
+    "format": ("tcl_format", 4),
     "scan": ("tcl_scan", 2),
     "binary": ("tcl_binary", 2),
     "regexp": ("tcl_regexp", 2),
@@ -1606,10 +1617,27 @@ def _scan_needed_imports(
     # Always include error and eval — error for traps, eval for
     # interpreter fallback on uncompiled commands.  tcl_diag_set is
     # also always imported so trap messages can be resolved against
-    # the sidecar source-location map.
+    # the sidecar source-location map.  tcl_global_set / get cover
+    # the top-level-var-mirror path in ``_emit_var_write_obj_impl``
+    # that keeps ``::top`` writes visible to eval fallbacks.
     needed.add("tcl_error")
     needed.add("tcl_eval")
     needed.add("tcl_diag_set")
+    needed.add("tcl_global_set")
+    needed.add("tcl_global_get")
+    # Register each compiled proc by name so the interpreter's
+    # host-bridge dispatch can find it when an interpreted caller
+    # (a Tcl-source proc body walked by eval_script) invokes a
+    # compiled helper.  The frame helpers are also pulled in so
+    # compiled procs can push a frame + bind params (necessary for
+    # eval-fallbacks inside a proc body to resolve ``$var`` via
+    # ``var_resolve``).  Only needed when the module has any procs.
+    if ir_module.procedures:
+        needed.add("tcl_proc_register_compiled")
+        needed.add("tcl_frame_push")
+        needed.add("tcl_frame_pop")
+        needed.add("tcl_local_set")
+
     return needed
 
 
@@ -1663,6 +1691,7 @@ class _WasmEmitter:
         func_index_base: int = 0,
         shared_imports: dict[str, int] | None = None,
         proc_index: dict[str, tuple[int, int]] | None = None,
+        proc_defaults: dict[str, tuple[str | None, ...]] | None = None,
         shared_strings: list[tuple[str, int]] | None = None,
         shared_string_index: dict[str, int] | None = None,
         shared_string_offset: list[int] | None = None,
@@ -1684,6 +1713,10 @@ class _WasmEmitter:
         self._shared_imports: dict[str, int] = shared_imports or {}
         # proc_index maps qualified name → (func_idx, n_params)
         self._proc_index: dict[str, tuple[int, int]] = proc_index or {}
+        # Per-proc default-value strings, indexed by slot.  Consulted
+        # by ``_emit_cmd_proc_call`` to pad missing call-site args
+        # with the declared default rather than a boxed zero.
+        self._proc_defaults: dict[str, tuple[str | None, ...]] = proc_defaults or {}
 
         # Local variable management
         self._local_names: list[str] = []
@@ -2834,28 +2867,29 @@ class _WasmEmitter:
 
     # -- Statement emission --
 
-    def set_proc_registration_prologue(self, ir_module: IRModule) -> None:
-        """Queue a call to ``tcl_proc_register`` for each compiled proc.
+    def set_compiled_proc_registrations(self, ir_module: IRModule) -> None:
+        """Queue a ``tcl_proc_register_compiled`` call per compiled proc.
 
-        The calls are emitted at the very start of ``generate()`` —
-        before the CFG body runs — so every proc's Tcl source body
-        lands in the runtime proc table.  This lets the interpreter
-        fall back to body-eval when a dynamic call site encounters a
-        proc that was compiled to a WASM function (static dispatch
-        can't be invoked from Zig; body-eval works for any
-        interpreter-path caller).
+        Emitted at the top of ``generate()`` (before normal ::top
+        code runs) so the runtime's proc table knows every compiled
+        proc by name, marked with ``func_idx=1`` so
+        ``eval_proc_call`` takes the host-bridge path instead of
+        looking for a Tcl source body.  The bridge
+        (``call_compiled_proc`` in the host embedder) then
+        dispatches by proc name to the compiled WASM function.
+
+        ``func_idx`` is used as a marker here, not an actual index
+        — the host looks procs up by *name*.  Any non-zero value
+        works; we pick 1 for clarity.
         """
-        self._proc_registration_queue = []
-        reg_idx = self._shared_imports.get("tcl_proc_register")
+        self._compiled_proc_queue = []
+        reg_idx = self._shared_imports.get("tcl_proc_register_compiled")
         if reg_idx is None:
             return
         for qname, proc in ir_module.procedures.items():
             if proc.body_source is None:
                 continue
-            # Build an args list as a space-separated list literal
-            # — that's the shape our tcl_proc_register expects.
-            params_literal = " ".join(proc.params)
-            self._proc_registration_queue.append((qname, params_literal, proc.body_source))
+            self._compiled_proc_queue.append((qname, len(proc.params)))
 
     def _record_stmt_context(self, stmt: IRStatement) -> None:
         """Update the 'current statement' tracking the diag machinery reads.
@@ -3018,6 +3052,24 @@ class _WasmEmitter:
             case IRTry(body=body, handlers=handlers, finally_body=finally_body):
                 self._emit_try(body, handlers, finally_body)
 
+    def _resolve_proc_qname(self, command: str) -> str | None:
+        """Resolve ``command`` to the qualified proc name if it matches."""
+        if command.startswith("::"):
+            return command if command in self._proc_index else None
+        if self._block_namespace and self._block_namespace != "::":
+            qn = f"{self._block_namespace}::{command}"
+            if qn in self._proc_index:
+                return qn
+        if self._proc_namespace and self._proc_namespace != "::":
+            qn = f"{self._proc_namespace}::{command}"
+            if qn in self._proc_index:
+                return qn
+        if f"::{command}" in self._proc_index:
+            return f"::{command}"
+        if command in self._proc_index:
+            return command
+        return None
+
     def _resolve_proc(self, command: str) -> tuple[int, int] | None:
         """Look up a user-defined proc by name, returning (func_idx, n_params) or None.
 
@@ -3139,7 +3191,8 @@ class _WasmEmitter:
         # User-defined proc call takes priority over built-ins
         proc_info = self._resolve_proc(command)
         if proc_info is not None:
-            self._emit_cmd_proc_call(proc_info[0], proc_info[1], args, defs)
+            qname = self._resolve_proc_qname(command)
+            self._emit_cmd_proc_call(proc_info[0], proc_info[1], args, defs, qname=qname)
             return
 
         # set/incr: only inline the canonical 1-or-2 arg forms that the
@@ -3319,9 +3372,17 @@ class _WasmEmitter:
             # include the dollar sign so the interpreter can resolve them.
             parts = [command]
             for a in args:
-                if a.startswith("$") or a.startswith("["):
+                if a == "":
+                    # Empty word — must be serialised as ``{}`` or
+                    # it disappears when the script is space-joined
+                    # and re-parsed.  This matters for e.g.
+                    # ``proc myproc {} body`` where the empty param
+                    # list would otherwise collapse to "proc myproc
+                    # body" (3 words instead of 4).
+                    parts.append("{}")
+                elif a.startswith("$") or a.startswith("["):
                     parts.append(a)
-                elif " " in a or "{" in a or '"' in a:
+                elif " " in a or "{" in a or '"' in a or "\n" in a or "\t" in a:
                     parts.append("{" + a + "}")
                 else:
                     parts.append(a)
@@ -3651,6 +3712,33 @@ class _WasmEmitter:
             # write directly without creating an unused WASM local.
             self._emit_global_set_via_literal(name, keep_on_stack=keep_on_stack)
             return
+        # At the top level (``::top``) there's no ``proc`` scope — every
+        # variable is in the global namespace.  Route writes through
+        # ``tcl_global_set`` AND keep a WASM local mirror so later reads
+        # at the same level can use the fast path.  Without the global
+        # mirror, an interpreter fallback at top level (e.g. a
+        # dynamically-registered ``proc $varName`` call) can't see the
+        # variable — eval-fallback always resolves via the global
+        # table when no frame is active.
+        if not self._is_proc:
+            gset_idx = self._shared_imports.get("tcl_global_set")
+            if gset_idx is not None:
+                idx = self._intern_local(name)
+                # Stack holds [value].  Need [name_obj, value] for gset.
+                tmp = self._add_extra_local(prefix="_gset_tmp", val_type=ValType.I32)
+                self._emit_local_set(tmp)
+                # Also mirror to the WASM local for fast in-top reads.
+                self._emit_local_get(tmp)
+                self._emit_local_set(idx)
+                self._emit_obj_literal(name)
+                self._emit_local_get(tmp)
+                self._emit_call(gset_idx)
+                if keep_on_stack:
+                    self._emit(WasmOp.DROP)  # drop gset return
+                    self._emit_local_get(tmp)  # leave value on stack
+                else:
+                    self._emit(WasmOp.DROP)  # drop gset return
+                return
         idx = self._intern_local(name)
         if keep_on_stack:
             self._emit_local_tee(idx)
@@ -3910,7 +3998,18 @@ class _WasmEmitter:
         self._emit_var_write_obj(var)
 
     def _emit_cmd_return(self, args: tuple[str, ...]) -> None:
-        """``return ?value?`` — WASM return instruction (i32 TclObj)."""
+        """``return ?value?`` or ``return -code code ?value?``.
+
+        The simple single-value form compiles to a WASM return.  The
+        ``-code`` / ``-level`` / ``-errorinfo`` / ``-errorcode``
+        variants have semantics (raising a Tcl error, breaking out of
+        enclosing loops, etc.) we don't replicate inline — fall back
+        to ``tcl_eval`` so the interpreter's return handler can
+        produce the right control-flow signal.
+        """
+        if args and args[0].startswith("-"):
+            self._emit_eval_fallback("return", args)
+            return
         if args:
             self._emit_value(args[0])
         else:
@@ -4498,6 +4597,32 @@ class _WasmEmitter:
         # ``list`` handled outside _emit_cmd_runtime — see
         # ``_emit_list_value`` for the N-arg build.
 
+        # ``format`` takes a format string + up to 3 arg TclObjs —
+        # fewer args get zero-padded so the runtime sees empty slots.
+        if command == "format":
+            if not args:
+                self._emit_i32_const(0)
+                self._emit_i32_const(0)
+                self._emit_i32_const(0)
+                self._emit_i32_const(0)
+            else:
+                self._emit_value(args[0])
+                for slot in range(1, 4):
+                    if slot < len(args):
+                        self._emit_value(args[slot])
+                    else:
+                        self._emit_i32_const(0)
+            self._emit_call(func_idx)
+            if spec[3]:
+                if defs:
+                    def_idx = self._intern_local(defs[0])
+                    self._emit_local_set(def_idx)
+                else:
+                    # Keep on stack if result matters (value context)
+                    # — here we're in statement context so drop.
+                    self._emit(WasmOp.DROP)
+            return
+
         # fconfigure takes a fd + a variable number of ``-option value``
         # pairs; the runtime fn has a 2-arg signature (fd, opts_obj),
         # so pack args[1:] into a single space-joined string literal
@@ -4576,19 +4701,32 @@ class _WasmEmitter:
         n_params: int,
         args: tuple[str, ...],
         defs: tuple[str, ...],
+        qname: str | None = None,
     ) -> None:
         """Emit a direct call to a compiled procedure.
 
         Enforces WASM arity: pushes exactly *n_params* i32 TclObj
-        pointers onto the stack — padding with null (0) for missing
-        args and ignoring surplus ones.
+        pointers onto the stack — padding with the proc's declared
+        defaults (via ``_proc_defaults``) for missing args, or
+        boxed zero when a param has no default.  Surplus args are
+        dropped (matches Tcl's behaviour for procs without ``args``
+        catchall).
         """
+        defaults: tuple[str | None, ...] = ()
+        if qname is not None:
+            defaults = self._proc_defaults.get(qname, ())
         # Push arguments up to the callee's parameter count
         for i in range(min(n_params, len(args))):
             self._emit_value(args[i])
-        # Pad missing args with boxed zero
-        for _ in range(n_params - len(args)):
-            self._emit_default_arg()
+        # Pad missing args with the declared default or boxed zero.
+        for slot in range(len(args), n_params):
+            default = defaults[slot] if slot < len(defaults) else None
+            if default is None:
+                self._emit_default_arg()
+            else:
+                # Defaults may themselves contain ``$var`` / ``[cmd]``
+                # substitutions; _emit_value handles interpolation.
+                self._emit_value(default)
 
         self._emit_call(func_idx)
 
@@ -5517,19 +5655,52 @@ class _WasmEmitter:
         All functions take i32 TclObj params and return a single i32
         TclObj result (null pointer 0 for void/empty-string returns).
         """
-        # Emit any queued proc-registration prologue so the runtime's
-        # proc table is populated before normal top-level code runs.
-        # See ``set_proc_registration_prologue``.
-        queue = getattr(self, "_proc_registration_queue", None)
+        # Emit the compiled-proc registration prologue so the
+        # runtime's proc table records every compiled proc by name.
+        # The func_idx=1 marker tells ``eval_proc_call`` to dispatch
+        # through the host bridge (``call_compiled_proc``) rather
+        # than try to eval a Tcl source body.
+        queue = getattr(self, "_compiled_proc_queue", None)
         if queue:
-            reg_idx = self._shared_imports.get("tcl_proc_register")
+            reg_idx = self._shared_imports.get("tcl_proc_register_compiled")
             if reg_idx is not None:
-                for qname, params_literal, body_src in queue:
+                for qname, n_params in queue:
                     self._emit_obj_literal(qname)
-                    self._emit_obj_literal(params_literal)
-                    self._emit_obj_literal(body_src)
+                    self._emit_i32_const(n_params)
+                    self._emit_i32_const(1)  # func_idx marker (any non-zero)
                     self._emit_call(reg_idx)
                     self._emit(WasmOp.DROP)
+
+        # Compiled-proc entry prologue: push a frame and bind each
+        # param into the frame's local-variable table.  This lets
+        # eval-fallbacks *inside* the proc body (e.g. ``proc
+        # $varName {body}`` where the interpreter needs to resolve
+        # ``$varName`` against the compiled proc's locals) see the
+        # param values via ``var_resolve``.  ``::top`` isn't a
+        # proc — it runs in global scope and doesn't get a frame.
+        wants_frame = (
+            self._is_proc
+            and "tcl_frame_push" in self._shared_imports
+            and "tcl_local_set" in self._shared_imports
+            and "tcl_frame_pop" in self._shared_imports
+        )
+        if wants_frame:
+            push_idx = self._shared_imports["tcl_frame_push"]
+            self._emit_call(push_idx)
+            self._emit(WasmOp.DROP)  # discard frame idx
+            local_set_idx = self._shared_imports["tcl_local_set"]
+            for i, pname in enumerate(self._params):
+                if not pname or pname.startswith("_"):
+                    continue
+                self._emit_obj_literal(pname)
+                self._emit_local_get(i)
+                self._emit_call(local_set_idx)
+                self._emit(WasmOp.DROP)
+
+        # Record where the body begins — we need to walk only the
+        # body instructions in the frame_pop post-process, not the
+        # prologue we just emitted.
+        prologue_end = len(self._body)
 
         self._emit_block(self._cfg.entry)
 
@@ -5539,6 +5710,36 @@ class _WasmEmitter:
             self._emit(WasmOp.END)
         else:
             self._emit(WasmOp.END)
+
+        # Compiled-proc exit epilogue: pop the frame we pushed in the
+        # prologue.  Inject a CALL to ``tcl_frame_pop`` immediately
+        # before every ``WasmOp.RETURN`` and at the natural implicit
+        # fall-through (between the last body instruction and the
+        # final END).  Confining the walk to instructions *after*
+        # ``prologue_end`` means we don't accidentally treat the
+        # prologue's own call/drop as a RETURN site.
+        if wants_frame:
+            pop_idx = self._shared_imports.get("tcl_frame_pop")
+            if pop_idx is not None:
+                call_pop = WasmInstruction(op=WasmOp.CALL, operands=_leb128_unsigned(pop_idx))
+                new_body = list(self._body[:prologue_end])
+                body_tail = list(self._body[prologue_end:])
+                for instr in body_tail:
+                    if instr.op == WasmOp.RETURN:
+                        new_body.append(call_pop)
+                    new_body.append(instr)
+                # Insert pop between the last non-END instruction and
+                # the trailing END(s) for the natural fallthrough.
+                i = len(new_body) - 1
+                while i >= 0 and new_body[i].op == WasmOp.END:
+                    i -= 1
+                if i >= 0 and new_body[i].op != WasmOp.RETURN:
+                    # Natural fallthrough — stack has the implicit
+                    # return value at position i.  Insert pop right
+                    # after it so the stack is ordered
+                    # [return_val, (no change from pop)] when END fires.
+                    new_body = new_body[: i + 1] + [call_pop] + new_body[i + 1 :]
+                self._body = new_body
 
         # Apply optimisations
         self._run_optimisations()
@@ -5659,12 +5860,22 @@ def wasm_codegen_module(
     # double-indexing methods that appear in cfg_module.procedures but
     # are defined in ir_module.methods rather than ir_module.procedures.
     proc_index: dict[str, tuple[int, int]] = {}
+    # Parallel map of proc qname → tuple of default-value strings
+    # (or ``None`` per slot without a default).  Used by the codegen
+    # to pad missing call-site args with the declared default instead
+    # of a boxed zero.
+    from ..lowering import _parse_params_with_defaults
+
+    proc_defaults: dict[str, tuple[str | None, ...]] = {}
     callables: list[tuple[str, CFGFunction, tuple[str, ...]]] = []
 
     for qname, cfg_func in cfg_module.procedures.items():
         ir_proc = ir_module.procedures.get(qname)
         if ir_proc is not None:
             callables.append((qname, cfg_func, ir_proc.params))
+            if ir_proc.params_raw:
+                defs = _parse_params_with_defaults(ir_proc.params_raw)
+                proc_defaults[qname] = tuple(d for _, d in defs)
         elif ir_module.methods and qname in ir_module.methods:
             ir_method = ir_module.methods[qname]
             callables.append((qname, cfg_func, ir_method.params))
@@ -5691,21 +5902,22 @@ def wasm_codegen_module(
         is_proc=False,
         shared_imports=shared_imports,
         proc_index=proc_index,
+        proc_defaults=proc_defaults,
         shared_strings=shared_strings,
         shared_string_index=shared_string_index,
         shared_string_offset=shared_string_offset,
         diag_map=diag_map,
     )
-    # Proc-registration prologue is disabled — it was corrupting
-    # runtime state for tcltest-sized modules (86 procs with long
-    # source bodies) in ways we don't fully understand yet.  Compiled
-    # procs remain callable only via static WASM calls from compiled
-    # callers; cross-context invocation (an interpreted Tcl-source
-    # proc body calling a compiled helper) still traps with "unknown
-    # command: <name>".  A proper call_indirect bridge is the correct
-    # fix; this placeholder keeps the machinery wired so enabling it
-    # later is a single line.
-    # emitter.set_proc_registration_prologue(ir_module)
+    # Register every compiled proc in the runtime proc table with a
+    # non-zero func_idx marker so the interpreter knows to dispatch
+    # via the host bridge (``call_compiled_proc`` → wasmtime
+    # lookup).  We don't ship the Tcl source body — the compiled
+    # WASM function IS the body, and the host bridge invokes it by
+    # name.  This lets a dynamically-registered proc (``proc
+    # $varName {body}``) whose body references a compiled helper
+    # like ``Configure`` actually execute instead of trapping with
+    # "unknown command".
+    emitter.set_compiled_proc_registrations(ir_module)
     top_func = emitter.generate()
     top_func.name = "::top"
     module.functions.append(top_func)
@@ -5721,6 +5933,7 @@ def wasm_codegen_module(
             is_proc=True,
             shared_imports=shared_imports,
             proc_index=proc_index,
+            proc_defaults=proc_defaults,
             shared_strings=shared_strings,
             shared_string_index=shared_string_index,
             shared_string_offset=shared_string_offset,
