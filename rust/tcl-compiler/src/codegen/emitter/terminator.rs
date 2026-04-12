@@ -238,19 +238,110 @@ impl CodegenCtx {
     /// Detect a switch dispatch chain and emit a `jumpTable` opcode.
     ///
     /// Returns `true` if a jump table was emitted (caller should skip
-    /// normal terminator emission).
+    /// normal terminator emission and mark the intermediate dispatch
+    /// blocks in `skip_blocks`).
+    ///
+    /// A switch dispatch chain is a sequence of `Branch` blocks with
+    /// condition `STR_EQ(subject, literal)` where `subject` is the
+    /// same expression across all blocks. The chain ends with a
+    /// `Goto` to the default target.
     pub fn try_emit_jump_table(
         &mut self,
-        _cfg: &CfgFunction,
-        _bname: &str,
-        _next_block: Option<&str>,
-        _skip_blocks: &mut std::collections::HashSet<String>,
+        cfg: &CfgFunction,
+        blk: &crate::cfg::Block,
+        next_block: Option<&str>,
+        skip_blocks: &mut std::collections::HashSet<String>,
     ) -> bool {
-        // TODO: implement switch jumpTable dispatch in a follow-up chunk.
-        // The Python version walks a chain of STR_EQ branches sharing the
-        // same subject and emits a single JUMP_TABLE instruction with the
-        // patterns in Tcl hash-table order.
-        false
+        use crate::expr_ast::{render_expr, BinOp, ExprNode};
+
+        let Some(Terminator::Branch { .. }) = &blk.terminator else {
+            return false;
+        };
+
+        // Walk the chain of STR_EQ branches sharing the same subject.
+        let mut cases: Vec<(String, String)> = Vec::new();
+        let mut subject: Option<String> = None;
+        let mut subject_expr: Option<ExprNode> = None;
+        let mut dispatch_blocks: Vec<String> = Vec::new();
+        let mut current_term = blk.terminator.clone();
+
+        while let Some(Terminator::Branch {
+            condition,
+            true_target,
+            false_target,
+            ..
+        }) = &current_term
+        {
+            let ExprNode::Binary { op, left, right } = condition else {
+                break;
+            };
+            if *op != BinOp::StrEq {
+                break;
+            }
+            let ExprNode::Literal { text: pattern, .. } = right.as_ref() else {
+                break;
+            };
+
+            let this_subject = render_expr(left);
+            match &subject {
+                None => {
+                    subject = Some(this_subject.clone());
+                    subject_expr = Some((**left).clone());
+                }
+                Some(s) if *s != this_subject => break,
+                _ => {}
+            }
+
+            cases.push((pattern.clone(), true_target.clone()));
+
+            // Follow false_target to next dispatch block.
+            let Some(next_blk) = cfg.blocks.get(false_target) else {
+                break;
+            };
+            dispatch_blocks.push(false_target.clone());
+            // Dispatch blocks should have no statements.
+            if !next_blk.statements.is_empty() {
+                break;
+            }
+            current_term = next_blk.terminator.clone();
+        }
+
+        if cases.len() < 2 {
+            return false;
+        }
+        let Some(subject_expr) = subject_expr else {
+            return false;
+        };
+
+        // The final dispatch block should have a Goto to the default.
+        let default_target = match &current_term {
+            Some(Terminator::Goto { target, .. }) => target.clone(),
+            _ => return false,
+        };
+
+        // Emit: push subject, jumpTable, jump default.
+        self.emit_expr(&subject_expr);
+
+        // Tcl 9.0's jumpTable entries appear in hash-table iteration order.
+        let ordered = super::super::helpers::tcl_hash_table_order(&cases);
+        let jt: std::collections::HashMap<String, String> = ordered.into_iter().collect();
+        let idx = self.emit(Op::JUMP_TABLE, vec![Operand::Imm(0)]);
+        self.instructions[idx].jump_table = Some(jt);
+
+        if Some(default_target.as_str()) != next_block {
+            self.emit_comment(
+                Op::JUMP4,
+                vec![Operand::Label(default_target.clone())],
+                &format!("-> {default_target}"),
+            );
+        }
+
+        // Mark intermediate dispatch blocks to skip.
+        for db in dispatch_blocks {
+            skip_blocks.insert(db);
+        }
+
+        true
     }
 }
 
@@ -381,10 +472,75 @@ mod tests {
     }
 
     #[test]
-    fn jump_table_not_emitted_yet() {
+    fn jump_table_not_for_plain_branch() {
+        use crate::cfg::Block;
         let mut ctx = CodegenCtx::new(false, &[]);
         let cfg = CfgFunction::new("::top", "entry_0");
+        let blk = Block::new("entry_0");
         let mut skip = std::collections::HashSet::new();
-        assert!(!ctx.try_emit_jump_table(&cfg, "entry_0", None, &mut skip));
+        assert!(!ctx.try_emit_jump_table(&cfg, &blk, None, &mut skip));
+    }
+
+    #[test]
+    fn jump_table_emitted_for_str_eq_chain() {
+        use crate::cfg::{Block, Function as CfgFunction};
+        use crate::expr_ast::{BinOp, ExprNode};
+
+        fn str_eq_branch(
+            subj_name: &str,
+            pattern: &str,
+            true_tgt: &str,
+            false_tgt: &str,
+        ) -> Terminator {
+            Terminator::Branch {
+                condition: ExprNode::Binary {
+                    op: BinOp::StrEq,
+                    left: Box::new(ExprNode::Var {
+                        text: format!("${subj_name}"),
+                        name: subj_name.into(),
+                        start: 0,
+                        end: 0,
+                    }),
+                    right: Box::new(ExprNode::Literal {
+                        text: pattern.into(),
+                        start: 0,
+                        end: pattern.len() as u32,
+                    }),
+                },
+                true_target: true_tgt.into(),
+                false_target: false_tgt.into(),
+                span: None,
+            }
+        }
+
+        // Chain: d1 ("a" → arm_a) → d2 ("b" → arm_b) → d3 (goto default).
+        // d3 is an intermediate dispatch block with a bare Goto.
+        let mut cfg = CfgFunction::new("::top", "entry");
+        cfg.blocks.insert("d1".into(), Block::new("d1"));
+        cfg.blocks.insert("d2".into(), Block::new("d2"));
+        cfg.blocks.insert("d3".into(), Block::new("d3"));
+        cfg.blocks.insert("arm_a".into(), Block::new("arm_a"));
+        cfg.blocks.insert("arm_b".into(), Block::new("arm_b"));
+        cfg.blocks.insert("default".into(), Block::new("default"));
+
+        cfg.blocks.get_mut("d1").unwrap().terminator =
+            Some(str_eq_branch("x", "a", "arm_a", "d2"));
+        cfg.blocks.get_mut("d2").unwrap().terminator =
+            Some(str_eq_branch("x", "b", "arm_b", "d3"));
+        cfg.blocks.get_mut("d3").unwrap().terminator = Some(Terminator::Goto {
+            target: "default".into(),
+            span: None,
+        });
+
+        let mut ctx = CodegenCtx::new(false, &[]);
+        let mut skip = std::collections::HashSet::new();
+        let d1_blk = cfg.blocks["d1"].clone();
+        let emitted = ctx.try_emit_jump_table(&cfg, &d1_blk, Some("default"), &mut skip);
+        assert!(emitted, "expected jump table emission");
+        assert!(skip.contains("d2"), "expected d2 to be skipped");
+        assert!(skip.contains("d3"), "expected d3 to be skipped");
+
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::JUMP_TABLE));
     }
 }

@@ -16,8 +16,8 @@ use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::ir::Procedure as IrProcedure;
 
 use super::super::layout::{optimise_jumps, resolve_layout};
-use super::super::{FunctionAsm, Op};
 use super::super::CodegenCtx;
+use super::super::{FunctionAsm, Op, Operand};
 use super::ordering::{
     self, linearise, starts_with_any, LOOP_BODY_PREFIXES, LOOP_END_PREFIXES,
     VALUE_JOIN_PREFIXES,
@@ -33,6 +33,11 @@ struct GenerateState {
     skip_blocks: HashSet<String>,
     /// Detected try/finally chains keyed by `try_body` block.
     try_finally_info: HashMap<String, TryFinallyInfo>,
+    /// While-loop startCommand end labels: `while_end_N` → deferred
+    /// label to place at the end block.
+    while_end_labels: HashMap<String, String>,
+    /// For-init startCommand end labels: `for_end_N` → deferred label.
+    for_init_end_labels: HashMap<String, String>,
 }
 
 impl GenerateState {
@@ -47,26 +52,36 @@ impl GenerateState {
             pending_proc_defs: pending,
             skip_blocks: HashSet::new(),
             try_finally_info: HashMap::new(),
+            while_end_labels: HashMap::new(),
+            for_init_end_labels: HashMap::new(),
         }
     }
 }
 
 /// Generate bytecode for one CFG function.
 ///
-/// MVP implementation: handles straight-line code, if/else, simple
-/// loops (via generic invokeStk), and try/finally CFG patterns.
-/// Foreach opcode compilation, switch jump tables, bottom-tested
-/// loop reordering, and complex-foreach bodies are deferred to
-/// follow-up chunks.
+/// MVP implementation: handles straight-line code, if/else, switch
+/// jump tables, proc returns with dead-code jumps, simple foreach
+/// loops with native opcodes, and try/finally CFG patterns.
+/// Complex-foreach bodies, for-init/while startCommand wrapping,
+/// and bottom-tested loop reordering are deferred to follow-up chunks.
 pub fn generate(
     ctx: &mut CodegenCtx,
     cfg: &CfgFunction,
     proc_defs: &[IrProcedure],
 ) -> FunctionAsm {
+    use super::loop_blocks::{detect_foreach, ForeachInfo};
+
     let block_order = linearise(cfg);
     let loop_ctx = ordering::build_loop_context(cfg);
     let mut state = GenerateState::new(proc_defs);
     state.try_finally_info = detect_try_finally(cfg, &block_order);
+
+    // Detect foreach loops; bodies are marked so we can append
+    // foreach_step/foreach_end after their statements.
+    let foreach_info: HashMap<String, ForeachInfo> = detect_foreach(cfg);
+    let foreach_bodies: HashSet<String> =
+        foreach_info.values().map(|i| i.body.clone()).collect();
     // Mark try_end/try_finally/try_after_finally as skipped — they
     // are emitted as part of the try_body block's inline sequence.
     for info in state.try_finally_info.values() {
@@ -130,6 +145,15 @@ pub fn generate(
             }
         }
 
+        // Place deferred for-init / while-loop startCommand end labels
+        // at the loop-end block's pop (the loop-result cleanup).
+        if let Some(lbl) = state.for_init_end_labels.remove(bname) {
+            place_label_before_trailing_pop(ctx, &lbl);
+        }
+        if let Some(lbl) = state.while_end_labels.remove(bname) {
+            place_label_before_trailing_pop(ctx, &lbl);
+        }
+
         // Empty loop body: emit 3 nops.
         if starts_with_any(bname, LOOP_BODY_PREFIXES)
             && blk.statements.is_empty()
@@ -146,9 +170,56 @@ pub fn generate(
             ctx.emit(Op::POP, vec![]);
         }
 
+        // foreach_header: emit list loads + foreach_start opcode, skip
+        // the normal Branch terminator (the opcode replaces it).
+        if let Some(fi) = foreach_info.get(bname) {
+            for la in &fi.list_args {
+                ctx.emit_value(la, false);
+            }
+            ctx.emit(Op::FOREACH_START, vec![Operand::Imm(0)]);
+            ctx.cmd_index += 1;
+            continue;
+        }
+
+        // foreach_body: emit body then foreach_step + foreach_end.
+        if foreach_bodies.contains(bname) {
+            for stmt in &blk.statements {
+                ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
+                ctx.emit_stmt_with_start_cmd(stmt, None, None);
+            }
+            ctx.emit(Op::FOREACH_STEP, vec![]);
+            ctx.emit(Op::FOREACH_END, vec![]);
+            continue;
+        }
+
+        // For-init blocks: the last statement before a Goto to a
+        // for_header_N block is the for command's init clause. Wrap
+        // it with a count=2 startCommand spanning the whole for loop.
+        let for_init_last_idx = detect_for_init_last_stmt(ctx, cfg, blk);
+
         // Emit statements.
-        for stmt in &blk.statements {
+        for (stmt_idx, stmt) in blk.statements.iter().enumerate() {
             ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
+            if Some(stmt_idx) == for_init_last_idx {
+                // For-init: emit startCommand with deferred end label
+                // and count=2 (for + init both start at this offset).
+                if let Some(Terminator::Goto { target: fi_header, .. }) = &blk.terminator {
+                    if let Some(fi_header_blk) = cfg.blocks.get(fi_header) {
+                        if let Some(Terminator::Branch {
+                            false_target: for_end,
+                            ..
+                        }) = &fi_header_blk.terminator
+                        {
+                            let fi_label = ctx.fresh_label("for_cmd_end");
+                            state
+                                .for_init_end_labels
+                                .insert(for_end.clone(), fi_label.clone());
+                            ctx.emit_stmt_with_start_cmd(stmt, Some(2), Some(&fi_label));
+                            continue;
+                        }
+                    }
+                }
+            }
             ctx.emit_stmt_with_start_cmd(stmt, None, None);
         }
 
@@ -167,9 +238,41 @@ pub fn generate(
             }
         }
 
+        // While-loop startCommand: emit before the jump to while_header.
+        if ctx.is_proc && ctx.cmd_index > 0 {
+            if let Some(Terminator::Goto { target: wh_header, .. }) = &blk.terminator {
+                let is_while_entry = wh_header.starts_with("while_header_")
+                    && !bname.starts_with("while_body_")
+                    && !bname.starts_with("while_step_");
+                if is_while_entry {
+                    if let Some(wh_blk) = cfg.blocks.get(wh_header) {
+                        if let Some(Terminator::Branch {
+                            false_target: wh_end,
+                            ..
+                        }) = &wh_blk.terminator
+                        {
+                            let wh_label = ctx.fresh_label("while_cmd_end");
+                            ctx.emit_comment(
+                                Op::START_CMD,
+                                vec![Operand::Label(wh_label.clone()), Operand::Imm(1)],
+                                "",
+                            );
+                            state.while_end_labels.insert(wh_end.clone(), wh_label);
+                            ctx.cmd_index += 1;
+                        }
+                    }
+                }
+            }
+        }
+
         let next_block = block_order.get(i + 1).map(String::as_str);
         if let Some(term) = &blk.terminator {
-            if ctx.is_proc && matches!(term, Terminator::Return { .. }) {
+            // Try switch-dispatch jump-table emission first.
+            if ctx.try_emit_jump_table(cfg, blk, next_block, &mut state.skip_blocks) {
+                // Switch dispatch counts as a command so the first arm
+                // body gets its own startCommand.
+                ctx.cmd_index += 1;
+            } else if ctx.is_proc && matches!(term, Terminator::Return { .. }) {
                 ctx.emit_proc_return(term, bname, next_block, &block_order, i, cfg);
             } else {
                 ctx.emit_term(term, next_block);
@@ -226,6 +329,57 @@ pub fn generate(
         instructions: std::mem::take(&mut ctx.instructions),
         labels,
     }
+}
+
+/// Return `Some(idx)` where `idx` is the index of the for-init
+/// statement within `blk.statements`. Returns `None` if this block
+/// is not a for-init block, or if `ctx.is_proc` is false.
+///
+/// A for-init block ends with a `Goto` to a `for_header_N` block and
+/// is not itself a `for_step_*` block. The init statement is the
+/// last one in the block (the Python implementation prefers statements
+/// whose source offset is within the for command's span, falling back
+/// to the last statement).
+fn detect_for_init_last_stmt(
+    ctx: &CodegenCtx,
+    cfg: &CfgFunction,
+    blk: &crate::cfg::Block,
+) -> Option<usize> {
+    if !ctx.is_proc {
+        return None;
+    }
+    let Terminator::Goto { target, .. } = blk.terminator.as_ref()? else {
+        return None;
+    };
+    if !target.starts_with("for_header_") {
+        return None;
+    }
+    if blk.name.starts_with("for_step_") {
+        return None;
+    }
+    if blk.statements.is_empty() {
+        return None;
+    }
+    // Ensure the target header block exists and has a Branch.
+    let header = cfg.blocks.get(target)?;
+    if !matches!(header.terminator, Some(Terminator::Branch { .. })) {
+        return None;
+    }
+    Some(blk.statements.len() - 1)
+}
+
+/// Place `label` at the instruction immediately before a trailing
+/// `pop` (if any), or at the current instruction index otherwise.
+///
+/// Used for deferred startCommand end labels that must land at the
+/// loop-result cleanup pop.
+fn place_label_before_trailing_pop(ctx: &mut CodegenCtx, label: &str) {
+    let pos = if ctx.instructions.last().is_some_and(|i| i.op == Op::POP) {
+        ctx.instructions.len() - 1
+    } else {
+        ctx.instructions.len()
+    };
+    ctx.label_positions.insert(label.to_owned(), pos);
 }
 
 /// Return `true` if the join block has work beyond a single fallthrough.
