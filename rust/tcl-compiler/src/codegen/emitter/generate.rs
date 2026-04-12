@@ -10,7 +10,7 @@
     dead_code
 )]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::ir::Procedure as IrProcedure;
@@ -27,8 +27,9 @@ use super::try_blocks::{detect_try_finally, TryFinallyInfo};
 
 /// Transient state passed between the per-block handlers in `generate`.
 struct GenerateState {
-    /// Pending proc definitions, sorted by source offset.
-    pending_proc_defs: Vec<IrProcedure>,
+    /// Pending proc definitions, sorted by source offset. A
+    /// `VecDeque` keeps `pop_front` O(1) during interleaved drain.
+    pending_proc_defs: VecDeque<IrProcedure>,
     /// Block names to skip — consumed by jump tables or try/finally.
     skip_blocks: HashSet<String>,
     /// Detected try/finally chains keyed by `try_body` block.
@@ -42,14 +43,14 @@ struct GenerateState {
 
 impl GenerateState {
     fn new(proc_defs: &[IrProcedure]) -> Self {
-        let mut pending: Vec<IrProcedure> = proc_defs
+        let mut sorted: Vec<IrProcedure> = proc_defs
             .iter()
             .filter(|p| is_static_proc(p))
             .cloned()
             .collect();
-        pending.sort_by_key(|p| p.span.start());
+        sorted.sort_by_key(|p| p.span.start());
         Self {
-            pending_proc_defs: pending,
+            pending_proc_defs: VecDeque::from(sorted),
             skip_blocks: HashSet::new(),
             try_finally_info: HashMap::new(),
             while_end_labels: HashMap::new(),
@@ -60,11 +61,19 @@ impl GenerateState {
 
 /// Generate bytecode for one CFG function.
 ///
-/// MVP implementation: handles straight-line code, if/else, switch
-/// jump tables, proc returns with dead-code jumps, simple foreach
-/// loops with native opcodes, and try/finally CFG patterns.
-/// Complex-foreach bodies, for-init/while startCommand wrapping,
-/// and bottom-tested loop reordering are deferred to follow-up chunks.
+/// Handles: straight-line code, if/else, switch jump tables, proc
+/// returns with dead-code jumps, foreach loops (simple and
+/// complex-body variants) with native `foreach_start`/`step`/`end`
+/// opcodes, for-init / while `startCommand` wrapping with deferred
+/// end labels at the loop-end pop, try/finally CFG patterns,
+/// bottom-tested loop layout (via `ordering::reorder_bottom_tested`).
+///
+/// Still deferred to follow-up chunks (see C18–C21 in `rust-rewrite.md`):
+/// foreach/for-body/complex-foreach startCommand placement nuances
+/// for tclsh byte-for-byte matching, value-emission extras
+/// (`try_list_expand_concat`, inline list with `break`/`continue`,
+/// `try_format_fold`), differential test harness, and registry-backed
+/// codegen hooks.
 pub fn generate(
     ctx: &mut CodegenCtx,
     cfg: &CfgFunction,

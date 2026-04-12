@@ -6,6 +6,8 @@
 
 #![allow(dead_code, clippy::doc_markdown)]
 
+use std::collections::VecDeque;
+
 use crate::ir::Procedure as IrProcedure;
 
 use super::super::{CodegenCtx, Op, Operand};
@@ -65,26 +67,27 @@ impl CodegenCtx {
     /// `before_offset`.
     ///
     /// `pending` is maintained in source-offset order; procs before
-    /// the given offset are drained from the front.
+    /// the given offset are drained from the front. Using a
+    /// [`VecDeque`] keeps `pop_front` O(1), so this is linear in the
+    /// number of procs drained rather than quadratic.
     pub fn emit_pending_proc_defs(
         &mut self,
-        pending: &mut Vec<IrProcedure>,
+        pending: &mut VecDeque<IrProcedure>,
         before_offset: u32,
     ) {
         while pending
-            .first()
+            .front()
             .is_some_and(|p| p.span.start() < before_offset)
         {
-            let p = pending.remove(0);
+            // SAFETY: front() just succeeded, so pop_front() returns Some.
+            let p = pending.pop_front().expect("front() was Some");
             self.emit_one_proc_def(&p);
         }
     }
 
     /// Flush remaining pending proc definitions in order.
-    pub fn flush_proc_defs(&mut self, pending: &mut Vec<IrProcedure>) {
-        // Drain from the front so source order is preserved.
-        while !pending.is_empty() {
-            let p = pending.remove(0);
+    pub fn flush_proc_defs(&mut self, pending: &mut VecDeque<IrProcedure>) {
+        while let Some(p) = pending.pop_front() {
             self.emit_one_proc_def(&p);
         }
     }
