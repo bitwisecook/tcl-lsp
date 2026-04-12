@@ -389,6 +389,21 @@ pub fn try_eq_ne_string_compare_simplify_expr(expr: &str) -> (String, bool) {
 /// (no overflow / divide-by-zero concerns).
 #[allow(clippy::too_many_lines, clippy::match_same_arms)]
 fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
+    // Ternary with constant condition.
+    if let ExprNode::Ternary {
+        condition,
+        true_branch,
+        false_branch,
+    } = node
+    {
+        if let Some(k) = int_literal_value(condition) {
+            if k != 0 {
+                return Some((**true_branch).clone());
+            }
+            return Some((**false_branch).clone());
+        }
+    }
+
     // Unary identities and double negations.
     if let ExprNode::Unary { op, operand } = node {
         // `+x` → `x` (arithmetic identity).
@@ -414,7 +429,8 @@ fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
             }
         }
         // `!(x == y)` → `x != y` and its ne / lt / gt / le / ge
-        // / eq / ni / in / str-eq / str-ne inverses.
+        // / eq / ni / in / str-eq / str-ne inverses. Also DeMorgan:
+        // `!(a && b)` → `!a || !b`, `!(a || b)` → `!a && !b`.
         if matches!(
             op,
             crate::expr_ast::UnaryOp::Not | crate::expr_ast::UnaryOp::WordNot
@@ -441,6 +457,27 @@ fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
                         op: new_op,
                         left: left.clone(),
                         right: right.clone(),
+                    });
+                }
+                // DeMorgan: !(a && b) → !a || !b, !(a || b) → !a && !b.
+                let dm_op = match inner_op {
+                    BinOp::And => Some(BinOp::Or),
+                    BinOp::Or => Some(BinOp::And),
+                    _ => None,
+                };
+                if let Some(new_op) = dm_op {
+                    let not_left = ExprNode::Unary {
+                        op: crate::expr_ast::UnaryOp::Not,
+                        operand: left.clone(),
+                    };
+                    let not_right = ExprNode::Unary {
+                        op: crate::expr_ast::UnaryOp::Not,
+                        operand: right.clone(),
+                    };
+                    return Some(ExprNode::Binary {
+                        op: new_op,
+                        left: Box::new(not_left),
+                        right: Box::new(not_right),
                     });
                 }
             }
