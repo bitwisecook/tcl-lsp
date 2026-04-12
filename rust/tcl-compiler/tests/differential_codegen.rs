@@ -85,6 +85,10 @@ enum OracleResult {
 const PY_DRIVER: &str = r"
 import sys
 try:
+    # Register bytecoded codegen hooks so specialised dispatches
+    # (lassign, llength, array names, …) kick in for the oracle.
+    from core.compiler.codegen.bytecoded import register_all
+    register_all()
     from core.compiler.codegen import codegen_module
     from core.compiler.codegen.format import format_module_asm
     from core.compiler.cfg import build_cfg
