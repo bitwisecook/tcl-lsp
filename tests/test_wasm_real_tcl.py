@@ -485,6 +485,700 @@ return $result
         assert val == 1
 
 
+class TestUpvarAndVariable:
+    """Tests for ``upvar`` and ``variable`` alias semantics.
+
+    ``upvar #0 target local`` aliases local → global ``target``; reads
+    and writes of ``local`` route through the global table, so changes
+    made from one proc are visible from another.  ``variable name``
+    inside a namespace proc aliases ``name`` → ``::ns::name``.
+    """
+
+    def test_upvar_hash0_literal_target(self):
+        """upvar #0 with a literal target name — writes propagate across procs."""
+        source = """\
+proc set_value {v} {
+    upvar #0 my_global g
+    set g $v
+}
+proc get_value {} {
+    upvar #0 my_global g
+    return $g
+}
+proc main {} {
+    set_value 42
+    return [get_value]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 42
+
+    def test_upvar_hash0_dynamic_target(self):
+        """upvar #0 with an interpolated target (counter::T-$tag pattern)."""
+        source = """\
+proc put {tag value} {
+    upvar #0 store::slot-$tag s
+    set s $value
+}
+proc fetch {tag} {
+    upvar #0 store::slot-$tag s
+    return $s
+}
+proc main {} {
+    put 7 111
+    put 9 222
+    set a [fetch 7]
+    set b [fetch 9]
+    return [expr {$a + $b}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 333
+
+    def test_upvar_incr_through_alias(self):
+        """incr on an upvar'd variable updates the underlying global."""
+        source = """\
+proc bump {tag} {
+    upvar #0 counter::c-$tag cnt
+    incr cnt
+}
+proc fetch_cnt {tag} {
+    upvar #0 counter::c-$tag cnt
+    return $cnt
+}
+proc main {} {
+    upvar #0 counter::c-x cnt
+    set cnt 10
+    bump x
+    bump x
+    bump x
+    return [fetch_cnt x]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 13
+
+    def test_variable_in_namespace_proc(self):
+        """variable in a namespace proc aliases local → ::ns::local.
+
+        We initialise the namespace var via the proc-level ``variable total 0``
+        form rather than the namespace-eval-level ``variable total 0`` form:
+        the interpreter's current ``namespace eval`` fallback does not yet
+        execute ``variable`` bodies, so top-level initialisation doesn't
+        land in the global table.  A proc-level ``variable name value``
+        does emit an initialising write through our alias machinery.
+        """
+        source = """\
+set ::ctr::total 0
+proc ::ctr::add {n} {
+    variable total
+    set total [expr {$total + $n}]
+    return $total
+}
+proc main {} {
+    ::ctr::add 5
+    ::ctr::add 7
+    return [::ctr::add 3]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 15
+
+    def test_variable_and_upvar_interop(self):
+        """A namespace variable is visible via upvar #0 in another proc."""
+        source = """\
+set ::st::count 0
+proc ::st::inc {} {
+    variable count
+    incr count
+    return $count
+}
+proc main {} {
+    ::st::inc
+    ::st::inc
+    upvar #0 ::st::count c
+    return $c
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 2
+
+    def test_variable_with_initializer(self):
+        """``variable name value`` inside a proc initialises the namespace var."""
+        source = """\
+proc ::ns::init {} {
+    variable counter 100
+    return $counter
+}
+proc ::ns::read_counter {} {
+    variable counter
+    return $counter
+}
+proc main {} {
+    ::ns::init
+    return [::ns::read_counter]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 100
+
+
+class TestInfoExists:
+    """``info exists`` wired into WASM codegen.
+
+    The test harness wraps each source in ``proc __main__``, so the
+    ``main`` proc here is a nested proc and variables declared inside
+    ``main`` are its locals.  ``::``-qualified names and upvar aliases
+    route through the global table.
+    """
+
+    def test_info_exists_plain_local_after_set(self):
+        source = """\
+proc checker {} {
+    set x 7
+    if {[info exists x]} { return 1 }
+    return 0
+}
+return [checker]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_info_exists_global_qualified(self):
+        source = """\
+proc checker {} {
+    if {[info exists ::myglob]} { return 1 }
+    return 0
+}
+proc setter {} {
+    set ::myglob 99
+}
+proc main {} {
+    setter
+    return [checker]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_info_exists_missing_global(self):
+        source = """\
+proc checker {} {
+    if {[info exists ::nope]} { return 1 }
+    return 0
+}
+return [checker]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 0
+
+    def test_info_exists_via_upvar_alias(self):
+        """info exists on an upvar'd local checks the aliased global."""
+        source = """\
+proc probe {tag} {
+    upvar #0 store::slot-$tag v
+    if {[info exists v]} { return 1 }
+    return 0
+}
+proc writer {tag} {
+    upvar #0 store::slot-$tag v
+    set v 1
+}
+proc main {} {
+    set a [probe 1]
+    writer 1
+    set b [probe 1]
+    return [expr {$a * 10 + $b}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        # Before write: 0; after write: 1 → 0*10 + 1 = 1
+        assert val == 1
+
+    def test_info_exists_array_element(self):
+        """info exists arr(key) probes the array-element table."""
+        source = """\
+proc main {} {
+    set a(1) 10
+    set r 0
+    if {[info exists a(1)]} { set r [expr {$r + 1}] }
+    if {[info exists a(2)]} { set r [expr {$r + 10}] }
+    return $r
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1  # only a(1) exists
+
+
+class TestLassign:
+    """``lassign`` destructures a list into variables and returns the rest."""
+
+    def test_lassign_basic(self):
+        source = """\
+proc main {} {
+    lassign {10 20 30} a b c
+    return [expr {$a + $b + $c}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 60
+
+    def test_lassign_fewer_vars_than_elements(self):
+        """Extra list elements are returned as the leftover list."""
+        source = """\
+proc main {} {
+    set rest [lassign {1 2 3 4 5} a b]
+    return [llength $rest]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 3
+
+    def test_lassign_more_vars_than_elements(self):
+        """Missing elements bind to empty string; length of empty is 0."""
+        source = """\
+proc main {} {
+    lassign {42} a b c
+    return [string length $b]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 0
+
+    def test_lassign_into_upvar_alias(self):
+        """Writes go through upvar aliases — target reflects across procs."""
+        source = """\
+proc dispatch {tag} {
+    upvar #0 ::slot::$tag s
+    lassign {7 42} _ s
+}
+proc fetch {tag} {
+    upvar #0 ::slot::$tag s
+    return $s
+}
+proc main {} {
+    dispatch abc
+    return [fetch abc]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 42
+
+
+class TestClock:
+    """``clock seconds`` / ``clock clicks`` / ``clock milliseconds`` via WASI."""
+
+    def test_clock_seconds_is_positive(self):
+        source = """\
+proc main {} {
+    set t [clock seconds]
+    if {$t > 0} { return 1 }
+    return 0
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_clock_clicks_is_positive(self):
+        source = """\
+proc main {} {
+    set t [clock clicks]
+    if {$t > 0} { return 1 }
+    return 0
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_clock_clicks_monotonic(self):
+        """Two consecutive clicks: the second is >= the first."""
+        source = """\
+proc main {} {
+    set a [clock clicks]
+    set b [clock clicks]
+    if {$b >= $a} { return 1 }
+    return 0
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_clock_milliseconds_present(self):
+        source = """\
+proc main {} {
+    set t [clock milliseconds]
+    if {$t > 0} { return 1 }
+    return 0
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+
+class TestArrays:
+    """Tcl arrays — ``set arr(key) val``, ``$arr(key)``, ``array …``."""
+
+    def test_array_basic_set_and_get(self):
+        source = """\
+proc main {} {
+    set a(1) 10
+    set a(2) 20
+    return [expr {$a(1) + $a(2)}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 30
+
+    def test_array_overwrite(self):
+        source = """\
+proc main {} {
+    set a(key) 1
+    set a(key) 42
+    return $a(key)
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 42
+
+    def test_array_incr(self):
+        source = """\
+proc main {} {
+    set counter(N) 0
+    incr counter(N)
+    incr counter(N)
+    incr counter(N)
+    return $counter(N)
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 3
+
+    def test_array_dynamic_key(self):
+        """Keys can be computed at runtime — use $var in key position."""
+        source = """\
+proc main {} {
+    set key alpha
+    set a($key) 7
+    set a(beta) 11
+    return [expr {$a($key) + $a(beta)}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 18
+
+    def test_array_exists_size(self):
+        source = """\
+proc main {} {
+    set r 0
+    if {[array exists missing]} { set r [expr {$r + 100}] }
+    set a(1) 1
+    set a(2) 1
+    if {[array exists a]} { set r [expr {$r + 1}] }
+    set r [expr {$r + [array size a]}]
+    return $r
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 3  # 0 missing-hit + 1 a-exists + 2 size
+
+    def test_array_names_join(self):
+        source = """\
+proc main {} {
+    set a(x) 1
+    set a(y) 2
+    set a(z) 3
+    set names [array names a]
+    return [llength $names]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 3
+
+    def test_array_unset_element(self):
+        source = """\
+proc main {} {
+    set a(1) 1
+    set a(2) 2
+    unset a(1)
+    return [array size a]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_array_unset_whole(self):
+        source = """\
+proc main {} {
+    set a(1) 1
+    set a(2) 2
+    array unset a
+    return [array size a]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 0
+
+    def test_array_exists_after_removing_all_elements(self):
+        """``array exists`` returns 1 for an array variable even when it
+        has zero elements — matches Tcl semantics where the array
+        variable persists after the last ``unset``.
+        """
+        source = """\
+proc main {} {
+    set a(1) 1
+    unset a(1)
+    if {[array exists a]} { return 1 }
+    return 0
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 1
+
+    def test_array_unset_preserves_probe_chain(self):
+        """Deleting an element must not break lookups of collision-mates.
+
+        We insert enough keys to provoke multiple collisions in the
+        initial 8-bucket table, unset one in the middle, and check
+        that the remaining keys are all still findable.
+        """
+        source = """\
+proc main {} {
+    set n 12
+    for {set i 0} {$i < $n} {incr i} {
+        set a($i) $i
+    }
+    unset a(3)
+    set sum 0
+    for {set i 0} {$i < $n} {incr i} {
+        if {[info exists a($i)]} {
+            set sum [expr {$sum + $a($i)}]
+        }
+    }
+    return $sum
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        # Sum 0..11 = 66, minus 3 = 63.  If the probe chain breaks
+        # we'd miss some later keys and the sum drops below 63.
+        assert val == 63
+
+    def test_array_unset_and_reinsert(self):
+        """After unsetting a key we can still insert a new one with the
+        same or a colliding hash and look it up.
+        """
+        source = """\
+proc main {} {
+    set a(x) 100
+    unset a(x)
+    set a(x) 7
+    set a(y) 11
+    return [expr {$a(x) + $a(y)}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 18
+
+    def test_array_set_literal(self):
+        source = """\
+proc main {} {
+    array set a {one 1 two 2 three 3}
+    return [expr {$a(one) + $a(two) + $a(three)}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 6
+
+    def test_array_via_upvar_alias(self):
+        """upvar #0 of a dynamic array name — tcllib counter pattern."""
+        source = """\
+proc put {tag k v} {
+    upvar #0 store::T-$tag arr
+    set arr($k) $v
+}
+proc fetch {tag k} {
+    upvar #0 store::T-$tag arr
+    return $arr($k)
+}
+proc main {} {
+    put alpha N 10
+    put alpha total 100
+    put beta N 1
+    return [expr {[fetch alpha N] + [fetch alpha total] + [fetch beta N]}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 111
+
+
+class TestUplevel:
+    """``uplevel`` runs a script in a caller's scope.
+
+    Compiled procs don't currently push frames, so in a fully-compiled
+    call chain ``uplevel 1`` and ``uplevel #0`` both resolve to global
+    scope — matching ``#0`` semantics.  Scripts that need true
+    caller-frame semantics require a caller that's running through the
+    interpreter (which does push a frame).
+    """
+
+    def test_uplevel_hash0_set_global(self):
+        """uplevel #0 {set X V} — writes the global X."""
+        source = """\
+proc setup {} {
+    uplevel #0 {set ::g 42}
+}
+proc main {} {
+    setup
+    return $::g
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 42
+
+    def test_uplevel_hash0_complex_script(self):
+        """uplevel #0 with a multi-command script that the tiny embedded
+        interpreter can execute (no ``$::ns``-in-expr traps).
+        """
+        source = """\
+proc prep {} {
+    uplevel #0 {
+        set ::a 10
+        set ::b 20
+        set ::c 30
+    }
+}
+proc main {} {
+    prep
+    return [expr {$::a + $::b + $::c}]
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 60
+
+    def test_uplevel_default_level(self):
+        """``uplevel {set X V}`` with no level defaults to 1.
+
+        In a fully-compiled chain this still degrades to global since
+        no frames are pushed — sufficient for scripts that use uplevel
+        to simulate macros on globals.
+        """
+        source = """\
+proc mkglob {name val} {
+    uplevel "set ::$name $val"
+}
+proc main {} {
+    mkglob myvar 99
+    return $::myvar
+}
+return [main]
+"""
+        ok, val, err = _run_tcl_for_value(source)
+        assert ok, f"error: {err}"
+        assert val == 99
+
+
+class TestUpvarCompilation:
+    """Upvar/variable compilation tests — validate without execution."""
+
+    def test_upvar_literal_target_compiles(self):
+        source = """\
+proc p {} {
+    upvar #0 foo x
+    set x 1
+}
+"""
+        ok, err = _try_compile(source)
+        assert ok, f"compile error: {err}"
+
+    def test_upvar_dynamic_target_compiles(self):
+        source = """\
+proc p {tag} {
+    upvar #0 counter::T-$tag c
+    set c 0
+}
+"""
+        ok, err = _try_compile(source)
+        assert ok, f"compile error: {err}"
+
+    def test_variable_no_init_compiles(self):
+        source = """\
+namespace eval ::ns {
+    variable v
+}
+proc ::ns::use {} {
+    variable v
+    set v 42
+}
+"""
+        ok, err = _try_compile(source)
+        assert ok, f"compile error: {err}"
+
+
 class TestExternalTcllibCounter:
     """Compile and run the real tcllib counter module (pure Tcl).
 
@@ -492,10 +1186,10 @@ class TestExternalTcllibCounter:
     14 procs, ~1200 lines of pure Tcl. Tests that a real-world tcllib
     module compiles to WASM and instantiates without trapping.
 
-    Note: counter uses ``upvar #0`` to track per-counter globals; our
-    codegen treats upvar as a NOP, so the procs run but don't share
-    state correctly. These tests verify the *compilation* and *dispatch*
-    work end-to-end, not the counter semantics.
+    ``upvar #0`` now produces a real global alias (see TestUpvarAndVariable);
+    however, full counter semantics also require Tcl arrays
+    (``set counter(N) 0``), which remain unimplemented. These tests
+    verify compilation and dispatch end-to-end, not full counter behaviour.
     """
 
     _COUNTER_TCL = _EXTERNAL_DIR / "tcllib" / "counter" / "counter.tcl"
