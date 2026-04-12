@@ -24,7 +24,9 @@ use std::collections::HashMap;
 use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, Traits};
 
-use crate::cfg::Function as CfgFunction;
+use std::collections::HashSet;
+
+use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::ir::Statement;
 use crate::side_effects::{classify_side_effects, EffectRegion};
 use crate::ssa::{SsaFunction, SsaStatement};
@@ -771,6 +773,202 @@ pub fn find_redundancies(
     results
 }
 
+// ---------------------------------------------------------------------------
+// Loop-invariant detection (C26e2)
+// ---------------------------------------------------------------------------
+
+/// True when `ancestor` dominates `node` in `ssa.idom`.
+fn dominates(ssa: &SsaFunction, ancestor: &str, node: &str) -> bool {
+    if ancestor == node {
+        return true;
+    }
+    let mut curr = node.to_owned();
+    loop {
+        match ssa.idom.get(&curr) {
+            Some(Some(parent)) => {
+                if parent == ancestor {
+                    return true;
+                }
+                curr = parent.clone();
+            }
+            _ => return false,
+        }
+    }
+}
+
+/// Enumerate block names reachable from `entry` via CFG edges.
+fn reachable_from(cfg: &CfgFunction, entry: &str) -> HashSet<String> {
+    let mut out = HashSet::new();
+    let mut stack = vec![entry.to_owned()];
+    while let Some(name) = stack.pop() {
+        if !out.insert(name.clone()) {
+            continue;
+        }
+        if let Some(block) = cfg.blocks.get(&name) {
+            if let Some(term) = &block.terminator {
+                match term {
+                    Terminator::Goto { target, .. } => stack.push(target.clone()),
+                    Terminator::Branch {
+                        true_target,
+                        false_target,
+                        ..
+                    } => {
+                        stack.push(true_target.clone());
+                        stack.push(false_target.clone());
+                    }
+                    Terminator::Return { .. } => {}
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Natural loop: all blocks on any path from `latch` back to
+/// `header` that doesn't leave the loop via a non-predecessor
+/// edge. Walks predecessors starting from `latch`, stopping at
+/// the header.
+fn natural_loop_blocks(
+    cfg: &CfgFunction,
+    header: &str,
+    latch: &str,
+    executable: &HashSet<String>,
+) -> HashSet<String> {
+    let preds = cfg.predecessors();
+    let mut blocks: HashSet<String> = HashSet::new();
+    blocks.insert(header.to_owned());
+    blocks.insert(latch.to_owned());
+    let mut work = vec![latch.to_owned()];
+    while let Some(node) = work.pop() {
+        if let Some(ps) = preds.get(&node) {
+            for p in ps {
+                if !executable.contains(p) || blocks.contains(p) {
+                    continue;
+                }
+                blocks.insert(p.clone());
+                if p != header {
+                    work.push(p.clone());
+                }
+            }
+        }
+    }
+    blocks
+}
+
+/// All variable names defined inside `loop_blocks` (phi LHS +
+/// statement defs).
+fn loop_defined_variables(ssa: &SsaFunction, loop_blocks: &HashSet<String>) -> HashSet<String> {
+    let mut defs = HashSet::new();
+    for bn in loop_blocks {
+        if let Some(block) = ssa.blocks.get(bn) {
+            for phi in &block.phis {
+                defs.insert(phi.name.clone());
+            }
+            for stmt in &block.statements {
+                for name in stmt.defs.keys() {
+                    defs.insert(name.clone());
+                }
+            }
+        }
+    }
+    defs
+}
+
+/// Detect loop-invariant pure computations.
+///
+/// Returns a [`RedundantComputation`] with code `"O107"` for each
+/// pure-expression occurrence inside a loop whose variable
+/// references are all defined *outside* the loop (so the
+/// computation produces the same value on every iteration).
+///
+/// Matches the Python LICM-style hint at
+/// `gvn.py::_find_loop_invariants`, with a simplified occurrence
+/// walk that reuses [`statement_occurrences`].
+#[must_use]
+pub fn find_loop_invariants(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let executable = reachable_from(cfg, &ssa.entry);
+    let mut results: Vec<RedundantComputation> = Vec::new();
+
+    // Collect unique header → loop_blocks pairs via back-edge
+    // detection: edge tail → succ where succ dominates tail.
+    let mut header_to_blocks: std::collections::HashMap<String, HashSet<String>> =
+        std::collections::HashMap::new();
+    for tail in &executable {
+        let Some(block) = cfg.blocks.get(tail) else {
+            continue;
+        };
+        let successors: Vec<String> = match &block.terminator {
+            Some(Terminator::Goto { target, .. }) => vec![target.clone()],
+            Some(Terminator::Branch {
+                true_target,
+                false_target,
+                ..
+            }) => vec![true_target.clone(), false_target.clone()],
+            _ => continue,
+        };
+        for succ in successors {
+            if !executable.contains(&succ) {
+                continue;
+            }
+            if !dominates(ssa, &succ, tail) {
+                continue;
+            }
+            let blocks = natural_loop_blocks(cfg, &succ, tail, &executable);
+            header_to_blocks
+                .entry(succ)
+                .and_modify(|e| e.extend(blocks.iter().cloned()))
+                .or_insert(blocks);
+        }
+    }
+
+    for (header, loop_blocks) in &header_to_blocks {
+        let defined = loop_defined_variables(ssa, loop_blocks);
+        for bn in loop_blocks {
+            if bn == header {
+                // Skip header-only scans (contains the loop test).
+                continue;
+            }
+            let Some(ssa_block) = ssa.blocks.get(bn) else {
+                continue;
+            };
+            for (idx, stmt_ssa) in ssa_block.statements.iter().enumerate() {
+                // Purity gate — loop-invariance only makes sense
+                // for computations that don't otherwise touch
+                // state each iteration.
+                if statement_writes_state(registry, &stmt_ssa.statement, dialect) {
+                    continue;
+                }
+                let occurrences =
+                    statement_occurrences(registry, stmt_ssa, bn, idx, dialect);
+                for occ in occurrences {
+                    if occ
+                        .variable_uses
+                        .iter()
+                        .any(|name| defined.contains(name))
+                    {
+                        continue;
+                    }
+                    let text = occ.expression_text.clone();
+                    results.push(RedundantComputation {
+                        span: occ.span,
+                        first_span: occ.span,
+                        expression_text: text.clone(),
+                        code: "O107".into(),
+                        message: loop_invariant_message(&text),
+                    });
+                }
+            }
+        }
+    }
+
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1341,6 +1539,201 @@ mod tests {
         };
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert!(results.is_empty());
+    }
+
+    // -- C26e2: loop-invariant detection --
+
+    #[test]
+    fn find_loop_invariants_detects_hoistable_llength() {
+        let registry = CommandRegistry::build_default();
+        // header: branch on $i < 10 → body → header (back edge)
+        // body: llength $x (invariant w.r.t. loop-defined $i)
+        let mut cfg = Function::new("::top", "header");
+        cfg.blocks.insert("body".into(), Block::new("body"));
+        cfg.blocks.insert("exit".into(), Block::new("exit"));
+        cfg.blocks.get_mut("header").unwrap().terminator = Some(Terminator::Branch {
+            condition: crate::expr_ast::ExprNode::Literal {
+                text: "1".into(),
+                start: 0,
+                end: 1,
+            },
+            true_target: "body".into(),
+            false_target: "exit".into(),
+            span: None,
+        });
+        cfg.blocks
+            .get_mut("body")
+            .unwrap()
+            .statements
+            .push(llength_call());
+        cfg.blocks.get_mut("body").unwrap().terminator = Some(Terminator::Goto {
+            target: "header".into(),
+            span: None,
+        });
+        cfg.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "header".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        // header dominates body and exit.
+        ssa.idom.insert("header".into(), None);
+        ssa.idom.insert("body".into(), Some("header".into()));
+        ssa.idom.insert("exit".into(), Some("header".into()));
+        ssa.dominator_tree
+            .insert("header".into(), vec!["body".into(), "exit".into()]);
+        ssa.dominator_tree.insert("body".into(), Vec::new());
+        ssa.dominator_tree.insert("exit".into(), Vec::new());
+
+        let h = empty_ssa_block("header");
+        let mut b = empty_ssa_block("body");
+        // $x's SSA version comes from outside the loop (x@1).
+        b.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        ssa.blocks.insert("header".into(), h);
+        ssa.blocks.insert("body".into(), b);
+        ssa.blocks.insert("exit".into(), empty_ssa_block("exit"));
+
+        let results = find_loop_invariants(&registry, &cfg, &ssa, None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].code, "O107");
+        assert!(results[0].expression_text.contains("llength"));
+    }
+
+    #[test]
+    fn find_loop_invariants_skips_loop_defined_var() {
+        let registry = CommandRegistry::build_default();
+        // As above, but `$i` is defined inside the loop — llength
+        // uses `$i` → not loop-invariant.
+        let mut cfg = Function::new("::top", "header");
+        cfg.blocks.insert("body".into(), Block::new("body"));
+        cfg.blocks.insert("exit".into(), Block::new("exit"));
+        cfg.blocks.get_mut("header").unwrap().terminator = Some(Terminator::Branch {
+            condition: crate::expr_ast::ExprNode::Literal {
+                text: "1".into(),
+                start: 0,
+                end: 1,
+            },
+            true_target: "body".into(),
+            false_target: "exit".into(),
+            span: None,
+        });
+        let llength_on_i = Statement::Call {
+            span: Span::new(0, 0),
+            command: "llength".into(),
+            args: vec!["$i".into()],
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        };
+        cfg.blocks
+            .get_mut("body")
+            .unwrap()
+            .statements
+            .push(llength_on_i.clone());
+        cfg.blocks.get_mut("body").unwrap().terminator = Some(Terminator::Goto {
+            target: "header".into(),
+            span: None,
+        });
+        cfg.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "header".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        ssa.idom.insert("header".into(), None);
+        ssa.idom.insert("body".into(), Some("header".into()));
+        ssa.idom.insert("exit".into(), Some("header".into()));
+
+        let h = empty_ssa_block("header");
+        let mut b = empty_ssa_block("body");
+        // `$i` defined in body.
+        let mut defs = Map::new();
+        defs.insert("i".to_string(), 1);
+        b.statements.push(SsaStatement {
+            statement: Statement::AssignConst {
+                span: Span::new(0, 0),
+                name: "i".into(),
+                value: "0".into(),
+            },
+            uses: Map::new(),
+            defs,
+        });
+        // llength $i — uses map tracks `i`, not `x`.
+        let mut uses_i = Map::new();
+        uses_i.insert("i".to_string(), 1);
+        b.statements.push(SsaStatement {
+            statement: llength_on_i,
+            uses: uses_i,
+            defs: Map::new(),
+        });
+        ssa.blocks.insert("header".into(), h);
+        ssa.blocks.insert("body".into(), b);
+        ssa.blocks.insert("exit".into(), empty_ssa_block("exit"));
+
+        let results = find_loop_invariants(&registry, &cfg, &ssa, None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn find_loop_invariants_no_loops_empty() {
+        let registry = CommandRegistry::build_default();
+        let mut cfg = Function::new("::top", "entry");
+        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        ssa.idom.insert("entry".into(), None);
+        ssa.blocks.insert("entry".into(), empty_ssa_block("entry"));
+        assert!(find_loop_invariants(&registry, &cfg, &ssa, None).is_empty());
+    }
+
+    #[test]
+    fn dominates_trivial_and_chain() {
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        ssa.idom.insert("entry".into(), None);
+        ssa.idom.insert("a".into(), Some("entry".into()));
+        ssa.idom.insert("b".into(), Some("a".into()));
+        assert!(dominates(&ssa, "entry", "b"));
+        assert!(dominates(&ssa, "a", "b"));
+        assert!(!dominates(&ssa, "b", "a"));
+        assert!(dominates(&ssa, "b", "b"));
     }
 
     #[test]
