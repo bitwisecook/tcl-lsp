@@ -52,6 +52,9 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, dialect: Option<&
         Statement::ExprEval { span, expr } => {
             try_rewrite_expr(ctx, *span, expr);
         }
+        Statement::AssignExpr { span, name, expr } => {
+            try_rewrite_assign_expr(ctx, *span, name, expr);
+        }
         Statement::If {
             clauses, else_body, ..
         } => {
@@ -100,6 +103,87 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, dialect: Option<&
             }
         }
         _ => {}
+    }
+}
+
+/// Fold `set name [expr {…}]` via the standard chain:
+///
+/// 1. Full constant fold (`expr {2 + 3}` → `5`) → O101
+/// 2. Strength reduction (`$x * 1` → `$x`, `$x ** 2` → `$x * $x`,
+///    `$x % 8` → `$x & 7`) → O113
+/// 3. `InstCombine` identities (`$x + 0` → `$x`, `$x * 0` → `0`)
+///    → O110
+///
+/// Matches the Python `_expr_simplify` behaviour for
+/// `IRAssignExpr` nodes. Skipped when the expression contains a
+/// command substitution (side-effect risk).
+fn try_rewrite_assign_expr(
+    ctx: &mut PassContext<'_>,
+    span: Span,
+    name: &str,
+    expr: &ExprNode,
+) {
+    use super::helpers::expr_simplify::{
+        expr_has_command_subst, instcombine_expr, try_strength_reduce_expr,
+    };
+    use super::helpers::spans::full_rewrite_span;
+
+    if matches!(expr, ExprNode::Raw { .. }) {
+        return;
+    }
+    // Skip expressions containing command substitutions — those
+    // could have side effects that must not be lost.
+    if expr_has_command_subst(expr) {
+        return;
+    }
+
+    // 1. Full constant fold.
+    let env = Env::new();
+    if let Some(val) = eval_tcl_expr(expr, &env) {
+        let folded = format_tcl_value(val);
+        let original = crate::expr_ast::render_expr(expr);
+        if folded != original.trim() {
+            // Safe-word check: the folded value must inline as a
+            // bare argument to `set`. Numbers and safe identifiers
+            // qualify; strings with Tcl metacharacters don't.
+            let needs_quoting = folded.is_empty()
+                || folded.contains([
+                    ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
+                ]);
+            if !needs_quoting {
+                ctx.report(Optimisation::new(
+                    "O101",
+                    "Fold constant expression",
+                    full_rewrite_span(ctx.source, span),
+                    format!("set {name} {folded}"),
+                ));
+                return;
+            }
+        }
+    }
+
+    // 2. + 3. Partial simplification via strength reduction /
+    // instcombine. The helpers operate on text form, so render
+    // first, then re-wrap in `expr { … }`.
+    let rendered_expr = crate::expr_ast::render_expr(expr);
+    let (reduced, sred_changed) = try_strength_reduce_expr(&rendered_expr);
+    if sred_changed {
+        ctx.report(Optimisation::new(
+            "O113",
+            "Strength-reduce expression",
+            full_rewrite_span(ctx.source, span),
+            format!("set {name} [expr {{{reduced}}}]"),
+        ));
+        return;
+    }
+    let (simplified, inst_changed) = instcombine_expr(&rendered_expr, false);
+    if inst_changed {
+        ctx.report(Optimisation::new(
+            "O110",
+            "Simplify expression (instcombine)",
+            full_rewrite_span(ctx.source, span),
+            format!("set {name} [expr {{{simplified}}}]"),
+        ));
     }
 }
 
