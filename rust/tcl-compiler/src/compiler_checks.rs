@@ -1,0 +1,210 @@
+//! Top-level diagnostic aggregator.
+//!
+//! Runs every per-pass diagnostic source (SCCP constant-branch,
+//! GVN redundancies, shimmer warnings, taint warnings, optimiser
+//! suggestions) against a [`CompilationUnit`] and returns a
+//! single flat list of diagnostics ready for the LSP.
+//!
+//! Ported from `core/compiler/compiler_checks.py` (C31). This
+//! strip lands the [`Diagnostic`] supertype and a scaffolded
+//! [`run_all_checks`] entry point that calls each landed analysis
+//! and collects results. Checks whose full Rust implementation is
+//! still a stub (shimmer, taint) contribute nothing today but the
+//! wiring is in place.
+
+use tcl_lexer::Span;
+
+use crate::compilation_unit::CompilationUnit;
+use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies};
+use crate::sccp::ConstantBranch;
+use crate::shimmer::{find_shimmer_warnings, find_thunking_warnings, ShimmerWarning, ThunkingWarning};
+use crate::taint::{find_taint_warnings, TaintWarning};
+use tcl_registry::CommandRegistry;
+
+// ---------------------------------------------------------------------------
+// Unified diagnostic envelope
+// ---------------------------------------------------------------------------
+
+/// Severity of a compiler diagnostic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Severity {
+    /// Informational hint.
+    Hint,
+    /// Style suggestion / refactor.
+    Suggestion,
+    /// Warning that may indicate a bug.
+    Warning,
+    /// Error.
+    Error,
+}
+
+/// A unified diagnostic emitted by the compiler-checks pipeline.
+///
+/// Downstream consumers (LSP, CLI) lower this into their native
+/// diagnostic types.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Diagnostic {
+    /// Source span.
+    pub span: Span,
+    /// Diagnostic code (e.g. `"O105"`, `"S100"`, `"T100"`).
+    pub code: String,
+    /// Short category name (`"gvn"`, `"shimmer"`, `"taint"`, …).
+    pub category: String,
+    /// Severity.
+    pub severity: Severity,
+    /// Formatted message.
+    pub message: String,
+}
+
+impl Diagnostic {
+    fn from_constant_branch(cb: &ConstantBranch) -> Self {
+        Self {
+            span: Span::new(0, 0),
+            code: "O100".into(),
+            category: "sccp".into(),
+            severity: Severity::Hint,
+            message: format!(
+                "condition in block {} is a constant {} — take target `{}`",
+                cb.block, cb.value, cb.taken_target
+            ),
+        }
+    }
+
+    fn from_shimmer(w: &ShimmerWarning) -> Self {
+        Self {
+            span: w.span,
+            code: w.code.clone(),
+            category: "shimmer".into(),
+            severity: Severity::Warning,
+            message: w.message.clone(),
+        }
+    }
+
+    fn from_thunking(w: &ThunkingWarning) -> Self {
+        Self {
+            span: w.span,
+            code: w.code.clone(),
+            category: "shimmer".into(),
+            severity: Severity::Warning,
+            message: w.message.clone(),
+        }
+    }
+
+    fn from_taint(w: &TaintWarning) -> Self {
+        Self {
+            span: w.span,
+            code: w.code.clone(),
+            category: "taint".into(),
+            severity: Severity::Error,
+            message: w.message.clone(),
+        }
+    }
+
+    fn from_redundant(r: &crate::gvn::RedundantComputation) -> Self {
+        Self {
+            span: r.span,
+            code: r.code.clone(),
+            category: "gvn".into(),
+            severity: Severity::Suggestion,
+            message: r.message.clone(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+/// Run every landed check against a compilation unit and return a
+/// flat list of diagnostics.
+///
+/// Order of the returned diagnostics is stable but not guaranteed
+/// across releases — consumers that care about ordering sort on
+/// `(span.start(), code)` themselves.
+#[must_use]
+pub fn run_all_checks(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<Diagnostic> {
+    let mut out: Vec<Diagnostic> = Vec::new();
+
+    // SCCP constant branches (per function).
+    for fu in cu.functions() {
+        for cb in &fu.sccp.constant_branches {
+            out.push(Diagnostic::from_constant_branch(cb));
+        }
+    }
+
+    // GVN full + partial redundancies + loop invariants.
+    for fu in cu.functions() {
+        for r in find_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
+            out.push(Diagnostic::from_redundant(&r));
+        }
+        for r in find_partial_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
+            out.push(Diagnostic::from_redundant(&r));
+        }
+        for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
+            out.push(Diagnostic::from_redundant(&r));
+        }
+    }
+
+    // Shimmer + thunking (stubs for now).
+    for fu in cu.functions() {
+        for w in find_shimmer_warnings(&fu.cfg) {
+            out.push(Diagnostic::from_shimmer(&w));
+        }
+        for w in find_thunking_warnings(&fu.cfg) {
+            out.push(Diagnostic::from_thunking(&w));
+        }
+    }
+
+    // Taint (stub — consumes the source directly).
+    for w in find_taint_warnings(&cu.source) {
+        out.push(Diagnostic::from_taint(&w));
+    }
+
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn run_all_checks_on_empty_source_is_empty() {
+        let cu = CompilationUnit::build_for("", &registry(), false);
+        assert!(run_all_checks(&cu, &registry(), None).is_empty());
+    }
+
+    #[test]
+    fn run_all_checks_reports_sccp_constant_branch() {
+        let cu = CompilationUnit::build_for(
+            "if {1} { set x 1 } else { set y 2 }",
+            &registry(),
+            false,
+        );
+        let diagnostics = run_all_checks(&cu, &registry(), None);
+        // SCCP should have flagged the constant-true branch.
+        let has_sccp = diagnostics.iter().any(|d| d.category == "sccp");
+        assert!(has_sccp, "expected an SCCP diagnostic, got {diagnostics:?}");
+    }
+
+    #[test]
+    fn diagnostic_from_redundant_preserves_code() {
+        let r = crate::gvn::RedundantComputation::new(
+            Span::new(0, 5),
+            Span::new(10, 15),
+            "llength $x",
+            "O105",
+            "msg",
+        );
+        let d = Diagnostic::from_redundant(&r);
+        assert_eq!(d.code, "O105");
+        assert_eq!(d.category, "gvn");
+    }
+}

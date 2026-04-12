@@ -72,6 +72,8 @@ pub mod analyses;
 pub mod cfg;
 pub mod cfg_builder;
 pub mod codegen;
+pub mod compilation_unit;
+pub mod compiler_checks;
 pub mod dataflow_graph;
 pub mod def_use;
 pub mod execution_intent;
