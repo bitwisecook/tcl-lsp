@@ -30,7 +30,7 @@ use tcl_registry::{CommandRegistry, Traits};
 
 use std::collections::HashSet;
 
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{CfgModule, Function as CfgFunction, Terminator};
 use crate::ir::Statement;
 use crate::side_effects::{classify_side_effects, EffectRegion};
 use crate::ssa::{SsaFunction, SsaStatement};
@@ -363,6 +363,228 @@ pub fn loop_invariant_message(expression_text: &str) -> String {
         "'{expression_text}' is loop-invariant and re-computed on each \
         iteration. Consider hoisting it before the loop."
     )
+}
+
+// ---------------------------------------------------------------------------
+// Intra-module pure-proc analysis (C26e4)
+// ---------------------------------------------------------------------------
+
+/// Set of procedure names proven pure by the intra-module
+/// analysis. Consumed by [`is_pure_with_procs`] /
+/// [`is_worth_reporting_with_procs`] so GVN treats user procs
+/// the same way as built-in CSE candidates.
+#[derive(Debug, Clone, Default)]
+pub struct PureProcs {
+    /// Fully-qualified names of procs with no observable side
+    /// effects.
+    pub names: std::collections::HashSet<String>,
+}
+
+impl PureProcs {
+    /// Empty set — no user procs are considered pure.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// True when `name` was classified pure.
+    #[must_use]
+    pub fn contains(&self, name: &str) -> bool {
+        self.names.contains(name)
+    }
+
+    /// Number of pure procs in the set.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.names.len()
+    }
+
+    /// True if no procs were classified pure.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.names.is_empty()
+    }
+}
+
+/// Analyse every procedure in `cfg_module` and return the set of
+/// procs with no observable side effects.
+///
+/// A proc is pure when every statement in every block is pure:
+///
+/// - `Statement::Barrier` — never pure.
+/// - `Statement::Call { command, args }` — pure when
+///   `classify_side_effects(...).pure` is true, or when `command`
+///   resolves to a proc name already in the "pure" set.
+/// - Pure IR nodes (`AssignConst`, `AssignValue`, `AssignExpr`,
+///   `Incr`, `ExprEval`, `Return`) — pure.
+/// - Structured IR (`If`/`For`/`While`/`Foreach`/`Switch`/`Catch`/
+///   `Try`) — not present in the post-CFG flat form; the CFG
+///   builder flattens them into blocks.
+///
+/// Uses fixed-point iteration: starts by assuming every user proc
+/// is pure, then iteratively removes any proc with an impure
+/// statement until the set is stable. This resolves mutual
+/// recursion correctly: a pair of procs that only call each other
+/// and do nothing else remains pure.
+#[must_use]
+pub fn find_pure_procs(
+    registry: &CommandRegistry,
+    cfg_module: &CfgModule,
+    dialect: Option<&str>,
+) -> PureProcs {
+    let mut pure: std::collections::HashSet<String> =
+        cfg_module.procedures.keys().cloned().collect();
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        let candidates: Vec<String> = pure.iter().cloned().collect();
+        for name in candidates {
+            let Some(cfg) = cfg_module.procedures.get(&name) else {
+                continue;
+            };
+            if !function_body_is_pure(registry, cfg, &pure, dialect) {
+                pure.remove(&name);
+                changed = true;
+            }
+        }
+    }
+
+    PureProcs { names: pure }
+}
+
+/// Return `true` when every statement in `cfg` is pure under the
+/// current working `pure` set of proc names.
+fn function_body_is_pure(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    pure: &std::collections::HashSet<String>,
+    dialect: Option<&str>,
+) -> bool {
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            if !statement_is_pure(registry, stmt, pure, dialect) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Purity predicate for one IR statement, consulting both the
+/// registry and the intra-module pure-proc set.
+fn statement_is_pure(
+    registry: &CommandRegistry,
+    stmt: &Statement,
+    pure: &std::collections::HashSet<String>,
+    dialect: Option<&str>,
+) -> bool {
+    match stmt {
+        Statement::Call {
+            command,
+            args,
+            defs,
+            ..
+        } => {
+            // Variable-defining calls (e.g. `set`, `incr`,
+            // `append`, `lappend`, the synthetic foreach header)
+            // are only acceptable when the defined variables are
+            // all proc-local. The simple heuristic: `defs` that
+            // look like bare names (no `::` prefix) are safe; a
+            // qualified name is a global write which is impure.
+            for def in defs {
+                if def.starts_with("::") {
+                    return false;
+                }
+            }
+            // Recognised pure call?
+            if is_pure_with_procs_core(registry, pure, command, args, dialect) {
+                return true;
+            }
+            // Variable-writing built-ins (like `set x 1`) land
+            // here — classify_side_effects returns pure=false even
+            // though the effect is proc-local. Accept the call
+            // when writes are to proc-local state only, i.e. the
+            // to_effect_regions write set is NONE.
+            let effect = classify_side_effects(registry, command, args, dialect, None);
+            let (_reads, writes) = effect.to_effect_regions();
+            writes == EffectRegion::NONE
+        }
+        // IR nodes that never have side effects of their own.
+        Statement::AssignConst { .. }
+        | Statement::AssignValue { .. }
+        | Statement::AssignExpr { .. }
+        | Statement::Incr { .. }
+        | Statement::ExprEval { .. }
+        | Statement::Return { .. } => true,
+        // Statement::Barrier and any structured constructs that
+        // reach here (they should have been flattened by the CFG
+        // builder) are treated conservatively.
+        _ => false,
+    }
+}
+
+fn is_pure_with_procs_core(
+    registry: &CommandRegistry,
+    pure: &std::collections::HashSet<String>,
+    cmd: &str,
+    args: &[String],
+    dialect: Option<&str>,
+) -> bool {
+    if pure.contains(cmd) {
+        return true;
+    }
+    // Try the common `::` prefix form too — some lowerings yield
+    // fully-qualified command words.
+    if let Some(stripped) = cmd.strip_prefix("::") {
+        if pure.contains(stripped) {
+            return true;
+        }
+    } else {
+        let prefixed = format!("::{cmd}");
+        if pure.contains(&prefixed) {
+            return true;
+        }
+    }
+    classify_side_effects(registry, cmd, args, dialect, None).pure
+}
+
+/// Purity predicate for GVN that consults the intra-module
+/// pure-proc set in addition to registry metadata.
+#[must_use]
+pub fn is_pure_with_procs(
+    registry: &CommandRegistry,
+    pure_procs: &PureProcs,
+    cmd: &str,
+    args: &[String],
+    dialect: Option<&str>,
+) -> bool {
+    is_pure_with_procs_core(registry, &pure_procs.names, cmd, args, dialect)
+}
+
+/// Extended worth-reporting check: user procs proved pure by
+/// intra-module analysis count as CSE candidates even if they
+/// don't carry the `CSE_CANDIDATE` registry trait.
+#[must_use]
+pub fn is_worth_reporting_with_procs(
+    registry: &CommandRegistry,
+    pure_procs: &PureProcs,
+    cmd: &str,
+) -> bool {
+    if pure_procs.contains(cmd) {
+        return true;
+    }
+    if let Some(stripped) = cmd.strip_prefix("::") {
+        if pure_procs.contains(stripped) {
+            return true;
+        }
+    } else {
+        let prefixed = format!("::{cmd}");
+        if pure_procs.contains(&prefixed) {
+            return true;
+        }
+    }
+    is_worth_reporting(registry, cmd)
 }
 
 // ---------------------------------------------------------------------------
@@ -2168,6 +2390,199 @@ mod tests {
         ];
         let out = transfer_occurrence_keys(&events, HashSet::new());
         assert!(!out.contains(&key));
+    }
+
+    // -- C26e4: intra-module pure-proc analysis --
+
+    fn module_with_procs(procs: Vec<(&str, Vec<Statement>)>) -> CfgModule {
+        let mut cfg_module = CfgModule {
+            top_level: Function::new("::top", "entry"),
+            procedures: Map::new(),
+        };
+        for (name, stmts) in procs {
+            let mut cfg = Function::new(name, "entry");
+            for s in stmts {
+                cfg.blocks.get_mut("entry").unwrap().statements.push(s);
+            }
+            cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+                value: None,
+                span: None,
+                expr: None,
+                braced: false,
+            });
+            cfg_module.procedures.insert(name.into(), cfg);
+        }
+        cfg_module
+    }
+
+    #[test]
+    fn find_pure_procs_identifies_empty_body() {
+        let registry = CommandRegistry::build_default();
+        let m = module_with_procs(vec![("::empty", Vec::new())]);
+        let result = find_pure_procs(&registry, &m, None);
+        assert!(result.contains("::empty"));
+    }
+
+    #[test]
+    fn find_pure_procs_identifies_pure_body() {
+        let registry = CommandRegistry::build_default();
+        let m = module_with_procs(vec![(
+            "::pure",
+            vec![
+                Statement::AssignConst {
+                    span: Span::new(0, 0),
+                    name: "x".into(),
+                    value: "1".into(),
+                },
+                Statement::Return {
+                    span: Span::new(0, 0),
+                    value: Some("$x".into()),
+                    expr: None,
+                    braced: false,
+                },
+            ],
+        )]);
+        let result = find_pure_procs(&registry, &m, None);
+        assert!(result.contains("::pure"));
+    }
+
+    #[test]
+    fn find_pure_procs_rejects_body_with_barrier() {
+        let registry = CommandRegistry::build_default();
+        let m = module_with_procs(vec![(
+            "::impure",
+            vec![Statement::Barrier {
+                span: Span::new(0, 0),
+                reason: "eval".into(),
+                command: "eval".into(),
+                args: vec!["script".into()],
+                tokens: None,
+            }],
+        )]);
+        let result = find_pure_procs(&registry, &m, None);
+        assert!(!result.contains("::impure"));
+    }
+
+    #[test]
+    fn find_pure_procs_rejects_global_write() {
+        let registry = CommandRegistry::build_default();
+        let m = module_with_procs(vec![(
+            "::writes_global",
+            vec![Statement::Call {
+                span: Span::new(0, 0),
+                command: "set".into(),
+                args: vec!["::g".into(), "1".into()],
+                defs: vec!["::g".into()],
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+            }],
+        )]);
+        let result = find_pure_procs(&registry, &m, None);
+        assert!(!result.contains("::writes_global"));
+    }
+
+    #[test]
+    fn find_pure_procs_mutual_recursion_stays_pure() {
+        let registry = CommandRegistry::build_default();
+        let call_b = Statement::Call {
+            span: Span::new(0, 0),
+            command: "::b".into(),
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        };
+        let call_a = Statement::Call {
+            span: Span::new(0, 0),
+            command: "::a".into(),
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        };
+        let m = module_with_procs(vec![
+            ("::a", vec![call_b]),
+            ("::b", vec![call_a]),
+        ]);
+        let result = find_pure_procs(&registry, &m, None);
+        assert!(result.contains("::a"));
+        assert!(result.contains("::b"));
+    }
+
+    #[test]
+    fn find_pure_procs_impurity_propagates_to_callers() {
+        let registry = CommandRegistry::build_default();
+        let barrier = Statement::Barrier {
+            span: Span::new(0, 0),
+            reason: "eval".into(),
+            command: "eval".into(),
+            args: vec!["$x".into()],
+            tokens: None,
+        };
+        let call_tainted = Statement::Call {
+            span: Span::new(0, 0),
+            command: "::tainted".into(),
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        };
+        let m = module_with_procs(vec![
+            ("::tainted", vec![barrier]),
+            ("::wraps", vec![call_tainted]),
+        ]);
+        let result = find_pure_procs(&registry, &m, None);
+        assert!(!result.contains("::tainted"));
+        assert!(!result.contains("::wraps"));
+    }
+
+    #[test]
+    fn is_pure_with_procs_accepts_user_proc() {
+        let registry = CommandRegistry::build_default();
+        let mut pp = PureProcs::new();
+        pp.names.insert("::pure_helper".into());
+        assert!(is_pure_with_procs(&registry, &pp, "::pure_helper", &[], None));
+        assert!(is_pure_with_procs(&registry, &pp, "pure_helper", &[], None));
+        assert!(is_pure_with_procs(
+            &registry,
+            &pp,
+            "expr",
+            &["{1+2}".into()],
+            None
+        ));
+        assert!(!is_pure_with_procs(
+            &registry,
+            &pp,
+            "set",
+            &["x".into(), "1".into()],
+            None
+        ));
+    }
+
+    #[test]
+    fn is_worth_reporting_with_procs_accepts_pure_user_proc() {
+        let registry = CommandRegistry::build_default();
+        let mut pp = PureProcs::new();
+        pp.names.insert("::pure_helper".into());
+        assert!(is_worth_reporting_with_procs(
+            &registry,
+            &pp,
+            "::pure_helper"
+        ));
+        assert!(is_worth_reporting_with_procs(&registry, &pp, "llength"));
+        assert!(!is_worth_reporting_with_procs(
+            &registry,
+            &pp,
+            "nonexistent_cmd"
+        ));
     }
 
     #[test]
