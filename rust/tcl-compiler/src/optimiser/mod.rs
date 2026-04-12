@@ -15,6 +15,7 @@
 //!   code-sinking, and the manager — still stubbed.
 
 pub mod branch_folding;
+pub mod elimination;
 pub mod helpers;
 pub mod structure_elimination;
 pub mod unused_procs;
@@ -318,16 +319,19 @@ impl PassId {
 /// - [`PassId::UnusedProcs`] → [`unused_procs::run`] (C30b).
 /// - [`PassId::StructureElimination`] →
 ///   [`structure_elimination::run`] (C30c).
+/// - [`PassId::Elimination`] → [`elimination::run`] (C30d,
+///   O107 only — O108/O109/O126 land alongside the liveness
+///   analyser in a follow-up).
 pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[PassId]) {
     for pass in passes {
         match pass {
             PassId::BranchFolding => branch_folding::run(ctx, cu),
             PassId::UnusedProcs => unused_procs::run(ctx, cu),
             PassId::StructureElimination => structure_elimination::run(ctx, cu),
+            PassId::Elimination => elimination::run(ctx, cu),
             // Remaining passes are deferred follow-ups; see the
             // module docs for the landing plan.
-            PassId::Elimination
-            | PassId::ExprSimplify
+            PassId::ExprSimplify
             | PassId::PatternRecognition
             | PassId::Propagation
             | PassId::TailCall
@@ -452,7 +456,6 @@ mod tests {
             &mut ctx,
             &cu,
             &[
-                PassId::Elimination,
                 PassId::ExprSimplify,
                 PassId::Propagation,
                 PassId::PatternRecognition,
