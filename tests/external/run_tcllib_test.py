@@ -133,19 +133,18 @@ class TestTcltestCompiles:
 
 
 class TestTcltestTopRuns:
-    """Stage 2: does tcltest's top-level (namespace + procs) instantiate?"""
+    """Stage 2: does tcltest's top-level (namespace + procs) instantiate?
 
-    @pytest.mark.xfail(
-        reason=(
-            "tcltest init runs substantial compiled code but still hits "
-            "downstream gaps (ConstraintInitializer validation, dynamic "
-            "proc registration corner cases).  The runner exists to "
-            "track progress toward running real tcltest under pure "
-            "WASM — it's expected-fail until those gaps close.  "
-            "Reminder: when this starts passing, drop the xfail marker."
-        ),
-        strict=False,
-    )
+    This landed green in the commit that fixed ``subst_flagged``'s
+    output-buffer sizing (the ``wlen * 4 + 64`` heuristic
+    overflowed when a single ``$s`` substitution expanded to
+    multi-KB of content, corrupting adjacent heap memory and
+    making ``info complete $script`` read a mangled-brace tail).
+    Subsequent commits should keep this green — if it regresses,
+    re-add the xfail marker and file the site against whatever
+    new gap surfaces.
+    """
+
     def test_tcltest_top_runs(self):
         _require_files()
         try:

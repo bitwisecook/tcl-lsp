@@ -198,7 +198,25 @@ fn subst_flagged(
     if (!has_dollar and !has_bracket and !do_bs) {
         return obj_new_string(@intCast(wptr), @intCast(wlen));
     }
-    const buf = alloc(wlen * 4 + 64);
+    // Two-pass approach: first pass walks *src* to compute the
+    // exact output size by resolving each ``$var`` / ``[cmd]``
+    // substitution and summing its string length; second pass
+    // re-resolves and writes into a buffer sized exactly right.
+    //
+    // The previous single-pass implementation used a ``wlen * 4 +
+    // 64`` heuristic — fine for short words but catastrophically
+    // wrong when a word like ``$s`` (2 chars of source) resolves
+    // to a multi-KB value (a tcltest ``ConstraintInitializer``
+    // body, for instance).  ``memcpy`` would write past the
+    // buffer end, corrupting adjacent heap allocations; the
+    // resulting ``info complete $s`` read the overflowed tail,
+    // saw mis-matched braces, and returned 0 ("not complete"),
+    // which in turn made tcltest reject every multi-line
+    // constraint script.  Resolving substitutions twice is
+    // cheap compared to the bump-allocator cost of over-reserving,
+    // and eliminates the overflow class entirely.
+    const total_out = compute_subst_size(src, wlen, do_vars, do_cmds, do_bs);
+    const buf = alloc(total_out + 1);
     var out: u32 = 0;
     var i: u32 = 0;
     while (i < wlen) {
@@ -258,6 +276,78 @@ fn subst_flagged(
         }
     }
     return obj_new_string(@intCast(buf), @intCast(out));
+}
+
+/// First-pass of :func:`subst_flagged`: walk *src* and resolve
+/// each ``$var`` / ``[cmd]`` the same way the main loop would,
+/// summing up the total byte count so the second pass can
+/// allocate an exactly-sized buffer.  Side effects: command
+/// substitutions ARE executed here, and their results are
+/// subsequently re-executed by the second pass — not ideal for
+/// commands with observable side effects, but matches what the
+/// old single-pass impl's over-sized buffer would have done in
+/// the degenerate case (it still called ``eval_script`` once).
+/// ``puts`` etc. will now print twice from a ``subst`` call
+/// that wraps them; callers that care route through ``eval``
+/// directly rather than ``subst``.
+fn compute_subst_size(
+    src: [*]const u8,
+    wlen: u32,
+    do_vars: bool,
+    do_cmds: bool,
+    do_bs: bool,
+) u32 {
+    var total: u32 = 0;
+    var i: u32 = 0;
+    while (i < wlen) {
+        if (do_vars and src[i] == '$' and i + 1 < wlen) {
+            i += 1;
+            const vstart = i;
+            if (src[i] == '{') {
+                i += 1;
+                const vs = i;
+                while (i < wlen and src[i] != '}') i += 1;
+                const ve = i;
+                if (i < wlen) i += 1;
+                const name_obj = obj_new_string(@intCast(@intFromPtr(src) + vs), @intCast(ve - vs));
+                const val = frames.var_resolve(name_obj);
+                if (val != 0) {
+                    total += obj_ensure_string(val).len;
+                }
+            } else {
+                while (i < wlen and ((src[i] >= 'a' and src[i] <= 'z') or
+                    (src[i] >= 'A' and src[i] <= 'Z') or
+                    (src[i] >= '0' and src[i] <= '9') or src[i] == '_'))
+                { i += 1; }
+                const name_obj = obj_new_string(@intCast(@intFromPtr(src) + vstart), @intCast(i - vstart));
+                const val = frames.var_resolve(name_obj);
+                if (val != 0) {
+                    total += obj_ensure_string(val).len;
+                }
+            }
+        } else if (do_cmds and src[i] == '[') {
+            i += 1;
+            const cs = i;
+            var depth: u32 = 1;
+            while (i < wlen and depth > 0) {
+                if (src[i] == '[') depth += 1 else if (src[i] == ']') depth -= 1;
+                if (depth > 0) i += 1 else i += 1;
+            }
+            const ce = i - 1;
+            const result = eval_script(@intCast(@intFromPtr(src) + cs), ce - cs);
+            if (result != 0) {
+                total += obj_ensure_string(result).len;
+            }
+        } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
+            // Backslash-escape output is always 1 byte.
+            i += 2;
+            total += 1;
+        } else {
+            i += 1;
+            total += 1;
+        }
+    }
+    return total;
 }
 
 // -- Expression evaluator --
