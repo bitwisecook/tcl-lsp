@@ -15,6 +15,7 @@
 //!   code-sinking, and the manager — still stubbed.
 
 pub mod branch_folding;
+pub mod helpers;
 
 use std::collections::{HashMap, HashSet};
 
