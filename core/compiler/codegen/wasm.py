@@ -914,7 +914,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
-    "tcl_array_names": ("tcl", "array_names", [ValType.I32], [ValType.I32]),
+    "tcl_array_names": (
+        "tcl",
+        "array_names",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # String split/join
     "tcl_split": ("tcl", "tcl_cmd_split", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_join": ("tcl", "tcl_cmd_join", [ValType.I32, ValType.I32], [ValType.I32]),
@@ -1325,6 +1330,13 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         needed.add("tcl_array_unset")
                     elif sub == "names":
                         needed.add("tcl_array_names")
+                        # ``array names arr $pat*`` interpolates the
+                        # pattern; pull in ``tcl_append`` so the
+                        # codegen's interpolation emitter can build
+                        # the pattern string at runtime instead of
+                        # degrading to a raw literal (which would
+                        # disable the glob filter).
+                        needed.add("tcl_append")
                     elif sub == "set":
                         needed.add("tcl_array_set")
                     elif sub == "get":
@@ -1493,6 +1505,13 @@ def _scan_needed_imports(
             needed.add("tcl_array_unset")
         elif sub == "names":
             needed.add("tcl_array_names")
+            # ``array names arr ?pattern?`` — the pattern may be an
+            # interpolated string (``$option*``); scan it so
+            # ``tcl_append`` / ``tcl_array_get`` make it into the
+            # module imports and the pattern is emitted literally,
+            # not as a null TclObj that disables the filter.
+            if len(args) >= 3:
+                _scan_value(args[2])
         elif sub == "set":
             needed.add("tcl_array_set")
 
@@ -1910,12 +1929,41 @@ class _WasmEmitter:
     def _resolve_var_name(self, value: str) -> str | None:
         """Extract a variable name from a Tcl variable reference.
 
-        Returns the bare variable name for ``$x`` or ``${x}`` patterns,
-        or ``None`` if *value* is not a simple variable reference.
+        Returns the bare variable name for ``$x`` or ``${x}`` patterns
+        when *value* is the entire reference (nothing after it), or
+        ``None`` otherwise.  Rejecting mixed forms like ``$x*`` or
+        ``$x$y`` is essential — those are interpolated strings where
+        the codegen has to emit a concat chain, not a single
+        ``local.get`` of a variable named ``x*``.
         """
         if value.startswith("${") and value.endswith("}"):
-            return value[2:-1]
+            # ``${name}`` must not have anything past the closing
+            # brace.  Check by scanning: the first ``}`` that
+            # terminates the braced form must be at position
+            # ``len - 1``.
+            inner = value[2:-1]
+            # ``${name}`` braces don't nest, so any inner ``}`` is
+            # invalid Tcl — but we degrade gracefully by treating
+            # it as non-simple (fall through to interpolation).
+            if "}" in inner:
+                return None
+            return inner
         if value.startswith("$") and not value.startswith("$["):
+            # Bare ``$name`` accepts only identifier characters in
+            # *name* (letters, digits, underscore).  Anything else
+            # — including ``*``, ``/``, ``-`` (used by tcltest
+            # option names like ``-tmpdir``) — ends the variable
+            # reference and starts literal-text territory, which
+            # means the value is an interpolated string.
+            i = 1
+            while i < len(value):
+                c = value[i]
+                if c.isalnum() or c == "_":
+                    i += 1
+                    continue
+                break
+            if i != len(value):
+                return None
             return value[1:]
         return None
 
@@ -4281,6 +4329,15 @@ class _WasmEmitter:
             fidx = self._shared_imports.get("tcl_array_names")
             if fidx is not None:
                 self._emit_array_name_obj(args[1])
+                # Optional glob pattern — ``array names arr`` → no
+                # filter (null TclObj), ``array names arr pat`` →
+                # use the supplied pattern.  ``-exact`` / ``-glob``
+                # / ``-regexp`` modes fall through to the fallback
+                # for now; the common case scripts use is positional.
+                if len(args) >= 3:
+                    self._emit_value(args[2])
+                else:
+                    self._emit_i32_const(0)
                 self._emit_call(fidx)
                 return
         elif subcmd == "set" and len(args) >= 3:

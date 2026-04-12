@@ -26,6 +26,7 @@ const write_i32 = obj.write_i32;
 const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
 const obj_new_string = obj.obj_new_string;
+const obj_get_int = obj.obj_get_int;
 
 const globals = @import("tcl_globals.zig");
 const fnv1a = globals.fnv1a;
@@ -418,15 +419,44 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
     return obj_new_int(0);
 }
 
-/// array_names arrName — returns a space-separated list of keys
-/// (element names).  Order is hash-table order — matches Tcl which
-/// makes no ordering promise without an explicit sort.
-pub export fn array_names(arr: i32) i32 {
+/// array_names arrName ?pattern? — returns a space-separated list
+/// of keys.  When *pattern* is a non-empty TclObj, only keys that
+/// match the glob *pattern* (same semantics as ``string match``)
+/// are included — the filter tcltest's ``MatchingOption`` relies
+/// on to turn ``array names Option $option*`` into a
+/// prefix-scoped lookup.  Order is hash-table order (Tcl makes no
+/// ordering promise without an explicit sort).
+///
+/// Pattern of ``0`` or an empty string disables the filter and
+/// returns every key.
+pub export fn array_names(arr: i32, pattern: i32) i32 {
     const t = find_table(arr);
     if (t == 0) return obj_new_string(0, 0);
     const cap = ar_cap(t);
+
+    // Resolve the pattern filter up-front.  Empty pattern → match
+    // everything.  Import ``string_match`` lazily to avoid a
+    // circular ``tcl_string`` import at module init.
+    const str_mod = @import("tcl_string.zig");
+    const use_filter = pattern != 0 and blk: {
+        const ps = obj_ensure_string(pattern);
+        break :blk ps.len > 0;
+    };
+
+    // Inline matcher wrapper that keeps the hash-table walk tidy.
+    const matches = struct {
+        fn go(use: bool, pat: i32, key_ptr: u32, key_len: u32) bool {
+            if (!use) return true;
+            const k = obj_new_string(@intCast(key_ptr), @intCast(key_len));
+            // ``string_match`` returns a TclObj wrapping 1 or 0.
+            const r = str_mod.string_match(pat, k);
+            return obj_get_int(r) != 0;
+        }
+    }.go;
+
     // First pass: compute required buffer size.  Skip empty and
-    // tombstoned slots; only live entries contribute to the listing.
+    // tombstoned slots and slots whose key doesn't match the
+    // pattern.
     var total: u32 = 0;
     var nonempty: u32 = 0;
     var i: u32 = 0;
@@ -434,7 +464,9 @@ pub export fn array_names(arr: i32) i32 {
         const bucket = t + AR_HEADER_SIZE + i * AR_BUCKET_SIZE;
         const raw = read_i32(bucket);
         if (raw == 0 or raw == AR_TOMBSTONE) continue;
+        const ep: u32 = @intCast(raw);
         const el: u32 = @intCast(read_i32(bucket + 4));
+        if (!matches(use_filter, pattern, ep, el)) continue;
         total += el;
         if (nonempty > 0) total += 1; // separator
         nonempty += 1;
@@ -450,6 +482,7 @@ pub export fn array_names(arr: i32) i32 {
         if (raw == 0 or raw == AR_TOMBSTONE) continue;
         const ep: u32 = @intCast(raw);
         const el: u32 = @intCast(read_i32(bucket + 4));
+        if (!matches(use_filter, pattern, ep, el)) continue;
         if (written > 0) {
             const d: [*]u8 = @ptrFromInt(buf + off);
             d[0] = ' ';

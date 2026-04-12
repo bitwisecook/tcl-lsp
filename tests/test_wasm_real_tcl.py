@@ -1603,6 +1603,52 @@ class TestReturnCodeError:
         assert "ambiguous option -tmpdir: could match a b" in stdout, f"got: {stdout!r}"
 
 
+class TestArrayNamesPattern:
+    """``array names arr ?pattern?`` — glob filter.
+
+    Tcl's array names accepts an optional trailing glob pattern
+    that narrows the key list (same semantics as ``string
+    match``).  Previously the runtime's ``array_names`` ignored
+    the pattern entirely — tcltest's ``MatchingOption`` relies on
+    it to turn ``array names Option $option*`` into a prefix
+    lookup.
+    """
+
+    def test_no_pattern_returns_all_keys(self):
+        source = "array set a {one 1 two 2 three 3 four 4}\nputs [lsort [array names a]]\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "four one three two"
+
+    def test_literal_glob_pattern(self):
+        source = "array set a {one 1 two 2 three 3 four 4}\nputs [lsort [array names a t*]]\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        # Should match ``two`` and ``three``.
+        assert stdout.strip() == "three two"
+
+    def test_interpolated_glob_pattern(self):
+        # Verifies ``tcl_append`` gets imported so the pattern
+        # ``$prefix*`` actually interpolates rather than arriving
+        # as the raw ``${prefix}*`` literal (which would match
+        # nothing).
+        source = (
+            "array set a {-tmpdir /tmp -verbose 1 -notfile foo}\n"
+            "set prefix -tmp\n"
+            "puts [array names a $prefix*]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "-tmpdir"
+
+    def test_pattern_matches_nothing(self):
+        source = "array set a {foo 1 bar 2}\nputs -[array names a zzz*]-\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        # Empty match → empty string between the delimiters.
+        assert stdout.strip() == "--"
+
+
 class TestRegexp:
     """Tcl regex engine (Henry Spencer) linked via ``tcl_regex.zig``.
 

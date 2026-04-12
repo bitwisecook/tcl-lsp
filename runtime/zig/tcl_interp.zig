@@ -923,7 +923,13 @@ fn eval_array_cmd(words: []const i32) i32 {
         return array_mod.array_set(words[2], words[3], 0);
     }
     if (str_eq(sp, sub.len, "exists")) return array_mod.array_exists(words[2]);
-    if (str_eq(sp, sub.len, "names")) return array_mod.array_names(words[2]);
+    if (str_eq(sp, sub.len, "names")) {
+        // ``array names arr ?pattern? ?mode?`` — we handle the
+        // first two positions; ``mode`` (``-exact`` / ``-glob`` /
+        // ``-regexp``) beyond glob isn't wired yet.
+        const pat: i32 = if (words.len >= 4) words[3] else 0;
+        return array_mod.array_names(words[2], pat);
+    }
     if (str_eq(sp, sub.len, "size")) return array_mod.array_size(words[2]);
     if (str_eq(sp, sub.len, "unset")) {
         if (words.len >= 4) return array_mod.array_unset_element(words[2], words[3]);
