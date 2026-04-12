@@ -181,11 +181,18 @@ def _run_wasm(
 
 
 def _maybe_read(path: str | None) -> str:
-    """Read and delete *path* if set, else return empty string."""
+    """Read and delete *path* if set, else return empty string.
+
+    Reads as bytes and decodes with ``errors="replace"`` — the
+    runtime's stderr may contain garbage bytes when a trap fires in
+    the middle of a multi-byte sequence (or when memory corruption
+    leaks through the error formatter), and we don't want the
+    harness to crash before surfacing the trap itself.
+    """
     if not path:
         return ""
     try:
-        return Path(path).read_text()
+        return Path(path).read_bytes().decode("utf-8", errors="replace")
     finally:
         try:
             os.unlink(path)

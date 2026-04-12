@@ -2089,6 +2089,13 @@ class _WasmEmitter:
             self._emit_cmd_uplevel(tuple(cmd_args))
             return
 
+        # ``list`` in value context — variadic list builder, same
+        # space-joined compile-time shape as the statement-context
+        # path.
+        if cmd_name == "list":
+            self._emit_list_value(tuple(cmd_args))
+            return
+
         # Runtime command in value context (llength, lindex, etc.)
         if cmd_name in _CMD_RUNTIME:
             import_key, _ = _CMD_RUNTIME[cmd_name]
@@ -2828,6 +2835,29 @@ class _WasmEmitter:
 
     # -- Statement emission --
 
+    def set_proc_registration_prologue(self, ir_module: IRModule) -> None:
+        """Queue a call to ``tcl_proc_register`` for each compiled proc.
+
+        The calls are emitted at the very start of ``generate()`` —
+        before the CFG body runs — so every proc's Tcl source body
+        lands in the runtime proc table.  This lets the interpreter
+        fall back to body-eval when a dynamic call site encounters a
+        proc that was compiled to a WASM function (static dispatch
+        can't be invoked from Zig; body-eval works for any
+        interpreter-path caller).
+        """
+        self._proc_registration_queue = []
+        reg_idx = self._shared_imports.get("tcl_proc_register")
+        if reg_idx is None:
+            return
+        for qname, proc in ir_module.procedures.items():
+            if proc.body_source is None:
+                continue
+            # Build an args list as a space-separated list literal
+            # — that's the shape our tcl_proc_register expects.
+            params_literal = " ".join(proc.params)
+            self._proc_registration_queue.append((qname, params_literal, proc.body_source))
+
     def _record_stmt_context(self, stmt: IRStatement) -> None:
         """Update the 'current statement' tracking the diag machinery reads.
 
@@ -3042,6 +3072,16 @@ class _WasmEmitter:
         if command == "<upvar-invalidate>":
             return
 
+        # <cond> — synthetic IRCall emitted by the CFG builder in front
+        # of an ``if`` dispatch whose condition contains a command
+        # substitution that defines variables (``[catch { ... } result]``
+        # is the canonical example).  The actual condition evaluation
+        # happens via the block's branch terminator — this placeholder
+        # only exists to carry the ``defs`` list for SSA reasoning, and
+        # emits no code.
+        if command == "<cond>":
+            return
+
         # global varName — register variable as global-scoped
         if command == "global":
             for var_name in args:
@@ -3177,6 +3217,14 @@ class _WasmEmitter:
         if command == "unset" and args:
             if self._emit_unset_array_elems(args):
                 return
+
+        # ``list`` — variadic list builder.  Bypass _CMD_RUNTIME's
+        # 2-arg tcl_list (which would silently drop the remaining
+        # elements) and emit a flat space-joined string instead.
+        if command == "list":
+            self._emit_list_value(args)
+            self._emit(WasmOp.DROP)
+            return
 
         # Commands backed by runtime imports
         if command in _CMD_RUNTIME:
@@ -4067,6 +4115,40 @@ class _WasmEmitter:
             self._emit(WasmOp.DROP)
         return had_array
 
+    def _emit_list_value(self, args: tuple[str, ...]) -> None:
+        """Build a Tcl list from *args* and leave it on the stack as a TclObj.
+
+        If every arg is a literal (no ``$`` / ``[`` substitution), the
+        list is folded at compile time into a single ``obj_new_string``
+        — ideal for ``list upvar 0 Option($option) $varName`` because
+        our list representation is just space-separated words.  When
+        any arg needs runtime evaluation, we emit a ``tcl_concat``
+        chain with single-space separators that produces the same
+        space-joined string shape.
+
+        This bypasses the 2-arg ``tcl_list`` runtime helper entirely
+        so we don't lose elements on N-ary calls.
+        """
+        if not args:
+            self._emit_i32_const(0)
+            return
+        # Fast path: all literals → compile-time string.
+        if all(not a.startswith("$") and not a.startswith("[") for a in args):
+            self._emit_obj_literal(" ".join(args))
+            return
+        # Mixed: emit each arg and chain tcl_concat with " " separators.
+        concat_idx = self._shared_imports.get("tcl_concat")
+        if concat_idx is None:
+            # No concat helper — best-effort: just emit the first arg.
+            self._emit_value(args[0])
+            return
+        self._emit_value(args[0])
+        for i in range(1, len(args)):
+            self._emit_obj_literal(" ")
+            self._emit_call(concat_idx)
+            self._emit_value(args[i])
+            self._emit_call(concat_idx)
+
     def _emit_cmd_uplevel(self, args: tuple[str, ...]) -> None:
         """``uplevel ?level? body`` — evaluate script in a caller's frame.
 
@@ -4413,6 +4495,9 @@ class _WasmEmitter:
             # Store result back into the variable
             self._emit_local_set(var_idx)
             return
+
+        # ``list`` handled outside _emit_cmd_runtime — see
+        # ``_emit_list_value`` for the N-arg build.
 
         # fconfigure takes a fd + a variable number of ``-option value``
         # pairs; the runtime fn has a 2-arg signature (fd, opts_obj),
@@ -5433,6 +5518,20 @@ class _WasmEmitter:
         All functions take i32 TclObj params and return a single i32
         TclObj result (null pointer 0 for void/empty-string returns).
         """
+        # Emit any queued proc-registration prologue so the runtime's
+        # proc table is populated before normal top-level code runs.
+        # See ``set_proc_registration_prologue``.
+        queue = getattr(self, "_proc_registration_queue", None)
+        if queue:
+            reg_idx = self._shared_imports.get("tcl_proc_register")
+            if reg_idx is not None:
+                for qname, params_literal, body_src in queue:
+                    self._emit_obj_literal(qname)
+                    self._emit_obj_literal(params_literal)
+                    self._emit_obj_literal(body_src)
+                    self._emit_call(reg_idx)
+                    self._emit(WasmOp.DROP)
+
         self._emit_block(self._cfg.entry)
 
         # Ensure function has a return value on all paths (i32 null TclObj)
@@ -5598,6 +5697,15 @@ def wasm_codegen_module(
         shared_string_offset=shared_string_offset,
         diag_map=diag_map,
     )
+    # Compiled procs are *not* automatically registered in the
+    # runtime proc table — their bodies reference WASM locals that
+    # the interpreter can't access, so an interpreter-path call
+    # that fell through to body-eval would read garbage.  Static
+    # dispatch inside compiled code continues to work through the
+    # WASM function index.  Cross-context calls (a dynamically-
+    # registered proc body calling a compiled proc) currently trap
+    # with "unknown command: <name>" — the fix is a proper
+    # call_indirect bridge, tracked as a separate follow-up.
     top_func = emitter.generate()
     top_func.name = "::top"
     module.functions.append(top_func)

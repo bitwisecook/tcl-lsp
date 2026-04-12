@@ -1058,24 +1058,58 @@ class _Lowerer:
                 )
 
             case "namespace" if len(args) >= 3 and args[0] == "eval" and len(arg_tokens) >= 3:
-                child_ns = _join_namespace(namespace, args[1])
-                prev_ns_eval = self._in_namespace_eval
-                self._in_namespace_eval = True
-                body_script = self._lower_body_arg(args[2], arg_tokens[2], namespace=child_ns)
-                self._in_namespace_eval = prev_ns_eval
-                # Emit the body as an inline block instead of a
-                # ``tcl_eval`` fallback: ``proc`` definitions inside
-                # are already lifted to ``module.procedures`` with
-                # qualified names (child_ns::name) by the recursive
-                # call above; the remaining statements (``variable``,
-                # ``trace``, ``Option …``, …) run as ordinary top-
-                # level code in the enclosing script, with codegen
-                # consulting ``IRBlock.namespace`` for unqualified
-                # command resolution.
-                return IRBlock(
+                # Only inline-compile the body when *all* three args
+                # are static (braced or bare identifiers).  A dynamic
+                # namespace name (``[namespace current]``) or a
+                # dynamic body (``[list upvar 0 A B]``) can't be
+                # reasoned about statically — the body might
+                # evaluate to a script that does anything — so fall
+                # back to the tcl_eval barrier path where the
+                # interpreter resolves both at runtime.
+                #
+                # For the canonical shape ``namespace eval ::ns {
+                # body }`` the body is a single STR token; anything
+                # else (CMD / VAR / ESC with substitutions) means
+                # dynamic.  The namespace arg must likewise be a
+                # plain identifier.
+                from ..parsing.tokens import TokenType as _TT
+
+                body_tok = arg_tokens[2]
+                ns_tok = arg_tokens[1]
+                body_is_static = body_tok is not None and body_tok.type == _TT.STR
+                ns_is_static = (
+                    ns_tok is not None
+                    and ns_tok.type in (_TT.STR, _TT.ESC)
+                    and "$" not in args[1]
+                    and "[" not in args[1]
+                )
+                if body_is_static and ns_is_static:
+                    child_ns = _join_namespace(namespace, args[1])
+                    prev_ns_eval = self._in_namespace_eval
+                    self._in_namespace_eval = True
+                    body_script = self._lower_body_arg(args[2], arg_tokens[2], namespace=child_ns)
+                    self._in_namespace_eval = prev_ns_eval
+                    # Emit the body as an inline block — procs
+                    # inside were lifted to module.procedures with
+                    # qualified names (child_ns::name); other
+                    # statements (variable, trace, Option …) run as
+                    # ordinary code, with codegen consulting
+                    # IRBlock.namespace for unqualified command
+                    # resolution.
+                    return IRBlock(
+                        range=cmd.range,
+                        body=body_script,
+                        namespace=child_ns,
+                    )
+                # Dynamic namespace eval — fall back to tcl_eval so
+                # the runtime evaluates the body script however it
+                # shakes out.
+                return IRBarrier(
                     range=cmd.range,
-                    body=body_script,
-                    namespace=child_ns,
+                    reason="namespace eval",
+                    command=cmd_name,
+                    args=tuple(args),
+                    tokens=cmd.cmd_tokens,
                 )
 
             case "if":
