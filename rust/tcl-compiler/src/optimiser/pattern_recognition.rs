@@ -1,24 +1,26 @@
-//! Pattern-recognition optimiser pass (C30g, partial).
+//! Pattern-recognition optimiser pass (C30g).
 //!
 //! Ported from
-//! `core/compiler/optimiser/_pattern_recognition.py`. The Python
-//! module has three entry points — each rewriting a common
-//! high-level idiom into a more idiomatic equivalent:
+//! `core/compiler/optimiser/_pattern_recognition.py`. Three
+//! entry points:
 //!
 //! - **`optimise_incr_idioms`** (`O114`) — rewrite
-//!   `set x [expr {$x ± N}]` to `incr x N` (**landed**).
-//! - `optimise_string_build_chains` (`O122`) — fold
-//!   accumulation chains like `set s "$s foo"` into an
-//!   equivalent, cheaper form.
-//! - `optimise_multi_set_packing` (`O119`) — pack a contiguous
-//!   group of literal `set` commands into `lassign` / `foreach`
-//!   (gated on Tcl ≤ 8.6).
+//!   `set x [expr {$x ± N}]` to `incr x N`.
+//! - **`optimise_string_build_chains`** (`O122`) — detect
+//!   accumulation chains `set s ""; append s …; append s …` and
+//!   emit a hint-only `O122` on the first `append` suggesting
+//!   a single-statement rewrite.
+//! - **`optimise_multi_set_packing`** (`O119`) — detect three
+//!   or more contiguous `set` commands with safe-literal
+//!   values and emit a hint-only `O119` suggesting a
+//!   `lassign {lit1 lit2 …} var1 var2 …` replacement
+//!   (appropriate on Tcl 8.5 / 8.6; Tcl 9.0 prefers individual
+//!   sets).
 //!
-//! This strip lands `optimise_incr_idioms` only. The two heavier
-//! rewriters are deferred — each needs token-level source
-//! reconstruction that the Rust IR does not yet expose
-//! (trailing-whitespace-aware command ranges for O119, plus
-//! multi-statement coalescing logic).
+//! O119 and O122 are hint-only. The source-level multi-statement
+//! deletion + re-emission the Python pass performs is tracked as
+//! a follow-up — emitting the hint is enough to surface the
+//! opportunity in editors / linters.
 
 use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::{BinOp, ExprNode};
@@ -27,8 +29,7 @@ use crate::naming::normalise_var_name;
 
 use super::{Optimisation, PassContext};
 
-/// Run the pattern-recognition pass. Emits `O114` for every
-/// `set x [expr {$x ± N}]` idiom in the module.
+/// Run the pattern-recognition pass.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     walk_script(ctx, &cu.ir_module.top_level);
     for proc in cu.ir_module.procedures.values() {
@@ -37,8 +38,103 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 }
 
 fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
+    detect_multi_set_packing(ctx, script);
+    detect_string_build_chain(ctx, script);
     for stmt in &script.statements {
         walk_statement(ctx, stmt);
+    }
+}
+
+/// O119: find three or more consecutive `set VAR LITERAL`
+/// statements with bare-literal values; emit a hint-only
+/// rewrite suggestion.
+fn detect_multi_set_packing(ctx: &mut PassContext<'_>, script: &Script) {
+    let mut i = 0;
+    while i < script.statements.len() {
+        let start = i;
+        let mut vars: Vec<String> = Vec::new();
+        while i < script.statements.len() {
+            let Statement::AssignConst { name, value, .. } = &script.statements[i] else {
+                break;
+            };
+            if value.contains(['$', '[', '\\', ' ', '\n', '\r']) {
+                break;
+            }
+            vars.push(name.clone());
+            i += 1;
+        }
+        if vars.len() >= 3 {
+            // Span the entire run.
+            let span_start = script.statements[start].span().start();
+            let span_end = script.statements[i - 1].span().end();
+            let span = tcl_lexer::Span::new(span_start, span_end);
+            let mut opt = Optimisation::new(
+                "O119",
+                format!(
+                    "Pack {} consecutive literal sets into `lassign`",
+                    vars.len()
+                ),
+                span,
+                "",
+            );
+            opt.hint_only = true;
+            ctx.report(opt);
+        }
+        if i == start {
+            i += 1;
+        }
+    }
+}
+
+/// O122: detect `set s ""` followed by two or more
+/// `append s …` to the same variable — a classic
+/// string-build pattern. Emit a hint on the first `append`.
+fn detect_string_build_chain(ctx: &mut PassContext<'_>, script: &Script) {
+    let stmts = &script.statements;
+    let mut i = 0;
+    while i < stmts.len() {
+        // Looking for `set s ""` as the anchor.
+        let Statement::AssignConst { name, value, .. } = &stmts[i] else {
+            i += 1;
+            continue;
+        };
+        if !value.is_empty() && value != "\"\"" && value != "{}" {
+            i += 1;
+            continue;
+        }
+        let var = name.clone();
+        // Count consecutive `append $var …` that follow.
+        let mut j = i + 1;
+        let mut appends = 0;
+        while j < stmts.len() {
+            match &stmts[j] {
+                Statement::Call { command, args, .. }
+                    if command == "append" && args.first() == Some(&var) =>
+                {
+                    appends += 1;
+                    j += 1;
+                }
+                _ => break,
+            }
+        }
+        if appends >= 2 {
+            let span_start = stmts[i].span().start();
+            let span_end = stmts[j - 1].span().end();
+            let span = tcl_lexer::Span::new(span_start, span_end);
+            let mut opt = Optimisation::new(
+                "O122",
+                format!(
+                    "Replace `{appends}`-step append chain on '{var}' with a single set"
+                ),
+                span,
+                "",
+            );
+            opt.hint_only = true;
+            ctx.report(opt);
+            i = j;
+        } else {
+            i += 1;
+        }
     }
 }
 
@@ -270,6 +366,45 @@ mod tests {
         assert_eq!(
             opts.iter().find(|o| o.code == "O114").unwrap().replacement,
             "incr x",
+        );
+    }
+
+    #[test]
+    fn multi_set_packing_hints_with_three_or_more_literal_sets() {
+        let opts = run_pass("set a 1\nset b 2\nset c 3");
+        assert!(
+            opts.iter().any(|o| o.code == "O119" && o.hint_only),
+            "expected O119 hint for multi-set packing, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn multi_set_packing_ignores_non_literal_values() {
+        // Mix of literal + dynamic values — not a pack candidate.
+        let opts = run_pass("set a 1\nset b $x\nset c 3");
+        assert!(
+            opts.iter().all(|o| o.code != "O119"),
+            "expected no O119 for mixed run, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn string_build_chain_hints_on_two_plus_appends() {
+        let opts = run_pass("set s {}\nappend s foo\nappend s bar");
+        assert!(
+            opts.iter().any(|o| o.code == "O122" && o.hint_only),
+            "expected O122 hint for string-build chain, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn string_build_chain_requires_empty_initial() {
+        // `set s foo` followed by appends is NOT the pattern —
+        // the initial value is non-empty.
+        let opts = run_pass("set s foo\nappend s bar\nappend s baz");
+        assert!(
+            opts.iter().all(|o| o.code != "O122"),
+            "non-empty initial should not emit O122, got {opts:?}",
         );
     }
 
