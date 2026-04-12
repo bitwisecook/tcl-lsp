@@ -16,11 +16,16 @@
 //! Ported from `core/compiler/core_analyses.py::_sccp` and the
 //! surrounding lattice-join helpers.
 
+#![allow(clippy::implicit_hasher, clippy::too_many_lines)]
+
 use std::collections::{HashMap, HashSet};
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
-use crate::cfg::Function as CfgFunction;
-use crate::ssa::ValueKey;
+use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::expr_ast::ExprNode;
+use crate::ir::Statement;
+use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
+use crate::tcl_expr_eval::{eval_tcl_expr, Env, EnvValue, TclValue};
 
 // ---------------------------------------------------------------------------
 // Public aliases (C25a)
@@ -156,6 +161,329 @@ fn cv_eq(a: &ConstValue, b: &ConstValue) -> bool {
         (ConstValue::String(x), ConstValue::String(y)) => x == y,
         _ => false,
     }
+}
+
+// ---------------------------------------------------------------------------
+// Driver (C25b)
+// ---------------------------------------------------------------------------
+
+/// A branch whose condition SCCP determined to be constant.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstantBranch {
+    /// CFG block containing the branch.
+    pub block: String,
+    /// Condition text for diagnostic reporting.
+    pub condition: String,
+    /// Evaluated boolean value.
+    pub value: bool,
+    /// Target reached when the condition holds.
+    pub taken_target: String,
+    /// Target skipped.
+    pub not_taken_target: String,
+}
+
+/// Full SCCP result: per-SSA-value lattice entries, the set of
+/// reachable blocks, the set of reachable edges, and
+/// constant-folded branch annotations for reachable blocks.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SccpResult {
+    /// Per-SSA-value lattice entry.
+    pub values: HashMap<ValueKey, LatticeValue>,
+    /// Blocks reachable from `cfg.entry` under current assumptions.
+    pub executable_blocks: HashSet<String>,
+    /// `(from_block, to_block)` edges known executable.
+    pub executable_edges: HashSet<(String, String)>,
+    /// Constant branches detected during propagation.
+    pub constant_branches: Vec<ConstantBranch>,
+}
+
+/// Sparse Conditional Constant Propagation driver.
+///
+/// Iterates to a fixed point over the lattice values of every SSA
+/// value, using CFG reachability (via `executable_edges`) so that
+/// unreachable branches don't widen their targets. `param_constants`
+/// lets interprocedural analysis seed the caller-provided argument
+/// lattice entries.
+///
+/// This is a focused port of `core_analyses.py::_sccp`:
+///
+/// - Phi handling uses the incoming versions for each *executable*
+///   predecessor, joining them onto the phi's SSA value.
+/// - Statement handling uses [`evaluate_def`] below, which folds
+///   [`Statement::AssignConst`] and [`Statement::AssignExpr`] via
+///   the C22 evaluator. Other statement kinds and
+///   [`Statement::Barrier`] widen their defs to `Overdefined`.
+/// - Branch decisions are resolved via [`evaluate_branch`] below,
+///   which consults the lattice environment and then the C22
+///   evaluator.
+#[must_use]
+pub fn sccp(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    param_constants: Option<&HashMap<ValueKey, LatticeValue>>,
+) -> SccpResult {
+    let preds = compute_predecessors(cfg);
+    let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
+    if let Some(seed) = param_constants {
+        for (k, v) in seed {
+            values.insert(k.clone(), v.clone());
+        }
+    }
+    let mut executable_blocks: HashSet<String> = HashSet::new();
+    let mut executable_edges: HashSet<(String, String)> = HashSet::new();
+    if cfg.blocks.contains_key(&cfg.entry) {
+        executable_blocks.insert(cfg.entry.clone());
+    }
+    let order = cfg_order(cfg);
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for bn in &order {
+            if !executable_blocks.contains(bn) {
+                continue;
+            }
+            let Some(ssa_block) = ssa.blocks.get(bn) else {
+                continue;
+            };
+
+            let incoming_exec: Vec<String> = preds
+                .get(bn)
+                .map(|set| {
+                    set.iter()
+                        .filter(|p| executable_edges.contains(&((*p).clone(), bn.clone())))
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            // Phi nodes (not at entry, only when some predecessor is
+            // executable).
+            for phi in &ssa_block.phis {
+                if bn == &cfg.entry {
+                    continue;
+                }
+                if incoming_exec.is_empty() {
+                    continue;
+                }
+                let mut phi_val = LatticeValue::Unknown;
+                for pred in &incoming_exec {
+                    let incoming_ver = phi.incoming.get(pred).copied().unwrap_or(0);
+                    if incoming_ver == 0 {
+                        continue;
+                    }
+                    let key: ValueKey = (phi.name.clone(), incoming_ver);
+                    let candidate = values.get(&key).cloned().unwrap_or(LatticeValue::Unknown);
+                    phi_val = join(&phi_val, &candidate);
+                }
+                if set_value(
+                    &mut values,
+                    (phi.name.clone(), phi.version),
+                    &phi_val,
+                ) {
+                    changed = true;
+                }
+            }
+
+            // Statements.
+            for stmt_ssa in &ssa_block.statements {
+                if matches!(stmt_ssa.statement, Statement::Barrier { .. }) {
+                    // Barriers widen all currently-tracked values.
+                    let keys: Vec<ValueKey> = values.keys().cloned().collect();
+                    for k in keys {
+                        if set_value(&mut values, k, &LatticeValue::Overdefined) {
+                            changed = true;
+                        }
+                    }
+                    continue;
+                }
+                for (var, ver) in &stmt_ssa.defs {
+                    let val = evaluate_def(stmt_ssa, &values);
+                    if set_value(&mut values, (var.clone(), *ver), &val) {
+                        changed = true;
+                    }
+                }
+            }
+
+            // Terminator.
+            if let Some(term) = &cfg.blocks[bn].terminator {
+                match term {
+                    Terminator::Goto { target, .. } => {
+                        let edge = (bn.clone(), target.clone());
+                        if !executable_edges.contains(&edge) {
+                            executable_edges.insert(edge);
+                            changed = true;
+                        }
+                        if cfg.blocks.contains_key(target)
+                            && executable_blocks.insert(target.clone())
+                        {
+                            changed = true;
+                        }
+                    }
+                    Terminator::Branch {
+                        condition,
+                        true_target,
+                        false_target,
+                        ..
+                    } => {
+                        let decision = evaluate_branch(ssa_block, condition, &values);
+                        let targets: Vec<&str> = match decision {
+                            Some(true) => vec![true_target.as_str()],
+                            Some(false) => vec![false_target.as_str()],
+                            None => vec![true_target.as_str(), false_target.as_str()],
+                        };
+                        for tgt in targets {
+                            let edge = (bn.clone(), tgt.to_owned());
+                            if !executable_edges.contains(&edge) {
+                                executable_edges.insert(edge);
+                                changed = true;
+                            }
+                            if cfg.blocks.contains_key(tgt)
+                                && executable_blocks.insert(tgt.to_owned())
+                            {
+                                changed = true;
+                            }
+                        }
+                    }
+                    Terminator::Return { .. } => {}
+                }
+            }
+        }
+    }
+
+    // Post-fixed-point sweep for constant-branch annotations.
+    let mut constant_branches: Vec<ConstantBranch> = Vec::new();
+    for bn in &order {
+        if !executable_blocks.contains(bn) {
+            continue;
+        }
+        let Some(block) = cfg.blocks.get(bn) else {
+            continue;
+        };
+        let Some(Terminator::Branch {
+            condition,
+            true_target,
+            false_target,
+            ..
+        }) = &block.terminator
+        else {
+            continue;
+        };
+        let Some(ssa_block) = ssa.blocks.get(bn) else {
+            continue;
+        };
+        let decision = evaluate_branch(ssa_block, condition, &values);
+        let cond_text = crate::expr_ast::expr_text(condition);
+        match decision {
+            Some(true) => constant_branches.push(ConstantBranch {
+                block: bn.clone(),
+                condition: cond_text,
+                value: true,
+                taken_target: true_target.clone(),
+                not_taken_target: false_target.clone(),
+            }),
+            Some(false) => constant_branches.push(ConstantBranch {
+                block: bn.clone(),
+                condition: cond_text,
+                value: false,
+                taken_target: false_target.clone(),
+                not_taken_target: true_target.clone(),
+            }),
+            None => {}
+        }
+    }
+
+    SccpResult {
+        values,
+        executable_blocks,
+        executable_edges,
+        constant_branches,
+    }
+}
+
+/// Evaluate the lattice value produced by an SSA statement's
+/// defs.
+///
+/// Focused subset: constant-assignment, expression-assignment via
+/// the C22 evaluator, and a conservative `Overdefined` fallback
+/// for everything else.
+#[must_use]
+pub fn evaluate_def(
+    stmt_ssa: &SsaStatement,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> LatticeValue {
+    match &stmt_ssa.statement {
+        Statement::AssignConst { value, .. } => {
+            LatticeValue::Const(parse_literal_value(value))
+        }
+        Statement::AssignExpr { expr, .. } => {
+            let env = env_from_uses(&stmt_ssa.uses, values);
+            match eval_tcl_expr(expr, &env) {
+                Some(v) => LatticeValue::Const(tcl_value_to_const(v)),
+                None => LatticeValue::Overdefined,
+            }
+        }
+        _ => LatticeValue::Overdefined,
+    }
+}
+
+/// Evaluate a branch condition.
+///
+/// Returns `Some(true)` / `Some(false)` when the condition folds to
+/// a constant under the current lattice; `None` otherwise.
+#[must_use]
+pub fn evaluate_branch(
+    ssa_block: &crate::ssa::SsaBlock,
+    condition: &ExprNode,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> Option<bool> {
+    let env = env_from_uses(&ssa_block.exit_versions, values);
+    let v = eval_tcl_expr(condition, &env)?;
+    Some(v.is_truthy())
+}
+
+/// Build a [`tcl_expr_eval::Env`] from a `{name → version}` map
+/// and the current lattice. Only entries whose lattice value is
+/// a single [`LatticeValue::Const`] are bound; anything else
+/// leaves the variable unbound so the evaluator returns `None`.
+fn env_from_uses(
+    uses: &HashMap<String, crate::ssa::Version>,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> Env {
+    let mut env = Env::new();
+    for (name, ver) in uses {
+        let key: ValueKey = (name.clone(), *ver);
+        if let Some(LatticeValue::Const(c)) = values.get(&key) {
+            env.insert(name.clone(), const_to_env_value(c));
+        }
+    }
+    env
+}
+
+fn const_to_env_value(c: &ConstValue) -> EnvValue {
+    match c {
+        ConstValue::Int(i) => EnvValue::Int(*i),
+        ConstValue::Float(f) => EnvValue::Float(*f),
+        ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
+        ConstValue::String(s) => EnvValue::Str(s.clone()),
+    }
+}
+
+fn tcl_value_to_const(v: TclValue) -> ConstValue {
+    match v {
+        TclValue::Int(i) => ConstValue::Int(i),
+        TclValue::Float(f) => ConstValue::Float(f),
+    }
+}
+
+/// Parse a literal text as a [`ConstValue`]. Matches Python's
+/// `_parse_literal_value`: prefers integer, then string fallback.
+#[must_use]
+pub fn parse_literal_value(text: &str) -> ConstValue {
+    if let Ok(i) = text.parse::<i64>() {
+        return ConstValue::Int(i);
+    }
+    ConstValue::String(text.to_owned())
 }
 
 #[cfg(test)]
@@ -310,6 +638,257 @@ mod tests {
         let e_pos = order.iter().position(|b| b == "e").unwrap();
         assert!(join_pos > t_pos);
         assert!(join_pos > e_pos);
+    }
+
+    // -- C25b: driver --
+
+    use crate::expr_ast::BinOp;
+    use crate::ir::Statement;
+    use crate::ssa::{SsaBlock, SsaStatement};
+    use tcl_lexer::Span;
+
+    fn assign_const_stmt(name: &str, value: &str, ver: u32) -> SsaStatement {
+        let mut defs = HashMap::new();
+        defs.insert(name.to_string(), ver);
+        SsaStatement {
+            statement: Statement::AssignConst {
+                span: Span::new(0, 0),
+                name: name.into(),
+                value: value.into(),
+            },
+            uses: HashMap::new(),
+            defs,
+        }
+    }
+
+    fn empty_ssa_block(name: &str) -> SsaBlock {
+        SsaBlock {
+            name: name.into(),
+            phis: Vec::new(),
+            statements: Vec::new(),
+            entry_versions: HashMap::new(),
+            exit_versions: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn sccp_marks_entry_executable_and_propagates_const() {
+        // entry: set x 42
+        let mut f = Function::new("::top", "entry");
+        let entry_blk = f.blocks.get_mut("entry").unwrap();
+        entry_blk.terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+        let mut ssa_entry = empty_ssa_block("entry");
+        ssa_entry.statements.push(assign_const_stmt("x", "42", 1));
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        };
+        ssa.blocks.insert("entry".into(), ssa_entry);
+
+        let r = sccp(&f, &ssa, None);
+        assert!(r.executable_blocks.contains("entry"));
+        assert_eq!(
+            r.values.get(&("x".to_string(), 1)),
+            Some(&LatticeValue::Const(ConstValue::Int(42)))
+        );
+    }
+
+    #[test]
+    fn sccp_constant_branch_detected_and_taken_target_marked() {
+        // entry: branch on literal "1" → true → "t", false → "e"
+        let mut f = Function::new("::top", "entry");
+        f.blocks.insert("t".into(), Block::new("t"));
+        f.blocks.insert("e".into(), Block::new("e"));
+        f.blocks.get_mut("entry").unwrap().terminator =
+            Some(branch(literal("1"), "t", "e"));
+        f.blocks.get_mut("t").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+        f.blocks.get_mut("e").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        };
+        ssa.blocks.insert("entry".into(), empty_ssa_block("entry"));
+        ssa.blocks.insert("t".into(), empty_ssa_block("t"));
+        ssa.blocks.insert("e".into(), empty_ssa_block("e"));
+
+        let r = sccp(&f, &ssa, None);
+        assert!(r.executable_blocks.contains("t"));
+        assert!(!r.executable_blocks.contains("e"));
+        assert_eq!(r.constant_branches.len(), 1);
+        let cb = &r.constant_branches[0];
+        assert!(cb.value);
+        assert_eq!(cb.taken_target, "t");
+        assert_eq!(cb.not_taken_target, "e");
+    }
+
+    #[test]
+    fn sccp_false_branch_prunes_true_target() {
+        let mut f = Function::new("::top", "entry");
+        f.blocks.insert("t".into(), Block::new("t"));
+        f.blocks.insert("e".into(), Block::new("e"));
+        f.blocks.get_mut("entry").unwrap().terminator =
+            Some(branch(literal("0"), "t", "e"));
+        f.blocks.get_mut("t").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+        f.blocks.get_mut("e").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        };
+        ssa.blocks.insert("entry".into(), empty_ssa_block("entry"));
+        ssa.blocks.insert("t".into(), empty_ssa_block("t"));
+        ssa.blocks.insert("e".into(), empty_ssa_block("e"));
+
+        let r = sccp(&f, &ssa, None);
+        assert!(!r.executable_blocks.contains("t"));
+        assert!(r.executable_blocks.contains("e"));
+    }
+
+    #[test]
+    fn sccp_unknown_branch_executes_both_targets() {
+        // Var reference — lattice value defaults to Unknown → decision None.
+        let mut f = Function::new("::top", "entry");
+        f.blocks.insert("t".into(), Block::new("t"));
+        f.blocks.insert("e".into(), Block::new("e"));
+        let cond = ExprNode::Var {
+            text: "$z".into(),
+            name: "z".into(),
+            start: 0,
+            end: 2,
+        };
+        f.blocks.get_mut("entry").unwrap().terminator =
+            Some(branch(cond, "t", "e"));
+        f.blocks.get_mut("t").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+        f.blocks.get_mut("e").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        };
+        ssa.blocks.insert("entry".into(), empty_ssa_block("entry"));
+        ssa.blocks.insert("t".into(), empty_ssa_block("t"));
+        ssa.blocks.insert("e".into(), empty_ssa_block("e"));
+
+        let r = sccp(&f, &ssa, None);
+        assert!(r.executable_blocks.contains("t"));
+        assert!(r.executable_blocks.contains("e"));
+        assert!(r.constant_branches.is_empty());
+    }
+
+    #[test]
+    fn evaluate_def_assign_const_produces_int_or_string() {
+        let s_int = assign_const_stmt("x", "42", 1);
+        assert_eq!(
+            evaluate_def(&s_int, &HashMap::new()),
+            LatticeValue::Const(ConstValue::Int(42))
+        );
+        let s_str = assign_const_stmt("x", "hello", 1);
+        assert_eq!(
+            evaluate_def(&s_str, &HashMap::new()),
+            LatticeValue::Const(ConstValue::String("hello".into()))
+        );
+    }
+
+    #[test]
+    fn evaluate_def_assign_expr_folds_with_lattice() {
+        // `set x [expr {$a + 3}]` with $a → Const(2) should fold to 5.
+        let mut uses = HashMap::new();
+        uses.insert("a".to_string(), 1);
+        let mut defs = HashMap::new();
+        defs.insert("x".to_string(), 1);
+
+        let expr = ExprNode::Binary {
+            op: BinOp::Add,
+            left: Box::new(ExprNode::Var {
+                text: "$a".into(),
+                name: "a".into(),
+                start: 0,
+                end: 2,
+            }),
+            right: Box::new(ExprNode::Literal {
+                text: "3".into(),
+                start: 3,
+                end: 4,
+            }),
+        };
+        let stmt_ssa = SsaStatement {
+            statement: Statement::AssignExpr {
+                span: Span::new(0, 0),
+                name: "x".into(),
+                expr,
+            },
+            uses,
+            defs,
+        };
+
+        let mut values = HashMap::new();
+        values.insert(
+            ("a".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(2)),
+        );
+
+        assert_eq!(
+            evaluate_def(&stmt_ssa, &values),
+            LatticeValue::Const(ConstValue::Int(5))
+        );
+    }
+
+    #[test]
+    fn parse_literal_value_prefers_int() {
+        assert_eq!(parse_literal_value("42"), ConstValue::Int(42));
+        assert_eq!(
+            parse_literal_value("hello"),
+            ConstValue::String("hello".into())
+        );
     }
 
     #[test]
