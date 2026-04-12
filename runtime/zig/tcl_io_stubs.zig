@@ -53,7 +53,7 @@ pub export fn tcl_cmd_flush(fd: i32) i32 {
     return 0;
 }
 
-pub export fn fblocked(fd: i32) i32 {
+pub export fn tcl_cmd_fblocked(fd: i32) i32 {
     _ = fd;
     stubs.unsupported("fblocked");
     return 0;
@@ -82,14 +82,14 @@ pub export fn tcl_cmd_chan(sub: i32, arg: i32) i32 {
     return 0;
 }
 
-pub export fn fcopy(in_fd: i32, out_fd: i32) i32 {
+pub export fn tcl_cmd_fcopy(in_fd: i32, out_fd: i32) i32 {
     _ = in_fd;
     _ = out_fd;
     stubs.unsupported("fcopy");
     return 0;
 }
 
-pub export fn fileevent(fd: i32, mode: i32) i32 {
+pub export fn tcl_cmd_fileevent(fd: i32, mode: i32) i32 {
     _ = fd;
     _ = mode;
     stubs.unsupported("fileevent");

@@ -316,7 +316,7 @@ def test_no_cmd_imports_for_pure_math():
         "obj_new_int",
         "obj_new_string",
         "obj_get_int",
-        "error",
+        "tcl_cmd_error",
         "tcl_eval",
         "diag_set",
         "global_set",

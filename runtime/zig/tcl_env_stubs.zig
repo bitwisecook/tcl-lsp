@@ -32,7 +32,7 @@ pub export fn @"namespace"(sub: i32, arg: i32) i32 {
     return 0;
 }
 
-pub export fn package_cmd(sub: i32, arg: i32) i32 {
+pub export fn tcl_cmd_package_cmd(sub: i32, arg: i32) i32 {
     _ = sub;
     _ = arg;
     stubs.unsupported("package");
@@ -42,14 +42,14 @@ pub export fn package_cmd(sub: i32, arg: i32) i32 {
 // ``trace_cmd`` moved to tcl_trace.zig — accepts ``trace add`` /
 // ``trace remove`` as benign pass-throughs, traps on info queries.
 
-pub export fn interp_cmd(sub: i32, arg: i32) i32 {
+pub export fn tcl_cmd_interp_cmd(sub: i32, arg: i32) i32 {
     _ = sub;
     _ = arg;
     stubs.unsupported("interp");
     return 0;
 }
 
-pub export fn apply(lambda: i32, args: i32) i32 {
+pub export fn tcl_cmd_apply(lambda: i32, args: i32) i32 {
     _ = lambda;
     _ = args;
     stubs.unsupported("apply");

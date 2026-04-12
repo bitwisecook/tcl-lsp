@@ -14,7 +14,7 @@ const obj = @import("tcl_obj.zig");
 const obj_new_string = obj.obj_new_string;
 const obj_new_string_copy = obj.obj_new_string_copy;
 
-pub export fn pwd() i32 {
+pub export fn tcl_cmd_pwd() i32 {
     // WASI programs without preopens report ``/`` as their root;
     // scripts that use ``pwd`` for logging only need *some* stable
     // answer, and tcltest specifically calls it to seed its
@@ -22,7 +22,7 @@ pub export fn pwd() i32 {
     return obj_new_string_copy(@intFromPtr("/".ptr), 1);
 }
 
-pub export fn cd(dir: i32) i32 {
+pub export fn tcl_cmd_cd(dir: i32) i32 {
     _ = dir;
     // Accept but do nothing — there's no real filesystem cwd in
     // WASM.  Scripts that rely on ``cd`` changing the cwd will not
@@ -50,7 +50,7 @@ fn eq(a: [*]const u8, alen: u32, literal: []const u8) bool {
 /// Mutating operations (mkdir / delete / rename / copy / attributes
 /// / link / readlink / tempfile / stat / lstat) trap so they can't
 /// silently miss work.
-pub export fn file(sub: i32, arg1: i32, arg2: i32) i32 {
+pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     if (sub == 0) {
         stubs.unsupported("file (missing subcommand)");
         return 0;

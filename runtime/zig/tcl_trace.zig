@@ -29,7 +29,7 @@ fn eq(a: [*]const u8, alen: u32, literal: []const u8) bool {
 
 /// ``trace <sub> ?args…?`` — pass-through add/remove, unsupported
 /// for info / variable (legacy) / execution queries.
-pub export fn trace_cmd(sub: i32, arg: i32) i32 {
+pub export fn tcl_cmd_trace_cmd(sub: i32, arg: i32) i32 {
     _ = arg;
     if (sub == 0) {
         stubs.unsupported("trace (missing subcommand)");

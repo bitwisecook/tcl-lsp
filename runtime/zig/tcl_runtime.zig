@@ -51,7 +51,7 @@ pub const tcl_incr = tcl_globals.tcl_incr;
 
 pub const tcl_cmd_puts = tcl_io.tcl_cmd_puts;
 
-pub const append = tcl_string.append;
+pub const tcl_cmd_append = tcl_string.tcl_cmd_append;
 pub const string_length = tcl_string.string_length;
 pub const string_index = tcl_string.string_index;
 pub const string_range = tcl_string.string_range;
@@ -67,17 +67,17 @@ pub const string_tolower = tcl_string.string_tolower;
 pub const string_reverse = tcl_string.string_reverse;
 pub const string_repeat = tcl_string.string_repeat;
 pub const string_replace = tcl_string.string_replace;
-pub const split = tcl_string.split;
-pub const join = tcl_string.join;
-pub const concat = tcl_string.concat;
+pub const tcl_cmd_split = tcl_string.tcl_cmd_split;
+pub const tcl_cmd_join = tcl_string.tcl_cmd_join;
+pub const tcl_cmd_concat = tcl_string.tcl_cmd_concat;
 
-pub const list_length = tcl_list_mod.list_length;
-pub const lappend = tcl_list_mod.lappend;
+pub const tcl_cmd_list_length = tcl_list_mod.tcl_cmd_list_length;
+pub const tcl_cmd_lappend = tcl_list_mod.tcl_cmd_lappend;
 pub const tcl_list = tcl_list_mod.tcl_list;
-pub const list_index = tcl_list_mod.list_index;
-pub const list_range = tcl_list_mod.list_range;
-pub const list_sort = tcl_list_mod.list_sort;
-pub const list_search = tcl_list_mod.list_search;
+pub const tcl_cmd_list_index = tcl_list_mod.tcl_cmd_list_index;
+pub const tcl_cmd_list_range = tcl_list_mod.tcl_cmd_list_range;
+pub const tcl_cmd_list_sort = tcl_list_mod.tcl_cmd_list_sort;
+pub const tcl_cmd_list_search = tcl_list_mod.tcl_cmd_list_search;
 
 pub const dict_create = tcl_dict.dict_create;
 pub const dict_get = tcl_dict.dict_get;
@@ -91,7 +91,7 @@ pub const catch_enter = tcl_catch.catch_enter;
 pub const catch_leave = tcl_catch.catch_leave;
 pub const catch_result = tcl_catch.catch_result;
 pub const catch_has_error = tcl_catch.catch_has_error;
-pub const @"error" = tcl_catch.@"error";
+pub const tcl_cmd_error = tcl_catch.tcl_cmd_error;
 pub const error_flag = &tcl_catch.error_flag;
 pub const return_flag = &tcl_catch.return_flag;
 pub const return_val = &tcl_catch.return_val;
@@ -159,7 +159,7 @@ comptime {
     // tcl_io exports
     _ = &tcl_io.tcl_cmd_puts;
     // tcl_string exports
-    _ = &tcl_string.append;
+    _ = &tcl_string.tcl_cmd_append;
     _ = &tcl_string.string_compare;
     _ = &tcl_string.string_length;
     _ = &tcl_string.string_index;
@@ -181,17 +181,17 @@ comptime {
     _ = &tcl_string.string_is_alpha;
     _ = &tcl_string.string_is_digit;
     _ = &tcl_string.string_is_space;
-    _ = &tcl_string.split;
-    _ = &tcl_string.join;
-    _ = &tcl_string.concat;
+    _ = &tcl_string.tcl_cmd_split;
+    _ = &tcl_string.tcl_cmd_join;
+    _ = &tcl_string.tcl_cmd_concat;
     // tcl_list exports
-    _ = &tcl_list_mod.list_length;
-    _ = &tcl_list_mod.lappend;
+    _ = &tcl_list_mod.tcl_cmd_list_length;
+    _ = &tcl_list_mod.tcl_cmd_lappend;
     _ = &tcl_list_mod.tcl_list;
-    _ = &tcl_list_mod.list_index;
-    _ = &tcl_list_mod.list_range;
-    _ = &tcl_list_mod.list_sort;
-    _ = &tcl_list_mod.list_search;
+    _ = &tcl_list_mod.tcl_cmd_list_index;
+    _ = &tcl_list_mod.tcl_cmd_list_range;
+    _ = &tcl_list_mod.tcl_cmd_list_sort;
+    _ = &tcl_list_mod.tcl_cmd_list_search;
     // tcl_dict exports
     _ = &tcl_dict.dict_create;
     _ = &tcl_dict.dict_get;
@@ -205,7 +205,7 @@ comptime {
     _ = &tcl_catch.catch_leave;
     _ = &tcl_catch.catch_result;
     _ = &tcl_catch.catch_has_error;
-    _ = &tcl_catch.@"error";
+    _ = &tcl_catch.tcl_cmd_error;
     // tcl_*_stubs exports — stubs trap with ``unsupported command:
     // <name>`` so the compiled code sees a clear error rather than
     // a silent wrong answer.  Imports of these are wired up in
@@ -217,48 +217,48 @@ comptime {
     _ = &tcl_io_stubs.tcl_cmd_gets;
     _ = &tcl_io_stubs.tcl_cmd_eof;
     _ = &tcl_io_stubs.tcl_cmd_flush;
-    _ = &tcl_io_stubs.fblocked;
+    _ = &tcl_io_stubs.tcl_cmd_fblocked;
     _ = &tcl_io_stubs.tcl_cmd_tell;
     _ = &tcl_io_stubs.tcl_cmd_seek;
     _ = &tcl_io_stubs.tcl_cmd_chan;
-    _ = &tcl_io_stubs.fcopy;
-    _ = &tcl_io_stubs.fileevent;
+    _ = &tcl_io_stubs.tcl_cmd_fcopy;
+    _ = &tcl_io_stubs.tcl_cmd_fileevent;
     _ = &tcl_io_stubs.tcl_cmd_socket;
     // file has a real impl in tcl_fs.zig.
-    _ = &tcl_fs.file;
+    _ = &tcl_fs.tcl_cmd_file;
     _ = &tcl_fs_stubs.tcl_cmd_glob;
     // pwd and cd live in tcl_fs.zig (pass-through impl).
-    _ = &tcl_fs.pwd;
-    _ = &tcl_fs.cd;
+    _ = &tcl_fs.tcl_cmd_pwd;
+    _ = &tcl_fs.tcl_cmd_cd;
     _ = &tcl_fs_stubs.tcl_cmd_exec;
     _ = &tcl_fs_stubs.tcl_cmd_source;
     _ = &tcl_fs_stubs.tcl_cmd_load;
-    _ = &tcl_fs_stubs.unload;
+    _ = &tcl_fs_stubs.tcl_cmd_unload;
     // format lives in tcl_format.zig (real impl).
-    _ = &tcl_format.format;
-    _ = &tcl_fmt_stubs.scan;
-    _ = &tcl_fmt_stubs.binary;
-    _ = &tcl_fmt_stubs.regexp;
-    _ = &tcl_fmt_stubs.regsub;
+    _ = &tcl_format.tcl_cmd_format;
+    _ = &tcl_fmt_stubs.tcl_cmd_scan;
+    _ = &tcl_fmt_stubs.tcl_cmd_binary;
+    _ = &tcl_fmt_stubs.tcl_cmd_regexp;
+    _ = &tcl_fmt_stubs.tcl_cmd_regsub;
     // encoding lives in tcl_encoding.zig (real pass-through impl).
-    _ = &tcl_encoding.encoding;
+    _ = &tcl_encoding.tcl_cmd_encoding;
     // fconfigure lives in tcl_chan.zig (NOP).
-    _ = &tcl_chan.fconfigure;
+    _ = &tcl_chan.tcl_cmd_fconfigure;
     _ = &tcl_time_stubs.clock_format;
     _ = &tcl_time_stubs.clock_scan;
     _ = &tcl_time_stubs.clock_add;
-    _ = &tcl_time_stubs.after;
-    _ = &tcl_time_stubs.vwait;
-    _ = &tcl_time_stubs.update;
-    _ = &tcl_time_stubs.coroutine;
-    _ = &tcl_time_stubs.yield;
-    _ = &tcl_time_stubs.yieldto;
+    _ = &tcl_time_stubs.tcl_cmd_after;
+    _ = &tcl_time_stubs.tcl_cmd_vwait;
+    _ = &tcl_time_stubs.tcl_cmd_update;
+    _ = &tcl_time_stubs.tcl_cmd_coroutine;
+    _ = &tcl_time_stubs.tcl_cmd_yield;
+    _ = &tcl_time_stubs.tcl_cmd_yieldto;
     _ = &tcl_env_stubs.@"namespace";
-    _ = &tcl_env_stubs.package_cmd;
+    _ = &tcl_env_stubs.tcl_cmd_package_cmd;
     // trace lives in tcl_trace.zig (pass-through impl).
-    _ = &tcl_trace.trace_cmd;
-    _ = &tcl_env_stubs.interp_cmd;
-    _ = &tcl_env_stubs.apply;
+    _ = &tcl_trace.tcl_cmd_trace_cmd;
+    _ = &tcl_env_stubs.tcl_cmd_interp_cmd;
+    _ = &tcl_env_stubs.tcl_cmd_apply;
     _ = &tcl_stubs.unsupported;
     _ = &tcl_cmd_dispatch.try_stub;
     _ = &tcl_dispatch.dispatch;

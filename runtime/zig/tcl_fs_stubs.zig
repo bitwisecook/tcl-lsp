@@ -51,7 +51,7 @@ pub export fn tcl_cmd_load(path: i32) i32 {
     return 0;
 }
 
-pub export fn unload(path: i32) i32 {
+pub export fn tcl_cmd_unload(path: i32) i32 {
     _ = path;
     stubs.unsupported("unload");
     return 0;

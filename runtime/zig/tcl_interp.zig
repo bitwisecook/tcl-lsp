@@ -412,7 +412,7 @@ fn eval_command(words: []const i32) i32 {
         }
         if (is_error) {
             const catch_mod = @import("tcl_catch.zig");
-            catch_mod.@"error"(result_obj);
+            catch_mod.tcl_cmd_error(result_obj);
             return 0;
         }
         rt.return_flag.* = 1;
@@ -477,7 +477,7 @@ fn eval_command(words: []const i32) i32 {
         }
         return 0;
     }
-    if (str_eq(cmd, cmd_s.len, "error")) { if (words.len >= 2) rt.@"error"(words[1]); return 0; }
+    if (str_eq(cmd, cmd_s.len, "error")) { if (words.len >= 2) rt.tcl_cmd_error(words[1]); return 0; }
     if (str_eq(cmd, cmd_s.len, "catch")) {
         if (words.len >= 2) {
             rt.catch_enter();
@@ -490,18 +490,18 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "append")) {
         if (words.len >= 3) {
             const cur = frames.var_resolve(words[1]);
-            const result = rt.append(cur, words[2]);
+            const result = rt.tcl_cmd_append(cur, words[2]);
             _ = frames.var_set(words[1], result);
             return result;
         }
         return 0;
     }
-    if (str_eq(cmd, cmd_s.len, "llength")) { if (words.len >= 2) return rt.list_length(words[1]); return 0; }
-    if (str_eq(cmd, cmd_s.len, "lindex")) { if (words.len >= 3) return rt.list_index(words[1], words[2]); return 0; }
+    if (str_eq(cmd, cmd_s.len, "llength")) { if (words.len >= 2) return rt.tcl_cmd_list_length(words[1]); return 0; }
+    if (str_eq(cmd, cmd_s.len, "lindex")) { if (words.len >= 3) return rt.tcl_cmd_list_index(words[1], words[2]); return 0; }
     if (str_eq(cmd, cmd_s.len, "lappend")) {
         if (words.len >= 3) {
             const cur = frames.var_resolve(words[1]);
-            const result = rt.lappend(cur, words[2]);
+            const result = rt.tcl_cmd_lappend(cur, words[2]);
             _ = frames.var_set(words[1], result);
             return result;
         }
@@ -563,22 +563,22 @@ fn eval_command(words: []const i32) i32 {
         const a1 = if (words.len >= 3) words[2] else 0;
         const a2 = if (words.len >= 4) words[3] else 0;
         const a3 = if (words.len >= 5) words[4] else 0;
-        return fmt_mod.format(fmt, a1, a2, a3);
+        return fmt_mod.tcl_cmd_format(fmt, a1, a2, a3);
     }
     if (str_eq(cmd, cmd_s.len, "pwd")) {
         const fs_mod = @import("tcl_fs.zig");
-        return fs_mod.pwd();
+        return fs_mod.tcl_cmd_pwd();
     }
     if (str_eq(cmd, cmd_s.len, "file")) {
         const fs_mod = @import("tcl_fs.zig");
         const sub = if (words.len >= 2) words[1] else 0;
         const a1 = if (words.len >= 3) words[2] else 0;
         const a2 = if (words.len >= 4) words[3] else 0;
-        return fs_mod.file(sub, a1, a2);
+        return fs_mod.tcl_cmd_file(sub, a1, a2);
     }
     if (str_eq(cmd, cmd_s.len, "cd")) {
         const fs_mod = @import("tcl_fs.zig");
-        return fs_mod.cd(if (words.len >= 2) words[1] else 0);
+        return fs_mod.tcl_cmd_cd(if (words.len >= 2) words[1] else 0);
     }
     if (str_eq(cmd, cmd_s.len, "trace")) {
         // ``trace add`` / ``trace remove`` pass through; other
@@ -586,7 +586,7 @@ fn eval_command(words: []const i32) i32 {
         const trace_mod = @import("tcl_trace.zig");
         const sub = if (words.len >= 2) words[1] else 0;
         const arg_obj = if (words.len >= 3) words[2] else 0;
-        return trace_mod.trace_cmd(sub, arg_obj);
+        return trace_mod.tcl_cmd_trace_cmd(sub, arg_obj);
     }
     if (str_eq(cmd, cmd_s.len, "unset")) {
         // ``unset ?-nocomplain? ?--? var ?var ...?`` — clear each
@@ -627,16 +627,16 @@ fn eval_command(words: []const i32) i32 {
         const sub = if (words.len >= 2) words[1] else 0;
         const arg1 = if (words.len >= 3) words[2] else 0;
         const arg2 = if (words.len >= 4) words[3] else 0;
-        return enc.encoding(sub, arg1, arg2);
+        return enc.tcl_cmd_encoding(sub, arg1, arg2);
     }
     if (str_eq(cmd, cmd_s.len, "fconfigure")) {
         // Fconfigure pass-through: packs the remaining words into
         // a space-joined TclObj and calls the real impl.  Walking
         // Tcl-registered procs that call fconfigure hit this path.
         const chan = @import("tcl_chan.zig");
-        if (words.len < 2) return chan.fconfigure(0, 0);
+        if (words.len < 2) return chan.tcl_cmd_fconfigure(0, 0);
         const fd = words[1];
-        if (words.len < 3) return chan.fconfigure(fd, 0);
+        if (words.len < 3) return chan.tcl_cmd_fconfigure(fd, 0);
         // Concatenate words[2..] with a single space separator via
         // the existing ``concat`` runtime helper.
         var acc = words[2];
@@ -646,28 +646,28 @@ fn eval_command(words: []const i32) i32 {
             const d: [*]u8 = @ptrFromInt(sp_ptr);
             d[0] = ' ';
             const sep = obj_new_string(@intCast(sp_ptr), 1);
-            acc = rt.concat(acc, sep);
-            acc = rt.concat(acc, words[i]);
+            acc = rt.tcl_cmd_concat(acc, sep);
+            acc = rt.tcl_cmd_concat(acc, words[i]);
         }
-        return chan.fconfigure(fd, acc);
+        return chan.tcl_cmd_fconfigure(fd, acc);
     }
     if (str_eq(cmd, cmd_s.len, "info")) {
         if (words.len >= 3) return info.info_dispatch(words[1], words[2]);
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "split")) {
-        if (words.len >= 3) return rt.split(words[1], words[2]);
-        if (words.len >= 2) return rt.split(words[1], obj_new_string(0, 0));
+        if (words.len >= 3) return rt.tcl_cmd_split(words[1], words[2]);
+        if (words.len >= 2) return rt.tcl_cmd_split(words[1], obj_new_string(0, 0));
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "join")) {
-        if (words.len >= 3) return rt.join(words[1], words[2]);
+        if (words.len >= 3) return rt.tcl_cmd_join(words[1], words[2]);
         if (words.len >= 2) {
             // Default separator is a space
             const sp = alloc(1);
             const d: [*]u8 = @ptrFromInt(sp);
             d[0] = ' ';
-            return rt.join(words[1], obj_new_string(@intCast(sp), 1));
+            return rt.tcl_cmd_join(words[1], obj_new_string(@intCast(sp), 1));
         }
         return obj_new_string(0, 0);
     }
@@ -677,13 +677,13 @@ fn eval_command(words: []const i32) i32 {
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "concat")) {
-        if (words.len >= 3) return rt.concat(words[1], words[2]);
+        if (words.len >= 3) return rt.tcl_cmd_concat(words[1], words[2]);
         if (words.len >= 2) return words[1];
         return obj_new_string(0, 0);
     }
-    if (str_eq(cmd, cmd_s.len, "lsort")) { if (words.len >= 2) return rt.list_sort(words[words.len - 1]); return obj_new_string(0, 0); }
-    if (str_eq(cmd, cmd_s.len, "lsearch")) { if (words.len >= 3) return rt.list_search(words[1], words[2]); return obj_new_int(-1); }
-    if (str_eq(cmd, cmd_s.len, "lrange")) { if (words.len >= 4) return rt.list_range(words[1], words[2], words[3]); return obj_new_string(0, 0); }
+    if (str_eq(cmd, cmd_s.len, "lsort")) { if (words.len >= 2) return rt.tcl_cmd_list_sort(words[words.len - 1]); return obj_new_string(0, 0); }
+    if (str_eq(cmd, cmd_s.len, "lsearch")) { if (words.len >= 3) return rt.tcl_cmd_list_search(words[1], words[2]); return obj_new_int(-1); }
+    if (str_eq(cmd, cmd_s.len, "lrange")) { if (words.len >= 4) return rt.tcl_cmd_list_range(words[1], words[2], words[3]); return obj_new_string(0, 0); }
     if (str_eq(cmd, cmd_s.len, "global")) {
         // Register each listed name as a global alias in the current frame.
         // Subsequent reads/writes of the local name pass through to globals,
@@ -872,7 +872,7 @@ fn eval_proc_call(words: []const i32) i32 {
     if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
         rt.break_flag.* = 0;
         rt.continue_flag.* = 0;
-        rt.@"error"(words[0]);
+        rt.tcl_cmd_error(words[0]);
     }
     return result;
 }
