@@ -723,6 +723,26 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_catch_has_error": ("tcl", "catch_has_error", [], [ValType.I32]),
     # Interpreter fallback
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
+    # Frame stack (local variable scoping)
+    "tcl_frame_push": ("tcl", "frame_push", [], [ValType.I32]),
+    "tcl_frame_pop": ("tcl", "frame_pop", [], []),
+    "tcl_var_resolve": ("tcl", "var_resolve", [ValType.I32], [ValType.I32]),
+    "tcl_var_set": ("tcl", "var_set", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_var_exists": ("tcl", "var_exists", [ValType.I32], [ValType.I32]),
+    "tcl_local_set": ("tcl", "local_set", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Proc registry
+    "tcl_proc_register": (
+        "tcl",
+        "proc_register",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    # Info command
+    "tcl_info_exists": ("tcl", "info_exists", [ValType.I32], [ValType.I32]),
+    "tcl_info_dispatch": ("tcl", "info_dispatch", [ValType.I32, ValType.I32], [ValType.I32]),
+    # String split/join
+    "tcl_split": ("tcl", "split", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_join": ("tcl", "join", [ValType.I32, ValType.I32], [ValType.I32]),
 }
 
 # Import keys for the TclObj lifecycle functions — always registered
@@ -753,6 +773,8 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "close": ("tcl_close", 1),
     "read": ("tcl_read", 1),
     "gets": ("tcl_gets", 1),
+    "split": ("tcl_split", 2),
+    "join": ("tcl_join", 2),
 }
 
 # String sub-command → import key
@@ -832,6 +854,56 @@ _UNSUPPORTED_COMMANDS = frozenset(
 )
 
 
+def _has_embedded_subst_scan(value: str) -> bool:
+    """Detect embedded $var / ${var} / [cmd] substitutions mixed with literal text.
+
+    Returns True when *value* contains both literal characters and a
+    substitution — a pure ``$x`` / ``${x}`` / ``[cmd]`` reference returns
+    False (handled by the single-token paths in _emit_value).
+    """
+    # Strip off a pure variable or command substitution to see if there's
+    # anything else present.
+    if value.startswith("${") and value.endswith("}"):
+        # A single ``${name}`` is pure only when the inner text has no
+        # further substitutions or braces.  ``${a}${b}`` starts with
+        # ``${`` and ends with ``}`` but is NOT pure.
+        inner = value[2:-1]
+        if "$" not in inner and "[" not in inner and "}" not in inner:
+            return False
+    if value.startswith("$") and not value.startswith("$["):
+        # Check whether the entire string is just $name (possibly with
+        # :: namespace separators, e.g. $::ns::var).
+        j = 1
+        n = len(value)
+        while j < n:
+            ch = value[j]
+            if ch.isalnum() or ch == "_":
+                j += 1
+            elif ch == ":" and j + 1 < n and value[j + 1] == ":":
+                j += 2
+            else:
+                break
+        if j == n:
+            return False
+    if value.startswith("[") and value.endswith("]"):
+        return False
+    i = 0
+    n = len(value)
+    while i < n:
+        c = value[i]
+        if c == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if c == "$" and i + 1 < n:
+            nxt = value[i + 1]
+            if nxt == "{" or nxt.isalpha() or nxt == "_" or nxt == ":":
+                return True
+        if c == "[":
+            return True
+        i += 1
+    return False
+
+
 def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
     """Scan a text value for [cmd ...] command substitutions and add imports."""
     i = 0
@@ -886,10 +958,24 @@ def _scan_needed_imports(
         for stmt in script.statements:
             _scan_stmt(stmt)
 
-    def _scan_value(value: str) -> None:
-        """Scan a value string for embedded command substitutions."""
+    def _scan_value(value: str, *, is_body_text: bool = False) -> None:
+        """Scan a value string for embedded command substitutions.
+
+        ``is_body_text=True`` means the string is source text that the
+        lowerer will re-parse (e.g. a proc body) rather than a value
+        that the codegen will emit at runtime.  In that case we skip
+        the interpolated-string scan — otherwise a proc body containing
+        ``$a`` / ``$b`` would spuriously pull in ``tcl_append``, since
+        the body is never emitted via the concat-chain path.
+        """
         if "[" in value:
             _scan_text_for_cmd_subst(value, needed)
+        if is_body_text:
+            return
+        # Interpolated strings ("hello $x" / "$x[foo]" etc.) need tcl_append
+        # at codegen time to concatenate the parts.
+        if _has_embedded_subst_scan(value):
+            needed.add("tcl_append")
 
     def _scan_expr(expr: object) -> None:
         """Walk an expression AST and scan ExprCommand nodes."""
@@ -940,9 +1026,14 @@ def _scan_needed_imports(
                     needed.add("tcl_catch_leave")
                     needed.add("tcl_catch_result")
                     needed.add("tcl_catch_has_error")
-                # Scan all arguments for command substitutions
+                # Scan all arguments for command substitutions.  For
+                # body-taking commands (``proc``, ``namespace eval``,
+                # ``catch``, etc.) the args are source text re-parsed
+                # by the lowerer, not values emitted at runtime — mark
+                # them so the scan doesn't over-import tcl_append.
+                is_body = command in _SCOPE_NOP_COMMANDS or command == "catch"
                 for arg in args:
-                    _scan_value(arg)
+                    _scan_value(arg, is_body_text=is_body)
             case IRAssignValue(value=value):
                 _scan_value(value)
             case IRExprEval(expr=expr):
@@ -1062,6 +1153,9 @@ class _WasmEmitter:
         func_index_base: int = 0,
         shared_imports: dict[str, int] | None = None,
         proc_index: dict[str, tuple[int, int]] | None = None,
+        shared_strings: list[tuple[str, int]] | None = None,
+        shared_string_index: dict[str, int] | None = None,
+        shared_string_offset: list[int] | None = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
@@ -1086,10 +1180,17 @@ class _WasmEmitter:
         # Instructions
         self._body: list[WasmInstruction] = []
 
-        # String data accumulation
-        self._strings: list[tuple[str, int]] = []  # (value, offset)
-        self._string_index: dict[str, int] = {}
-        self._string_offset = 0
+        # String data accumulation — shared across all functions in the
+        # module so data segments don't overlap in linear memory.
+        # shared_string_offset is a single-element list so all emitters
+        # mutate the same counter.
+        self._strings: list[tuple[str, int]] = shared_strings if shared_strings is not None else []
+        self._string_index: dict[str, int] = (
+            shared_string_index if shared_string_index is not None else {}
+        )
+        self._string_offset_ref: list[int] = (
+            shared_string_offset if shared_string_offset is not None else [0]
+        )
 
         # Global variable tracking
         self._globals: set[str] = set()
@@ -1100,6 +1201,14 @@ class _WasmEmitter:
 
         # Block ordering for structured control flow
         self._visited: set[str] = set()
+
+        # Active loop headers — used by _is_loop_header to distinguish
+        # a nested-loop back-edge from an outer-loop back-edge. When we
+        # walk from a body-start node looking for a cycle back to the
+        # current branch block, reaching an active OUTER loop header
+        # means we've followed the outer loop's back-edge, not found
+        # a new nested loop; stop the walk in that case.
+        self._active_loop_headers: set[str] = set()
 
         # Loop control — break/continue use WASM structured control flow.
         # The `_loop_depth` increments each time we enter a block{loop{}}
@@ -1155,6 +1264,10 @@ class _WasmEmitter:
         (already i32), detects ``[cmd ...]`` command substitution and
         dispatches through the proc-call mechanism, or creates a new
         TclObj for literals.
+
+        For strings with embedded substitutions (e.g. ``"hello $x"`` or
+        ``"fib(10) = [fib 10]"``), parses the string into chunks and
+        emits a concat chain using the runtime ``tcl_append`` function.
         """
         var = self._resolve_var_name(value)
         if var is not None:
@@ -1173,7 +1286,144 @@ class _WasmEmitter:
         if value.startswith("[") and value.endswith("]"):
             self._emit_command_subst_value(value)
             return
+        # Interpolated string: contains embedded $var/${var}/[cmd]
+        # mixed with literal text.  Emit a concat chain.
+        if self._has_embedded_subst(value):
+            self._emit_interpolated_value(value)
+            return
         self._emit_obj_literal(value)
+
+    def _has_embedded_subst(self, value: str) -> bool:
+        """Check if *value* contains embedded $var, ${var}, or [cmd] substitutions."""
+        i = 0
+        n = len(value)
+        while i < n:
+            c = value[i]
+            if c == "\\" and i + 1 < n:
+                i += 2
+                continue
+            if c == "$" and i + 1 < n:
+                nxt = value[i + 1]
+                if nxt == "{" or nxt.isalpha() or nxt == "_":
+                    return True
+            if c == "[":
+                return True
+            i += 1
+        return False
+
+    def _parse_interpolated_parts(self, value: str) -> list[tuple[str, str]]:
+        """Parse an interpolated string into ("lit", text) / ("var", name) /
+        ("cmd", body) tuples.
+
+        The returned list represents the string as a sequence of parts to
+        concatenate.  Backslash escapes are preserved in literal parts.
+        """
+        parts: list[tuple[str, str]] = []
+        buf: list[str] = []
+
+        def flush() -> None:
+            if buf:
+                parts.append(("lit", "".join(buf)))
+                buf.clear()
+
+        i = 0
+        n = len(value)
+        while i < n:
+            c = value[i]
+            if c == "\\" and i + 1 < n:
+                esc = value[i + 1]
+                buf.append({"n": "\n", "t": "\t", "r": "\r"}.get(esc, esc))
+                i += 2
+                continue
+            if c == "$" and i + 1 < n:
+                nxt = value[i + 1]
+                if nxt == "{":
+                    # ${name}
+                    j = value.find("}", i + 2)
+                    if j == -1:
+                        buf.append(c)
+                        i += 1
+                        continue
+                    flush()
+                    parts.append(("var", value[i + 2 : j]))
+                    i = j + 1
+                    continue
+                if nxt.isalpha() or nxt == "_" or nxt == ":":
+                    # $name — accepts [A-Za-z0-9_] and ``::`` namespace
+                    # separators so names like ``$::counter::secsPerMinute``
+                    # parse as a single variable reference rather than
+                    # stopping at the first colon.
+                    j = i + 1
+                    while j < n:
+                        ch = value[j]
+                        if ch.isalnum() or ch == "_":
+                            j += 1
+                        elif ch == ":" and j + 1 < n and value[j + 1] == ":":
+                            j += 2
+                        else:
+                            break
+                    flush()
+                    parts.append(("var", value[i + 1 : j]))
+                    i = j
+                    continue
+            if c == "[":
+                # [cmd ...] — find matching ] with nesting
+                depth = 1
+                j = i + 1
+                while j < n and depth > 0:
+                    if value[j] == "[":
+                        depth += 1
+                    elif value[j] == "]":
+                        depth -= 1
+                    if depth > 0:
+                        j += 1
+                    else:
+                        break
+                if depth != 0:
+                    buf.append(c)
+                    i += 1
+                    continue
+                flush()
+                parts.append(("cmd", value[i + 1 : j]))
+                i = j + 1
+                continue
+            buf.append(c)
+            i += 1
+        flush()
+        return parts
+
+    def _emit_interpolated_value(self, value: str) -> None:
+        """Emit a TclObj for an interpolated string with $var/[cmd] chunks.
+
+        Parses the string and emits each part (literal, variable, or
+        command substitution), then concatenates them via tcl_append.
+        """
+        parts = self._parse_interpolated_parts(value)
+        if not parts:
+            self._emit_obj_literal("")
+            return
+        append_idx = self._shared_imports.get("tcl_append")
+        if append_idx is None:
+            # No append available — fall back to literal
+            self._emit_obj_literal(value)
+            return
+
+        # Emit the first part
+        self._emit_part(parts[0])
+        # Concat remaining parts
+        for part in parts[1:]:
+            self._emit_part(part)
+            self._emit_call(append_idx)
+
+    def _emit_part(self, part: tuple[str, str]) -> None:
+        kind, data = part
+        if kind == "lit":
+            self._emit_obj_literal(data)
+        elif kind == "var":
+            idx = self._intern_local(data)
+            self._emit_local_get(idx)
+        elif kind == "cmd":
+            self._emit_command_subst_value("[" + data + "]")
 
     def _emit_command_subst_value(self, text: str) -> None:
         """Emit an i32 TclObj for a command substitution in value context.
@@ -1333,9 +1583,9 @@ class _WasmEmitter:
         """Return the memory offset for a string constant."""
         if value in self._string_index:
             return self._string_index[value]
-        offset = self._string_offset
+        offset = self._string_offset_ref[0]
         encoded = value.encode("utf-8")
-        self._string_offset += len(encoded) + 4  # 4 bytes for length prefix
+        self._string_offset_ref[0] += len(encoded) + 4  # 4 bytes for length prefix
         self._strings.append((value, offset))
         self._string_index[value] = offset
         return offset
@@ -3139,6 +3389,10 @@ class _WasmEmitter:
 
         Returns ``True`` when following goto/branch edges from *body_start*
         reaches *header* again, indicating a loop back-edge.
+
+        Stops the walk at any block in ``self._active_loop_headers``: if
+        we reach an OUTER loop's header, we have followed the outer
+        loop's back-edge and this is not a new nested loop.
         """
         visited: set[str] = set()
         worklist = [body_start]
@@ -3147,6 +3401,10 @@ class _WasmEmitter:
             if name == header:
                 return True
             if name in visited:
+                continue
+            # Outer loop header — stop the walk here so we don't wrap
+            # around through the outer loop back to `header`.
+            if name in self._active_loop_headers and name != header:
                 continue
             visited.add(name)
             blk = self._cfg.blocks.get(name)
@@ -3175,6 +3433,9 @@ class _WasmEmitter:
         """
         # Mark the header as visited to prevent re-entry from the back-edge
         self._visited.add(header)
+        # Track header so nested _is_loop_header walks don't confuse
+        # outer back-edges with new nested loops.
+        self._active_loop_headers.add(header)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
         self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
@@ -3201,6 +3462,8 @@ class _WasmEmitter:
         self._emit_br(0)
         self._emit(WasmOp.END)  # end loop
         self._emit(WasmOp.END)  # end block
+
+        self._active_loop_headers.discard(header)
 
         # Continue with the exit block
         self._emit_block(exit_block)
@@ -3236,6 +3499,7 @@ class _WasmEmitter:
                     # eventually loops back to this block.
                     if self._is_loop_header(current, tt):
                         # Emit a nested WASM loop for this inner header.
+                        self._active_loop_headers.add(current)
                         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
                         self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
 
@@ -3250,6 +3514,7 @@ class _WasmEmitter:
                         self._emit_br(0)  # loop back
                         self._emit(WasmOp.END)  # end loop
                         self._emit(WasmOp.END)  # end block
+                        self._active_loop_headers.discard(current)
 
                         # Continue with the false-target (loop exit)
                         current = ft
@@ -3628,6 +3893,13 @@ def wasm_codegen_module(
         proc_index[qname] = (func_idx, len(params))
         func_idx += 1
 
+    # Shared string table so data segments from different functions
+    # don't collide at offset 0. All emitters share a single list,
+    # index dict, and offset counter.
+    shared_strings: list[tuple[str, int]] = []
+    shared_string_index: dict[str, int] = {}
+    shared_string_offset: list[int] = [0]
+
     # Phase 4: Compile top-level with shared state
     emitter = _WasmEmitter(
         cfg_module.top_level,
@@ -3635,11 +3907,13 @@ def wasm_codegen_module(
         is_proc=False,
         shared_imports=shared_imports,
         proc_index=proc_index,
+        shared_strings=shared_strings,
+        shared_string_index=shared_string_index,
+        shared_string_offset=shared_string_offset,
     )
     top_func = emitter.generate()
     top_func.name = "::top"
     module.functions.append(top_func)
-    module.data_segments.extend(emitter.data_segments)
 
     # Phase 5: Compile callables (procedures and methods)
     for qname, cfg_func, params in callables:
@@ -3650,11 +3924,19 @@ def wasm_codegen_module(
             is_proc=True,
             shared_imports=shared_imports,
             proc_index=proc_index,
+            shared_strings=shared_strings,
+            shared_string_index=shared_string_index,
+            shared_string_offset=shared_string_offset,
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname
         module.functions.append(callable_func)
-        module.data_segments.extend(callable_emitter.data_segments)
+
+    # Emit a single set of data segments from the shared string table.
+    for value, offset in shared_strings:
+        encoded = value.encode("utf-8")
+        data = len(encoded).to_bytes(4, "little") + encoded
+        module.data_segments.append(WasmData(offset=offset, data=data))
 
     # Ensure types are registered
     for func in module.functions:
