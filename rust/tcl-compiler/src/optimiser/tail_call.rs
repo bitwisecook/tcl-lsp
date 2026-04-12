@@ -211,8 +211,14 @@ fn count_self_calls_in_stmt(
                 *count += count_bracket_self_calls(arg, self_names);
             }
         }
-        Statement::Return { value: Some(v), .. } => {
-            *count += count_bracket_self_calls(v, self_names);
+        Statement::Return {
+            value: Some(v),
+            braced,
+            ..
+        } => {
+            if !*braced {
+                *count += count_bracket_self_calls(v, self_names);
+            }
         }
         Statement::AssignValue { value, .. } => {
             *count += count_bracket_self_calls(value, self_names);
@@ -312,7 +318,16 @@ fn non_tail_self_call_in_expression(
 
 fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
     match stmt {
-        Statement::Return { value: Some(v), .. } => {
+        Statement::Return {
+            value: Some(v),
+            braced,
+            ..
+        } => {
+            // Braced `return {[f $n]}` is literal text — never
+            // executed as a call. Matches the Python guard.
+            if *braced {
+                return false;
+            }
             // Pure `return [self …]` — that's a tail return-
             // subst, already handled by O121, not accumulator.
             if let Some((head, _)) = parse_return_subst(v) {
@@ -414,8 +429,17 @@ fn collect_tail_sites(
         Statement::Return {
             span,
             value: Some(v),
+            braced,
             ..
         } => {
+            // `return {[f $n]}` is a braced literal — the
+            // substitution is never executed — so neither O121
+            // (tailcall rewrite) nor the site count toward O122
+            // (loop conversion) should fire. Matches the Python
+            // guard in `_tail_call.py::_is_tail_call_return`.
+            if *braced {
+                return;
+            }
             if let Some((call_head, call_args)) = parse_return_subst(v) {
                 if self_names.contains(&call_head) {
                     let replacement = if call_args.is_empty() {
