@@ -495,6 +495,20 @@ Some concrete rules of thumb:
 - Split by responsibility, not by a line-count budget. A module with one
   300-line function is fine; a module with eight unrelated 50-line
   functions usually wants to split.
+- **Do not reproduce Python's mixin composition in Rust.** Python
+  codebases like `core/compiler/codegen/_emitter.py` compose a single
+  class from 7 mixins via multiple inheritance. The Rust port does not
+  need to preserve that shape — use multiple `impl CodegenCtx` blocks
+  across separate files, one file per responsibility (parsing,
+  emission, control flow, block ordering, …). The mixin boundary is a
+  Python artefact, not an architectural principle.
+- **Break monster functions into per-case handlers.** Python's
+  `generate()` is a ~450-line block-type dispatch loop. In Rust, lift
+  each `if bname.startswith("foreach_header_")` branch into its own
+  named handler function. The top-level loop should read as a
+  dispatcher, not a state-machine implementation. Keep deferred-label
+  state in an explicit struct (`GenerateState`) rather than
+  ten loose local maps.
 - Use UK spelling (`normalise`, `optimiser`, `analyse`) in identifiers
   and comments, matching the rest of the repo.
 - Doc comments describe invariants and non-obvious decisions. Don't
@@ -569,7 +583,26 @@ rust/
       lib.rs
       analyses.rs                        LatticeValue, FunctionAnalysis, ModuleAnalysis (C5)
       cfg.rs                             Block, Function, CfgModule, Terminator (C2)
-      codegen.rs                         Op, Instruction, LiteralTable, FunctionAsm (C4)
+      codegen/                           bytecode emitter directory module
+        mod.rs                           Op, Instruction, LiteralTable, CodegenCtx (C4)
+        helpers.rs                       list/dict/format folding helpers (C11)
+        values.rs                        push_lit, load/store_var, emit_incr (C11)
+        expressions.rs                   emit_expr for ExprNode variants (C11)
+        statements.rs                    emit_stmt dispatch (C12)
+        peephole.rs                      post-emission cleanups (C13)
+        layout.rs                        jump shrinking + byte offsets (C14)
+        format.rs                        disassembly rendering (C14)
+        cmd_subst.rs                     [cmd ...] inline dispatch (C15)
+        control_flow.rs                  catch/try inline emission (C16)
+        emitter/                         main emitter loop (C17)
+          mod.rs                         module glue + public API
+          ordering.rs                    linearise, loop body, branch folding
+          terminator.rs                  CFG terminator emission
+          proc_defs.rs                   proc def interleaving
+          loop_blocks.rs                 foreach/while/for block handlers
+          try_blocks.rs                  try/finally CFG detection
+          generate.rs                    main generate() dispatcher
+          bytecoded.rs                   registry-backed codegen hooks
       expr_ast.rs                        ExprNode, BinOp, UnaryOp, render_expr (C0)
       expr_parser.rs                     Pratt parser: ExprToken → ExprNode (C1)
       ir.rs                              Statement, Script, Procedure, Module (C0)
@@ -639,7 +672,10 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C12   | **Statement emission.** `statements.rs`: `emit_stmt_with_start_cmd` (startCommand wrapping with deferred end labels, generic-invoke tagging), `emit_stmt` (dispatch for all IR statement types: `AssignConst`/`AssignValue`/`AssignExpr`/`Incr`/`ExprEval`/`Call`/`Barrier`/`Return`), `emit_call` (generic command invocation with break/continue loop jumps), `emit_expanded_call` (`{*}` expansion via `expandStart`/`expandStkTop`/`invokeExpanded`), `emit_value_interpolated` (simplified value emission with `${var}` resolution, list/dict constant folding), `push_var_ref` (array key handling for store ops). `CodegenCtx` gains `break_target`/`continue_target` fields for loop compilation. 13 new Rust unit tests. | landed |
 | C13   | **Peephole optimisations.** `peephole.rs`: `remove_trailing_pop` (collapse final `pop; done`), `fold_const_push_pop_nops` (constant-folded `push; pop` → 3 nops matching tclsh), `dedup_push_literals` (re-dedup after nop folding), `fold_tail_return_to_done` (proc tail `returnImm 0 0` → `done`), `strip_unused_start_cmd` (remove all startCommand when no generic invoke exists), `fixup_top_level_start_cmd` (remove generic-tagged startCommand in top-level), `strip_nodedup_tags` (clean internal comment markers). 9 new Rust unit tests. | landed |
 | C14   | **Layout and formatting.** `Op::size()` — instruction byte sizes for all 150+ opcodes (1/2/3/5/6/9 bytes). `layout.rs`: `optimise_jumps` (iterative 4-byte→1-byte jump shrinking), `resolve_layout` (assign byte offsets, resolve labels). `format.rs`: `esc` (Tcl-compatible literal escaping), `format_function_asm` (full disassembly rendering with literals, LVT, instruction stream, labels, jump targets, jumpTable entries), `format_module_asm`. 14 new Rust unit tests, 417 total. | landed |
-| C*    | **Compiler migration (continued).** `core/compiler/` (codegen emitter main loop, command substitution inlining, catch/try control flow, bytecoded command hooks, optimiser passes) → `rust/tcl-compiler/`. Each pass can be its own chunk. | planned |
+| C15   | **Command substitution inline emission.** `core/compiler/codegen/_cmd_subst.py` → `rust/tcl-compiler/src/codegen/cmd_subst.rs`. Static helpers: `unroll_nested_set`, `is_pure_cmd_subst`, `has_command_separator`, `parse_cmd_parts` (quoted/braced/nested argument parsing). `CodegenCtx` methods: `emit_cmd_subst_arg`, `emit_generic_cmd_subst`, `emit_value` (full interpolation with `parse_subst_template` + `STR_CONCAT1`), `emit_inline_cmd_subst` dispatch for `expr`, `incr`, `info exists`, `string` (index/range/equal/compare/length/is/replace), `lindex`, `lrange`, `lreplace`, `linsert`, `regexp`, `list`, `array exists`/`names`/`size`, `dict get`, `catch`. Multi-command scripts fall back to runtime `EVAL_STK`. 22 new Rust unit tests. | landed |
+| C16   | **Catch/try control flow emission.** `core/compiler/codegen/_control_flow.py` → `rust/tcl-compiler/src/codegen/control_flow.rs`. `emit_catch_inline` with `beginCatch4`/`endCatch` nesting depth tracking; `emit_catch_body` dispatch for `return`/`error`/`break`/`continue`/`expr`/`try`; `emit_catch_return`/`emit_catch_error` for return-code dispatch; `emit_try_on_error_inline` with nested catch ranges and `-during` option merging; `emit_try_handler_body`; `emit_try_finally_inline` with exception-path merging; `emit_try_body_stmt`/`emit_try_finally_stmt` (no trailing pop); `detect_const_expr_error` for compile-time divide-by-zero. New `CodegenCtx` fields: `catch_depth`, `seen_generic_invoke`, `used_generic_invoke`, `used_inline_cmd_subst`, `expr_func_depth`, `pending_cond_end_label`, `proc_exit_label`, `pending_join_labels`, `current_source_line`. 8 new Rust unit tests. | landed |
+| C17   | **Emitter main loop + public API.** `core/compiler/codegen/_emitter.py`, `_bytecoded.py` → `rust/tcl-compiler/src/codegen/emitter/` (directory module). Split by responsibility rather than reproducing Python's mixin composition: `ordering.rs` (`fold_const_branch`, `linearise` RPO + dead-branch elimination, `collect_loop_body`, `reorder_bottom_tested`, `build_loop_context`); `terminator.rs` (`emit_term` for CFG Goto/Branch/Return, `emit_proc_return` with dead-code jumps, `try_emit_jump_table` for switch dispatch); `proc_defs.rs` (interleaved proc def emission); `loop_blocks.rs` (per-block handlers for foreach opcodes, loop-end result, while/for startCommand wrapping); `try_blocks.rs` (try/finally CFG pattern detection); `generate.rs` (top-level dispatcher + `GenerateState`); `bytecoded.rs` (registry-backed codegen hook dispatch). Public API: `codegen_function`, `codegen_module`. | planned |
+| C*    | **Compiler migration (continued).** `core/compiler/` (SCCP, analysis passes, optimiser passes) → `rust/tcl-compiler/`. Each pass can be its own chunk. | planned |
 | S*    | **LSP server migration.** `lsp/` (pygls handlers, workspace orchestration, feature providers) → `rust/tcl-lsp-server/` on `tower-lsp`. This is when `ropey` enters the picture as the document store, the whole pipeline becomes async, and the server ships as a standalone Rust binary. | planned |
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), `core/analysis/` (analyser passes), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
 
