@@ -30,8 +30,19 @@ const fnv1a = globals.fnv1a;
 // Same layout as globals for code reuse.
 
 const FRAME_BUCKET_SIZE: u32 = 16;
-const FRAME_BUCKET_COUNT: u32 = 16; // per frame, power of 2
-const FRAME_SIZE: u32 = FRAME_BUCKET_COUNT * FRAME_BUCKET_SIZE; // 256 bytes
+// Per-frame hash table capacity.  Procs with more than this many distinct
+// local names are rare but possible; insertion is bounded and traps on
+// overflow rather than looping.  If this limit is hit in practice, bump
+// here or switch to a growable per-frame hash table (mirroring globals).
+const FRAME_BUCKET_COUNT: u32 = 64; // per frame, power of 2
+const FRAME_SIZE: u32 = FRAME_BUCKET_COUNT * FRAME_BUCKET_SIZE; // 1024 bytes
+
+/// Sentinel stored in the value field to mark a bucket as a global alias
+/// rather than a literal TclObj pointer.  A valid TclObj pointer is always
+/// in the high-memory region (heap_ptr >= 65536) and is word-aligned, so
+/// -1 (0xFFFFFFFF) cannot collide with a real pointer.  When a var lookup
+/// finds this marker, reads/writes pass through to the globals table.
+const ALIAS_GLOBAL: i32 = -1;
 
 const MAX_DEPTH: u32 = 64;
 
@@ -106,7 +117,8 @@ fn frame_find(base: u32, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
 fn frame_insert(base: u32, name_ptr: u32, name_len: u32, hash: u32, value: i32) void {
     const mask = FRAME_BUCKET_COUNT - 1;
     var idx = hash & mask;
-    while (true) {
+    var probes: u32 = 0;
+    while (probes < FRAME_BUCKET_COUNT) : (probes += 1) {
         const bucket = base + idx * FRAME_BUCKET_SIZE;
         const ep: u32 = @intCast(read_i32(bucket));
         if (ep == 0) {
@@ -121,15 +133,50 @@ fn frame_insert(base: u32, name_ptr: u32, name_len: u32, hash: u32, value: i32) 
         }
         idx = (idx + 1) & mask;
     }
+    // Frame full — emit a clear diagnostic and trap.  Previously this
+    // looped forever; now we fail loudly so the limit is discoverable.
+    const errmsg = "frame local table full";
+    rt_fd_write_stderr(errmsg);
+    @trap();
+}
+
+/// Write *msg* directly to stderr (fd=2) via WASI.  Used only in the
+/// frame-overflow trap path, so we accept a tiny amount of duplication
+/// rather than introduce a circular import with tcl_catch.
+fn rt_fd_write_stderr(msg: []const u8) void {
+    const io = @import("tcl_io.zig");
+    io.fd_write_all(2, msg.ptr, @intCast(msg.len));
+    io.fd_write_all(2, "\n", 1);
+}
+
+/// Register *name* in the current frame as an alias to the global scope.
+/// Subsequent var_set/var_resolve/var_exists calls for this name pass
+/// through to the globals table.  This is how the Tcl ``global`` command
+/// makes proc-local writes actually land in global storage.
+pub export fn frame_alias_global(name: i32) void {
+    const sn = obj_ensure_string(name);
+    if (current_frame()) |base| {
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            write_i32(bucket + 12, ALIAS_GLOBAL);
+            return;
+        }
+        frame_insert(base, sn.ptr, sn.len, hash, ALIAS_GLOBAL);
+    }
+    // No active frame — global is already the scope, nothing to alias.
 }
 
 /// Set a local variable in the current frame.
 /// If no frame is active, falls through to global_set.
+/// If the name is an alias to a global, writes to the global table.
 pub export fn local_set(name: i32, value: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            if (read_i32(bucket + 12) == ALIAS_GLOBAL) {
+                return globals.global_set(name, value);
+            }
             write_i32(bucket + 12, value);
             return value;
         }
@@ -142,23 +189,31 @@ pub export fn local_set(name: i32, value: i32) i32 {
 
 /// Get a local variable from the current frame.
 /// Returns 0 if not found in current frame (does NOT fall through to globals).
+/// If the name is an alias to a global, reads from the global table.
 pub export fn local_get(name: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            return read_i32(bucket + 12);
+            const v = read_i32(bucket + 12);
+            if (v == ALIAS_GLOBAL) return globals.global_get(name);
+            return v;
         }
     }
     return 0;
 }
 
 /// Check if a local variable exists in the current frame.
+/// An alias-to-global bucket counts as a local for this check only when
+/// the underlying global is actually set.
 pub export fn local_exists(name: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
-        if (frame_find(base, sn.ptr, sn.len, hash) != null) {
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            if (read_i32(bucket + 12) == ALIAS_GLOBAL) {
+                return globals.global_exists(name);
+            }
             return obj_new_int(1);
         }
     }
@@ -172,7 +227,9 @@ pub export fn var_resolve(name: i32) i32 {
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            return read_i32(bucket + 12);
+            const v = read_i32(bucket + 12);
+            if (v == ALIAS_GLOBAL) return globals.global_get(name);
+            return v;
         }
     }
     // Fall through to global
@@ -180,6 +237,7 @@ pub export fn var_resolve(name: i32) i32 {
 }
 
 /// Set a variable: sets in current frame if one is active, otherwise global.
+/// If the local is an alias to a global, the write propagates to globals.
 pub export fn var_set(name: i32, value: i32) i32 {
     if (current_frame() != null) {
         return local_set(name, value);
@@ -192,7 +250,10 @@ pub export fn var_exists(name: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
-        if (frame_find(base, sn.ptr, sn.len, hash) != null) {
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            if (read_i32(bucket + 12) == ALIAS_GLOBAL) {
+                return globals.global_exists(name);
+            }
             return obj_new_int(1);
         }
     }

@@ -377,6 +377,70 @@ pub export fn string_is_space(value: i32) i32 {
     return obj_new_int(1);
 }
 
+// Quote an element for embedding in a Tcl list string.  Writes to *buf* at
+// *off* and returns the new offset.  Rules:
+//   - empty element → ``{}``
+//   - contains no whitespace, no braces, no backslash, no quotes → emit bare
+//   - contains whitespace but has balanced ``{..}`` and does not start with
+//     ``{`` → wrap in braces
+//   - otherwise → backslash-escape each whitespace/brace/backslash character
+// This matches how tclsh's Tcl_ConvertToList treats most common cases while
+// avoiding the invalid output produced by unconditional bracing of
+// brace-bearing elements.
+fn list_quote_elem(buf: u32, off: u32, src: u32, slen: u32) u32 {
+    if (slen == 0) {
+        const d: [*]u8 = @ptrFromInt(buf + off);
+        d[0] = '{';
+        d[1] = '}';
+        return off + 2;
+    }
+    const ps: [*]const u8 = @ptrFromInt(src);
+    var has_special = false;
+    var brace_balance: i32 = 0;
+    var min_balance: i32 = 0;
+    for (0..slen) |k| {
+        const ch = ps[k];
+        if (is_space(ch) or ch == '\\' or ch == '"' or ch == '$' or ch == '[' or ch == ';') {
+            has_special = true;
+        }
+        if (ch == '{') brace_balance += 1;
+        if (ch == '}') {
+            brace_balance -= 1;
+            if (brace_balance < min_balance) min_balance = brace_balance;
+        }
+    }
+    const starts_with_brace = ps[0] == '{';
+    const balanced = (brace_balance == 0) and (min_balance >= 0);
+    if (!has_special and brace_balance == 0 and !starts_with_brace) {
+        memcpy(buf + off, src, slen);
+        return off + slen;
+    }
+    if (has_special and balanced and !starts_with_brace) {
+        const d0: [*]u8 = @ptrFromInt(buf + off);
+        d0[0] = '{';
+        memcpy(buf + off + 1, src, slen);
+        const d1: [*]u8 = @ptrFromInt(buf + off + 1 + slen);
+        d1[0] = '}';
+        return off + slen + 2;
+    }
+    // Backslash-escape path: emit each problematic byte preceded by '\'.
+    var o = off;
+    for (0..slen) |k| {
+        const ch = ps[k];
+        const needs_escape = is_space(ch) or ch == '{' or ch == '}' or
+            ch == '\\' or ch == '"' or ch == '$' or ch == '[' or ch == ';';
+        if (needs_escape) {
+            const d: [*]u8 = @ptrFromInt(buf + o);
+            d[0] = '\\';
+            o += 1;
+        }
+        const d2: [*]u8 = @ptrFromInt(buf + o);
+        d2[0] = ch;
+        o += 1;
+    }
+    return o;
+}
+
 // Exported: split — split a string by a separator into a Tcl list.
 // If splitChars is empty, splits into individual characters.
 pub export fn split(value: i32, split_chars: i32) i32 {
@@ -407,8 +471,8 @@ pub export fn split(value: i32, split_chars: i32) i32 {
     const sep: [*]const u8 = @ptrFromInt(sd.ptr);
     if (sd.len == 1) {
         const sc = sep[0];
-        // Estimate output size
-        const buf = alloc(sv.len * 3 + 2);
+        // Allocate generously — backslash-escape path can double each byte.
+        const buf = alloc(sv.len * 3 + 4);
         var out: u32 = 0;
         var start: u32 = 0;
         var i: u32 = 0;
@@ -421,38 +485,7 @@ pub export fn split(value: i32, split_chars: i32) i32 {
                     out += 1;
                 }
                 first = false;
-                const elem_len = i - start;
-                if (elem_len > 0) {
-                    // Check if element needs braces
-                    var needs_braces = false;
-                    for (start..i) |k| {
-                        if (is_space(src[k]) or src[k] == '{' or src[k] == '}') {
-                            needs_braces = true;
-                            break;
-                        }
-                    }
-                    if (needs_braces) {
-                        const d: [*]u8 = @ptrFromInt(buf + out);
-                        d[0] = '{';
-                        out += 1;
-                        memcpy(buf + out, sv.ptr + start, elem_len);
-                        out += elem_len;
-                        const d2: [*]u8 = @ptrFromInt(buf + out);
-                        d2[0] = '}';
-                        out += 1;
-                    } else {
-                        memcpy(buf + out, sv.ptr + start, elem_len);
-                        out += elem_len;
-                    }
-                } else {
-                    // Empty element: {}
-                    const d: [*]u8 = @ptrFromInt(buf + out);
-                    d[0] = '{';
-                    out += 1;
-                    const d2: [*]u8 = @ptrFromInt(buf + out);
-                    d2[0] = '}';
-                    out += 1;
-                }
+                out = list_quote_elem(buf, out, sv.ptr + start, i - start);
                 start = i + 1;
             }
         }
@@ -460,7 +493,7 @@ pub export fn split(value: i32, split_chars: i32) i32 {
     }
 
     // Multi-char separator: split on any char in splitChars
-    const buf = alloc(sv.len * 3 + 2);
+    const buf = alloc(sv.len * 3 + 4);
     var out: u32 = 0;
     var start: u32 = 0;
     var i: u32 = 0;
@@ -482,37 +515,9 @@ pub export fn split(value: i32, split_chars: i32) i32 {
                 out += 1;
             }
             first = false;
-            const elem_len = i - start;
-            if (elem_len > 0) {
-                var needs_braces = false;
-                for (start..i) |k| {
-                    if (is_space(src[k]) or src[k] == '{' or src[k] == '}') {
-                        needs_braces = true;
-                        break;
-                    }
-                }
-                if (needs_braces) {
-                    const d: [*]u8 = @ptrFromInt(buf + out);
-                    d[0] = '{';
-                    out += 1;
-                    memcpy(buf + out, sv.ptr + start, elem_len);
-                    out += elem_len;
-                    const d2: [*]u8 = @ptrFromInt(buf + out);
-                    d2[0] = '}';
-                    out += 1;
-                } else {
-                    memcpy(buf + out, sv.ptr + start, elem_len);
-                    out += elem_len;
-                }
-            } else {
-                const d: [*]u8 = @ptrFromInt(buf + out);
-                d[0] = '{';
-                out += 1;
-                const d2: [*]u8 = @ptrFromInt(buf + out);
-                d2[0] = '}';
-                out += 1;
-            }
+            out = list_quote_elem(buf, out, sv.ptr + start, i - start);
             start = i + 1;
+            continue;
         }
     }
     return obj_new_string(@intCast(buf), @intCast(out));

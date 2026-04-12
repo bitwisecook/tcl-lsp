@@ -182,8 +182,28 @@ def _run_tcl_for_stdout(source: str) -> tuple[bool, str, str]:
 # -- Tests for bytecode snippets (no-puts, check return value) --
 
 
+# Snippets known to exercise features we deliberately don't support in the
+# WASM codegen yet.  Listed here so failures on them are tracked (xfail)
+# rather than hidden by a blanket skip; removing an entry turns the snippet
+# back into a hard assertion.
+_KNOWN_UNSUPPORTED_SNIPPETS: frozenset[str] = frozenset(
+    {
+        # Populate as specific known-broken snippets are identified.  A strict
+        # assert is the default so regressions in previously-working snippets
+        # surface immediately.
+    }
+)
+
+
 class TestSnippetCompilation:
-    """Verify that bytecode snippets compile to WASM without errors."""
+    """Verify that bytecode snippets compile to WASM without errors.
+
+    Uses a strict assert by default; if a snippet is known to exercise
+    unsupported features, add its stem to ``_KNOWN_UNSUPPORTED_SNIPPETS``
+    so it becomes an xfail (still tracked, won't silently hide a fix
+    either).  A blanket skip-on-error would let real regressions slip
+    through, so we don't do that.
+    """
 
     @pytest.mark.parametrize(
         "snippet",
@@ -194,8 +214,9 @@ class TestSnippetCompilation:
         """Each snippet should compile to valid WASM."""
         source = snippet.read_text()
         ok, err = _try_compile(source)
-        if not ok:
-            pytest.skip(f"compile error: {err[:120]}")
+        if not ok and snippet.stem in _KNOWN_UNSUPPORTED_SNIPPETS:
+            pytest.xfail(f"known-unsupported snippet: {err[:120]}")
+        assert ok, f"snippet {snippet.stem} failed to compile: {err[:200]}"
 
 
 class TestSnippetExecution:
@@ -552,15 +573,20 @@ class TestExternalTcllibCounter:
         exports = tcl_inst.exports(store)
         exports["::top"](store)  # Run top-level
 
-        # Build a tag TclObj
+        # Build a tag TclObj.  Grow the shared linear memory by one page
+        # (64 KiB) and write the name bytes at the freshly-allocated region
+        # so we don't collide with the runtime's heap, data segments, or
+        # bump allocator.  memory.grow returns the previous page count, so
+        # scratch_off is the start of the new pages in bytes.
         obj_new_string = rt_inst.exports(store)["obj_new_string"]
         memory = rt_inst.exports(store)["memory"]
+        prev_pages = memory.grow(store, 1)
+        scratch_off = prev_pages * 65536
         mem = memory.data_ptr(store)
         tag_bytes = b"simple"
-        tag_off = 200000
         for i, b in enumerate(tag_bytes):
-            mem[tag_off + i] = b
-        tag_obj = obj_new_string(store, tag_off, len(tag_bytes))
+            mem[scratch_off + i] = b
+        tag_obj = obj_new_string(store, scratch_off, len(tag_bytes))
 
         # counter::init {tag args} — 2 params
         result = exports["::counter::init"](store, tag_obj, 0)

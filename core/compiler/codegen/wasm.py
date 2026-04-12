@@ -864,16 +864,26 @@ def _has_embedded_subst_scan(value: str) -> bool:
     # Strip off a pure variable or command substitution to see if there's
     # anything else present.
     if value.startswith("${") and value.endswith("}"):
-        # Only a substitution if the single ${...} spans the whole string.
-        # If the close brace is the last char and no other substitutions
-        # exist, this is a pure ${var}.
-        return False
+        # A single ``${name}`` is pure only when the inner text has no
+        # further substitutions or braces.  ``${a}${b}`` starts with
+        # ``${`` and ends with ``}`` but is NOT pure.
+        inner = value[2:-1]
+        if "$" not in inner and "[" not in inner and "}" not in inner:
+            return False
     if value.startswith("$") and not value.startswith("$["):
-        # Check whether the entire string is just $name
+        # Check whether the entire string is just $name (possibly with
+        # :: namespace separators, e.g. $::ns::var).
         j = 1
-        while j < len(value) and (value[j].isalnum() or value[j] == "_"):
-            j += 1
-        if j == len(value):
+        n = len(value)
+        while j < n:
+            ch = value[j]
+            if ch.isalnum() or ch == "_":
+                j += 1
+            elif ch == ":" and j + 1 < n and value[j + 1] == ":":
+                j += 2
+            else:
+                break
+        if j == n:
             return False
     if value.startswith("[") and value.endswith("]"):
         return False
@@ -886,7 +896,7 @@ def _has_embedded_subst_scan(value: str) -> bool:
             continue
         if c == "$" and i + 1 < n:
             nxt = value[i + 1]
-            if nxt == "{" or nxt.isalpha() or nxt == "_":
+            if nxt == "{" or nxt.isalpha() or nxt == "_" or nxt == ":":
                 return True
         if c == "[":
             return True
@@ -1160,8 +1170,12 @@ class _WasmEmitter:
         # shared_string_offset is a single-element list so all emitters
         # mutate the same counter.
         self._strings: list[tuple[str, int]] = shared_strings if shared_strings is not None else []
-        self._string_index: dict[str, int] = shared_string_index if shared_string_index is not None else {}
-        self._string_offset_ref: list[int] = shared_string_offset if shared_string_offset is not None else [0]
+        self._string_index: dict[str, int] = (
+            shared_string_index if shared_string_index is not None else {}
+        )
+        self._string_offset_ref: list[int] = (
+            shared_string_offset if shared_string_offset is not None else [0]
+        )
 
         # Global variable tracking
         self._globals: set[str] = set()
@@ -1319,11 +1333,20 @@ class _WasmEmitter:
                     parts.append(("var", value[i + 2 : j]))
                     i = j + 1
                     continue
-                if nxt.isalpha() or nxt == "_":
-                    # $name (alpha/digit/underscore, possibly with :: namespace)
+                if nxt.isalpha() or nxt == "_" or nxt == ":":
+                    # $name — accepts [A-Za-z0-9_] and ``::`` namespace
+                    # separators so names like ``$::counter::secsPerMinute``
+                    # parse as a single variable reference rather than
+                    # stopping at the first colon.
                     j = i + 1
-                    while j < n and (value[j].isalnum() or value[j] == "_"):
-                        j += 1
+                    while j < n:
+                        ch = value[j]
+                        if ch.isalnum() or ch == "_":
+                            j += 1
+                        elif ch == ":" and j + 1 < n and value[j + 1] == ":":
+                            j += 2
+                        else:
+                            break
                     flush()
                     parts.append(("var", value[i + 1 : j]))
                     i = j

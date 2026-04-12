@@ -85,6 +85,7 @@ pub const continue_flag = &tcl_catch.continue_flag;
 // Frames
 pub const frame_push = tcl_frames.frame_push;
 pub const frame_pop = tcl_frames.frame_pop;
+pub const frame_alias_global = tcl_frames.frame_alias_global;
 pub const var_resolve = tcl_frames.var_resolve;
 pub const var_set = tcl_frames.var_set;
 pub const var_exists = tcl_frames.var_exists;

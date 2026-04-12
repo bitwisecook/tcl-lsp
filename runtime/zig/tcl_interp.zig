@@ -406,11 +406,12 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "lsearch")) { if (words.len >= 3) return rt.list_search(words[1], words[2]); return obj_new_int(-1); }
     if (str_eq(cmd, cmd_s.len, "lrange")) { if (words.len >= 4) return rt.list_range(words[1], words[2], words[3]); return obj_new_string(0, 0); }
     if (str_eq(cmd, cmd_s.len, "global")) {
-        // In a frame: copy global value into local frame for each listed var
+        // Register each listed name as a global alias in the current frame.
+        // Subsequent reads/writes of the local name pass through to globals,
+        // so the proc sees up-to-date values and mutations propagate.
         var gi: u32 = 1;
         while (gi < words.len) : (gi += 1) {
-            const gval = rt.global_get(words[gi]);
-            if (gval != 0) _ = frames.local_set(words[gi], gval);
+            frames.frame_alias_global(words[gi]);
         }
         return 0;
     }
@@ -554,6 +555,17 @@ fn eval_proc_call(words: []const i32) i32 {
     if (rt.return_flag.* != 0) {
         rt.return_flag.* = 0;
         return rt.return_val.*;
+    }
+    // A break/continue that survived to the proc boundary is a Tcl error
+    // ("invoked \"break\" outside of a loop"); clear the flags and raise
+    // an error so the signal cannot short-circuit outer eval_script
+    // frames in the caller.  The error message uses words[0] (the proc
+    // name) because synthesising a fresh string object from a static
+    // literal is awkward in the WASM heap model.
+    if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
+        rt.break_flag.* = 0;
+        rt.continue_flag.* = 0;
+        rt.@"error"(words[0]);
     }
     return result;
 }

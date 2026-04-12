@@ -2,10 +2,17 @@
 //
 // Subcommands implemented:
 //   info exists varName  — check if variable is defined (local or global)
-//   info commands ?pattern? — list known commands (built-in + registered procs)
-//   info procs ?pattern? — list registered procedures
-//   info body procName — return the body of a proc
-//   info args procName — return the parameter list of a proc
+//   info body procName   — return the body of a registered proc
+//   info args procName   — return the parameter list of a registered proc
+//
+// Unimplemented subcommands (future work):
+//   info commands ?pattern?   — list built-in + registered commands
+//   info procs    ?pattern?   — list registered procedures
+//   info level                — current frame depth
+//   info vars / info locals / info globals
+// info_dispatch() returns an empty string for any subcommand not in the
+// list above; this is an explicit NOP rather than an error so code using
+// unsupported introspection degrades gracefully in the WASM sandbox.
 //
 // Operates on frames (tcl_frames.zig) and proc registry (tcl_procs.zig).
 // Callable from both the interpreter dispatch and WASM codegen imports.
