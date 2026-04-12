@@ -22,6 +22,8 @@ pub mod peephole;
 pub mod statements;
 pub mod values;
 
+pub use emitter::{codegen_function, codegen_module};
+
 use std::collections::HashMap;
 use std::fmt;
 
