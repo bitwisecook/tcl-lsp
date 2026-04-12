@@ -70,10 +70,10 @@ pub fn generate(
     cfg: &CfgFunction,
     proc_defs: &[IrProcedure],
 ) -> FunctionAsm {
-    use super::loop_blocks::{detect_foreach, ForeachInfo};
+    use super::loop_blocks::{detect_complex_foreach, detect_foreach, ComplexForeach, ForeachInfo};
 
     let block_order = linearise(cfg);
-    let loop_ctx = ordering::build_loop_context(cfg);
+    let mut loop_ctx = ordering::build_loop_context(cfg);
     let mut state = GenerateState::new(proc_defs);
     state.try_finally_info = detect_try_finally(cfg, &block_order);
 
@@ -82,6 +82,42 @@ pub fn generate(
     let foreach_info: HashMap<String, ForeachInfo> = detect_foreach(cfg);
     let foreach_bodies: HashSet<String> =
         foreach_info.values().map(|i| i.body.clone()).collect();
+
+    // Detect complex foreach loops (bodies with Branch terminator).
+    // For these, foreach_step/foreach_end are emitted at the foreach_end
+    // block (bottom-tested), and continue/break are rerouted through
+    // synthetic step/break labels. Allocate labels directly on ctx so
+    // they share the main label-counter pool.
+    let mut tmp_counter: u32 = 0;
+    let complex_foreach: HashMap<String, ComplexForeach> =
+        detect_complex_foreach(cfg, &foreach_info, &mut tmp_counter)
+            .into_iter()
+            .map(|(hdr, mut info)| {
+                info.step_label = ctx.fresh_label("foreach_continue");
+                info.break_label = ctx.fresh_label("foreach_break");
+                (hdr, info)
+            })
+            .collect();
+    let foreach_end_to_header: HashMap<String, String> = complex_foreach
+        .iter()
+        .map(|(h, ci)| (ci.end.clone(), h.clone()))
+        .collect();
+    // Redirect loop context: body blocks of a complex foreach route
+    // continue → step_label, break → break_label.
+    let mut complex_body_blocks: HashSet<String> = HashSet::new();
+    for (hdr, info) in &complex_foreach {
+        for bb in &info.body_blocks {
+            if let Some((cont, _brk)) = loop_ctx.get(bb) {
+                if cont == hdr {
+                    loop_ctx.insert(
+                        bb.clone(),
+                        (info.step_label.clone(), info.break_label.clone()),
+                    );
+                    complex_body_blocks.insert(bb.clone());
+                }
+            }
+        }
+    }
     // Mark try_end/try_finally/try_after_finally as skipped — they
     // are emitted as part of the try_body block's inline sequence.
     for info in state.try_finally_info.values() {
@@ -122,6 +158,17 @@ pub fn generate(
         if let Some((cont, brk)) = loop_ctx.get(bname) {
             ctx.continue_target = Some(cont.clone());
             ctx.break_target = Some(brk.clone());
+        }
+
+        // Complex foreach: emit foreach_step + foreach_end at the
+        // bottom of the loop body, before the loop-result push/pop.
+        if let Some(header) = foreach_end_to_header.get(bname) {
+            if let Some(info) = complex_foreach.get(header) {
+                ctx.place_label(&info.step_label);
+                ctx.emit(Op::FOREACH_STEP, vec![]);
+                ctx.place_label(&info.break_label);
+                ctx.emit(Op::FOREACH_END, vec![]);
+            }
         }
 
         // Loop-end blocks push "" as the loop command's result.
@@ -181,8 +228,11 @@ pub fn generate(
             continue;
         }
 
-        // foreach_body: emit body then foreach_step + foreach_end.
-        if foreach_bodies.contains(bname) {
+        // foreach_body (simple only): emit body then
+        // foreach_step + foreach_end. Complex foreach bodies fall
+        // through to normal block processing; their step/end is
+        // emitted at the foreach_end block (see above).
+        if foreach_bodies.contains(bname) && !complex_body_blocks.contains(bname) {
             for stmt in &blk.statements {
                 ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
                 ctx.emit_stmt_with_start_cmd(stmt, None, None);
@@ -238,6 +288,26 @@ pub fn generate(
             }
         }
 
+        // Complex foreach: suppress back-edge Gotos from body blocks
+        // to the foreach header. Fall through to foreach_step/foreach_end
+        // at the foreach_end block, or jump to step label if not adjacent.
+        let mut foreach_backedge = false;
+        if complex_body_blocks.contains(bname) {
+            if let Some(Terminator::Goto { target, .. }) = &blk.terminator {
+                if let Some(info) = complex_foreach.get(target) {
+                    let next_peek = block_order.get(i + 1).map(String::as_str);
+                    if next_peek != Some(info.end.as_str()) {
+                        ctx.emit_comment(
+                            Op::JUMP4,
+                            vec![Operand::Label(info.step_label.clone())],
+                            "foreach continue",
+                        );
+                    }
+                    foreach_backedge = true;
+                }
+            }
+        }
+
         // While-loop startCommand: emit before the jump to while_header.
         if ctx.is_proc && ctx.cmd_index > 0 {
             if let Some(Terminator::Goto { target: wh_header, .. }) = &blk.terminator {
@@ -266,6 +336,10 @@ pub fn generate(
         }
 
         let next_block = block_order.get(i + 1).map(String::as_str);
+        if foreach_backedge {
+            // Back-edge already handled above.
+            continue;
+        }
         if let Some(term) = &blk.terminator {
             // Try switch-dispatch jump-table emission first.
             if ctx.try_emit_jump_table(cfg, blk, next_block, &mut state.skip_blocks) {
