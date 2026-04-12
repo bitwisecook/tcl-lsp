@@ -121,7 +121,15 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
             let Some(use_stmt) = use_block.statements.get(use_idx) else {
                 continue;
             };
-            ctx.report(Optimisation::new(
+            // The replacement here is the literal text but the
+            // span covers the whole consuming statement (e.g.
+            // `puts $n` → `7` would be invalid Tcl). We do not
+            // yet track per-operand spans at use sites, so the
+            // diagnostic is emitted hint-only — it surfaces the
+            // opportunity to editors without proposing an
+            // applicable quick-fix. An operand-span follow-up
+            // can promote this back to a real rewrite.
+            let mut opt = Optimisation::new(
                 "O102",
                 format!(
                     "Forward literal load of '{}' from its single reaching definition",
@@ -129,7 +137,9 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
                 ),
                 use_stmt.span(),
                 literal.clone(),
-            ));
+            );
+            opt.hint_only = true;
+            ctx.report(opt);
         }
     }
 }
@@ -273,12 +283,25 @@ fn try_fold_static_proc_call(
             }
         }
     };
-    ctx.report(Optimisation::new(
+    // The span here covers the whole Statement::Call — applying
+    // the literal replacement would turn `::answer` into a
+    // command named `42`, which is invalid Tcl. The Python pass
+    // targets `[procName …]` command substitutions with their
+    // token span instead. Until the Rust side tracks CMD-subst
+    // spans at the call argument level, emit as a hint so
+    // editors surface the fold without proposing an applicable
+    // quick-fix.
+    let mut opt = Optimisation::new(
         "O103",
-        format!("Fold pure-proc call to '{}' to its constant return", summary.qualified_name),
+        format!(
+            "Fold pure-proc call to '{}' to its constant return",
+            summary.qualified_name
+        ),
         span,
         replacement,
-    ));
+    );
+    opt.hint_only = true;
+    ctx.report(opt);
 }
 
 /// O104: rewrite `return $v` to `return K` when the SCCP

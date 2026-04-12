@@ -121,13 +121,25 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
         }
     }
 
-    // O101: fold a fully constant expression.
+    // O101: fold a fully constant expression. Only report when
+    // the rewrite would actually change the source text — an
+    // expression like `expr {42}` folds to itself and a no-op
+    // quick-fix is misleading.
     let env = Env::new();
     if matches!(expr, ExprNode::Raw { .. }) {
         return;
     }
     if let Some(val) = eval_tcl_expr(expr, &env) {
         let folded = format_tcl_value(val);
+        // Compare against the original body text slice when it is
+        // recoverable; the outer span covers the whole `expr …`
+        // command so we look at the `ExprNode::Command`-free
+        // fallback — render the parsed expression back to text and
+        // use that as the baseline.
+        let original = crate::expr_ast::render_expr(expr);
+        if folded == original.trim() {
+            return;
+        }
         ctx.report(Optimisation::new(
             "O101",
             "Fold constant expression",
