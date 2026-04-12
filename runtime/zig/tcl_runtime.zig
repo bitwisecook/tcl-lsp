@@ -23,6 +23,7 @@ const tcl_fs_stubs = @import("tcl_fs_stubs.zig");
 const tcl_fmt_stubs = @import("tcl_fmt_stubs.zig");
 const tcl_time_stubs = @import("tcl_time_stubs.zig");
 const tcl_env_stubs = @import("tcl_env_stubs.zig");
+const tcl_cmd_dispatch = @import("tcl_cmd_dispatch.zig");
 const interp = @import("tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -246,6 +247,7 @@ comptime {
     _ = &tcl_env_stubs.interp_cmd;
     _ = &tcl_env_stubs.apply;
     _ = &tcl_stubs.unsupported;
+    _ = &tcl_cmd_dispatch.try_stub;
     // tcl_frames exports
     _ = &tcl_frames.frame_push;
     _ = &tcl_frames.frame_pop;

@@ -68,10 +68,42 @@ fn parse_quoted(src: [*]const u8, pos: u32, len: u32) struct { end: u32, start: 
 fn parse_bare(src: [*]const u8, pos: u32, len: u32) struct { end: u32, start: u32, wlen: u32 } {
     const start = pos;
     var p = pos;
+    // Scan until a top-level terminator.  Crucially, nested ``[...]``
+    // command substitutions and ``${...}`` variable references must
+    // be kept inside the same word — splitting on the space inside
+    // ``[clock seconds]`` would truncate the inner command when
+    // subst_word later runs it through eval_script (the observed
+    // "unknown command: cloc" off-by-one).
     while (p < len and src[p] != ' ' and src[p] != '\t' and
         src[p] != '\n' and src[p] != ';' and src[p] != '\r')
     {
-        if (src[p] == '\\' and p + 1 < len) p += 2 else p += 1;
+        if (src[p] == '\\' and p + 1 < len) {
+            p += 2;
+        } else if (src[p] == '[') {
+            // Skip a balanced ``[...]`` subscript in one gulp so
+            // whitespace inside a command substitution does not
+            // terminate the outer word.
+            var depth: u32 = 1;
+            p += 1;
+            while (p < len and depth > 0) {
+                if (src[p] == '\\' and p + 1 < len) {
+                    p += 2;
+                    continue;
+                }
+                if (src[p] == '[') depth += 1;
+                if (src[p] == ']') depth -= 1;
+                p += 1;
+            }
+        } else if (src[p] == '$' and p + 1 < len and src[p + 1] == '{') {
+            // ``${...}`` keeps its braces together — normal $name
+            // refs terminate on the first non-identifier char which
+            // is handled by the outer loop already.
+            p += 2;
+            while (p < len and src[p] != '}') p += 1;
+            if (p < len) p += 1;
+        } else {
+            p += 1;
+        }
     }
     return .{ .end = p, .start = start, .wlen = p - start };
 }
@@ -519,9 +551,22 @@ fn eval_foreach(words: []const i32) i32 {
 fn eval_proc_call(words: []const i32) i32 {
     const bucket = procs.proc_lookup(words[0]);
     if (bucket == 0) {
-        // Unknown command — build a "unknown command: <name>" message
-        // so the stderr/error_msg output identifies the missing proc
-        // rather than emitting a bare command name.
+        // Before declaring the command unknown, consult the stub
+        // dispatch table — Tcl 8.4–9.0 core commands we haven't
+        // implemented (encoding, fconfigure, regexp, trace, …) are
+        // routed here from compiled-code fallbacks and produce
+        // "unsupported command: <name>" rather than the generic
+        // "unknown command: <name>" message.  Keeping the
+        // dispatch-before-error pattern means user-defined procs
+        // still win when they shadow a core command.
+        const stub_dispatch = @import("tcl_cmd_dispatch.zig");
+        const cmd_s = obj_ensure_string(words[0]);
+        if (stub_dispatch.try_stub(@as([*]const u8, @ptrFromInt(cmd_s.ptr)), cmd_s.len)) {
+            return 0;
+        }
+        // Unknown command — build a "unknown command: <name>"
+        // message so the stderr/error_msg output identifies the
+        // missing proc rather than emitting a bare command name.
         const catch_mod = @import("tcl_catch.zig");
         catch_mod.error_unknown_command(words[0]);
         return 0;

@@ -1372,6 +1372,30 @@ class TestDiagMap:
             assert hits, f"no {expected_cmd} site in diag map"
             assert hits[0].kind == "runtime"
 
+    def test_parse_bare_tracks_bracket_nesting(self):
+        """``parse_bare`` must keep ``[cmd arg]`` as a single word.
+
+        Regression test for the pre-diag-commit "cloc" off-by-one:
+        the interpreter's bare-word tokenizer used to split
+        ``[clock seconds]`` on whitespace, truncating inner
+        command-substitution contents to ``cloc`` (one char short
+        because the closing ``]`` landed in the next word).
+        """
+        # Run a standalone ``[clock seconds]`` through the eval
+        # fallback and check the inner unknown-command trap sees the
+        # full command name, not a truncated prefix.
+        source = "[xabcdef seconds]\n"
+        wasm, diag = _compile_tcl_with_diag(source, "t.tcl")
+        try:
+            _run_wasm(wasm, capture_stderr=True)
+            pytest.fail("expected trap")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            # "xabcdef" is 7 chars — previously the trap would have
+            # written 6-char "xabcde" with the trailing 'f' lost to
+            # the ``]``-consumed-by-next-word parse.
+            assert "unknown command: xabcdef" in stderr, f"stderr was: {stderr!r}"
+
     def test_runtime_trap_emits_site_prefix(self):
         # End-to-end: trigger an unknown command through the eval
         # fallback and verify the stderr line is the promised shape.
