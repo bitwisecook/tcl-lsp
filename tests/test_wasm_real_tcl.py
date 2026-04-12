@@ -221,6 +221,14 @@ def _resolve_trap(trap_exc: Exception, stderr_text: str, diag: DiagMap) -> str:
             if site.args:
                 preview = ", ".join(repr(a)[:60] for a in site.args[:3])
                 out.append(f"  args: {preview}")
+        # ``  in eval-script at offset N: <snippet>`` is emitted by
+        # the runtime when the trap fires from inside a ``tcl_eval``
+        # fallback — it tells us which *command inside the fallback
+        # script* actually failed, which usually matters more than
+        # the site-id pointing at the fallback's creation point.
+        ctx = re.search(r"^  in eval-script at offset \d+: .*$", stderr_text, flags=re.MULTILINE)
+        if ctx:
+            out.append(ctx.group(0))
     elif stderr_text.strip():
         out.append(f"stderr: {stderr_text.strip()}")
 
@@ -1371,6 +1379,31 @@ class TestDiagMap:
             hits = [s for s in diag.sites if s.command == expected_cmd]
             assert hits, f"no {expected_cmd} site in diag map"
             assert hits[0].kind == "runtime"
+
+    def test_eval_context_snippet_on_inner_trap(self):
+        """Interpreter-walked commands include a source snippet on trap.
+
+        When a compiled fallback hands an inner script to ``tcl_eval``
+        and a command inside that script traps (``encoding`` /
+        ``fconfigure`` / …), the runtime writes an
+        ``in eval-script at offset N: <snippet>`` line so the failing
+        command can be located within the fallback, not just the
+        fallback's creation site.
+        """
+        # A standalone ``[cmd …]`` at top level compiles as an eval
+        # fallback, so the interpreter walks it command-by-command
+        # and the eval-context stamping runs before each dispatch.
+        source = "[encoding convertfrom identity abc]\n"
+        wasm, diag = _compile_tcl_with_diag(source, "t.tcl")
+        try:
+            _run_wasm(wasm, capture_stderr=True)
+            pytest.fail("expected trap")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "unsupported command: encoding" in stderr
+            assert "in eval-script at offset" in stderr
+            # The snippet must contain at least the command name.
+            assert "encoding" in stderr
 
     def test_parse_bare_tracks_bracket_nesting(self):
         """``parse_bare`` must keep ``[cmd arg]`` as a single word.

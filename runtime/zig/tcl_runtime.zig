@@ -123,6 +123,7 @@ pub const clock_milliseconds = tcl_clock.clock_milliseconds;
 
 // Diagnostic / source-location map
 pub const diag_set = tcl_diag.diag_set;
+pub const diag_set_eval_ctx = tcl_diag.diag_set_eval_ctx;
 
 // Arrays
 pub const array_set = tcl_array.array_set;
@@ -280,6 +281,7 @@ comptime {
     _ = &tcl_clock.clock_milliseconds;
     // tcl_diag exports
     _ = &tcl_diag.diag_set;
+    _ = &tcl_diag.diag_set_eval_ctx;
     // tcl_array exports
     _ = &tcl_array.array_set;
     _ = &tcl_array.array_get;

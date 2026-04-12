@@ -30,6 +30,23 @@ const io = @import("tcl_io.zig");
 /// — the error paths fall back to their raw message without a prefix.
 pub var current_site_id: u32 = 0;
 
+/// The script + offset currently being walked by the interpreter's
+/// ``eval_script`` loop.  Set by the interpreter before each command
+/// iteration; read by the trap paths to print a short snippet of
+/// source context on error.  All three zero means "no eval context"
+/// (e.g. when the trap fires from directly-compiled code).
+pub var current_eval_ptr: u32 = 0;
+pub var current_eval_len: u32 = 0;
+pub var current_eval_pos: u32 = 0;
+
+/// Exported: update the eval-script context.  Called from
+/// :func:`tcl_interp.eval_script` on every iteration.
+pub export fn diag_set_eval_ctx(script_ptr: i32, script_len: i32, pos: i32) void {
+    current_eval_ptr = @intCast(script_ptr);
+    current_eval_len = @intCast(script_len);
+    current_eval_pos = @intCast(pos);
+}
+
 /// Exported: record the current source site ID.  The codegen emits a
 /// call to this immediately before any call that might trap.  The
 /// argument is an opaque integer handle; the sidecar ``.wasm.map.json``
@@ -50,4 +67,29 @@ pub fn write_prefix(fd: i32) bool {
     io.fd_write_all(fd, buf.ptr, buf.len);
     io.fd_write_all(fd, " ", 1);
     return true;
+}
+
+/// Append the current eval-script context (if set) to ``fd`` as a
+/// ``\n  in eval-script at offset N: <snippet>\n`` line.  Called by
+/// the trap paths after the main error message so a user can see
+/// which command inside a ``tcl_eval`` fallback fired the trap,
+/// even when the outer diag site only points at the fallback's
+/// creation site (e.g. the outer ``namespace eval { ... }``).
+pub fn write_eval_ctx(fd: i32) void {
+    if (current_eval_ptr == 0 or current_eval_len == 0) return;
+    io.fd_write_all(fd, "  in eval-script at offset ", 27);
+    const off = io.itoa_no_nl(@as(i64, @intCast(current_eval_pos)));
+    io.fd_write_all(fd, off.ptr, off.len);
+    io.fd_write_all(fd, ": ", 2);
+    // Print a 60-char (or rest-of-script) snippet starting at the
+    // current position — enough context for a reader to find the
+    // command in the original source.  Newlines in the snippet are
+    // echoed literally; we trust the reader to cope with a
+    // multi-line window.
+    var span: u32 = current_eval_len - current_eval_pos;
+    if (span > 60) span = 60;
+    if (span > 0) {
+        io.fd_write_all(fd, @ptrFromInt(current_eval_ptr + current_eval_pos), span);
+    }
+    io.fd_write_all(fd, "\n", 1);
 }

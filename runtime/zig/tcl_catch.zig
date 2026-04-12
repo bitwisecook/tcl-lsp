@@ -66,6 +66,7 @@ pub export fn @"error"(msg: i32) void {
         fd_write_all(2, @ptrFromInt(s.ptr), s.len);
     }
     fd_write_all(2, "\n", 1);
+    diag.write_eval_ctx(2);
     @trap();
 }
 

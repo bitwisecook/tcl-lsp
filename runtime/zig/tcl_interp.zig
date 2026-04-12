@@ -669,7 +669,28 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     var wp: [MAX_WORDS]u32 = undefined;
     var wl: [MAX_WORDS]u32 = undefined;
 
+    // Save any outer eval context so nested eval_script invocations
+    // (e.g. a command-substitution inside a word) can restore it
+    // when they return.  Without this the outermost frame's trap
+    // context would be replaced by the innermost — and the reader
+    // would lose the "which fallback fired this?" line.
+    const diag = @import("tcl_diag.zig");
+    const saved_ptr = diag.current_eval_ptr;
+    const saved_len = diag.current_eval_len;
+    const saved_pos = diag.current_eval_pos;
+    defer {
+        diag.current_eval_ptr = saved_ptr;
+        diag.current_eval_len = saved_len;
+        diag.current_eval_pos = saved_pos;
+    }
+
     while (pos < script_len) {
+        // Publish the current command's position so any trap that
+        // fires during dispatch includes a useful source snippet.
+        diag.current_eval_ptr = script_ptr;
+        diag.current_eval_len = script_len;
+        diag.current_eval_pos = pos;
+
         const cmd = parse_command(src, pos, script_len, &wp, &wl);
         pos = cmd.next;
         if (cmd.count == 0) continue;
