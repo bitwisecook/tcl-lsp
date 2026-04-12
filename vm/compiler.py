@@ -13,6 +13,7 @@ from core.compiler.ir import (
     IRAssignConst,
     IRAssignValue,
     IRBarrier,
+    IRBlock,
     IRCall,
     IRCatch,
     IRFor,
@@ -165,6 +166,45 @@ def _process_stmt_literals(source: str, stmt: IRStatement) -> IRStatement:
             if isinstance(stmt, IRAssignValue):
                 return IRAssignValue(range=stmt.range, name=stmt.name, value=new_value)
             return IRAssignConst(range=stmt.range, name=stmt.name, value=new_value)
+        return stmt
+
+    # Process IRBlock — namespace-eval inline helper that the VM
+    # codegen falls back to as a plain ``namespace eval`` call.  Its
+    # ``source_args`` need the same brace-protection as IRBarrier
+    # args so ``$a`` inside a proc body stays literal until the
+    # proc is invoked.  Also recurse into the inlined body so
+    # nested statements get their own pass.
+    if isinstance(stmt, IRBlock):
+        new_body = _process_script_literals(source, stmt.body)
+        new_source_args = list(stmt.source_args)
+        args_changed = False
+        tokens = stmt.source_tokens
+        if tokens is not None:
+            for i, arg in enumerate(new_source_args):
+                word_idx = i + 1  # argv[0] is "namespace"
+                if word_idx >= len(tokens.single_token_word):
+                    break
+                if not tokens.single_token_word[word_idx]:
+                    continue
+                tok = tokens.argv[word_idx]
+                if tok.type is TokenType.ESC and "\\" in arg:
+                    processed = backslash_subst(arg)
+                    if "$" in processed or ("[" in processed and "]" in processed):
+                        new_source_args[i] = _RAW_PREFIX + processed
+                    else:
+                        new_source_args[i] = processed
+                    args_changed = True
+                elif tok.type is TokenType.STR:
+                    new_source_args[i] = _BRACE_OPEN + arg + _BRACE_CLOSE
+                    args_changed = True
+        if args_changed or new_body is not stmt.body:
+            return IRBlock(
+                range=stmt.range,
+                body=new_body,
+                namespace=stmt.namespace,
+                source_args=tuple(new_source_args),
+                source_tokens=stmt.source_tokens,
+            )
         return stmt
 
     # Process IRCall and IRBarrier nodes with tokens

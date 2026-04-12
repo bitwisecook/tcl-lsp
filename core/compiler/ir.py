@@ -139,17 +139,25 @@ class IRBlock:
     separate scope — the body's ``proc`` definitions are already
     lifted into ``module.procedures`` with qualified names, so what
     remains (variable, trace, Option, if, …) runs as plain top-level
-    code.  Codegen flattens :class:`IRBlock` nodes during emission.
+    code.  The WASM codegen flattens :class:`IRBlock` nodes during
+    emission.
 
     ``namespace`` holds the fully-qualified namespace the body was
     lowered in (e.g. ``::tcltest``) so codegen can resolve
     unqualified command names to the right procedure when the body
     calls its own helpers (``Option -verbose …`` → ``::tcltest::Option``).
+
+    ``source_args`` keeps the original ``namespace eval`` args
+    (``("eval", ns, body_text)``) so a codegen target that can't
+    inline (the stack-VM) can still dispatch the call with full
+    namespace semantics at runtime.
     """
 
     range: Range
     body: IRScript
     namespace: str = "::"
+    source_args: tuple[str, ...] = ()
+    source_tokens: CommandTokens | None = None
 
 
 @dataclass(frozen=True, slots=True)

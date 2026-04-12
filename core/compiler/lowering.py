@@ -1095,11 +1095,15 @@ class _Lowerer:
                     # statements (variable, trace, Option …) run as
                     # ordinary code, with codegen consulting
                     # IRBlock.namespace for unqualified command
-                    # resolution.
+                    # resolution.  source_args/source_tokens let
+                    # non-inlining codegen targets dispatch the
+                    # original namespace-eval call instead.
                     return IRBlock(
                         range=cmd.range,
                         body=body_script,
                         namespace=child_ns,
+                        source_args=tuple(args),
+                        source_tokens=cmd.cmd_tokens,
                     )
                 # Dynamic namespace eval — fall back to tcl_eval so
                 # the runtime evaluates the body script however it

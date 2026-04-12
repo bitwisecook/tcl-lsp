@@ -155,8 +155,16 @@ class TestIRLowering:
         assert "::math::add" in mod.procedures
         stmts = mod.top_level.statements
         assert len(stmts) == 1
-        assert isinstance(stmts[0], IRBarrier)
-        assert stmts[0].reason == "namespace eval"
+        # Static ``namespace eval`` lowers to ``IRBlock`` now — the
+        # WASM codegen inlines the body, while the VM codegen falls
+        # back to dispatching the original ``namespace eval`` call
+        # via ``source_args``.  The canonical shape has the nested
+        # proc lifted (checked above) and the block namespace set.
+        from core.compiler.ir import IRBlock
+
+        assert isinstance(stmts[0], IRBlock)
+        assert stmts[0].namespace == "::math"
+        assert stmts[0].source_args[:2] == ("eval", "math")
 
     def test_while_lowered_to_structured_node(self):
         source = "while {$i < 10} {incr i}"
