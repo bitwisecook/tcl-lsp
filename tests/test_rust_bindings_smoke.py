@@ -32,3 +32,31 @@ def test_lexer_version_is_non_empty_string() -> None:
     assert version
     # Semver-ish: at least one dot separating digits.
     assert "." in version
+
+
+def test_optimiser_find_optimisations_fires_o101() -> None:
+    """C32 smoke test: the Rust `optimiser_find_optimisations` entry
+    point must return optimisation tuples for a simple constant-branch
+    source, and each tuple must have the seven-field shape the Python
+    `_manager._materialise_rust_optimisations` helper expects.
+    """
+    opts = tcl_lsp_rust.optimiser_find_optimisations(
+        "if {1} { set x 1 } else { set y 2 }", None
+    )
+    assert isinstance(opts, list)
+    assert opts, "expected at least one optimisation"
+    for t in opts:
+        assert len(t) == 7, f"unexpected tuple shape: {t!r}"
+        code, message, start, end, replacement, group, hint_only = t
+        assert isinstance(code, str) and code.startswith("O")
+        assert isinstance(message, str)
+        assert isinstance(start, int) and isinstance(end, int)
+        assert start <= end
+        assert isinstance(replacement, str)
+        assert group is None or isinstance(group, int)
+        assert isinstance(hint_only, bool)
+
+
+def test_optimiser_opt_priority_known_code() -> None:
+    assert tcl_lsp_rust.optimiser_opt_priority("O112") == 9
+    assert tcl_lsp_rust.optimiser_opt_priority("unknown") == 0
