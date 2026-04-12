@@ -21,6 +21,7 @@
 //! `elimination`, `propagation`).
 
 pub mod constants;
+pub mod expr_simplify;
 pub mod literals;
 pub mod naming;
 pub mod select;
