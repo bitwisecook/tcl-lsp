@@ -50,6 +50,49 @@ extern fn lstat(path: [*:0]const u8, buf: *anyopaque) c_int;
 extern fn mkdir(path: [*:0]const u8, mode: c_uint) c_int;
 extern fn rmdir(path: [*:0]const u8) c_int;
 extern fn unlink(path: [*:0]const u8) c_int;
+extern fn rename(old: [*:0]const u8, new: [*:0]const u8) c_int;
+
+// File I/O for ``file copy`` — POSIX open/read/write/close.
+// ``extern`` imports don't collide with our Tcl-command WASM
+// exports (those are exports from our module; these are imports
+// from libc) so we can spell the libc functions with their
+// natural names.
+//
+// POSIX ``open`` is variadic: the third ``mode`` argument is
+// consulted only when ``O_CREAT`` is in the flags.  wasi-libc
+// exposes the variadic shape, but we always pass three args
+// (mode=0 when not creating) so a fixed-arity extern is safe on
+// WASM's calling convention.  The explicit ``callconv(.C)`` +
+// ``@extern`` pins the linkage name so Zig doesn't name-mangle
+// it — the symbol the linker resolves is literally ``open``.
+const open = @extern(
+    *const fn ([*:0]const u8, c_int, c_uint) callconv(.C) c_int,
+    .{ .name = "open" },
+);
+const read = @extern(
+    *const fn (c_int, [*]u8, usize) callconv(.C) isize,
+    .{ .name = "read" },
+);
+const write = @extern(
+    *const fn (c_int, [*]const u8, usize) callconv(.C) isize,
+    .{ .name = "write" },
+);
+const close = @extern(
+    *const fn (c_int) callconv(.C) c_int,
+    .{ .name = "close" },
+);
+
+// open() flags — wasi-libc uses a non-musl encoding derived
+// from the underlying ``__WASI_OFLAGS_*`` / ``__WASI_RIGHTS_*``
+// values, NOT the standard musl bit positions.  The correct
+// values live in ``zig/lib/libc/include/wasm-wasi-musl/
+// __header_fcntl.h``.  Using the wrong (musl) values makes
+// ``open(path, O_RDONLY, ...)`` silently request an invalid mix
+// of rights and returns ``EINVAL``.
+const O_RDONLY: c_int = 0x04000000;
+const O_WRONLY: c_int = 0x10000000;
+const O_CREAT: c_int = 1 << 12;
+const O_TRUNC: c_int = 8 << 12;
 
 // access() mode flags (POSIX unistd.h values).
 const F_OK: c_int = 0;
@@ -278,20 +321,24 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     // -- Mutating operations backed by wasi-libc --
     if (eq(sp, s.len, "mkdir")) return file_mkdir(arg1);
     if (eq(sp, s.len, "delete")) return file_delete(arg1, arg2);
+    if (eq(sp, s.len, "rename")) return file_rename(arg1, arg2);
+    if (eq(sp, s.len, "copy")) return file_copy(arg1, arg2);
+    if (eq(sp, s.len, "type")) return file_type(arg1);
+    // ``file system`` returns the VFS that backs the path.  We
+    // only have a single WASI-preopen filesystem; report ``native``
+    // with an empty per-volume type, matching what tclsh reports
+    // on POSIX.  The second element (``/``) is the mount point.
+    if (eq(sp, s.len, "system")) return obj.obj_new_string_copy(@intFromPtr("native".ptr), 6);
 
     // -- Mutating operations — trap so scripts can't silently miss
     //    work.  These have incremental follow-up commits pending;
     //    see tcl_fs.zig's header comment.
-    if (eq(sp, s.len, "rename") or
-        eq(sp, s.len, "copy") or
-        eq(sp, s.len, "attributes") or
+    if (eq(sp, s.len, "attributes") or
         eq(sp, s.len, "link") or
         eq(sp, s.len, "readlink") or
         eq(sp, s.len, "tempfile") or
         eq(sp, s.len, "stat") or
-        eq(sp, s.len, "lstat") or
-        eq(sp, s.len, "system") or
-        eq(sp, s.len, "type"))
+        eq(sp, s.len, "lstat"))
     {
         const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(s.ptr)))[0..s.len];
         stubs.unsupported_sub("file", sub_slice);
@@ -532,11 +579,114 @@ fn file_delete(arg1: i32, arg2: i32) i32 {
     return obj_new_string(0, 0);
 }
 
+/// ``file rename src dst`` — atomic rename via ``rename(2)``.
+/// wasi-libc translates to ``path_rename``.  The ``-force`` flag
+/// (overwrite existing dst) is a Tcl extension; without it Tcl
+/// errors if dst exists — we skip that check for now so the
+/// underlying ``rename`` semantics (which overwrite a file dst
+/// but fail on directory collision) propagate directly.
+fn file_rename(src: i32, dst: i32) i32 {
+    if (src == 0 or dst == 0) {
+        stubs.unsupported("file rename (missing arg)");
+        return 0;
+    }
+    const rc = rename(path_cstr(src), path_cstr(dst));
+    if (rc != 0) {
+        stubs.unsupported("file rename (failed)");
+        return 0;
+    }
+    return obj_new_string(0, 0);
+}
+
+/// ``file copy src dst`` — regular-file copy.  Opens *src* for
+/// reading, creates/truncates *dst*, shuttles bytes through a
+/// fixed-size buffer.  Directory-tree copy (``-force`` /
+/// recursive) is not yet wired — a follow-up concern.
+fn file_copy(src: i32, dst: i32) i32 {
+    if (src == 0 or dst == 0) {
+        stubs.unsupported("file copy (missing arg)");
+        return 0;
+    }
+    const in_fd = open(path_cstr(src), O_RDONLY, 0);
+    if (in_fd < 0) {
+        stubs.unsupported("file copy (open src failed)");
+        return 0;
+    }
+    // 0o644 = rw-r--r-- — matches cp's default create-mode.
+    const out_fd = open(path_cstr(dst), O_WRONLY | O_CREAT | O_TRUNC, 0o644);
+    if (out_fd < 0) {
+        _ = close(in_fd);
+        stubs.unsupported("file copy (open dst failed)");
+        return 0;
+    }
+    // 8 KiB buffer on the bump allocator — big enough to keep
+    // syscall overhead low, small enough to not pressure linear
+    // memory for tcltest-scale files.
+    const buf_size: u32 = 8 * 1024;
+    const buf_addr = obj.alloc(buf_size);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var ok = true;
+    while (true) {
+        const n = read(in_fd, buf, buf_size);
+        if (n == 0) break;
+        if (n < 0) {
+            ok = false;
+            break;
+        }
+        var remaining: usize = @intCast(n);
+        var off: usize = 0;
+        while (remaining > 0) {
+            const w = write(out_fd, buf + off, remaining);
+            if (w <= 0) {
+                ok = false;
+                break;
+            }
+            off += @intCast(w);
+            remaining -= @intCast(w);
+        }
+        if (!ok) break;
+    }
+    _ = close(in_fd);
+    _ = close(out_fd);
+    if (!ok) {
+        stubs.unsupported("file copy (I/O error)");
+        return 0;
+    }
+    return obj_new_string(0, 0);
+}
+
+/// ``file type path`` — string-naming the path's S_IFMT.  Tcl
+/// returns one of ``file``, ``directory``, ``characterSpecial``,
+/// ``blockSpecial``, ``fifo``, ``link``, ``socket``.  We use
+/// ``lstat(2)`` so symlinks report as ``link`` rather than
+/// resolving — matches Tcl's documented behaviour.
+fn file_type(path: i32) i32 {
+    if (path == 0) {
+        stubs.unsupported("file type (no path)");
+        return 0;
+    }
+    const st = lstat_path(path);
+    if (st == 0) {
+        // Path doesn't exist — Tcl's ``file type`` errors here.
+        // Trap so scripts see a clear failure.
+        stubs.unsupported("file type (no such file)");
+        return 0;
+    }
+    const masked = stat_mode(st) & S_IFMT;
+    return switch (masked) {
+        S_IFREG => obj.obj_new_string_copy(@intFromPtr("file".ptr), 4),
+        S_IFDIR => obj.obj_new_string_copy(@intFromPtr("directory".ptr), 9),
+        S_IFLNK => obj.obj_new_string_copy(@intFromPtr("link".ptr), 4),
+        S_IFCHR => obj.obj_new_string_copy(@intFromPtr("characterSpecial".ptr), 16),
+        S_IFBLK => obj.obj_new_string_copy(@intFromPtr("blockSpecial".ptr), 12),
+        S_IFIFO => obj.obj_new_string_copy(@intFromPtr("fifo".ptr), 4),
+        S_IFSOCK => obj.obj_new_string_copy(@intFromPtr("socket".ptr), 6),
+        else => obj.obj_new_string_copy(@intFromPtr("file".ptr), 4),
+    };
+}
+
 // Silence unused-warning for helpers that will be used by the
-// follow-up mutating-op commits (rename / copy / stat / lstat /
-// type / …).  Keeping the forward references here means the
-// wiring is already in place and subsequent commits only touch
-// the dispatch table above.
+// follow-up mutating-op commits (stat / lstat / link / readlink).
 comptime {
     _ = &stat_ctim_sec;
 }

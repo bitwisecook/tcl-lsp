@@ -1799,6 +1799,49 @@ class TestFile:
         )
         assert "done" in out
 
+    def test_rename(self, tmp_path):
+        (tmp_path / "before.txt").write_text("hi")
+        out = self._run(
+            tmp_path,
+            (
+                "file rename /before.txt /after.txt\n"
+                "puts [file exists /before.txt]\n"
+                "puts [file exists /after.txt]\n"
+            ),
+        )
+        assert out.strip().splitlines() == ["0", "1"]
+        assert (tmp_path / "after.txt").read_text() == "hi"
+
+    def test_copy(self, tmp_path):
+        (tmp_path / "src.txt").write_text("payload")
+        out = self._run(
+            tmp_path,
+            (
+                "file copy /src.txt /dst.txt\n"
+                "puts [file exists /src.txt]\n"
+                "puts [file exists /dst.txt]\n"
+                "puts [file size /dst.txt]\n"
+            ),
+        )
+        assert out.strip().splitlines() == ["1", "1", "7"]
+        assert (tmp_path / "dst.txt").read_text() == "payload"
+
+    def test_type_file_vs_directory(self, tmp_path):
+        (tmp_path / "f.txt").write_text("x")
+        (tmp_path / "d").mkdir()
+        out = self._run(
+            tmp_path,
+            "puts [file type /f.txt]\nputs [file type /d]\n",
+        )
+        assert out.strip().splitlines() == ["file", "directory"]
+
+    def test_system(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            "puts [file system /]\n",
+        )
+        assert "native" in out
+
 
 class TestEncoding:
     """Minimal UTF-8 encoding command — pass-through for identity/utf-8."""
