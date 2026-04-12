@@ -21,6 +21,7 @@ pub mod helpers;
 pub mod pattern_recognition;
 pub mod propagation;
 pub mod structure_elimination;
+pub mod tail_call;
 pub mod unused_procs;
 
 use std::collections::{HashMap, HashSet};
@@ -334,6 +335,9 @@ impl PassId {
 /// - [`PassId::PatternRecognition`] →
 ///   [`pattern_recognition::run`] (C30g, O114 incr-idiom only;
 ///   O119 + O122 deferred).
+/// - [`PassId::TailCall`] → [`tail_call::run`] (C30h, O121
+///   bare-call tail variant only; return-subst / O122 loop
+///   conversion / O123 accumulator deferred).
 pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[PassId]) {
     for pass in passes {
         match pass {
@@ -344,9 +348,10 @@ pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[Pas
             PassId::ExprSimplify => expr_simplify::run(ctx, cu),
             PassId::Propagation => propagation::run(ctx, cu),
             PassId::PatternRecognition => pattern_recognition::run(ctx, cu),
+            PassId::TailCall => tail_call::run(ctx, cu),
             // Remaining passes are deferred follow-ups; see the
             // module docs for the landing plan.
-            PassId::TailCall | PassId::CodeSinking => {}
+            PassId::CodeSinking => {}
         }
     }
 }
@@ -463,11 +468,7 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         // Requesting only deferred passes must leave the
         // context untouched.
-        run_passes(
-            &mut ctx,
-            &cu,
-            &[PassId::TailCall, PassId::CodeSinking],
-        );
+        run_passes(&mut ctx, &cu, &[PassId::CodeSinking]);
         assert!(ctx.optimisations.is_empty());
     }
 }
