@@ -15,6 +15,14 @@
 //!   memory-SSA results and build [`FunctionDataFlowGraph`] /
 //!   [`DataFlowGraph`] records.
 
+use std::collections::{BTreeSet, HashMap};
+
+use crate::analyses::{ConstValue, LatticeValue};
+use crate::def_use::{DefKind, DefUseResult, UseKind};
+use crate::memory_ssa::{MemoryLocation, MemorySSAFunction};
+use crate::sccp::SccpResult;
+use crate::ssa::{SsaFunction, ValueKey};
+
 // ---------------------------------------------------------------------------
 // Edge classification (C25c)
 // ---------------------------------------------------------------------------
@@ -228,6 +236,154 @@ impl DataFlowGraph {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Extractors (C25d)
+// ---------------------------------------------------------------------------
+
+/// Render a lattice entry for the node display column.
+fn format_lattice(values: &HashMap<ValueKey, LatticeValue>, key: &ValueKey) -> String {
+    let Some(val) = values.get(key) else {
+        return String::new();
+    };
+    match val {
+        LatticeValue::Unknown => "UNKNOWN".into(),
+        LatticeValue::Overdefined => "OVERDEFINED".into(),
+        LatticeValue::Const(c) => format!("CONST({})", format_const(c)),
+        LatticeValue::ConstSet(vs) => {
+            let items: Vec<String> = vs.iter().map(format_const).collect();
+            format!("CONSTSET({})", items.join(","))
+        }
+    }
+}
+
+fn format_const(c: &ConstValue) -> String {
+    match c {
+        ConstValue::Int(i) => i.to_string(),
+        ConstValue::Float(f) => f.to_string(),
+        ConstValue::Bool(b) => b.to_string(),
+        ConstValue::String(s) => format!("{s:?}"),
+    }
+}
+
+/// Map a [`DefKind`] onto the lowercase text form used in the
+/// node's `def_kind` field, matching Python's `.name.lower()`.
+fn def_kind_name(k: DefKind) -> &'static str {
+    match k {
+        DefKind::Statement => "statement",
+        DefKind::Phi => "phi",
+        DefKind::Parameter => "parameter",
+    }
+}
+
+/// Build a [`FunctionDataFlowGraph`] from the per-function
+/// analysis outputs — SSA, def-use chains, optional SCCP result,
+/// and optional memory-SSA.
+///
+/// `sccp` and `mem` may be `None` when those analyses haven't
+/// been run; the extractor then leaves the corresponding display
+/// fields empty / skips alias entries.
+#[must_use]
+pub fn extract_function_dataflow(
+    name: &str,
+    ssa: &SsaFunction,
+    du: &DefUseResult,
+    sccp: Option<&SccpResult>,
+    mem: Option<&MemorySSAFunction>,
+) -> FunctionDataFlowGraph {
+    let _ = ssa; // reserved for future type-lattice wiring.
+    let empty_values: HashMap<ValueKey, LatticeValue> = HashMap::new();
+    let values = sccp.map_or(&empty_values, |r| &r.values);
+
+    let mut nodes: Vec<DataFlowNode> = Vec::new();
+    let mut edges: Vec<DataFlowEdge> = Vec::new();
+
+    // Sort chain keys so output is deterministic.
+    let mut keys: Vec<&ValueKey> = du.chains.keys().collect();
+    keys.sort();
+
+    for key in keys {
+        let chain = &du.chains[key];
+        let (var_name, version) = key;
+        nodes.push(DataFlowNode {
+            name: var_name.clone(),
+            version: *version,
+            block: chain.definition.block.clone(),
+            def_kind: def_kind_name(chain.definition.kind).to_owned(),
+            statement_index: chain.definition.statement_index,
+            lattice: format_lattice(values, key),
+            type_info: String::new(),
+            is_dead: chain.is_dead(),
+            use_count: u32::try_from(chain.use_count()).unwrap_or(u32::MAX),
+        });
+
+        for use_site in &chain.uses {
+            let edge = if use_site.kind == UseKind::PhiIncoming {
+                DataFlowEdge::phi(
+                    var_name.clone(),
+                    *version,
+                    use_site.block.clone(),
+                    use_site.variable.clone(),
+                    use_site.phi_version,
+                )
+            } else {
+                DataFlowEdge::direct(
+                    var_name.clone(),
+                    *version,
+                    use_site.block.clone(),
+                    use_site.statement_index,
+                )
+            };
+            edges.push(edge);
+        }
+    }
+
+    // Alias info from memory-SSA.
+    let mut aliases: Vec<AliasInfo> = Vec::new();
+    if let Some(m) = mem {
+        for aset in &m.alias_sets {
+            let mut locs: Vec<&MemoryLocation> = aset.locations.iter().collect();
+            locs.sort_by(|a, b| {
+                (format!("{:?}", a.kind), &a.name, &a.qualifier).cmp(&(
+                    format!("{:?}", b.kind),
+                    &b.name,
+                    &b.qualifier,
+                ))
+            });
+            if locs.len() >= 2 {
+                aliases.push(AliasInfo {
+                    local_name: locs[0].name.clone(),
+                    local_kind: format!("{:?}", locs[0].kind),
+                    target_name: locs[1].name.clone(),
+                    target_kind: format!("{:?}", locs[1].kind),
+                    reason: aset.reason.clone(),
+                });
+            }
+        }
+    }
+
+    let dead_defs =
+        u32::try_from(nodes.iter().filter(|n| n.is_dead).count()).unwrap_or(u32::MAX);
+    let total_defs = u32::try_from(nodes.len()).unwrap_or(u32::MAX);
+    let total_uses = nodes.iter().map(|n| n.use_count).sum::<u32>();
+    let mut aliased_names: BTreeSet<String> = BTreeSet::new();
+    for a in &aliases {
+        aliased_names.insert(a.local_name.clone());
+        aliased_names.insert(a.target_name.clone());
+    }
+    let aliased_vars = u32::try_from(aliased_names.len()).unwrap_or(u32::MAX);
+
+    FunctionDataFlowGraph {
+        function_name: name.to_owned(),
+        nodes,
+        edges,
+        aliases,
+        total_defs,
+        total_uses,
+        dead_defs,
+        aliased_vars,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,6 +421,181 @@ mod tests {
         assert_eq!(e.to_name, "x");
         assert_eq!(e.to_version, 3);
         assert_eq!(e.to_statement_index, -1);
+    }
+
+    // -- C25d: extract_function_dataflow --
+
+    use crate::cfg::Function as CfgFunction;
+    use crate::def_use::build_def_use_chains;
+    use crate::ir::Statement;
+    use crate::sccp::sccp;
+    use crate::ssa::{SsaBlock, SsaStatement};
+    use std::collections::HashMap as Map;
+    use tcl_lexer::Span;
+
+    fn assign_const_ssa(name: &str, value: &str, ver: u32) -> SsaStatement {
+        let mut defs = Map::new();
+        defs.insert(name.to_string(), ver);
+        SsaStatement {
+            statement: Statement::AssignConst {
+                span: Span::new(0, 0),
+                name: name.into(),
+                value: value.into(),
+            },
+            uses: Map::new(),
+            defs,
+        }
+    }
+
+    fn empty_ssa_block(name: &str) -> SsaBlock {
+        SsaBlock {
+            name: name.into(),
+            phis: Vec::new(),
+            statements: Vec::new(),
+            entry_versions: Map::new(),
+            exit_versions: Map::new(),
+        }
+    }
+
+    #[test]
+    fn extract_node_per_def_with_sccp_lattice() {
+        let mut cfg = CfgFunction::new("::top", "entry");
+        cfg.blocks.get_mut("entry").unwrap().terminator =
+            Some(crate::cfg::Terminator::Return {
+                value: None,
+                span: None,
+                expr: None,
+                braced: false,
+            });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        let mut entry = empty_ssa_block("entry");
+        entry.statements.push(assign_const_ssa("x", "42", 1));
+        ssa.blocks.insert("entry".into(), entry);
+
+        let du = build_def_use_chains(&ssa, Some(&cfg));
+        let sccp_result = sccp(&cfg, &ssa, None);
+        let g = extract_function_dataflow("::top", &ssa, &du, Some(&sccp_result), None);
+
+        assert_eq!(g.function_name, "::top");
+        assert_eq!(g.total_defs, 1);
+        let node = g
+            .nodes
+            .iter()
+            .find(|n| n.name == "x")
+            .expect("x node present");
+        assert_eq!(node.version, 1);
+        assert_eq!(node.def_kind, "statement");
+        assert_eq!(node.lattice, "CONST(42)");
+        assert!(node.is_dead);
+    }
+
+    #[test]
+    fn extract_direct_edge_for_operand_use() {
+        // entry:
+        //   x@1 = 1 (def)
+        //   y@1 = {uses x@1} (use)
+        let mut cfg = CfgFunction::new("::top", "entry");
+        cfg.blocks.get_mut("entry").unwrap().terminator =
+            Some(crate::cfg::Terminator::Return {
+                value: None,
+                span: None,
+                expr: None,
+                braced: false,
+            });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        let mut entry = empty_ssa_block("entry");
+        entry.statements.push(assign_const_ssa("x", "1", 1));
+        let mut uses = Map::new();
+        uses.insert("x".to_string(), 1);
+        let mut ydefs = Map::new();
+        ydefs.insert("y".to_string(), 1);
+        entry.statements.push(SsaStatement {
+            statement: Statement::AssignConst {
+                span: Span::new(0, 0),
+                name: "y".into(),
+                value: "x".into(),
+            },
+            uses,
+            defs: ydefs,
+        });
+        ssa.blocks.insert("entry".into(), entry);
+
+        let du = build_def_use_chains(&ssa, Some(&cfg));
+        let g = extract_function_dataflow("::top", &ssa, &du, None, None);
+
+        let direct_edges: Vec<&DataFlowEdge> = g
+            .edges
+            .iter()
+            .filter(|e| e.edge_kind == EdgeKind::Direct)
+            .collect();
+        assert_eq!(direct_edges.len(), 1);
+        let e = direct_edges[0];
+        assert_eq!(e.from_name, "x");
+        assert_eq!(e.from_version, 1);
+        assert_eq!(e.to_statement_index, 1);
+    }
+
+    #[test]
+    fn extract_alias_info_from_memory_ssa() {
+        use crate::memory_ssa::{AliasSet, MemoryLocation, MemoryLocationKind};
+        let mut locs = BTreeSet::new();
+        locs.insert(MemoryLocation::new(MemoryLocationKind::Global, "g"));
+        locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "g"));
+        let mem = MemorySSAFunction {
+            alias_sets: vec![AliasSet::new(locs, "global")],
+            ..MemorySSAFunction::default()
+        };
+        let du = DefUseResult::default();
+        let ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        let g = extract_function_dataflow("::top", &ssa, &du, None, Some(&mem));
+        assert_eq!(g.aliases.len(), 1);
+        let a = &g.aliases[0];
+        assert_eq!(a.reason, "global");
+        // Deterministic sort should place Global before Local kind
+        // (kind name alphabetical ordering).
+        assert_eq!(a.local_kind, "Global");
+        assert_eq!(a.target_kind, "Local");
+        assert_eq!(g.aliased_vars, 1); // same name "g" dedup.
+    }
+
+    #[test]
+    fn extract_empty_when_no_chains() {
+        let du = DefUseResult::default();
+        let ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        let g = extract_function_dataflow("::top", &ssa, &du, None, None);
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+        assert_eq!(g.total_defs, 0);
     }
 
     #[test]
