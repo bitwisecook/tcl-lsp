@@ -404,6 +404,59 @@ fn eval_command(words: []const i32) i32 {
     }
     if (str_eq(cmd, cmd_s.len, "string")) return eval_string_cmd(words);
     if (str_eq(cmd, cmd_s.len, "dict")) return eval_dict_cmd(words);
+    if (str_eq(cmd, cmd_s.len, "array")) return eval_array_cmd(words);
+    if (str_eq(cmd, cmd_s.len, "pwd")) {
+        const fs_mod = @import("tcl_fs.zig");
+        return fs_mod.pwd();
+    }
+    if (str_eq(cmd, cmd_s.len, "file")) {
+        const fs_mod = @import("tcl_fs.zig");
+        const sub = if (words.len >= 2) words[1] else 0;
+        const a1 = if (words.len >= 3) words[2] else 0;
+        const a2 = if (words.len >= 4) words[3] else 0;
+        return fs_mod.file(sub, a1, a2);
+    }
+    if (str_eq(cmd, cmd_s.len, "cd")) {
+        const fs_mod = @import("tcl_fs.zig");
+        return fs_mod.cd(if (words.len >= 2) words[1] else 0);
+    }
+    if (str_eq(cmd, cmd_s.len, "trace")) {
+        // ``trace add`` / ``trace remove`` pass through; other
+        // subcommands trap via the real impl.
+        const trace_mod = @import("tcl_trace.zig");
+        const sub = if (words.len >= 2) words[1] else 0;
+        const arg_obj = if (words.len >= 3) words[2] else 0;
+        return trace_mod.trace_cmd(sub, arg_obj);
+    }
+    if (str_eq(cmd, cmd_s.len, "unset")) {
+        // ``unset ?-nocomplain? ?--? var ?var ...?`` — clear each
+        // variable.  We approximate by setting to the null TclObj
+        // (matches what ``info exists`` checks for) and ignore the
+        // ``-nocomplain`` / ``--`` switches; an unknown variable
+        // isn't an error under either branch.
+        var i: u32 = 1;
+        while (i < words.len) : (i += 1) {
+            const w = obj_ensure_string(words[i]);
+            const wp: [*]const u8 = @ptrFromInt(w.ptr);
+            // Skip option switches.
+            if (w.len >= 1 and wp[0] == '-') continue;
+            _ = frames.var_set(words[i], 0);
+        }
+        return obj_new_string(0, 0);
+    }
+    if (str_eq(cmd, cmd_s.len, "variable")) {
+        // ``variable name ?value? ?name value …?`` — declare +
+        // optionally initialise a namespace variable.  We don't
+        // track namespace scopes in the interpreter, so treat it
+        // identically to ``set`` when a value is given, else a NOP.
+        var i: u32 = 1;
+        while (i < words.len) : (i += 2) {
+            if (i + 1 < words.len) {
+                _ = frames.var_set(words[i], words[i + 1]);
+            }
+        }
+        return obj_new_string(0, 0);
+    }
     if (str_eq(cmd, cmd_s.len, "encoding")) {
         // Route ``encoding <sub> ?arg1? ?arg2?`` through the real
         // UTF-8 implementation in tcl_encoding.zig.  When the
@@ -671,6 +724,33 @@ fn eval_string_cmd(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "reverse")) return rt.string_reverse(words[2]);
     if (str_eq(sp, sub.len, "repeat") and words.len >= 4) return rt.string_repeat(words[2], words[3]);
     if (str_eq(sp, sub.len, "replace") and words.len >= 6) return rt.string_replace(words[2], words[3], words[4], words[5]);
+    return 0;
+}
+
+fn eval_array_cmd(words: []const i32) i32 {
+    if (words.len < 3) return 0;
+    const sub = obj_ensure_string(words[1]);
+    const sp: [*]const u8 = @ptrFromInt(sub.ptr);
+    const array_mod = @import("tcl_array.zig");
+    if (str_eq(sp, sub.len, "get")) {
+        if (words.len >= 4) return array_mod.array_get(words[2], words[3]);
+        return array_mod.array_get(words[2], obj_new_string(0, 0));
+    }
+    if (str_eq(sp, sub.len, "set") and words.len >= 4) {
+        return array_mod.array_set(words[2], words[3], 0);
+    }
+    if (str_eq(sp, sub.len, "exists")) return array_mod.array_exists(words[2]);
+    if (str_eq(sp, sub.len, "names")) return array_mod.array_names(words[2]);
+    if (str_eq(sp, sub.len, "size")) return array_mod.array_size(words[2]);
+    if (str_eq(sp, sub.len, "unset")) {
+        if (words.len >= 4) return array_mod.array_unset_element(words[2], words[3]);
+        return array_mod.array_unset(words[2]);
+    }
+    // Other subcommands (statistics, startsearch, …) not yet wired —
+    // fall through to the stub dispatch which raises the exception.
+    const stubs_mod = @import("tcl_stubs.zig");
+    const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(sub.ptr)))[0..sub.len];
+    stubs_mod.unsupported_sub("array", sub_slice);
     return 0;
 }
 

@@ -50,6 +50,7 @@ from ..ir import (
     IRAssignExpr,
     IRAssignValue,
     IRBarrier,
+    IRBlock,
     IRCall,
     IRCatch,
     IRExprEval,
@@ -869,7 +870,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_fileevent": ("tcl", "fileevent", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_socket": ("tcl", "socket", [ValType.I32, ValType.I32], [ValType.I32]),
     # Filesystem / process stubs (tcl_fs_stubs.zig).
-    "tcl_file": ("tcl", "file", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_file": (
+        "tcl",
+        "file",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_glob": ("tcl", "glob", [ValType.I32], [ValType.I32]),
     "tcl_pwd": ("tcl", "pwd", [], [ValType.I32]),
     "tcl_cd": ("tcl", "cd", [ValType.I32], [ValType.I32]),
@@ -960,7 +966,7 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "fileevent": ("tcl_fileevent", 2),
     "socket": ("tcl_socket", 2),
     # Filesystem / process stubs.
-    "file": ("tcl_file", 2),
+    "file": ("tcl_file", 3),
     "glob": ("tcl_glob", 1),
     "pwd": ("tcl_pwd", 0),
     "cd": ("tcl_cd", 1),
@@ -1536,6 +1542,12 @@ def _scan_needed_imports(
                     # interpolation helpers.
                     for arg in barrier_args:
                         _scan_value(arg)
+            case IRBlock(body=body):
+                # ``namespace eval`` body inlined; recurse into its
+                # statements so any runtime helpers they need (e.g.
+                # tcl_append for interpolated strings) show up in
+                # the module's import list.
+                _scan_script(body)
             case IRIf(clauses=clauses, else_body=else_body):
                 for clause in clauses:
                     _scan_expr(clause.condition)
@@ -1745,6 +1757,15 @@ class _WasmEmitter:
         # source mapping); fallback / unsupported sites still work,
         # they just don't emit ``tcl_diag_set`` before the call.
         self._diag_map: DiagMap | None = diag_map
+
+        # Active ``namespace eval`` block (if any).  When non-None,
+        # unqualified command names inside the block are resolved to
+        # ``<block_namespace>::<name>`` before proc-registry lookup,
+        # matching Tcl's namespace path semantics for the common case
+        # where a namespace body calls its own helper procs by bare
+        # name (``Option -verbose …`` inside ``namespace eval
+        # ::tcltest { … }`` really means ``::tcltest::Option``).
+        self._block_namespace: str | None = None
 
         # Current statement's source range + command, updated at the
         # top of ``_emit_stmt`` and consulted by the fallback / trap
@@ -2900,20 +2921,50 @@ class _WasmEmitter:
                 self._emit(WasmOp.RETURN)
 
             case IRBarrier(command=barrier_cmd, args=barrier_args, reason=reason):
-                # Barriers are dynamic commands (eval, uplevel, etc.)
-                # that defeat static analysis.  ``uplevel`` has a dedicated
-                # emitter that runs at a caller's scope via the runtime
-                # frame-depth shift helpers; other barriers fall back to
-                # the plain interpreter eval.
+                # Barriers are dynamic commands (eval, uplevel, trace,
+                # etc.) that defeat static *analysis* but may still
+                # have concrete runtime implementations we can call
+                # directly.  Dispatch in priority order:
+                #   1. ``uplevel`` has a dedicated emitter that shifts
+                #      the frame-depth around a tcl_eval call so the
+                #      body runs at a caller's scope.
+                #   2. Commands in ``_CMD_RUNTIME`` have real (or stub-
+                #      trapping) runtime fns — dispatch through that
+                #      table so ``trace add variable …`` becomes a
+                #      direct ``tcl_trace`` call with precise diag
+                #      attribution instead of a generic tcl_eval
+                #      fallback that would lose arity info.
+                #   3. Anything else really is a black-box barrier:
+                #      fall back to the interpreter.
                 if barrier_cmd == "uplevel" and barrier_args:
                     self._emit_cmd_uplevel(barrier_args)
                     self._emit(WasmOp.DROP)
+                elif barrier_cmd and barrier_cmd in _CMD_RUNTIME:
+                    self._emit_cmd_runtime(barrier_cmd, barrier_args, ())
                 elif barrier_cmd:
                     self._emit_eval_fallback(barrier_cmd, barrier_args)
                     self._emit(WasmOp.DROP)
                 else:
                     self._emit_eval_fallback(reason)
                     self._emit(WasmOp.DROP)
+                if self._optimise:
+                    self._const_map.clear()
+
+            case IRBlock(body=body, namespace=block_ns):
+                # ``namespace eval`` body inlined into the enclosing
+                # script.  Procs inside were already lifted to
+                # ``module.procedures`` with qualified names; the
+                # remaining statements run as plain code.  We stash
+                # the block's namespace so ``_emit_call_stmt`` can
+                # resolve unqualified command names (``Option …`` →
+                # ``::tcltest::Option``) for the duration of the body.
+                prev_ns = self._block_namespace
+                self._block_namespace = block_ns
+                try:
+                    for stmt in body.statements:
+                        self._emit_stmt(stmt)
+                finally:
+                    self._block_namespace = prev_ns
                 if self._optimise:
                     self._const_map.clear()
 
@@ -2939,9 +2990,36 @@ class _WasmEmitter:
                 self._emit_try(body, handlers, finally_body)
 
     def _resolve_proc(self, command: str) -> tuple[int, int] | None:
-        """Look up a user-defined proc by name, returning (func_idx, n_params) or None."""
-        qname = command if command.startswith("::") else f"::{command}"
-        return self._proc_index.get(qname) or self._proc_index.get(command)
+        """Look up a user-defined proc by name, returning (func_idx, n_params) or None.
+
+        Resolution order for an *unqualified* name (Tcl namespace-path
+        semantics, simplified):
+          1. ``<active block namespace>::<name>`` — inside a
+             ``namespace eval ::ns { … }`` body.
+          2. ``<enclosing proc namespace>::<name>`` — when compiling
+             ``::tcltest::workingDirectory``'s body, a bare call to
+             ``AcceptAbsolutePath`` must first try
+             ``::tcltest::AcceptAbsolutePath``.
+          3. ``::<name>`` — the global namespace.
+          4. Bare ``<name>`` — defensive fallback for non-standard
+             proc-index entries.
+        """
+        if command.startswith("::"):
+            return self._proc_index.get(command)
+        # Inside a namespace-eval block, try the block's namespace first.
+        if self._block_namespace and self._block_namespace != "::":
+            ns_qname = f"{self._block_namespace}::{command}"
+            hit = self._proc_index.get(ns_qname)
+            if hit is not None:
+                return hit
+        # Try the enclosing proc's own namespace — captured in
+        # ``_proc_namespace`` at emitter construction time.
+        if self._proc_namespace and self._proc_namespace != "::":
+            ns_qname = f"{self._proc_namespace}::{command}"
+            hit = self._proc_index.get(ns_qname)
+            if hit is not None:
+                return hit
+        return self._proc_index.get(f"::{command}") or self._proc_index.get(command)
 
     def _emit_call_stmt(
         self,

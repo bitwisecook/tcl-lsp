@@ -44,6 +44,7 @@ from ..parsing.tokens import Token, TokenType
 from .ir import (
     CommandTokens,
     IRBarrier,
+    IRBlock,
     IRCall,
     IRCatch,
     IRFor,
@@ -1060,14 +1061,21 @@ class _Lowerer:
                 child_ns = _join_namespace(namespace, args[1])
                 prev_ns_eval = self._in_namespace_eval
                 self._in_namespace_eval = True
-                self._lower_body_arg(args[2], arg_tokens[2], namespace=child_ns)
+                body_script = self._lower_body_arg(args[2], arg_tokens[2], namespace=child_ns)
                 self._in_namespace_eval = prev_ns_eval
-                return IRBarrier(
+                # Emit the body as an inline block instead of a
+                # ``tcl_eval`` fallback: ``proc`` definitions inside
+                # are already lifted to ``module.procedures`` with
+                # qualified names (child_ns::name) by the recursive
+                # call above; the remaining statements (``variable``,
+                # ``trace``, ``Option …``, …) run as ordinary top-
+                # level code in the enclosing script, with codegen
+                # consulting ``IRBlock.namespace`` for unqualified
+                # command resolution.
+                return IRBlock(
                     range=cmd.range,
-                    reason="namespace eval",
-                    command=cmd_name,
-                    args=tuple(args),
-                    tokens=cmd.cmd_tokens,
+                    body=body_script,
+                    namespace=child_ns,
                 )
 
             case "if":

@@ -62,10 +62,13 @@ fn match_stub(c: []const u8) bool {
     if (eql(c, "socket")) return trap("socket");
 
     // Filesystem / process.
-    if (eql(c, "file")) return trap("file");
+    // ``file`` has a real impl in tcl_fs.zig (string-path manip,
+    // always-false existence, trapping mutations); dispatched in
+    // eval_command directly.
     if (eql(c, "glob")) return trap("glob");
-    if (eql(c, "pwd")) return trap("pwd");
-    if (eql(c, "cd")) return trap("cd");
+    // pwd / cd have real impls in tcl_fs.zig; they're wired directly
+    // in eval_command so the interpreter never reaches this table
+    // for them.
     if (eql(c, "exec")) return trap("exec");
     if (eql(c, "source")) return trap("source");
     if (eql(c, "load")) return trap("load");
@@ -100,7 +103,8 @@ fn match_stub(c: []const u8) bool {
     // inscope, origin, forget, path, ensemble).
     if (eql(c, "namespace")) return trap("namespace");
     if (eql(c, "package")) return trap("package");
-    if (eql(c, "trace")) return trap("trace");
+    // ``trace`` is handled directly in eval_command via tcl_trace.zig
+    // (pass-through add/remove, trap on info).
     if (eql(c, "interp")) return trap("interp");
     if (eql(c, "apply")) return trap("apply");
     if (eql(c, "rename")) return trap("rename");

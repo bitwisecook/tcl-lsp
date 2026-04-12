@@ -39,12 +39,8 @@ pub export fn package_cmd(sub: i32, arg: i32) i32 {
     return 0;
 }
 
-pub export fn trace_cmd(sub: i32, arg: i32) i32 {
-    _ = sub;
-    _ = arg;
-    stubs.unsupported("trace");
-    return 0;
-}
+// ``trace_cmd`` moved to tcl_trace.zig — accepts ``trace add`` /
+// ``trace remove`` as benign pass-throughs, traps on info queries.
 
 pub export fn interp_cmd(sub: i32, arg: i32) i32 {
     _ = sub;

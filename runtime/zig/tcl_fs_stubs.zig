@@ -16,12 +16,11 @@
 
 const stubs = @import("tcl_stubs.zig");
 
-pub export fn file(sub: i32, arg: i32) i32 {
-    _ = sub;
-    _ = arg;
-    stubs.unsupported("file");
-    return 0;
-}
+// ``file`` moved to tcl_fs.zig — has pass-through implementations
+// for string-only path manipulation (join / dirname / tail /
+// rootname / extension / normalize / split / pathtype / separator
+// / nativename), always-false answers for existence queries, and
+// trapping behaviour for mutating ops (mkdir / delete / rename / …).
 
 pub export fn glob(pattern: i32) i32 {
     _ = pattern;
@@ -29,16 +28,10 @@ pub export fn glob(pattern: i32) i32 {
     return 0;
 }
 
-pub export fn pwd() i32 {
-    stubs.unsupported("pwd");
-    return 0;
-}
-
-pub export fn cd(dir: i32) i32 {
-    _ = dir;
-    stubs.unsupported("cd");
-    return 0;
-}
+// ``pwd`` and ``cd`` moved to tcl_fs.zig — pwd returns "/" and cd
+// silently accepts its arg.  Scripts that use them for logging /
+// path-seed purposes (tcltest's ``workingDirectory`` option is the
+// poster child) now load without tripping.
 
 pub export fn exec(cmd: i32) i32 {
     _ = cmd;

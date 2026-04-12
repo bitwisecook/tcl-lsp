@@ -131,6 +131,28 @@ class IRScript:
 
 
 @dataclass(frozen=True, slots=True)
+class IRBlock:
+    """Inline group of statements.
+
+    Used by ``namespace eval`` lowering to splice the body's
+    statements into the enclosing script without introducing a
+    separate scope — the body's ``proc`` definitions are already
+    lifted into ``module.procedures`` with qualified names, so what
+    remains (variable, trace, Option, if, …) runs as plain top-level
+    code.  Codegen flattens :class:`IRBlock` nodes during emission.
+
+    ``namespace`` holds the fully-qualified namespace the body was
+    lowered in (e.g. ``::tcltest``) so codegen can resolve
+    unqualified command names to the right procedure when the body
+    calls its own helpers (``Option -verbose …`` → ``::tcltest::Option``).
+    """
+
+    range: Range
+    body: IRScript
+    namespace: str = "::"
+
+
+@dataclass(frozen=True, slots=True)
 class IRIfClause:
     condition: ExprNode
     condition_range: Range
@@ -313,4 +335,5 @@ IRStatement = (
     | IRCatch
     | IRTry
     | IRSwitch
+    | IRBlock
 )

@@ -25,6 +25,8 @@ const tcl_time_stubs = @import("tcl_time_stubs.zig");
 const tcl_env_stubs = @import("tcl_env_stubs.zig");
 const tcl_encoding = @import("tcl_encoding.zig");
 const tcl_chan = @import("tcl_chan.zig");
+const tcl_trace = @import("tcl_trace.zig");
+const tcl_fs = @import("tcl_fs.zig");
 const tcl_cmd_dispatch = @import("tcl_cmd_dispatch.zig");
 const interp = @import("tcl_interp.zig");
 
@@ -220,10 +222,12 @@ comptime {
     _ = &tcl_io_stubs.fcopy;
     _ = &tcl_io_stubs.fileevent;
     _ = &tcl_io_stubs.socket;
-    _ = &tcl_fs_stubs.file;
+    // file has a real impl in tcl_fs.zig.
+    _ = &tcl_fs.file;
     _ = &tcl_fs_stubs.glob;
-    _ = &tcl_fs_stubs.pwd;
-    _ = &tcl_fs_stubs.cd;
+    // pwd and cd live in tcl_fs.zig (pass-through impl).
+    _ = &tcl_fs.pwd;
+    _ = &tcl_fs.cd;
     _ = &tcl_fs_stubs.exec;
     _ = &tcl_fs_stubs.source;
     _ = &tcl_fs_stubs.load;
@@ -248,7 +252,8 @@ comptime {
     _ = &tcl_time_stubs.yieldto;
     _ = &tcl_env_stubs.@"namespace";
     _ = &tcl_env_stubs.package_cmd;
-    _ = &tcl_env_stubs.trace_cmd;
+    // trace lives in tcl_trace.zig (pass-through impl).
+    _ = &tcl_trace.trace_cmd;
     _ = &tcl_env_stubs.interp_cmd;
     _ = &tcl_env_stubs.apply;
     _ = &tcl_stubs.unsupported;
