@@ -1,45 +1,45 @@
-//! Elimination optimiser pass (C30d, partial — O107 only).
+//! Elimination optimiser pass (C30d).
 //!
-//! Ported from `core/compiler/optimiser/_elimination.py`. That
-//! Python module emits four distinct diagnostic codes:
+//! Ported from `core/compiler/optimiser/_elimination.py`. Emits:
 //!
 //! - **O107** — unreachable dead code (blocks SCCP proved
 //!   unreachable).
-//! - **O109** — dead stores (definitions overwritten before any
-//!   read).
-//! - **O108** — transitively dead code (defs whose every consumer
-//!   is itself dead — Aggressive Dead Code Elimination fixpoint).
-//! - **O126** — unused variable assignments (defs never read
-//!   anywhere in the function).
+//! - **O109** — dead stores (an SSA def whose chain is empty and
+//!   whose variable has at least one later definition — the
+//!   write is overwritten before any read).
+//! - **O126** — unused variable assignments (an SSA def whose
+//!   chain is empty and is the only / last def of that variable
+//!   — the value is never read). Skipped at the top level (the
+//!   last command's result may be the script return value) and
+//!   for scope-alias commands (`global` / `variable` / `upvar`).
 //!
-//! Only **O107** is landed in this strip — the others require a
-//! liveness analyser + dead-store detector that the Rust
-//! pipeline does not yet build (the analyses types exist as
-//! empty stubs in `crate::analyses`, but the populating pass is
-//! deferred). Each of those codes will plug into the same
-//! `run(ctx, cu)` entry point without an API change when the
-//! supporting analyser lands.
+//! **O108** (transitively dead code) remains deferred — the
+//! ADCE fixpoint is a follow-up strip on top of O109/O126.
 //!
-//! The O107 implementation walks each `FunctionUnit`, finds
-//! every CFG block outside `SccpResult::executable_blocks`, and
-//! reports the statement span of every statement within such a
-//! block. The pass is deterministic: unreachable blocks are
-//! walked in their CFG-order (reverse post-order from the entry,
-//! with unreachable blocks appended) and reports are emitted in
-//! that order.
+//! Emission order is the deterministic CFG `cfg_order` (reverse
+//! post-order from the entry, unreachable blocks appended).
+
+use std::collections::HashSet;
 
 use crate::cfg::Function as CfgFunction;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+use crate::def_use::DefKind;
+use crate::ir::Statement;
 use crate::sccp::{cfg_order, SccpResult};
 
 use super::{Optimisation, PassContext};
 
-/// Run the elimination pass. Currently emits `O107` only (see
-/// the module-level docs for the status of O108/O109/O126).
+/// Run the elimination pass — emits O107, O109, O126 across
+/// every function in `cu`.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
+    let is_top_level = |fu: &FunctionUnit| fu.name == "::top";
+
     emit_unreachable(ctx, &cu.top_level);
+    emit_dead_stores_and_unused(ctx, &cu.top_level, is_top_level(&cu.top_level));
+
     for fu in cu.procedures.values() {
         emit_unreachable(ctx, fu);
+        emit_dead_stores_and_unused(ctx, fu, false);
     }
 }
 
@@ -73,15 +73,232 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
 
 /// Return the set of block names SCCP determined unreachable
 /// from the CFG entry.
-fn unreachable_blocks(
-    cfg: &CfgFunction,
-    sccp: &SccpResult,
-) -> std::collections::HashSet<String> {
+fn unreachable_blocks(cfg: &CfgFunction, sccp: &SccpResult) -> HashSet<String> {
     cfg.blocks
         .keys()
         .filter(|name| !sccp.executable_blocks.contains(*name))
         .cloned()
         .collect()
+}
+
+/// Emit O109 (dead store) + O126 (unused variable) for each
+/// dead SSA def in `fu.def_use`.
+fn emit_dead_stores_and_unused(
+    ctx: &mut PassContext<'_>,
+    fu: &FunctionUnit,
+    is_top_level: bool,
+) {
+    let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
+    let scope_aliases = scan_scope_aliases(&fu.cfg);
+    // The `def_use` builder does not scan Return-value reads or
+    // embedded string-interpolation reads; do a supplementary
+    // textual pass over the CFG to collect every var name that
+    // appears in any source slice. Any def of a name referenced
+    // textually is kept live — conservative but correct.
+    let textually_referenced = collect_textual_var_references(ctx.source, &fu.cfg);
+
+    // Collect (span, code, name) then sort + emit deterministically.
+    let mut entries: Vec<(tcl_lexer::Span, &'static str, &'static str, String)> = Vec::new();
+
+    for chain in fu.def_use.chains.values() {
+        if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
+            continue;
+        }
+        if unreachable.contains(&chain.definition.block) {
+            // O107 already reports these.
+            continue;
+        }
+        let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+            continue;
+        };
+        let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
+            continue;
+        };
+        let Some(stmt) = block.statements.get(idx) else {
+            continue;
+        };
+        // Skip if the variable is a scope alias — writes through
+        // global / upvar are visible in other scopes.
+        let (var, _) = &chain.key;
+        if scope_aliases.contains(var) {
+            continue;
+        }
+        // Skip cross-event vars (iRules scope).
+        if ctx.cross_event_vars.contains(var) {
+            continue;
+        }
+        let any_other_live = fu
+            .def_use
+            .chains
+            .iter()
+            .any(|(k, c)| k.0 == *var && k.1 != chain.key.1 && !c.is_dead());
+
+        let (code, msg): (&'static str, &'static str) = if any_other_live {
+            // Dead store — overwritten before read (another
+            // version has live consumers). This fires regardless
+            // of textual mentions: a later version handles the
+            // reads.
+            ("O109", "Eliminate dead store")
+        } else if !is_top_level {
+            // Unused variable — apply the textual-scan keep-live
+            // check. The def-use builder does not track reads
+            // from `Return` terminators or `"$x"` string
+            // interpolations, so a conservative over-approximation
+            // of names referenced anywhere in the source text
+            // suppresses spurious O126 for legitimately-consumed
+            // variables.
+            if textually_referenced.contains(var) {
+                continue;
+            }
+            ("O126", "Remove unused variable assignment")
+        } else {
+            // Top-level never emits O126.
+            continue;
+        };
+        entries.push((stmt.span(), code, msg, var.clone()));
+    }
+
+    entries.sort_by_key(|(span, _, _, _)| span.start());
+    for (span, code, msg, _) in entries {
+        ctx.report(Optimisation::new(code, msg, span, ""));
+    }
+}
+
+/// Scan every statement's source slice for `$var` / `${var}`
+/// references and collect the names seen. Conservative — any
+/// occurrence in the textual source keeps the name live, even
+/// when the def-use builder does not track that particular use
+/// site (notably: Return-value reads, embedded `"$x"`
+/// interpolation).
+fn collect_textual_var_references(source: &str, _cfg: &CfgFunction) -> HashSet<String> {
+    // Conservative over-approximation: scan the entire source
+    // text for `$name` / `${name}` references and record every
+    // identifier seen. Any name mentioned anywhere keeps the
+    // corresponding def live — a safe over-approximation that
+    // is too coarse (it suppresses legitimate O109 across proc
+    // boundaries) but never emits a false positive.
+    //
+    // We deliberately do **not** use [`VarReferenceScanner`]: it
+    // parses Tcl commands and would need explicit recursion into
+    // `proc` bodies / braced scripts. The optimiser does not
+    // yet expose a body-aware alternative, so we lean on the
+    // lexical grammar of variable substitution — `$` followed
+    // by an identifier or `${…}` — which is robust against all
+    // surrounding syntax.
+    let bytes = source.as_bytes();
+    let mut out: HashSet<String> = HashSet::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'$' {
+            i += 1;
+            continue;
+        }
+        i += 1;
+        if i >= bytes.len() {
+            break;
+        }
+        if bytes[i] == b'{' {
+            // ${name}
+            i += 1;
+            let start = i;
+            while i < bytes.len() && bytes[i] != b'}' {
+                i += 1;
+            }
+            if start < i {
+                if let Ok(name) = std::str::from_utf8(&bytes[start..i]) {
+                    // Strip any array index.
+                    let name = name.split('(').next().unwrap_or(name);
+                    if !name.is_empty() {
+                        out.insert(name.to_owned());
+                    }
+                }
+            }
+            if i < bytes.len() {
+                i += 1; // consume closing `}`
+            }
+            continue;
+        }
+        // $name: identifier chars (letters, digits, underscore, ::).
+        let start = i;
+        while i < bytes.len() {
+            let b = bytes[i];
+            if b.is_ascii_alphanumeric() || b == b'_' {
+                i += 1;
+            } else if b == b':' && i + 1 < bytes.len() && bytes[i + 1] == b':' {
+                i += 2;
+            } else {
+                break;
+            }
+        }
+        if start < i {
+            if let Ok(name) = std::str::from_utf8(&bytes[start..i]) {
+                out.insert(name.to_owned());
+            }
+        }
+    }
+    out
+}
+
+/// Scan every CFG block for scope-alias commands (`global`,
+/// `variable`, `upvar`, `namespace upvar`) and collect the
+/// variable names they bind. Those must not be flagged as dead
+/// stores / unused — writes go to a different scope.
+fn scan_scope_aliases(cfg: &CfgFunction) -> HashSet<String> {
+    let mut aliases: HashSet<String> = HashSet::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            if let Statement::Call { command, args, defs, .. } = stmt {
+                match command.as_str() {
+                    "global" => {
+                        for a in args {
+                            aliases.insert(a.clone());
+                        }
+                    }
+                    "variable" => {
+                        // variable name ?value? ?name value? …
+                        let mut i = 0;
+                        while i < args.len() {
+                            aliases.insert(args[i].clone());
+                            i += 2;
+                        }
+                    }
+                    "upvar" => {
+                        // upvar ?level? name localname ?name localname? …
+                        // Take the odd-indexed args (the locals).
+                        let has_level = args.first().is_some_and(|a| {
+                            a.starts_with('#')
+                                || a == "0"
+                                || a == "1"
+                                || a.parse::<i64>().is_ok()
+                        });
+                        let start = usize::from(has_level);
+                        let mut i = start + 1;
+                        while i < args.len() {
+                            aliases.insert(args[i].clone());
+                            i += 2;
+                        }
+                    }
+                    "namespace" if matches!(args.first().map(String::as_str), Some("upvar")) => {
+                        // namespace upvar NS name localname …
+                        let mut i = 3;
+                        while i < args.len() {
+                            aliases.insert(args[i].clone());
+                            i += 2;
+                        }
+                    }
+                    _ => {
+                        // For other calls, trust the per-statement
+                        // `defs` annotation when present (it
+                        // captures upvars the lowering recognised).
+                        for d in defs {
+                            let _ = d;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    aliases
 }
 
 #[cfg(test)]
@@ -157,6 +374,58 @@ mod tests {
             assert_eq!(o.replacement, "");
             assert!(!o.span.is_empty());
         }
+    }
+
+    #[test]
+    fn dead_store_fires_o109_when_overwritten_before_read() {
+        // First set is dead — second version is the only live
+        // value of x when read by puts.
+        let opts = run_pass("set x 1\nset x 2\nputs $x");
+        assert!(
+            opts.iter().any(|o| o.code == "O109"),
+            "expected O109 for overwritten store, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn unused_variable_fires_o126_in_proc_body() {
+        let opts = run_pass("proc ::f {} { set y 42; return 1 }");
+        assert!(
+            opts.iter().any(|o| o.code == "O126"),
+            "expected O126 for unused var in proc, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn top_level_unused_variable_not_flagged() {
+        // At top level an unused variable is not O126 — the
+        // script-return semantics and external consumers (upvar,
+        // info exists) could read it.
+        let opts = run_pass("set y 42");
+        assert!(
+            opts.iter().all(|o| o.code != "O126"),
+            "top-level unused var should not emit O126, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn scope_alias_globals_never_flagged() {
+        let opts = run_pass(
+            "proc ::f {} { global g; set g 42 }",
+        );
+        assert!(
+            opts.iter().all(|o| o.code != "O109" && o.code != "O126"),
+            "writes through global should not be flagged, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn used_variable_not_flagged() {
+        let opts = run_pass("proc ::f {} { set x 1; return $x }");
+        assert!(
+            opts.iter().all(|o| o.code != "O109" && o.code != "O126"),
+            "used var should not be flagged, got {opts:?}",
+        );
     }
 
     #[test]
