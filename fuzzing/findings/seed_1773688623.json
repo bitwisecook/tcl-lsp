@@ -1,0 +1,23 @@
+{
+  "seed": 1773688623,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "tclsh(tclsh9.0) crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "expected integer but got \"1.0984475253442325e-94\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "tclsh(tclsh9.0) crashed but vm_opt did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "expected integer but got \"1.0984475253442325e-94\"",
+      "detail_b": "TIMEOUT"
+    }
+  ],
+  "fixed": true,
+  "fix": "Previously fixed in earlier commits"
+}

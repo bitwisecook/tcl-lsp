@@ -1,0 +1,25 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xca8bc500, refCt 1, epoch 0, interp 0x17dac60 (epoch 0)
+  Source "set cleanup 0\ntry {\n    expr {1/0}\n} on error {msg} {\n "
+  Cmds 2, src 103, inst 24, litObjs 9, aux 0, stkDepth 8, code/src 2.56
+  Code 264 = header 160+inst 24+litObj 72+exc 0+aux 0+cmdMap 8
+  Proc 0xcb878c00, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "cleanup"
+  Commands 2:
+      1: pc 0-4, src 0-12   	   2: pc 5-22, src 14-101
+  Command 1: "set cleanup 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "cleanup"
+    (4) pop 
+  Command 2: "try {\n    expr {1/0}\n} on error {msg} {\n    set err $ms"
+    (5) push1 1  	# "try"
+    (7) push1 2  	# "\n    expr {1/0}\n"
+    (9) push1 3  	# "on"
+    (11) push1 4  	# "error"
+    (13) push1 5  	# "msg"
+    (15) push1 6  	# "\n    set err $msg\n"
+    (17) push1 7  	# "finally"
+    (19) push1 8  	# "\n    set cleanup 1\n"
+    (21) invokeStk1 8 
+    (23) done 

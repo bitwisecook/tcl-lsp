@@ -1,0 +1,20 @@
+ByteCode 0xbed1e6610, refCt 1, epoch 21, interp 0xbed01c010 (epoch 21)
+  Source "set x 0\nincr x\nincr x ..."
+  Cmds 3, src 24, inst 16, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-6        2: pc 6-10, src 8-13
+      3: pc 11-14, src 15-22
+  Command 1: "set x 0..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "incr x..."
+    (6) push1 0 	# "x"
+    (8) incrStkImm +1 
+    (10) pop 
+  Command 3: "incr x 5..."
+    (11) push1 0 	# "x"
+    (13) incrStkImm +5 
+    (15) done 
+

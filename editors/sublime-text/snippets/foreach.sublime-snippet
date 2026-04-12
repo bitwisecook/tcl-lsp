@@ -1,0 +1,8 @@
+<snippet>
+	<content><![CDATA[foreach ${1:item} ${2:\$listVar} {
+    ${0:# body}
+}]]></content>
+	<tabTrigger>tcl-foreach</tabTrigger>
+	<scope>source.tcl, source.irule</scope>
+	<description>Create a foreach loop</description>
+</snippet>

@@ -1,0 +1,25 @@
+ByteCode 0x0x7988c2410, refCt 1, epoch 3, interp 0x0x798c20010 (epoch 3)
+  Source "expr {1000000 * 1000000}\nexpr {2 ** 32}\nexpr {0xFFFFFFF"
+  Cmds 4, src 78, inst 44, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Commands 4:
+      1: pc 0-2, src 0-23   	   2: pc 3-14, src 25-38
+      3: pc 15-26, src 40-60   	   4: pc 27-42, src 62-76
+  Command 1: "expr {1000000 * 1000000}"
+    (0) push1 0 	# "1000000000000"
+    (2) pop 
+  Command 2: "expr {2 ** 32}"
+    (3) startCommand +11 1 	# next cmd at pc 14
+    (12) push1 1 	# "4294967296"
+    (14) pop 
+  Command 3: "expr {0xFFFFFFFF + 1}"
+    (15) startCommand +11 1 	# next cmd at pc 26
+    (24) push1 2 	# "4294967296"
+    (26) pop 
+  Command 4: "expr {wide(42)}"
+    (27) startCommand +16 1 	# next cmd at pc 43
+    (36) push1 3 	# "tcl::mathfunc::wide"
+    (38) push1 4 	# "42"
+    (40) invokeStk1 2 
+    (42) tryCvtToNumeric 
+    (43) done 
+

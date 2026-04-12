@@ -1,0 +1,39 @@
+ByteCode ::top, 23 instructions, 60 bytes, 8 literals, 0 variables
+  Literals:
+    0: "s"
+    1: "Hello World"
+    2: "::tcl::string::map"
+    3: "Hello Goodbye World Everyone"
+    4: "::tcl::string::repeat"
+    5: "ab"
+    6: "3"
+    7: "::tcl::string::reverse"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "s"
+    (2) push1 1	# "Hello World"
+    (4) storeStk
+    (5) pop
+    (6) startCommand +18 1	# next cmd at pc 24, 1 cmds start here
+    (15) push1 2	# "::tcl::string::map"
+    (17) push1 3	# "Hello Goodbye World Everyone"
+    (19) push1 0	# "s"
+    (21) loadStk
+    (22) invokeStk1 3
+  # cmd_end_1:
+    (24) pop
+    (25) startCommand +17 1	# next cmd at pc 42, 1 cmds start here
+    (34) push1 4	# "::tcl::string::repeat"
+    (36) push1 5	# "ab"
+    (38) push1 6	# "3"
+    (40) invokeStk1 3
+  # cmd_end_2:
+    (42) pop
+    (43) startCommand +16 1	# next cmd at pc 59, 1 cmds start here
+    (52) push1 7	# "::tcl::string::reverse"
+    (54) push1 0	# "s"
+    (56) loadStk
+    (57) invokeStk1 2
+  # cmd_end_3:
+  # exit_2:
+    (59) done

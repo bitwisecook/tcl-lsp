@@ -1,0 +1,24 @@
+{
+  "seed": 1772875374,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr idx\"\n    (\"default\" arm line 83)\n    invoked from within\n\"switch -- 272 {\n    \"x,2! hgw6\" {\n        switch -- 0 {\n            o {\n                string toupper \"8\"\n                if {(~(23 <= 68))} {\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpydvgfslw.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got a list\n    while executing\n\"incr idx\"\n    (\"default\" arm line 83)\n    invoked from within\n\"switch -- 272 {\n    \"x,2! hgw6\" {\n        switch -- 0 {\n            o {\n                string toupper \"8\"\n                if {(~(23 <= 68))} {\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpydvgfslw.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "list detection in integer parsing",
+  "category": "expected-integer-list"
+}

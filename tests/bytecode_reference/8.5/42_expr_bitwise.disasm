@@ -1,0 +1,31 @@
+ByteCode 0x0x70a814a10, refCt 1, epoch 3, interp 0x0x70ac20010 (epoch 3)
+  Source "expr {0xFF & 0x0F}\nexpr {0x0F | 0xF0}\nexpr {0xFF ^ 0x0F"
+  Cmds 6, src 97, inst 63, litObjs 6, aux 0, stkDepth 1, code/src 0.00
+  Commands 6:
+      1: pc 0-2, src 0-17   	   2: pc 3-14, src 19-36
+      3: pc 15-26, src 38-55   	   4: pc 27-38, src 57-65
+      5: pc 39-50, src 67-79   	   6: pc 51-61, src 81-95
+  Command 1: "expr {0xFF & 0x0F}"
+    (0) push1 0 	# "15"
+    (2) pop 
+  Command 2: "expr {0x0F | 0xF0}"
+    (3) startCommand +11 1 	# next cmd at pc 14
+    (12) push1 1 	# "255"
+    (14) pop 
+  Command 3: "expr {0xFF ^ 0x0F}"
+    (15) startCommand +11 1 	# next cmd at pc 26
+    (24) push1 2 	# "240"
+    (26) pop 
+  Command 4: "expr {~0}"
+    (27) startCommand +11 1 	# next cmd at pc 38
+    (36) push1 3 	# "-1"
+    (38) pop 
+  Command 5: "expr {1 << 4}"
+    (39) startCommand +11 1 	# next cmd at pc 50
+    (48) push1 4 	# "16"
+    (50) pop 
+  Command 6: "expr {256 >> 4}"
+    (51) startCommand +11 1 	# next cmd at pc 62
+    (60) push1 5 	# "16"
+    (62) done 
+

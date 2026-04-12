@@ -1,0 +1,19 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xcccb8600, refCt 1, epoch 0, interp 0x5022e20 (epoch 0)
+  Source "set result [lmap x {1 2 3 4 5} {\n    expr {$x * $x}\n}]\n"
+  Cmds 2, src 55, inst 13, litObjs 4, aux 0, stkDepth 4, code/src 3.93
+  Code 216 = header 160+inst 13+litObj 32+exc 0+aux 0+cmdMap 8
+  Proc 0xcd0bd080, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "result"
+  Commands 2:
+      1: pc 0-11, src 0-53   	   2: pc 0-9, src 12-52
+  Command 1: "set result [lmap x {1 2 3 4 5} {\n    expr {$x * $x}\n}]"
+  Command 2: "lmap x {1 2 3 4 5} {\n    expr {$x * $x}\n}"
+    (0) push1 0  	# "lmap"
+    (2) push1 1  	# "x"
+    (4) push1 2  	# "1 2 3 4 5"
+    (6) push1 3  	# "\n    expr {$x * $x}\n"
+    (8) invokeStk1 4 
+    (10) storeScalar1 0	# var "result"
+    (12) done 

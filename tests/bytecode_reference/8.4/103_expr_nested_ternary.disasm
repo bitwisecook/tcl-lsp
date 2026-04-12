@@ -1,0 +1,52 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xacfc000, refCt 1, epoch 0, interp 0xc76e20 (epoch 0)
+  Source "expr {1 ? 2 ? 3 : 4 : 5}\nexpr {0 ? 42 : 1 ? 99 : 0}\nset"
+  Cmds 4, src 83, inst 62, litObjs 10, aux 0, stkDepth 1, code/src 3.86
+  Code 320 = header 160+inst 62+litObj 80+exc 0+aux 0+cmdMap 16
+  Proc 0xb0bd0c0, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "a"
+  Commands 4:
+      1: pc 0-21, src 0-23   	   2: pc 22-43, src 25-50
+      3: pc 44-48, src 52-61   	   4: pc 49-60, src 63-81
+  Command 1: "expr {1 ? 2 ? 3 : 4 : 5}"
+    (0) push1 0  	# "1"
+    (2) jumpFalse1 16  	# pc 18
+    (4) push1 1  	# "2"
+    (6) jumpFalse1 7  	# pc 13
+    (8) push1 2  	# "3"
+    (10) tryCvtToNumeric 
+    (11) jump1 5  	# pc 16
+    (13) push1 3  	# "4"
+    (15) tryCvtToNumeric 
+    (16) jump1 5  	# pc 21
+    (18) push1 4  	# "5"
+    (20) tryCvtToNumeric 
+    (21) pop 
+  Command 2: "expr {0 ? 42 : 1 ? 99 : 0}"
+    (22) push1 5  	# "0"
+    (24) jumpFalse1 7  	# pc 31
+    (26) push1 6  	# "42"
+    (28) tryCvtToNumeric 
+    (29) jump1 14  	# pc 43
+    (31) push1 0  	# "1"
+    (33) jumpFalse1 7  	# pc 40
+    (35) push1 7  	# "99"
+    (37) tryCvtToNumeric 
+    (38) jump1 5  	# pc 43
+    (40) push1 5  	# "0"
+    (42) tryCvtToNumeric 
+    (43) pop 
+  Command 3: "set a \"no\""
+    (44) push1 8  	# "no"
+    (46) storeScalar1 0	# var "a"
+    (48) pop 
+  Command 4: "expr {1 ? $a : -54}"
+    (49) push1 0  	# "1"
+    (51) jumpFalse1 7  	# pc 58
+    (53) loadScalar1 0	# var "a"
+    (55) tryCvtToNumeric 
+    (56) jump1 5  	# pc 61
+    (58) push1 9  	# "54"
+    (60) uminus 
+    (61) done 

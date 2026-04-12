@@ -1,0 +1,46 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test"
+    2: ""
+    3: "\n    set ::a(1) 1\n    set ::a(2) $:..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set ::a(1) 1\n    set ::a(2) $:..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test, 21 instructions, 47 bytes, 3 literals, 0 variables
+  Literals:
+    0: "::a"
+    1: "1"
+    2: "2"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "::a"
+    (2) push1 1	# "1"
+    (4) push1 1	# "1"
+    (6) storeArrayStk
+    (7) pop
+    (8) startCommand +19 1	# next cmd at pc 27, 1 cmds start here
+    (17) push1 0	# "::a"
+    (19) push1 2	# "2"
+    (21) push1 0	# "::a"
+    (23) push1 1	# "1"
+    (25) loadArrayStk
+    (26) storeArrayStk
+  # cmd_end_1:
+    (27) pop
+    (28) startCommand +18 1	# next cmd at pc 46, 1 cmds start here
+    (37) push1 0	# "::a"
+    (39) push1 0	# "::a"
+    (41) push1 1	# "1"
+    (43) loadArrayStk
+    (44) loadArrayStk
+    (45) done
+  # ret_end_2:
+    (46) done

@@ -1,0 +1,9 @@
+ByteCode 0x0x99ed15510, refCt 1, epoch 3, interp 0x0x99ec20010 (epoch 3)
+  Source "expr {2 + 3}\n"
+  Cmds 1, src 13, inst 3, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Commands 1:
+      1: pc 0-1, src 0-11
+  Command 1: "expr {2 + 3}"
+    (0) push1 0 	# "5"
+    (2) done 
+

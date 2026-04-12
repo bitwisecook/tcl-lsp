@@ -1,0 +1,32 @@
+{
+  "seed": 1772845928,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"key\": no such variable\n    while executing\n\"expr {(((36 << $key) == (-49 && 63)) * (($tmp ? 90 : 1) ? (49 - 96) : (~-79)))}\"\n    (\"while\" body line 39)\n    invoked from within\n\"while {$tmp < 4} {\n    if {$tmp != -6} {\n        expr {1}\n        switch -- \"4l9:+w@lwbb4e99_mcuc\" {\n            958 {\n                set tmp 212\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkdnby8xp.tcl\" line 2)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"key\": no such variable\n    while executing\n\"expr {(((36 << $key) == (-49 && 63)) * (($tmp ? 90 : 1) ? (49 - 96) : (~-79)))}\"\n    (\"while\" body line 39)\n    invoked from within\n\"while {$tmp < 4} {\n    if {$tmp != -6} {\n        expr {1}\n        switch -- \"4l9:+w@lwbb4e99_mcuc\" {\n            958 {\n                set tmp 212\n   ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkdnby8xp.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

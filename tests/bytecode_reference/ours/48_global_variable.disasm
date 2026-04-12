@@ -1,0 +1,44 @@
+ByteCode ::top, 10 instructions, 17 bytes, 6 literals, 0 variables
+  Literals:
+    0: "::gvar"
+    1: "100"
+    2: "proc"
+    3: "readglobal"
+    4: ""
+    5: "\n    global gvar\n    return $gvar\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "::gvar"
+    (2) push1 1	# "100"
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "proc"
+    (8) push1 3	# "readglobal"
+    (10) push1 4	# ""
+    (12) push1 5	# "\n    global gvar\n    return $gvar\n"
+    (14) invokeStk1 4	# proc
+  # cmd_end_1:
+  # exit_2:
+    (16) done
+
+ByteCode ::readglobal, 11 instructions, 26 bytes, 3 literals, 1 variables
+  Literals:
+    0: "::"
+    1: "gvar"
+    2: ""
+  Local variables:
+    %v0: "gvar"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "::"
+    (2) push1 1	# "gvar"
+    (4) nsupvar %v0	# var "gvar"
+    (9) pop
+    (10) nop
+    (11) nop
+    (12) nop
+    (13) startCommand +12 1	# next cmd at pc 25, 1 cmds start here
+    (22) loadScalar1 %v0	# var "gvar"
+    (24) done
+  # ret_end_1:
+    (25) done

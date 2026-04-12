@@ -1,0 +1,12 @@
+ByteCode 0x0x7190b6e10, refCt 1, epoch 17, interp 0x0x71901c010 (epoch 17)
+  Source "if {1} {\n    set x 1\n} else {\n    set x 2..."
+  Cmds 2, src 44, inst 6, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Commands 2:
+      1: pc 0-4, src 0-42        2: pc 0-4, src 13-19
+  Command 1: "if {1} {\n    set x 1\n} else {\n    set x ..."
+  Command 2: "set x 1..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "1"
+    (4) storeStk 
+    (5) done 
+

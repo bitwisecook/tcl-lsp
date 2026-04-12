@@ -1,0 +1,18 @@
+ByteCode 0x9a343c410, refCt 1, epoch 21, interp 0x9a301c010 (epoch 21)
+  Source "list a b c\nlist\nlist \"hello world\" {a b..."
+  Cmds 3, src 43, inst 9, litObjs 3, aux 0, stkDepth 1, code/src 0.00
+  Commands 3:
+      1: pc 0-2, src 0-9        2: pc 3-5, src 11-14
+      3: pc 6-7, src 16-41
+  Command 1: "list a b c..."
+    (0) nop 
+    (1) nop 
+    (2) nop 
+  Command 2: "list..."
+    (3) nop 
+    (4) nop 
+    (5) nop 
+  Command 3: "list \"hello world\" {a b}..."
+    (6) push1 2 	# "{hello world} {a b} c"
+    (8) done 
+

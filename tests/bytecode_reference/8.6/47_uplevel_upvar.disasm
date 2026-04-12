@@ -1,0 +1,69 @@
+ByteCode 0x0x89c4b7a10, refCt 1, epoch 17, interp 0x0x89c410010 (epoch 17)
+  Source "proc setvar {name value} {\n    upvar 1 $name var\n    ..."
+  Cmds 2, src 131, inst 22, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-10, src 0-68        2: pc 11-20, src 70-129
+  Command 1: "proc setvar {name value} {\n    upvar 1 $name var\n    ..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "setvar"
+    (4) push1 2 	# "name value"
+    (6) push1 3 	# "\n    upvar 1 $name var\n    set var $va..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc getvar {name} {\n    upvar 1 $name var\n    return..."
+    (11) push1 0 	# "proc"
+    (13) push1 4 	# "getvar"
+    (15) push1 5 	# "name"
+    (17) push1 6 	# "\n    upvar 1 $name var\n    return $va..."
+    (19) invokeStk1 4 
+    (21) done 
+
+
+ByteCode 0x0x89cc2b110, refCt 1, epoch 72, interp 0x0x89c495810 (epoch 72)
+  Source "\n    upvar 1 $name var\n    return $va..."
+  File "scripts/reference_disasm.tcl" Line 34
+  Cmds 2, src 39, inst 26, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x89cc24a90, refCt 1, args 1, compiled locals 2
+      slot 0, scalar, arg, "name"
+      slot 1, scalar, "var"
+  Commands 2:
+      1: pc 0-12, src 5-21        2: pc 13-24, src 27-37
+  Command 1: "upvar 1 $name var..."
+    (0) push1 0 	# "1"
+    (2) loadScalar1 %v0 	# var "name"
+    (4) upvar %v1 	# var "var"
+    (9) pop 
+    (10) nop 
+    (11) nop 
+    (12) nop 
+  Command 2: "return $var..."
+    (13) startCommand +12 1 	# next cmd at pc 25, 1 cmds start here
+    (22) loadScalar1 %v1 	# var "var"
+    (24) done 
+    (25) done 
+
+
+ByteCode 0x0x89cc2b610, refCt 1, epoch 72, interp 0x0x89c495810 (epoch 72)
+  Source "\n    upvar 1 $name var\n    set var $valu..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 2, src 42, inst 27, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x89c4b0490, refCt 1, args 2, compiled locals 3
+      slot 0, scalar, arg, "name"
+      slot 1, scalar, arg, "value"
+      slot 2, scalar, "var"
+  Commands 2:
+      1: pc 0-12, src 5-21        2: pc 13-25, src 27-40
+  Command 1: "upvar 1 $name var..."
+    (0) push1 0 	# "1"
+    (2) loadScalar1 %v0 	# var "name"
+    (4) upvar %v2 	# var "var"
+    (9) pop 
+    (10) nop 
+    (11) nop 
+    (12) nop 
+  Command 2: "set var $value..."
+    (13) startCommand +13 1 	# next cmd at pc 26, 1 cmds start here
+    (22) loadScalar1 %v1 	# var "value"
+    (24) storeScalar1 %v2 	# var "var"
+    (26) done 
+

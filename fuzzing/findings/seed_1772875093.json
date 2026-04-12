@@ -1,0 +1,24 @@
+{
+  "seed": 1772875093,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "invalid command name \"a-z\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"while\" body line 113)\n    invoked from within\n\"while {$count < 5} {\n    lassign {-74.85} count\n    switch -- -88 {\n        -612 {\n            set msg \"cj?zu-=g;d=+aetl\"\n            switch -- \"0--on...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpu3nel99w.tcl\" line 80)"
+    }
+  ],
+  "fixed": true,
+  "fix": "command resolution errors now propagate correctly",
+  "category": "invalid-command"
+}

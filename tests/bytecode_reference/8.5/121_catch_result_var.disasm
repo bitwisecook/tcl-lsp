@@ -1,0 +1,45 @@
+ByteCode 0x0xae8d14b10, refCt 1, epoch 3, interp 0x0xae8c20010 (epoch 3)
+  Source "proc foo {} {\n    set fail [catch {\n        return 1\n  "
+  Cmds 1, src 79, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-77
+  Command 1: "proc foo {} {\n    set fail [catch {\n        return 1\n  "
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "foo"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set fail [catch {\n        return 1\n"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xae8cfa810, refCt 1, epoch 3, interp 0x0xae8d04010 (epoch 3)
+  Source "\n    set fail [catch {\n        return 1\n    }]\n    retu"
+  Cmds 4, src 64, inst 50, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0xae8cf5010, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "fail"
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-26, catch 32
+  Commands 4:
+      1: pc 0-36, src 5-45   	   2: pc 0-33, src 15-44
+      3: pc 5-26, src 31-38   	   4: pc 37-48, src 51-62
+  Command 1: "set fail [catch {\n        return 1\n    }]"
+  Command 2: "catch {\n        return 1\n    }"
+    (0) beginCatch4 0 
+  Command 3: "return 1"
+    (5) startCommand +22 1 	# next cmd at pc 27
+    (14) push1 0 	# "1"
+    (16) push1 1 	# ""
+    (18) returnImm +0 1 
+    (27) pop 
+    (28) push1 2 	# "0"
+    (30) jump1 +3 	# pc 33
+    (32) pushReturnCode 
+    (33) endCatch 
+    (34) storeScalar1 %v0 	# var "fail"
+    (36) pop 
+  Command 4: "return $fail"
+    (37) startCommand +12 1 	# next cmd at pc 49
+    (46) loadScalar1 %v0 	# var "fail"
+    (48) done 
+    (49) done 
+

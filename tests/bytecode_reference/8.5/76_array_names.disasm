@@ -1,0 +1,40 @@
+ByteCode 0x0x7bcd1a610, refCt 1, epoch 3, interp 0x0x7bcc20010 (epoch 3)
+  Source "set arr(one) 1\nset arr(two) 2\nset arr(three) 3\narray na"
+  Cmds 5, src 78, inst 60, litObjs 10, aux 0, stkDepth 3, code/src 0.00
+  Commands 5:
+      1: pc 0-7, src 0-13   	   2: pc 8-24, src 15-28
+      3: pc 25-41, src 30-45   	   4: pc 42-50, src 47-61
+      5: pc 51-58, src 63-76
+  Command 1: "set arr(one) 1"
+    (0) push1 0 	# "arr"
+    (2) push1 1 	# "one"
+    (4) push1 2 	# "1"
+    (6) storeArrayStk 
+    (7) pop 
+  Command 2: "set arr(two) 2"
+    (8) startCommand +16 1 	# next cmd at pc 24
+    (17) push1 0 	# "arr"
+    (19) push1 3 	# "two"
+    (21) push1 4 	# "2"
+    (23) storeArrayStk 
+    (24) pop 
+  Command 3: "set arr(three) 3"
+    (25) startCommand +16 1 	# next cmd at pc 41
+    (34) push1 0 	# "arr"
+    (36) push1 5 	# "three"
+    (38) push1 6 	# "3"
+    (40) storeArrayStk 
+    (41) pop 
+  Command 4: "array names arr"
+    (42) push1 7 	# "array"
+    (44) push1 8 	# "names"
+    (46) push1 0 	# "arr"
+    (48) invokeStk1 3 
+    (50) pop 
+  Command 5: "array size arr"
+    (51) push1 7 	# "array"
+    (53) push1 9 	# "size"
+    (55) push1 0 	# "arr"
+    (57) invokeStk1 3 
+    (59) done 
+

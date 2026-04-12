@@ -1,0 +1,23 @@
+TCLSH    /usr/local/bin/tclsh8.4
+VERSION  8.4.20
+FILE     unknown.test
+DATE     2026-03-03T12:54:48
+---
+PASS unknown-1.1
+FAIL unknown-2.1
+FAIL unknown-2.1 calling "unknown" command
+FAIL unknown-2.2
+FAIL unknown-2.2 calling "unknown" command with lots of args
+FAIL unknown-2.3
+FAIL unknown-2.3 calling "unknown" command with lots of args
+FAIL unknown-2.4
+FAIL unknown-2.4 calling "unknown" command with lots of args
+FAIL unknown-3.1
+FAIL unknown-3.1 argument quoting in calls to "unknown"
+FAIL unknown-4.1
+FAIL unknown-4.1 errors in "unknown" procedure
+---
+TOTAL   13
+PASSED  1
+SKIPPED 0
+FAILED  12

@@ -1,0 +1,24 @@
+{
+  "seed": 1772875209,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"if {max((34 >> -31), 35)} {\n        set b [expr {-80}]\n        expr {83}\n    }\"\n    (\"for\" body line 6)\n    invoked from within\n\"for {set b 0} {$b < 6} {incr b} {\n    string map {a b c d} \"np,mpqcj;k\"\n    set b 71\n    incr b 0\n    expr {min((!$b), ((--67) * (--81)))}\n    if {max...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpoqfaqiwt.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"if {max((34 >> -31), 35)} {\n        set b [expr {-80}]\n        expr {83}\n    }\"\n    (\"for\" body line 6)\n    invoked from within\n\"for {set b 0} {$b < 6} {incr b} {\n    string map {a b c d} \"np,mpqcj;k\"\n    set b 71\n    incr b 0\n    expr {min((!$b), ((--67) * (--81)))}\n    if {max...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpoqfaqiwt.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

@@ -1,0 +1,13 @@
+ByteCode 0x0xb04d15210, refCt 1, epoch 3, interp 0x0xb04c20010 (epoch 3)
+  Source "namespace eval myns {\n    variable count 0\n    variable"
+  Cmds 1, src 136, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-134
+  Command 1: "namespace eval myns {\n    variable count 0\n    variable"
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "eval"
+    (4) push1 2 	# "myns"
+    (6) push1 3 	# "\n    variable count 0\n    variable name "
+    (8) invokeStk1 4 
+    (10) done 
+

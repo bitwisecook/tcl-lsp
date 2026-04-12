@@ -1,0 +1,59 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "fib"
+    2: "n"
+    3: "\n    if {$n <= 1} {\n        return ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "fib"
+    (4) push1 2	# "n"
+    (6) push1 3	# "\n    if {$n <= 1} {\n        return ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::fib, 25 instructions, 71 bytes, 4 literals, 1 variables
+  Literals:
+    0: "1"
+    1: ""
+    2: "fib"
+    3: "2"
+  Local variables:
+    %v0: "n"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "n"
+    (2) push1 0	# "1"
+    (4) le
+    (5) jumpFalse1 +16	# pc 21
+  # if_then_3:
+    (7) startCommand +12 1	# next cmd at pc 19, 1 cmds start here
+    (16) loadScalar1 %v0	# var "n"
+    (18) done
+  # ret_end_1:
+    (19) jump1 +4	# pc 23
+  # if_next_4:
+    (21) push1 1	# ""
+  # if_end_2:
+    (23) pop
+    (24) startCommand +46 1	# next cmd at pc 70, 1 cmds start here
+    (33) push1 2	# "fib"
+    (35) startCommand +14 1	# next cmd at pc 49, 1 cmds start here
+    (44) loadScalar1 %v0	# var "n"
+    (46) push1 0	# "1"
+    (48) sub
+  # cmd_end_3:
+    (49) invokeStk1 2
+    (51) push1 2	# "fib"
+    (53) startCommand +14 1	# next cmd at pc 67, 1 cmds start here
+    (62) loadScalar1 %v0	# var "n"
+    (64) push1 3	# "2"
+    (66) sub
+  # cmd_end_4:
+    (67) invokeStk1 2
+    (69) add
+  # cmd_end_2:
+  # exit_5:
+    (70) done

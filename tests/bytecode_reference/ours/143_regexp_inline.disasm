@@ -1,0 +1,33 @@
+ByteCode ::top, 18 instructions, 39 bytes, 9 literals, 0 variables
+  Literals:
+    0: "result"
+    1: "regexp"
+    2: "-inline"
+    3: "(\w+)\s+(\w+)"
+    4: "hello world"
+    5: "all"
+    6: "-all"
+    7: "\d+"
+    8: "a1b23c456"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "result"
+    (2) push1 1	# "regexp"
+    (4) push1 2	# "-inline"
+    (6) push1 3	# "(\w+)\s+(\w+)"
+    (8) push1 4	# "hello world"
+    (10) invokeStk1 4
+    (12) storeStk
+    (13) pop
+    (14) startCommand +24 1	# next cmd at pc 38, 1 cmds start here
+    (23) push1 5	# "all"
+    (25) push1 1	# "regexp"
+    (27) push1 6	# "-all"
+    (29) push1 2	# "-inline"
+    (31) push1 7	# "\d+"
+    (33) push1 8	# "a1b23c456"
+    (35) invokeStk1 5
+    (37) storeStk
+  # cmd_end_1:
+  # exit_2:
+    (38) done

@@ -1,0 +1,19 @@
+ByteCode 0x0xa5ad14910, refCt 1, epoch 3, interp 0x0xa5ac20010 (epoch 3)
+  Source "list {*}{a \n b}\nlist {*}\"hello world\"\n"
+  Cmds 2, src 39, inst 21, litObjs 4, aux 0, stkDepth 3, code/src 0.00
+  Commands 2:
+      1: pc 0-11, src 0-15   	   2: pc 12-19, src 17-37
+  Command 1: "list {*}{a \n b}"
+    (0) expandStart 
+    (1) push1 0 	# "list"
+    (3) push1 1 	# "a \n b"
+    (5) expandStkTop 2 
+    (10) invokeExpanded 
+    (11) pop 
+  Command 2: "list {*}\"hello world\""
+    (12) push1 0 	# "list"
+    (14) push1 2 	# "hello"
+    (16) push1 3 	# "world"
+    (18) invokeStk1 3 
+    (20) done 
+

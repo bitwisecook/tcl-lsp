@@ -1,0 +1,55 @@
+ByteCode 0x0x926ce6b10, refCt 1, epoch 17, interp 0x0x926c28010 (epoch 17)
+  Source "proc countdown {n} {\n    set result {}\n    while {$n ..."
+  Cmds 1, src 131, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-129
+  Command 1: "proc countdown {n} {\n    set result {}\n    while {$n ..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "countdown"
+    (4) push1 2 	# "n"
+    (6) push1 3 	# "\n    set result {}\n    while {$n > 0} ..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x926cf8010, refCt 1, epoch 72, interp 0x0x926cd6010 (epoch 72)
+  Source "\n    set result {}\n    while {$n > 0} {\n        lapp..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 5, src 109, inst 66, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x926d3ad90, refCt 1, args 1, compiled locals 2
+      slot 0, scalar, arg, "n"
+      slot 1, scalar, "result"
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 16-41, continue 43, break 50
+  Commands 5:
+      1: pc 0-4, src 5-17        2: pc 5-52, src 23-88
+      3: pc 16-29, src 48-64        4: pc 30-41, src 74-82
+      5: pc 53-64, src 94-107
+  Command 1: "set result {}..."
+    (0) push1 0 	# ""
+    (2) storeScalar1 %v1 	# var "result"
+    (4) pop 
+  Command 2: "while {$n > 0} {\n        lappend result $n\n        in..."
+    (5) startCommand +47 1 	# next cmd at pc 52, 1 cmds start here
+    (14) jump1 +29 	# pc 43
+  Command 3: "lappend result $n..."
+    (16) startCommand +13 1 	# next cmd at pc 29, 1 cmds start here
+    (25) loadScalar1 %v0 	# var "n"
+    (27) lappendScalar1 %v1 	# var "result"
+    (29) pop 
+  Command 4: "incr n -1..."
+    (30) startCommand +12 1 	# next cmd at pc 42, 1 cmds start here
+    (39) incrScalar1Imm %v0 -1 	# var "n"
+    (42) pop 
+    (43) loadScalar1 %v0 	# var "n"
+    (45) push1 1 	# "0"
+    (47) gt 
+    (48) jumpTrue1 -32 	# pc 16
+    (50) push1 0 	# ""
+    (52) pop 
+  Command 5: "return $result..."
+    (53) startCommand +12 1 	# next cmd at pc 65, 1 cmds start here
+    (62) loadScalar1 %v1 	# var "result"
+    (64) done 
+    (65) done 
+

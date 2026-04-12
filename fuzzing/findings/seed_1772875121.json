@@ -1,0 +1,24 @@
+{
+  "seed": 1772875121,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "invalid command name \"a-z\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 5)\n    invoked from within\n\"foreach key {muxwhvp 27.36 false -74.69} {\n            append key -76.48\n            llength {}\n            lindex {268 371 -19.05 -55.07 602} 3\n     ...\"\n    (\"foreach\" body line 3)\n    invoked from within\n\"foreach key {true} {\n        string length \";kb+8tbdzgu,\"\n        foreach key {muxwhvp 27.36 false -74.69} {\n            append key -76.48\n           ...\"\n    (in namespace eval \"::foo\" "
+    }
+  ],
+  "fixed": true,
+  "fix": "command resolution errors now propagate correctly",
+  "category": "invalid-command"
+}

@@ -1,0 +1,51 @@
+ByteCode 0x0xa76cf2c10, refCt 1, epoch 17, interp 0x0xa76c28010 (epoch 17)
+  Source "set done 0\ntry {\n    error \"fail\"\n} finally {\n   ..."
+  Cmds 4, src 63, inst 81, litObjs 6, aux 0, stkDepth 6, code/src 0.00
+  Exception ranges 2, depth 1:
+      0: level 0, catch, pc 11-23, catch 26
+      1: level 0, catch, pc 34-38, catch 43
+  Commands 4:
+      1: pc 0-5, src 0-9        2: pc 6-79, src 11-61
+      3: pc 11-23, src 21-32        4: pc 34-38, src 50-59
+  Command 1: "set done 0..."
+    (0) push1 0 	# "done"
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "try {\n    error \"fail\"\n} finally {\n    set don..."
+    (6) beginCatch4 0 
+  Command 3: "error \"fail..."
+    (11) push1 2 	# "fail"
+    (13) push1 3 	# ""
+    (15) returnImm +1 0 
+    (24) jump1 +3 	# pc 27
+    (26) pushResult 
+    (27) pushReturnOpts 
+    (28) endCatch 
+    (29) beginCatch4 1 
+  Command 4: "set done 1..."
+    (34) push1 0 	# "done"
+    (36) push1 4 	# "1"
+    (38) storeStk 
+    (39) endCatch 
+    (40) pop 
+    (41) jump1 +33 	# pc 74
+    (43) pushResult 
+    (44) pushReturnOpts 
+    (45) pushReturnCode 
+    (46) endCatch 
+    (47) push1 4 	# "1"
+    (49) eq 
+    (50) jumpFalse1 +15 	# pc 65
+    (52) push1 5 	# "-during"
+    (54) over 3 
+    (59) list 2 
+    (64) listConcat 
+    (65) reverse 4 
+    (70) pop 
+    (71) pop 
+    (72) jump1 +7 	# pc 79
+    (74) reverse 2 
+    (79) returnStk 
+    (80) done 
+

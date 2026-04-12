@@ -1,0 +1,24 @@
+{
+  "seed": 1772875016,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"if {(~$b)} {\n            llength {-862 291 -199 -578 50.34 0}\n            string tolower \"_4v#mj.n=fu,?;iu;+v#\"\n        } else {\n            expr {$it...\"\n    invoked from within\n\"if {63} {\n    set n 0\n    while {$n < 2} {\n        if {(~$b)} {\n            llength {-862 291 -199 -578 50.34 0}\n            string tolower \"_4v#mj.n=...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpmi5aty6m.tcl\" line 123)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"if {(~$b)} {\n            llength {-862 291 -199 -578 50.34 0}\n            string tolower \"_4v#mj.n=fu,?;iu;+v#\"\n        } else {\n            expr {$it...\"\n    invoked from within\n\"if {63} {\n    set n 0\n    while {$n < 2} {\n        if {(~$b)} {\n            llength {-862 291 -199 -578 50.34 0}\n            string tolower \"_4v#mj.n=...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpmi5aty6m.tcl\" line 123)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

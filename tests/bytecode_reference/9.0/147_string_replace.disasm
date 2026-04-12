@@ -1,0 +1,35 @@
+ByteCode 0x86ad41e10, refCt 1, epoch 21, interp 0x86ac28010 (epoch 21)
+  Source "set s \"hello world\"\nset a [string replace $s 5 5 \"-..."
+  Cmds 5, src 94, inst 45, litObjs 7, aux 0, stkDepth 5, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-18        2: pc 6-19, src 20-52
+      3: pc 8-17, src 27-51        4: pc 20-43, src 54-92
+      5: pc 22-42, src 61-91
+  Command 1: "set s \"hello world..."
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "hello world"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set a [string replace $s 5 5 \"-\"..."
+    (6) push1 2 	# "a"
+  Command 3: "string replace $s 5 5 \"-..."
+    (8) push1 0 	# "s"
+    (10) loadStk 
+    (11) push1 3 	# "5"
+    (13) push1 3 	# "5"
+    (15) push1 4 	# "-"
+    (17) strreplace 
+    (18) storeStk 
+    (19) pop 
+  Command 4: "set b [string replace $s 0 4 \"goodbye\"..."
+    (20) push1 5 	# "b"
+  Command 5: "string replace $s 0 4 \"goodbye..."
+    (22) push1 0 	# "s"
+    (24) loadStk 
+    (25) push1 6 	# "goodbye"
+    (27) reverse 2 
+    (32) strrangeImm 5 end 
+    (41) strcat 2 
+    (43) storeStk 
+    (44) done 
+

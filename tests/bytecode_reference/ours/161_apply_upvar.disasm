@@ -1,0 +1,18 @@
+ByteCode ::top, 8 instructions, 13 bytes, 4 literals, 0 variables
+  Literals:
+    0: "x"
+    1: "10"
+    2: "apply"
+    3: "\u0000{} {\n    upvar 1 x local\n   ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "x"
+    (2) push1 1	# "10"
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "apply"
+    (8) push1 3	# "{} {\n    upvar 1 x local\n    incr l..."
+    (10) invokeStk1 2	# apply
+  # cmd_end_1:
+  # exit_2:
+    (12) done

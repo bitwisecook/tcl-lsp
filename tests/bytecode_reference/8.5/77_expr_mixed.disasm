@@ -1,0 +1,63 @@
+ByteCode 0x0x7548e6610, refCt 1, epoch 3, interp 0x0x754c20010 (epoch 3)
+  Source "set x 10\nset y 3\nexpr {($x + $y) * ($x - $y)}\nexpr {$x "
+  Cmds 5, src 94, inst 105, litObjs 7, aux 0, stkDepth 3, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-7   	   2: pc 6-20, src 9-15
+      3: pc 21-45, src 17-44   	   4: pc 46-72, src 46-68
+      5: pc 73-103, src 70-92
+  Command 1: "set x 10"
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "10"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set y 3"
+    (6) startCommand +14 1 	# next cmd at pc 20
+    (15) push1 2 	# "y"
+    (17) push1 3 	# "3"
+    (19) storeScalarStk 
+    (20) pop 
+  Command 3: "expr {($x + $y) * ($x - $y)}"
+    (21) startCommand +24 1 	# next cmd at pc 45
+    (30) push1 0 	# "x"
+    (32) loadScalarStk 
+    (33) push1 2 	# "y"
+    (35) loadScalarStk 
+    (36) add 
+    (37) push1 0 	# "x"
+    (39) loadScalarStk 
+    (40) push1 2 	# "y"
+    (42) loadScalarStk 
+    (43) sub 
+    (44) mult 
+    (45) pop 
+  Command 4: "expr {$x > 5 ? $x : $y}"
+    (46) startCommand +26 1 	# next cmd at pc 72
+    (55) push1 0 	# "x"
+    (57) loadScalarStk 
+    (58) push1 4 	# "5"
+    (60) gt 
+    (61) jumpFalse1 +7 	# pc 68
+    (63) push1 0 	# "x"
+    (65) loadScalarStk 
+    (66) jump1 +5 	# pc 71
+    (68) push1 2 	# "y"
+    (70) loadScalarStk 
+    (71) tryCvtToNumeric 
+    (72) pop 
+  Command 5: "expr {$x > 0 && $y > 0}"
+    (73) startCommand +31 1 	# next cmd at pc 104
+    (82) push1 0 	# "x"
+    (84) loadScalarStk 
+    (85) push1 5 	# "0"
+    (87) gt 
+    (88) jumpFalse1 +14 	# pc 102
+    (90) push1 2 	# "y"
+    (92) loadScalarStk 
+    (93) push1 5 	# "0"
+    (95) gt 
+    (96) jumpFalse1 +6 	# pc 102
+    (98) push1 6 	# "1"
+    (100) jump1 +4 	# pc 104
+    (102) push1 5 	# "0"
+    (104) done 
+

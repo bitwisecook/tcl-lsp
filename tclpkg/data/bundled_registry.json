@@ -1,0 +1,62 @@
+[
+  {
+    "name": "json",
+    "description": "JSON parser and encoder for Tcl",
+    "tags": ["serialisation", "data"],
+    "sources": [
+      {
+        "url": "https://github.com/tcltk-pkgs/json.git",
+        "method": "git",
+        "web": "https://github.com/tcltk-pkgs/json",
+        "author": "Tcl Community",
+        "license": "BSD-3-Clause",
+        "extension": false
+      }
+    ]
+  },
+  {
+    "name": "http",
+    "description": "HTTP client library for Tcl",
+    "tags": ["networking", "http"],
+    "sources": [
+      {
+        "url": "https://github.com/tcltk/tcl.git",
+        "method": "git",
+        "web": "https://github.com/tcltk/tcl",
+        "author": "Tcl Core Team",
+        "license": "TCL",
+        "extension": false
+      }
+    ]
+  },
+  {
+    "name": "tcltest",
+    "description": "Tcl test framework",
+    "tags": ["testing"],
+    "sources": [
+      {
+        "url": "https://github.com/tcltk/tcl.git",
+        "method": "git",
+        "web": "https://github.com/tcltk/tcl",
+        "author": "Tcl Core Team",
+        "license": "TCL",
+        "extension": false
+      }
+    ]
+  },
+  {
+    "name": "tdbc",
+    "description": "Tcl DataBase Connectivity — DBAPI for Tcl",
+    "tags": ["database", "sql"],
+    "sources": [
+      {
+        "url": "https://github.com/tcltk-pkgs/tdbc.git",
+        "method": "git",
+        "web": "https://github.com/tcltk-pkgs/tdbc",
+        "author": "Tcl Community",
+        "license": "TCL",
+        "extension": true
+      }
+    ]
+  }
+]

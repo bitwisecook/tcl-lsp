@@ -1,0 +1,49 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xfb0e0000, refCt 1, epoch 0, interp 0x5672c60 (epoch 0)
+  Source "set status2 [catch {\n    set status1 [catch {\n        e"
+  Cmds 5, src 94, inst 47, litObjs 3, aux 0, stkDepth 2, code/src 3.28
+  Code 308 = header 160+inst 47+litObj 24+exc 56+aux 0+cmdMap 20
+  Proc 0xfb0d4c00, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, "status2"
+      slot 1, scalar, "result2"
+      slot 2, scalar, "status1"
+      slot 3, scalar, "result1"
+  Exception ranges 2, depth 2:
+      0: level 1, catch, pc 5-30, catch 38
+      1: level 2, catch, pc 10-15, catch 23
+  Commands 5:
+      1: pc 0-45, src 0-92   	   2: pc 0-43, src 13-91
+      3: pc 5-30, src 25-81   	   4: pc 5-28, src 38-80
+      5: pc 10-15, src 54-66
+  Command 1: "set status2 [catch {\n    set status1 [catch {\n        e"
+  Command 2: "catch {\n    set status1 [catch {\n        error \"inner\"\n"
+    (0) beginCatch4 0 
+  Command 3: "set status1 [catch {\n        error \"inner\"\n    } result"
+  Command 4: "catch {\n        error \"inner\"\n    } result1"
+    (5) beginCatch4 1 
+  Command 5: "error \"inner\""
+    (10) push1 0  	# "error"
+    (12) push1 1  	# "inner"
+    (14) invokeStk1 2 
+    (16) storeScalar1 3	# var "result1"
+    (18) pop 
+    (19) push1 2  	# "0"
+    (21) jump1 7  	# pc 28
+    (23) pushResult 
+    (24) storeScalar1 3	# var "result1"
+    (26) pop 
+    (27) pushReturnCode 
+    (28) endCatch 
+    (29) storeScalar1 2	# var "status1"
+    (31) storeScalar1 1	# var "result2"
+    (33) pop 
+    (34) push1 2  	# "0"
+    (36) jump1 7  	# pc 43
+    (38) pushResult 
+    (39) storeScalar1 1	# var "result2"
+    (41) pop 
+    (42) pushReturnCode 
+    (43) endCatch 
+    (44) storeScalar1 0	# var "status2"
+    (46) done 
