@@ -389,9 +389,90 @@ pub fn try_eq_ne_string_compare_simplify_expr(expr: &str) -> (String, bool) {
 /// (no overflow / divide-by-zero concerns).
 #[allow(clippy::too_many_lines, clippy::match_same_arms)]
 fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
+    // Unary identities and double negations.
+    if let ExprNode::Unary { op, operand } = node {
+        // `+x` → `x` (arithmetic identity).
+        if matches!(op, crate::expr_ast::UnaryOp::Pos) {
+            return Some((**operand).clone());
+        }
+        // `~~x` → `x`, `!!x` → `x` (via the typed-bool canonical
+        // collapse). We also collapse `not not x` for iRules.
+        if matches!(
+            op,
+            crate::expr_ast::UnaryOp::BitNot
+                | crate::expr_ast::UnaryOp::Not
+                | crate::expr_ast::UnaryOp::WordNot
+        ) {
+            if let ExprNode::Unary {
+                op: inner_op,
+                operand: inner_operand,
+            } = operand.as_ref()
+            {
+                if op == inner_op {
+                    return Some((**inner_operand).clone());
+                }
+            }
+        }
+        // `!(x == y)` → `x != y` and its ne / lt / gt / le / ge
+        // / eq / ni / in / str-eq / str-ne inverses.
+        if matches!(
+            op,
+            crate::expr_ast::UnaryOp::Not | crate::expr_ast::UnaryOp::WordNot
+        ) {
+            if let ExprNode::Binary {
+                op: inner_op,
+                left,
+                right,
+            } = operand.as_ref()
+            {
+                let inverted = match inner_op {
+                    BinOp::Eq => Some(BinOp::Ne),
+                    BinOp::Ne => Some(BinOp::Eq),
+                    BinOp::Lt => Some(BinOp::Ge),
+                    BinOp::Ge => Some(BinOp::Lt),
+                    BinOp::Gt => Some(BinOp::Le),
+                    BinOp::Le => Some(BinOp::Gt),
+                    BinOp::StrEq => Some(BinOp::StrNe),
+                    BinOp::StrNe => Some(BinOp::StrEq),
+                    _ => None,
+                };
+                if let Some(new_op) = inverted {
+                    return Some(ExprNode::Binary {
+                        op: new_op,
+                        left: left.clone(),
+                        right: right.clone(),
+                    });
+                }
+            }
+        }
+        return None;
+    }
+
     let ExprNode::Binary { op, left, right } = node else {
         return None;
     };
+
+    // Self-comparison tautologies: `x == x` → 1, `x != x` → 0,
+    // `x < x` → 0, `x <= x` → 1, etc. Only fires when both
+    // operands are the same variable reference — ``$x == $x`` —
+    // because references to commands / literals could have side
+    // effects (`[f] == [f]` might not be 1 if `f` has state).
+    if let (ExprNode::Var { name: l, .. }, ExprNode::Var { name: r, .. }) =
+        (left.as_ref(), right.as_ref())
+    {
+        if l == r {
+            let result = match op {
+                BinOp::Eq | BinOp::Le | BinOp::Ge | BinOp::StrEq => Some(1),
+                BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::StrNe | BinOp::BitXor | BinOp::Sub => {
+                    Some(0)
+                }
+                _ => None,
+            };
+            if let Some(k) = result {
+                return Some(make_int_literal(k));
+            }
+        }
+    }
 
     let lit_right = int_literal_value(right);
     let lit_left = int_literal_value(left);
