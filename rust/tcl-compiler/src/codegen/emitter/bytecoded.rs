@@ -140,8 +140,13 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             ctx.emit_value_interpolated(idx);
         }
         ctx.emit_value_interpolated(value);
+        let load_op = if slot < 256 {
+            Op::LOAD_SCALAR1
+        } else {
+            Op::LOAD_SCALAR4
+        };
         ctx.emit_comment(
-            Op::LOAD_SCALAR1,
+            load_op,
             vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],
             &format!("var \"{var_name}\""),
         );
@@ -212,9 +217,9 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             let value = rest.last().unwrap();
             let slot = ctx.lvt.intern(var_name);
             for k in keys {
-                ctx.push_lit(k);
+                ctx.emit_value_interpolated(k);
             }
-            ctx.push_lit(value);
+            ctx.emit_value_interpolated(value);
             ctx.emit_comment(
                 Op::DICT_SET,
                 vec![
@@ -230,7 +235,7 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             let keys = &rest[1..];
             let slot = ctx.lvt.intern(var_name);
             for k in keys {
-                ctx.push_lit(k);
+                ctx.emit_value_interpolated(k);
             }
             ctx.emit_comment(
                 Op::DICT_UNSET,
@@ -254,7 +259,7 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
                 1
             };
             let slot = ctx.lvt.intern(var_name);
-            ctx.push_lit(key);
+            ctx.emit_value_interpolated(key);
             ctx.emit_comment(
                 Op::DICT_INCR_IMM,
                 vec![
@@ -270,8 +275,8 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             let key = &rest[1];
             let value = &rest[2];
             let slot = ctx.lvt.intern(var_name);
-            ctx.push_lit(key);
-            ctx.push_lit(value);
+            ctx.emit_value_interpolated(key);
+            ctx.emit_value_interpolated(value);
             ctx.emit_comment(
                 Op::DICT_APPEND,
                 vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],
@@ -284,8 +289,8 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             let key = &rest[1];
             let value = &rest[2];
             let slot = ctx.lvt.intern(var_name);
-            ctx.push_lit(key);
-            ctx.push_lit(value);
+            ctx.emit_value_interpolated(key);
+            ctx.emit_value_interpolated(value);
             ctx.emit_comment(
                 Op::DICT_LAPPEND,
                 vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],

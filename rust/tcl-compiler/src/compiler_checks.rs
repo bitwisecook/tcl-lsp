@@ -59,7 +59,10 @@ pub struct Diagnostic {
 impl Diagnostic {
     fn from_constant_branch(cb: &ConstantBranch) -> Self {
         Self {
-            span: Span::new(0, 0),
+            // Use the branch terminator's span when available so
+            // editors / CLIs can highlight the condition that was
+            // folded, rather than the start of the file.
+            span: cb.span.unwrap_or_else(|| Span::new(0, 0)),
             code: "O100".into(),
             category: "sccp".into(),
             severity: Severity::Hint,
