@@ -179,7 +179,7 @@ fn try_rewrite_assign_expr(
             "O110",
             "Simplify expression (instcombine)",
             full_rewrite_span(ctx.source, span),
-            format!("set {name} [expr {{{simplified}}}]"),
+            collapse_assign_expr_wrapper(name, &simplified),
         ));
         return;
     }
@@ -189,9 +189,27 @@ fn try_rewrite_assign_expr(
             "O113",
             "Strength-reduce expression",
             full_rewrite_span(ctx.source, span),
-            format!("set {name} [expr {{{reduced}}}]"),
+            collapse_assign_expr_wrapper(name, &reduced),
         ));
     }
+}
+
+/// Build the replacement for ``set name [expr {…}]`` after a
+/// simplifier produced `simplified`. When `simplified` is a
+/// safe-to-inline integer literal (or bare identifier), emit the
+/// unwrapped ``set name SIMPLIFIED`` form so cascading passes
+/// don't have to re-fold the trivial ``expr {K}``. Otherwise
+/// preserve the ``expr { … }`` wrapper.
+fn collapse_assign_expr_wrapper(name: &str, simplified: &str) -> String {
+    let trimmed = simplified.trim();
+    let looks_literal = !trimmed.is_empty()
+        && !trimmed.contains([
+            ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
+        ]);
+    if looks_literal {
+        return format!("set {name} {trimmed}");
+    }
+    format!("set {name} [expr {{{simplified}}}]")
 }
 
 fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
