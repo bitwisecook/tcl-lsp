@@ -47,6 +47,9 @@ const stubs = @import("tcl_stubs.zig");
 extern fn access(path: [*:0]const u8, mode: c_int) c_int;
 extern fn stat(path: [*:0]const u8, buf: *anyopaque) c_int;
 extern fn lstat(path: [*:0]const u8, buf: *anyopaque) c_int;
+extern fn mkdir(path: [*:0]const u8, mode: c_uint) c_int;
+extern fn rmdir(path: [*:0]const u8) c_int;
+extern fn unlink(path: [*:0]const u8) c_int;
 
 // access() mode flags (POSIX unistd.h values).
 const F_OK: c_int = 0;
@@ -230,7 +233,11 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
         if (st == 0) return obj.obj_new_int(0);
         return bool_obj((stat_mode(st) & S_IFMT) == S_IFREG);
     }
-    if (eq(sp, s.len, "isdirectory")) {
+    // ``isdir`` is the unique-prefix shorthand Tcl accepts for
+    // ``isdirectory``; tcltest's ``AcceptDirectory`` uses that
+    // shorter form.  Matching both literal spellings is cheaper
+    // than a generic prefix matcher and covers every caller.
+    if (eq(sp, s.len, "isdirectory") or eq(sp, s.len, "isdir")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(0);
         return bool_obj((stat_mode(st) & S_IFMT) == S_IFDIR);
@@ -268,12 +275,14 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     if (eq(sp, s.len, "channels")) return obj.obj_new_string_copy(@intFromPtr("stdin stdout stderr".ptr), 19);
     if (eq(sp, s.len, "volumes")) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
 
+    // -- Mutating operations backed by wasi-libc --
+    if (eq(sp, s.len, "mkdir")) return file_mkdir(arg1);
+    if (eq(sp, s.len, "delete")) return file_delete(arg1, arg2);
+
     // -- Mutating operations — trap so scripts can't silently miss
     //    work.  These have incremental follow-up commits pending;
     //    see tcl_fs.zig's header comment.
-    if (eq(sp, s.len, "mkdir") or
-        eq(sp, s.len, "delete") or
-        eq(sp, s.len, "rename") or
+    if (eq(sp, s.len, "rename") or
         eq(sp, s.len, "copy") or
         eq(sp, s.len, "attributes") or
         eq(sp, s.len, "link") or
@@ -379,13 +388,155 @@ fn file_split(a: i32) i32 {
     return a;
 }
 
+/// ``file mkdir path`` — create *path* plus any missing parent
+/// directories (``mkdir -p`` semantics).  Idempotent: succeeds if
+/// the directory already exists.  Returns the empty string on
+/// success or traps with a descriptive message on failure so the
+/// caller sees a clear error rather than silent partial success.
+///
+/// The multi-path variadic form (``file mkdir a b c``) does not
+/// fit our 3-arg export signature; the codegen routes that
+/// through the eval fallback, whose interpreter-side dispatcher
+/// would loop over the paths — a follow-up concern.  Single-path
+/// is what tcltest uses at init time (``AcceptTemporaryDirectory``
+/// creates ``$temporaryDirectory``).
+fn file_mkdir(path: i32) i32 {
+    if (path == 0) {
+        stubs.unsupported("file mkdir (no path)");
+        return 0;
+    }
+    if (!mkdir_p(path)) {
+        stubs.unsupported("file mkdir (failed)");
+        return 0;
+    }
+    return obj_new_string(0, 0);
+}
+
+/// Recursive mkdir.  Returns true if *path* exists as a
+/// directory after the call (either already existed or we
+/// successfully created it).
+fn mkdir_p(path: i32) bool {
+    const s = obj_ensure_string(path);
+    if (s.len == 0) return true; // empty path — treat as a no-op
+
+    // Already exists and is a directory → done.
+    const st = stat_path(path);
+    if (st != 0 and (stat_mode(st) & S_IFMT) == S_IFDIR) return true;
+
+    // Try to create.  On ENOENT (missing parent), create parent first.
+    const rc = mkdir(path_cstr(path), 0o755);
+    if (rc == 0) return true;
+
+    // Retry after ensuring the parent exists, which covers the
+    // "intermediate dir missing" case.  Dirname of the current
+    // path is computed purely from the string.  Termination:
+    // compare by contents (not TclObj identity) so the recursion
+    // stops when ``dirname("/") == "/"`` (which produces fresh
+    // TclObjs each call).
+    const parent = file_dirname(path);
+    const parent_s = obj_ensure_string(parent);
+    var same = parent_s.len == s.len;
+    if (same) {
+        const ap: [*]const u8 = @ptrFromInt(s.ptr);
+        const bp: [*]const u8 = @ptrFromInt(parent_s.ptr);
+        var i: u32 = 0;
+        while (i < s.len) : (i += 1) {
+            if (ap[i] != bp[i]) {
+                same = false;
+                break;
+            }
+        }
+    }
+    if (!same) {
+        if (!mkdir_p(parent)) return false;
+        const rc2 = mkdir(path_cstr(path), 0o755);
+        if (rc2 == 0) return true;
+    }
+
+    // Final fallback: maybe another agent created it in the
+    // interval (the "already exists" race) — re-stat.
+    const st2 = stat_path(path);
+    return st2 != 0 and (stat_mode(st2) & S_IFMT) == S_IFDIR;
+}
+
+/// ``file delete ?-force? path`` — remove a file, an empty
+/// directory, or (with ``-force``) a directory tree.
+///
+/// Tcl semantics: deleting a non-existent path is a no-op
+/// (returns empty, no error).  Deleting a non-empty directory
+/// without ``-force`` is an error.  With ``-force``, recursively
+/// removes contents first.
+///
+/// Recursive delete needs ``opendir`` / ``readdir`` which
+/// wasi-libc supports but requires additional wiring — so the
+/// ``-force`` branch traps for now and lands in a follow-up.
+/// Non-recursive single-path is the common case at init and
+/// cleanup time.
+fn file_delete(arg1: i32, arg2: i32) i32 {
+    // Two call shapes fit our 3-arg signature:
+    //   file delete path         → arg1=path,   arg2=0
+    //   file delete -force path  → arg1=-force, arg2=path
+    // Everything richer (multiple paths, ``--``) falls through
+    // the codegen to the interpreter's eval_fallback.
+    var target = arg1;
+    var force = false;
+    if (arg1 != 0) {
+        const s = obj_ensure_string(arg1);
+        if (s.len == 6) {
+            const p: [*]const u8 = @ptrFromInt(s.ptr);
+            if (eq(p, s.len, "-force")) {
+                force = true;
+                target = arg2;
+            }
+        }
+    }
+    if (target == 0) {
+        // Nothing to delete → success.
+        return obj_new_string(0, 0);
+    }
+
+    // Non-existent path → no-op (matches Tcl).
+    if (access(path_cstr(target), F_OK) != 0) {
+        return obj_new_string(0, 0);
+    }
+
+    const st = lstat_path(target);
+    if (st == 0) {
+        // Couldn't stat even though access said it exists —
+        // treat as gone (edge case with permission oddities).
+        return obj_new_string(0, 0);
+    }
+    const mode = stat_mode(st);
+
+    if ((mode & S_IFMT) == S_IFDIR) {
+        if (force) {
+            // Recursive removal needs directory iteration
+            // (readdir) which is a separate piece of wiring.
+            // Trap rather than silently miss entries.
+            stubs.unsupported("file delete -force (recursive)");
+            return 0;
+        }
+        const rc = rmdir(path_cstr(target));
+        if (rc != 0) {
+            stubs.unsupported("file delete (directory not empty)");
+            return 0;
+        }
+        return obj_new_string(0, 0);
+    }
+
+    const rc = unlink(path_cstr(target));
+    if (rc != 0) {
+        stubs.unsupported("file delete (unlink failed)");
+        return 0;
+    }
+    return obj_new_string(0, 0);
+}
+
 // Silence unused-warning for helpers that will be used by the
-// follow-up mutating-op commits (mkdir / delete / rename / stat /
-// lstat / type).  Keeping the forward references here means the
+// follow-up mutating-op commits (rename / copy / stat / lstat /
+// type / …).  Keeping the forward references here means the
 // wiring is already in place and subsequent commits only touch
 // the dispatch table above.
 comptime {
-    _ = &lstat_path;
     _ = &stat_ctim_sec;
-    _ = &lstat;
 }

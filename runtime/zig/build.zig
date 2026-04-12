@@ -100,9 +100,18 @@ pub fn build(b: *std.Build) void {
     // internal WASM import wiring moved.
     exe.linkLibC();
 
-    // Export all pub/export functions and mark as reactor (no _start).
+    // Export all pub/export functions and mark as reactor.
+    // ``wasi_exec_model = .reactor`` tells Zig/wasm-ld to wire
+    // wasi-libc's ``crt1-reactor.o`` which exports
+    // ``_initialize`` instead of ``_start``; the embedder calls
+    // ``_initialize`` after instantiation to run ctors
+    // (preopen-fd scan, global locks).  Without this the preopens
+    // configured on ``WasiConfig`` are invisible to wasi-libc's
+    // path-resolution machinery and every ``access``/``stat``
+    // returns ``ENOTCAPABLE``.
     exe.rdynamic = true;
     exe.entry = .disabled;
+    exe.wasi_exec_model = .reactor;
 
     b.installArtifact(exe);
 }

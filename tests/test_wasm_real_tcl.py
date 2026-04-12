@@ -92,6 +92,7 @@ def _run_wasm(
     func_name: str = "::top",
     args: tuple[int, ...] = (),
     capture_stderr: bool = False,
+    preopen_tmpdir: str | None = None,
 ) -> tuple:
     """Link and run a compiled Tcl WASM module.
 
@@ -102,6 +103,14 @@ def _run_wasm(
     backtrace.  The loose ``tuple`` return type keeps existing 2-tuple
     callers happy under static analysis — they unpack the first two
     slots; the stderr slot is only present when asked for explicitly.
+
+    ``preopen_tmpdir`` — optional host directory path to grant the
+    WASM instance access to, mapped to the guest path ``/``.  With
+    no preopen (the default), every ``access``/``stat`` call
+    returns ``ENOTCAPABLE``, so ``file exists`` etc. report
+    "doesn't exist" regardless of the host filesystem state.  The
+    ``TestFile`` suite passes a fresh ``pytest tmp_path`` to
+    exercise the real filesystem paths.
     """
     engine = _get_engine()
     store = wasmtime.Store(engine)
@@ -119,6 +128,15 @@ def _run_wasm(
         os.close(fd)
         wasi_config.stderr_file = stderr_path
 
+    if preopen_tmpdir is not None:
+        # ``preopen_dir`` grants capability-bound access.  Mapping
+        # the host dir to guest ``/`` means Tcl paths written
+        # against the guest's ``pwd`` ("/") resolve under the host
+        # path.  We pass the host path as ``dir`` (first positional)
+        # and the guest path as ``guest_path``; wasmtime's Python
+        # binding follows that order.
+        wasi_config.preopen_dir(preopen_tmpdir, "/")
+
     store.set_wasi(wasi_config)
 
     # Instantiate Zig runtime
@@ -129,6 +147,17 @@ def _run_wasm(
     tcl_instance_box, memory_box = _define_call_compiled_proc(linker, store)
 
     rt_instance = linker.instantiate(store, rt_module)
+
+    # WASI reactor initialisation — wasi-libc installs its ctors
+    # (preopen-fd scanner, global locks, etc.) in ``_initialize``
+    # rather than at instantiation.  Calling it once per store
+    # populates the ``__wasilibc_cwd`` / preopen table so
+    # subsequent ``access``/``stat`` calls can resolve paths
+    # against the configured ``preopen_dir``.  If the runtime
+    # doesn't export ``_initialize`` (old build), this is a no-op.
+    init_fn = rt_instance.exports(store).get("_initialize")
+    if init_fn is not None:
+        init_fn(store)
 
     # Re-export under "tcl" namespace
     for export in rt_module.exports:
@@ -1434,7 +1463,9 @@ class TestDiagMap:
         [
             ("open /tmp/x\n", "open"),
             ("close ch0\n", "close"),
-            ("file mkdir /tmp/x\n", "file"),
+            # ``file mkdir`` / ``file delete`` have real WASI-backed
+            # impls (see TestFile); ``file rename`` still traps.
+            ("file rename /tmp/a /tmp/b\n", "file"),
             ("glob *.tcl\n", "glob"),
             ("exec /bin/true\n", "exec"),
             # ``regexp`` has a real impl in tcl_regex.zig backed by
@@ -1640,6 +1671,133 @@ class TestRegexp:
         assert want in stdout, (
             f"pattern={pattern!r} subject={subject!r} nocase={use_nocase}: {stdout!r}"
         )
+
+
+class TestFile:
+    """Tcl ``file`` command subcommands backed by wasi-libc.
+
+    Each test runs against a fresh host ``tmp_path`` that's
+    preopened into the WASI instance as guest-path ``/``.  The
+    compiled Tcl script calls ``file`` operations on paths
+    rooted at ``/``; those resolve under ``tmp_path`` on the
+    host.  Without the preopen, every ``access``/``stat`` call
+    would return ``ENOTCAPABLE`` and these tests would assert
+    the wrong thing.
+    """
+
+    def _run(self, tmp_path, tcl_source):
+        """Compile + run *tcl_source* with *tmp_path* preopened
+        as guest ``/``.  Returns captured stdout."""
+        wasm, _ = _compile_tcl_with_diag(tcl_source, "t.tcl")
+        _, stdout, _ = _run_wasm(
+            wasm,
+            capture_stdout=True,
+            capture_stderr=True,
+            preopen_tmpdir=str(tmp_path),
+        )
+        return stdout
+
+    def test_exists_on_existing_file(self, tmp_path):
+        (tmp_path / "hello.txt").write_text("hi")
+        out = self._run(
+            tmp_path,
+            "puts [file exists /hello.txt]\n",
+        )
+        assert out.strip() == "1", f"got {out!r}"
+
+    def test_exists_on_missing_file(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            "puts [file exists /does-not-exist]\n",
+        )
+        assert out.strip() == "0", f"got {out!r}"
+
+    def test_isdirectory_vs_isfile(self, tmp_path):
+        (tmp_path / "subdir").mkdir()
+        (tmp_path / "file.txt").write_text("x")
+        out = self._run(
+            tmp_path,
+            (
+                "puts [file isdirectory /subdir]\n"
+                "puts [file isdirectory /file.txt]\n"
+                "puts [file isfile /subdir]\n"
+                "puts [file isfile /file.txt]\n"
+            ),
+        )
+        # isdirectory subdir=1, isdirectory file=0, isfile subdir=0, isfile file=1
+        assert out.strip().splitlines() == ["1", "0", "0", "1"]
+
+    def test_readable_writable(self, tmp_path):
+        (tmp_path / "rw.txt").write_text("x")
+        out = self._run(
+            tmp_path,
+            (
+                "puts [file readable /rw.txt]\n"
+                "puts [file writable /rw.txt]\n"
+                "puts [file readable /nope]\n"
+            ),
+        )
+        assert out.strip().splitlines() == ["1", "1", "0"]
+
+    def test_size(self, tmp_path):
+        (tmp_path / "data.bin").write_bytes(b"0123456789")
+        out = self._run(
+            tmp_path,
+            "puts [file size /data.bin]\n",
+        )
+        assert out.strip() == "10"
+
+    def test_mkdir_creates_directory(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            ("file mkdir /newdir\nputs [file isdirectory /newdir]\n"),
+        )
+        assert out.strip() == "1"
+        assert (tmp_path / "newdir").is_dir()
+
+    def test_mkdir_creates_nested_dirs(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            ("file mkdir /a/b/c\nputs [file isdirectory /a/b/c]\n"),
+        )
+        assert out.strip() == "1"
+        assert (tmp_path / "a" / "b" / "c").is_dir()
+
+    def test_mkdir_idempotent(self, tmp_path):
+        (tmp_path / "existing").mkdir()
+        # Second mkdir on an existing dir should be a no-op, not
+        # an error.
+        out = self._run(
+            tmp_path,
+            ("file mkdir /existing\nputs [file isdirectory /existing]\n"),
+        )
+        assert out.strip() == "1"
+
+    def test_delete_file(self, tmp_path):
+        (tmp_path / "gone.txt").write_text("x")
+        out = self._run(
+            tmp_path,
+            ("file delete /gone.txt\nputs [file exists /gone.txt]\n"),
+        )
+        assert out.strip() == "0"
+        assert not (tmp_path / "gone.txt").exists()
+
+    def test_delete_empty_directory(self, tmp_path):
+        (tmp_path / "emptydir").mkdir()
+        out = self._run(
+            tmp_path,
+            ("file delete /emptydir\nputs [file exists /emptydir]\n"),
+        )
+        assert out.strip() == "0"
+
+    def test_delete_missing_is_noop(self, tmp_path):
+        # Tcl semantics: deleting a non-existent path succeeds
+        # silently.
+        out = self._run(
+            tmp_path,
+            ("file delete /never-existed\nputs done\n"),
+        )
+        assert "done" in out
 
 
 class TestEncoding:
