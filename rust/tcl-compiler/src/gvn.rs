@@ -418,15 +418,16 @@ pub fn statement_writes_state(
 /// Collect pure-expression occurrences produced by a single SSA
 /// statement.
 ///
-/// This is the focused Rust port of `gvn.py::_statement_occurrences`.
-/// It currently covers the top-level `Call` case only — embedded
-/// command-substitution scanning inside argument text is deferred
-/// to a follow-up strip that wires the Rust lexer in for CMD-token
-/// enumeration.
+/// Covers two cases:
 ///
-/// Returns a `Vec<ExprOccurrence>`: at most one entry today, but
-/// the type matches the Python interface so later strips can add
-/// nested occurrences without changing callers.
+/// - The top-level `Statement::Call` itself, when the command is
+///   pure and marked `CSE_CANDIDATE`.
+/// - **C26e1**: embedded `[cmd args…]` command substitutions
+///   inside `Statement::Call` argument text and
+///   `Statement::AssignValue` value text. Each nested
+///   substitution is parsed via
+///   [`scan_bracketed_commands`] and, when its extracted command
+///   is pure + CSE-candidate, recorded as its own occurrence.
 #[must_use]
 pub fn statement_occurrences(
     registry: &CommandRegistry,
@@ -436,6 +437,8 @@ pub fn statement_occurrences(
     dialect: Option<&str>,
 ) -> Vec<ExprOccurrence> {
     let mut out: Vec<ExprOccurrence> = Vec::new();
+
+    // Top-level pure Call.
     if let Statement::Call {
         command,
         args,
@@ -443,25 +446,186 @@ pub fn statement_occurrences(
         ..
     } = &stmt_ssa.statement
     {
-        if !is_pure_command(registry, command, args, dialect) {
-            return out;
+        if is_pure_command(registry, command, args, dialect)
+            && is_worth_reporting(registry, command)
+        {
+            out.push(ExprOccurrence {
+                key: build_call_key(command, args, &stmt_ssa.uses),
+                span: *span,
+                expression_text: format_expression_text(command, args),
+                block: block_name.to_owned(),
+                statement_index,
+                variable_uses: stmt_ssa.uses.keys().cloned().collect(),
+            });
         }
-        if !is_worth_reporting(registry, command) {
-            return out;
+    }
+
+    // Embedded command substitutions inside argument/value text.
+    let texts_to_scan: Vec<&str> = match &stmt_ssa.statement {
+        Statement::Call { args, .. } => args.iter().map(String::as_str).collect(),
+        Statement::AssignValue { value, .. } => vec![value.as_str()],
+        _ => Vec::new(),
+    };
+    let span = stmt_ssa.statement.span();
+    for text in texts_to_scan {
+        for (cmd, args) in scan_bracketed_commands(text) {
+            if !is_pure_command(registry, &cmd, &args, dialect) {
+                continue;
+            }
+            if !is_worth_reporting(registry, &cmd) {
+                continue;
+            }
+            out.push(ExprOccurrence {
+                key: build_call_key(&cmd, &args, &stmt_ssa.uses),
+                span,
+                expression_text: format_expression_text(&cmd, &args),
+                block: block_name.to_owned(),
+                statement_index,
+                variable_uses: stmt_ssa.uses.keys().cloned().collect(),
+            });
         }
-        let key = build_call_key(command, args, &stmt_ssa.uses);
-        let expression_text = format_expression_text(command, args);
-        let variable_uses: Vec<String> = stmt_ssa.uses.keys().cloned().collect();
-        out.push(ExprOccurrence {
-            key,
-            span: *span,
-            expression_text,
-            block: block_name.to_owned(),
-            statement_index,
-            variable_uses,
-        });
+    }
+
+    out
+}
+
+/// Scan `text` for top-level `[command args…]` substitutions,
+/// returning each matched `(command, args)` pair.
+///
+/// Handles nested brackets (e.g. `[foo [bar] baz]` extracts both
+/// the outer `foo [bar] baz` and the inner `bar`). Brace-quoted
+/// regions `{…}` are treated as opaque so commands inside them
+/// aren't accidentally matched. Strings inside `"…"` quotes are
+/// scanned normally because Tcl performs command substitution
+/// through quotes.
+///
+/// Ported behaviour-equivalent with `gvn.py::_find_cmd_tokens_in_text`
+/// plus `_parse_cmd_token`: we emit one pair per `[…]` region,
+/// with nested regions emitted in depth-first order (outer first,
+/// then each nested inner).
+#[must_use]
+pub fn scan_bracketed_commands(text: &str) -> Vec<(String, Vec<String>)> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'{' => {
+                // Skip braced region entirely.
+                let mut depth = 1i32;
+                i += 1;
+                while i < bytes.len() && depth > 0 {
+                    match bytes[i] {
+                        b'{' => depth += 1,
+                        b'}' => depth -= 1,
+                        b'\\' if i + 1 < bytes.len() => i += 1,
+                        _ => {}
+                    }
+                    i += 1;
+                }
+            }
+            b'[' => {
+                let start = i + 1;
+                let mut depth = 1i32;
+                let mut j = start;
+                while j < bytes.len() && depth > 0 {
+                    match bytes[j] {
+                        b'[' => depth += 1,
+                        b']' => depth -= 1,
+                        b'\\' if j + 1 < bytes.len() => j += 1,
+                        _ => {}
+                    }
+                    if depth == 0 {
+                        break;
+                    }
+                    j += 1;
+                }
+                if depth == 0 && j < bytes.len() {
+                    let inner = &text[start..j];
+                    if let Some(pair) = split_cmd_text(inner) {
+                        out.push(pair);
+                    }
+                    // Also scan the inner content for further
+                    // nested substitutions.
+                    out.extend(scan_bracketed_commands(inner));
+                    i = j + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            b'\\' if i + 1 < bytes.len() => {
+                i += 2;
+            }
+            _ => i += 1,
+        }
     }
     out
+}
+
+/// Split `"cmd arg1 arg2 ..."` into `(cmd, args)`.
+///
+/// Whitespace-separated at the top level; brace and quote regions
+/// are kept as a single word (delimiters preserved so downstream
+/// canonicalisation still sees variable references). Returns
+/// `None` for empty / whitespace-only input.
+fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
+    let bytes = text.as_bytes();
+    let mut words: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        while i < bytes.len() && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        let start = i;
+        match bytes[i] {
+            b'{' => {
+                let mut depth = 1i32;
+                i += 1;
+                while i < bytes.len() && depth > 0 {
+                    match bytes[i] {
+                        b'{' => depth += 1,
+                        b'}' => depth -= 1,
+                        b'\\' if i + 1 < bytes.len() => i += 1,
+                        _ => {}
+                    }
+                    i += 1;
+                }
+            }
+            b'"' => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != b'"' {
+                    if bytes[i] == b'\\' && i + 1 < bytes.len() {
+                        i += 2;
+                        continue;
+                    }
+                    i += 1;
+                }
+                if i < bytes.len() {
+                    i += 1;
+                }
+            }
+            _ => {
+                while i < bytes.len()
+                    && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r')
+                {
+                    if bytes[i] == b'\\' && i + 1 < bytes.len() {
+                        i += 2;
+                        continue;
+                    }
+                    i += 1;
+                }
+            }
+        }
+        words.push(text[start..i].to_owned());
+    }
+    if words.is_empty() {
+        return None;
+    }
+    let cmd = words.remove(0);
+    Some((cmd, words))
 }
 
 // ---------------------------------------------------------------------------
@@ -1078,6 +1242,89 @@ mod tests {
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
+    }
+
+    // -- C26e1: embedded command-substitution scanning --
+
+    #[test]
+    fn scan_bracketed_commands_simple() {
+        let out = scan_bracketed_commands("[llength $x]");
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].0, "llength");
+        assert_eq!(out[0].1, vec!["$x".to_string()]);
+    }
+
+    #[test]
+    fn scan_bracketed_commands_nested() {
+        let out = scan_bracketed_commands("[set v [lindex $x 0]]");
+        // Outer pair + inner pair.
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].0, "set");
+        assert_eq!(out[1].0, "lindex");
+    }
+
+    #[test]
+    fn scan_bracketed_commands_skips_braced_regions() {
+        let out = scan_bracketed_commands("{[not a command]}");
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn scan_bracketed_commands_handles_backslash_escape() {
+        // `\[` shouldn't start a region.
+        let out = scan_bracketed_commands("hello \\[world]");
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn split_cmd_text_braced_and_quoted_words() {
+        let (cmd, args) = split_cmd_text("list {a b c} \"d e\" f").unwrap();
+        assert_eq!(cmd, "list");
+        assert_eq!(args, vec!["{a b c}".to_string(), "\"d e\"".into(), "f".into()]);
+    }
+
+    #[test]
+    fn statement_occurrences_includes_embedded_pure_cmd() {
+        let registry = CommandRegistry::build_default();
+        // set x [llength $y] — an impure `set` with an embedded
+        // pure `llength`. The top-level Call is skipped (impure),
+        // but the embedded `llength` should be reported.
+        let stmt_ssa = SsaStatement {
+            statement: Statement::Call {
+                span: Span::new(0, 0),
+                command: "set".into(),
+                args: vec!["x".into(), "[llength $y]".into()],
+                defs: Vec::new(),
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+            },
+            uses: HashMap::new(),
+            defs: HashMap::new(),
+        };
+        let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None);
+        assert_eq!(occ.len(), 1);
+        assert_eq!(occ[0].expression_text, "llength $y");
+    }
+
+    #[test]
+    fn statement_occurrences_includes_embedded_in_assign_value() {
+        let registry = CommandRegistry::build_default();
+        let stmt_ssa = SsaStatement {
+            statement: Statement::AssignValue {
+                span: Span::new(0, 0),
+                name: "len".into(),
+                value: "[llength $y]".into(),
+                value_needs_backsubst: false,
+                tokens: None,
+            },
+            uses: HashMap::new(),
+            defs: HashMap::new(),
+        };
+        let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None);
+        assert_eq!(occ.len(), 1);
+        assert_eq!(occ[0].expression_text, "llength $y");
     }
 
     #[test]
