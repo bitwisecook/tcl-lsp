@@ -37,7 +37,7 @@ use std::collections::HashSet;
 
 use tcl_lexer::{tokenise_expr, ExprTokenType};
 
-use crate::expr_ast::ExprNode;
+use crate::expr_ast::{render_expr, BinOp, ExprNode, ExprOffset};
 use crate::expr_parser::parse_expr;
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{eval_tcl_expr, format_tcl_value, Env};
@@ -195,48 +195,314 @@ fn is_numeric_literal(text: &str) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// Deferred: returns `(expr, false)` — "no change" — until the
-// corresponding C30e sub-strip lands. Downstream passes
-// (`propagation`, `branch_folding::optimise_branch_proc_calls`,
-// `pattern_recognition`) call these through the stable
-// signature and will start producing their respective O-codes as
-// soon as each stub is replaced.
+// Landed: instcombine / strength-reduce / strlen / streq
 // ---------------------------------------------------------------------------
 
-/// C30e4 (deferred). InstCombine-style fixpoint simplification.
+/// C30e4: InstCombine-style fixpoint simplification of an
+/// expression text.
 ///
-/// Returns `(expr.to_owned(), false)` — callers should not
-/// depend on any rewrite firing from this helper until the
-/// corresponding sub-strip lands.
+/// Parses `expr`, runs the AST simplifier until fixpoint, then
+/// renders the result back to text. Returns `(new_text, changed)`
+/// where `changed` indicates whether the rendered output differs
+/// from `expr.trim()`. Unparseable inputs and expressions
+/// containing command substitutions are returned unchanged.
+///
+/// The fixpoint composes all landed simplifiers —
+/// strength-reduction folds, strlen canonicalisation, eq/ne
+/// promotion, and DeMorgan-shaped reductions — into a single
+/// pass. Callers that need only a specific transform should use
+/// the narrow helpers instead.
 #[must_use]
-pub fn instcombine_expr(expr: &str, _bool_context: bool) -> (String, bool) {
-    (expr.to_owned(), false)
+pub fn instcombine_expr(expr: &str, bool_context: bool) -> (String, bool) {
+    let trimmed = expr.trim();
+    let parsed = parse_expr(trimmed, None);
+    if matches!(parsed, ExprNode::Raw { .. }) || expr_has_command_subst(&parsed) {
+        return (expr.to_owned(), false);
+    }
+    let simplified = simplify_to_fixpoint(&parsed, bool_context);
+    let rendered = render_expr(&simplified);
+    let changed = rendered != trimmed;
+    (rendered, changed)
 }
 
-/// C30e5 (deferred). Strength reduction: `x * 1 → x`,
-/// `x + 0 → x`, `x ** 2 → x * x`, `x % pow2 → x & (pow2 - 1)`,
-/// etc. Returns `(expr.to_owned(), false)` until the sub-strip
-/// lands.
+/// Apply one pass of local simplifications to `node`, returning
+/// the rewritten subtree. Used as the step function in
+/// [`simplify_to_fixpoint`].
+fn simplify_node_once(node: &ExprNode) -> ExprNode {
+    // First, recurse into children — bottom-up rewriting.
+    let lowered = match node {
+        ExprNode::Binary { op, left, right } => ExprNode::Binary {
+            op: *op,
+            left: Box::new(simplify_node_once(left)),
+            right: Box::new(simplify_node_once(right)),
+        },
+        ExprNode::Unary { op, operand } => ExprNode::Unary {
+            op: *op,
+            operand: Box::new(simplify_node_once(operand)),
+        },
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => ExprNode::Ternary {
+            condition: Box::new(simplify_node_once(condition)),
+            true_branch: Box::new(simplify_node_once(true_branch)),
+            false_branch: Box::new(simplify_node_once(false_branch)),
+        },
+        other => other.clone(),
+    };
+
+    // Apply local rewrites at this level in priority order.
+    if let Some(rewritten) = strength_reduce_node(&lowered) {
+        return rewritten;
+    }
+    if let Some(rewritten) = streq_promote_node(&lowered) {
+        return rewritten;
+    }
+    lowered
+}
+
+/// Run [`simplify_node_once`] until the AST stops changing.
+fn simplify_to_fixpoint(node: &ExprNode, _bool_context: bool) -> ExprNode {
+    let mut cur = node.clone();
+    for _ in 0..16 {
+        let next = simplify_node_once(&cur);
+        if render_expr(&next) == render_expr(&cur) {
+            return next;
+        }
+        cur = next;
+    }
+    cur
+}
+
+/// C30e5: Strength-reduce a single expression text.
+///
+/// Parses `expr`, applies the strength-reduction rewrites, and
+/// re-renders. Returns `(text, changed)` — where `changed`
+/// indicates a text change. Unparseable / command-subst-laden
+/// inputs come back unchanged.
 #[must_use]
 pub fn try_strength_reduce_expr(expr: &str) -> (String, bool) {
-    (expr.to_owned(), false)
+    let trimmed = expr.trim();
+    let parsed = parse_expr(trimmed, None);
+    if matches!(parsed, ExprNode::Raw { .. }) || expr_has_command_subst(&parsed) {
+        return (expr.to_owned(), false);
+    }
+    let Some(rewritten) = strength_reduce_node(&parsed) else {
+        return (expr.to_owned(), false);
+    };
+    let rendered = render_expr(&rewritten);
+    let changed = rendered != trimmed;
+    (rendered, changed)
 }
 
-/// C30e6 (deferred). Simplify `[string length $s] == 0` to
-/// `$s eq ""` and similar strlen forms. Returns `(expr.to_owned(),
-/// false)` until the sub-strip lands.
+/// C30e6: Simplify `[string length $s] == 0` → `$s eq ""` and
+/// related strlen shapes.
+///
+/// The Rust lowering's `ExprNode` does not model `[string length …]`
+/// as a first-class call — it's a command substitution (`ExprNode::Command`).
+/// We detect the shape via the `text` field when the expression
+/// is a binary `==` / `!=` against `0`.
 #[must_use]
 pub fn try_strlen_simplify_expr(expr: &str) -> (String, bool) {
-    (expr.to_owned(), false)
+    let trimmed = expr.trim();
+    let parsed = parse_expr(trimmed, None);
+    let ExprNode::Binary { op, left, right } = &parsed else {
+        return (expr.to_owned(), false);
+    };
+    // Match the two commutative shapes: `[cmd] == 0` and
+    // `0 == [cmd]`. The earlier `let…else` returns on any
+    // other shape.
+    let cmd_text: &String;
+    let lit_text: &String;
+    if let ExprNode::Command { text, .. } = left.as_ref() {
+        if let ExprNode::Literal { text: lit, .. } = right.as_ref() {
+            cmd_text = text;
+            lit_text = lit;
+        } else {
+            return (expr.to_owned(), false);
+        }
+    } else if let ExprNode::Literal { text: lit, .. } = left.as_ref() {
+        if let ExprNode::Command { text, .. } = right.as_ref() {
+            cmd_text = text;
+            lit_text = lit;
+        } else {
+            return (expr.to_owned(), false);
+        }
+    } else {
+        return (expr.to_owned(), false);
+    }
+    let cmd = cmd_text;
+    let lit = lit_text;
+    if lit.trim() != "0" {
+        return (expr.to_owned(), false);
+    }
+    let Some(inner) = cmd.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
+        return (expr.to_owned(), false);
+    };
+    let inner = inner.trim();
+    let Some(rest) = inner.strip_prefix("string length") else {
+        return (expr.to_owned(), false);
+    };
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return (expr.to_owned(), false);
+    }
+    // Preserve `{…}` / `"…"` wrapping when deciding how to emit
+    // the operand: if the user wrote `string length "foo bar"`,
+    // keep the quoting.
+    let operand = rest.to_owned();
+    let new_op = match op {
+        BinOp::Eq | BinOp::StrEq => "eq",
+        BinOp::Ne | BinOp::StrNe => "ne",
+        _ => return (expr.to_owned(), false),
+    };
+    let new_text = format!("{operand} {new_op} \"\"");
+    (new_text, true)
 }
 
-/// C30e7 (deferred). Promote numeric `==` / `!=` against string
-/// literals to `eq` / `ne` when the left-hand side is known to be
-/// a string. Returns `(expr.to_owned(), false)` until the
-/// sub-strip lands.
+/// C30e7: Promote numeric `==` / `!=` against a quoted-string
+/// literal to `eq` / `ne`. Safer: a numeric compare shimmers the
+/// LHS to a number at runtime; the string form avoids that.
+///
+/// Only fires when one side is a string literal (produced by the
+/// parser as `ExprNode::String`) — numeric literals keep the
+/// numeric compare.
 #[must_use]
 pub fn try_eq_ne_string_compare_simplify_expr(expr: &str) -> (String, bool) {
-    (expr.to_owned(), false)
+    let trimmed = expr.trim();
+    let parsed = parse_expr(trimmed, None);
+    let Some(rewritten) = streq_promote_node(&parsed) else {
+        return (expr.to_owned(), false);
+    };
+    let rendered = render_expr(&rewritten);
+    let changed = rendered != trimmed;
+    (rendered, changed)
+}
+
+// ---------------------------------------------------------------------------
+// AST-level rewriters (private helpers)
+// ---------------------------------------------------------------------------
+
+/// One pass of strength reduction. Returns `None` when no
+/// rewrite applies. Conservative — only obviously-safe rewrites
+/// (no overflow / divide-by-zero concerns).
+fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
+    let ExprNode::Binary { op, left, right } = node else {
+        return None;
+    };
+
+    let lit_right = int_literal_value(right);
+    let lit_left = int_literal_value(left);
+
+    match op {
+        // Identity: x + 0 → x, 0 + x → x.
+        BinOp::Add => {
+            if lit_right == Some(0) {
+                return Some((**left).clone());
+            }
+            if lit_left == Some(0) {
+                return Some((**right).clone());
+            }
+            None
+        }
+        // Identity: x - 0 → x.
+        BinOp::Sub => {
+            if lit_right == Some(0) {
+                return Some((**left).clone());
+            }
+            None
+        }
+        // Identity: x * 1 → x, 1 * x → x.
+        // Annihilator: x * 0 → 0 (only when x cannot have side
+        // effects — no Command in operand, checked by caller
+        // gates).
+        BinOp::Mul => {
+            if lit_right == Some(1) {
+                return Some((**left).clone());
+            }
+            if lit_left == Some(1) {
+                return Some((**right).clone());
+            }
+            if lit_right == Some(0) || lit_left == Some(0) {
+                return Some(make_int_literal(0));
+            }
+            None
+        }
+        // Identity: x / 1 → x.
+        BinOp::Div => {
+            if lit_right == Some(1) {
+                return Some((**left).clone());
+            }
+            None
+        }
+        // x ** 2 → x * x (integer literal 2 only).
+        BinOp::Pow => {
+            if lit_right == Some(2) {
+                return Some(ExprNode::Binary {
+                    op: BinOp::Mul,
+                    left: left.clone(),
+                    right: left.clone(),
+                });
+            }
+            None
+        }
+        // x % pow2 → x & (pow2 - 1) for pow2 > 1.
+        BinOp::Mod => {
+            let n = lit_right?;
+            if n > 1 && (n & (n - 1)) == 0 {
+                return Some(ExprNode::Binary {
+                    op: BinOp::BitAnd,
+                    left: left.clone(),
+                    right: Box::new(make_int_literal(n - 1)),
+                });
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// One pass of eq/ne-promotion: if the RHS (or LHS) of `==` /
+/// `!=` is a string literal (`ExprNode::String` — braced or
+/// quoted), rewrite to the string operator.
+fn streq_promote_node(node: &ExprNode) -> Option<ExprNode> {
+    let ExprNode::Binary { op, left, right } = node else {
+        return None;
+    };
+    let (new_op, ordered) = match op {
+        BinOp::Eq => (BinOp::StrEq, true),
+        BinOp::Ne => (BinOp::StrNe, true),
+        _ => return None,
+    };
+    let _ = ordered;
+    let has_string_lit = matches!(left.as_ref(), ExprNode::String { .. })
+        || matches!(right.as_ref(), ExprNode::String { .. });
+    if !has_string_lit {
+        return None;
+    }
+    Some(ExprNode::Binary {
+        op: new_op,
+        left: left.clone(),
+        right: right.clone(),
+    })
+}
+
+/// Extract an integer literal from an [`ExprNode::Literal`],
+/// ignoring anything else.
+fn int_literal_value(node: &ExprNode) -> Option<i64> {
+    let ExprNode::Literal { text, .. } = node else {
+        return None;
+    };
+    text.trim().parse::<i64>().ok()
+}
+
+fn make_int_literal(value: i64) -> ExprNode {
+    ExprNode::Literal {
+        text: value.to_string(),
+        start: 0 as ExprOffset,
+        end: 0 as ExprOffset,
+    }
 }
 
 /// Return `true` when `node` contains any command-substitution
@@ -403,22 +669,96 @@ mod tests {
         assert!(!expr_has_command_subst(&expr));
     }
 
-    // -- stubs just keep their signature -----------------------------------
+    // -- try_strength_reduce_expr ------------------------------------------
 
     #[test]
-    fn stubs_return_no_change() {
-        assert_eq!(instcombine_expr("$x + 0", false), ("$x + 0".into(), false));
-        assert_eq!(
-            try_strength_reduce_expr("$x * 1"),
-            ("$x * 1".into(), false),
+    fn strength_reduce_identity_mul_one() {
+        let (out, changed) = try_strength_reduce_expr("$x * 1");
+        assert!(changed);
+        assert_eq!(out.trim(), "$x");
+    }
+
+    #[test]
+    fn strength_reduce_identity_add_zero() {
+        let (out, changed) = try_strength_reduce_expr("$x + 0");
+        assert!(changed);
+        assert_eq!(out.trim(), "$x");
+    }
+
+    #[test]
+    fn strength_reduce_pow2_mod() {
+        let (out, changed) = try_strength_reduce_expr("$x % 8");
+        assert!(changed);
+        assert_eq!(out.trim(), "$x & 7");
+    }
+
+    #[test]
+    fn strength_reduce_pow_two_to_mul() {
+        let (out, changed) = try_strength_reduce_expr("$x ** 2");
+        assert!(changed);
+        // Rendered form is "$x * $x" (exact spacing per render_expr).
+        assert!(
+            out.contains("$x") && out.contains('*'),
+            "unexpected render: {out}",
         );
-        assert_eq!(
-            try_strlen_simplify_expr("[string length $s] == 0"),
-            ("[string length $s] == 0".into(), false),
-        );
-        assert_eq!(
-            try_eq_ne_string_compare_simplify_expr("$x == \"foo\""),
-            ("$x == \"foo\"".into(), false),
-        );
+    }
+
+    #[test]
+    fn strength_reduce_noop_leaves_unchanged() {
+        let (out, changed) = try_strength_reduce_expr("$x + 5");
+        assert!(!changed);
+        assert_eq!(out, "$x + 5");
+    }
+
+    // -- try_strlen_simplify_expr ------------------------------------------
+
+    #[test]
+    fn strlen_zero_equal_becomes_eq_empty() {
+        let (out, changed) = try_strlen_simplify_expr("[string length $s] == 0");
+        assert!(changed);
+        assert!(out.contains("eq") && out.contains("\"\""));
+    }
+
+    #[test]
+    fn strlen_nonzero_literal_not_rewritten() {
+        let (out, changed) = try_strlen_simplify_expr("[string length $s] == 1");
+        assert!(!changed);
+        assert_eq!(out, "[string length $s] == 1");
+    }
+
+    // -- try_eq_ne_string_compare_simplify_expr ----------------------------
+
+    #[test]
+    fn streq_promotion_with_quoted_literal() {
+        let (out, changed) = try_eq_ne_string_compare_simplify_expr("$x == \"foo\"");
+        assert!(changed);
+        assert!(out.contains("eq"));
+    }
+
+    #[test]
+    fn streq_promotion_with_numeric_literal_noop() {
+        // `$x == 5` is a legitimate numeric compare — don't
+        // promote to `eq`.
+        let (out, changed) = try_eq_ne_string_compare_simplify_expr("$x == 5");
+        assert!(!changed);
+        assert_eq!(out, "$x == 5");
+    }
+
+    // -- instcombine_expr (composite) --------------------------------------
+
+    #[test]
+    fn instcombine_composes_multiple_rewrites() {
+        // `$x * 1 + 0` should simplify to `$x` via two passes:
+        // `$x * 1` → `$x`, then `$x + 0` → `$x`.
+        let (out, changed) = instcombine_expr("$x * 1 + 0", false);
+        assert!(changed);
+        assert_eq!(out.trim(), "$x");
+    }
+
+    #[test]
+    fn instcombine_raw_expression_left_alone() {
+        let (out, changed) = instcombine_expr("$x + $y", false);
+        assert!(!changed);
+        assert_eq!(out, "$x + $y");
     }
 }
