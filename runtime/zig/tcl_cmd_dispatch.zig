@@ -73,8 +73,13 @@ fn match_stub(c: []const u8) bool {
         stubs.unsupported("fblocked");
         return true;
     }
+    // ``fconfigure`` has a real (NOP) implementation in tcl_chan.zig
+    // so a trap inside an eval-fallback that references it doesn't
+    // derail; the interpreter still goes through the proc-registry
+    // miss → this dispatch, so we need to call the real function.
     if (eql(c, "fconfigure")) {
-        stubs.unsupported("fconfigure");
+        const chan = @import("tcl_chan.zig");
+        _ = chan.fconfigure(0, 0);
         return true;
     }
     if (eql(c, "tell")) {
@@ -157,10 +162,19 @@ fn match_stub(c: []const u8) bool {
         stubs.unsupported("regsub");
         return true;
     }
-    if (eql(c, "encoding")) {
-        stubs.unsupported("encoding");
-        return true;
-    }
+    // ``encoding`` has a real (UTF-8 pass-through) implementation
+    // in tcl_encoding.zig.  When the interpreter walks a fallback
+    // script and hits an unknown ``encoding`` command, we'd want
+    // that real implementation to run — but here we don't have the
+    // ``words`` array, so we can't marshal subcommand + arg into
+    // its signature.  Fall through to the unknown-command path;
+    // the interpreter's ``eval_proc_call`` will still trap with
+    // ``unknown command: encoding`` if ``words`` is malformed.
+    // Direct dispatch from compiled code (the common case) is
+    // still served by ``_CMD_RUNTIME`` → real ``encoding`` fn.
+    // NOTE: reaching encoding through this path is an interpreter
+    // edge case; add a sub-dispatcher here if real-world scripts
+    // prove to need it.
 
     // Event-loop / coroutine stubs (tcl_time_stubs.zig).  ``clock``
     // is NOT in this table because ``clock seconds`` / ``clock

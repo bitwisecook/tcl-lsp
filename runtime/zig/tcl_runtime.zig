@@ -23,6 +23,8 @@ const tcl_fs_stubs = @import("tcl_fs_stubs.zig");
 const tcl_fmt_stubs = @import("tcl_fmt_stubs.zig");
 const tcl_time_stubs = @import("tcl_time_stubs.zig");
 const tcl_env_stubs = @import("tcl_env_stubs.zig");
+const tcl_encoding = @import("tcl_encoding.zig");
+const tcl_chan = @import("tcl_chan.zig");
 const tcl_cmd_dispatch = @import("tcl_cmd_dispatch.zig");
 const interp = @import("tcl_interp.zig");
 
@@ -212,7 +214,6 @@ comptime {
     _ = &tcl_io_stubs.eof;
     _ = &tcl_io_stubs.flush;
     _ = &tcl_io_stubs.fblocked;
-    _ = &tcl_io_stubs.fconfigure;
     _ = &tcl_io_stubs.tell;
     _ = &tcl_io_stubs.seek;
     _ = &tcl_io_stubs.chan;
@@ -232,7 +233,10 @@ comptime {
     _ = &tcl_fmt_stubs.binary;
     _ = &tcl_fmt_stubs.regexp;
     _ = &tcl_fmt_stubs.regsub;
-    _ = &tcl_fmt_stubs.encoding;
+    // encoding lives in tcl_encoding.zig (real pass-through impl).
+    _ = &tcl_encoding.encoding;
+    // fconfigure lives in tcl_chan.zig (NOP).
+    _ = &tcl_chan.fconfigure;
     _ = &tcl_time_stubs.clock_format;
     _ = &tcl_time_stubs.clock_scan;
     _ = &tcl_time_stubs.clock_add;

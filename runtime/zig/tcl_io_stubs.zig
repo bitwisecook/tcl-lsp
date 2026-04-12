@@ -59,12 +59,8 @@ pub export fn fblocked(fd: i32) i32 {
     return 0;
 }
 
-pub export fn fconfigure(fd: i32, opts: i32) i32 {
-    _ = fd;
-    _ = opts;
-    stubs.unsupported("fconfigure");
-    return 0;
-}
+// ``fconfigure`` moved to tcl_chan.zig — it's a NOP that silently
+// accepts option-set calls and returns empty for queries.
 
 pub export fn tell(fd: i32) i32 {
     _ = fd;

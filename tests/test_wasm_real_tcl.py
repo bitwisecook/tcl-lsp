@@ -1349,17 +1349,18 @@ class TestDiagMap:
         [
             ("open /tmp/x\n", "open"),
             ("close ch0\n", "close"),
-            ("fconfigure stdout -buffering none\n", "fconfigure"),
             ("file mkdir /tmp/x\n", "file"),
             ("glob *.tcl\n", "glob"),
             ("exec /bin/true\n", "exec"),
             ("regexp {foo} bar\n", "regexp"),
             ("regsub {foo} bar baz\n", "regsub"),
-            ("encoding convertfrom identity abc\n", "encoding"),
             ("format %d 42\n", "format"),
             ("scan 42 %d\n", "scan"),
             ("source foo.tcl\n", "source"),
             ("after 100\n", "after"),
+            # encoding + fconfigure have minimal real implementations
+            # (tcl_encoding.zig / tcl_chan.zig); see
+            # TestEncoding / TestFconfigure for their semantics.
         ],
     )
     def test_core_stubs_trap_with_unsupported(self, source, expected_cmd):
@@ -1393,17 +1394,20 @@ class TestDiagMap:
         # A standalone ``[cmd …]`` at top level compiles as an eval
         # fallback, so the interpreter walks it command-by-command
         # and the eval-context stamping runs before each dispatch.
-        source = "[encoding convertfrom identity abc]\n"
+        # Use ``regexp`` — still a trapping stub and not in the
+        # interpreter's implemented-command set, so the eval path
+        # exercises the unsupported-command branch.
+        source = "[regexp foo bar]\n"
         wasm, diag = _compile_tcl_with_diag(source, "t.tcl")
         try:
             _run_wasm(wasm, capture_stderr=True)
             pytest.fail("expected trap")
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
-            assert "unsupported command: encoding" in stderr
+            assert "unsupported command: regexp" in stderr
             assert "in eval-script at offset" in stderr
             # The snippet must contain at least the command name.
-            assert "encoding" in stderr
+            assert "regexp" in stderr
 
     def test_parse_bare_tracks_bracket_nesting(self):
         """``parse_bare`` must keep ``[cmd arg]`` as a single word.
@@ -1444,6 +1448,91 @@ class TestDiagMap:
             resolved = _resolve_trap(trap, stderr, diag)
             assert "t.tcl:1:1" in resolved
             assert "unknown command: definitely_not_a_command" in resolved
+
+
+class TestEncoding:
+    """Minimal UTF-8 encoding command — pass-through for identity/utf-8."""
+
+    @pytest.mark.parametrize(
+        ("source", "expected_stdout"),
+        [
+            ("puts [encoding convertfrom identity abc]\n", "abc\n"),
+            ("puts [encoding convertfrom utf-8 hello]\n", "hello\n"),
+            ("puts [encoding convertto identity xyz]\n", "xyz\n"),
+            ("puts [encoding convertto utf-8 data]\n", "data\n"),
+            # Two-arg form defaults to system encoding (utf-8) and
+            # passes through.
+            ("puts [encoding convertfrom abc]\n", "abc\n"),
+            ("puts [encoding system]\n", "utf-8\n"),
+            ("puts [encoding names]\n", "identity utf-8\n"),
+            ("puts [encoding dirs]\n", "\n"),
+        ],
+    )
+    def test_passthrough(self, source, expected_stdout):
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == expected_stdout
+
+    @pytest.mark.parametrize(
+        ("source", "expected_cmd"),
+        [
+            ("encoding convertfrom iso8859-1 abc\n", "encoding"),
+            ("encoding convertfrom cp1252 abc\n", "encoding"),
+            ("encoding convertto shiftjis xyz\n", "encoding"),
+            ("encoding bogus_subcommand\n", "encoding"),
+        ],
+    )
+    def test_unsupported_encoding_traps(self, source, expected_cmd):
+        """Non-identity, non-utf-8 codecs must trap rather than pass through."""
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        try:
+            _run_wasm(wasm, capture_stderr=True)
+            pytest.fail("expected trap")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert f"unsupported command: {expected_cmd}" in stderr or (
+                "encoding" in stderr and "unsupported" in stderr
+            ), f"stderr: {stderr!r}"
+
+
+class TestFconfigure:
+    """fconfigure pass-through — accept benign options, trap on unknown ones."""
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "fconfigure stdout -profile tcl8 -encoding utf-8\nputs ok\n",
+            "fconfigure stdout -blocking 0\nputs ok\n",
+            "fconfigure stdout -buffering line\nputs ok\n",
+            "fconfigure stdout -translation binary\nputs ok\n",
+            # Multiple pairs in one call.
+            "fconfigure stdout -blocking 1 -buffering none -encoding utf-8\nputs ok\n",
+        ],
+    )
+    def test_accepted_options(self, source):
+        """Any option in the safelist may be set without trapping."""
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == "ok\n"
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "fconfigure stdout -nonsense value\nputs ok\n",
+            "fconfigure stdout -polarity reverse\nputs ok\n",
+            # Odd arg count (query) is also unsupported.
+            "fconfigure stdout -encoding\nputs ok\n",
+        ],
+    )
+    def test_unknown_option_traps(self, source):
+        """Options outside the safelist must raise unsupported."""
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        try:
+            _run_wasm(wasm, capture_stderr=True)
+            pytest.fail("expected trap")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "unsupported command: fconfigure" in stderr, f"stderr: {stderr!r}"
 
 
 class TestExternalTcllibCounter:

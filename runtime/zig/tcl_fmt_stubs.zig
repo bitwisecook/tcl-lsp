@@ -46,9 +46,6 @@ pub export fn regsub(pattern: i32, str: i32) i32 {
     return 0;
 }
 
-pub export fn encoding(sub: i32, arg: i32) i32 {
-    _ = sub;
-    _ = arg;
-    stubs.unsupported("encoding");
-    return 0;
-}
+// ``encoding`` moved to tcl_encoding.zig — has a real (UTF-8 only)
+// implementation for convertfrom / convertto / system / names /
+// dirs.  Unknown subcommands / unsupported codecs still trap.

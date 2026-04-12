@@ -881,7 +881,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_scan": ("tcl", "scan", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_binary": ("tcl", "binary", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_regsub": ("tcl", "regsub", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_encoding": ("tcl", "encoding", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_encoding": (
+        "tcl",
+        "encoding",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Time / event stubs (tcl_time_stubs.zig).  clock_format /
     # clock_scan / clock_add are the non-implemented clock
     # subcommands; the arithmetic ones (seconds / clicks /
@@ -969,7 +974,7 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "binary": ("tcl_binary", 2),
     "regexp": ("tcl_regexp", 2),
     "regsub": ("tcl_regsub", 2),
-    "encoding": ("tcl_encoding", 2),
+    "encoding": ("tcl_encoding", 3),
     # Event / coroutine stubs.  The arithmetic clock commands
     # (``clock seconds`` / ``clock clicks`` / ``clock milliseconds``)
     # are real runtime fns and route through a separate dispatcher
@@ -4329,6 +4334,49 @@ class _WasmEmitter:
             self._emit_call(func_idx)
             # Store result back into the variable
             self._emit_local_set(var_idx)
+            return
+
+        # fconfigure takes a fd + a variable number of ``-option value``
+        # pairs; the runtime fn has a 2-arg signature (fd, opts_obj),
+        # so pack args[1:] into a single space-joined string literal
+        # here and hand the resulting TclObj to the stub.  For
+        # arguments that are variable references (``$value``) we
+        # can't fold at compile time; in that case we emit a
+        # ``tcl_concat`` chain at runtime.  Most fconfigure call
+        # sites in the wild use only literal option names and
+        # literal values, so the fast path is common.
+        if command == "fconfigure":
+            if not args:
+                self._emit_i32_const(0)
+                self._emit_i32_const(0)
+            else:
+                self._emit_value(args[0])
+                rest = args[1:]
+                if not rest:
+                    self._emit_i32_const(0)
+                elif all(not a.startswith("$") and not a.startswith("[") for a in rest):
+                    self._emit_obj_literal(" ".join(rest))
+                else:
+                    # Mixed literals + refs — build via repeated
+                    # ``tcl_concat(acc, " word")``.  tcl_concat is
+                    # always imported via the lifecycle set.
+                    concat_idx = self._shared_imports.get("tcl_concat")
+                    if concat_idx is None:
+                        self._emit_obj_literal(" ".join(rest))
+                    else:
+                        self._emit_obj_literal(rest[0])
+                        for word in rest[1:]:
+                            self._emit_obj_literal(" ")
+                            self._emit_call(concat_idx)
+                            self._emit_value(word)
+                            self._emit_call(concat_idx)
+            self._emit_call(func_idx)
+            if spec[3]:
+                if defs:
+                    def_idx = self._intern_local(defs[0])
+                    self._emit_local_set(def_idx)
+                else:
+                    self._emit(WasmOp.DROP)
             return
 
         # For puts, handle optional channel argument: puts ?-nonewline? ?channelId? string
