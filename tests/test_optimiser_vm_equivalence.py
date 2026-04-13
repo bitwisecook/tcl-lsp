@@ -1495,11 +1495,22 @@ class TestAdversarialObfuscation:
         """)
 
     def test_negative_zero(self):
-        """Negative zero in floating-point — edge case."""
+        """Negative zero in floating-point — sign must be preserved by the optimiser."""
+        # Compare string output directly: if the optimiser folds -0.0 → 0.0
+        # the puts will print "0.0" instead of "-0.0".
         _assert_equiv("""\
             set a [expr {-0.0}]
             set b [expr {0.0}]
-            puts [expr {$a == $b}]
+            puts $a
+            puts $b
+        """)
+        _assert_equiv("""\
+            set v [expr {-1.0 * 0.0}]
+            puts $v
+        """)
+        _assert_equiv("""\
+            set v [expr {-0.0 + -0.0}]
+            puts $v
         """)
 
     def test_cascading_proc_calls_with_side_effects(self):
