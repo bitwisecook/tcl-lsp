@@ -305,7 +305,12 @@ def _eval_binary(
         return None
 
     try:
-        return _apply_binary(op, lv, rv)
+        result = _apply_binary(op, lv, rv)
+        # Tcl 9.0 raises ARITH DOMAIN for NaN-producing operations; let the
+        # VM runtime handle them rather than silently constant-folding to NaN.
+        if isinstance(result, float) and math.isnan(result):
+            return None
+        return result
     except Exception:
         log.debug("expr_eval: binary operation failed", exc_info=True)
         return None

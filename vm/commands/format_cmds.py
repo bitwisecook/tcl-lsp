@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from typing import TYPE_CHECKING
 
@@ -221,14 +222,39 @@ def _cmd_scan(interp: TclInterp, args: list[str]) -> TclResult:
                     values.append(str(int(string[start:str_pos])))
             elif conv == "f" or conv in "eEgG":
                 start = str_pos
+                _negative = False
                 if str_pos < len(string) and string[str_pos] in "+-":
+                    _negative = string[str_pos] == "-"
                     str_pos += 1
-                while str_pos < len(string) and (
-                    string[str_pos].isdigit() or string[str_pos] in ".eE+-"
+                # Check for special IEEE 754 literals: Inf, Infinity, NaN
+                _rest = string[str_pos:]
+                _special: float | None = None
+                for _kw, _fv in (
+                    ("Infinity", math.inf),
+                    ("infinity", math.inf),
+                    ("Inf", math.inf),
+                    ("inf", math.inf),
+                    ("NaN", math.nan),
+                    ("nan", math.nan),
                 ):
-                    str_pos += 1
-                if str_pos > start:
-                    values.append(str(float(string[start:str_pos])))
+                    if _rest.startswith(_kw):
+                        _special = _fv
+                        str_pos += len(_kw)
+                        break
+                if _special is not None:
+                    from ..machine import _format_number
+
+                    if math.isnan(_special):
+                        values.append("NaN")
+                    else:
+                        values.append(_format_number(-_special if _negative else _special))
+                else:
+                    while str_pos < len(string) and (
+                        string[str_pos].isdigit() or string[str_pos] in ".eE+-"
+                    ):
+                        str_pos += 1
+                    if str_pos > start:
+                        values.append(str(float(string[start:str_pos])))
             elif conv == "s":
                 start = str_pos
                 while str_pos < len(string) and not string[str_pos].isspace():

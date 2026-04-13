@@ -126,7 +126,13 @@ def _mf_double(args: list[str]) -> str:
 
 
 def _mf_entier(args: list[str]) -> str:
-    return str(int(float(args[0])))
+    v = float(args[0])
+    if math.isinf(v) or math.isnan(v):
+        raise TclError(
+            "integer value too large to represent",
+            error_code="ARITH IOVERFLOW {integer value too large to represent}",
+        )
+    return str(int(v))
 
 
 def _mf_exp(args: list[str]) -> str:
@@ -154,7 +160,13 @@ def _mf_hypot(args: list[str]) -> str:
 
 
 def _mf_int(args: list[str]) -> str:
-    return str(int(float(args[0])))
+    v = float(args[0])
+    if math.isinf(v) or math.isnan(v):
+        raise TclError(
+            "integer value too large to represent",
+            error_code="ARITH IOVERFLOW {integer value too large to represent}",
+        )
+    return str(int(v))
 
 
 def _mf_isqrt(args: list[str]) -> str:
@@ -276,6 +288,11 @@ def _mf_wide(args: list[str]) -> str:
     # Float to wide int: truncate like C's (Tcl_WideInt)(double)
 
     fv = float(v)
+    if math.isinf(fv) or math.isnan(fv):
+        raise TclError(
+            "integer value too large to represent",
+            error_code="ARITH IOVERFLOW {integer value too large to represent}",
+        )
     # Pack as C double, unpack as signed 64-bit int equivalent via
     # C-style truncation.  For values in range, int() suffices.
     # For out-of-range values, use struct to get the C behaviour.
