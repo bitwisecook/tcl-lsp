@@ -452,10 +452,15 @@ def _arith_binary(a_str: str, b_str: str, op_name: str) -> str:
             result = a * b
         case "div":
             if b == 0:
-                # IEEE platforms: float/0.0 → Inf/-Inf/NaN
+                # IEEE platforms: float/±0.0 → ±Inf (sign = sign(a)×sign(b)); 0/0 → domain error
                 if isinstance(a, float) or isinstance(b, float):
                     fa, fb = float(a), float(b)
-                    result = math.copysign(math.inf, fa) if fa != 0.0 else math.nan
+                    if fa == 0.0:
+                        raise TclError(
+                            "domain error: argument not in valid range",
+                            error_code="ARITH DOMAIN {domain error: argument not in valid range}",
+                        )
+                    result = math.copysign(math.inf, fa) * math.copysign(1.0, fb)
                 else:
                     raise TclError("divide by zero", error_code="ARITH DIVZERO {divide by zero}")
             elif isinstance(a, int) and isinstance(b, int):
