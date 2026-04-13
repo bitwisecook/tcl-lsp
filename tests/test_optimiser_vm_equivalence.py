@@ -1496,21 +1496,21 @@ class TestAdversarialObfuscation:
 
     def test_negative_zero(self):
         """Negative zero in floating-point — sign must be preserved by the optimiser."""
-        # The optimiser must not fold -0.0 to 0.0: division by each produces
-        # -Inf vs +Inf, which exposes any loss of the sign bit.
+        # Compare string output directly: if the optimiser folds -0.0 → 0.0
+        # the puts will print "0.0" instead of "-0.0".
         _assert_equiv("""\
             set a [expr {-0.0}]
             set b [expr {0.0}]
-            puts [expr {1.0 / $a}]
-            puts [expr {1.0 / $b}]
+            puts $a
+            puts $b
         """)
         _assert_equiv("""\
             set v [expr {-1.0 * 0.0}]
-            puts [expr {1.0 / $v}]
+            puts $v
         """)
         _assert_equiv("""\
             set v [expr {-0.0 + -0.0}]
-            puts [expr {1.0 / $v}]
+            puts $v
         """)
 
     def test_cascading_proc_calls_with_side_effects(self):

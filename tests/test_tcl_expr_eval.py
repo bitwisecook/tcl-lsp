@@ -374,8 +374,6 @@ class TestFormatTclValue:
 
     def test_negative_zero_arithmetic(self):
         # -1.0 * 0.0 = -0.0 per IEEE 754.
-        import math
-
         assert format_tcl_value(-1.0 * 0.0) == "-0.0"
         assert math.copysign(1.0, -1.0 * 0.0) < 0  # confirm it's actually -0.0
 
