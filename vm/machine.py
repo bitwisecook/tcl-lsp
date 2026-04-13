@@ -460,7 +460,8 @@ def _arith_binary(a_str: str, b_str: str, op_name: str) -> str:
                             "domain error: argument not in valid range",
                             error_code="ARITH DOMAIN {domain error: argument not in valid range}",
                         )
-                    result = math.copysign(math.inf, fa) * math.copysign(1.0, fb)
+                    sign = math.copysign(1.0, fa) * math.copysign(1.0, fb)
+                    result = math.copysign(math.inf, sign)
                 else:
                     raise TclError("divide by zero", error_code="ARITH DIVZERO {divide by zero}")
             elif isinstance(a, int) and isinstance(b, int):
