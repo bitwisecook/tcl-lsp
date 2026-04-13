@@ -56,7 +56,7 @@ fn is_accepted_option(p: [*]const u8, len: u32) bool {
 /// *args* is a Tcl list of alternating ``-option value`` pairs.  We
 /// walk it and validate each option name against the allowlist.
 /// Empty args means "query all options" — not implemented, traps.
-pub export fn fconfigure(fd: i32, args: i32) i32 {
+pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
     _ = fd;
     if (args == 0) {
         stubs.unsupported("fconfigure (query all options)");

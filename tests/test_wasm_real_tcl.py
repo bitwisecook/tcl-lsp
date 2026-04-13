@@ -92,6 +92,7 @@ def _run_wasm(
     func_name: str = "::top",
     args: tuple[int, ...] = (),
     capture_stderr: bool = False,
+    preopen_tmpdir: str | None = None,
 ) -> tuple:
     """Link and run a compiled Tcl WASM module.
 
@@ -102,6 +103,14 @@ def _run_wasm(
     backtrace.  The loose ``tuple`` return type keeps existing 2-tuple
     callers happy under static analysis — they unpack the first two
     slots; the stderr slot is only present when asked for explicitly.
+
+    ``preopen_tmpdir`` — optional host directory path to grant the
+    WASM instance access to, mapped to the guest path ``/``.  With
+    no preopen (the default), every ``access``/``stat`` call
+    returns ``ENOTCAPABLE``, so ``file exists`` etc. report
+    "doesn't exist" regardless of the host filesystem state.  The
+    ``TestFile`` suite passes a fresh ``pytest tmp_path`` to
+    exercise the real filesystem paths.
     """
     engine = _get_engine()
     store = wasmtime.Store(engine)
@@ -119,6 +128,15 @@ def _run_wasm(
         os.close(fd)
         wasi_config.stderr_file = stderr_path
 
+    if preopen_tmpdir is not None:
+        # ``preopen_dir`` grants capability-bound access.  Mapping
+        # the host dir to guest ``/`` means Tcl paths written
+        # against the guest's ``pwd`` ("/") resolve under the host
+        # path.  We pass the host path as ``dir`` (first positional)
+        # and the guest path as ``guest_path``; wasmtime's Python
+        # binding follows that order.
+        wasi_config.preopen_dir(preopen_tmpdir, "/")
+
     store.set_wasi(wasi_config)
 
     # Instantiate Zig runtime
@@ -129,6 +147,17 @@ def _run_wasm(
     tcl_instance_box, memory_box = _define_call_compiled_proc(linker, store)
 
     rt_instance = linker.instantiate(store, rt_module)
+
+    # WASI reactor initialisation — wasi-libc installs its ctors
+    # (preopen-fd scanner, global locks, etc.) in ``_initialize``
+    # rather than at instantiation.  Calling it once per store
+    # populates the ``__wasilibc_cwd`` / preopen table so
+    # subsequent ``access``/``stat`` calls can resolve paths
+    # against the configured ``preopen_dir``.  If the runtime
+    # doesn't export ``_initialize`` (old build), this is a no-op.
+    init_fn = rt_instance.exports(store).get("_initialize")
+    if init_fn is not None:
+        init_fn(store)
 
     # Re-export under "tcl" namespace
     for export in rt_module.exports:
@@ -1183,6 +1212,146 @@ return [main]
         assert ok, f"error: {err}"
         assert val == 1
 
+    def test_array_read_in_puts_value_context(self):
+        """``$arr(key)`` reads outside expression context — the
+        codegen must dispatch through ``tcl_array_get`` rather than
+        treating ``a`` as a local and ``(x)`` as literal text.
+        Regression test for ``_resolve_var_name`` not accepting
+        array refs.
+        """
+        wasm, _ = _compile_tcl_with_diag("set a(x) 42\nputs $a(x)\n")
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "42\n"
+
+    def test_array_read_in_interpolated_string(self):
+        """``"v=$arr(key)"`` — the interpolated parser must consume
+        the ``(key)`` as part of the variable reference, not split
+        it into a variable ``$a`` followed by literal ``(x)``.
+        """
+        wasm, _ = _compile_tcl_with_diag('set a(x) 42\nputs "v=$a(x) done"\n')
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "v=42 done\n"
+
+    def test_array_read_via_set_single_arg(self):
+        """``[set arr(key)]`` — the 1-arg ``set`` read form in value
+        context must route through the array-element reader.
+        Without the special-case in ``_emit_command_subst_value``
+        it falls through to the eval fallback and returns empty.
+        """
+        wasm, _ = _compile_tcl_with_diag("set a(x) 42\nputs [set a(x)]\n")
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "42\n"
+
+    def test_array_read_via_set_single_arg_expr(self):
+        """``[set arr(key)]`` in expression context — mirror of the
+        value-context special-case, for ``if {[set a(x)] == 1}``.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "set a(x) 1\nif {[set a(x)] == 1} { puts yes } else { puts no }\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "yes\n"
+
+    def test_array_read_in_proc_value_context(self):
+        """Array reads inside a proc must go through the same
+        value-context path as at top level.
+        """
+        wasm, _ = _compile_tcl_with_diag("proc f {} { set a(x) 42; puts <$a(x)> }\nf\n")
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "<42>\n"
+
+    def test_array_read_with_interpolated_key(self):
+        """``$arr($i)`` — the key contains its own ``$var``
+        substitution.  The interpolated-parts scanner must consume
+        through the matching ``)`` rather than treating ``$i)`` as
+        a separate variable followed by literal ``)``.
+        """
+        wasm, _ = _compile_tcl_with_diag("set i x\nset a($i) 42\nputs $a($i)\n")
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "42\n"
+
+    def test_array_set_list_form(self):
+        """``array set arr {k v k v ...}`` — the pair-list form
+        must populate each element, not store the whole list under
+        one key.  Regression for tcltest's ``ArrayDefault numTests
+        [list Total 0 …]`` where the old interpreter path stored
+        the full payload as a single key and later ``incr
+        numTests(Total)`` ran on an uninitialised element.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            'array set a {x 1 y 2 z 3}\nputs "x=$a(x) y=$a(y) z=$a(z)"\n'
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "x=1 y=2 z=3\n"
+
+    def test_array_set_list_via_command_subst(self):
+        """``array set arr [list k v k v …]`` — command-sub payload
+        reaches the Zig interpreter via ``_emit_eval_fallback`` (the
+        compile-time list-literal path only fires on brace literals),
+        which must route through the new ``array_set_list`` helper.
+        """
+        wasm, _ = _compile_tcl_with_diag('array set a [list x 1 y 2]\nputs "x=$a(x) y=$a(y)"\n')
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "x=1 y=2\n"
+
+    def test_array_read_in_double_quoted_string(self):
+        """``"v=$arr(key)"`` — the lowerer rewrites to
+        ``v=${arr(key)}`` which the import-scan must still
+        recognise as needing ``tcl_array_get``; without the braced
+        scan fix, the read falls back to ``i32.const 0`` at runtime
+        (silent empty-string).
+        """
+        wasm, _ = _compile_tcl_with_diag('set a(x) 42\nputs "v=$a(x) done"\n')
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "v=42 done\n"
+
+
+class TestNamespaceVariables:
+    """Variables inside ``namespace eval ::ns { … }`` bodies must
+    persist at ``::ns::<name>``.  Regression coverage for the
+    previously no-op ``variable`` at namespace-eval top-level and
+    the bare-local fast path that mis-qualified unqualified names.
+    """
+
+    def test_variable_with_initializer_persists(self):
+        src = "namespace eval ns { variable x 5 }\nputs [set ::ns::x]\n"
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "5\n"
+
+    def test_set_inside_namespace_eval_persists(self):
+        src = "namespace eval ns { set x 5 }\nputs [set ::ns::x]\n"
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "5\n"
+
+    def test_incr_inside_namespace_eval(self):
+        """``incr`` must route through the global table too, not
+        operate on a bare local.  Otherwise the incremented value
+        doesn't end up at ``::ns::n``.
+        """
+        src = "namespace eval ns { variable n 0; incr n; incr n }\nputs [set ::ns::n]\n"
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "2\n"
+
+    def test_variable_alias_in_proc_still_works(self):
+        """The in-proc ``variable name`` alias path mustn't regress
+        — it still needs to route reads/writes through the global
+        table using the enclosing namespace.
+        """
+        src = (
+            "namespace eval ns {\n"
+            "    variable x 0\n"
+            "    proc inc {} { variable x; incr x }\n"
+            "    inc; inc; inc\n"
+            "}\n"
+            "puts [set ::ns::x]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "3\n"
+
     def test_array_unset_preserves_probe_chain(self):
         """Deleting an element must not break lookups of collision-mates.
 
@@ -1434,10 +1603,19 @@ class TestDiagMap:
         [
             ("open /tmp/x\n", "open"),
             ("close ch0\n", "close"),
-            ("file mkdir /tmp/x\n", "file"),
+            # ``file`` now has real WASI-backed impls for mkdir /
+            # delete / rename / copy / link / readlink / stat /
+            # lstat / type — see TestFile for the positive cases.
+            # Failures from those route through ``stubs.raise``
+            # with a syscall-specific message rather than the
+            # ``unsupported command:`` prefix, so we no longer
+            # parametrize a ``file`` stub entry here.
             ("glob *.tcl\n", "glob"),
             ("exec /bin/true\n", "exec"),
-            ("regexp {foo} bar\n", "regexp"),
+            # ``regexp`` has a real impl in tcl_regex.zig backed by
+            # Tcl's Henry-Spencer engine — see TestRegexp.  ``regsub``
+            # remains a trapping stub until the substitution path is
+            # wired up.
             ("regsub {foo} bar baz\n", "regsub"),
             # ``format`` has a minimal real impl in tcl_format.zig —
             # see TestFormat.
@@ -1480,20 +1658,22 @@ class TestDiagMap:
         # A standalone ``[cmd …]`` at top level compiles as an eval
         # fallback, so the interpreter walks it command-by-command
         # and the eval-context stamping runs before each dispatch.
-        # Use ``regexp`` — still a trapping stub and not in the
+        # Use ``regsub`` — still a trapping stub and not in the
         # interpreter's implemented-command set, so the eval path
-        # exercises the unsupported-command branch.
-        source = "[regexp foo bar]\n"
+        # exercises the unsupported-command branch.  ``regexp`` used
+        # to sit here but now routes to a real impl; ``regsub`` is
+        # the obvious shape-matching substitute.
+        source = "[regsub foo bar baz]\n"
         wasm, diag = _compile_tcl_with_diag(source, "t.tcl")
         try:
             _run_wasm(wasm, capture_stderr=True)
             pytest.fail("expected trap")
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
-            assert "unsupported command: regexp" in stderr
+            assert "unsupported command: regsub" in stderr
             assert "in eval-script at offset" in stderr
             # The snippet must contain at least the command name.
-            assert "regexp" in stderr
+            assert "regsub" in stderr
 
     def test_parse_bare_tracks_bracket_nesting(self):
         """``parse_bare`` must keep ``[cmd arg]`` as a single word.
@@ -1534,6 +1714,698 @@ class TestDiagMap:
             resolved = _resolve_trap(trap, stderr, diag)
             assert "t.tcl:1:1" in resolved
             assert "unknown command: definitely_not_a_command" in resolved
+
+
+class TestReturnCodeError:
+    """``return -code error "<msg with $substitutions>"`` — inline path.
+
+    This special-cased codegen lets the message value go through
+    ``_emit_value`` (which handles ``$var`` / ``[cmd]``
+    interpolation) rather than the eval fallback's brace-quoting
+    that would block substitution.  The literal test below would
+    previously emit the raw ``${var}`` text because the fallback
+    wraps the message in braces to preserve list structure.
+    """
+
+    def test_error_message_substitutes_vars(self):
+        # Wrap the error-raising call in ``catch`` so the test
+        # can observe the captured message through the resultVar.
+        # Without the special-case codegen, ``msg`` would be
+        # ``"ambiguous option ${o}: could match ${m}"`` (raw).
+        source = (
+            "proc fail {o m} {\n"
+            '    return -code error "ambiguous option $o: could match $m"\n'
+            "}\n"
+            "if {[catch {fail -tmpdir {a b}} msg]} {\n"
+            "    puts $msg\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        # ``$o`` must have expanded to ``-tmpdir`` and ``$m`` to
+        # ``a b``.  Literal ``${o}`` in the output = regression.
+        assert "ambiguous option -tmpdir: could match a b" in stdout, f"got: {stdout!r}"
+
+
+class TestArrayNamesPattern:
+    """``array names arr ?pattern?`` — glob filter.
+
+    Tcl's array names accepts an optional trailing glob pattern
+    that narrows the key list (same semantics as ``string
+    match``).  Previously the runtime's ``array_names`` ignored
+    the pattern entirely — tcltest's ``MatchingOption`` relies on
+    it to turn ``array names Option $option*`` into a prefix
+    lookup.
+    """
+
+    def test_no_pattern_returns_all_keys(self):
+        source = "array set a {one 1 two 2 three 3 four 4}\nputs [lsort [array names a]]\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "four one three two"
+
+    def test_literal_glob_pattern(self):
+        source = "array set a {one 1 two 2 three 3 four 4}\nputs [lsort [array names a t*]]\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        # Should match ``two`` and ``three``.
+        assert stdout.strip() == "three two"
+
+    def test_interpolated_glob_pattern(self):
+        # Verifies ``tcl_append`` gets imported so the pattern
+        # ``$prefix*`` actually interpolates rather than arriving
+        # as the raw ``${prefix}*`` literal (which would match
+        # nothing).
+        source = (
+            "array set a {-tmpdir /tmp -verbose 1 -notfile foo}\n"
+            "set prefix -tmp\n"
+            "puts [array names a $prefix*]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "-tmpdir"
+
+    def test_pattern_matches_nothing(self):
+        source = "array set a {foo 1 bar 2}\nputs -[array names a zzz*]-\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        # Empty match → empty string between the delimiters.
+        assert stdout.strip() == "--"
+
+
+class TestSwitchWithCommandSubst:
+    """``switch`` whose subject is a command substitution.
+
+    The CFG builder wraps the switch subject as
+    ``ExprBinary(STR_EQ, ExprRaw(subject_text), ExprLiteral(arm))``.
+    ``_emit_str_value`` used to emit ``ExprRaw`` through
+    ``_emit_obj_literal``, which shipped the raw text (e.g.
+    ``"[llength $x]"``) instead of executing it — so the
+    comparison never matched any arm and ``default`` always
+    fired.  Routing ``ExprRaw`` through ``_emit_value`` honours
+    command-substitution and interpolation.
+    """
+
+    def test_llength_direct_as_switch_subject(self):
+        source = (
+            "switch -- [llength -tmpdir] {\n"
+            "    0 { puts zero }\n"
+            "    1 { puts one }\n"
+            "    default { puts default }\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "one"
+
+    def test_llength_of_empty_list(self):
+        source = (
+            "switch -- [llength {}] {\n"
+            "    0 { puts zero }\n"
+            "    1 { puts one }\n"
+            "    default { puts default }\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "zero"
+
+    def test_interpolated_subject_matches_arm(self):
+        source = (
+            "set prefix hello\n"
+            'switch -- "$prefix-world" {\n'
+            "    hello-world { puts greet }\n"
+            "    default { puts default }\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "greet"
+
+
+class TestInfoLevel:
+    """``info level 0`` inside a compiled proc.
+
+    Returns the proc's current invocation as a list whose first
+    element is the proc name and the rest are the parameter
+    values.  This unblocks tcltest's ``outputChannel`` /
+    ``errorChannel`` checks (``[llength [info level 0]] == 1``
+    means "called with no args") — without a working impl,
+    ``llength`` sees an empty string, returns 0, and the compiled
+    body falls through to the ``open $filename`` branch that traps
+    on our unsupported ``open`` stub during ``cleanupTests``.
+    """
+
+    def test_info_level_zero_reports_no_args(self):
+        source = (
+            'proc foo {{filename ""}} {\n'
+            "    if {[llength [info level 0]] == 1} {\n"
+            "        puts no-args\n"
+            "    } else {\n"
+            "        puts with-args\n"
+            "    }\n"
+            "}\n"
+            "foo\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "no-args"
+
+    def test_info_level_zero_with_args(self):
+        source = 'proc foo {{filename ""}} {\n    puts "l=[llength [info level 0]]"\n}\nfoo hello\n'
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "l=2"
+
+
+class TestProcDefaultsInCallSubst:
+    """Procs called via ``[name]`` in command-substitution context.
+
+    ``[outputChannel]`` with no args should receive the declared
+    default value (empty string for ``{{filename ""}}``), not a
+    boxed-integer 0 sentinel.  Without the declared-default fix,
+    ``filename`` inside ``outputChannel`` was the integer TclObj
+    0, making ``[info level 0]`` report a 2-element list and
+    forcing the compiled body into the ``open $filename`` default
+    branch that trapped on our unsupported ``open`` stub during
+    tcltest's ``cleanupTests``.
+    """
+
+    def test_default_empty_string_reaches_callee(self):
+        # Use ``string length`` rather than ``eq ""``/``eq {}`` —
+        # our string-equality operator has a separate gap when
+        # comparing against empty-string literals that this test
+        # would otherwise trip on.
+        source = (
+            'proc foo {{filename ""}} {\n'
+            "    if {[string length $filename] == 0} {\n"
+            "        puts empty\n"
+            "    } else {\n"
+            '        puts "value=<$filename>"\n'
+            "    }\n"
+            "}\n"
+            "puts [foo]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert "empty" in stdout.splitlines()
+
+    def test_default_literal_reaches_callee(self):
+        source = 'proc greet {{name world}} {\n    puts "hello $name"\n}\nset msg [greet]\n'
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "hello world"
+
+
+class TestVariadicArgs:
+    """Tcl ``proc … args {…}`` variadic-tail support.
+
+    When a proc's last parameter is named ``args`` Tcl treats it
+    specially: all extra call arguments get packed into a list and
+    bound to ``args``.  Our compiled functions have fixed-arity
+    signatures, so the runtime's host-bridge dispatcher
+    (``tcl_dispatch.zig``) does the packing — checks
+    ``proc_get_args_tail`` and builds a list TclObj for the tail
+    before invoking ``call_compiled_proc``.
+
+    Before this support, ``proc foo {args} {}`` compiled to a
+    single-i32-param WASM function, and calling ``foo a b`` from
+    the interpreter (via eval fallback) trapped with ``too many
+    parameters provided: given 2, expected 1`` — the blocker for
+    tcltest's bundle runner whose ``useLocal counter.tcl
+    counter`` stub passes 2 args to a one-param variadic proc.
+    """
+
+    def test_args_with_zero_extras(self):
+        source = (
+            'proc f {args} { return "args-len=[llength $args]" }\n'
+            "# Call via eval so the host-bridge dispatcher runs.\n"
+            "puts [eval {f}]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "args-len=0"
+
+    def test_args_with_multiple_extras(self):
+        source = 'proc f {args} { return "args-len=[llength $args]" }\nputs [eval {f a b c d}]\n'
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "args-len=4"
+
+    def test_positional_then_args_tail(self):
+        source = (
+            "proc f {a b args} {\n"
+            '    return "a=$a b=$b args=[llength $args]"\n'
+            "}\n"
+            "puts [eval {f one two three four five}]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "a=one b=two args=3"
+
+    def test_args_element_with_whitespace(self):
+        # Element with embedded spaces must stay a single list
+        # element — verifies list-element quoting in
+        # ``build_args_list``.  Without the ``{`` / ``}`` wrap,
+        # ``llength $args`` would report 4 (the dispatcher would
+        # have space-joined everything into ``hello world a b c``
+        # which splits back into four words).
+        source = (
+            "proc f {args} { return [llength $args] }\n"
+            "# ``set x [list …]; eval $x`` is the direct route\n"
+            "# to the host-bridge dispatcher with multi-word\n"
+            "# arguments.  The ``eval [list …]`` one-liner goes\n"
+            "# through a different codegen path we can pin once\n"
+            "# that's fixed (separate investigation).\n"
+            'set x [list f "hello world" "a b c"]\n'
+            "puts [eval $x]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert stdout.strip() == "2"
+
+
+class TestRegexp:
+    """Tcl regex engine (Henry Spencer) linked via ``tcl_regex.zig``.
+
+    The engine covers Tcl's full ARE syntax — ``^``/``$`` anchors,
+    alternation, groups, ``\\s``/``\\w``/``\\d`` escapes, character
+    classes — because it's the same engine ``tclsh`` ships with.
+    These tests pin the baseline behaviour so regressions in the
+    build/shim layer surface immediately.
+
+    Capture vars and options beyond ``-nocase`` / ``--`` are not
+    yet wired up; the interpreter path silently ignores them (see
+    ``tcl_regex.zig::eval_regexp_cmd``).
+    """
+
+    @pytest.mark.parametrize(
+        "pattern,subject,expected",
+        [
+            # Basic literal match
+            (r"hello", "hello world", 1),
+            (r"xyz", "hello world", 0),
+            # Anchors
+            (r"^hello", "hello world", 1),
+            (r"^hello", "world hello", 0),
+            (r"world$", "hello world", 1),
+            (r"world$", "world hello", 0),
+            # Alternation + groups
+            (r"(cat|dog|bird)", "I have a dog", 1),
+            (r"(cat|dog|bird)", "I have a fish", 0),
+            # ``\s``/``\d``/``\w`` Perl-style escapes (ARE feature)
+            (r"\s+", "hello   world", 1),
+            (r"\s+", "helloworld", 0),
+            (r"\d+", "abc123def", 1),
+            (r"\d+", "no digits here", 0),
+            (r"\w+", "hello", 1),
+            # Character classes
+            (r"[0-9]+", "abc42", 1),
+            (r"[0-9]+", "abcdef", 0),
+            (r"[^0-9]+", "42", 0),
+            # The tcltest ``AcceptVerbose`` regex — alternation with
+            # anchors is the pattern that used to trap the runner
+            # when ``regexp`` was a stub.
+            (r"^(list|pass|body|skip|error)$", "body", 1),
+            (r"^(list|pass|body|skip|error)$", "unknown", 0),
+            (r"^(list|pass|body|skip|error)$", "pass", 1),
+        ],
+    )
+    def test_regexp_match(self, pattern, subject, expected):
+        # Pattern is brace-protected so Tcl's parser doesn't treat
+        # bracket characters as command substitutions.
+        source = (
+            "proc t {} {\n"
+            f"    if {{[regexp {{{pattern}}} {{{subject}}}]}} {{\n"
+            "        puts MATCH\n"
+            "    } else {\n"
+            "        puts NOMATCH\n"
+            "    }\n"
+            "}\n"
+            "t\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        want = "MATCH" if expected == 1 else "NOMATCH"
+        assert want in stdout, f"pattern={pattern!r} subject={subject!r}: {stdout!r}"
+
+    @pytest.mark.parametrize(
+        "pattern,subject,expected",
+        [
+            # ``-nocase`` takes a non-2-arg shape, so the codegen
+            # routes through eval fallback → interpreter's
+            # ``eval_regexp_cmd`` switch parser.  Pin the option
+            # parsing here to catch regressions in that path.
+            (r"hello", "HELLO", 0),  # case-sensitive: no match
+            (r"hello", "HELLO", 1),  # case-insensitive: match
+            (r"^WORLD$", "world", 1),  # case-insensitive anchors too
+        ],
+    )
+    def test_regexp_nocase(self, pattern, subject, expected):
+        # Index 0 is case-sensitive (no -nocase), 1 and 2 are.
+        # pytest parametrize orders them — so we decide via expected:
+        # case-sensitive "HELLO" against "hello" yields 0 (no match),
+        # with -nocase it yields 1.
+        use_nocase = expected == 1
+        switches = "-nocase " if use_nocase else ""
+        source = (
+            "proc t {} {\n"
+            f"    if {{[regexp {switches}-- {{{pattern}}} {{{subject}}}]}} {{\n"
+            "        puts MATCH\n"
+            "    } else {\n"
+            "        puts NOMATCH\n"
+            "    }\n"
+            "}\n"
+            "t\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        want = "MATCH" if expected == 1 else "NOMATCH"
+        assert want in stdout, (
+            f"pattern={pattern!r} subject={subject!r} nocase={use_nocase}: {stdout!r}"
+        )
+
+    def test_regexp_invalid_pattern_raises(self):
+        """``regexp`` with an unparseable pattern must raise a real
+        error, not silently report no-match.  Silent failure would
+        hide typos in user regexps.
+        """
+        # ``(`` with no closing paren is a compile-time error in
+        # the Henry-Spencer engine (unbalanced subexpression).
+        source = (
+            "if {[catch {regexp { (abc} xyz} msg]} {\n"
+            "    puts CAUGHT\n"
+            "} else {\n"
+            "    puts MISSED\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert "CAUGHT" in stdout, stdout
+
+    def test_regexp_unknown_switch_raises(self):
+        """Unsupported switches (e.g. ``-indices``) must raise an
+        error rather than being treated as the pattern.  The
+        previous silent-fallthrough behaviour caused
+        ``regexp -indices {a+} aa`` to try matching literal
+        ``-indices`` against ``{a+}`` and return a wrong boolean.
+        """
+        source = (
+            "if {[catch {regexp -indices {a+} aa} msg]} {\n"
+            "    puts CAUGHT\n"
+            "} else {\n"
+            "    puts MISSED\n"
+            "}\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
+        assert "CAUGHT" in stdout, stdout
+
+
+class TestSubstSemantics:
+    """``subst`` must execute each ``$var`` / ``[cmd]`` exactly
+    once (Tcl semantics) and size its output buffer against the
+    actual — not pre-computed and re-computed — substitution
+    lengths.  Regression coverage for the previous two-pass
+    implementation that called ``eval_script`` twice per
+    substitution, doubling side effects and reopening the
+    overflow class the two-pass approach was meant to close.
+    """
+
+    def test_subst_command_runs_once(self):
+        source = 'set x 0\nset r [subst {[incr x]}]\nputs "r=$r"\n'
+        wasm, _ = _compile_tcl_with_diag(source)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        # subst returns the result of a single incr — "1".  Two
+        # executions would return "2" (second incr returns 2).
+        assert stdout == "r=1\n"
+
+    def test_subst_puts_runs_once(self):
+        source = "subst {[puts hi]}\n"
+        wasm, _ = _compile_tcl_with_diag(source)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        # Exactly one "hi" line — two-pass would print twice.
+        assert stdout == "hi\n"
+
+    def test_subst_interleaved_var_and_side_effect(self):
+        """``subst "$x[set x longvalue]$x"`` — the read/write
+        interleave.  With single-pass semantics, the first ``$x``
+        sees the original value, ``[set x longvalue]`` both
+        returns its new value AND propagates the side effect, so
+        the second ``$x`` sees ``longvalue``.  The key property:
+        the output buffer is sized correctly even though the
+        second read yields a longer string than the first —
+        which is exactly the overflow case the two-pass approach
+        re-introduced.
+        """
+        source = 'set x a\nset r [subst "$x[set x longvalue]$x"]\nputs r=$r\n'
+        wasm, _ = _compile_tcl_with_diag(source)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "r=alongvaluelongvalue\n"
+
+
+class TestFile:
+    """Tcl ``file`` command subcommands backed by wasi-libc.
+
+    Each test runs against a fresh host ``tmp_path`` that's
+    preopened into the WASI instance as guest-path ``/``.  The
+    compiled Tcl script calls ``file`` operations on paths
+    rooted at ``/``; those resolve under ``tmp_path`` on the
+    host.  Without the preopen, every ``access``/``stat`` call
+    would return ``ENOTCAPABLE`` and these tests would assert
+    the wrong thing.
+    """
+
+    def _run(self, tmp_path, tcl_source):
+        """Compile + run *tcl_source* with *tmp_path* preopened
+        as guest ``/``.  Returns captured stdout."""
+        wasm, _ = _compile_tcl_with_diag(tcl_source, "t.tcl")
+        _, stdout, _ = _run_wasm(
+            wasm,
+            capture_stdout=True,
+            capture_stderr=True,
+            preopen_tmpdir=str(tmp_path),
+        )
+        return stdout
+
+    def test_exists_on_existing_file(self, tmp_path):
+        (tmp_path / "hello.txt").write_text("hi")
+        out = self._run(
+            tmp_path,
+            "puts [file exists /hello.txt]\n",
+        )
+        assert out.strip() == "1", f"got {out!r}"
+
+    def test_exists_on_missing_file(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            "puts [file exists /does-not-exist]\n",
+        )
+        assert out.strip() == "0", f"got {out!r}"
+
+    def test_isdirectory_vs_isfile(self, tmp_path):
+        (tmp_path / "subdir").mkdir()
+        (tmp_path / "file.txt").write_text("x")
+        out = self._run(
+            tmp_path,
+            (
+                "puts [file isdirectory /subdir]\n"
+                "puts [file isdirectory /file.txt]\n"
+                "puts [file isfile /subdir]\n"
+                "puts [file isfile /file.txt]\n"
+            ),
+        )
+        # isdirectory subdir=1, isdirectory file=0, isfile subdir=0, isfile file=1
+        assert out.strip().splitlines() == ["1", "0", "0", "1"]
+
+    def test_readable_writable(self, tmp_path):
+        (tmp_path / "rw.txt").write_text("x")
+        out = self._run(
+            tmp_path,
+            (
+                "puts [file readable /rw.txt]\n"
+                "puts [file writable /rw.txt]\n"
+                "puts [file readable /nope]\n"
+            ),
+        )
+        assert out.strip().splitlines() == ["1", "1", "0"]
+
+    def test_size(self, tmp_path):
+        (tmp_path / "data.bin").write_bytes(b"0123456789")
+        out = self._run(
+            tmp_path,
+            "puts [file size /data.bin]\n",
+        )
+        assert out.strip() == "10"
+
+    def test_mkdir_creates_directory(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            ("file mkdir /newdir\nputs [file isdirectory /newdir]\n"),
+        )
+        assert out.strip() == "1"
+        assert (tmp_path / "newdir").is_dir()
+
+    def test_mkdir_creates_nested_dirs(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            ("file mkdir /a/b/c\nputs [file isdirectory /a/b/c]\n"),
+        )
+        assert out.strip() == "1"
+        assert (tmp_path / "a" / "b" / "c").is_dir()
+
+    def test_mkdir_idempotent(self, tmp_path):
+        (tmp_path / "existing").mkdir()
+        # Second mkdir on an existing dir should be a no-op, not
+        # an error.
+        out = self._run(
+            tmp_path,
+            ("file mkdir /existing\nputs [file isdirectory /existing]\n"),
+        )
+        assert out.strip() == "1"
+
+    def test_delete_file(self, tmp_path):
+        (tmp_path / "gone.txt").write_text("x")
+        out = self._run(
+            tmp_path,
+            ("file delete /gone.txt\nputs [file exists /gone.txt]\n"),
+        )
+        assert out.strip() == "0"
+        assert not (tmp_path / "gone.txt").exists()
+
+    def test_delete_empty_directory(self, tmp_path):
+        (tmp_path / "emptydir").mkdir()
+        out = self._run(
+            tmp_path,
+            ("file delete /emptydir\nputs [file exists /emptydir]\n"),
+        )
+        assert out.strip() == "0"
+
+    def test_delete_missing_is_noop(self, tmp_path):
+        # Tcl semantics: deleting a non-existent path succeeds
+        # silently.
+        out = self._run(
+            tmp_path,
+            ("file delete /never-existed\nputs done\n"),
+        )
+        assert "done" in out
+
+    def test_rename(self, tmp_path):
+        (tmp_path / "before.txt").write_text("hi")
+        out = self._run(
+            tmp_path,
+            (
+                "file rename /before.txt /after.txt\n"
+                "puts [file exists /before.txt]\n"
+                "puts [file exists /after.txt]\n"
+            ),
+        )
+        assert out.strip().splitlines() == ["0", "1"]
+        assert (tmp_path / "after.txt").read_text() == "hi"
+
+    def test_copy(self, tmp_path):
+        (tmp_path / "src.txt").write_text("payload")
+        out = self._run(
+            tmp_path,
+            (
+                "file copy /src.txt /dst.txt\n"
+                "puts [file exists /src.txt]\n"
+                "puts [file exists /dst.txt]\n"
+                "puts [file size /dst.txt]\n"
+            ),
+        )
+        assert out.strip().splitlines() == ["1", "1", "7"]
+        assert (tmp_path / "dst.txt").read_text() == "payload"
+
+    def test_type_file_vs_directory(self, tmp_path):
+        (tmp_path / "f.txt").write_text("x")
+        (tmp_path / "d").mkdir()
+        out = self._run(
+            tmp_path,
+            "puts [file type /f.txt]\nputs [file type /d]\n",
+        )
+        assert out.strip().splitlines() == ["file", "directory"]
+
+    def test_system(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            "puts [file system /]\n",
+        )
+        assert "native" in out
+
+    def test_stat_returns_empty_and_sets_elements(self, tmp_path):
+        # ``file stat`` returns empty and sets the array; we verify
+        # the elements were created via ``info exists``.  Reading
+        # back ``$st(size)`` hits a separate compiler-side gap for
+        # interpolated array references in compiled code that's
+        # tracked separately; once fixed, extend this test.
+        (tmp_path / "stat-me.bin").write_bytes(b"1234567")
+        out = self._run(
+            tmp_path,
+            (
+                "puts [file stat /stat-me.bin st]\n"
+                "puts [info exists st(size)]\n"
+                "puts [info exists st(type)]\n"
+                "puts [info exists st(mode)]\n"
+            ),
+        )
+        # Splitlines rather than strip → preserves the leading
+        # blank from ``file stat`` returning empty.
+        lines = out.splitlines()
+        # First line: file stat's return value (empty).  The rest
+        # are the info-exists probes — every stat field present.
+        assert lines == ["", "1", "1", "1"], f"got {lines!r}"
+
+    def test_lstat_on_symlink(self, tmp_path):
+        (tmp_path / "target.txt").write_text("hi")
+        (tmp_path / "alias.txt").symlink_to("target.txt")
+        # ``file lstat`` populates an array; verify the array
+        # element was created.  ``file type`` via the direct
+        # return path covers the "does it see link vs file"
+        # distinction more directly — here we just ensure lstat
+        # doesn't trap.
+        out = self._run(
+            tmp_path,
+            (
+                "puts [file lstat /alias.txt st]\n"
+                "puts [file type /alias.txt]\n"
+                "puts [file type /target.txt]\n"
+            ),
+        )
+        lines = out.splitlines()
+        assert lines == ["", "link", "file"], f"got {lines!r}"
+
+    def test_readlink(self, tmp_path):
+        (tmp_path / "real.txt").write_text("x")
+        (tmp_path / "lnk.txt").symlink_to("real.txt")
+        out = self._run(
+            tmp_path,
+            "puts [file readlink /lnk.txt]\n",
+        )
+        assert out.strip() == "real.txt"
+
+    def test_link_creates_symlink(self, tmp_path):
+        # WASI's ``path_symlink`` takes the target verbatim (it's
+        # interpreted on read relative to the link's directory),
+        # so we pass a relative target.
+        (tmp_path / "tgt.txt").write_text("hello")
+        out = self._run(
+            tmp_path,
+            ("file link /ln.txt tgt.txt\nputs [file type /ln.txt]\nputs [file readlink /ln.txt]\n"),
+        )
+        lines = out.splitlines()
+        assert lines == ["link", "tgt.txt"], f"got {lines!r}"
+
+    def test_file_link_returns_link_name(self, tmp_path):
+        """Per Tcl semantics, ``file link linkName target`` returns
+        ``linkName`` — not the target.  Regression test for the
+        previous implementation that returned the target.
+        """
+        out = self._run(
+            tmp_path,
+            ("set r [file link /lnk tgt.txt]\nputs $r\n"),
+        )
+        assert out.strip() == "/lnk", f"got {out!r}"
 
 
 class TestEncoding:

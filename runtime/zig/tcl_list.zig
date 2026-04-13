@@ -19,14 +19,14 @@ const read_i32 = obj.read_i32;
 const write_i32 = obj.write_i32;
 
 // Exported: list length — count elements by whitespace-splitting.
-pub export fn list_length(list: i32) i32 {
+pub export fn tcl_cmd_list_length(list: i32) i32 {
     const s = obj_ensure_string(list);
     const n = list_count_elements(s.ptr, s.len);
     return obj_new_int(n);
 }
 
 // Exported: list append — append element to list (space-separated).
-pub export fn lappend(current: i32, value: i32) i32 {
+pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     const sc = obj_ensure_string(current);
     const sv = obj_ensure_string(value);
     var needs_braces = false;
@@ -90,7 +90,7 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
 }
 
 // Exported: list index — extract the nth element (0-based).
-pub export fn list_index(list: i32, idx: i32) i32 {
+pub export fn tcl_cmd_list_index(list: i32, idx: i32) i32 {
     const s = obj_ensure_string(list);
     const i_val = obj_get_int(idx);
     if (i_val < 0) return obj_new_string(0, 0);
@@ -101,7 +101,7 @@ pub export fn list_index(list: i32, idx: i32) i32 {
 }
 
 // Exported: list range — extract elements [first..last] (inclusive).
-pub export fn list_range(list: i32, first: i32, last: i32) i32 {
+pub export fn tcl_cmd_list_range(list: i32, first: i32, last: i32) i32 {
     const s = obj_ensure_string(list);
     var f = obj_get_int(first);
     var l = obj_get_int(last);
@@ -148,11 +148,11 @@ pub export fn list_tail(list: i32, start: i32) i32 {
     // ``first``/``last`` arguments are TclObj pointers, so box them.
     const start_obj = obj_new_int(start_val);
     const last_obj = obj_new_int(total - 1);
-    return list_range(list, start_obj, last_obj);
+    return tcl_cmd_list_range(list, start_obj, last_obj);
 }
 
 // Exported: list sort — simple insertion sort on string comparison.
-pub export fn list_sort(list: i32) i32 {
+pub export fn tcl_cmd_list_sort(list: i32) i32 {
     const s = obj_ensure_string(list);
     const n_i64 = list_count_elements(s.ptr, s.len);
     if (n_i64 <= 1) return list;
@@ -201,7 +201,7 @@ pub export fn list_sort(list: i32) i32 {
 }
 
 // Exported: list search — linear search for exact match, returns index or -1.
-pub export fn list_search(list: i32, value: i32) i32 {
+pub export fn tcl_cmd_list_search(list: i32, value: i32) i32 {
     const s = obj_ensure_string(list);
     const sv = obj_ensure_string(value);
     const n = list_count_elements(s.ptr, s.len);

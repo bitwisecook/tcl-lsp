@@ -38,6 +38,7 @@ real upstream tcltest.
 from __future__ import annotations
 
 import re
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -132,32 +133,37 @@ class TestTcltestCompiles:
 
 
 class TestTcltestTopRuns:
-    """Stage 2: does tcltest's top-level (namespace + procs) instantiate?"""
+    """Stage 2: does tcltest's top-level (namespace + procs) instantiate?
 
-    @pytest.mark.xfail(
-        reason=(
-            "tcltest init runs substantial compiled code but still hits "
-            "downstream gaps (ConstraintInitializer validation, dynamic "
-            "proc registration corner cases).  The runner exists to "
-            "track progress toward running real tcltest under pure "
-            "WASM — it's expected-fail until those gaps close.  "
-            "Reminder: when this starts passing, drop the xfail marker."
-        ),
-        strict=False,
-    )
+    This landed green in the commit that fixed ``subst_flagged``'s
+    output-buffer sizing (the ``wlen * 4 + 64`` heuristic
+    overflowed when a single ``$s`` substitution expanded to
+    multi-KB of content, corrupting adjacent heap memory and
+    making ``info complete $script`` read a mangled-brace tail).
+    Subsequent commits should keep this green — if it regresses,
+    re-add the xfail marker and file the site against whatever
+    new gap surfaces.
+    """
+
     def test_tcltest_top_runs(self):
         _require_files()
         try:
             wasm, diag = _compile_tcl_with_diag(_TCLTEST.read_text(), "tcltest.tcl")
         except Exception as e:
             pytest.skip(f"tcltest.tcl does not yet compile: {e}")
-        try:
-            result = _run_wasm(wasm, capture_stderr=True)
-        except Exception as trap:
-            # _run_wasm attaches captured stderr to the trap as
-            # ``tcl_stderr`` so we can surface the ``tcl trap:
-            # site=<id> …`` prefix and resolve it via the diag map.
-            pytest.fail(_resolve_trap(trap, getattr(trap, "tcl_stderr", ""), diag))
+        # tcltest's init creates a temporary directory via ``file
+        # mkdir $temporaryDirectory``; preopen a host tmpdir at
+        # guest-``/`` so those calls land in a real filesystem the
+        # sandbox is allowed to touch.
+        with tempfile.TemporaryDirectory(prefix="tcltest-run-") as host_tmp:
+            try:
+                result = _run_wasm(wasm, capture_stderr=True, preopen_tmpdir=host_tmp)
+            except Exception as trap:
+                # _run_wasm attaches captured stderr to the trap as
+                # ``tcl_stderr`` so we can surface the ``tcl trap:
+                # site=<id> …`` prefix and resolve it via the diag
+                # map.
+                pytest.fail(_resolve_trap(trap, getattr(trap, "tcl_stderr", ""), diag))
         # capture_stderr=True → (val, stdout, stderr) 3-tuple.
         val = result[0]
         stderr_text = result[2] if len(result) >= 3 else ""
@@ -189,10 +195,16 @@ class TestCounterBundle:
             wasm, diag = _compile_tcl_with_diag(_bundle_source(), "counter_bundle.tcl")
         except Exception as e:
             pytest.skip(f"bundle does not yet compile: {e}")
-        try:
-            result = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
-        except Exception as trap:
-            pytest.fail(_resolve_trap(trap, getattr(trap, "tcl_stderr", ""), diag))
+        with tempfile.TemporaryDirectory(prefix="tcltest-bundle-") as host_tmp:
+            try:
+                result = _run_wasm(
+                    wasm,
+                    capture_stdout=True,
+                    capture_stderr=True,
+                    preopen_tmpdir=host_tmp,
+                )
+            except Exception as trap:
+                pytest.fail(_resolve_trap(trap, getattr(trap, "tcl_stderr", ""), diag))
         val, stdout = result[0], result[1]
         # tcltest's cleanupTests emits a summary like:
         #   all.tcl:        Total    9  Passed    9  Skipped    0  Failed    0

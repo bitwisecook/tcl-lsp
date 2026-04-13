@@ -44,7 +44,7 @@ const alloc = obj.alloc;
 /// args; missing slots come in as ``0`` which we treat as empty
 /// string.  Returns a freshly-allocated TclObj with the formatted
 /// string.
-pub export fn format(fmt: i32, a1: i32, a2: i32, a3: i32) i32 {
+pub export fn tcl_cmd_format(fmt: i32, a1: i32, a2: i32, a3: i32) i32 {
     if (fmt == 0) return obj_new_string(0, 0);
     const fs = obj_ensure_string(fmt);
     if (fs.len == 0) return obj_new_string(0, 0);

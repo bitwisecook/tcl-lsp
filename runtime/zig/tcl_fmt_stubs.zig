@@ -14,28 +14,26 @@ const stubs = @import("tcl_stubs.zig");
 // ``format`` moved to tcl_format.zig — minimal %d / %s / %c /
 // %x / %o / %f / %e / %g with width + precision support.
 
-pub export fn scan(str: i32, fmt: i32) i32 {
+pub export fn tcl_cmd_scan(str: i32, fmt: i32) i32 {
     _ = str;
     _ = fmt;
     stubs.unsupported("scan");
     return 0;
 }
 
-pub export fn binary(sub: i32, arg: i32) i32 {
+pub export fn tcl_cmd_binary(sub: i32, arg: i32) i32 {
     _ = sub;
     _ = arg;
     stubs.unsupported("binary");
     return 0;
 }
 
-pub export fn regexp(pattern: i32, str: i32) i32 {
-    _ = pattern;
-    _ = str;
-    stubs.unsupported("regexp");
-    return 0;
-}
+// ``regexp`` moved to tcl_regex.zig — real implementation backed
+// by Tcl's Henry-Spencer engine (linked from
+// ``runtime/zig/vendor/tcl-regex/``).  Only ``regsub`` remains a
+// stub until we add the substitution path.
 
-pub export fn regsub(pattern: i32, str: i32) i32 {
+pub export fn tcl_cmd_regsub(pattern: i32, str: i32) i32 {
     _ = pattern;
     _ = str;
     stubs.unsupported("regsub");
