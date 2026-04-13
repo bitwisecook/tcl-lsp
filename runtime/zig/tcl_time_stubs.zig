@@ -32,37 +32,37 @@ pub export fn clock_add(base: i32, opts: i32) i32 {
     return 0;
 }
 
-pub export fn after(ms: i32) i32 {
+pub export fn tcl_cmd_after(ms: i32) i32 {
     _ = ms;
     stubs.unsupported("after");
     return 0;
 }
 
-pub export fn vwait(var_name: i32) i32 {
+pub export fn tcl_cmd_vwait(var_name: i32) i32 {
     _ = var_name;
     stubs.unsupported("vwait");
     return 0;
 }
 
-pub export fn update() i32 {
+pub export fn tcl_cmd_update() i32 {
     stubs.unsupported("update");
     return 0;
 }
 
-pub export fn coroutine(name: i32, body: i32) i32 {
+pub export fn tcl_cmd_coroutine(name: i32, body: i32) i32 {
     _ = name;
     _ = body;
     stubs.unsupported("coroutine");
     return 0;
 }
 
-pub export fn yield(value: i32) i32 {
+pub export fn tcl_cmd_yield(value: i32) i32 {
     _ = value;
     stubs.unsupported("yield");
     return 0;
 }
 
-pub export fn yieldto(cmd: i32) i32 {
+pub export fn tcl_cmd_yieldto(cmd: i32) i32 {
     _ = cmd;
     stubs.unsupported("yieldto");
     return 0;

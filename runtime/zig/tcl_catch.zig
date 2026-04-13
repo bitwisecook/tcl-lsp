@@ -53,7 +53,7 @@ pub export fn catch_has_error() i32 {
 // On an out-of-catch error we prefix the stderr line with
 // ``tcl trap: site=<id> `` when the codegen has registered a site;
 // a companion sidecar map resolves the site to a source location.
-pub export fn @"error"(msg: i32) void {
+pub export fn tcl_cmd_error(msg: i32) void {
     if (catch_depth > 0) {
         error_flag = 1;
         error_msg = msg;
@@ -89,5 +89,5 @@ pub fn error_unknown_command(cmd_obj: i32) void {
         for (0..s.len) |i| buf[prefix.len + i] = src[i];
     }
     const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
-    @"error"(msg);
+    tcl_cmd_error(msg);
 }

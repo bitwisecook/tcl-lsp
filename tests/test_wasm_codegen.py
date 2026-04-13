@@ -303,7 +303,7 @@ def test_runtime_imports_registered_for_puts():
     module = _compile("puts hello\n")
     assert len(module.imports) >= 1
     import_names = [imp.name for imp in module.imports]
-    assert "puts" in import_names
+    assert "tcl_cmd_puts" in import_names
 
 
 def test_no_cmd_imports_for_pure_math():
@@ -316,7 +316,7 @@ def test_no_cmd_imports_for_pure_math():
         "obj_new_int",
         "obj_new_string",
         "obj_get_int",
-        "error",
+        "tcl_cmd_error",
         "tcl_eval",
         "diag_set",
         "global_set",
@@ -336,13 +336,13 @@ def test_wat_shows_import_declarations():
     """WAT output should contain import declarations for runtime commands."""
     module = _compile("puts 42\n")
     wat = module.to_wat()
-    assert '(import "tcl" "puts"' in wat
+    assert '(import "tcl" "tcl_cmd_puts"' in wat
 
 
 def test_shared_imports_deduplication():
     """Multiple puts calls should share a single import."""
     module = _compile("puts 1\nputs 2\nputs 3\n")
-    puts_imports = [imp for imp in module.imports if imp.name == "puts"]
+    puts_imports = [imp for imp in module.imports if imp.name == "tcl_cmd_puts"]
     assert len(puts_imports) == 1
 
 

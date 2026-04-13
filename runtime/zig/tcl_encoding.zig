@@ -70,7 +70,7 @@ fn is_known_other_encoding(p: [*]const u8, len: u32) bool {
 
 /// Dispatch ``encoding <subcmd> ?arg1? ?arg2?``.  Codegen always
 /// pushes three i32 slots; missing args are 0 (empty string).
-pub export fn encoding(sub: i32, arg1: i32, arg2: i32) i32 {
+pub export fn tcl_cmd_encoding(sub: i32, arg1: i32, arg2: i32) i32 {
     if (sub == 0) {
         stubs.unsupported("encoding (missing subcommand)");
         return 0;

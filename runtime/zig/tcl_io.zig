@@ -54,7 +54,7 @@ pub fn fd_write_all(fd: i32, data: [*]const u8, len: u32) void {
 }
 
 // Exported: puts — write value to stdout via WASI fd_write.
-pub export fn puts(value: i32) i32 {
+pub export fn tcl_cmd_puts(value: i32) i32 {
     if (value == 0) {
         fd_write_all(1, "\n", 1);
         return 0;

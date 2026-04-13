@@ -18,7 +18,7 @@ const list_count_elements = obj.list_count_elements;
 const list_element_at = obj.list_element_at;
 
 // Exported: append — concatenate two TclObj string representations.
-pub export fn append(current: i32, addition: i32) i32 {
+pub export fn tcl_cmd_append(current: i32, addition: i32) i32 {
     const a = obj_ensure_string(current);
     const b = obj_ensure_string(addition);
     const total = a.len + b.len;
@@ -443,7 +443,7 @@ fn list_quote_elem(buf: u32, off: u32, src: u32, slen: u32) u32 {
 
 // Exported: split — split a string by a separator into a Tcl list.
 // If splitChars is empty, splits into individual characters.
-pub export fn split(value: i32, split_chars: i32) i32 {
+pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
     const sv = obj_ensure_string(value);
     const sd = obj_ensure_string(split_chars);
     if (sv.len == 0) return obj_new_string(0, 0);
@@ -524,7 +524,7 @@ pub export fn split(value: i32, split_chars: i32) i32 {
 }
 
 // Exported: join — join a Tcl list with a separator string.
-pub export fn join(list: i32, separator: i32) i32 {
+pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
     const sl = obj_ensure_string(list);
     const ss = obj_ensure_string(separator);
     if (sl.len == 0) return obj_new_string(0, 0);
@@ -553,7 +553,7 @@ pub export fn join(list: i32, separator: i32) i32 {
 }
 
 // Exported: concat — concatenate two TclObj string representations with space.
-pub export fn concat(a: i32, b: i32) i32 {
+pub export fn tcl_cmd_concat(a: i32, b: i32) i32 {
     const sa = obj_ensure_string(a);
     const sb = obj_ensure_string(b);
     if (sa.len == 0) return b;

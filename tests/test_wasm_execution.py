@@ -688,7 +688,7 @@ class TestCommandDispatch:
         # Should have at least one import (puts)
         assert len(wasm_mod.imports) >= 1
         import_names = [imp.name for imp in wasm_mod.imports]
-        assert "puts" in import_names
+        assert "tcl_cmd_puts" in import_names
 
     def test_puts_executes(self):
         """puts should execute without error via the Zig runtime."""
@@ -732,7 +732,7 @@ class TestCommandDispatch:
             "obj_new_int",
             "obj_new_string",
             "obj_get_int",
-            "error",
+            "tcl_cmd_error",
             "tcl_eval",
             "diag_set",
             "global_set",
@@ -755,7 +755,7 @@ class TestRuntimeImports:
         source = "puts 1\nproc f {} { puts 2 }\n"
         wasm_mod, _ = _compile_to_wasm(source)
         # There should be exactly one puts import (shared)
-        puts_imports = [imp for imp in wasm_mod.imports if imp.name == "puts"]
+        puts_imports = [imp for imp in wasm_mod.imports if imp.name == "tcl_cmd_puts"]
         assert len(puts_imports) == 1
 
     def test_import_indices_stable(self):
@@ -775,13 +775,13 @@ class TestRuntimeImports:
         source = "puts 1\nappend x hello\nllength $x\n"
         wasm_mod, _ = _compile_to_wasm(source)
         import_names = sorted(imp.name for imp in wasm_mod.imports)
-        assert "puts" in import_names
+        assert "tcl_cmd_puts" in import_names
 
     def test_wat_shows_imports(self):
         """WAT output should show import declarations."""
         wasm_mod, _ = _compile_to_wasm("puts 42\n")
         wat = wasm_mod.to_wat()
-        assert '(import "tcl" "puts"' in wat
+        assert '(import "tcl" "tcl_cmd_puts"' in wat
 
 
 # NOP reduction

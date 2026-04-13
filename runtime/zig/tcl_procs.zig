@@ -51,10 +51,10 @@ fn proc_find(name_ptr: u32, name_len: u32, hash: u32) ?u32 {
     var probes: u32 = 0;
     while (probes < proc_cap) : (probes += 1) {
         const base = proc_buf + idx * PROC_BUCKET_SIZE;
-        const ep: u32 = @intCast(read_i32(base));
+        const ep: u32 = @bitCast(read_i32(base));
         if (ep == 0) return null;
-        const el: u32 = @intCast(read_i32(base + 4));
-        const eh: u32 = @intCast(read_i32(base + 8));
+        const el: u32 = @bitCast(read_i32(base + 4));
+        const eh: u32 = @bitCast(read_i32(base + 8));
         if (eh == hash and el == name_len) {
             const sp: [*]const u8 = @ptrFromInt(ep);
             const np: [*]const u8 = @ptrFromInt(name_ptr);
@@ -85,15 +85,15 @@ fn proc_grow() void {
     i = 0;
     while (i < old_cap) : (i += 1) {
         const base = old_buf + i * PROC_BUCKET_SIZE;
-        const ep: u32 = @intCast(read_i32(base));
+        const ep: u32 = @bitCast(read_i32(base));
         if (ep != 0) {
-            const el: u32 = @intCast(read_i32(base + 4));
-            const eh: u32 = @intCast(read_i32(base + 8));
+            const el: u32 = @bitCast(read_i32(base + 4));
+            const eh: u32 = @bitCast(read_i32(base + 8));
             const mask = proc_cap - 1;
             var idx = eh & mask;
             while (true) {
                 const nb = proc_buf + idx * PROC_BUCKET_SIZE;
-                if (@as(u32, @intCast(read_i32(nb))) == 0) {
+                if (@as(u32, @bitCast(read_i32(nb))) == 0) {
                     // Copy all 32 bytes
                     var k: u32 = 0;
                     while (k < PROC_BUCKET_SIZE) : (k += 4) {
@@ -139,12 +139,12 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     var idx = hash & mask;
     while (true) {
         const base = proc_buf + idx * PROC_BUCKET_SIZE;
-        if (@as(u32, @intCast(read_i32(base))) == 0) {
+        if (@as(u32, @bitCast(read_i32(base))) == 0) {
             const nbuf = alloc(sn.len);
             memcpy(nbuf, sn.ptr, sn.len);
-            write_i32(base, @intCast(nbuf));
-            write_i32(base + 4, @intCast(sn.len));
-            write_i32(base + 8, @intCast(hash));
+            write_i32(base, @bitCast(nbuf));
+            write_i32(base + 4, @bitCast(sn.len));
+            write_i32(base + 8, @bitCast(hash));
             write_i32(base + 12, params_obj);
             write_i32(base + 16, body_obj);
             write_i32(base + 20, @intCast(n_params));
@@ -158,7 +158,17 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
 }
 
 /// Register a compiled proc (AOT). func_idx is the WASM function table index.
-pub export fn proc_register_compiled(name: i32, n_params: i32, func_idx: i32) i32 {
+/// ``args_tail`` is 1 when the last declared parameter is named ``args``
+/// (Tcl's variadic-tail marker) and 0 otherwise — the host-bridge
+/// dispatcher consults it to pack excess call arguments into a list
+/// TclObj so the compiled function's fixed-arity signature still sees
+/// the right number of parameters.
+pub export fn proc_register_compiled(
+    name: i32,
+    n_params: i32,
+    func_idx: i32,
+    args_tail: i32,
+) i32 {
     const sn = obj_ensure_string(name);
     proc_init();
     const hash = fnv1a(sn.ptr, sn.len);
@@ -169,6 +179,7 @@ pub export fn proc_register_compiled(name: i32, n_params: i32, func_idx: i32) i3
         write_i32(base + 16, 0); // no body_obj for compiled
         write_i32(base + 20, n_params);
         write_i32(base + 24, func_idx);
+        write_i32(base + 28, args_tail);
         return obj_new_int(0);
     }
 
@@ -180,17 +191,17 @@ pub export fn proc_register_compiled(name: i32, n_params: i32, func_idx: i32) i3
     var idx = hash & mask;
     while (true) {
         const base = proc_buf + idx * PROC_BUCKET_SIZE;
-        if (@as(u32, @intCast(read_i32(base))) == 0) {
+        if (@as(u32, @bitCast(read_i32(base))) == 0) {
             const nbuf = alloc(sn.len);
             memcpy(nbuf, sn.ptr, sn.len);
-            write_i32(base, @intCast(nbuf));
-            write_i32(base + 4, @intCast(sn.len));
-            write_i32(base + 8, @intCast(hash));
+            write_i32(base, @bitCast(nbuf));
+            write_i32(base + 4, @bitCast(sn.len));
+            write_i32(base + 8, @bitCast(hash));
             write_i32(base + 12, 0); // no params
             write_i32(base + 16, 0); // no body
             write_i32(base + 20, n_params);
             write_i32(base + 24, func_idx);
-            write_i32(base + 28, 0);
+            write_i32(base + 28, args_tail);
             proc_count += 1;
             return obj_new_int(0);
         }
@@ -219,7 +230,7 @@ pub export fn proc_lookup(name: i32) i32 {
     // 1. Exact match.
     const hash = fnv1a(sn.ptr, sn.len);
     if (proc_find(sn.ptr, sn.len, hash)) |base| {
-        return @intCast(base);
+        return @bitCast(base);
     }
     // Only fall through to namespace search for UNQUALIFIED names.
     // A ``::-``prefixed name is already explicitly global and a
@@ -239,7 +250,7 @@ pub export fn proc_lookup(name: i32) i32 {
         for (0..sn.len) |i| b[2 + i] = src[i];
         const h2 = fnv1a(buf, alen);
         if (proc_find(buf, alen, h2)) |base| {
-            return @intCast(base);
+            return @bitCast(base);
         }
     }
     // 3. Linear scan for ``*::name`` suffix.
@@ -247,9 +258,9 @@ pub export fn proc_lookup(name: i32) i32 {
     var idx: u32 = 0;
     while (idx < proc_cap) : (idx += 1) {
         const base = proc_buf + idx * PROC_BUCKET_SIZE;
-        const np: u32 = @intCast(read_i32(base));
+        const np: u32 = @bitCast(read_i32(base));
         if (np == 0) continue;
-        const nl: u32 = @intCast(read_i32(base + 4));
+        const nl: u32 = @bitCast(read_i32(base + 4));
         if (nl <= sn.len + 2) continue; // need room for "::name"
         const npp: [*]const u8 = @ptrFromInt(np);
         // Match suffix "::<name>"
@@ -263,7 +274,7 @@ pub export fn proc_lookup(name: i32) i32 {
                 break;
             }
         }
-        if (matches) return @intCast(base);
+        if (matches) return @bitCast(base);
     }
     return 0;
 }
@@ -271,28 +282,39 @@ pub export fn proc_lookup(name: i32) i32 {
 /// Get the func_idx field from a proc bucket pointer.
 pub export fn proc_get_func_idx(bucket: i32) i32 {
     if (bucket == 0) return 0;
-    const base: u32 = @intCast(bucket);
+    const base: u32 = @bitCast(bucket);
     return read_i32(base + 24);
 }
 
 /// Get the n_params field from a proc bucket pointer.
 pub export fn proc_get_n_params(bucket: i32) i32 {
     if (bucket == 0) return 0;
-    const base: u32 = @intCast(bucket);
+    const base: u32 = @bitCast(bucket);
     return read_i32(base + 20);
+}
+
+/// Non-zero when the last declared parameter of the proc is ``args`` —
+/// the variadic-tail marker Tcl treats specially by binding all extra
+/// call arguments as a list.  Used by the host-bridge dispatcher to
+/// pack excess arguments into a single list TclObj before handing
+/// them to the compiled function's fixed-arity signature.
+pub export fn proc_get_args_tail(bucket: i32) i32 {
+    if (bucket == 0) return 0;
+    const base: u32 = @bitCast(bucket);
+    return read_i32(base + 28);
 }
 
 /// Get the params_obj field from a proc bucket pointer.
 pub export fn proc_get_params(bucket: i32) i32 {
     if (bucket == 0) return 0;
-    const base: u32 = @intCast(bucket);
+    const base: u32 = @bitCast(bucket);
     return read_i32(base + 12);
 }
 
 /// Get the body_obj field from a proc bucket pointer.
 pub export fn proc_get_body(bucket: i32) i32 {
     if (bucket == 0) return 0;
-    const base: u32 = @intCast(bucket);
+    const base: u32 = @bitCast(bucket);
     return read_i32(base + 16);
 }
 
@@ -304,13 +326,13 @@ pub export fn proc_get_body(bucket: i32) i32 {
 /// WASM export by its real qualified name.
 pub export fn proc_get_name_ptr(bucket: i32) i32 {
     if (bucket == 0) return 0;
-    const base: u32 = @intCast(bucket);
+    const base: u32 = @bitCast(bucket);
     return read_i32(base);
 }
 
 pub export fn proc_get_name_len(bucket: i32) i32 {
     if (bucket == 0) return 0;
-    const base: u32 = @intCast(bucket);
+    const base: u32 = @bitCast(bucket);
     return read_i32(base + 4);
 }
 

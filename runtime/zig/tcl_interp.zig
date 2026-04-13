@@ -13,9 +13,13 @@ const procs = @import("tcl_procs.zig");
 const frames = @import("tcl_frames.zig");
 const info = @import("tcl_cmd_info.zig");
 
+const obj_mod = @import("tcl_obj.zig");
+
 // Re-export runtime functions used throughout this file
 const alloc = rt.alloc;
 const memcpy = rt.memcpy;
+const read_i32 = obj_mod.read_i32;
+const write_i32 = obj_mod.write_i32;
 const obj_new_string = rt.obj_new_string;
 const obj_new_int = rt.obj_new_int;
 const obj_get_int = rt.obj_get_int;
@@ -198,11 +202,58 @@ fn subst_flagged(
     if (!has_dollar and !has_bracket and !do_bs) {
         return obj_new_string(@intCast(wptr), @intCast(wlen));
     }
-    const buf = alloc(wlen * 4 + 64);
-    var out: u32 = 0;
+    // Single-pass substitution into a pre-recorded "pieces" array.
+    //
+    // Earlier revisions used two passes — one to sum sizes and one
+    // to write — but that required calling ``eval_script`` /
+    // ``var_resolve`` twice per substitution.  That changes Tcl
+    // semantics for observable side effects (``subst {[incr x]}``
+    // incremented twice) and — worse — reopened the same overflow
+    // class the two-pass approach was meant to close: if a first
+    // pass read ``$x`` and got a short value, then ``[set x
+    // longer]`` changed it, the allocated buffer would be
+    // undersized for the second pass's re-read.
+    //
+    // The fix: resolve each ``$var`` / ``[cmd]`` exactly once,
+    // record each resulting (ptr, len) span (plus literal runs and
+    // backslash-escape replacements) in a scratch ``pieces``
+    // array, then sum the lens and memcpy into a tight buffer.
+    // Each piece occupies 8 bytes: (ptr: u32, len: u32).  The
+    // upper bound on piece count is ``wlen`` — one piece per
+    // source byte in the pathological case of alternating ``$a``
+    // single-char vars.  We allocate ``wlen`` pieces up front from
+    // the bump arena; the overshoot is cheap and there is no
+    // growth path to get wrong.
+    const pieces_buf = alloc(wlen * 8);
+    var n_pieces: u32 = 0;
+    var total_out: u32 = 0;
+    var lit_start: u32 = 0;
+    var lit_run: u32 = 0;
+    const flush_lit = struct {
+        fn go(pb: u32, np: *u32, to: *u32, start: u32, run: *u32, base: u32) void {
+            if (run.* == 0) return;
+            const slot = pb + np.* * 8;
+            write_i32(slot, @bitCast(base + start));
+            write_i32(slot + 4, @bitCast(run.*));
+            np.* += 1;
+            to.* += run.*;
+            run.* = 0;
+        }
+    }.go;
+    const push_piece = struct {
+        fn go(pb: u32, np: *u32, to: *u32, ptr: u32, len: u32) void {
+            if (len == 0) return;
+            const slot = pb + np.* * 8;
+            write_i32(slot, @bitCast(ptr));
+            write_i32(slot + 4, @bitCast(len));
+            np.* += 1;
+            to.* += len;
+        }
+    }.go;
     var i: u32 = 0;
     while (i < wlen) {
         if (do_vars and src[i] == '$' and i + 1 < wlen) {
+            flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
             i += 1;
             const vstart = i;
             if (src[i] == '{') {
@@ -215,21 +266,25 @@ fn subst_flagged(
                 const val = frames.var_resolve(name_obj);
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
-                    if (sv.len > 0) { memcpy(buf + out, sv.ptr, sv.len); out += sv.len; }
+                    push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
                 }
             } else {
                 while (i < wlen and ((src[i] >= 'a' and src[i] <= 'z') or
                     (src[i] >= 'A' and src[i] <= 'Z') or
                     (src[i] >= '0' and src[i] <= '9') or src[i] == '_'))
-                { i += 1; }
+                {
+                    i += 1;
+                }
                 const name_obj = obj_new_string(@intCast(wptr + vstart), @intCast(i - vstart));
                 const val = frames.var_resolve(name_obj);
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
-                    if (sv.len > 0) { memcpy(buf + out, sv.ptr, sv.len); out += sv.len; }
+                    push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
                 }
             }
+            lit_start = i;
         } else if (do_cmds and src[i] == '[') {
+            flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
             i += 1;
             const cs = i;
             var depth: u32 = 1;
@@ -241,20 +296,38 @@ fn subst_flagged(
             const result = eval_script(wptr + cs, ce - cs);
             if (result != 0) {
                 const sv = obj_ensure_string(result);
-                if (sv.len > 0) { memcpy(buf + out, sv.ptr, sv.len); out += sv.len; }
+                push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
             }
+            lit_start = i;
         } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
+            flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
             i += 1;
             const esc: u8 = switch (src[i]) { 'n' => '\n', 't' => '\t', 'r' => '\r', else => src[i] };
-            const d: [*]u8 = @ptrFromInt(buf + out);
+            // Stash the escape byte at a stable address so the
+            // final memcpy has a source to read.
+            const esc_ptr = alloc(1);
+            const d: [*]u8 = @ptrFromInt(esc_ptr);
             d[0] = esc;
-            out += 1;
+            push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, 1);
             i += 1;
+            lit_start = i;
         } else {
-            const d: [*]u8 = @ptrFromInt(buf + out);
-            d[0] = src[i];
-            out += 1;
+            lit_run += 1;
             i += 1;
+        }
+    }
+    flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
+
+    const buf = alloc(total_out + 1);
+    var out: u32 = 0;
+    var pi: u32 = 0;
+    while (pi < n_pieces) : (pi += 1) {
+        const slot = pieces_buf + pi * 8;
+        const p: u32 = @bitCast(read_i32(slot));
+        const l: u32 = @bitCast(read_i32(slot + 4));
+        if (l > 0) {
+            memcpy(buf + out, p, l);
+            out += l;
         }
     }
     return obj_new_string(@intCast(buf), @intCast(out));
@@ -365,7 +438,7 @@ fn eval_command(words: []const i32) i32 {
         else if (words.len >= 2) { return frames.var_resolve(words[1]); }
         return 0;
     }
-    if (str_eq(cmd, cmd_s.len, "puts")) { if (words.len >= 2) return rt.puts(words[words.len - 1]); return 0; }
+    if (str_eq(cmd, cmd_s.len, "puts")) { if (words.len >= 2) return rt.tcl_cmd_puts(words[words.len - 1]); return 0; }
     if (str_eq(cmd, cmd_s.len, "expr")) {
         if (words.len >= 2) { const es = obj_ensure_string(words[1]); return obj_new_int(eval_expr_str(es.ptr, es.len)); }
         return 0;
@@ -412,7 +485,7 @@ fn eval_command(words: []const i32) i32 {
         }
         if (is_error) {
             const catch_mod = @import("tcl_catch.zig");
-            catch_mod.@"error"(result_obj);
+            catch_mod.tcl_cmd_error(result_obj);
             return 0;
         }
         rt.return_flag.* = 1;
@@ -477,7 +550,18 @@ fn eval_command(words: []const i32) i32 {
         }
         return 0;
     }
-    if (str_eq(cmd, cmd_s.len, "error")) { if (words.len >= 2) rt.@"error"(words[1]); return 0; }
+    if (str_eq(cmd, cmd_s.len, "error")) { if (words.len >= 2) rt.tcl_cmd_error(words[1]); return 0; }
+    // ``regexp`` — dispatch to the Tcl regex engine wrapper.
+    // Handles the switches the 2-arg compiled-path export can't
+    // (``-nocase``, ``--``); capture vars and ``-all`` / ``-indices``
+    // / ``-inline`` are not supported yet and are silently
+    // ignored (the match result is still returned correctly —
+    // the ignored vars just don't get set, which is observable
+    // but doesn't silently return a wrong match result).
+    if (str_eq(cmd, cmd_s.len, "regexp")) {
+        const regex_mod = @import("tcl_regex.zig");
+        return regex_mod.eval_regexp_cmd(words);
+    }
     if (str_eq(cmd, cmd_s.len, "catch")) {
         if (words.len >= 2) {
             rt.catch_enter();
@@ -490,18 +574,18 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "append")) {
         if (words.len >= 3) {
             const cur = frames.var_resolve(words[1]);
-            const result = rt.append(cur, words[2]);
+            const result = rt.tcl_cmd_append(cur, words[2]);
             _ = frames.var_set(words[1], result);
             return result;
         }
         return 0;
     }
-    if (str_eq(cmd, cmd_s.len, "llength")) { if (words.len >= 2) return rt.list_length(words[1]); return 0; }
-    if (str_eq(cmd, cmd_s.len, "lindex")) { if (words.len >= 3) return rt.list_index(words[1], words[2]); return 0; }
+    if (str_eq(cmd, cmd_s.len, "llength")) { if (words.len >= 2) return rt.tcl_cmd_list_length(words[1]); return 0; }
+    if (str_eq(cmd, cmd_s.len, "lindex")) { if (words.len >= 3) return rt.tcl_cmd_list_index(words[1], words[2]); return 0; }
     if (str_eq(cmd, cmd_s.len, "lappend")) {
         if (words.len >= 3) {
             const cur = frames.var_resolve(words[1]);
-            const result = rt.lappend(cur, words[2]);
+            const result = rt.tcl_cmd_lappend(cur, words[2]);
             _ = frames.var_set(words[1], result);
             return result;
         }
@@ -563,22 +647,22 @@ fn eval_command(words: []const i32) i32 {
         const a1 = if (words.len >= 3) words[2] else 0;
         const a2 = if (words.len >= 4) words[3] else 0;
         const a3 = if (words.len >= 5) words[4] else 0;
-        return fmt_mod.format(fmt, a1, a2, a3);
+        return fmt_mod.tcl_cmd_format(fmt, a1, a2, a3);
     }
     if (str_eq(cmd, cmd_s.len, "pwd")) {
         const fs_mod = @import("tcl_fs.zig");
-        return fs_mod.pwd();
+        return fs_mod.tcl_cmd_pwd();
     }
     if (str_eq(cmd, cmd_s.len, "file")) {
         const fs_mod = @import("tcl_fs.zig");
         const sub = if (words.len >= 2) words[1] else 0;
         const a1 = if (words.len >= 3) words[2] else 0;
         const a2 = if (words.len >= 4) words[3] else 0;
-        return fs_mod.file(sub, a1, a2);
+        return fs_mod.tcl_cmd_file(sub, a1, a2);
     }
     if (str_eq(cmd, cmd_s.len, "cd")) {
         const fs_mod = @import("tcl_fs.zig");
-        return fs_mod.cd(if (words.len >= 2) words[1] else 0);
+        return fs_mod.tcl_cmd_cd(if (words.len >= 2) words[1] else 0);
     }
     if (str_eq(cmd, cmd_s.len, "trace")) {
         // ``trace add`` / ``trace remove`` pass through; other
@@ -586,7 +670,7 @@ fn eval_command(words: []const i32) i32 {
         const trace_mod = @import("tcl_trace.zig");
         const sub = if (words.len >= 2) words[1] else 0;
         const arg_obj = if (words.len >= 3) words[2] else 0;
-        return trace_mod.trace_cmd(sub, arg_obj);
+        return trace_mod.tcl_cmd_trace_cmd(sub, arg_obj);
     }
     if (str_eq(cmd, cmd_s.len, "unset")) {
         // ``unset ?-nocomplain? ?--? var ?var ...?`` — clear each
@@ -627,16 +711,16 @@ fn eval_command(words: []const i32) i32 {
         const sub = if (words.len >= 2) words[1] else 0;
         const arg1 = if (words.len >= 3) words[2] else 0;
         const arg2 = if (words.len >= 4) words[3] else 0;
-        return enc.encoding(sub, arg1, arg2);
+        return enc.tcl_cmd_encoding(sub, arg1, arg2);
     }
     if (str_eq(cmd, cmd_s.len, "fconfigure")) {
         // Fconfigure pass-through: packs the remaining words into
         // a space-joined TclObj and calls the real impl.  Walking
         // Tcl-registered procs that call fconfigure hit this path.
         const chan = @import("tcl_chan.zig");
-        if (words.len < 2) return chan.fconfigure(0, 0);
+        if (words.len < 2) return chan.tcl_cmd_fconfigure(0, 0);
         const fd = words[1];
-        if (words.len < 3) return chan.fconfigure(fd, 0);
+        if (words.len < 3) return chan.tcl_cmd_fconfigure(fd, 0);
         // Concatenate words[2..] with a single space separator via
         // the existing ``concat`` runtime helper.
         var acc = words[2];
@@ -646,44 +730,73 @@ fn eval_command(words: []const i32) i32 {
             const d: [*]u8 = @ptrFromInt(sp_ptr);
             d[0] = ' ';
             const sep = obj_new_string(@intCast(sp_ptr), 1);
-            acc = rt.concat(acc, sep);
-            acc = rt.concat(acc, words[i]);
+            acc = rt.tcl_cmd_concat(acc, sep);
+            acc = rt.tcl_cmd_concat(acc, words[i]);
         }
-        return chan.fconfigure(fd, acc);
+        return chan.tcl_cmd_fconfigure(fd, acc);
     }
     if (str_eq(cmd, cmd_s.len, "info")) {
         if (words.len >= 3) return info.info_dispatch(words[1], words[2]);
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "split")) {
-        if (words.len >= 3) return rt.split(words[1], words[2]);
-        if (words.len >= 2) return rt.split(words[1], obj_new_string(0, 0));
+        if (words.len >= 3) return rt.tcl_cmd_split(words[1], words[2]);
+        if (words.len >= 2) return rt.tcl_cmd_split(words[1], obj_new_string(0, 0));
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "join")) {
-        if (words.len >= 3) return rt.join(words[1], words[2]);
+        if (words.len >= 3) return rt.tcl_cmd_join(words[1], words[2]);
         if (words.len >= 2) {
             // Default separator is a space
             const sp = alloc(1);
             const d: [*]u8 = @ptrFromInt(sp);
             d[0] = ' ';
-            return rt.join(words[1], obj_new_string(@intCast(sp), 1));
+            return rt.tcl_cmd_join(words[1], obj_new_string(@intCast(sp), 1));
         }
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "list")) {
-        if (words.len >= 3) return rt.tcl_list(words[1], words[2]);
-        if (words.len >= 2) return words[1];
-        return obj_new_string(0, 0);
+        // ``list`` is variadic — build a single Tcl list from all
+        // word arguments.  The previous 2-arg pairwise form left
+        // the tail behind on 3+ arg calls, silently dropping
+        // elements from e.g. ``array set a [list x 1 y 2]``
+        // (only x=1 stored).  Use a two-pass buffer: size each
+        // element with ``dict_needs_braces`` quoting then copy.
+        // Nested calls to ``rt.tcl_list`` would double-brace
+        // existing list-shaped arguments, so build in one pass.
+        if (words.len <= 1) return obj_new_string(0, 0);
+        if (words.len == 2) return words[1];
+        var total: u32 = 0;
+        var ei: u32 = 1;
+        while (ei < words.len) : (ei += 1) {
+            const s = obj_ensure_string(words[ei]);
+            const needs = obj_mod.dict_needs_braces(s.ptr, s.len);
+            total += if (needs) s.len + 2 else s.len;
+            if (ei > 1) total += 1; // separator space
+        }
+        if (total == 0) return obj_new_string(0, 0);
+        const buf = obj_mod.alloc(total);
+        var off: u32 = 0;
+        ei = 1;
+        while (ei < words.len) : (ei += 1) {
+            if (ei > 1) {
+                const d: [*]u8 = @ptrFromInt(buf + off);
+                d[0] = ' ';
+                off += 1;
+            }
+            const s = obj_ensure_string(words[ei]);
+            off = obj_mod.dict_append_elem(buf, off, s.ptr, s.len);
+        }
+        return obj_new_string(@bitCast(buf), @bitCast(off));
     }
     if (str_eq(cmd, cmd_s.len, "concat")) {
-        if (words.len >= 3) return rt.concat(words[1], words[2]);
+        if (words.len >= 3) return rt.tcl_cmd_concat(words[1], words[2]);
         if (words.len >= 2) return words[1];
         return obj_new_string(0, 0);
     }
-    if (str_eq(cmd, cmd_s.len, "lsort")) { if (words.len >= 2) return rt.list_sort(words[words.len - 1]); return obj_new_string(0, 0); }
-    if (str_eq(cmd, cmd_s.len, "lsearch")) { if (words.len >= 3) return rt.list_search(words[1], words[2]); return obj_new_int(-1); }
-    if (str_eq(cmd, cmd_s.len, "lrange")) { if (words.len >= 4) return rt.list_range(words[1], words[2], words[3]); return obj_new_string(0, 0); }
+    if (str_eq(cmd, cmd_s.len, "lsort")) { if (words.len >= 2) return rt.tcl_cmd_list_sort(words[words.len - 1]); return obj_new_string(0, 0); }
+    if (str_eq(cmd, cmd_s.len, "lsearch")) { if (words.len >= 3) return rt.tcl_cmd_list_search(words[1], words[2]); return obj_new_int(-1); }
+    if (str_eq(cmd, cmd_s.len, "lrange")) { if (words.len >= 4) return rt.tcl_cmd_list_range(words[1], words[2], words[3]); return obj_new_string(0, 0); }
     if (str_eq(cmd, cmd_s.len, "global")) {
         // Register each listed name as a global alias in the current frame.
         // Subsequent reads/writes of the local name pass through to globals,
@@ -872,7 +985,7 @@ fn eval_proc_call(words: []const i32) i32 {
     if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
         rt.break_flag.* = 0;
         rt.continue_flag.* = 0;
-        rt.@"error"(words[0]);
+        rt.tcl_cmd_error(words[0]);
     }
     return result;
 }
@@ -909,10 +1022,26 @@ fn eval_array_cmd(words: []const i32) i32 {
         return array_mod.array_get(words[2], obj_new_string(0, 0));
     }
     if (str_eq(sp, sub.len, "set") and words.len >= 4) {
-        return array_mod.array_set(words[2], words[3], 0);
+        // ``array set arr pairlist`` — the payload is a Tcl list
+        // of ``{k v k v …}`` pairs.  We always route through
+        // ``array_set_list`` because even a single-pair invocation
+        // (``array set a {key value}``) is just a 2-element list.
+        // The previous shape ``array_set(words[2], words[3], 0)``
+        // stored the whole payload under one key with a null
+        // value — that silently broke tcltest's
+        // ``ArrayDefault numTests [list Total 0 …]``
+        // initialisation (``incr numTests(Total)`` then ran on
+        // an uninitialised element).
+        return array_mod.array_set_list(words[2], words[3]);
     }
     if (str_eq(sp, sub.len, "exists")) return array_mod.array_exists(words[2]);
-    if (str_eq(sp, sub.len, "names")) return array_mod.array_names(words[2]);
+    if (str_eq(sp, sub.len, "names")) {
+        // ``array names arr ?pattern? ?mode?`` — we handle the
+        // first two positions; ``mode`` (``-exact`` / ``-glob`` /
+        // ``-regexp``) beyond glob isn't wired yet.
+        const pat: i32 = if (words.len >= 4) words[3] else 0;
+        return array_mod.array_names(words[2], pat);
+    }
     if (str_eq(sp, sub.len, "size")) return array_mod.array_size(words[2]);
     if (str_eq(sp, sub.len, "unset")) {
         if (words.len >= 4) return array_mod.array_unset_element(words[2], words[3]);
