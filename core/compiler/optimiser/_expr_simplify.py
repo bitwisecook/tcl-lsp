@@ -196,6 +196,10 @@ def _fold_binary_int_literals(op: BinOp, left: ExprNode, right: ExprNode) -> Exp
             value = lv << rv
         case BinOp.RSHIFT if rv >= 0:
             value = lv >> rv
+        case BinOp.AND | BinOp.WORD_AND:
+            value = 1 if lv != 0 and rv != 0 else 0
+        case BinOp.OR | BinOp.WORD_OR:
+            value = 1 if lv != 0 or rv != 0 else 0
         case _:
             return None
     return _make_int_literal(value)
@@ -705,19 +709,34 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
             if op in (BinOp.AND, BinOp.WORD_AND):
                 if rv == 0 or lv == 0:
                     return _make_int_literal(0)
+                # x && 1 / 1 && x: Tcl && always returns 0 or 1, not the operand value.
+                # Returning simp_left/simp_right directly would be wrong for non-boolean x
+                # (e.g. 2 && 1 == 1, not 2). Only safe when x is already boolean or the
+                # result is consumed in a boolean context (where truthiness suffices).
                 if rv == 1:
-                    return simp_left
+                    if bool_context or _is_boolean_expr(simp_left):
+                        return simp_left
+                    return ExprUnary(op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_left))
                 if lv == 1:
-                    return simp_right
+                    if bool_context or _is_boolean_expr(simp_right):
+                        return simp_right
+                    return ExprUnary(op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_right))
 
             # Logical OR
             if op in (BinOp.OR, BinOp.WORD_OR):
                 if rv == 1 or lv == 1:
                     return _make_int_literal(1)
+                # x || 0 / 0 || x: same reasoning as && identity above — result is always
+                # 0 or 1 in Tcl, not the operand value. Canonicalise to !!x outside of
+                # boolean context so the 0/1 result is preserved.
                 if rv == 0:
-                    return simp_left
+                    if bool_context or _is_boolean_expr(simp_left):
+                        return simp_left
+                    return ExprUnary(op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_left))
                 if lv == 0:
-                    return simp_right
+                    if bool_context or _is_boolean_expr(simp_right):
+                        return simp_right
+                    return ExprUnary(op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_right))
 
             # Self-comparison tautologies (safe for integers)
             if _nodes_equal(simp_left, simp_right):
