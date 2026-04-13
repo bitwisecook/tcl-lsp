@@ -82,6 +82,9 @@ def format_tcl_value(value: TclValue) -> str:
     if isinstance(value, float):
         if math.isinf(value) or math.isnan(value):
             return repr(value)
+        if value == 0.0:
+            # Preserve the sign bit: IEEE 754 distinguishes -0.0 from +0.0.
+            return "-0.0" if math.copysign(1.0, value) < 0 else "0.0"
         if value == int(value):
             return f"{int(value)}.0"
         return repr(value)
