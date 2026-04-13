@@ -96,6 +96,26 @@ class TestVMExpr:
         # Should be approximately 3.333...
         assert result.value.startswith("3.333")
 
+    def test_float_div_by_positive_zero(self) -> None:
+        # Verified against tclsh 9.0.3: 1.0 / 0.0 = Inf, -1.0 / 0.0 = -Inf
+        interp = TclInterp()
+        assert interp.eval("expr {1.0 / 0.0}").value == "Inf"
+        assert interp.eval("expr {-1.0 / 0.0}").value == "-Inf"
+
+    def test_float_div_by_negative_zero(self) -> None:
+        # Verified against tclsh 9.0.3: sign flips when dividing by -0.0
+        interp = TclInterp()
+        assert interp.eval("expr {1.0 / -0.0}").value == "-Inf"
+        assert interp.eval("expr {-1.0 / -0.0}").value == "Inf"
+
+    def test_float_zero_div_zero_is_domain_error(self) -> None:
+        # Verified against tclsh 9.0.3: 0.0 / ±0.0 raises ARITH DOMAIN
+        interp = TclInterp()
+        with pytest.raises(TclError, match="domain error"):
+            interp.eval("expr {0.0 / 0.0}")
+        with pytest.raises(TclError, match="domain error"):
+            interp.eval("expr {0.0 / -0.0}")
+
     def test_modulo(self) -> None:
         interp = TclInterp()
         result = interp.eval("expr {10 % 3}")
