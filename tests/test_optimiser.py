@@ -358,9 +358,17 @@ class TestOptimiser:
         assert "set v 0" in optimised
 
     def test_instcombine_and_one(self):
+        """$x && 1 → !!$x (boolean canonicalisation, not identity rewrite)."""
         source = "set v [expr {$x && 1}]"
-        _, rewrites = optimise_source(source)
+        optimised, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
+        assert "!!$x" in optimised
+
+    def test_instcombine_and_one_const_fold(self):
+        """2 && 1 → 1 (both non-zero; result is always 0 or 1, not the operand)."""
+        source = "set v [expr {2 && 1}]"
+        optimised, _ = optimise_source(source)
+        assert "set v 1" in optimised
 
     def test_instcombine_or_one(self):
         source = "set v [expr {$x || 1}]"
@@ -368,9 +376,17 @@ class TestOptimiser:
         assert "set v 1" in optimised
 
     def test_instcombine_or_zero(self):
+        """$x || 0 → !!$x (boolean canonicalisation, not identity rewrite)."""
         source = "set v [expr {$x || 0}]"
-        _, rewrites = optimise_source(source)
+        optimised, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
+        assert "!!$x" in optimised
+
+    def test_instcombine_or_zero_const_fold(self):
+        """3 || 0 → 1 (first operand non-zero; result is always 0 or 1, not the operand)."""
+        source = "set v [expr {3 || 0}]"
+        optimised, _ = optimise_source(source)
+        assert "set v 1" in optimised
 
     def test_instcombine_double_not_boolean_expr(self):
         """!!($a == $b) → $a == $b because == is already boolean."""
