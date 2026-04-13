@@ -125,7 +125,7 @@ pub fn find_shimmer_warnings(
         registry,
     ));
     out.extend(phi::find_phi_shimmers(cfg, ssa, types, executable_blocks));
-    out.extend(expr::find_expr_shimmers(ssa, types, executable_blocks));
+    out.extend(expr::find_expr_shimmers(cfg, ssa, types, executable_blocks));
     out
 }
 

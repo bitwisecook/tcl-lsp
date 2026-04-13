@@ -665,6 +665,23 @@ pub fn find_taint_warnings(
                 _ => continue,
             };
 
+            // T102: option injection.
+            // Applies when the command has WARN_WITHOUT_TERMINATOR and a
+            // tainted pure-variable-reference argument appears before any
+            // `--` terminator.  Only checked for Call statements — Barrier
+            // args are already evaluated and cannot inject options.
+            if let Statement::Call { args, .. } = stmt {
+                emit_option_injection(
+                    command,
+                    args,
+                    &ssa_stmt.uses,
+                    taints,
+                    span,
+                    registry,
+                    &mut warnings,
+                );
+            }
+
             let Some((code, sink_label)) = classify_sink(registry, command) else {
                 continue;
             };
@@ -711,6 +728,70 @@ pub fn find_taint_warnings(
     }
 
     warnings
+}
+
+/// Emit T102 warnings for option injection into a `WARN_WITHOUT_TERMINATOR` command.
+///
+/// A T102 violation occurs when a tainted pure-variable-reference argument
+/// is passed to a command at a position that can be misinterpreted as a
+/// command option (flag), without a preceding `--` terminator to end flag
+/// parsing.
+///
+/// Example: `regexp $pattern $string` where `$pattern` is tainted —
+/// if `$pattern` starts with `-`, it will be treated as a `regexp` flag
+/// rather than the pattern, producing option injection (T102).
+fn emit_option_injection(
+    command: &str,
+    args: &[String],
+    uses: &HashMap<String, u32>,
+    taints: &HashMap<ValueKey, TaintLattice>,
+    span: Span,
+    registry: &CommandRegistry,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    let Some(spec) = registry.get(command) else { return };
+    if !spec.traits.contains(Traits::WARN_WITHOUT_TERMINATOR) {
+        return;
+    }
+    // Find the position of a `--` terminator, if present.
+    let terminator_pos = args.iter().position(|a| a == "--");
+    let mut emitted: HashSet<String> = HashSet::new();
+    for (i, arg) in args.iter().enumerate() {
+        if terminator_pos.is_some_and(|tp| i >= tp) {
+            // This arg is after `--`; option injection is not possible.
+            break;
+        }
+        let stripped = arg.trim();
+        if !is_pure_var_ref(stripped) {
+            continue;
+        }
+        let var = normalise_var_name(stripped);
+        let Some(&ver) = uses.get(var) else { continue };
+        if ver == 0 {
+            continue;
+        }
+        let t = taints
+            .get(&(var.to_owned(), ver))
+            .copied()
+            .unwrap_or(TaintLattice::clean());
+        if !t.is_tainted() {
+            continue;
+        }
+        if emitted.contains(var) {
+            continue;
+        }
+        warnings.push(TaintWarning {
+            span,
+            variable: var.to_owned(),
+            sink_command: command.to_owned(),
+            code: "T102".to_owned(),
+            message: format!(
+                "T102: tainted variable ${var} passed to '{command}' without \
+                 '--' option terminator; value starting with '-' causes option injection"
+            ),
+        });
+        emitted.insert(var.to_owned());
+    }
 }
 
 /// Extract the source span from a statement.
@@ -963,5 +1044,159 @@ mod tests {
                 .map_or(true, |t| !t.is_tainted()),
             "constant assignment should not be tainted"
         );
+    }
+
+    /// T102: tainted variable passed to `regexp` without `--` terminator.
+    #[test]
+    fn t102_emitted_for_tainted_regexp_pattern() {
+        use crate::cfg::{Function, Terminator};
+        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use tcl_lexer::Span;
+
+        let registry = CommandRegistry::build_default();
+
+        // set pattern [gets stdin] ; regexp $pattern $haystack
+        let assign = Statement::AssignValue {
+            span: Span::new(0, 25),
+            name: "pattern".into(),
+            value: "[gets stdin]".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        let regexp_call = Statement::Call {
+            span: Span::new(26, 50),
+            command: "regexp".into(),
+            args: vec!["$pattern".into(), "haystack_value".into()],
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        };
+
+        let mut cfg = Function::new("::top", "entry");
+        cfg.blocks.get_mut("entry").unwrap().statements.push(assign.clone());
+        cfg.blocks.get_mut("entry").unwrap().statements.push(regexp_call.clone());
+        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let ssa_assign = SsaStatement {
+            statement: assign,
+            uses: HashMap::new(),
+            defs: [("pattern".to_owned(), 1u32)].into_iter().collect(),
+        };
+        let ssa_regexp = SsaStatement {
+            statement: regexp_call,
+            uses: [("pattern".to_owned(), 1u32)].into_iter().collect(),
+            defs: HashMap::new(),
+        };
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        };
+        ssa.blocks.insert(
+            "entry".into(),
+            SsaBlock {
+                name: "entry".into(),
+                phis: Vec::new(),
+                statements: vec![ssa_assign, ssa_regexp],
+                entry_versions: HashMap::new(),
+                exit_versions: HashMap::new(),
+            },
+        );
+
+        let exec: HashSet<String> = ["entry".to_string()].into_iter().collect();
+        let taints = propagate_taints(&cfg, &ssa, &exec, &registry);
+        let warnings = find_taint_warnings(&cfg, &ssa, &taints, &exec, &registry);
+
+        assert!(
+            warnings.iter().any(|w| w.code == "T102" && w.variable == "pattern"),
+            "expected T102 for tainted $pattern passed to regexp, got {warnings:?}"
+        );
+    }
+
+    /// T102 is suppressed when a `--` terminator precedes the tainted argument.
+    #[test]
+    fn t102_suppressed_with_terminator() {
+        use crate::cfg::{Function, Terminator};
+        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use tcl_lexer::Span;
+
+        let registry = CommandRegistry::build_default();
+
+        let assign = Statement::AssignValue {
+            span: Span::new(0, 25),
+            name: "pattern".into(),
+            value: "[gets stdin]".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        // regexp -- $pattern $haystack  (safe: -- terminates option parsing)
+        let regexp_call = Statement::Call {
+            span: Span::new(26, 55),
+            command: "regexp".into(),
+            args: vec!["--".into(), "$pattern".into(), "haystack_value".into()],
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+        };
+
+        let mut cfg = Function::new("::top", "entry");
+        cfg.blocks.get_mut("entry").unwrap().statements.push(assign.clone());
+        cfg.blocks.get_mut("entry").unwrap().statements.push(regexp_call.clone());
+        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let ssa_assign = SsaStatement {
+            statement: assign,
+            uses: HashMap::new(),
+            defs: [("pattern".to_owned(), 1u32)].into_iter().collect(),
+        };
+        let ssa_regexp = SsaStatement {
+            statement: regexp_call,
+            uses: [("pattern".to_owned(), 1u32)].into_iter().collect(),
+            defs: HashMap::new(),
+        };
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        };
+        ssa.blocks.insert(
+            "entry".into(),
+            SsaBlock {
+                name: "entry".into(),
+                phis: Vec::new(),
+                statements: vec![ssa_assign, ssa_regexp],
+                entry_versions: HashMap::new(),
+                exit_versions: HashMap::new(),
+            },
+        );
+
+        let exec: HashSet<String> = ["entry".to_string()].into_iter().collect();
+        let taints = propagate_taints(&cfg, &ssa, &exec, &registry);
+        let warnings = find_taint_warnings(&cfg, &ssa, &taints, &exec, &registry);
+
+        let t102: Vec<_> = warnings.iter().filter(|w| w.code == "T102").collect();
+        assert!(t102.is_empty(), "expected no T102 when '--' terminator present, got {t102:?}");
     }
 }

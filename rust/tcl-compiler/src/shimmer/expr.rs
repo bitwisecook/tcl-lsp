@@ -21,6 +21,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_lexer::Span;
 use tcl_registry::TclType;
 
+use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
@@ -30,8 +31,17 @@ use crate::types::{TypeKind, TypeLattice};
 use super::{type_name, ShimmerWarning};
 
 /// Find expression-level shimmer warnings for a function.
+///
+/// Covers two expression sites:
+/// 1. **`AssignExpr` / `ExprEval` statements** — `set x [expr {…}]` and
+///    standalone `expr {…}`.
+/// 2. **`Terminator::Branch` conditions** — the predicate of every
+///    `if`/`while`/`for` construct.  Variable versions are resolved from
+///    the block's `exit_versions` map (the versions live at the end of
+///    the block, which is when the condition is evaluated).
 #[must_use]
 pub fn find_expr_shimmers(
+    cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<String>,
@@ -42,6 +52,8 @@ pub fn find_expr_shimmers(
         if !executable_blocks.contains(block_name) {
             continue;
         }
+
+        // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
             match &ss.statement {
                 Statement::AssignExpr { expr, span, .. } => {
@@ -51,6 +63,22 @@ pub fn find_expr_shimmers(
                     collect_expr_shimmers(expr, &ss.uses, types, *span, &mut out);
                 }
                 _ => {}
+            }
+        }
+
+        // 2. Branch terminator condition (if/while/for predicate).
+        if let Some(block) = cfg.blocks.get(block_name) {
+            if let Some(Terminator::Branch { condition, span, .. }) = &block.terminator {
+                let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
+                // Use exit_versions: those are the variable versions in scope
+                // when the condition is evaluated.
+                collect_expr_shimmers(
+                    condition,
+                    &ssa_block.exit_versions,
+                    types,
+                    branch_span,
+                    &mut out,
+                );
             }
         }
     }
@@ -242,7 +270,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
     }
 
@@ -255,34 +283,47 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let has_shimmer = w.iter().any(|sw| {
-            sw.variable == "x" && sw.from_type == TclType::String
-        });
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let has_shimmer =
+            w.iter().any(|sw| sw.variable == "x" && sw.from_type == TclType::String);
         assert!(has_shimmer, "expected string-in-arithmetic shimmer, got: {w:?}");
     }
 
-    /// An Int variable used in a string comparison should produce S100.
-    ///
-    /// Note: `if` conditions live in `Terminator::Branch`, not in SSA
-    /// statements, so we use `set z [expr {…}]` to exercise the
-    /// `AssignExpr` path that `find_expr_shimmers` covers.
+    /// An Int variable used in a string comparison inside an `AssignExpr` produces S100.
     #[test]
-    fn expr_shimmer_int_in_string_comparison() {
+    fn expr_shimmer_int_in_string_comparison_assign_expr() {
         let cu = CompilationUnit::build_for(
             "set x 42\nset z [expr {$x eq \"42\"}]",
             &registry(),
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let has_shimmer = w
-            .iter()
-            .any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let has_shimmer =
+            w.iter().any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
         assert!(has_shimmer, "expected Int-in-string-cmp shimmer, got: {w:?}");
     }
 
-    /// A String literal compared with `eq` — no shimmer (String is correct).
+    /// An Int variable used in a string comparison inside an `if` condition
+    /// (Terminator::Branch) produces S100 via the branch-condition path.
+    #[test]
+    fn expr_shimmer_int_in_if_branch_condition() {
+        let cu = CompilationUnit::build_for(
+            "set x 42\nif {$x eq \"42\"} { set y 1 }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let has_shimmer =
+            w.iter().any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
+        assert!(
+            has_shimmer,
+            "expected Int-in-string-cmp shimmer in if-condition, got: {w:?}"
+        );
+    }
+
+    /// A String literal compared with `eq` — no shimmer (String is correct type).
     #[test]
     fn no_expr_shimmer_string_in_string_comparison() {
         let cu = CompilationUnit::build_for(
@@ -291,7 +332,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
         // x is String; used with eq (string comparison) — no shimmer.
         let str_cmp_shimmers: Vec<_> = w
             .iter()
