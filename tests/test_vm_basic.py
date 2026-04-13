@@ -116,6 +116,62 @@ class TestVMExpr:
         with pytest.raises(TclError, match="domain error"):
             interp.eval("expr {0.0 / -0.0}")
 
+    def test_nan_producing_ops_raise_domain_error(self) -> None:
+        # Verified against tclsh 9.0.3: Inf-Inf, Inf*0, Inf/Inf all raise
+        # ARITH DOMAIN instead of silently returning NaN.
+        interp = TclInterp()
+        with pytest.raises(TclError, match="domain error"):
+            interp.eval("expr {1.0/0.0 - 1.0/0.0}")
+        with pytest.raises(TclError, match="domain error"):
+            interp.eval("expr {1.0/0.0 * 0.0}")
+        with pytest.raises(TclError, match="domain error"):
+            interp.eval("expr {(1.0/0.0) / (1.0/0.0)}")
+
+    def test_inf_arithmetic(self) -> None:
+        # Verified against tclsh 9.0.3
+        interp = TclInterp()
+        assert interp.eval("expr {1.0/0.0 + 1}").value == "Inf"
+        assert interp.eval("expr {1.0/0.0 * -1.0}").value == "-Inf"
+        assert interp.eval("expr {1.0/0.0 + 1.0/0.0}").value == "Inf"
+        assert interp.eval("expr {1.0 / (1.0/0.0)}").value == "0.0"
+
+    def test_large_float_string(self) -> None:
+        # Verified against tclsh 9.0.3: 1e308 should format as "1e+308"
+        interp = TclInterp()
+        assert interp.eval("expr {1e308}").value == "1e+308"
+        assert interp.eval("expr {1e308 * 10}").value == "Inf"
+        assert interp.eval("expr {-1e308 * 10}").value == "-Inf"
+
+    def test_math_func_log_zero(self) -> None:
+        # Verified against tclsh 9.0.3: log(0.0) = -Inf
+        interp = TclInterp()
+        assert interp.eval("expr {log(0.0)}").value == "-Inf"
+        assert interp.eval("expr {log10(0.0)}").value == "-Inf"
+
+    def test_math_func_pow_zero_neg_exp(self) -> None:
+        # Verified against tclsh 9.0.3: pow(0,-n) = Inf, pow(-0,-odd) = -Inf
+        interp = TclInterp()
+        assert interp.eval("expr {pow(0.0,-1.0)}").value == "Inf"
+        assert interp.eval("expr {pow(0.0,-2.0)}").value == "Inf"
+        assert interp.eval("expr {pow(-0.0,-1.0)}").value == "-Inf"
+
+    def test_math_func_ceil_floor_inf(self) -> None:
+        # Verified against tclsh 9.0.3: ceil/floor of ±Inf returns ±Inf
+        interp = TclInterp()
+        assert interp.eval("expr {ceil(1.0/0.0)}").value == "Inf"
+        assert interp.eval("expr {floor(-1.0/0.0)}").value == "-Inf"
+        assert interp.eval("expr {ceil(-1.0/0.0)}").value == "-Inf"
+        assert interp.eval("expr {floor(1.0/0.0)}").value == "Inf"
+
+    def test_math_func_isinf_isfinite(self) -> None:
+        # Verified against tclsh 9.0.3
+        interp = TclInterp()
+        assert interp.eval("expr {isinf(1.0/0.0)}").value == "1"
+        assert interp.eval("expr {isinf(1.0)}").value == "0"
+        assert interp.eval("expr {isfinite(1.0/0.0)}").value == "0"
+        assert interp.eval("expr {isfinite(1.0)}").value == "1"
+        assert interp.eval("expr {isfinite(42)}").value == "1"
+
     def test_modulo(self) -> None:
         interp = TclInterp()
         result = interp.eval("expr {10 % 3}")
