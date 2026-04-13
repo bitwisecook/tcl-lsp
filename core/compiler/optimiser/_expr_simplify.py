@@ -716,11 +716,15 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
                 if rv == 1:
                     if bool_context or _is_boolean_expr(simp_left):
                         return simp_left
-                    return ExprUnary(op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_left))
+                    return ExprUnary(
+                        op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_left)
+                    )
                 if lv == 1:
                     if bool_context or _is_boolean_expr(simp_right):
                         return simp_right
-                    return ExprUnary(op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_right))
+                    return ExprUnary(
+                        op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_right)
+                    )
 
             # Logical OR
             if op in (BinOp.OR, BinOp.WORD_OR):
@@ -732,11 +736,15 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
                 if rv == 0:
                     if bool_context or _is_boolean_expr(simp_left):
                         return simp_left
-                    return ExprUnary(op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_left))
+                    return ExprUnary(
+                        op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_left)
+                    )
                 if lv == 0:
                     if bool_context or _is_boolean_expr(simp_right):
                         return simp_right
-                    return ExprUnary(op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_right))
+                    return ExprUnary(
+                        op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_right)
+                    )
 
             # Self-comparison tautologies (safe for integers)
             if _nodes_equal(simp_left, simp_right):
