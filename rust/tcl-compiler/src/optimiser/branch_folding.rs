@@ -341,6 +341,8 @@ mod tests {
             ssa,
             def_use: DefUseResult::default(),
             sccp,
+            types: std::collections::HashMap::new(),
+            taints: std::collections::HashMap::new(),
             memory_ssa: None,
         }
     }

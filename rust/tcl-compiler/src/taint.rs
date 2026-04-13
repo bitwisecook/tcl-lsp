@@ -570,6 +570,7 @@ fn classify_sink(
 }
 
 /// Extract the command name from a statement if it has one.
+#[allow(dead_code)]
 fn stmt_command(stmt: &Statement) -> Option<&str> {
     match stmt {
         Statement::Call { command, .. } | Statement::Barrier { command, .. } => Some(command),
@@ -713,26 +714,9 @@ pub fn find_taint_warnings(
 }
 
 /// Extract the source span from a statement.
+#[inline]
 fn stmt_span(stmt: &Statement) -> Span {
-    match stmt {
-        Statement::AssignConst { span, .. }
-        | Statement::AssignExpr { span, .. }
-        | Statement::AssignValue { span, .. }
-        | Statement::Incr { span, .. }
-        | Statement::ExprEval { span, .. }
-        | Statement::Call { span, .. }
-        | Statement::Return { span, .. }
-        | Statement::Barrier { span, .. }
-        | Statement::If { span, .. }
-        | Statement::For { span, .. }
-        | Statement::While { span, .. }
-        | Statement::Foreach { span, .. }
-        | Statement::Catch { span, .. }
-        | Statement::Switch { span, .. }
-        | Statement::Try { span, .. }
-        | Statement::Proc { span, .. }
-        | Statement::Namespace { span, .. } => *span,
-    }
+    stmt.span()
 }
 
 // ---------------------------------------------------------------------------

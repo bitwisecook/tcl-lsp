@@ -5,12 +5,10 @@
 //! suggestions) against a [`CompilationUnit`] and returns a
 //! single flat list of diagnostics ready for the LSP.
 //!
-//! Ported from `core/compiler/compiler_checks.py` (C31). This
-//! strip lands the [`Diagnostic`] supertype and a scaffolded
-//! [`run_all_checks`] entry point that calls each landed analysis
-//! and collects results. Checks whose full Rust implementation is
-//! still a stub (shimmer, taint) contribute nothing today but the
-//! wiring is in place.
+//! Ported from `core/compiler/compiler_checks.py` (C31). Lands the
+//! [`Diagnostic`] supertype and the [`run_all_checks`] entry point
+//! that calls every analysis pass — SCCP, GVN, shimmer (S100–S102),
+//! and taint (T100–T101) — and collects results into a flat list.
 
 use tcl_lexer::Span;
 
@@ -152,19 +150,38 @@ pub fn run_all_checks(
         }
     }
 
-    // Shimmer + thunking (stubs for now).
+    // Shimmer + thunking.
     for fu in cu.functions() {
-        for w in find_shimmer_warnings(&fu.cfg) {
+        for w in find_shimmer_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            registry,
+        ) {
             out.push(Diagnostic::from_shimmer(&w));
         }
-        for w in find_thunking_warnings(&fu.cfg) {
+        for w in find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+        ) {
             out.push(Diagnostic::from_thunking(&w));
         }
     }
 
-    // Taint (stub — consumes the source directly).
-    for w in find_taint_warnings(&cu.source) {
-        out.push(Diagnostic::from_taint(&w));
+    // Taint.
+    for fu in cu.functions() {
+        for w in find_taint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            registry,
+        ) {
+            out.push(Diagnostic::from_taint(&w));
+        }
     }
 
     out
