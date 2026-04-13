@@ -278,9 +278,16 @@ def _is_boolean_expr(node: ExprNode) -> bool:
         case ExprUnary(op=UnaryOp.NOT | UnaryOp.WORD_NOT):
             return True
         case ExprLiteral(text=text):
-            return text in ("0", "1", "true", "false")
+            # Include all Tcl boolean words (true/false/yes/no/on/off/0/1),
+            # case-insensitively, matching Tcl_GetBoolean semantics.
+            return text in ("0", "1") or text.lower() in _BOOLEAN_WORDS
         case _:
             return False
+
+
+def _boolify(node: ExprNode) -> ExprUnary:
+    """Wrap *node* in !!x to canonicalise it to a 0/1 boolean result."""
+    return ExprUnary(op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=node))
 
 
 def _nodes_equal(a: ExprNode, b: ExprNode) -> bool:
@@ -716,15 +723,11 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
                 if rv == 1:
                     if bool_context or _is_boolean_expr(simp_left):
                         return simp_left
-                    return ExprUnary(
-                        op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_left)
-                    )
+                    return _boolify(simp_left)
                 if lv == 1:
                     if bool_context or _is_boolean_expr(simp_right):
                         return simp_right
-                    return ExprUnary(
-                        op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_right)
-                    )
+                    return _boolify(simp_right)
 
             # Logical OR
             if op in (BinOp.OR, BinOp.WORD_OR):
@@ -736,15 +739,11 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
                 if rv == 0:
                     if bool_context or _is_boolean_expr(simp_left):
                         return simp_left
-                    return ExprUnary(
-                        op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_left)
-                    )
+                    return _boolify(simp_left)
                 if lv == 0:
                     if bool_context or _is_boolean_expr(simp_right):
                         return simp_right
-                    return ExprUnary(
-                        op=UnaryOp.NOT, operand=ExprUnary(op=UnaryOp.NOT, operand=simp_right)
-                    )
+                    return _boolify(simp_right)
 
             # Self-comparison tautologies (safe for integers)
             if _nodes_equal(simp_left, simp_right):
