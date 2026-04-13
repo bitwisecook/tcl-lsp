@@ -1801,6 +1801,70 @@ class TestInterpreterFallback:
         assert result == 1
 
 
+# Compiled-proc local frame mirroring
+
+
+class TestCompiledProcFrameMirror:
+    """Compiled proc locals are mirrored into the call frame so that
+    the interpreter (reached via eval fallback for unknown commands) can
+    read them with var_resolve.
+
+    ``eval {script}`` is not handled by the compiler and falls through to
+    tcl_eval; the Zig interpreter's ``eval`` handler then runs ``script``
+    in the current frame, exercising var_resolve against the mirrored locals.
+    """
+
+    def test_set_local_visible_via_eval_fallback(self):
+        """Variable written by compiled set is readable through the interpreter.
+
+        ``[eval {set b}]`` in value context falls to the eval-fallback path
+        (not the statement IRBarrier path) — tcl_eval runs ``set b`` in the
+        current frame, reading the mirrored local.  The result is captured in
+        ``r`` by the compiled ``set`` and returned normally.
+        """
+        result = _compile_and_run_proc(
+            "proc f {a} { set b [expr {$a + 1}]; set r [eval {set b}]; return $r }\n",
+            "f",
+            (5,),
+        )
+        assert result == 6
+
+    def test_dynamic_varname_read_via_eval_fallback(self):
+        """Dynamic ``set $n`` succeeds when n and the target are both mirrored.
+
+        Both ``x`` and ``n`` are in the frame.  The interpreter substitutes
+        ``$n`` → "x" then reads x from the frame.
+
+        Note: ``{x}`` (braced) is used to force ``set n`` to store the
+        literal string "x", rather than a bare ``x`` which the compiler
+        would optimise as ``local.get(x_idx)`` (the value 14).
+        """
+        result = _compile_and_run_proc(
+            "proc f {a} { set x [expr {$a * 2}]; set n {x}; set r [eval {set $n}]; return $r }\n",
+            "f",
+            (7,),
+        )
+        assert result == 14
+
+    def test_param_update_visible_via_eval_fallback(self):
+        """A param reassigned in the body is current in the frame."""
+        result = _compile_and_run_proc(
+            "proc f {x} { set x [expr {$x + 10}]; set r [eval {set x}]; return $r }\n",
+            "f",
+            (3,),
+        )
+        assert result == 13
+
+    def test_incr_local_visible_via_eval_fallback(self):
+        """incr updates are reflected in the frame."""
+        result = _compile_and_run_proc(
+            "proc f {a} { set c $a; incr c 5; set r [eval {set c}]; return $r }\n",
+            "f",
+            (10,),
+        )
+        assert result == 15
+
+
 # Global variable scoping
 
 
