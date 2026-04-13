@@ -515,6 +515,13 @@ def _arith_binary(a_str: str, b_str: str, op_name: str) -> str:
         case _:
             raise TclError(f"unknown arithmetic op: {op_name}")
 
+    # IEEE 754 operations that produce NaN (Inf-Inf, Inf*0, Inf/Inf, etc.)
+    # are domain errors in Tcl 9.0, not silently propagated NaN values.
+    if isinstance(result, float) and math.isnan(result):
+        raise TclError(
+            "domain error: argument not in valid range",
+            error_code="ARITH DOMAIN {domain error: argument not in valid range}",
+        )
     return _format_number(result)
 
 

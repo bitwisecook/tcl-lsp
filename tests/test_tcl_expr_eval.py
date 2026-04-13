@@ -377,6 +377,24 @@ class TestFormatTclValue:
         assert format_tcl_value(-1.0 * 0.0) == "-0.0"
         assert math.copysign(1.0, -1.0 * 0.0) < 0  # confirm it's actually -0.0
 
+    def test_inf(self):
+        # Verified against tclsh 9.0.3: Inf not inf
+        assert format_tcl_value(math.inf) == "Inf"
+        assert format_tcl_value(-math.inf) == "-Inf"
+
+    def test_nan(self):
+        assert format_tcl_value(math.nan) == "NaN"
+
+    def test_large_float(self):
+        # 1e308 must not be rendered as a huge integer string
+        assert format_tcl_value(1e308) == "1e+308"
+        assert format_tcl_value(-1e308) == "-1e+308"
+
+    def test_whole_float(self):
+        # Whole-number floats use repr which gives "42.0" in Python 3
+        assert format_tcl_value(42.0) == "42.0"
+        assert format_tcl_value(-1.0) == "-1.0"
+
 
 # Tests ported from Tcl 9.0.2 test suite (expr.test, expr-old.test)
 
