@@ -97,6 +97,7 @@ pub mod ssa;
 pub mod static_loops;
 pub mod taint;
 pub mod tcl_expr_eval;
+pub mod type_infer;
 pub mod types;
 pub mod value_shapes;
 pub mod var_refs;

@@ -27,7 +27,10 @@ use crate::ir::Module as IrModule;
 use crate::lowering::lower_to_ir;
 use crate::memory_ssa::{build_memory_ssa, MemorySSAFunction};
 use crate::sccp::{sccp, SccpResult};
-use crate::ssa::{build_ssa, SsaFunction};
+use crate::ssa::{build_ssa, SsaFunction, ValueKey};
+use crate::taint::{propagate_taints, TaintLattice};
+use crate::type_infer::propagate_types;
+use crate::types::TypeLattice;
 
 // ---------------------------------------------------------------------------
 // Per-function analysis bundle
@@ -47,6 +50,16 @@ pub struct FunctionUnit {
     /// SCCP result: lattice values, executable blocks, constant
     /// branches.
     pub sccp: SccpResult,
+    /// Type lattice values per SSA definition.
+    ///
+    /// Computed by the type-propagation pass. Absent entries are
+    /// implicitly `TypeLattice::unknown()`.
+    pub types: HashMap<ValueKey, TypeLattice>,
+    /// Taint lattice values per SSA definition.
+    ///
+    /// Computed by the intra-procedural taint-propagation pass.
+    /// Absent entries are implicitly clean (untainted).
+    pub taints: HashMap<ValueKey, TaintLattice>,
     /// Optional memory-SSA annotations (populated on demand).
     pub memory_ssa: Option<MemorySSAFunction>,
 }
@@ -56,17 +69,24 @@ impl FunctionUnit {
     /// parameters. Does *not* populate `memory_ssa`; call
     /// [`FunctionUnit::with_memory_ssa`] when the caller needs
     /// it.
+    ///
+    /// Runs in order: SSA → def-use → SCCP → type-propagation →
+    /// taint-propagation.
     #[must_use]
     pub fn build(name: impl Into<String>, cfg: CfgFunction, registry: &CommandRegistry) -> Self {
         let ssa = build_ssa(&cfg, registry);
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
         let sccp = sccp(&cfg, &ssa, None);
+        let types = propagate_types(&cfg, &ssa, &sccp, registry);
+        let taints = propagate_taints(&cfg, &ssa, &sccp.executable_blocks, registry);
         Self {
             name: name.into(),
             cfg,
             ssa,
             def_use,
             sccp,
+            types,
+            taints,
             memory_ssa: None,
         }
     }
