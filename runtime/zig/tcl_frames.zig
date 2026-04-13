@@ -11,6 +11,19 @@
 // Design: fixed-depth stack of frames. Each frame has a small open-addressing
 // hash table for local variables. Frames are recycled (not freed) to avoid
 // allocation churn.
+//
+// Variable aliasing
+// -----------------
+// Each frame bucket stores one of:
+//   value >= 0          : TclObj pointer (0 = unset/null)
+//   value == -1         : ALIAS_GLOBAL — same-name global alias (``global x``)
+//   value < -1          : ALIAS_EXT   — heap-allocated 12-byte descriptor at
+//                         address (-value).  Descriptor layout:
+//                           [0..3]  kind  (i32): 0=global_named, 1=frame_var
+//                           [4..7]  param (i32): frame_var → abs frame depth
+//                           [8..11] target_name (i32): TclObj* for target name
+//                         heap_ptr starts at 65536 so (-heap_addr) <= -65536 < -1,
+//                         never colliding with ALIAS_GLOBAL (-1).
 
 const obj = @import("tcl_obj.zig");
 const alloc = obj.alloc;
@@ -37,18 +50,30 @@ const FRAME_BUCKET_SIZE: u32 = 16;
 const FRAME_BUCKET_COUNT: u32 = 64; // per frame, power of 2
 const FRAME_SIZE: u32 = FRAME_BUCKET_COUNT * FRAME_BUCKET_SIZE; // 1024 bytes
 
-/// Sentinel stored in the value field to mark a bucket as a global alias
-/// rather than a literal TclObj pointer.  A valid TclObj pointer is always
-/// in the high-memory region (heap_ptr >= 65536) and is word-aligned, so
-/// -1 (0xFFFFFFFF) cannot collide with a real pointer.  When a var lookup
-/// finds this marker, reads/writes pass through to the globals table.
+/// Sentinel: alias to a global variable with the same local name.
 const ALIAS_GLOBAL: i32 = -1;
+/// Descriptor-based alias: value = -(heap_ptr).  See module comment.
+/// Any value < -1 is an ALIAS_EXT (heap_ptr >= 65536 => value <= -65536).
+const ALIAS_EXT_THRESHOLD: i32 = -2;
+
+inline fn is_alias_ext(v: i32) bool {
+    return v < ALIAS_EXT_THRESHOLD or v == ALIAS_EXT_THRESHOLD;
+}
+
+/// Recover the descriptor heap address from an ALIAS_EXT bucket value.
+inline fn alias_desc_ptr(v: i32) u32 {
+    return @bitCast(-v);
+}
+
+// -- Frame-alias descriptor kinds --
+const KIND_GLOBAL_NAMED: i32 = 0; // target_name is global var name
+const KIND_FRAME_VAR: i32 = 1; // param = abs frame depth, target_name = var
 
 const MAX_DEPTH: u32 = 64;
 
 // Frame stack — array of frame buffer pointers
 var frame_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
-var frame_depth: u32 = 0;
+pub var frame_depth: u32 = 0;
 
 // -- Frame operations --
 
@@ -108,11 +133,18 @@ pub export fn frame_depth_restore(saved: i32) void {
     }
 }
 
-// -- Local variable operations on current frame --
+// -- Internal helpers --
 
 fn current_frame() ?u32 {
     if (frame_depth == 0) return null;
     return frame_stack[frame_depth - 1];
+}
+
+/// Return the frame base for an absolute 1-indexed depth, or null if out of range.
+/// depth 1 = oldest frame (frame_stack[0]), depth frame_depth = current frame.
+fn frame_at_depth(abs_depth: u32) ?u32 {
+    if (abs_depth == 0 or abs_depth > frame_depth) return null;
+    return frame_stack[abs_depth - 1];
 }
 
 fn frame_find(base: u32, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
@@ -177,6 +209,94 @@ fn rt_fd_write_stderr(msg: []const u8) void {
     io.fd_write_all(2, "\n", 1);
 }
 
+// -- ALIAS_EXT resolution helpers --
+
+/// Read the value that an ALIAS_EXT bucket points to.
+fn resolve_ext_get(desc: u32, local_name: i32) i32 {
+    const kind = read_i32(desc);
+    const tgt = read_i32(desc + 8);
+    if (kind == KIND_GLOBAL_NAMED) return globals.global_get(tgt);
+    // KIND_FRAME_VAR
+    const abs: u32 = @bitCast(read_i32(desc + 4));
+    return frame_get_at_depth(abs, tgt, local_name);
+}
+
+/// Write a value through an ALIAS_EXT bucket.
+fn resolve_ext_set(desc: u32, local_name: i32, value: i32) i32 {
+    const kind = read_i32(desc);
+    const tgt = read_i32(desc + 8);
+    if (kind == KIND_GLOBAL_NAMED) return globals.global_set(tgt, value);
+    const abs: u32 = @bitCast(read_i32(desc + 4));
+    frame_set_at_depth(abs, tgt, local_name, value);
+    return value;
+}
+
+/// Check existence through an ALIAS_EXT bucket.
+fn resolve_ext_exists(desc: u32, local_name: i32) i32 {
+    const kind = read_i32(desc);
+    const tgt = read_i32(desc + 8);
+    if (kind == KIND_GLOBAL_NAMED) return globals.global_exists(tgt);
+    const abs: u32 = @bitCast(read_i32(desc + 4));
+    return if (frame_exists_at_depth(abs, tgt, local_name)) obj_new_int(1) else obj_new_int(0);
+}
+
+// -- Frame-at-depth read/write/exists --
+
+/// Read variable *name* from the frame at *abs_depth* (1-indexed).
+/// Follows aliases within that frame.  *fallback_name* is the local name
+/// used to look up same-name ALIAS_GLOBAL entries.
+fn frame_get_at_depth(abs_depth: u32, name: i32, fallback_name: i32) i32 {
+    if (abs_depth == 0) return globals.global_get(name);
+    if (frame_at_depth(abs_depth)) |base| {
+        const sn = obj_ensure_string(name);
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            const v = read_i32(bucket + 12);
+            if (v == ALIAS_GLOBAL) return globals.global_get(name);
+            if (is_alias_ext(v)) return resolve_ext_get(alias_desc_ptr(v), fallback_name);
+            return v;
+        }
+    }
+    return 0;
+}
+
+/// Write *value* to variable *name* in the frame at *abs_depth* (1-indexed).
+fn frame_set_at_depth(abs_depth: u32, name: i32, fallback_name: i32, value: i32) void {
+    if (abs_depth == 0) { _ = globals.global_set(name, value); return; }
+    if (frame_at_depth(abs_depth)) |base| {
+        const sn = obj_ensure_string(name);
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            const v = read_i32(bucket + 12);
+            if (v == ALIAS_GLOBAL) { _ = globals.global_set(name, value); return; }
+            if (is_alias_ext(v)) { _ = resolve_ext_set(alias_desc_ptr(v), fallback_name, value); return; }
+            write_i32(bucket + 12, value);
+            return;
+        }
+        frame_insert(base, sn.ptr, sn.len, hash, value);
+    } else {
+        _ = globals.global_set(name, value);
+    }
+}
+
+/// Check whether variable *name* exists in the frame at *abs_depth*.
+fn frame_exists_at_depth(abs_depth: u32, name: i32, fallback_name: i32) bool {
+    if (abs_depth == 0) return globals.global_exists(name) != obj_new_int(0);
+    if (frame_at_depth(abs_depth)) |base| {
+        const sn = obj_ensure_string(name);
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            const v = read_i32(bucket + 12);
+            if (v == ALIAS_GLOBAL) return globals.global_exists(name) != obj_new_int(0);
+            if (is_alias_ext(v)) return resolve_ext_exists(alias_desc_ptr(v), fallback_name) != obj_new_int(0);
+            return true;
+        }
+    }
+    return false;
+}
+
+// -- Alias registration --
+
 /// Register *name* in the current frame as an alias to the global scope.
 /// Subsequent var_set/var_resolve/var_exists calls for this name pass
 /// through to the globals table.  This is how the Tcl ``global`` command
@@ -194,17 +314,59 @@ pub export fn frame_alias_global(name: i32) void {
     // No active frame — global is already the scope, nothing to alias.
 }
 
+/// Register *local_name* in the current frame as an alias to global
+/// variable *target_name* (which may differ from *local_name*).
+/// Used by the interpreter's ``upvar #0 other local`` handling.
+pub export fn frame_alias_named(local_name: i32, target_name: i32) void {
+    const desc = alloc(12);
+    write_i32(desc, KIND_GLOBAL_NAMED);
+    write_i32(desc + 4, 0); // param unused for global aliases
+    write_i32(desc + 8, target_name);
+    const encoded: i32 = -@as(i32, @intCast(desc));
+    if (current_frame()) |base| {
+        const sn = obj_ensure_string(local_name);
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            write_i32(bucket + 12, encoded);
+        } else {
+            frame_insert(base, sn.ptr, sn.len, hash, encoded);
+        }
+    }
+}
+
+/// Register *local_name* in the current frame as an alias to variable
+/// *target_name* in the frame at absolute depth *abs_depth* (1-indexed).
+/// Used by the interpreter's ``upvar N other local`` handling.
+pub export fn frame_alias_frame_var(local_name: i32, abs_depth: i32, target_name: i32) void {
+    const desc = alloc(12);
+    write_i32(desc, KIND_FRAME_VAR);
+    write_i32(desc + 4, abs_depth);
+    write_i32(desc + 8, target_name);
+    const encoded: i32 = -@as(i32, @intCast(desc));
+    if (current_frame()) |base| {
+        const sn = obj_ensure_string(local_name);
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            write_i32(bucket + 12, encoded);
+        } else {
+            frame_insert(base, sn.ptr, sn.len, hash, encoded);
+        }
+    }
+}
+
+// -- Local variable operations on current frame --
+
 /// Set a local variable in the current frame.
 /// If no frame is active, falls through to global_set.
-/// If the name is an alias to a global, writes to the global table.
+/// Follows ALIAS_GLOBAL and ALIAS_EXT on write.
 pub export fn local_set(name: i32, value: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            if (read_i32(bucket + 12) == ALIAS_GLOBAL) {
-                return globals.global_set(name, value);
-            }
+            const v = read_i32(bucket + 12);
+            if (v == ALIAS_GLOBAL) return globals.global_set(name, value);
+            if (is_alias_ext(v)) return resolve_ext_set(alias_desc_ptr(v), name, value);
             write_i32(bucket + 12, value);
             return value;
         }
@@ -217,7 +379,7 @@ pub export fn local_set(name: i32, value: i32) i32 {
 
 /// Get a local variable from the current frame.
 /// Returns 0 if not found in current frame (does NOT fall through to globals).
-/// If the name is an alias to a global, reads from the global table.
+/// Follows ALIAS_GLOBAL and ALIAS_EXT on read.
 pub export fn local_get(name: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
@@ -225,6 +387,7 @@ pub export fn local_get(name: i32) i32 {
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
             const v = read_i32(bucket + 12);
             if (v == ALIAS_GLOBAL) return globals.global_get(name);
+            if (is_alias_ext(v)) return resolve_ext_get(alias_desc_ptr(v), name);
             return v;
         }
     }
@@ -232,16 +395,15 @@ pub export fn local_get(name: i32) i32 {
 }
 
 /// Check if a local variable exists in the current frame.
-/// An alias-to-global bucket counts as a local for this check only when
-/// the underlying global is actually set.
+/// Follows aliases to their final target for the existence check.
 pub export fn local_exists(name: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            if (read_i32(bucket + 12) == ALIAS_GLOBAL) {
-                return globals.global_exists(name);
-            }
+            const v = read_i32(bucket + 12);
+            if (v == ALIAS_GLOBAL) return globals.global_exists(name);
+            if (is_alias_ext(v)) return resolve_ext_exists(alias_desc_ptr(v), name);
             return obj_new_int(1);
         }
     }
@@ -264,6 +426,7 @@ pub export fn var_resolve(name: i32) i32 {
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
             const v = read_i32(bucket + 12);
             if (v == ALIAS_GLOBAL) return globals.global_get(name);
+            if (is_alias_ext(v)) return resolve_ext_get(alias_desc_ptr(v), name);
             return v;
         }
     }
@@ -296,9 +459,9 @@ pub export fn var_exists(name: i32) i32 {
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            if (read_i32(bucket + 12) == ALIAS_GLOBAL) {
-                return globals.global_exists(name);
-            }
+            const v = read_i32(bucket + 12);
+            if (v == ALIAS_GLOBAL) return globals.global_exists(name);
+            if (is_alias_ext(v)) return resolve_ext_exists(alias_desc_ptr(v), name);
             return obj_new_int(1);
         }
     }

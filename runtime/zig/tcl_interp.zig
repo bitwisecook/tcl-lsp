@@ -807,6 +807,8 @@ fn eval_command(words: []const i32) i32 {
         }
         return 0;
     }
+    if (str_eq(cmd, cmd_s.len, "upvar")) return eval_upvar(words);
+    if (str_eq(cmd, cmd_s.len, "uplevel")) return eval_uplevel(words);
     if (str_eq(cmd, cmd_s.len, "package") or
         str_eq(cmd, cmd_s.len, "namespace") or str_eq(cmd, cmd_s.len, "variable") or
         str_eq(cmd, cmd_s.len, "rename"))
@@ -821,6 +823,145 @@ fn str_eq(a: [*]const u8, alen: u32, comptime b: []const u8) bool {
         if (a[i] != b[i]) return false;
     }
     return true;
+}
+
+// -- upvar / uplevel helpers --
+
+/// Parse an unsigned integer from a byte slice.  Stops at first non-digit.
+fn parse_uint_bytes(ptr: [*]const u8, len: u32) u32 {
+    var result: u32 = 0;
+    var i: u32 = 0;
+    while (i < len) : (i += 1) {
+        const c = ptr[i];
+        if (c < '0' or c > '9') break;
+        result = result * 10 + (c - '0');
+    }
+    return result;
+}
+
+/// Concatenate a slice of TclObj words with single spaces into one TclObj.
+fn concat_words(ws: []const i32) i32 {
+    if (ws.len == 0) return obj_new_string(0, 0);
+    if (ws.len == 1) return ws[0];
+    // Calculate total byte length including spaces between words.
+    var total: u32 = 0;
+    for (ws) |w| {
+        const s = obj_ensure_string(w);
+        total += s.len;
+    }
+    total += @as(u32, @intCast(ws.len)) - 1; // spaces
+    const buf = alloc(total);
+    var off: u32 = 0;
+    for (ws, 0..) |w, wi| {
+        const s = obj_ensure_string(w);
+        memcpy(buf + off, s.ptr, s.len);
+        off += s.len;
+        if (wi + 1 < ws.len) {
+            const bp: [*]u8 = @ptrFromInt(buf + off);
+            bp[0] = ' ';
+            off += 1;
+        }
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(total));
+}
+
+/// ``upvar ?level? otherVar myVar ?otherVar myVar ...?``
+///
+/// Supported levels:
+///   ``#0``  — global alias (optionally different local/target name)
+///   ``N``   — relative: N frames above current (default 1)
+///
+/// Limitation: if the target frame belongs to a compiled proc that has not
+/// yet synced its WASM locals into the frame hash table (i.e., it never hit
+/// an eval-fallback), the aliased variable will read as 0/unset.  This is
+/// acceptable until full shadow-stack or pre-call-sync is implemented.
+fn eval_upvar(words: []const i32) i32 {
+    if (words.len < 3) return 0;
+
+    // Determine whether words[1] is a level specifier.
+    // A leading '#' or a digit sequence marks it as a level.
+    const w1 = obj_ensure_string(words[1]);
+    const w1p: [*]const u8 = @ptrFromInt(w1.ptr);
+
+    var pairs_start: u32 = 1;
+    var is_global: bool = false;
+    // abs_target_depth: absolute 1-indexed depth of the target frame.
+    // Default: one level up from current (upvar 1).
+    var abs_target: i32 = @as(i32, @intCast(frames.frame_depth)) - 1;
+
+    if (w1.len > 0) {
+        if (w1p[0] == '#') {
+            // Absolute level: #0 = global, #N = abs frame N
+            pairs_start = 2;
+            const level = parse_uint_bytes(w1p + 1, w1.len - 1);
+            if (level == 0) {
+                is_global = true;
+            } else {
+                abs_target = @intCast(level);
+            }
+        } else if (w1p[0] >= '0' and w1p[0] <= '9') {
+            // Relative level
+            pairs_start = 2;
+            const rel = parse_uint_bytes(w1p, w1.len);
+            abs_target = @as(i32, @intCast(frames.frame_depth)) - @as(i32, @intCast(rel));
+        }
+        // else: not a level spec; default level 1 applies (pairs_start = 1)
+    }
+
+    var i = pairs_start;
+    while (i + 1 < words.len) : (i += 2) {
+        const other_var = words[i];     // name in the target frame
+        const local_var = words[i + 1]; // alias name in the current frame
+        if (is_global or abs_target <= 0) {
+            // #0 or level underflow → global alias
+            frames.frame_alias_named(local_var, other_var);
+        } else {
+            frames.frame_alias_frame_var(local_var, abs_target, other_var);
+        }
+    }
+    return 0;
+}
+
+/// ``uplevel ?level? body ?body ...?``
+///
+/// Evaluates the body in the caller's frame by temporarily adjusting
+/// frame_depth.  Multiple body words are joined with spaces (Tcl semantics).
+///
+/// Level defaults to 1 (one frame up).  ``#0`` means the global frame.
+fn eval_uplevel(words: []const i32) i32 {
+    if (words.len < 2) return 0;
+
+    const w1 = obj_ensure_string(words[1]);
+    const w1p: [*]const u8 = @ptrFromInt(w1.ptr);
+
+    var body_start: u32 = 1;
+    var shift: i32 = 1; // frames to shift down (default: uplevel 1)
+
+    if (w1.len > 0) {
+        if (w1p[0] == '#') {
+            body_start = 2;
+            const level = parse_uint_bytes(w1p + 1, w1.len - 1);
+            if (level == 0) {
+                // #0 = absolute global: shift all the way to depth 0
+                shift = @intCast(frames.frame_depth);
+            } else {
+                shift = @intCast(level);
+            }
+        } else if (w1p[0] >= '0' and w1p[0] <= '9') {
+            body_start = 2;
+            shift = @intCast(parse_uint_bytes(w1p, w1.len));
+        }
+        // else: not a level spec; body_start stays 1, shift stays 1
+    }
+
+    if (body_start >= words.len) return 0;
+
+    const body_obj = concat_words(words[body_start..]);
+    const saved = frames.frame_depth_stash(shift);
+    const body_s = obj_ensure_string(body_obj);
+    const result = eval_script(body_s.ptr, body_s.len);
+    frames.frame_depth_restore(saved);
+    return result;
 }
 
 // -- Control flow --

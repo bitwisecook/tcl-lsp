@@ -862,6 +862,7 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_var_set": ("tcl", "var_set", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_var_exists": ("tcl", "var_exists", [ValType.I32], [ValType.I32]),
     "tcl_local_set": ("tcl", "local_set", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_local_get": ("tcl", "local_get", [ValType.I32], [ValType.I32]),
     # Proc registry
     "tcl_proc_register": (
         "tcl",
@@ -1777,6 +1778,7 @@ def _scan_needed_imports(
         needed.add("tcl_frame_push")
         needed.add("tcl_frame_pop")
         needed.add("tcl_local_set")
+        needed.add("tcl_local_get")
 
     return needed
 
@@ -3727,6 +3729,9 @@ class _WasmEmitter:
             self._emit_frame_sync()
             self._emit_obj_literal(script)
             self._emit_call(eval_idx)
+            # Reload locals from frame — eval may have modified them (e.g.
+            # ``set x 99``, writes through ``upvar`` aliases, ``unset``).
+            self._emit_frame_readback()
             return
         # No interpreter available — hard trap
         fidx = self._shared_imports.get("tcl_error")
@@ -4269,6 +4274,39 @@ class _WasmEmitter:
             self._emit_call(lset_idx)
             self._emit(WasmOp.DROP)
             self._emit(WasmOp.END)
+
+    def _emit_frame_readback(self) -> None:
+        """Reload all frame-synced proc-locals from the call frame after eval.
+
+        After ``tcl_eval`` returns, the interpreter may have modified variables
+        in the frame hash table (e.g. via ``set x 99``, ``upvar``/``uplevel``
+        writes, or explicit ``unset``).  Re-reading every synced local via
+        ``local_get`` keeps the WASM locals consistent with the frame.
+
+        ``local_get`` returns 0 for variables not found in the frame.  Since
+        ``_emit_frame_sync`` null-guarded unset locals (never wrote them to the
+        frame), a 0 readback either means the local was already 0 before eval
+        (no change) or that eval unset it — both correct outcomes.
+
+        Skipped when:
+        - not inside a compiled proc (``_is_proc`` is False)
+        - ``tcl_local_get`` is not imported
+        """
+        if not self._is_proc:
+            return
+        lget_idx = self._shared_imports.get("tcl_local_get")
+        if lget_idx is None:
+            return
+        for name, idx in self._tcl_var_locals.items():
+            if name in self._aliases:
+                continue
+            if name in self._globals:
+                continue
+            if name.startswith("::"):
+                continue
+            self._emit_obj_literal(name)
+            self._emit_call(lget_idx)
+            self._emit_local_set(idx)
 
     def _register_global_alias(self, local_name: str, target_value: str) -> None:
         """Register *local_name* as a global alias and stash the target name.

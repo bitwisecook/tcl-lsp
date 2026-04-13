@@ -151,8 +151,37 @@ def _compile_and_run_proc(
     *,
     optimise: bool = False,
 ) -> int:
-    """Compile and execute a specific procedure."""
-    return _compile_and_run(source, optimise=optimise, func_name=f"::{proc_name}", args=args)
+    """Compile and execute a specific procedure.
+
+    Runs ``::top`` first to execute any top-level setup code (global variable
+    initialisations, proc registrations, etc.) before calling the named proc.
+    This matches the real execution model where the top-level script runs as a
+    module initialiser before individual procs are invoked.
+    """
+    _, wasm_bytes = _compile_to_wasm(source, optimise=optimise)
+
+    engine = _get_engine()
+    store = wasmtime.Store(engine)
+    wasi_config = wasmtime.WasiConfig()
+    store.set_wasi(wasi_config)
+
+    tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+
+    obj_new_int = rt_instance.exports(store)["obj_new_int"]
+    obj_get_int = rt_instance.exports(store)["obj_get_int"]
+
+    # Run the top-level script to set up globals and register procs
+    top_func = tcl_instance.exports(store).get("::top")
+    if top_func is not None:
+        top_func(store)
+
+    boxed_args = tuple(obj_new_int(store, a) for a in args)
+    func = tcl_instance.exports(store)[f"::{proc_name}"]
+    result_obj = func(store, *boxed_args)
+
+    if result_obj == 0:
+        return 0
+    return obj_get_int(store, result_obj)
 
 
 # Basic value tests
@@ -741,6 +770,7 @@ class TestCommandDispatch:
             "frame_push",
             "frame_pop",
             "local_set",
+            "local_get",
         }
 
 
@@ -1863,6 +1893,110 @@ class TestCompiledProcFrameMirror:
             (10,),
         )
         assert result == 15
+
+
+class TestEvalWriteback:
+    """After eval modifies a frame variable, the compiled proc sees the new value.
+
+    _emit_frame_readback reloads all synced locals from the frame hash table
+    after every tcl_eval call.  Without it, eval { set x 99 } would update
+    the frame but leave the WASM local stale.
+    """
+
+    def test_eval_set_writeback(self):
+        """eval {set x 99} modifies the variable; compiled proc reads new value."""
+        result = _compile_and_run_proc(
+            "proc f {x} { eval {set x 99}; return $x }\n",
+            "f",
+            (1,),
+        )
+        assert result == 99
+
+    def test_eval_incr_writeback(self):
+        """eval {incr x} increments the variable; compiled proc reads result."""
+        result = _compile_and_run_proc(
+            "proc f {x} { eval {incr x 10}; return $x }\n",
+            "f",
+            (5,),
+        )
+        assert result == 15
+
+    def test_eval_does_not_affect_untouched_locals(self):
+        """eval that only touches one variable does not clobber others."""
+        result = _compile_and_run_proc(
+            "proc f {a b} { eval {set a 99}; return $b }\n",
+            "f",
+            (1, 42),
+        )
+        assert result == 42
+
+    def test_multiple_evals_accumulate(self):
+        """Successive evals each write back correctly."""
+        result = _compile_and_run_proc(
+            "proc f {x} { eval {set x [expr {$x + 1}]}; eval {set x [expr {$x * 2}]}; return $x }\n",
+            "f",
+            (3,),
+        )
+        assert result == 8  # (3+1)*2
+
+
+class TestEvalUpvar:
+    """upvar in eval'd scripts aliases into the proc's frame or global scope.
+
+    Since eval runs in the proc's frame, upvar 0 aliases within the current
+    frame.  upvar 1 looks at the proc's caller; for the tests here the caller
+    is the test harness (no compiled frame), so the lookup falls to globals.
+    upvar #0 directly aliases to the global scope.
+    """
+
+    def test_upvar_hash0_read(self):
+        """upvar #0 inside eval reads a global variable."""
+        result = _compile_and_run_proc(
+            "set ::gval 77\nproc f {} { set r [eval {upvar #0 ::gval g; set g}]; return $r }\n",
+            "f",
+            (),
+        )
+        assert result == 77
+
+    def test_upvar_hash0_write(self):
+        """upvar #0 inside eval writes through to a global variable."""
+        result = _compile_and_run_proc(
+            "set ::gctr 0\nproc f {} { eval {upvar #0 ::gctr c; set c 55}; return $::gctr }\n",
+            "f",
+            (),
+        )
+        assert result == 55
+
+    def test_upvar_named_global_alias(self):
+        """upvar #0 otherName localName maps a local alias to a different global."""
+        result = _compile_and_run_proc(
+            "set ::base 10\nproc f {} { set r [eval {upvar #0 ::base myvar; expr {$myvar + 5}}]; return $r }\n",
+            "f",
+            (),
+        )
+        assert result == 15
+
+
+class TestEvalUplevel:
+    """uplevel in eval'd scripts shifts the interpreter's frame context."""
+
+    def test_uplevel_hash0_reads_global(self):
+        """uplevel #0 runs a script at global scope."""
+        result = _compile_and_run_proc(
+            "set ::answer 42\nproc f {} { set r [eval {uplevel #0 {set ::answer}}]; return $r }\n",
+            "f",
+            (),
+        )
+        assert result == 42
+
+    def test_uplevel_hash0_sets_global(self):
+        """uplevel #0 sets a global variable from inside a compiled proc's eval."""
+        result = _compile_and_run_proc(
+            "set ::shared 0\nproc f {} { eval {uplevel #0 {set ::shared 99}}; return $::shared }\n",
+            "f",
+            (),
+        )
+        assert result == 99
 
 
 # Global variable scoping
