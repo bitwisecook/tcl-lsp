@@ -27,6 +27,7 @@ use crate::def_use::DefKind;
 use crate::ir::Statement;
 use crate::sccp::{cfg_order, SccpResult};
 
+use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Run the elimination pass — emits O107, O108, O109, O126
@@ -66,7 +67,7 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             ctx.report(Optimisation::new(
                 "O107",
                 "Eliminate unreachable dead code",
-                span,
+                full_rewrite_span(ctx.source, span),
                 "",
             ));
         }
@@ -180,7 +181,12 @@ fn emit_dead_stores_and_unused(
     entries.sort_by_key(|e| e.span.start());
     let mut removed: HashSet<(String, u32)> = HashSet::new();
     for e in entries {
-        ctx.report(Optimisation::new(e.code, e.msg, e.span, ""));
+        ctx.report(Optimisation::new(
+            e.code,
+            e.msg,
+            full_rewrite_span(ctx.source, e.span),
+            "",
+        ));
         removed.insert(e.key);
     }
     removed
@@ -336,7 +342,7 @@ fn emit_adce_reports(
         ctx.report(Optimisation::new(
             "O108",
             "Eliminate transitively dead code",
-            span,
+            full_rewrite_span(ctx.source, span),
             "",
         ));
     }

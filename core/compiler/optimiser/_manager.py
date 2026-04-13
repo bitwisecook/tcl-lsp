@@ -396,63 +396,27 @@ def _materialise_rust_optimisations(
     :class:`Range` positions computed from *source*.
 
     Rust produces **UTF-8 byte offsets**; Python's string is a
-    Unicode string. We encode *source* once to bytes so indexing
-    by byte offset is correct for non-ASCII input, and compute
-    :attr:`SourcePosition.character` as LSP-mandated UTF-16 code
-    units (not codepoints). Both conventions match the contracts
-    documented on :class:`SourcePosition`.
+    Unicode string. The shared
+    :func:`core.compiler.rust_spans.build_position_resolver` handles
+    the UTF-8 byte → UTF-16 column conversion so this materialiser
+    and the GVN one in ``core/compiler/gvn.py`` stay in lockstep —
+    see ``rust_spans.py`` for the conversion contract.
     """
-    import bisect
+    from ..rust_spans import build_position_resolver
 
-    from ...analysis.semantic_model import Range
-    from ...parsing.tokens import SourcePosition
+    _, range_at = build_position_resolver(source)
 
-    utf8_source = source.encode("utf-8")
-    source_len = len(utf8_source)
-
-    # Pre-compute line-start byte offsets once for O(log n) lookup.
-    line_starts = [0]
-    for i, b in enumerate(utf8_source):
-        if b == 0x0A:  # '\n'
-            line_starts.append(i + 1)
-
-    def position_at(offset: int) -> SourcePosition:
-        clamped = max(0, min(offset, source_len))
-        idx = bisect.bisect_right(line_starts, clamped) - 1
-        if idx < 0:
-            idx = 0
-        line_start = line_starts[idx]
-        # Decode the line prefix and measure its UTF-16 length so
-        # `character` matches LSP semantics. `errors="replace"`
-        # keeps us robust if a span ever lands on a codepoint
-        # boundary mid-sequence — we produce a column, not fail.
-        line_prefix = utf8_source[line_start:clamped].decode("utf-8", errors="replace")
-        utf16_column = len(line_prefix.encode("utf-16-le")) // 2
-        return SourcePosition(
-            line=idx,
-            character=utf16_column,
-            offset=clamped,
+    return [
+        Optimisation(
+            code=code,
+            message=message,
+            range=range_at(start, end),
+            replacement=replacement,
+            group=group,
+            hint_only=hint_only,
         )
-
-    out: list[Optimisation] = []
-    for code, message, start, end, replacement, group, hint_only in tuples:
-        # Rust Span is exclusive-end; Python Range.end is
-        # inclusive. Subtract 1 when the span is non-empty.
-        end_incl = max(start, end - 1) if end > start else start
-        out.append(
-            Optimisation(
-                code=code,
-                message=message,
-                range=Range(
-                    start=position_at(start),
-                    end=position_at(end_incl),
-                ),
-                replacement=replacement,
-                group=group,
-                hint_only=hint_only,
-            )
-        )
-    return out
+        for code, message, start, end, replacement, group, hint_only in tuples
+    ]
 
 
 def find_optimisations(

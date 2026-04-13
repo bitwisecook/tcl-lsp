@@ -311,6 +311,30 @@ impl<'src> Lexer<'src> {
         self.collect()
     }
 
+    /// Collect every token alongside the non-fatal warnings
+    /// accumulated during lexing.
+    ///
+    /// Mirrors `tokenise_all` but also surfaces the
+    /// `(offset, message)` warnings the Python side stores on
+    /// `TclLexer.warnings`. Needed by the `PyO3` fast-path so the
+    /// Python caller can merge them into its own `warnings`
+    /// list — without this, editors lose recoverable-syntax
+    /// diagnostics (extra chars after close-brace / close-quote,
+    /// unterminated strings) whenever the Rust wheel is loaded.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`LexError`] encountered while scanning;
+    /// in that case no warnings are surfaced (the error itself
+    /// subsumes any diagnostics).
+    pub fn tokenise_all_with_warnings(mut self) -> Result<(Vec<Token>, Vec<LexWarning>), LexError> {
+        let mut tokens = Vec::new();
+        for result in self.by_ref() {
+            tokens.push(result?);
+        }
+        Ok((tokens, self.warnings))
+    }
+
     #[inline]
     fn source(&self) -> &'src str {
         self.source_map.source()

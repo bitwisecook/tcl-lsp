@@ -60,3 +60,86 @@ def test_optimiser_find_optimisations_fires_o101() -> None:
 def test_optimiser_opt_priority_known_code() -> None:
     assert tcl_lsp_rust.optimiser_opt_priority("O112") == 9
     assert tcl_lsp_rust.optimiser_opt_priority("unknown") == 0
+
+
+def test_compiler_checks_run_all_returns_diagnostic_tuples() -> None:
+    """C32-shim smoke test: the Rust ``compiler_checks_run_all``
+    entry point must return diagnostic tuples for a source with a
+    constant-true branch (exercises the SCCP check), and each
+    tuple must have the six-field shape Python callers expect.
+    """
+    diagnostics = tcl_lsp_rust.compiler_checks_run_all(
+        "if {1} { set x 1 } else { set y 2 }", None
+    )
+    assert isinstance(diagnostics, list)
+    assert diagnostics, "expected at least one diagnostic from SCCP check"
+    for t in diagnostics:
+        assert len(t) == 6, f"unexpected tuple shape: {t!r}"
+        code, category, severity, message, start, end = t
+        assert isinstance(code, str) and code
+        assert isinstance(category, str) and category
+        assert severity in {"hint", "suggestion", "warning", "error"}
+        assert isinstance(message, str) and message
+        assert isinstance(start, int) and isinstance(end, int)
+        assert start <= end
+
+
+def test_compiler_checks_run_all_empty_source_is_empty() -> None:
+    """Empty source must produce no diagnostics — matches the Rust
+    ``run_all_checks`` unit test's behaviour and ensures the binding
+    doesn't invent spurious output from an empty compilation unit.
+    """
+    assert tcl_lsp_rust.compiler_checks_run_all("", None) == []
+
+
+def test_interprocedural_summaries_returns_dict_of_proc_dicts() -> None:
+    """C32-shim smoke test: ``interprocedural_summaries`` exposes
+    per-proc summaries keyed on qualified name, with each value a
+    dict carrying the ProcSummary fields as primitives."""
+    summaries = tcl_lsp_rust.interprocedural_summaries(
+        "proc ::answer {} { return 42 }", None
+    )
+    assert isinstance(summaries, dict)
+    assert "::answer" in summaries
+    s = summaries["::answer"]
+    assert s["qualified_name"] == "::answer"
+    assert s["params"] == []
+    assert s["arity_min"] == 0
+    assert isinstance(s["has_barrier"], bool)
+    assert s["returns_constant"] is True
+    assert s["constant_return"] == ("int", "42")
+    assert s["can_fold_static_calls"] is True
+    assert isinstance(s["param_traits"], dict)
+
+
+def test_gvn_redundancies_returns_tuples() -> None:
+    """C32-shim smoke test: ``gvn_redundancies`` / _partial /
+    _loop_invariants each return tuple lists with the 7-field
+    shape Python callers expect."""
+    # Minimal source that isn't guaranteed to produce O105 — we
+    # only verify the tuple shape and that the call succeeds.
+    for name in ("gvn_redundancies", "gvn_partial_redundancies", "gvn_loop_invariants"):
+        fn = getattr(tcl_lsp_rust, name)
+        result = fn("set a 1\nset b 2", None)
+        assert isinstance(result, list)
+        for t in result:
+            assert len(t) == 7, f"unexpected {name} tuple shape: {t!r}"
+            code, start, end, first_start, first_end, expr, msg = t
+            assert isinstance(code, str) and code.startswith("O")
+            assert isinstance(start, int) and isinstance(end, int)
+            assert start <= end
+            assert isinstance(first_start, int) and isinstance(first_end, int)
+            assert isinstance(expr, str)
+            assert isinstance(msg, str)
+
+
+def test_build_compilation_unit_returns_handle() -> None:
+    """C32-shim smoke test: ``build_compilation_unit`` returns a
+    handle exposing read-only counters; passing ``dialect`` populates
+    the interprocedural summaries flag."""
+    cu = tcl_lsp_rust.build_compilation_unit("proc ::f {} { }", None)
+    assert cu.procedure_count == 1
+    assert cu.source_len > 0
+    assert cu.has_interprocedural is True
+    # Repr smoke test.
+    assert "CompilationUnit" in repr(cu)

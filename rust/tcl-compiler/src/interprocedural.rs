@@ -570,8 +570,20 @@ fn scan_statement(
                 facts.local_pure = false;
             }
 
-            // Resolve internal-proc call targets.
-            let internal_target = resolve_internal_call(command, caller, known);
+            // Resolve internal-proc call targets. Special case
+            // for iRules' ``call <proc>`` indirection: when the
+            // command is literally ``call`` and the first arg is
+            // a plain identifier, treat it as a direct invocation
+            // of that proc. Matches the Python
+            // ``_unused_procs._collect_callees`` handling.
+            let internal_target = if command == "call"
+                && !args.is_empty()
+                && is_plain_proc_name(&args[0])
+            {
+                resolve_internal_call(&args[0], caller, known)
+            } else {
+                resolve_internal_call(command, caller, known)
+            };
             if let Some(target) = &internal_target {
                 facts.direct_calls.insert(target.clone());
             } else if registry.get(command).is_none() {
@@ -905,6 +917,16 @@ fn is_bare_word(text: &str) -> bool {
         && text.bytes().all(|b| {
             b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'/' | b':' | b'+' | b'-')
         })
+}
+
+/// True when `text` could be a plain procedure name — rejects
+/// argument shapes that would make the ``call`` indirection
+/// dynamic (variable substitutions, command substitutions, etc.).
+fn is_plain_proc_name(text: &str) -> bool {
+    !text.is_empty()
+        && text
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':'))
 }
 
 /// Derive the return-value summary fields from a proc's

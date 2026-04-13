@@ -22,8 +22,12 @@ use std::borrow::Cow;
 
 use pyo3::prelude::*;
 
+mod compilation_unit;
+mod compiler_checks;
 mod expr_lexer;
 mod expr_parser;
+mod gvn;
+mod interprocedural;
 mod lexer;
 mod optimiser;
 mod registry;
@@ -81,5 +85,9 @@ fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     expr_parser::register_with(m)?;
     registry::register_with(m)?;
     optimiser::register_with(m)?;
+    compiler_checks::register_with(m)?;
+    interprocedural::register_with(m)?;
+    gvn::register_with(m)?;
+    compilation_unit::register_with(m)?;
     Ok(())
 }

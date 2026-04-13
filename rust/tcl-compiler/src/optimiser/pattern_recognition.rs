@@ -27,6 +27,7 @@ use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
 
+use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Run the pattern-recognition pass.
@@ -145,7 +146,7 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement) {
                 ctx.report(Optimisation::new(
                     "O114",
                     "Use incr instead of set/expr",
-                    *span,
+                    full_rewrite_span(ctx.source, *span),
                     replacement,
                 ));
             }

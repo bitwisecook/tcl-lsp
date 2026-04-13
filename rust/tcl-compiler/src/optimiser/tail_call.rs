@@ -24,6 +24,7 @@ use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Procedure, Script, Statement};
 use crate::naming::normalise_qualified_name;
 
+use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Run the tail-call detection pass. Emits `O121` for every
@@ -171,7 +172,7 @@ fn emit_loop_conversion(
         format!(
             "Convert tail-recursive '{short_name}' to iterative loop"
         ),
-        proc.span,
+        full_rewrite_span(ctx.source, proc.span),
         replacement,
     ));
 }
@@ -210,8 +211,14 @@ fn count_self_calls_in_stmt(
                 *count += count_bracket_self_calls(arg, self_names);
             }
         }
-        Statement::Return { value: Some(v), .. } => {
-            *count += count_bracket_self_calls(v, self_names);
+        Statement::Return {
+            value: Some(v),
+            braced,
+            ..
+        } => {
+            if !*braced {
+                *count += count_bracket_self_calls(v, self_names);
+            }
         }
         Statement::AssignValue { value, .. } => {
             *count += count_bracket_self_calls(value, self_names);
@@ -311,7 +318,16 @@ fn non_tail_self_call_in_expression(
 
 fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
     match stmt {
-        Statement::Return { value: Some(v), .. } => {
+        Statement::Return {
+            value: Some(v),
+            braced,
+            ..
+        } => {
+            // Braced `return {[f $n]}` is literal text — never
+            // executed as a call. Matches the Python guard.
+            if *braced {
+                return false;
+            }
             // Pure `return [self …]` — that's a tail return-
             // subst, already handled by O121, not accumulator.
             if let Some((head, _)) = parse_return_subst(v) {
@@ -395,25 +411,35 @@ fn collect_tail_sites(
     };
     match last {
         Statement::Call { span, command, args, .. } if self_names.contains(command) => {
+            let rewrite_span = full_rewrite_span(ctx.source, *span);
             ctx.report(Optimisation::new(
                 "O121",
                 format!(
                     "Use tailcall for self-recursion in proc '{}'",
                     proc.name,
                 ),
-                *span,
+                rewrite_span,
                 format!("tailcall {command}"),
             ));
             sites.push(TailSite {
-                span: *span,
+                span: rewrite_span,
                 args: args.clone(),
             });
         }
         Statement::Return {
             span,
             value: Some(v),
+            braced,
             ..
         } => {
+            // `return {[f $n]}` is a braced literal — the
+            // substitution is never executed — so neither O121
+            // (tailcall rewrite) nor the site count toward O122
+            // (loop conversion) should fire. Matches the Python
+            // guard in `_tail_call.py::_is_tail_call_return`.
+            if *braced {
+                return;
+            }
             if let Some((call_head, call_args)) = parse_return_subst(v) {
                 if self_names.contains(&call_head) {
                     let replacement = if call_args.is_empty() {
@@ -421,13 +447,14 @@ fn collect_tail_sites(
                     } else {
                         format!("tailcall {call_head} {call_args}")
                     };
+                    let rewrite_span = full_rewrite_span(ctx.source, *span);
                     ctx.report(Optimisation::new(
                         "O121",
                         format!(
                             "Use tailcall for self-recursion in proc '{}'",
                             proc.name,
                         ),
-                        *span,
+                        rewrite_span,
                         replacement,
                     ));
                     let split_args: Vec<String> = if call_args.is_empty() {
@@ -439,7 +466,7 @@ fn collect_tail_sites(
                             .collect()
                     };
                     sites.push(TailSite {
-                        span: *span,
+                        span: rewrite_span,
                         args: split_args,
                     });
                 }

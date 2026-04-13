@@ -9,7 +9,12 @@
 //!   literal, when the value is safe to inline as a bare word.
 //! - **`optimise_static_proc_calls`** (`O103`) — fold calls to
 //!   pure procs whose return is a proven constant
-//!   (`can_fold_static_calls` from C28x-return).
+//!   (`can_fold_static_calls` from C28x-return). Fires
+//!   applicable rewrites when the call appears as a `[proc …]`
+//!   command substitution inside another call's argv (the argv
+//!   span is the rewrite target); the bare statement form stays
+//!   hint-only because the call result is discarded and folding
+//!   `::answer` to `42` would leave an invalid command name.
 //! - **`optimise_return_terminator`** (`O104`) — rewrite
 //!   `return $v` as `return K` when `v` is SCCP-constant.
 //!
@@ -22,7 +27,12 @@
 //!   single-reaching literal value of a variable at a use site,
 //!   even when SCCP didn't fold it (e.g., when another path
 //!   through the CFG makes the lattice Overdefined, but this
-//!   particular use is dominated by one literal def).
+//!   particular use is dominated by one literal def). Fires
+//!   applicable rewrites with argv-level spans when the use is
+//!   a bare `$var` / `${var}` word in a `Statement::Call`; falls
+//!   back to hint-only on statements without `CommandTokens` or
+//!   on uses inside interpolated strings (the latter covered by
+//!   the O100 string-interpolation path).
 //!
 //! `optimise_expression_args` and `optimise_expr_substitutions`
 //! in the Python source operate on the condition sub-expressions
@@ -38,6 +48,7 @@ use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 
 use super::helpers::literals::{is_safe_word, is_static_var_word};
+use super::helpers::spans::{full_quoted_string_span, full_word_span};
 use super::{Optimisation, PassContext};
 
 /// Run the propagation pass across every function.
@@ -71,6 +82,15 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// Forward a single reaching literal definition to each of its
 /// Operand use sites. Emits `O102` ("Forward literal load") with
 /// the literal text as replacement.
+///
+/// When the consuming statement is a `Statement::Call` with
+/// [`CommandTokens`] populated, fire one applicable `O102` per
+/// argv entry whose text is `$var` / `${var}` matching the
+/// defined variable — the argv span is the precise rewrite
+/// target. Fall back to a hint-only diagnostic covering the whole
+/// consuming statement when no `CommandTokens` are present or the
+/// use is on a non-Call statement (where we still don't have
+/// per-operand spans).
 fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::FunctionUnit) {
     use crate::def_use::{DefKind, UseKind};
     use crate::ir::Statement;
@@ -104,10 +124,10 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
         if !is_value_safe_bare_word(&literal) {
             continue;
         }
-        // Emit O102 at each Operand use site. For each use we
-        // need a span — we synthesise it from the use
-        // statement's span (approximate; the more precise
-        // per-operand span would need token-level tracking).
+        let var_name = chain.key.0.as_str();
+        let message = format!(
+            "Forward literal load of '{var_name}' from its single reaching definition"
+        );
         for use_site in &chain.uses {
             if use_site.kind != UseKind::Operand {
                 continue;
@@ -121,27 +141,62 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
             let Some(use_stmt) = use_block.statements.get(use_idx) else {
                 continue;
             };
-            // The replacement here is the literal text but the
-            // span covers the whole consuming statement (e.g.
-            // `puts $n` → `7` would be invalid Tcl). We do not
-            // yet track per-operand spans at use sites, so the
-            // diagnostic is emitted hint-only — it surfaces the
-            // opportunity to editors without proposing an
-            // applicable quick-fix. An operand-span follow-up
-            // can promote this back to a real rewrite.
-            let mut opt = Optimisation::new(
-                "O102",
-                format!(
-                    "Forward literal load of '{}' from its single reaching definition",
-                    chain.key.0
-                ),
-                use_stmt.span(),
-                literal.clone(),
-            );
+            // Prefer a per-argv applicable rewrite when the use
+            // lives inside a `Statement::Call` whose tokens we
+            // tracked. Each matching `$var` / `${var}` word gets
+            // its own O102 with the argv span as target.
+            let mut emitted_applicable = false;
+            if let Statement::Call {
+                tokens: Some(tokens),
+                ..
+            } = use_stmt
+            {
+                for (i, argv_span) in tokens.argv.iter().enumerate() {
+                    let Some(text) = tokens.argv_texts.get(i) else {
+                        continue;
+                    };
+                    if !simple_var_ref_matches(text, var_name) {
+                        continue;
+                    }
+                    ctx.report(Optimisation::new(
+                        "O102",
+                        message.clone(),
+                        full_word_span(ctx.source, *argv_span),
+                        literal.clone(),
+                    ));
+                    emitted_applicable = true;
+                }
+            }
+            if emitted_applicable {
+                continue;
+            }
+            // Fall back to a hint-only diagnostic on the whole
+            // consuming statement when the use wasn't on a
+            // Call, `CommandTokens` weren't captured, or no argv
+            // entry matched as a simple `$var` word (e.g. the
+            // read is inside an interpolated string — the O100
+            // string-interpolation path handles that).
+            let mut opt = Optimisation::new("O102", message.clone(), use_stmt.span(), literal.clone());
             opt.hint_only = true;
             ctx.report(opt);
         }
     }
+}
+
+/// True when `text` is the bare word `$name` / `${name}` and the
+/// parsed name equals `var_name` (including namespace-qualified
+/// comparison via [`normalise_var_name`]).
+fn simple_var_ref_matches(text: &str, var_name: &str) -> bool {
+    let Some(name) = simple_var_ref(text) else {
+        return false;
+    };
+    if name == var_name {
+        return true;
+    }
+    // Compare normalised names so `$::ns::x` matches chain key
+    // `::ns::x` (and vice versa), and `$x(0)` is rejected by
+    // simple_var_ref already.
+    normalise_var_name(&format!("${name}")) == normalise_var_name(&format!("${var_name}"))
 }
 
 fn run_function(
@@ -184,11 +239,15 @@ fn walk_statement(
         } => {
             if let Some(t) = tokens {
                 visit_call_tokens(ctx, t, constants);
+                visit_call_cmd_subst_folds(ctx, cu, t);
             }
             try_fold_static_proc_call(ctx, cu, *span, command, args);
         }
         Statement::Return { span, value, expr, braced, .. } => {
             try_fold_return_terminator(ctx, *span, value.as_deref(), expr.as_ref(), *braced, constants);
+        }
+        Statement::AssignExpr { span, name, expr } => {
+            try_substitute_assign_expr(ctx, *span, name, expr, constants);
         }
         Statement::If { clauses, else_body, .. } => {
             for c in clauses {
@@ -349,6 +408,171 @@ fn try_fold_return_terminator(
     ));
 }
 
+/// O100 (`AssignExpr` form): substitute SCCP-proved constants
+/// into ``set name [expr { … }]`` expressions.
+///
+/// Builds on ``substitute_expr_constants`` — the same helper the
+/// branch-condition pass uses. Emits an O100 rewrite targeting
+/// the whole ``set`` statement with the substituted expression
+/// re-wrapped in ``[expr { … }]``. The rewrite span is extended
+/// via ``full_rewrite_span`` so nested substitutions don't leave
+/// orphan delimiters.
+fn try_substitute_assign_expr(
+    ctx: &mut PassContext<'_>,
+    span: tcl_lexer::Span,
+    name: &str,
+    expr: &crate::expr_ast::ExprNode,
+    constants: &std::collections::HashMap<String, String>,
+) {
+    use crate::expr_parser::parse_expr;
+    use crate::tcl_expr_eval::{eval_tcl_expr, format_tcl_value, Env};
+    use super::helpers::expr_simplify::{
+        expr_has_command_subst, instcombine_expr, substitute_expr_constants,
+    };
+    use super::helpers::spans::full_rewrite_span;
+
+    if matches!(expr, crate::expr_ast::ExprNode::Raw { .. }) {
+        return;
+    }
+    if expr_has_command_subst(expr) {
+        return;
+    }
+    let expr_text = crate::expr_ast::render_expr(expr);
+    let result = substitute_expr_constants(&expr_text, constants, ctx.dialect);
+    if !result.changed {
+        return;
+    }
+    // After substitution, try to fold the result to a constant
+    // — matches the Python cascade where O100 enables O101. When
+    // the substituted expression is fully constant we can emit
+    // the unwrapped ``set name VALUE`` form directly. Otherwise
+    // keep the expression wrapper around the substituted text.
+    let parsed = parse_expr(&result.text, ctx.dialect);
+    let env = Env::new();
+    if let Some(val) = eval_tcl_expr(&parsed, &env) {
+        let folded = format_tcl_value(val);
+        let needs_quoting = folded.is_empty()
+            || folded.contains([
+                ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
+            ]);
+        if !needs_quoting {
+            ctx.report(Optimisation::new(
+                "O100",
+                "Propagate constant and fold",
+                full_rewrite_span(ctx.source, span),
+                format!("set {name} {folded}"),
+            ));
+            return;
+        }
+    }
+    // Not fully constant; try one pass of instcombine on the
+    // substituted expression to pick up identity simplifications
+    // (e.g. ``$a + 0`` after ``$a`` folds to ``3``).
+    let (simplified, _changed) = instcombine_expr(&result.text, false);
+    let final_text = if simplified.trim().is_empty() {
+        result.text.clone()
+    } else {
+        simplified
+    };
+    ctx.report(Optimisation::new(
+        "O100",
+        "Propagate constant into expr argument",
+        full_rewrite_span(ctx.source, span),
+        format!("set {name} [expr {{{final_text}}}]"),
+    ));
+}
+
+/// O103 (CMD-subst form): walk each argv word looking for a
+/// command substitution `[cmd …]` whose head resolves to a proc
+/// with `can_fold_static_calls` and a proven `constant_return`.
+/// Emits an applicable rewrite with the argv span and the literal
+/// return value as replacement.
+///
+/// This is the "word-level" companion to the bare-call form in
+/// [`try_fold_static_proc_call`], which stays hint-only because
+/// folding `::answer` as a statement would turn the discarded
+/// call into a bare `42` (invalid as a command name).
+fn visit_call_cmd_subst_folds(
+    ctx: &mut PassContext<'_>,
+    cu: &CompilationUnit,
+    tokens: &CommandTokens,
+) {
+    use crate::interprocedural::ConstantReturn;
+
+    let Some(ia) = cu.interproc.as_ref() else {
+        return;
+    };
+    for (i, argv_span) in tokens.argv.iter().enumerate() {
+        let single = tokens.single_token_word.get(i).copied().unwrap_or(false);
+        if !single {
+            continue;
+        }
+        let Some(text) = tokens.argv_texts.get(i) else {
+            continue;
+        };
+        let Some(inner) = text.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
+            continue;
+        };
+        let Some(head) = parse_cmd_subst_head(inner) else {
+            continue;
+        };
+        let qname = if head.starts_with("::") {
+            head.to_owned()
+        } else {
+            format!("::{head}")
+        };
+        let Some(summary) = ia.procedures.get(&qname) else {
+            continue;
+        };
+        if !summary.can_fold_static_calls {
+            continue;
+        }
+        let Some(cr) = &summary.constant_return else {
+            continue;
+        };
+        let replacement = match cr {
+            ConstantReturn::Int(i) => i.to_string(),
+            ConstantReturn::Float(f) => f.to_string(),
+            ConstantReturn::Bool(true) => "1".to_owned(),
+            ConstantReturn::Bool(false) => "0".to_owned(),
+            ConstantReturn::Str(s) => {
+                if is_value_safe_bare_word(s) {
+                    s.clone()
+                } else {
+                    continue;
+                }
+            }
+        };
+        ctx.report(Optimisation::new(
+            "O103",
+            format!(
+                "Fold pure-proc call to '{}' to its constant return",
+                summary.qualified_name
+            ),
+            full_word_span(ctx.source, *argv_span),
+            replacement,
+        ));
+    }
+}
+
+/// Parse the head word out of a CMD-subst interior. Returns
+/// `None` when the head word is empty or contains metacharacters
+/// that would change the parsed command name under substitution.
+fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
+    let trimmed = inner.trim_start();
+    let end = trimmed
+        .find(|c: char| c.is_whitespace())
+        .unwrap_or(trimmed.len());
+    let head = &trimmed[..end];
+    if head.is_empty() {
+        return None;
+    }
+    if head.contains(['$', '[', '\\', '"', '{', '(', '}', ']']) {
+        return None;
+    }
+    Some(head)
+}
+
 fn visit_call_tokens(
     ctx: &mut PassContext<'_>,
     tokens: &CommandTokens,
@@ -427,10 +651,15 @@ fn visit_string_interpolation(
     if rewritten == inside {
         return;
     }
+    // The argv span for a composite `"$a $b $c"` word holds only
+    // the opening-quote token (e.g. `"$` at 5..7). Extend to the
+    // matching close quote so the rewrite target covers the full
+    // string — otherwise we leave trailing `$b $c"` garbage.
+    let rewrite_span = full_quoted_string_span(ctx.source, span);
     ctx.report(Optimisation::new(
         "O100",
         "Inline constant into string interpolation",
-        span,
+        rewrite_span,
         format!("\"{rewritten}\""),
     ));
 }
@@ -715,6 +944,152 @@ mod tests {
             opts.iter().any(|o| o.code == "O102"),
             "expected O102 load-forwarding, got {opts:?}",
         );
+    }
+
+    #[test]
+    fn o102_operand_span_fires_applicable_on_call_argv() {
+        // `set n 7; puts $n` — the O102 emitted on the puts use
+        // must target the `$n` argv span (not the whole Call) and
+        // be applicable (not hint-only). The argv span lands on
+        // the last 2 chars of the source: `$n`.
+        let source = "set n 7\nputs $n";
+        let opts = run_pass(source);
+        let o102s: Vec<_> = opts.iter().filter(|o| o.code == "O102").collect();
+        assert!(!o102s.is_empty(), "expected at least one O102, got {opts:?}");
+        let found = o102s.iter().any(|o| {
+            let start = o.span.start() as usize;
+            let end = o.span.end() as usize;
+            !o.hint_only
+                && o.replacement == "7"
+                && end <= source.len()
+                && &source[start..end] == "$n"
+        });
+        assert!(found, "expected applicable O102 with argv span covering `$n`, got {o102s:?}");
+    }
+
+    #[test]
+    fn o102_operand_span_matches_braced_var_word() {
+        // ${n} forms must also be recognised at the argv-text
+        // level and produce an applicable rewrite.
+        let source = "set n 7\nputs ${n}";
+        let opts = run_pass(source);
+        let o102s: Vec<_> = opts.iter().filter(|o| o.code == "O102").collect();
+        assert!(
+            o102s.iter().any(|o| !o.hint_only
+                && o.replacement == "7"
+                && &source[o.span.start() as usize..o.span.end() as usize] == "${n}"),
+            "expected applicable O102 over ${{n}}, got {o102s:?}",
+        );
+    }
+
+    #[test]
+    fn o102_falls_back_to_hint_only_when_var_is_inside_interpolation() {
+        // `$n` appears only inside a double-quoted composite word
+        // — no argv text matches the bare `$n` form, so the
+        // rewrite stays hint-only (the O100 string-interpolation
+        // path handles the actual inlining).
+        let source = "set n 7\nputs \"n=$n\"";
+        let opts = run_pass(source);
+        let o102s: Vec<_> = opts.iter().filter(|o| o.code == "O102").collect();
+        assert!(!o102s.is_empty(), "expected O102 hint, got {opts:?}");
+        assert!(
+            o102s.iter().all(|o| o.hint_only),
+            "expected all O102s to be hint-only for interpolated use, got {o102s:?}",
+        );
+    }
+
+    #[test]
+    fn o103_cmd_subst_fires_applicable_rewrite() {
+        // `[::answer]` inside an argv → applicable O103 with the
+        // argv span covering `[::answer]` and the constant return
+        // as replacement.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let source = "proc ::answer {} { return 42 }\nputs [::answer]";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        let o103s: Vec<_> = ctx
+            .optimisations
+            .iter()
+            .filter(|o| o.code == "O103")
+            .collect();
+        assert!(
+            o103s.iter().any(|o| !o.hint_only
+                && o.replacement == "42"
+                && &source[o.span.start() as usize..o.span.end() as usize] == "[::answer]"),
+            "expected applicable O103 spanning `[::answer]`, got {o103s:?}",
+        );
+    }
+
+    #[test]
+    fn o103_bare_call_stays_hint_only() {
+        // Top-level `::answer` — the call result is discarded, so
+        // folding it as a statement would leave an invalid `42`
+        // command. Diagnostic must stay hint-only.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc ::answer {} { return 42 }\n::answer",
+            &registry,
+            false,
+        )
+        .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        let o103s: Vec<_> = ctx
+            .optimisations
+            .iter()
+            .filter(|o| o.code == "O103")
+            .collect();
+        assert!(!o103s.is_empty(), "expected at least one O103");
+        assert!(
+            o103s.iter().all(|o| o.hint_only),
+            "bare-call form must stay hint-only, got {o103s:?}",
+        );
+    }
+
+    #[test]
+    fn o103_no_fire_when_head_is_not_constant_return() {
+        // `::not_const` has no constant_return → O103 must not
+        // fire for either the bare call or the CMD-subst form.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc ::not_const {x} { return $x }\nputs [::not_const 1]",
+            &registry,
+            false,
+        )
+        .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != "O103"),
+            "no O103 expected for non-constant-return proc, got {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn parse_cmd_subst_head_rejects_metachars() {
+        assert_eq!(parse_cmd_subst_head("::answer"), Some("::answer"));
+        assert_eq!(parse_cmd_subst_head("::answer 1 2"), Some("::answer"));
+        assert_eq!(parse_cmd_subst_head("  ::answer"), Some("::answer"));
+        assert_eq!(parse_cmd_subst_head(""), None);
+        // Leading `$` / `[` / `{` / `"` → would re-substitute.
+        assert_eq!(parse_cmd_subst_head("$cmd"), None);
+        assert_eq!(parse_cmd_subst_head("[cmd]"), None);
+    }
+
+    #[test]
+    fn simple_var_ref_matches_recognises_forms() {
+        assert!(simple_var_ref_matches("$x", "x"));
+        assert!(simple_var_ref_matches("${x}", "x"));
+        assert!(!simple_var_ref_matches("$y", "x"));
+        assert!(!simple_var_ref_matches("plain", "x"));
+        // Array subscript → not a simple ref.
+        assert!(!simple_var_ref_matches("$x(0)", "x"));
     }
 
     #[test]
