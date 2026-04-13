@@ -507,3 +507,168 @@ class TestVariableShapeBytecodeIdentity:
         assert '"::ns::arr(k)"' in scalar_text
         assert '"::ns::arr"' in array_text
         assert '"k"' in array_text
+
+
+class TestStringIsDouble:
+    """Tests for ``string is double`` — verified against tclsh 9.0.3."""
+
+    def test_non_numeric_strings_return_zero(self) -> None:
+        # Verified against tclsh 9.0.3: string is double abc = 0
+        interp = TclInterp()
+        assert interp.eval("string is double abc").value == "0"
+        assert interp.eval("string is double {1.2.3}").value == "0"
+        assert interp.eval("string is double hello").value == "0"
+
+    def test_valid_doubles_return_one(self) -> None:
+        # Verified against tclsh 9.0.3
+        interp = TclInterp()
+        assert interp.eval("string is double 3.14").value == "1"
+        assert interp.eval("string is double 42").value == "1"
+        assert interp.eval("string is double 1e5").value == "1"
+        assert interp.eval("string is double {-3.14}").value == "1"
+
+    def test_negative_zero_is_valid_double(self) -> None:
+        # Verified against tclsh 9.0.3: string is double -0.0 = 1
+        interp = TclInterp()
+        assert interp.eval("string is double {-0.0}").value == "1"
+        assert interp.eval("string is double 0.0").value == "1"
+
+    def test_inf_and_nan_are_valid_doubles(self) -> None:
+        # Verified against tclsh 9.0.3: Inf, -Inf, NaN are valid doubles
+        interp = TclInterp()
+        assert interp.eval("string is double Inf").value == "1"
+        assert interp.eval("string is double {-Inf}").value == "1"
+        assert interp.eval("string is double NaN").value == "1"
+
+    def test_empty_string_nonstrict_is_one(self) -> None:
+        # Verified against tclsh 9.0.3: non-strict empty string = 1
+        interp = TclInterp()
+        assert interp.eval("string is double {}").value == "1"
+
+    def test_strict_empty_string_is_zero(self) -> None:
+        # Verified against tclsh 9.0.3: strict empty string = 0
+        interp = TclInterp()
+        assert interp.eval("string is double -strict {}").value == "0"
+
+
+class TestScanFloatSpecials:
+    """Tests for ``scan`` with %f format — verified against tclsh 9.0.3."""
+
+    def test_scan_normal_float(self) -> None:
+        # Verified against tclsh 9.0.3
+        interp = TclInterp()
+        assert interp.eval("scan 3.14 %f").value == "3.14"
+        assert interp.eval("scan 42.0 %f").value == "42.0"
+
+    def test_scan_inf(self) -> None:
+        # Verified against tclsh 9.0.3: scan Inf %f = Inf
+        interp = TclInterp()
+        assert interp.eval("scan Inf %f").value == "Inf"
+        assert interp.eval("scan {-Inf} %f").value == "-Inf"
+
+    def test_scan_inf_lowercase(self) -> None:
+        # Verified against tclsh 9.0.3: scan accepts lowercase inf
+        interp = TclInterp()
+        assert interp.eval("scan inf %f").value == "Inf"
+        assert interp.eval("scan {-inf} %f").value == "-Inf"
+
+    def test_scan_nan(self) -> None:
+        # Verified against tclsh 9.0.3: scan NaN %f = NaN
+        interp = TclInterp()
+        assert interp.eval("scan NaN %f").value == "NaN"
+
+    def test_scan_with_variable(self) -> None:
+        # Verified against tclsh 9.0.3: scan into variable, returns count
+        interp = TclInterp()
+        assert interp.eval("scan Inf %f x").value == "1"
+        assert interp.eval("set x").value == "Inf"
+        assert interp.eval("scan {-Inf} %f y").value == "1"
+        assert interp.eval("set y").value == "-Inf"
+
+
+class TestExprInfLiteral:
+    """Tests for Inf/-Inf/NaN as expression literals — verified against tclsh 9.0.3."""
+
+    def test_inf_literal(self) -> None:
+        # Verified against tclsh 9.0.3: expr {Inf} = Inf
+        interp = TclInterp()
+        assert interp.eval("expr {Inf}").value == "Inf"
+        assert interp.eval("expr {-Inf}").value == "-Inf"
+
+    def test_inf_arithmetic(self) -> None:
+        # Verified against tclsh 9.0.3
+        interp = TclInterp()
+        assert interp.eval("expr {Inf+0}").value == "Inf"
+        assert interp.eval("expr {Inf*2}").value == "Inf"
+        assert interp.eval("expr {-Inf*2}").value == "-Inf"
+        assert interp.eval("expr {Inf + 1.0}").value == "Inf"
+        assert interp.eval("expr {-Inf - 1.0}").value == "-Inf"
+
+    def test_inf_comparisons(self) -> None:
+        # Verified against tclsh 9.0.3
+        interp = TclInterp()
+        assert interp.eval("expr {Inf==Inf}").value == "1"
+        assert interp.eval("expr {Inf > 1e308}").value == "1"
+        assert interp.eval("expr {-Inf < -1e308}").value == "1"
+        assert interp.eval("expr {Inf != -Inf}").value == "1"
+
+    def test_inf_isinf(self) -> None:
+        # Verified against tclsh 9.0.3: isinf(Inf) = 1
+        interp = TclInterp()
+        assert interp.eval("expr {isinf(Inf)}").value == "1"
+        assert interp.eval("expr {isinf(-Inf)}").value == "1"
+        assert interp.eval("expr {isfinite(Inf)}").value == "0"
+
+    def test_nan_domain_error_in_ops(self) -> None:
+        # Verified against tclsh 9.0.3: NaN-producing ops raise ARITH DOMAIN
+        interp = TclInterp()
+        with pytest.raises(TclError, match="domain error"):
+            interp.eval("expr {Inf - Inf}")
+        with pytest.raises(TclError, match="domain error"):
+            interp.eval("expr {Inf * 0.0}")
+
+
+class TestMathFuncIntegerOverflow:
+    """Tests for wide/entier/int with Inf — verified against tclsh 9.0.3."""
+
+    def test_wide_inf_raises_ioverflow(self) -> None:
+        # Verified against tclsh 9.0.3: wide(Inf) = integer value too large
+        interp = TclInterp()
+        with pytest.raises(TclError, match="integer value too large to represent"):
+            interp.eval("expr {wide(Inf)}")
+        with pytest.raises(TclError, match="integer value too large to represent"):
+            interp.eval("expr {wide(-Inf)}")
+
+    def test_entier_inf_raises_ioverflow(self) -> None:
+        # Verified against tclsh 9.0.3: entier(Inf) = integer value too large
+        interp = TclInterp()
+        with pytest.raises(TclError, match="integer value too large to represent"):
+            interp.eval("expr {entier(Inf)}")
+        with pytest.raises(TclError, match="integer value too large to represent"):
+            interp.eval("expr {entier(-Inf)}")
+
+    def test_int_inf_raises_ioverflow(self) -> None:
+        # Verified against tclsh 9.0.3: int(Inf) = integer value too large
+        interp = TclInterp()
+        with pytest.raises(TclError, match="integer value too large to represent"):
+            interp.eval("expr {int(Inf)}")
+        with pytest.raises(TclError, match="integer value too large to represent"):
+            interp.eval("expr {int(-Inf)}")
+
+    def test_wide_normal_float_truncates(self) -> None:
+        # Verified against tclsh 9.0.3: wide(3.7) = 3 (truncates toward zero)
+        interp = TclInterp()
+        assert interp.eval("expr {wide(3.7)}").value == "3"
+        assert interp.eval("expr {wide(-3.7)}").value == "-3"
+
+    def test_entier_normal_float_truncates(self) -> None:
+        # Verified against tclsh 9.0.3: entier truncates toward zero
+        interp = TclInterp()
+        assert interp.eval("expr {entier(3.7)}").value == "3"
+        assert interp.eval("expr {entier(-3.7)}").value == "-3"
+
+    def test_int_normal_float_truncates(self) -> None:
+        # Verified against tclsh 9.0.3: int() truncates toward zero
+        interp = TclInterp()
+        assert interp.eval("expr {int(3.7)}").value == "3"
+        assert interp.eval("expr {int(-3.7)}").value == "-3"

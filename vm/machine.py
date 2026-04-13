@@ -1739,6 +1739,36 @@ class BytecodeVM:
                         indices.insert(0, stack.pop() if stack else "0")
                     stack.append(_lset_nested(list_val, indices, new_val))
 
+                case Op.NUMERIC_TYPE:
+                    # numericType: pop TOS, push a numeric type code:
+                    #   0 = not numeric
+                    #   1 = integer (int or wide int or bignum)
+                    #   4 = double (IEEE 754 float, including Inf/-Inf/NaN/-0.0)
+                    # Used by bytecoded ``string is integer`` and
+                    # ``string is double``.  The ``string is integer`` check
+                    # uses ``<= 3`` so integer must be type 1; any non-zero
+                    # type passes the ``string is double`` truthy test.
+                    _nt_val = stack.pop() if stack else ""
+                    _nt_s = _nt_val.strip()
+                    if not _nt_s:
+                        stack.append("0")
+                    else:
+                        _nt_type = 0
+                        try:
+                            int(_nt_s, 0)
+                            _nt_type = 1
+                        except (ValueError, TypeError):
+                            try:
+                                int(_nt_s, 10)
+                                _nt_type = 1
+                            except (ValueError, TypeError):
+                                try:
+                                    float(_nt_s)
+                                    _nt_type = 4
+                                except (ValueError, TypeError):
+                                    _nt_type = 0
+                        stack.append(str(_nt_type))
+
                 case Op.STR_CLASS:
                     # strclass classId: check whether TOS is a member of
                     # the given character class.  Replaces TOS with "1"

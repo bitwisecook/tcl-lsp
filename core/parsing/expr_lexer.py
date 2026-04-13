@@ -365,6 +365,10 @@ class ExprLexer:
             return ExprToken(ExprTokenType.BOOL, text, start, self._pos - 1)
         if self._dialect == "f5-irules" and text in _IRULES_OPS:
             return ExprToken(ExprTokenType.OPERATOR, text, start, self._pos - 1)
+        # IEEE 754 special float literals — Tcl 9.0 recognises these as
+        # numeric literals in expressions, not function calls.
+        if text in ("Inf", "inf", "Infinity", "infinity", "NaN", "nan"):
+            return ExprToken(ExprTokenType.NUMBER, text, start, self._pos - 1)
         if text in _MATH_FUNCTIONS:
             return ExprToken(ExprTokenType.FUNCTION, text, start, self._pos - 1)
 
