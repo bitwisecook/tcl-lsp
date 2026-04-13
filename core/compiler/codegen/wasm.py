@@ -1862,6 +1862,11 @@ class _WasmEmitter:
         self._local_names: list[str] = []
         self._local_types: list[ValType] = []
         self._local_index: dict[str, int] = {}
+        # Subset of _local_index: only Tcl user-visible variables (not
+        # internal scratch locals created by _add_extra_local).  Used
+        # by _emit_frame_sync to mirror proc locals into the call frame
+        # before handing control to the Zig interpreter.
+        self._tcl_var_locals: dict[str, int] = {}
 
         # Register parameters as locals
         for p in params:
@@ -1956,6 +1961,7 @@ class _WasmEmitter:
         self._local_names.append(name)
         self._local_types.append(ValType.I32)
         self._local_index[name] = idx
+        self._tcl_var_locals[name] = idx
         return idx
 
     def _add_extra_local(self, prefix: str = "_tmp", val_type: ValType = ValType.I64) -> int:
@@ -3565,7 +3571,6 @@ class _WasmEmitter:
             if defs:
                 def_idx = self._intern_local(defs[0])
                 self._emit_local_set(def_idx)
-                self._emit_frame_writeback(defs[0], def_idx)
             else:
                 self._emit(WasmOp.DROP)
             return
@@ -3576,7 +3581,6 @@ class _WasmEmitter:
             if defs:
                 def_idx = self._intern_local(defs[0])
                 self._emit_local_set(def_idx)
-                self._emit_frame_writeback(defs[0], def_idx)
             else:
                 self._emit(WasmOp.DROP)
             return
@@ -3588,7 +3592,6 @@ class _WasmEmitter:
             if defs:
                 def_idx = self._intern_local(defs[0])
                 self._emit_local_set(def_idx)
-                self._emit_frame_writeback(defs[0], def_idx)
             else:
                 self._emit(WasmOp.DROP)
             return
@@ -3718,6 +3721,10 @@ class _WasmEmitter:
                     # latter when braces don't balance).
                     parts.append(_tcl_list_quote(a))
             script = " ".join(parts)
+            # Sync all live proc-locals into the frame so the interpreter
+            # can see them via var_resolve.  Only pays at eval-fallback
+            # sites — procs with no fallbacks get zero overhead.
+            self._emit_frame_sync()
             self._emit_obj_literal(script)
             self._emit_call(eval_idx)
             return
@@ -3817,7 +3824,6 @@ class _WasmEmitter:
             if len(args) >= 2:
                 self._emit_value(args[1])
                 self._emit_local_tee(idx)
-                self._emit_frame_writeback(var, idx)
             else:
                 self._emit_local_get(idx)
             return
@@ -3865,13 +3871,11 @@ class _WasmEmitter:
                     self._emit(WasmOp.I64_ADD)
                     self._emit_box_int()
                     self._emit_local_tee(idx)
-                    self._emit_frame_writeback(var, idx)
                     return
             self._emit_i64_const(amt)
             self._emit(WasmOp.I64_ADD)
             self._emit_box_int()
             self._emit_local_tee(idx)
-            self._emit_frame_writeback(var, idx)
             return
 
         # return: emit WASM return (handled at call site, but can appear in tail)
@@ -3952,7 +3956,6 @@ class _WasmEmitter:
                     self._emit_value(sub_args[2])  # value
                     self._emit_call(func_idx)
                     self._emit_local_tee(var_idx)
-                    self._emit_frame_writeback(sub_args[0], var_idx)
                 else:
                     for i in range(min(param_count, len(sub_args))):
                         self._emit_value(sub_args[i])
@@ -3982,7 +3985,6 @@ class _WasmEmitter:
                     self._emit_call(fidx)
                     # Tee: store back into var AND keep on stack (i32)
                     self._emit_local_tee(var_idx)
-                    self._emit_frame_writeback(var_name, var_idx)
                 elif command == "puts":
                     if args:
                         self._emit_value(args[-1])
@@ -4132,7 +4134,6 @@ class _WasmEmitter:
         else:
             self._emit_local_set(idx)
         self._emit_global_writeback(name, idx)
-        self._emit_frame_writeback(name, idx)
 
     def _emit_array_name_obj(self, arr: str) -> None:
         """Push the TclObj containing the runtime name of array *arr*.
@@ -4229,35 +4230,45 @@ class _WasmEmitter:
         self._emit_call(gset_idx)
         self._emit(WasmOp.DROP)
 
-    def _emit_frame_writeback(self, name: str, local_idx: int) -> None:
-        """Mirror a compiled proc-local write into the call frame's hash table.
+    def _emit_frame_sync(self) -> None:
+        """Mirror all live proc-locals into the call frame before the Zig
+        interpreter takes control (e.g. at a ``tcl_eval`` call site).
 
-        Called after every WASM-local write for a named Tcl variable inside a
-        compiled proc.  Uses ``local_get`` so the caller's stack is unchanged.
+        Only called at interpreter-entry boundary points — not after every
+        variable write — so procs that never reach the interpreter pay zero
+        frame-sync overhead.
+
+        A null-guard (``if (local != 0) { … }``) around each
+        ``tcl_local_set`` call ensures that WASM locals that were never
+        assigned (still zero-initialised) do not create phantom frame entries
+        that would make ``info exists`` return true for unset variables.
 
         Skipped when:
         - not inside a compiled proc (``_is_proc`` is False)
         - ``tcl_local_set`` is not imported (frame not active)
-        - the variable routes through an alias (already written via global_set)
-        - the variable is ``::``-qualified (it is a global, not a local)
-        - the variable is declared ``global`` (interpreter finds it via the
-          global table; no frame entry needed)
         """
         if not self._is_proc:
             return
         lset_idx = self._shared_imports.get("tcl_local_set")
         if lset_idx is None:
             return
-        if name in self._aliases:
-            return
-        if name in self._globals:
-            return
-        if name.startswith("::"):
-            return
-        self._emit_obj_literal(name)
-        self._emit_local_get(local_idx)
-        self._emit_call(lset_idx)
-        self._emit(WasmOp.DROP)
+        for name, idx in self._tcl_var_locals.items():
+            if name in self._aliases:
+                continue
+            if name in self._globals:
+                continue
+            if name.startswith("::"):
+                continue
+            # Emit: if (local != 0) { tcl_local_set(name_obj, local) }
+            # Skips zero-initialised locals that were never assigned so they
+            # don't create spurious frame entries.
+            self._emit_local_get(idx)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_obj_literal(name)
+            self._emit_local_get(idx)
+            self._emit_call(lset_idx)
+            self._emit(WasmOp.DROP)
+            self._emit(WasmOp.END)
 
     def _register_global_alias(self, local_name: str, target_value: str) -> None:
         """Register *local_name* as a global alias and stash the target name.
@@ -4506,7 +4517,6 @@ class _WasmEmitter:
                 if defs:
                     def_idx = self._intern_local(defs[0])
                     self._emit_local_set(def_idx)
-                    self._emit_frame_writeback(defs[0], def_idx)
                 elif spec[3]:
                     self._emit(WasmOp.DROP)
                 return
@@ -4527,7 +4537,6 @@ class _WasmEmitter:
             if defs:
                 def_idx = self._intern_local(defs[0])
                 self._emit_local_set(def_idx)
-                self._emit_frame_writeback(defs[0], def_idx)
             elif spec[3]:
                 # Has return value but no def — drop it
                 self._emit(WasmOp.DROP)
@@ -4554,7 +4563,6 @@ class _WasmEmitter:
                 self._emit_value(sub_args[2])  # value
                 self._emit_call(func_idx)
                 self._emit_local_set(var_idx)
-                self._emit_frame_writeback(sub_args[0], var_idx)
                 return
             # dict exists/get/keys/values/size — read-only access
             for i in range(min(param_count, len(sub_args))):
@@ -4565,7 +4573,6 @@ class _WasmEmitter:
             if defs:
                 def_idx = self._intern_local(defs[0])
                 self._emit_local_set(def_idx)
-                self._emit_frame_writeback(defs[0], def_idx)
             elif spec[3]:
                 self._emit(WasmOp.DROP)
         else:
@@ -4968,7 +4975,6 @@ class _WasmEmitter:
         if defs:
             def_idx = self._intern_local(defs[0])
             self._emit_local_set(def_idx)
-            self._emit_frame_writeback(defs[0], def_idx)
         else:
             self._emit(WasmOp.DROP)
 
@@ -5136,7 +5142,6 @@ class _WasmEmitter:
             self._emit_call(func_idx)
             # Store result back into the variable
             self._emit_local_set(var_idx)
-            self._emit_frame_writeback(var_name, var_idx)
             return
 
         # ``list`` handled outside _emit_cmd_runtime — see
@@ -5162,7 +5167,6 @@ class _WasmEmitter:
                 if defs:
                     def_idx = self._intern_local(defs[0])
                     self._emit_local_set(def_idx)
-                    self._emit_frame_writeback(defs[0], def_idx)
                 else:
                     # Keep on stack if result matters (value context)
                     # — here we're in statement context so drop.
@@ -5208,7 +5212,6 @@ class _WasmEmitter:
                 if defs:
                     def_idx = self._intern_local(defs[0])
                     self._emit_local_set(def_idx)
-                    self._emit_frame_writeback(defs[0], def_idx)
                 else:
                     self._emit(WasmOp.DROP)
             return
@@ -5239,7 +5242,6 @@ class _WasmEmitter:
         if defs and spec[3]:
             def_idx = self._intern_local(defs[0])
             self._emit_local_set(def_idx)
-            self._emit_frame_writeback(defs[0], def_idx)
         elif spec[3]:
             self._emit(WasmOp.DROP)
 
@@ -5284,7 +5286,6 @@ class _WasmEmitter:
         if defs:
             def_idx = self._intern_local(defs[0])
             self._emit_local_set(def_idx)
-            self._emit_frame_writeback(defs[0], def_idx)
         else:
             # Drop unused return value in statement context
             self._emit(WasmOp.DROP)
@@ -5438,7 +5439,6 @@ class _WasmEmitter:
                 self._emit_local_get(counter)
                 self._emit_box_int()
             self._emit_local_set(var_local)
-            self._emit_frame_writeback(first_vars[0], var_local)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
@@ -5561,7 +5561,6 @@ class _WasmEmitter:
                 idx = self._intern_local(result_var)
                 self._emit_i32_const(0)
                 self._emit_local_set(idx)
-                self._emit_frame_writeback(result_var, idx)
             if keep_on_stack:
                 self._emit_i32_const(0)
             return
@@ -5593,7 +5592,6 @@ class _WasmEmitter:
             rv_idx = self._intern_local(result_var)
             self._emit_call(result_idx)
             self._emit_local_set(rv_idx)
-            self._emit_frame_writeback(result_var, rv_idx)
 
     def _emit_catch_from_args(
         self,
@@ -6049,7 +6047,6 @@ class _WasmEmitter:
                 self._emit_local_get(counter)
                 self._emit_box_int()
             self._emit_local_set(var_local)
-            self._emit_frame_writeback(loop_var, var_local)
 
         # Wrap body in block for break/continue
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
@@ -6139,7 +6136,6 @@ class _WasmEmitter:
                         else:
                             idx = self._intern_local(last.name)
                             self._emit_local_tee(idx)
-                            self._emit_frame_writeback(last.name, idx)
                         self._emit(WasmOp.RETURN)
                         return
                 self._emit_i64_const(amt)
@@ -6150,7 +6146,6 @@ class _WasmEmitter:
                 else:
                     idx = self._intern_local(last.name)
                     self._emit_local_tee(idx)
-                    self._emit_frame_writeback(last.name, idx)
             self._emit(WasmOp.RETURN)
             return
 
