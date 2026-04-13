@@ -364,6 +364,21 @@ class TestFormatTclValue:
     def test_zero(self):
         assert format_tcl_value(0) == "0"
 
+    def test_positive_zero_float(self):
+        assert format_tcl_value(0.0) == "0.0"
+
+    def test_negative_zero_float(self):
+        # IEEE 754: -0.0 and +0.0 compare equal but have different sign bits.
+        # Tcl preserves the sign, so format_tcl_value must too.
+        assert format_tcl_value(-0.0) == "-0.0"
+
+    def test_negative_zero_arithmetic(self):
+        # -1.0 * 0.0 = -0.0 per IEEE 754.
+        import math
+
+        assert format_tcl_value(-1.0 * 0.0) == "-0.0"
+        assert math.copysign(1.0, -1.0 * 0.0) < 0  # confirm it's actually -0.0
+
 
 # Tests ported from Tcl 9.0.2 test suite (expr.test, expr-old.test)
 
