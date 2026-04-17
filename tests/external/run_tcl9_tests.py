@@ -113,15 +113,18 @@ def _parse_summary(stdout: str) -> tuple[int, int, int, int] | None:
     tcltest cleanupTests emits (with tabs):
         <filename>:\tTotal\t<N>\tPassed\t<N>\tSkipped\t<N>\tFailed\t<N>
 
-    The regex uses \\s+ to match any whitespace (spaces or tabs).
+    The regex uses \\s+ to match any whitespace (spaces or tabs) and \\d* to
+    allow blank Passed/Skipped counts (treated as 0).
     """
     m = re.search(
-        r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)",
+        r"Total\s+(\d+)\s+Passed\s+(\d*)\s+Skipped\s+(\d*)\s+Failed\s+(\d*)",
         stdout,
     )
     if m is None:
         return None
-    return tuple(int(x) for x in m.groups())  # type: ignore[return-value]
+    def _int(s: str) -> int:
+        return int(s) if s else 0
+    return (_int(m.group(1)), _int(m.group(2)), _int(m.group(3)), _int(m.group(4)))
 
 
 def _run_bundle(bundle_src: str, label: str) -> tuple[str, str]:
