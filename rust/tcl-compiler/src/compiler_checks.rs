@@ -216,15 +216,16 @@ pub fn run_all_checks(
         ) {
             out.push(Diagnostic::from_taint(&w));
         }
-        // IRULE3101 is iRules-only — keep it gated alongside IRULE3001-3004
-        // so non-iRules dialects don't see spurious errors from user
-        // commands that happen to be named `HTTP::uri` / `HTTP::path`.
+        // IRULE3101 is iRules-only. `find_setter_constraint_warnings`
+        // gates internally too; this outer check is defence-in-depth
+        // and lets us skip the entire walk under non-iRules dialects.
         if is_irules_dialect(dialect) {
             for w in find_setter_constraint_warnings(
                 &fu.cfg,
                 &fu.ssa,
                 &fu.taints,
                 &fu.sccp.executable_blocks,
+                dialect,
             ) {
                 out.push(Diagnostic::from_taint(&w));
             }

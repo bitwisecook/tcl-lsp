@@ -147,15 +147,23 @@ impl TaintColour {
             | Self::FQDN.bits(),
     );
 
-    /// Colours that mitigate CRLF / header / log injection.
+    /// Colours that mitigate CRLF / header / log injection in the
+    /// *value position* of an iRules header or log sink (IRULE3002 /
+    /// IRULE3003).
+    ///
+    /// Matches the Python `_CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT
+    /// | FQDN`. `HEADER_TOKEN_SAFE` is deliberately **not** included —
+    /// it only suppresses IRULE3002 in the header/cookie *name*
+    /// position and is handled by the call-site-aware
+    /// `irule3002_name_position_safe` helper. `HTML_ESCAPED` and
+    /// `URL_ENCODED` are also excluded: both can still carry raw
+    /// CR/LF octets (HTML-escape rewrites `<`/`>`/`&`; URL-encode
+    /// rewrites `%`), so neither proves header-injection safety.
     pub const CRLF_SAFE: Self = Self::from_bits_truncate(
         Self::CRLF_FREE.bits()
             | Self::IP_ADDRESS.bits()
             | Self::PORT.bits()
-            | Self::FQDN.bits()
-            | Self::HEADER_TOKEN_SAFE.bits()
-            | Self::HTML_ESCAPED.bits()
-            | Self::URL_ENCODED.bits(),
+            | Self::FQDN.bits(),
     );
 
     /// Colours that prove a redirect target is same-origin and so safe
@@ -1316,6 +1324,12 @@ const SETTER_CONSTRAINTS: &[(&str, &str, &str, &str)] = &[
 /// `_find_setter_constraint_violations` in Python. Currently constrains
 /// `HTTP::uri` / `HTTP::path` setters to paths beginning with `/`.
 ///
+/// Dialect-gated: returns an empty vector unless `dialect` is
+/// `"f5-irules"` / `"irules"`. The gate is applied internally (defense
+/// in depth) so a caller outside `compiler_checks::run_all_checks`
+/// can't accidentally emit IRULE3101 errors against user-defined
+/// commands that happen to be named `HTTP::uri` / `HTTP::path`.
+///
 /// Three cases per constraint:
 ///
 /// 1. **Literal** (not `$`-prefixed, no `[`) — check the prefix directly.
@@ -1328,8 +1342,12 @@ pub fn find_setter_constraint_warnings(
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
     executable_blocks: &HashSet<String>,
+    dialect: Option<&str>,
 ) -> Vec<TaintWarning> {
     let mut out: Vec<TaintWarning> = Vec::new();
+    if !is_irules_dialect(dialect) {
+        return out;
+    }
     let safe_path_colours =
         TaintColour::PATH_PREFIXED | TaintColour::PATH_NORMALISED | TaintColour::PATH_BOUNDED;
 
@@ -1467,9 +1485,19 @@ mod tests {
     }
 
     #[test]
-    fn crlf_safe_mask_includes_crlf_free() {
+    fn crlf_safe_mask_matches_python() {
+        // Mirror Python's `_CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT | FQDN`.
+        // HEADER_TOKEN_SAFE only suppresses IRULE3002 in the name position
+        // (handled by `irule3002_name_position_safe`); HTML_ESCAPED / URL_ENCODED
+        // do not prove CRLF-injection safety in the value position.
         assert!(TaintColour::CRLF_SAFE.contains(TaintColour::CRLF_FREE));
-        assert!(TaintColour::CRLF_SAFE.contains(TaintColour::HEADER_TOKEN_SAFE));
+        assert!(TaintColour::CRLF_SAFE.contains(TaintColour::IP_ADDRESS));
+        assert!(TaintColour::CRLF_SAFE.contains(TaintColour::PORT));
+        assert!(TaintColour::CRLF_SAFE.contains(TaintColour::FQDN));
+        assert!(!TaintColour::CRLF_SAFE.contains(TaintColour::HEADER_TOKEN_SAFE));
+        assert!(!TaintColour::CRLF_SAFE.contains(TaintColour::HTML_ESCAPED));
+        assert!(!TaintColour::CRLF_SAFE.contains(TaintColour::URL_ENCODED));
+        assert!(!TaintColour::CRLF_SAFE.contains(TaintColour::TAINTED));
     }
 
     #[test]
@@ -2206,15 +2234,24 @@ mod tests {
     }
 
     #[test]
-    fn irules_sink_suppressed_respects_html_escaped_for_3001() {
+    fn irules_sink_suppressed_html_escaped_only_mitigates_3001() {
         let tainted_html = TaintLattice::tainted().with(TaintColour::HTML_ESCAPED);
+        // IRULE3001 (HTTP response body) — HTML_ESCAPED directly mitigates.
         assert!(irules_sink_suppressed("IRULE3001", tainted_html));
-        // HTML_ESCAPED is part of CRLF_SAFE, so IRULE3002/3003 are also
-        // suppressed — matches Python parity.
-        assert!(irules_sink_suppressed("IRULE3002", tainted_html));
-        assert!(irules_sink_suppressed("IRULE3003", tainted_html));
-        // But IRULE3004 (REDIRECT_SAFE) is not mitigated by HTML_ESCAPED.
+        // IRULE3002/3003 (header / log) — HTML_ESCAPED does NOT prove
+        // CRLF-injection safety (the escape rewrites `<`/`>`/`&` but
+        // leaves raw CR/LF untouched). Python parity: `_CRLF_SAFE`
+        // excludes `HTML_ESCAPED`.
+        assert!(!irules_sink_suppressed("IRULE3002", tainted_html));
+        assert!(!irules_sink_suppressed("IRULE3003", tainted_html));
+        // IRULE3004 (redirect) — also not mitigated by HTML_ESCAPED.
         assert!(!irules_sink_suppressed("IRULE3004", tainted_html));
+
+        // `CRLF_FREE` does suppress IRULE3002/3003 (the one mitigation
+        // Python accepts in the value position).
+        let tainted_crlf_free = TaintLattice::tainted().with(TaintColour::CRLF_FREE);
+        assert!(irules_sink_suppressed("IRULE3002", tainted_crlf_free));
+        assert!(irules_sink_suppressed("IRULE3003", tainted_crlf_free));
     }
 
     #[test]
@@ -2257,7 +2294,13 @@ mod tests {
     // IRULE3101 — setter-constraint violations
     // -----------------------------------------------------------------------
 
-    fn setter_warnings_for(source: &str, dialect: Option<&str>) -> Vec<TaintWarning> {
+    /// Default helper: run the setter check under the `f5-irules` dialect
+    /// (which is the only dialect that can surface IRULE3101 post-internal-gate).
+    fn setter_warnings_for(source: &str) -> Vec<TaintWarning> {
+        setter_warnings_for_dialect(source, Some("f5-irules"))
+    }
+
+    fn setter_warnings_for_dialect(source: &str, dialect: Option<&str>) -> Vec<TaintWarning> {
         use crate::compilation_unit::CompilationUnit;
         let registry = CommandRegistry::build_default();
         let mut cu = CompilationUnit::build_for(source, &registry, false);
@@ -2271,6 +2314,7 @@ mod tests {
                 &fu.ssa,
                 &fu.taints,
                 &fu.sccp.executable_blocks,
+                dialect,
             ));
         }
         out
@@ -2278,7 +2322,7 @@ mod tests {
 
     #[test]
     fn irule3101_literal_missing_slash_warns() {
-        let w = setter_warnings_for("HTTP::uri foo", None);
+        let w = setter_warnings_for("HTTP::uri foo");
         assert_eq!(w.len(), 1);
         assert_eq!(w[0].code, "IRULE3101");
         assert!(w[0].message.contains("HTTP::uri value must start"));
@@ -2286,16 +2330,16 @@ mod tests {
 
     #[test]
     fn irule3101_literal_with_slash_clean() {
-        let w = setter_warnings_for("HTTP::uri /foo", None);
+        let w = setter_warnings_for("HTTP::uri /foo");
         assert!(w.is_empty(), "literal /foo must be clean, got {w:?}");
     }
 
     #[test]
     fn irule3101_http_path_literal_variants() {
-        let bad = setter_warnings_for("HTTP::path bar", None);
+        let bad = setter_warnings_for("HTTP::path bar");
         assert_eq!(bad.len(), 1);
         assert_eq!(bad[0].code, "IRULE3101");
-        let good = setter_warnings_for("HTTP::path /bar", None);
+        let good = setter_warnings_for("HTTP::path /bar");
         assert!(good.is_empty());
     }
 
@@ -2303,10 +2347,7 @@ mod tests {
     fn irule3101_generic_taint_warns() {
         // `HTTP::header X-Foo` is a tainted source; reusing it as a path
         // has generic taint (no PATH_PREFIXED / _NORMALISED / _BOUNDED).
-        let w = setter_warnings_for(
-            "set v [HTTP::header X-Foo]\nHTTP::uri $v",
-            Some("f5-irules"),
-        );
+        let w = setter_warnings_for("set v [HTTP::header X-Foo]\nHTTP::uri $v");
         assert!(
             w.iter().any(|x| x.code == "IRULE3101"),
             "generic taint must fire IRULE3101, got {w:?}"
@@ -2321,7 +2362,7 @@ mod tests {
         // via tainted-with-PATH_PREFIXED / _NORMALISED / _BOUNDED colours
         // will light up once iRules source `taint_hints` reach the Rust
         // lattice.
-        let w = setter_warnings_for("set p /safe\nHTTP::uri $p", None);
+        let w = setter_warnings_for("set p /safe\nHTTP::uri $p");
         assert!(
             w.iter().any(|x| x.code == "IRULE3101"),
             "pure var-ref setter value must warn without tainted-safe-colour, got {w:?}"
@@ -2332,10 +2373,34 @@ mod tests {
     fn irule3101_dynamic_command_sub_warns() {
         // RHS is a command sub `[foo]` → hits the dynamic branch, which
         // always warns. The Python literal-check also bails on `[`.
-        let w = setter_warnings_for("HTTP::uri [something]", None);
+        let w = setter_warnings_for("HTTP::uri [something]");
         assert!(
             w.iter().any(|x| x.code == "IRULE3101"),
             "command-sub setter value must warn, got {w:?}"
+        );
+    }
+
+    #[test]
+    fn irule3101_internally_gated_on_dialect() {
+        // Defence-in-depth: even if a caller invokes
+        // `find_setter_constraint_warnings` directly (bypassing
+        // `run_all_checks`), IRULE3101 must not fire under a non-iRules
+        // dialect against user-defined commands named `HTTP::uri` /
+        // `HTTP::path`.
+        let under_irules = setter_warnings_for_dialect("HTTP::uri foo", Some("f5-irules"));
+        assert_eq!(under_irules.len(), 1);
+        assert_eq!(under_irules[0].code, "IRULE3101");
+
+        let under_none = setter_warnings_for_dialect("HTTP::uri foo", None);
+        assert!(
+            under_none.is_empty(),
+            "no IRULE3101 under None dialect, got {under_none:?}"
+        );
+
+        let under_tcl = setter_warnings_for_dialect("HTTP::uri foo", Some("tcl"));
+        assert!(
+            under_tcl.is_empty(),
+            "no IRULE3101 under tcl dialect, got {under_tcl:?}"
         );
     }
 }
