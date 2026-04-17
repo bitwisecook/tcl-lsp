@@ -29,6 +29,7 @@ The public entry point is ``analyse_function`` / ``analyse_source``.
 
 from __future__ import annotations
 
+import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -317,6 +318,11 @@ def _substitute_expr_with_lattice(
 
     result = eval_tcl_expr(expr, env)
     if result is None:
+        return OVERDEFINED
+    # Tcl 9.0 raises ARITH DOMAIN for any expression that evaluates to NaN
+    # (verified against tclsh 9.0.3: ``expr {NaN}`` → domain error).  Don't
+    # propagate NaN as a constant — the runtime must be allowed to raise.
+    if isinstance(result, float) and math.isnan(result):
         return OVERDEFINED
     return LatticeValue.const(result)
 
